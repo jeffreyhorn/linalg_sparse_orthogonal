@@ -125,6 +125,24 @@ Interpretation:
 - the exploratory lane stays valuable without defining the compact maintained
   benchmark face of the repo
 
+For threshold-free local or CI-friendly reporting on the maintained canonical
+surface, use:
+
+- `make bench-canonical-report`
+
+That target writes one CSV per canonical maintained benchmark under:
+
+- `build/bench-reports/canonical/`
+
+plus a `manifest.txt` describing the exact commands used. This is intentionally
+not a pass/fail timing gate:
+
+- compare the emitted CSV rows across branches or runs
+- treat it as artifact-friendly reporting, not portable performance proof
+- keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
+  thresholded regression gate that already has a justified machine-class
+  baseline
+
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:
 

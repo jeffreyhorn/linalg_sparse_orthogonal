@@ -1592,3 +1592,170 @@ Sprint 65 now has:
 - one preserved direct maintained benchmark story with fresh retained proof rows
 - one still-bounded carry-forward queue for any later LDL^T or wider solver
   efficiency work
+
+## Day 11 - Local/CI-Friendly Regression Checks
+
+### Goal
+
+Add one bounded threshold-free reporting surface for the canonical maintained
+benchmark lane without inventing a noisy timing gate, widening CI claims, or
+blurring the smaller Sprint 65 governance model.
+
+### Actions
+
+1. Re-read the live benchmark-role split plus the existing runtime gates:
+   - `bench-fast`
+   - `wall-check`
+   - the new canonical four-binary maintained surface
+2. Land one threshold-free canonical report target instead of a new pass/fail
+   timing threshold.
+3. Keep the reporting surface local/CI-friendly by emitting stable CSV files
+   and a manifest, not by parsing or judging the timings.
+4. Tighten benchmark-local and maintainer wording around the new reporting
+   split.
+5. Validate the reporting target itself, then rerun the stronger reviewed
+   baseline because this is still substantial benchmark-governance work.
+
+### Findings
+
+#### 1. The canonical maintained surface is stable enough for artifact-style reporting, but not for a new timing threshold gate
+
+By Day 10 the four canonical maintained benchmarks already shared:
+
+- stable row identity:
+  - `benchmark`
+  - `category`
+  - `matrix`
+  - `scenario`
+- bounded proof semantics tied to real workflow surfaces
+- current direct spot checks on:
+  - `nos4.mtx`
+- stable repeated-run outputs for:
+  - iterative handles
+  - eigensolver handles
+
+Interpretation:
+
+- Sprint 65 can add one threshold-free canonical report target honestly
+- Sprint 65 should not add a new timing threshold or CI fail gate on this
+  broader surface
+
+#### 2. The smallest maintainable Day 11 landing is one threshold-free canonical report target
+
+The landed Day 11 reporting surface is:
+
+- `make bench-canonical-report`
+
+It now:
+
+- runs the four canonical maintained benchmark binaries only:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- writes one CSV per benchmark under:
+  - `build/bench-reports/canonical/`
+- writes one `manifest.txt` with the exact fixture/command mapping
+
+The selected fixture/report contract is intentionally bounded:
+
+- `bench_refactor_csc`:
+  - `tests/data/suitesparse/nos4.mtx --repeat 1`
+- `bench_chol_csc`:
+  - `tests/data/suitesparse/nos4.mtx --repeat 1`
+- `bench_iterative_reuse`:
+  - default corpus
+- `bench_eigs_reuse`:
+  - default corpus
+
+Interpretation:
+
+- the Day 11 addition is local and CI-friendly because it emits stable
+  artifact files with stable names
+- it remains threshold-free, so the benchmark data stays available for
+  before/after comparison without pretending a single run is a portable timing
+  truth
+
+#### 3. The runtime and thresholded lanes stayed separate and explicit
+
+Day 11 preserved the existing split:
+
+- `bench-fast` remains the bounded runtime lane
+- `wall-check` remains the narrow thresholded gate with a historically
+  justified machine-class baseline
+- `bench-canonical-report` is the maintained threshold-free reporting lane
+
+Interpretation:
+
+- Sprint 65 strengthened the benchmark-governance story without inventing a
+  second threshold-heavy gate
+- the canonical maintained surface is now easier to capture and compare while
+  still remaining a proof/report surface rather than a hard timing promise
+
+#### 4. The Day 11 reporting target executed cleanly and produced stable artifacts
+
+The direct Day 11 report-target check was:
+
+- `make bench-canonical-report`
+
+It wrote:
+
+- `build/bench-reports/canonical/bench_refactor_csc.csv`
+- `build/bench-reports/canonical/bench_chol_csc.csv`
+- `build/bench-reports/canonical/bench_iterative_reuse.csv`
+- `build/bench-reports/canonical/bench_eigs_reuse.csv`
+- `build/bench-reports/canonical/manifest.txt`
+
+Representative retained rows are now:
+
+- `bench_refactor_csc,proof,nos4.mtx,chol_spd,100,594,0.488,0.214,0.142,0.010,0.006,1.51,8.24e-16,7.06e-16`
+- `bench_chol_csc,proof,nos4.mtx,chol_backend_compare,100,594,scalar,supernodal,builtin,0.379,0.453,0.426,0.008,0.005,0.005,0.84,0.89,7.06e-16,5.89e-16,5.89e-16`
+- `bench_iterative_reuse,proof,cg-tridiag-300,iter_handle_reuse,cg,300,400,59.2050,56.8200,1.04,17,17,5.192e-11,5.192e-11,1,1,OK,OK`
+- `bench_eigs_reuse,proof,growm-nos4-k5,eigs_handle_reuse,lanczos_growm,100,5,40,2.2300,2.1590,1.03,115,115,5,5,4.326e-14,4.326e-14,100,100,0.000e+00,0.000e+00,lanczos_growm,OK,OK`
+
+Interpretation:
+
+- the report target is already useful as a branch-to-branch comparison artifact
+- it stays honest because the manifest preserves the exact fixture choices
+
+#### 5. Validation should still use the stronger reviewed path even though no `*.c` / `*.h` changed
+
+The Day 11 landing touched:
+
+- `Makefile`
+- `scripts/bench_canonical_report.sh`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+No `*.c` / `*.h` files moved in Day 11, but the work still changed the live
+benchmark-governance execution surface, so the stronger reviewed validation
+path remained the right closeout gate:
+
+- `make quality-review-full`
+
+The Day 11 report target also ran directly before the reviewed gate:
+
+- `make bench-canonical-report`
+
+All passed. The reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 580.39 sec`
+
+One non-blocking note is retained for the Day 11 close: the reviewed CMake
+path still spent most of its wall time in `test_reorder_nd`, but the full
+reviewed path completed cleanly and passed all parity gates.
+
+### Day 11 Close
+
+Sprint 65 now has:
+
+- one threshold-free canonical report target for the maintained benchmark
+  surface
+- one clearer split between:
+  - threshold-free reporting
+  - bounded runtime lane
+  - narrow thresholded historical gate
+- one cleaner carry-forward state for Day 12 docs/example alignment

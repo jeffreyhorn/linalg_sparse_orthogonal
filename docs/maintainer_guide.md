@@ -411,6 +411,17 @@ Canonical output ownership:
   - speedup
   - last-run convergence/residual agreement fields
 
+Current threshold-free reporting surface:
+
+- `make bench-canonical-report`
+  - writes one CSV per canonical maintained benchmark under:
+    - `build/bench-reports/canonical/`
+  - writes `manifest.txt` with the exact fixture/command mapping
+  - is acceptable for local before/after comparison or CI artifact capture
+  - is intentionally not a timing threshold gate
+  - should stay limited to the canonical maintained surface unless a later
+    sprint proves a wider report remains cheap and stable
+
 Ownership split:
 
 - benchmark binaries own the emitted fields and their semantics
@@ -423,6 +434,7 @@ Interpretation:
 
 - do not widen the canonical maintained performance surface casually
 - do not turn the runtime lane into threshold-heavy pseudo-governance
+- do not reinterpret `bench-canonical-report` as a pass/fail portability claim
 - do not let exploratory benchmark breadth blur the smaller claim-bearing
   maintained surface
 

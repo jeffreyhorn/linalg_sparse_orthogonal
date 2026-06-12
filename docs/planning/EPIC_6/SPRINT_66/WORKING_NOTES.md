@@ -657,3 +657,160 @@ Sprint 66 now has:
 - one clear ownership split across build files, docs, maintainer policy, and
   workflows
 - one bounded Day 6-10 implementation fence for the first landing
+
+## Day 6 - Platform and Dead-Code Follow-Through Design
+
+### Goal
+
+Convert the remaining platform and dead-code residual queue into one bounded
+implementation plan that stays inside the reviewed truth fence and names the
+later proof surfaces precisely.
+
+### Actions
+
+1. Reconciled the Day 4 residual map with the Day 5 packaging contract.
+2. Re-read the focused install/package regression homes:
+   - `tests/test_install.sh`
+   - `tests/test_cmake_install.sh`
+3. Fixed which platform/dead-code residuals actually move in Sprint 66 and
+   which stay deferred.
+4. Defined what each bounded follow-through batch should prove:
+   - workflow truthfulness
+   - staged-lane wording alignment
+   - install/package regression ownership
+   - bounded operational cleanup only where the packaging batch moves the
+     contract
+5. Fixed the exact platform-quality implementation fence and the later
+   regression-coverage shortlist.
+
+### Findings
+
+#### 1. The strongest Sprint 66 platform follow-through is contract reconciliation, not platform expansion
+
+The Day 6 design fixes the first platform batch around:
+
+- docs/workflow/contract alignment for enforced versus staged lanes
+- packaging/install wording alignment where the Day 8+ batch changes the
+  product story
+- focused install/package regression support for the touched release surfaces
+
+Interpretation:
+
+- Sprint 66 should close the remaining contract drift first
+- the platform lane is still about truthfulness and bounded regression support,
+  not about forcing every staged path into the reviewed baseline
+
+#### 2. The residuals that move in Sprint 66 are now explicit
+
+The bounded residual set that may move in Sprint 66 is:
+
+- wording alignment across:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - relevant workflow comments/job labels
+- install/package regression ownership where the packaging batch changes the
+  shipped contract
+- narrow Makefile or workflow follow-through only if the packaging landing
+  changes the reviewed command story materially
+
+Interpretation:
+
+- Sprint 66 can legitimately improve platform-quality clarity without claiming
+  new enforcement lanes
+- the moved set is now narrow enough to support a bounded Day 7 landing fence
+
+#### 3. The residuals that stay deferred are also fixed explicitly
+
+The deferred set remains:
+
+- Windows Makefile reviewed-wrapper parity
+- Windows dead-code enforcement
+- macOS dead-code enforcement
+- broad dead-code topology redesign
+- broad wrapper redesign beyond the audited seams
+- fake cross-platform closure beyond reviewed evidence
+
+Interpretation:
+
+- Sprint 66 should not consume these items just because they remain unsolved
+- later work may revisit them, but the current sprint should keep them visible
+  rather than silently half-solving them
+
+#### 4. The bounded follow-through batch now has a proof contract
+
+Each bounded follow-through batch should prove one of:
+
+- reviewed workflow truthfulness:
+  - comments, job names, and docs still match what Linux/macOS/Windows
+    actually enforce
+- install/package regression truth:
+  - Make/pkg-config install path still works through `tests/test_install.sh`
+  - CMake install/export/find-package path still works through
+    `tests/test_cmake_install.sh`
+- bounded operational cleanup:
+  - only where the packaging batch changes the touched command or workflow
+    story directly
+
+Interpretation:
+
+- later verification should stay attached to concrete regression surfaces
+- Sprint 66 does not need a new generic platform-proof harness
+
+#### 5. The exact implementation fence is now fixed
+
+Required platform/dead-code follow-through surfaces are now:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+
+Likely support only if the landing proves they must move:
+
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+- `.github/workflows/ci.yml`
+- `Makefile`
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+
+Explicit non-touch set for this lane:
+
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+- broad dead-code artifact topology
+- Windows-specific Makefile wrapper support
+- new platform-specific benchmark or solver validation lanes
+
+Interpretation:
+
+- the platform-quality batch stays document/workflow/regression centered unless
+  the packaging batch proves a narrower code or script move is necessary
+
+#### 6. The later regression-coverage shortlist is now concrete
+
+The focused later regression shortlist is:
+
+- `make quality-review-full`
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+- platform-truth sanity checks on:
+  - `.github/workflows/windows-ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/ci.yml`
+
+Interpretation:
+
+- the install/package regression story is now attached to concrete existing
+  proof homes
+- Day 7 can define the touched-file fence and validation order without having
+  to rediscover the proof surface
+
+### Day 6 Close
+
+Sprint 66 now has:
+
+- one bounded platform/dead-code implementation plan
+- one explicit deferred residual list
+- one concrete install/package regression shortlist
+- one clear Day 7 starting point for the exact landing fence

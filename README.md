@@ -81,7 +81,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
 - **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
 - **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for the repeated-run direct lifecycle, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for the eigensolver handle path.
+- **Examples vs benchmarks:** examples teach the API workflow and ownership rules; benchmarks prove the retained workflow/performance story. Use `example_analysis` for repeated-run direct adoption, then use `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` when you want the maintained proof surfaces behind those workflows.
+- **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`; broader benches stay useful, but they are not the first claim-bearing performance surface.
+- **Threshold-free reporting:** use `make bench-canonical-report` when you want one bounded snapshot of the canonical maintained benchmark surface for local or CI artifact comparison. It is intentionally not a pass/fail timing gate.
 
 The rest of this README keeps the deeper algorithm, API, and benchmark details.
 
@@ -104,6 +106,7 @@ make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 make bench      # run benchmarks
+make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV

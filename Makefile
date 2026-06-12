@@ -291,6 +291,11 @@ BENCH_FAST_BINS = $(BUILDDIR)/bench_scaling \
                   $(BUILDDIR)/bench_fillin \
                   $(BUILDDIR)/bench_colamd \
                   $(BUILDDIR)/bench_amd_qg
+BENCH_CANONICAL_REPORT_BINS = $(BUILDDIR)/bench_refactor_csc \
+                              $(BUILDDIR)/bench_chol_csc \
+                              $(BUILDDIR)/bench_iterative_reuse \
+                              $(BUILDDIR)/bench_eigs_reuse
+BENCH_CANONICAL_REPORT_DIR = $(BUILDDIR)/bench-reports/canonical
 .PHONY: bench-fast
 bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@for b in $(BENCH_FAST_BINS); do \
@@ -301,6 +306,17 @@ bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@echo "=== Running bench_reorder --skip-factor ==="
 	@$(BUILDDIR)/bench_reorder --skip-factor
 	@echo "bench-fast: complete"
+
+# Threshold-free canonical performance snapshot for local before/after diffs
+# or CI artifact capture. Keeps the Sprint 65 maintained surface visible
+# without turning it into a noisy timing gate.
+.PHONY: bench-canonical-report
+bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
+	@scripts/bench_canonical_report.sh "$(BENCH_CANONICAL_REPORT_DIR)" \
+		"$(BUILDDIR)/bench_refactor_csc" \
+		"$(BUILDDIR)/bench_chol_csc" \
+		"$(BUILDDIR)/bench_iterative_reuse" \
+		"$(BUILDDIR)/bench_eigs_reuse"
 
 # Benchmark SuiteSparse matrices (both pivoting modes)
 .PHONY: bench-suitesparse

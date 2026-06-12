@@ -93,6 +93,58 @@ The shipped benchmark surfaces are easiest to read in four bounded groups:
 - eigensolver public-handle reuse:
   - `bench_eigs_reuse`
 
+## Current maintained category split
+
+The Sprint 65 maintained performance-governance split is:
+
+- canonical maintained proof surface:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- regression-sensitive runtime lane:
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_colamd`
+  - `bench_reorder --skip-factor`
+  - `bench_amd_qg` remains adjacent to this lane but should stay bounded
+- exploratory or broader comparison lane:
+  - `bench_main`
+  - `bench_convergence`
+  - `bench_svd`
+  - `bench_bicgstab`
+  - `bench_eigs`
+  - broader `bench_reorder`
+
+Interpretation:
+
+- the canonical maintained surface is where Sprint 65 normalization and later
+  efficiency follow-through should stay centered
+- the runtime lane is useful for current-branch checks but should not be
+  marketed as portable performance proof
+- the exploratory lane stays valuable without defining the compact maintained
+  benchmark face of the repo
+- examples remain the API-adoption teaching surface; benchmarks remain the
+  workflow/performance proof surface
+
+For threshold-free local or CI-friendly reporting on the maintained canonical
+surface, use:
+
+- `make bench-canonical-report`
+
+That target writes one CSV per canonical maintained benchmark under:
+
+- `build/bench-reports/canonical/`
+
+plus a `manifest.txt` describing the exact commands used. This is intentionally
+not a pass/fail timing gate:
+
+- compare the emitted CSV rows across branches or runs
+- treat it as artifact-friendly reporting, not portable performance proof
+- keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
+  thresholded regression gate that already has a justified machine-class
+  baseline
+
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:
 
@@ -113,8 +165,10 @@ surfaces for the public repeated-run direct lifecycle:
     repeated-run direct lane, not as the error-path contract surface; failed
     refactor preservation stays owned by `tests/test_integration.c`
   - reports CSV rows with:
+    - `benchmark`
+    - `category`
     - `matrix`
-    - `workflow`
+    - `scenario`
     - `analyze_ms`
     - `refactor_public_ms`
     - `refactor_csc_ms`
@@ -131,6 +185,9 @@ first Sprint 64 backend-aware Cholesky CSC lane:
   one fixed AMD-reordered workload so fallback and accelerated paths stay
   comparable
 - each CSV row now also reports:
+  - `benchmark`
+  - `category`
+  - `scenario`
   - `csc_scalar_path`
   - `csc_supernodal_path`
   - `csc_supernodal_dense_kernel`
@@ -151,6 +208,16 @@ handle-path proof surfaces, not broad solver bake-offs:
     - `CG`
     - `GMRES`
     - `MINRES`
+  - now reports stable CSV rows with:
+    - `benchmark`
+    - `category`
+    - `matrix`
+    - `scenario`
+    - `solver`
+    - `one_shot_total_ms`
+    - `reuse_total_ms`
+    - `speedup`
+    - last-run iteration / residual / convergence and status fields
   - intentionally does not claim public repeated-run-handle support for:
     - `BiCGSTAB`
     - block iterative workflows
@@ -159,6 +226,20 @@ handle-path proof surfaces, not broad solver bake-offs:
     - grow-m Lanczos
     - thick-restart Lanczos
     - explicit LOBPCG
+  - now reports stable CSV rows with:
+    - `benchmark`
+    - `category`
+    - `matrix`
+    - `scenario`
+    - `backend`
+    - `one_shot_median_ms`
+    - `reuse_median_ms`
+    - `speedup`
+    - last-run iteration / convergence / residual / basis-size fields
+    - retained agreement fields:
+      - `lambda_max_diff`
+      - `residual_diff`
+      - `backend_used`
   - intentionally stays narrower than `bench_eigs`, which remains the broader
     backend/preconditioner sweep harness
 

@@ -82,6 +82,16 @@ the full error-path contract reference. Failed refactor preservation and
 large-`n` CSC-backed Cholesky rejection behavior stay intentionally owned by
 the integration proof surface.
 
+For retained workflow/performance proof after you adopt that lifecycle, move to
+the benchmark surfaces rather than expecting the examples to double as timing
+harnesses:
+
+- `bench_refactor` / `bench_refactor_csc` for repeated-run direct reuse
+- `bench_iterative_reuse` for iterative handles
+- `bench_eigs_reuse` for eigensolver handles
+- `make bench-canonical-report` when you want one threshold-free snapshot of
+  the canonical maintained benchmark surface
+
 ```bash
 ./build/example_analysis
 ```

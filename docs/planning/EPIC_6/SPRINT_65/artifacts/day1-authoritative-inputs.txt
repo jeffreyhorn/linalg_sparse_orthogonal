@@ -1,0 +1,36 @@
+Sprint 65 Day 1 Authoritative Inputs
+Date: 2026-06-11
+Branch: sprint-65
+
+1. docs/planning/EPIC_6/PROJECT_PLAN.md
+   - Sprint 65 section: "Sprint 65: Performance Governance, Benchmark Consolidation & Solver Efficiency Follow-Through"
+2. docs/planning/EPIC_6/SPRINT_65/PLAN.md
+3. docs/planning/EPIC_6/SPRINT_64/RETROSPECTIVE.md
+4. docs/planning/EPIC_6/SPRINT_64/artifacts/day14-closeout-and-handoff.md
+5. Reviewed baseline/parity surfaces
+   - ctest -N --test-dir build/quality-review-cmake
+   - make -n quality-review-full
+6. Live benchmark/build/truth/solver/proof surfaces measured directly
+   - README.md
+   - docs/tutorial.md
+   - docs/maintainer_guide.md
+   - benchmarks/README.md
+   - Makefile
+   - CMakeLists.txt
+   - benchmarks/bench_refactor.c
+   - benchmarks/bench_refactor_csc.c
+   - benchmarks/bench_chol_csc.c
+   - benchmarks/bench_ldlt_csc.c
+   - benchmarks/bench_iterative_reuse.c
+   - benchmarks/bench_eigs_reuse.c
+   - src/sparse_dense.c
+   - src/sparse_chol_csc_supernodal.c
+   - src/sparse_ldlt_csc_supernodal.c
+   - src/sparse_chol_csc.c
+   - src/sparse_ldlt_csc.c
+   - src/sparse_iterative.c
+   - src/sparse_eigs.c
+   - tests/test_integration.c
+   - tests/test_chol_csc.c
+   - tests/test_ldlt_csc.c
+   - examples/example_analysis.c

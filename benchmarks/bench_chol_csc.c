@@ -24,7 +24,8 @@
  * reporting for that matrix.
  *
  * Output is CSV on stdout: one header row, one row per matrix with
- *   matrix, n, nnz, csc_scalar_path, csc_supernodal_path,
+ *   benchmark, category, matrix, scenario, n, nnz,
+ *   csc_scalar_path, csc_supernodal_path,
  *   csc_supernodal_dense_kernel, factor_ll, factor_csc, factor_csc_sn,
  *   solve_ll,  solve_csc,  solve_csc_sn,
  *   speedup_csc, speedup_csc_sn, res_ll, res_csc, res_csc_sn
@@ -208,7 +209,7 @@ static int bench_matrix_impl(const char *label, SparseMatrix *A, int repeat) {
     const char *supernodal_dense_kernel = active_supernodal_dense_kernel_name();
 
     /* CSV row */
-    printf("%s,%d,%d,", label, (int)n, (int)nnz);
+    printf("bench_chol_csc,proof,%s,chol_backend_compare,%d,%d,", label, (int)n, (int)nnz);
     printf("%s,%s,%s,", scalar_path, supernodal_path, supernodal_dense_kernel);
     printf("%.3f,%.3f,%.3f,", rl.factor_ms, rc.factor_ms, rs.factor_ms);
     printf("%.3f,%.3f,%.3f,", rl.solve_ms, rc.solve_ms, rs.solve_ms);
@@ -385,7 +386,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("matrix,n,nnz,"
+    printf("benchmark,category,matrix,scenario,n,nnz,"
            "csc_scalar_path,csc_supernodal_path,csc_supernodal_dense_kernel,"
            "factor_ll_ms,factor_csc_ms,factor_csc_sn_ms,"
            "solve_ll_ms,solve_csc_ms,solve_csc_sn_ms,"

@@ -179,6 +179,14 @@ small usage examples and move to the explicit repeated-run direct lifecycle
 only when you need analyze-once / factor-many reuse. The strongest shipped
 example for that path is `examples/example_analysis.c`.
 
+Use the examples and benchmarks for different jobs:
+
+- `examples/example_analysis.c` teaches the API lifecycle and ownership model
+- `bench_refactor` / `bench_refactor_csc` prove the retained repeated-run
+  direct performance story
+- `make bench-canonical-report` captures the maintained canonical benchmark
+  rows as a threshold-free snapshot, not as a pass/fail timing gate
+
 On that explicit repeated-run direct path, failed same-pattern refactors keep
 the previous usable factor state intact. Obvious nnz drift is still rejected
 as a lifecycle contract violation rather than being treated as an implicit

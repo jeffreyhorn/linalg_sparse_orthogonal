@@ -270,23 +270,24 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
     return err;
 }
 
-/* Binary-search a row_map (sorted ascending) for a target global row.
- * Returns the local index, or `panel_height` when not found. */
-static idx_t chol_csc_bsearch_row_map(const idx_t *row_map, idx_t panel_height, idx_t target) {
-    idx_t lo = 0;
-    idx_t hi = panel_height;
-    while (lo < hi) {
-        idx_t mid = lo + (hi - lo) / 2;
-        if (row_map[mid] < target) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    if (lo < panel_height && row_map[lo] == target) {
-        return lo;
-    }
-    return panel_height;
+/* Seek a sorted row_map (ascending) monotonically.
+ *
+ * The supernode extract / cmod / writeback paths all walk sorted CSC row
+ * indices, so a single forward-only cursor is cheaper than restarting a
+ * binary search for every stored entry.  `cursor` is advanced as needed and
+ * never moves backward.
+ *
+ * Returns 1 and stores the local row index in `local_out` on an exact match.
+ * Returns 0 when `target` is absent or the cursor has exhausted the panel.
+ */
+static int chol_csc_row_map_seek(const idx_t *row_map, idx_t panel_height, idx_t *cursor,
+                                 idx_t target, idx_t *local_out) {
+    while (*cursor < panel_height && row_map[*cursor] < target)
+        (*cursor)++;
+    if (*cursor >= panel_height || row_map[*cursor] != target)
+        return 0;
+    *local_out = *cursor;
+    return 1;
 }
 
 sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t s_size,
@@ -326,10 +327,11 @@ sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t
         idx_t c = s_start + j;
         idx_t cstart = csc->col_ptr[c];
         idx_t cend = csc->col_ptr[c + 1];
+        idx_t row_cursor = j;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t row = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
-            if (local >= panel_height)
+            idx_t local = 0;
+            if (!chol_csc_row_map_seek(row_map, panel_height, &row_cursor, row, &local))
                 return SPARSE_ERR_BADARG;
             dense[local + j * lda] = csc->values[p];
         }
@@ -391,11 +393,15 @@ sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start
          * the lower triangle of the diagonal block, so writing the
          * upper triangle of that block is harmless — we don't branch
          * on local < j for correctness. */
+        idx_t row_cursor = 0;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t r = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, r);
-            if (local >= panel_height)
+            idx_t local = 0;
+            if (!chol_csc_row_map_seek(row_map, panel_height, &row_cursor, r, &local)) {
+                if (row_cursor >= panel_height)
+                    break;
                 continue;
+            }
             double v_r_k = csc->values[p];
             for (idx_t j = 0; j < s_size; j++) {
                 double ljk = L_col_k[j];
@@ -477,14 +483,15 @@ sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_s
         idx_t c = s_start + j;
         idx_t cstart = csc->col_ptr[c];
         idx_t cend = csc->col_ptr[c + 1];
+        idx_t row_cursor = j;
         /* Diagonal value is at dense[j + j*lda] after the diag block
          * factor ran.  Used to set the per-column threshold. */
         double abs_l_jj = fabs(dense[j + j * lda]);
         double threshold = drop_tol * abs_l_jj;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t row = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
-            if (local >= panel_height)
+            idx_t local = 0;
+            if (!chol_csc_row_map_seek(row_map, panel_height, &row_cursor, row, &local))
                 return SPARSE_ERR_BADARG;
             double v = dense[local + j * lda];
             /* Never drop the diagonal (local == j for column s_start+j

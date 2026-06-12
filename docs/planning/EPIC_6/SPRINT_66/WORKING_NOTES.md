@@ -814,3 +814,162 @@ Sprint 66 now has:
 - one explicit deferred residual list
 - one concrete install/package regression shortlist
 - one clear Day 7 starting point for the exact landing fence
+
+## Day 7 - Exact Landing Fence and Regression Plan
+
+### Goal
+
+Collapse the Day 5-6 design into one exact touched-file fence, proof plan, and
+validation order so the remaining Sprint 66 implementation days can land
+without improvising surface area late.
+
+### Actions
+
+1. Collapsed the Day 5 packaging contract and Day 6 platform follow-through
+   plan into one exact Day 8-12 landing sequence.
+2. Separated the touched surfaces into:
+   - required first-batch files
+   - optional support files only if proof burden forces them
+   - explicit non-touch set for Sprint 66
+3. Fixed the proof plan across:
+   - reviewed baseline gates
+   - install/package regression checks
+   - workflow truth checks
+4. Fixed the intended validation order for later code-touching and docs-only
+   days.
+5. Recorded the implementation sequence so the sprint can stay bounded after
+   Day 7.
+
+### Findings
+
+#### 1. The first landing should start on packaging truth surfaces, not on workflows or regression scripts
+
+The exact required first-batch surface is now:
+
+- `CMakeLists.txt`
+- `INSTALL.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Interpretation:
+
+- Day 8 should resolve the highest-value packaging/productization contradiction
+  on the core build/install/docs surfaces first
+- workflows and regression scripts should only move if that first landing
+  actually changes the reviewed contract enough to require reconciliation
+
+#### 2. Optional support surfaces are now bounded explicitly
+
+Optional support surfaces only if the proof burden forces them:
+
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+- `.github/workflows/ci.yml`
+- `Makefile`
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+
+Interpretation:
+
+- these surfaces are not part of the first batch by default
+- they become valid Sprint 66 touches only if the Day 8-10 landing changes the
+  shipped install/platform contract materially enough that existing workflow or
+  regression wording becomes stale
+
+#### 3. The explicit non-touch set is now fixed for Sprint 66
+
+The explicit non-touch set is:
+
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+- broad dead-code artifact topology
+- Windows-specific Makefile wrapper support
+- broad shared-library enablement
+- broad ABI guarantee widening
+- macOS dead-code enforcement
+- Windows dead-code enforcement
+- new platform-specific benchmark or solver validation lanes
+
+Interpretation:
+
+- Sprint 66 now has a concrete fence against accidental productization sprawl
+- later days should not consume these items just because they remain visible in
+  the residual queue
+
+#### 4. The proof plan is now concrete and ordered
+
+The proof plan for the remaining sprint is:
+
+- required reviewed baseline for substantial packaging/platform work:
+  - `make quality-review-full`
+- focused install/package regression checks when install/export behavior or
+  contract wording moves materially:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- workflow truth checks when workflow comments/job labels or platform-claim
+  wording moves:
+  - direct review of `.github/workflows/ci.yml`
+  - direct review of `.github/workflows/macos-ci.yml`
+  - direct review of `.github/workflows/windows-ci.yml`
+
+Interpretation:
+
+- proof remains attached to concrete maintained surfaces
+- Sprint 66 still does not need a new platform-proof harness
+
+#### 5. The Day 8-12 sequence is now explicit
+
+The remaining implementation order is now:
+
+1. Day 8:
+   - first packaging/productization batch on the required build/install/docs
+     surfaces
+2. Day 9:
+   - post-landing audit and rerank of any remaining packaging/platform
+     contradictions
+3. Day 10:
+   - second bounded batch only if the Day 8 landing leaves one real
+     contract-level contradiction unresolved
+4. Day 11:
+   - workflow/CI/contract reconciliation plus focused install/package
+     regression support only where the landed contract requires it
+5. Day 12:
+   - docs and maintainer-story follow-through on the converged contract
+
+Interpretation:
+
+- Sprint 66 should not widen into multiple parallel implementation fronts
+- each later day now has one clear ownership focus tied to the bounded fence
+
+#### 6. The validation order is now fixed
+
+For later `*.c` / `*.h` changes, the required minimum remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+For substantial packaging/platform/build/workflow changes, the maintained
+default remains:
+
+- `make quality-review-full`
+
+For docs-only landing or reconciliation days:
+
+- targeted sanity checks only
+
+Interpretation:
+
+- the remaining sprint days now have an explicit validation order before
+  implementation resumes
+- Day 13 can later close from a known proof surface rather than from an ad hoc
+  rerun set
+
+### Day 7 Close
+
+Sprint 66 now has:
+
+- one exact touched-file fence
+- one concrete proof and validation plan
+- one explicit Day 8-12 landing order
+- one bounded implementation map for the rest of the sprint

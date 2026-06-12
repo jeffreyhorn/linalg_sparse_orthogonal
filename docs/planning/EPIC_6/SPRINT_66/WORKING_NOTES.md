@@ -476,3 +476,184 @@ Sprint 66 now has:
   platform-expansion work
 - one fixed starting point for the Day 5 packaging design and Day 6 platform
   follow-through design
+
+## Day 5 - Packaging and Productization Design
+
+### Goal
+
+Define the maintained Sprint 66 packaging, install, export, and release-shape
+contract tightly enough that later implementation can improve product maturity
+without inventing a broader ABI or cross-platform promise than the repo can
+actually support.
+
+### Actions
+
+1. Reconciled the Day 3 packaging audit with the Day 4 platform residual map.
+2. Fixed the intended Sprint 66 packaging contract across:
+   - release shape
+   - install/export consumer story
+   - versioning and ABI wording
+   - platform claim boundaries
+3. Separated what belongs to:
+   - build files
+   - install docs
+   - top-level README wording
+   - maintainer policy
+   - workflows and regression checks
+4. Ranked which possible widenings are justified now versus explicitly deferred.
+5. Fixed the first implementation fence for the Day 6-10 landing set.
+
+### Findings
+
+#### 1. The maintained Sprint 66 packaging contract should stay static-first unless a stronger proof burden is accepted explicitly
+
+The current release shape is already:
+
+- installable
+- exported through CMake package files
+- consumable through `pkg-config`
+- intentionally static-first
+
+The Day 5 design fixes that as the maintained Sprint 66 default:
+
+- static archive install remains first-class
+- CMake export/install remains first-class
+- `pkg-config` consumption remains first-class
+- no broad shared-library or SONAME-style promise is implied by default
+
+Interpretation:
+
+- Sprint 66 should improve productization around the shipped static-first
+  surface, not silently pivot the repo into a shared-library sprint
+- if any shared-library or ABI widening ever happens, it must be a separate
+  explicit promise with its own validation and platform ownership
+
+#### 2. The install/export consumer story should be tightened, not reinvented
+
+The current downstream-consumption story is already good enough to preserve:
+
+- Makefile install for Unix-like consumers
+- `pkg-config` downstream consumption
+- CMake install/export with `find_package(Sparse)`
+- Windows CMake-first consumption
+
+The Day 5 design therefore fixes the consumer contract as:
+
+- keep the current consumer paths
+- tighten wording where docs could read broader than the actual reviewed shape
+- make the static-first install/export story read intentionally productized
+  rather than incidentally available
+
+Interpretation:
+
+- Sprint 66 should converge the wording of the install/export story before
+  adding more surface area
+- "consumer ergonomics" now means truthfulness and consistency first
+
+#### 3. The ABI/version contract should stay narrow and explicit
+
+The version metadata chain is already coherent, but the ABI promise is still
+intentionally narrow.
+
+The Day 5 design fixes the ABI/version contract as:
+
+- keep `VERSION`, generated `sparse_version.h`, and package-version files as
+  the authoritative version metadata chain
+- do not imply stable shared-library ABI compatibility beyond the current
+  static-first exported package surface
+- keep `SameMajorVersion` as package-config metadata, not as a broader release
+  guarantee than the repo actually validates
+
+Interpretation:
+
+- Sprint 66 should improve clarity around what the version metadata does and
+  does not promise
+- the design should avoid wording that over-reads CMake package-version support
+  into a broad binary-compatibility claim
+
+#### 4. The platform truth fence stays explicit
+
+The Day 5 design preserves the current platform boundary:
+
+- Linux remains the strongest reviewed source of truth
+- macOS remains reviewed but narrower, with supplemental install validation
+- Windows remains the reviewed CMake subset and install-consumer lane
+- dead-code asymmetries remain staged and explicit
+
+Interpretation:
+
+- packaging work must not imply stronger platform closure than the workflows
+  actually review
+- a more polished install/release story is acceptable only if it still reads
+  truthfully through those platform boundaries
+
+#### 5. Ownership of the converged packaging story is now explicit
+
+The Day 5 ownership split is:
+
+- `CMakeLists.txt`:
+  - library release shape
+  - install/export topology
+  - package-config generation truth
+- `INSTALL.md`:
+  - operator-facing install and downstream-consumption instructions
+  - platform-specific install-path caveats
+- `README.md`:
+  - compact top-level packaging/productization story
+  - compact downstream consumption summary
+- `docs/maintainer_guide.md`:
+  - authoritative interpretation of the narrow ABI/platform contract
+  - what remains staged or deferred
+- workflows and regression checks:
+  - only the reviewed evidence for the claimed install/platform lanes
+
+Interpretation:
+
+- Sprint 66 should not let the packaging story drift across five surfaces with
+  conflicting strength of claim
+- docs and workflows should state one converged contract, with the build files
+  remaining the executable truth
+
+#### 6. The first implementation fence is now fixed
+
+The highest-value first implementation set is:
+
+- `CMakeLists.txt`
+- `INSTALL.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Likely support or reconciliation surfaces only if the landing proves they are
+needed:
+
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+- `Makefile`
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+
+Explicitly not part of the first packaging batch:
+
+- broad shared-library enablement
+- broad ABI guarantee widening
+- Windows Makefile reviewed-wrapper parity
+- macOS dead-code enablement
+- Windows dead-code enablement
+- dead-code topology redesign
+
+Interpretation:
+
+- Day 6 should begin with bounded packaging/productization convergence on the
+  current install/export surface
+- Day 7+ can absorb workflow or install-regression follow-through only where
+  the first landing actually changes the contract
+
+### Day 5 Close
+
+Sprint 66 now has:
+
+- one explicit packaging/productization contract
+- one fixed static-first safety fence
+- one clear ownership split across build files, docs, maintainer policy, and
+  workflows
+- one bounded Day 6-10 implementation fence for the first landing

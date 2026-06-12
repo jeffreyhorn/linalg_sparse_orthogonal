@@ -124,6 +124,8 @@ Interpretation:
   marketed as portable performance proof
 - the exploratory lane stays valuable without defining the compact maintained
   benchmark face of the repo
+- examples remain the API-adoption teaching surface; benchmarks remain the
+  workflow/performance proof surface
 
 For threshold-free local or CI-friendly reporting on the maintained canonical
 surface, use:

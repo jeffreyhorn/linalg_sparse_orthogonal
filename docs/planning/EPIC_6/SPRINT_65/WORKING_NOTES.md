@@ -1759,3 +1759,139 @@ Sprint 65 now has:
   - bounded runtime lane
   - narrow thresholded historical gate
 - one cleaner carry-forward state for Day 12 docs/example alignment
+
+## Day 12 - Docs & Example Alignment
+
+### Goal
+
+Align the top-level workflow, benchmark, and example docs so the Sprint 65
+performance-governance model reads as one coherent story:
+
+- examples teach API workflow and ownership
+- benchmarks prove workflow and performance behavior
+- `make bench-canonical-report` captures threshold-free canonical snapshots
+
+### Actions
+
+1. Re-read the high-signal user-facing workflow surfaces:
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+2. Tighten only the lines where example ownership and benchmark ownership were
+   still split across different phrasing.
+3. Keep the batch bounded:
+   - no new benchmark policy
+   - no maintainer-only taxonomy expansion
+   - no broader docs cleanup outside the touched workflow pages
+4. Run targeted docs-only sanity checks:
+   - diff review
+   - terminology/alignment `rg`
+   - touched-surface `wc -l`
+
+### Findings
+
+#### 1. The main remaining Day 12 gap was role wording, not missing technical detail
+
+By the end of Day 11 the repo already had the actual Sprint 65 structure:
+
+- canonical maintained benchmark surface
+- threshold-free canonical report target
+- bounded runtime lane
+- examples that already taught the strongest API workflows
+
+The remaining mismatch was wording:
+
+- README still taught workflows and benchmark surfaces separately
+- tutorial still taught the repeated-run direct path without explicitly
+  separating example teaching from benchmark proof
+- examples README still pointed to workflow adoption well, but not yet to the
+  maintained proof surfaces that take over after adoption
+
+Interpretation:
+
+- Day 12 did not need more technical explanation
+- Day 12 needed a cleaner examples-vs-benchmarks ownership split
+
+#### 2. The Day 12 batch aligned the user-facing ownership model across the high-signal surfaces
+
+The landed wording now reads coherently across the touched docs:
+
+- `README.md`
+  - explicitly states:
+    - examples teach workflow and ownership
+    - benchmarks prove retained workflow/performance behavior
+    - `make bench-canonical-report` is the threshold-free snapshot surface
+- `docs/tutorial.md`
+  - keeps `example_analysis.c` as the strongest repeated-run direct teaching
+    example
+  - explicitly points to:
+    - `bench_refactor`
+    - `bench_refactor_csc`
+    - `make bench-canonical-report`
+    for the retained proof/reporting surfaces
+- `examples/README.md`
+  - keeps `example_analysis` as the adoption example
+  - explicitly hands off to:
+    - `bench_refactor`
+    - `bench_refactor_csc`
+    - `bench_iterative_reuse`
+    - `bench_eigs_reuse`
+    - `make bench-canonical-report`
+- `benchmarks/README.md`
+  - now states explicitly that:
+    - examples are the API-adoption teaching surface
+    - benchmarks are the workflow/performance proof surface
+
+Interpretation:
+
+- the Day 12 docs batch now makes the ownership model explicit at the exact
+  places users move from learning a workflow to proving it
+
+#### 3. The batch stayed bounded to the intended docs-only surfaces
+
+Touched files stayed limited to:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+
+The batch intentionally did not widen into:
+
+- implementation files
+- benchmark binaries
+- example code
+- CI workflows
+- the maintainer-only classification model
+
+#### 4. The docs-only sanity checks stayed clean
+
+The targeted Day 12 sanity set was:
+
+- `git diff -- README.md docs/tutorial.md examples/README.md benchmarks/README.md`
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch status recheck
+
+Measured touched-surface result:
+
+- `README.md`: `998 -> 1000`
+- `docs/tutorial.md`: `469 -> 477`
+- `examples/README.md`: `147 -> 157`
+- `benchmarks/README.md`: `347 -> 349`
+
+Interpretation:
+
+- the docs moved in the expected high-signal places only
+- the batch remained a bounded wording/alignment pass rather than a broad
+  cleanup wave
+
+### Day 12 Close
+
+Sprint 65 now has:
+
+- one coherent user-facing split between example teaching and benchmark proof
+- one explicit handoff from repeated-run workflow adoption to canonical
+  threshold-free benchmark reporting
+- one clean docs-only setup for the Day 13 validation sweep

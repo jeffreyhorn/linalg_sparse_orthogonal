@@ -327,7 +327,7 @@ sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t
         idx_t c = s_start + j;
         idx_t cstart = csc->col_ptr[c];
         idx_t cend = csc->col_ptr[c + 1];
-        idx_t row_cursor = 0;
+        idx_t row_cursor = j;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t row = csc->row_idx[p];
             idx_t local = 0;
@@ -483,7 +483,7 @@ sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_s
         idx_t c = s_start + j;
         idx_t cstart = csc->col_ptr[c];
         idx_t cend = csc->col_ptr[c + 1];
-        idx_t row_cursor = 0;
+        idx_t row_cursor = j;
         /* Diagonal value is at dense[j + j*lda] after the diag block
          * factor ran.  Used to set the per-column threshold. */
         double abs_l_jj = fabs(dense[j + j * lda]);

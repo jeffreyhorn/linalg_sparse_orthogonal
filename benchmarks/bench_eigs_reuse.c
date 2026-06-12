@@ -84,14 +84,14 @@ static const char *eigs_backend_name(sparse_eigs_backend_t backend) {
     }
 }
 
-static void emit_eigs_csv_row(const char *matrix, const char *scenario, idx_t n, idx_t k,
+static void emit_eigs_csv_row(const char *matrix, const char *backend, idx_t n, idx_t k,
                               idx_t repeats, double one_shot_median_ms, double reuse_median_ms,
                               double speedup, const sparse_eigs_t *one_shot,
                               const sparse_eigs_t *reuse, double max_eig_diff, double residual_diff,
                               sparse_err_t one_shot_err, sparse_err_t reuse_err) {
     printf("bench_eigs_reuse,proof,%s,eigs_handle_reuse,%s,%d,%d,%d,%.4f,%.4f,%.2f,%d,%d,%d,%d,"
            "%.3e,%.3e,%d,%d,%.3e,%.3e,%s,%s,%s\n",
-           matrix, scenario, (int)n, (int)k, (int)repeats, one_shot_median_ms, reuse_median_ms,
+           matrix, backend, (int)n, (int)k, (int)repeats, one_shot_median_ms, reuse_median_ms,
            speedup, (int)one_shot->iterations, (int)reuse->iterations, (int)one_shot->n_converged,
            (int)reuse->n_converged, one_shot->residual_norm, reuse->residual_norm,
            (int)one_shot->peak_basis_size, (int)reuse->peak_basis_size, max_eig_diff, residual_diff,

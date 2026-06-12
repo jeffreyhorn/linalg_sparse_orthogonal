@@ -1654,3 +1654,122 @@ Sprint 66 now has:
 - one uniform version-source-of-truth rule across the two maintained local
   install/package regressions
 - one explicit Day 13 rerun set for the touched productization surface
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+
+Run the full Sprint 66 validation sweep from the landed packaging/install/workflow
+state and reconfirm the touched install/package proof surfaces before the final
+closeout day.
+
+### Actions
+
+1. Ran the core validation gates:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Re-ran the focused install/package regressions:
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+3. Re-ran the canonical maintained benchmark snapshot surface:
+   - `make bench-canonical-report`
+4. Captured retained proof points from the reviewed CMake parity path, the two
+   install/package regressions, and the canonical benchmark report outputs.
+
+### Findings
+
+#### 1. The full reviewed validation baseline still passes from the landed Sprint 66 tree
+
+Core validation gates:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real)` = `558.62 sec`
+
+Interpretation:
+
+- Sprint 66 still closes from the strongest reviewed baseline rather than from
+  only local touched-surface checks
+- the packaging/install/workflow contract changes did not disturb the maintained
+  reviewed parity story
+
+#### 2. The maintained install/package proof surfaces both still pass under the tightened version contract
+
+Focused proof reruns:
+
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+Retained proof points:
+
+- Make install/uninstall path passed
+- CMake install/export/find-package path passed
+- both scripts reported installed `pkg-config` version `2.2.0`
+- `tests/test_install.sh` passed `11 / 11`
+- `tests/test_cmake_install.sh` passed `13 / 13`
+
+Interpretation:
+
+- the tightened version-source-of-truth rule introduced in Sprint 66 remains
+  stable on both maintained local install/package proof surfaces
+- the shipped static-first install/export story still works end-to-end from both
+  local operator paths
+
+#### 3. The canonical maintained benchmark surface still emits the normalized proof rows cleanly
+
+Re-run proof surface:
+
+- `make bench-canonical-report`
+
+Generated report set:
+
+- `build/bench-reports/canonical/bench_refactor_csc.csv`
+- `build/bench-reports/canonical/bench_chol_csc.csv`
+- `build/bench-reports/canonical/bench_iterative_reuse.csv`
+- `build/bench-reports/canonical/bench_eigs_reuse.csv`
+- `build/bench-reports/canonical/manifest.txt`
+
+Representative retained rows:
+
+- `bench_refactor_csc,proof,nos4.mtx,chol_spd,...,1.87,8.24e-16,7.06e-16`
+- `bench_chol_csc,proof,nos4.mtx,chol_backend_compare,...,scalar,supernodal,builtin,...,0.83,0.92,...`
+- `bench_iterative_reuse,proof,cg-tridiag-300,iter_handle_reuse,cg,...,1.07,...`
+- `bench_eigs_reuse,proof,growm-nos4-k5,eigs_handle_reuse,lanczos_growm,...,1.08,...`
+
+Interpretation:
+
+- the normalized canonical maintained performance surface introduced in Sprint 65
+  remains intact after the Sprint 66 packaging/platform closeout work
+- the benchmark proof story still matches the documented governance contract
+
+#### 4. The longest reviewed-path cost remains the ND corpus lane, but the full gate still completes cleanly
+
+Observed reviewed-path note:
+
+- `test_reorder_nd` remained the dominant reviewed CMake test at `363.69 sec`
+  out of the `558.62 sec` total
+
+Interpretation:
+
+- Sprint 66 did not introduce a new validation instability or parity break
+- the dominant runtime cost remains a known existing reviewed-path characteristic,
+  not a new packaging/platform regression
+
+### Day 13 Close
+
+Sprint 66 now has:
+
+- one revalidated reviewed baseline
+- one revalidated install/package proof pair under the tightened version contract
+- one revalidated canonical benchmark snapshot surface
+- one clean Day 14 closeout starting point

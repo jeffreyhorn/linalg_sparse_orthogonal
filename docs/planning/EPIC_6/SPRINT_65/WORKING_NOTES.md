@@ -1895,3 +1895,166 @@ Sprint 65 now has:
 - one explicit handoff from repeated-run workflow adoption to canonical
   threshold-free benchmark reporting
 - one clean docs-only setup for the Day 13 validation sweep
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+
+Run the full Sprint 65 validation gate from the landed benchmark-governance and
+solver-efficiency branch state, then rerun the targeted proof surfaces and
+capture the retained benchmark/example evidence.
+
+### Actions
+
+1. Run the full required gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Confirm the reviewed anchors still hold exactly:
+   - `ctest -N --test-dir build/quality-review-cmake`
+   - Makefile/CMake test-count parity
+   - full reviewed CMake `ctest`
+3. Rerun the targeted Sprint 65 proof set:
+   - `./build/test_integration`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/test_cholesky`
+   - `./build/test_ldlt`
+   - `./build/test_sparse_lu`
+   - `./build/test_qr`
+   - `./build/test_svd`
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/example_ldlt`
+   - `./build/example_svd_lowrank`
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+
+### Findings
+
+#### 1. The full required validation gate passed cleanly
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+
+Reviewed anchors retained exactly:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 784.97 sec`
+
+Interpretation:
+
+- the Sprint 65 benchmark-governance and efficiency branch state is still clean
+  under both the normal Makefile path and the reviewed CMake parity path
+
+#### 2. The targeted proof binaries all passed
+
+Targeted proof binaries passed:
+
+- `test_integration` = `47 / 47`
+- `test_chol_csc` = `144 / 144`
+- `test_ldlt_csc` = `96 / 96`
+- `test_cholesky` = `21 / 21`
+- `test_ldlt` = `84 / 84`
+- `test_sparse_lu` = `37 / 37`
+- `test_qr` = `72 / 72`
+- `test_svd` = `97 / 97`
+
+Interpretation:
+
+- the benchmark-output normalization and the bounded Cholesky CSC efficiency
+  change did not disturb the strongest direct/CSC, QR, or SVD proof homes
+
+#### 3. The retained example outputs still match the Sprint 65 teaching story
+
+Representative retained example outputs:
+
+- `example_analysis` solve residual = `4.44e-16`
+- `example_basic_solve` residual = `0.00e+00`
+- `example_ldlt` relative residual = `1.555e-16`
+- `example_svd_lowrank` sparse low-rank `k=2` kept `22 -> 6` nnz for `3.7x`
+  compression
+
+Interpretation:
+
+- the user-facing adoption examples still line up with the Sprint 65 ownership
+  split:
+  - examples teach workflows
+  - benchmarks prove maintained performance behavior
+
+#### 4. The canonical maintained benchmark surface still emits coherent retained rows
+
+Representative retained benchmark outputs:
+
+- `bench_refactor`:
+  - `tridiag-200 1.63x`
+  - `tridiag-500 1.68x`
+  - `bcsstk04 1.44x`
+  - `nos4 1.58x`
+- `bench_refactor_csc nos4`:
+  - `speedup_refactor = 0.85x`
+  - residuals `8.24e-16` / `7.06e-16`
+- `bench_chol_csc nos4`:
+  - `csc_scalar_path=scalar`
+  - `csc_supernodal_path=supernodal`
+  - `csc_supernodal_dense_kernel=builtin`
+  - `speedup_csc = 1.54x`
+  - `speedup_csc_sn = 0.24x`
+- `bench_ldlt_csc nos4`:
+  - `speedup_csc_native = 1.45x`
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300 1.17x`
+  - `gmres-unsym-220 1.02x`
+  - `minres-kkt-42 1.40x`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5 1.08x`
+  - `thick-bcsstk14-k5 1.07x`
+  - `lobpcg-diag40-k3 1.01x`
+  - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the normalized four-binary canonical performance surface still emits stable
+  identity/category/scenario rows
+- the retained direct, iterative, and eigensolver reuse stories remain intact
+- the Day 10 bounded efficiency change preserved correctness while still
+  keeping the benchmark evidence coherent
+
+#### 5. The reviewed CMake wall time is still dominated by the existing reorder stress path
+
+One non-blocking Day 13 note is explicit from the reviewed CMake pass:
+
+- `test_reorder_nd` consumed `574.47 sec` of the `784.97 sec` reviewed CMake
+  `ctest` wall time
+
+Interpretation:
+
+- this remains a runtime characteristic of the existing reviewed path, not a
+  Sprint 65 regression signal
+- the full reviewed path still completed cleanly and all parity anchors stayed
+  exact
+
+### Day 13 Close
+
+Sprint 65 now has:
+
+- one fully validated benchmark-governance and solver-efficiency baseline
+- one clean retained canonical benchmark surface across direct, iterative, and
+  eigensolver reuse rows
+- one exact Day 14 closeout starting point grounded in a clean reviewed CMake
+  parity run

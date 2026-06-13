@@ -1773,3 +1773,80 @@ maintainability surfaces:
 - one non-blocking reviewed-path note remained explicit:
   - reviewed CMake `test_reorder_nd` stayed the dominant runtime at `291.93 sec`
     out of the `418.98 sec` total
+
+## Day 14 - Closeout and handoff
+
+Date: 2026-06-13
+Commit: `pending`
+
+### Goal
+
+Close Sprint 67 from the Day 13 validated baseline and leave one explicit,
+truthful handoff into the next large-source maintainability lane without
+reopening packaging/platform churn or pretending the later CSC/iterative queue
+already landed.
+
+### Actions
+
+1. re-read the Sprint 67 plan, the Day 6-13 landed artifacts, and the Day 13
+   validated close
+2. compressed the shipped Sprint 67 outcome into one coherent maintainability
+   package:
+   - graph/reorder ownership extraction
+   - shared ND compatibility/default-policy convergence
+   - large-`n` Cholesky analysis-to-CSC handoff convergence
+   - docs/build/regression-surface alignment
+3. fixed the preserved compatibility and non-widening fence explicitly
+4. ranked the post-Sprint-67 carry-forward queue without widening the sprint
+   close into fresh implementation work
+5. rechecked `docs/planning/EPIC_6/PROJECT_PLAN.md` for any Sprint 67
+   correction need
+
+### Validation
+
+This was a docs-only closeout batch, so I did not rerun:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Sprint 67 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 418.98 sec`
+
+### Outcome
+
+Sprint 67 now hands off one coherent large-source maintainability package:
+
+- the graph/reorder orchestration lane is clearer and smaller after the bounded
+  extraction batch
+- the ND compatibility/default-policy baseline now has one shared internal
+  owner instead of duplicated policy glue
+- the large-`n` Cholesky analysis-backed CSC route now has one family-local
+  owner and one explicit public proof split
+- the maintained docs/regression-story now matches those ownership boundaries
+
+### Notes
+
+- the preserved non-widening fence stayed intact:
+  - no reopening packaging/platform/build churn
+  - no fake abstraction layer that blurs family ownership
+  - no forced CSC/iterative symmetry just to make the sprint look broader
+- the ranked carry-forward queue is now explicit:
+  1. bounded CSC/analysis residual decomposition beyond the landed Cholesky
+     large-`n` handoff seam
+  2. iterative/eigensolver residual decomposition only where ownership blur
+     still pays for the proof cost
+  3. stale sprint-history/comment chronology cleanup on later touched permanent
+     files
+  4. further build/regression alignment only when future decomposition actually
+     moves ownership again
+- `docs/planning/EPIC_6/PROJECT_PLAN.md` did not need a Sprint 67 correction

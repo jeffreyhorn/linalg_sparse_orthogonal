@@ -1,0 +1,48 @@
+Sprint 67 Day 1 Authoritative Inputs
+Date: 2026-06-13
+Branch: sprint-67
+
+1. docs/planning/EPIC_6/PROJECT_PLAN.md
+   - Sprint 67 section: "Sprint 67: Large-Source Maintainability Phase 3"
+2. docs/planning/EPIC_6/SPRINT_67/PLAN.md
+3. docs/planning/EPIC_6/SPRINT_66/RETROSPECTIVE.md
+4. docs/planning/EPIC_6/SPRINT_66/artifacts/day14-closeout-and-handoff.md
+5. Reviewed baseline/parity surfaces
+   - make -n quality-review-full
+   - make quality-review-cmake-compile
+   - ctest -N --test-dir build/quality-review-cmake
+6. Live maintainability/build/truth/proof surfaces measured directly
+   - README.md
+   - docs/maintainer_guide.md
+   - CMakeLists.txt
+   - Makefile
+   - include/sparse_analysis.h
+   - include/sparse_reorder.h
+   - include/sparse_cholesky.h
+   - include/sparse_ldlt.h
+   - include/sparse_iterative.h
+   - include/sparse_eigs.h
+   - src/sparse_graph.c
+   - src/sparse_graph_coarsen.c
+   - src/sparse_graph_bisect.c
+   - src/sparse_graph_refine.c
+   - src/sparse_graph_separator.c
+   - src/sparse_reorder_nd.c
+   - src/sparse_reorder_amd_qg.c
+   - src/sparse_analysis.c
+   - src/sparse_chol_csc.c
+   - src/sparse_ldlt_csc.c
+   - src/sparse_iterative.c
+   - src/sparse_eigs.c
+   - tests/test_integration.c
+   - tests/test_graph.c
+   - tests/test_reorder_nd.c
+   - tests/test_chol_csc.c
+   - tests/test_ldlt_csc.c
+   - tests/test_iterative.c
+   - tests/test_eigs.c
+   - examples/example_analysis.c
+   - benchmarks/bench_refactor_csc.c
+   - benchmarks/bench_chol_csc.c
+   - benchmarks/bench_iterative_reuse.c
+   - benchmarks/bench_eigs_reuse.c

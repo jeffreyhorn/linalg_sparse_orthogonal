@@ -41,6 +41,7 @@
  * children never need to consult the parent graph during ordering.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
@@ -355,8 +356,8 @@ static sparse_err_t nd_emit_leaf_amd(const sparse_graph_t *G, const idx_t *verte
     if (!A_leaf)
         return SPARSE_ERR_ALLOC;
 
-    idx_t *leaf_perm = malloc((size_t)G->n * sizeof(idx_t));
-    if (!leaf_perm) {
+    idx_t *leaf_perm = NULL;
+    if (sparse_malloc_idx_array(G->n, sizeof(idx_t), (void **)&leaf_perm) != SPARSE_OK) {
         sparse_free(A_leaf);
         return SPARSE_ERR_ALLOC;
     }
@@ -416,8 +417,8 @@ static sparse_err_t nd_recurse_side(const sparse_graph_t *G, const idx_t *vertex
                                     idx_t *next_pos, int depth,
                                     const sparse_graph_nd_policy_t *policy) {
     sparse_graph_t subgraph = {0};
-    idx_t *map = malloc((size_t)vertex_count * sizeof(idx_t));
-    if (!map)
+    idx_t *map = NULL;
+    if (sparse_malloc_idx_array(vertex_count, sizeof(idx_t), (void **)&map) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     long long sg_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;

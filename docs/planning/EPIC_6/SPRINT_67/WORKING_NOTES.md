@@ -1684,3 +1684,92 @@ The maintained contract is now explicit:
   performance, not substitutes for those regression owners
 - `README.md` no longer understates the live CSC Cholesky / CSC LDL^T suite
   sizes
+
+## Day 13 - Full validation sweep
+
+Date: 2026-06-13
+Commit: `pending`
+
+### Goal
+
+Run the full Sprint 67 validation sweep from the landed graph/reorder,
+shared-ND-policy, and large-`n` Cholesky CSC handoff state, then reconfirm the
+highest-signal touched proof and benchmark/example surfaces before the Day 14
+closeout.
+
+### Actions
+
+1. ran the full maintained validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. reconfirmed the reviewed parity anchors:
+   - `ctest -N --test-dir build/quality-review-cmake`
+   - Makefile/CMake test-count parity
+   - full reviewed CMake `ctest`
+3. reran the highest-signal touched Sprint 67 follow-ons:
+   - `./build/test_integration`
+   - `./build/test_graph`
+   - `./build/test_reorder_nd`
+   - `./build/test_chol_csc`
+4. reran representative retained example and benchmark/reporting surfaces:
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+
+### Validation
+
+The full validation sweep passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 418.98 sec`
+
+Targeted Sprint 67 follow-ons also passed:
+
+- `./build/test_integration` = `47 / 47`
+- `./build/test_graph` = `60 / 60`
+- `./build/test_reorder_nd` = `34 / 34`
+- `./build/test_chol_csc` = `145 / 145`
+
+### Outcome
+
+Sprint 67 now has a clean Day 13 validation close from the actual touched
+maintainability surfaces:
+
+- the graph/reorder ownership extraction lane stayed regression-clean
+- the shared ND compatibility/default-policy convergence lane stayed
+  regression-clean
+- the large-`n` Cholesky CSC analysis handoff lane stayed regression-clean
+- the maintained example and benchmark/reporting surfaces retained the expected
+  workflow, residual, and path-identification signals
+
+### Notes
+
+- representative retained outputs stayed aligned with the landed Day 6-12 story:
+  - `example_analysis` residual stayed `4.44e-16`
+  - `example_basic_solve` residual stayed `0.00e+00`
+  - `bench_refactor_csc nos4` kept
+    `speedup_refactor = 1.25` with residuals `8.24e-16` / `7.06e-16`
+  - `bench_chol_csc nos4` kept
+    `csc_scalar_path=scalar`, `csc_supernodal_path=supernodal`,
+    `csc_supernodal_dense_kernel=builtin`, with residuals in the `1e-16` lane
+  - `bench_iterative_reuse` kept bounded reuse deltas:
+    `cg 1.02x`, `gmres 0.98x`, `minres 1.12x`
+  - `bench_eigs_reuse` kept stable agreement and bounded reuse deltas:
+    `growm 1.06x`, `thick_restart 1.00x`, `lobpcg 1.04x`
+- one non-blocking reviewed-path note remained explicit:
+  - reviewed CMake `test_reorder_nd` stayed the dominant runtime at `291.93 sec`
+    out of the `418.98 sec` total

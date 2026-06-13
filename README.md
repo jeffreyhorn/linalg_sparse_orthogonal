@@ -576,6 +576,11 @@ That repeated-run CSC story stays intentionally simple on the Cholesky side:
 - the highest-signal repeated-run proof surfaces are:
   - `bench_refactor`
   - default SPD mode in `bench_refactor_csc`
+- the family-local large-`n` analysis-backed CSC helper route stays owned by:
+  - `tests/test_chol_csc.c`
+- the public one-shot vs explicit repeated-run parity/error-path contract stays
+  owned by:
+  - `tests/test_integration.c`
 
 **Transparent dispatch (Sprint 18 Day 11).**
 `sparse_cholesky_factor_opts(mat, opts)` now routes through the CSC
@@ -759,8 +764,8 @@ default instrumented test run, not for every opt-in test path automatically.
 - IC(0) incomplete Cholesky — factor, solve, CG preconditioning, SuiteSparse (27 tests)
 - MINRES solver — SPD, indefinite, preconditioned, block, robustness (43 tests)
 - Sprint 13 IC(0) + MINRES cross-feature integration (14 tests)
-- CSC Cholesky — alloc/convert/eliminate/solve, symbolic path, supernode detection, dense primitives (100 tests — Sprint 17)
-- CSC LDL^T — alloc/convert/eliminate/solve, Bunch-Kaufman 1×1/2×2, linked-list cross-check, inertia (40 tests — Sprint 17)
+- CSC Cholesky — alloc/convert/eliminate/solve, symbolic path, supernode detection, dense primitives, analysis-backed CSC parity (145 tests)
+- CSC LDL^T — alloc/convert/eliminate/solve, Bunch-Kaufman 1×1/2×2, linked-list cross-check, inertia, supernodal follow-through (96 tests)
 
 ```bash
 make test          # run all tests

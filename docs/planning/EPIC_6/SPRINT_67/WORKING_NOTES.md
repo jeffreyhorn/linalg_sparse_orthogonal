@@ -1627,3 +1627,60 @@ The Day 11 landing stayed inside the Day 10 fence:
   but that helper does not exist on that family-local surface; the landed proof
   now builds its SPD tridiagonal matrix inline so the test remains self-contained
   and keeps the batch inside the intended touched-file fence
+
+## Day 12 - Build and regression alignment
+
+Date: 2026-06-13
+Commit: `pending`
+
+### Goal
+
+Close the remaining Sprint 67 build/regression-surface contradiction after the
+Day 6-11 maintainability landings: the code boundaries moved, but the
+maintained docs still did not say clearly which proof surfaces now own the
+shared ND-policy lane and the large-`n` Cholesky analysis/CSC handoff lane.
+
+### Actions
+
+1. re-read the Day 6-11 landing set against the Sprint 67 Day 12 plan
+2. confirmed no real source-list or target-list contradiction remained in:
+   - `Makefile`
+   - `CMakeLists.txt`
+3. identified the real residual alignment gap instead:
+   - stale/underspecified proof-surface ownership in maintained docs
+   - stale CSC direct-family suite inventory counts in `README.md`
+4. updated maintained docs accordingly:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+   - `benchmarks/README.md`
+
+### Validation
+
+This was a docs-only alignment batch, so I did not rerun:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+I ran the targeted Day 12 sanity set instead:
+
+- diff review of touched docs
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch status recheck
+
+### Outcome
+
+The maintained contract is now explicit:
+
+- `tests/test_reorder_nd.c` owns the shared ND compatibility/default-policy
+  convergence proof lane
+- `tests/test_chol_csc.c` owns the family-local large-`n` analysis-backed
+  Cholesky CSC handoff proof lane
+- `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
+  Cholesky parity and failure-preservation lane
+- benchmark surfaces stay benchmark-side proof for repeated-run workflow and
+  performance, not substitutes for those regression owners
+- `README.md` no longer understates the live CSC Cholesky / CSC LDL^T suite
+  sizes

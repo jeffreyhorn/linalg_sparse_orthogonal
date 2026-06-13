@@ -1132,3 +1132,172 @@ That gives Day 8 one exact job:
 
 - define the bounded shared ND policy / CSC-analysis convergence design instead
   of forcing a second graph-only batch
+
+## Day 8 - Shared ND Policy Convergence Design
+
+### Goal
+
+Define the bounded convergence design for the strongest remaining Sprint 67
+maintainability seam: duplicated ND compatibility-policy normalization across
+`src/sparse_reorder_nd.c` and `src/sparse_analysis.c`.
+
+### Actions
+
+1. Re-read the Day 7 rerank artifact and the live policy surfaces in:
+   - `src/sparse_analysis.c`
+   - `src/sparse_reorder_nd.c`
+   - `include/sparse_analysis.h`
+2. Compared the duplicated parser/default-policy responsibilities across the
+   public analysis path and the direct ND reorder path.
+3. Rechecked the live proof homes that already exercise the typed-policy versus
+   compatibility-override contract:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_integration.c`
+4. Reduced the seam to one bounded design fence:
+   - one shared internal ND policy normalization owner
+   - preserved public analysis API surface
+   - preserved direct `sparse_reorder_nd(...)` compatibility behavior
+5. Fixed the Day 9-10 file fence and non-widening contract in writing.
+
+### Findings
+
+#### 1. Sprint 67 now has one exact second-lane design target
+
+The strongest remaining maintainability seam is no longer generic CSC work.
+It is the shared ND policy normalization story split across:
+
+- `src/sparse_analysis.c`
+- `src/sparse_reorder_nd.c`
+
+The exact design target is now:
+
+- one internal owner for ND compatibility parsing and default policy
+  normalization
+- two consumers:
+  - public repeated-run analysis path
+  - direct `sparse_reorder_nd(...)` path
+
+Interpretation:
+
+- Day 9 should not redesign ND behavior
+- it should reduce duplicated policy ownership while preserving the shipped
+  analysis/reorder contract
+
+#### 2. The natural shared owner is an internal ND-policy helper surface, not a public API move
+
+The duplicated logic currently covers:
+
+- root-bisect mode
+- coarsening mode
+- coarsest-bisection mode
+- root-bisect max-n
+- coarsen floor ratio
+- coarsening CV fallthrough
+- separator-lift strategy
+- separator-lift weight
+
+The Day 8 design implication is now explicit:
+
+- keep `include/sparse_analysis.h` stable unless the code landing truly forces
+  wording follow-through only
+- move the compatibility/default-policy normalization behind an internal helper
+  seam rather than widening the public API
+- let:
+  - `src/sparse_analysis.c` keep typed-option resolution ownership
+  - `src/sparse_reorder_nd.c` keep direct ND entry ownership
+  - the shared helper own compatibility-parser/default-value normalization
+
+#### 3. The preserved compatibility contract is now explicit
+
+The convergence batch must preserve:
+
+- zero-init-safe `sparse_analysis_reorder_opts_t` behavior
+- typed analysis values overriding compatibility env vars exactly as shipped
+- direct `sparse_reorder_nd(...)` continuing to honor the compatibility path
+  when no typed analysis layer is involved
+- no public change to the meaning of:
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+Interpretation:
+
+- the Day 9-10 landing is an ownership convergence batch, not an option-model
+  redesign
+- proof must focus on behavioral equivalence, not new features
+
+#### 4. The Day 9-10 file fence is now fixed and small
+
+Required implementation surfaces:
+
+- `src/sparse_analysis.c`
+- `src/sparse_reorder_nd.c`
+
+Likely support only if the landed helper needs it:
+
+- `src/sparse_reorder_nd_internal.h`
+
+Likely proof home:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+
+Header/docs follow-through only if the landed code truly moves the wording:
+
+- `include/sparse_analysis.h`
+
+Interpretation:
+
+- this stays inside the bounded second lane
+- CSC backend files, iterative/eigensolver files, and public API redesign stay
+  outside the batch
+
+#### 5. The explicit non-widening fence is now strong enough for the second landing
+
+The shared ND policy convergence batch should not widen into:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_core.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_separator.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- public API redesign
+- packaging/platform/build churn
+
+Interpretation:
+
+- Sprint 67’s second lane remains a maintainability convergence batch
+- it should not collapse into a broader analysis/CSC rewrite
+
+### Day 8 Close
+
+Sprint 67 Day 8 now fixes one exact second-lane design:
+
+1. strongest target:
+   - shared ND compatibility/default-policy normalization
+2. required code surfaces:
+   - `src/sparse_analysis.c`
+   - `src/sparse_reorder_nd.c`
+3. likely proof home:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_integration.c`
+4. support only if needed:
+   - `src/sparse_reorder_nd_internal.h`
+5. header/docs follow-through only if wording actually moves:
+   - `include/sparse_analysis.h`
+
+That gives Day 9 one exact job:
+
+- land the bounded shared ND policy convergence batch without widening into CSC
+  backend implementation files or public API redesign

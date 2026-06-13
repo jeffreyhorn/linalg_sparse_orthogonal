@@ -1411,3 +1411,146 @@ Sprint 67 Day 9 now lands one bounded second-lane maintainability batch:
    - no CSC widening
    - no public API redesign
    - no proof-surface widening unless validation proves it necessary
+
+## Day 10 - Post-Landing Audit And Rerank
+
+### Goal
+
+Audit the post-Day-9 branch state and fix the next real Sprint 67 target in
+writing instead of widening automatically from the shared ND policy lane.
+
+### Actions
+
+1. Re-read the Day 8 design fence and the landed Day 9 artifact.
+2. Re-audited the live post-Day-9 ownership surfaces in:
+   - `src/sparse_analysis.c`
+   - `src/sparse_reorder_nd.c`
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_ldlt_csc.c`
+3. Re-checked the strongest existing proof homes:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+   - `tests/test_ldlt_csc.c`
+4. Re-ranked the remaining Sprint 67 queue by ownership blur rather than
+   by raw file size alone.
+
+### Findings
+
+#### 1. The Day 9 batch closed the strongest remaining ND-policy contradiction
+
+The shared ND compatibility/default-policy seam is no longer the strongest
+maintainability problem on the branch:
+
+- `src/sparse_reorder_nd.c` now owns the ND compatibility/default baseline
+- `src/sparse_analysis.c` now consumes that baseline instead of carrying its
+  own second copy
+- the residual `supernodal_postorder` compatibility parser in
+  `src/sparse_analysis.c` is intentionally smaller and separate than the Day 8
+  ND-policy target
+
+Interpretation:
+
+- another immediate ND-policy batch would now be fake symmetry rather than the
+  highest-value next landing
+
+#### 2. The strongest remaining seam has shifted to the large-n analysis → CSC handoff
+
+The strongest post-Day-9 ownership blur now sits in the large-`n` explicit
+analysis lifecycle handoff across:
+
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+
+The concrete reason is not just file length.  It is that the public repeated-
+run direct lifecycle now fans into multiple partially parallel internal
+surfaces:
+
+- `factor_cholesky_with_analysis_csc(...)`
+- `factor_ldlt_with_analysis_csc(...)`
+- `chol_csc_from_sparse_with_analysis(...)`
+- `ldlt_csc_from_sparse_with_analysis(...)`
+- the CSC writeback/publication paths
+
+Interpretation:
+
+- the next real maintainability win is no longer graph-only
+- it is analysis-to-CSC orchestration coherence on the large-`n` direct-family
+  lane
+
+#### 3. Cholesky now owns the strongest next bounded landing inside that lane
+
+Within the CSC/analysis residual lane, Cholesky is the better next target than
+LDL^T:
+
+- `factor_cholesky_with_analysis_csc(...)` in `src/sparse_analysis.c` is
+  simpler and more directly comparable to the public CSC helpers
+- `src/sparse_chol_csc.c` already contains both the analysis-aware conversion
+  and the CSC writeback/publication path in one family-local seam
+- LDL^T still carries additional Bunch-Kaufman-specific ownership:
+  - `D`
+  - `D_offdiag`
+  - `pivot_size`
+  - composed permutation state
+  - resolved-analysis preparation
+
+Interpretation:
+
+- Day 11 should target the Cholesky analysis/CSC handoff first
+- LDL^T remains real follow-through, but not the best next bounded landing
+
+#### 4. The exact Day 11 target is now fixed
+
+Strongest next batch:
+
+- large-`n` Cholesky analysis/CSC handoff coherence
+
+Required code surfaces:
+
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+
+Likely proof home:
+
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+
+Support only if the landing truly needs it:
+
+- `src/sparse_chol_csc_internal.h`
+
+Likely deferred in the same batch:
+
+- `src/sparse_ldlt_csc.c`
+- `tests/test_ldlt_csc.c`
+- `include/sparse_analysis.h`
+
+#### 5. The non-widening fence is still explicit
+
+The next landing should not widen into:
+
+- `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- packaging/platform/build churn
+- public API redesign
+
+Interpretation:
+
+- Sprint 67 now transitions from the ND lane to the CSC/analysis lane
+- it still stays bounded to maintainability follow-through, not feature work
+
+### Day 10 Close
+
+Sprint 67 Day 10 now fixes the post-Day-9 rerank explicitly:
+
+1. the shared ND policy lane is no longer the strongest remaining seam
+2. the strongest next seam is the large-`n` analysis-to-CSC direct-family handoff
+3. Cholesky owns the best next bounded landing inside that lane
+4. Day 11 should target:
+   - `src/sparse_analysis.c`
+   - `src/sparse_chol_csc.c`
+   - likely proof in `tests/test_integration.c` and `tests/test_chol_csc.c`

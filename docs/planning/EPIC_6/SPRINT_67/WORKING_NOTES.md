@@ -333,3 +333,171 @@ Sprint 67 now has:
 - one fixed rerun set centered on the actual graph/reorder, CSC, and
   iterative/eigs proof surface
 - one clear Day 3 starting point for the residual hotspot audit
+
+## Day 3 - Residual Hotspot Audit
+
+### Goal
+
+Reduce Sprint 67's broad maintainability claim to the live implementation seams
+that still have the strongest mixed-ownership and chronology burden after the
+earlier Epic 5 and Epic 6 decomposition work.
+
+### Actions
+
+1. Re-read the Day 2 validation baseline and the Sprint 67 plan fence.
+2. Re-read representative top-level hotspot files directly:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_iterative.c`
+3. Ran targeted `rg` scans across the likely Sprint 67 implementation and
+   header surfaces for:
+   - `Sprint` / `Day` chronology markers
+   - helper ownership signals
+   - internal API seams
+   - configuration/runtime parser clusters
+4. Re-ranked the current large-source set by:
+   - mixed ownership pain
+   - stale chronology density
+   - extraction safety
+   - proof burden
+   - likely payoff
+5. Fixed the likely Day 4 target boundary from the live repo state rather than
+   from the project-plan summary.
+
+### Findings
+
+#### 1. The broad "large-source maintainability" problem is now reduced to a small ranked seam map
+
+The live hotspot order is now:
+
+1. graph/reorder orchestration residuals
+2. CSC/analysis residuals
+3. iterative/eigensolver residuals
+4. public coordination-header truth follow-through
+
+Interpretation:
+
+- Sprint 67 should not spread evenly across every remaining large file
+- the strongest remaining pain is still where graph partitioning, ND policy,
+  retry/fallback glue, and sprint-history commentary remain mixed together
+
+#### 2. Graph/reorder now owns the strongest remaining maintainability seam
+
+The strongest first target is the graph/reorder lane:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+
+Why this lane ranks first:
+
+- the top-level orchestration files still carry the densest remaining sprint
+  chronology blocks
+- multiple files still mix durable algorithm explanation with landing-history
+  notes, retry/fallback glue, parser/runtime state, and owned helper seams
+- the proof surface is strong and already well isolated:
+  - `tests/test_graph.c`
+  - `tests/test_reorder_nd.c`
+
+The strongest first exact seam is now:
+
+- residual uncoarsening / orchestration in `src/sparse_graph.c`
+- residual root-policy / profiling / fallback orchestration in
+  `src/sparse_reorder_nd.c`
+
+Interpretation:
+
+- Sprint 43 and Sprint 44 already extracted meaningful graph subsystems, but
+  the remaining orchestration shells still carry too much accumulated
+  chronology and cross-seam policy
+- this is the highest-payoff place to continue Phase 3 decomposition
+
+#### 3. CSC/analysis is the strongest second lane, but it is no longer the best first landing
+
+The strongest second target is:
+
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+
+Why it ranks second instead of first:
+
+- these files are still large, but their permanent file headers already read
+  more like owned backend/analysis surfaces than the graph/reorder
+  orchestration files do
+- the chronology burden is real, especially in `src/sparse_analysis.c`, but it
+  is more configuration-compatibility and policy-layer oriented than the graph
+  lane's top-level ownership blur
+- the proof burden is also broader because the touched behavior fans into:
+  - `tests/test_integration.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+
+Interpretation:
+
+- CSC/analysis still matters in Sprint 67, but it is the better second landing
+  after the graph/reorder seam is made cleaner
+
+#### 4. Iterative/eigensolver residuals are real, but they are a later or narrower target than the headline sizes alone imply
+
+The remaining iterative/eigensolver hotspots are:
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+Why they rank below graph and CSC:
+
+- both files are large, but they already read more like family-local
+  orchestration plus shared helper surfaces than the graph/reorder files do
+- the chronology burden is lighter and more localized than in the graph lane
+- the proof burden is substantial:
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - plus integration spillover if public-entry ownership changes
+
+Interpretation:
+
+- they remain valid Sprint 67 candidates only if the Day 4-5 design proves a
+  bounded residual extraction is still justified after the first landing
+- they should not displace the graph/reorder lane as the sprint's first target
+
+#### 5. The strongest current contradiction is not raw file size; it is ownership blur plus stale chronology in permanent orchestration files
+
+The current contradictions are:
+
+- durable algorithm explanation mixed with sprint-history narration
+- runtime/env-policy parsing mixed with top-level orchestration
+- fallback and retry logic mixed with family-local ownership
+- previously extracted subsystem boundaries still explained through old
+  "Day X" archaeology in permanent files
+
+This is strongest in:
+
+- `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_analysis.c`
+
+Interpretation:
+
+- Sprint 67 should optimize for clearer ownership and less permanent chronology,
+  not just smaller line counts
+- the most valuable extraction target is the file that still reads least like
+  a durable owner and most like a sprint journal
+
+### Day 3 Close
+
+Sprint 67 Day 3 fixes the current ranked target order as:
+
+1. graph/reorder decomposition first
+2. CSC/analysis residual decomposition second
+3. iterative/eigensolver residuals later or narrower only if still justified
+
+That gives Day 4 one explicit job:
+
+- turn the graph/reorder lane into the exact first landing fence instead of
+  keeping it as a general hotspot bucket

@@ -102,7 +102,7 @@ sparse_err_t chol_csc_grow(CholCsc *m, idx_t needed) {
     if (!m)
         return SPARSE_ERR_NULL;
     if (needed < 0)
-        return SPARSE_ERR_BADARG;
+        return SPARSE_ERR_ALLOC;
     if (needed <= m->capacity)
         return SPARSE_OK;
 

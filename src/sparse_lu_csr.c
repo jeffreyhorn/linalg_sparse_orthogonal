@@ -148,7 +148,7 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
 
 static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
     if (needed < 0)
-        return SPARSE_ERR_BADARG;
+        return SPARSE_ERR_ALLOC;
     if (needed <= csr->capacity)
         return SPARSE_OK;
     /* Grow by at least 50% or to needed, whichever is larger.

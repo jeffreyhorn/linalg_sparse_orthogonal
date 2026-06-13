@@ -101,16 +101,16 @@ sparse_err_t chol_csc_alloc(idx_t n, idx_t initial_nnz, CholCsc **out) {
 sparse_err_t chol_csc_grow(CholCsc *m, idx_t needed) {
     if (!m)
         return SPARSE_ERR_NULL;
+    if (needed < 0)
+        return SPARSE_ERR_ALLOC;
     if (needed <= m->capacity)
         return SPARSE_OK;
-    if (needed > INT32_MAX)
-        return SPARSE_ERR_ALLOC;
 
     /* Geometric growth: at least 2× current capacity, or needed — whichever
      * is larger.  Guard idx_t overflow in the doubling. */
     idx_t new_cap;
-    if (m->capacity > INT32_MAX / 2)
-        new_cap = INT32_MAX;
+    if (m->capacity > IDX_MAX / 2)
+        new_cap = IDX_MAX;
     else
         new_cap = m->capacity * 2;
     if (new_cap < needed)

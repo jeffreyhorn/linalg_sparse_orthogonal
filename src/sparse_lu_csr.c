@@ -147,16 +147,15 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
 /* ─── Grow CSR arrays ────────────────────────────────────────────────── */
 
 static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
+    if (needed < 0)
+        return SPARSE_ERR_ALLOC;
     if (needed <= csr->capacity)
         return SPARSE_OK;
-    /* Reject if needed exceeds idx_t range */
-    if (needed > INT32_MAX)
-        return SPARSE_ERR_ALLOC;
     /* Grow by at least 50% or to needed, whichever is larger.
      * Guard against idx_t overflow in the addition. */
     idx_t new_cap;
-    if (csr->capacity > INT32_MAX - csr->capacity / 2)
-        new_cap = INT32_MAX;
+    if (csr->capacity > IDX_MAX - csr->capacity / 2)
+        new_cap = IDX_MAX;
     else
         new_cap = csr->capacity + csr->capacity / 2;
     if (new_cap < needed)

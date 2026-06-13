@@ -3,8 +3,9 @@ name: Windows CI
 # Windows currently enforces the reviewed CMake subset only:
 # configure + build + `ctest -N` + full `ctest`. The Makefile reviewed
 # wrappers and dead-code flow remain staged, and the current excluded
-# tests remain explicit in job output. See README.md
-# "Cross-Platform CI Contract" for the full model.
+# tests remain explicit in job output. This lane backs the reviewed CMake-first
+# consumer story; it is not a separate reviewed install-validation lane.
+# See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
   push:

@@ -136,9 +136,12 @@ sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col) {
         /* Geometric growth (2×), starting at 4 for first-touch rows so
          * short row-adjacency lists don't pay a per-append reallocation
          * when the fill pattern is modest. */
-        idx_t new_cap = cap > 0 ? cap * 2 : 4;
-        if (new_cap > INT32_MAX)
-            return SPARSE_ERR_ALLOC;
+        idx_t new_cap = 4;
+        if (cap > 0) {
+            if (cap > IDX_MAX / 2)
+                return SPARSE_ERR_ALLOC;
+            new_cap = cap * 2;
+        }
         if ((size_t)new_cap > SIZE_MAX / sizeof(idx_t))
             return SPARSE_ERR_ALLOC;
         idx_t *resized = realloc(F->row_adj[row], (size_t)new_cap * sizeof(idx_t));

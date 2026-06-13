@@ -165,6 +165,43 @@ Interpretation:
 - do not widen the repo into platform-expansion work without fresh
   measurement-backed justification
 
+## Packaging and ABI Contract
+
+The maintained packaging surface is intentionally narrower than a full
+shared-library product story.
+
+Current authoritative packaging contract:
+
+- the shipped install/export surface is real and maintained
+- the maintained release shape is static-first
+- downstream `pkg-config` and `find_package(Sparse)` both describe that same
+  installed static archive surface
+- version metadata is single-sourced from the repo `VERSION` file and
+  propagated through the generated install artifacts
+- current package-version metadata should not be described as a broad
+  dynamic-ABI guarantee that the repo does not review
+
+Interpretation:
+
+- improve packaging clarity and install ergonomics without overstating binary
+  compatibility promises
+- treat any future shared-library or wider ABI claim as a separate product
+  contract with its own validation and platform ownership
+- keep platform truth explicit: Linux is still the strongest reviewed source of
+  truth, macOS remains narrower with supplemental install validation, and
+  Windows remains the reviewed CMake subset and install-consumer lane
+
+Focused install/package regression ownership:
+
+- `tests/test_install.sh` is the local Unix-side proof for Make
+  install/uninstall plus `pkg-config`
+- `tests/test_cmake_install.sh` is the local Unix-side proof for CMake
+  install/export plus `find_package(Sparse)`
+- macOS CI carries only a narrower supplemental Make install/`pkg-config`
+  verification lane
+- Windows does not currently claim a separate reviewed install-validation lane;
+  it keeps the reviewed CMake subset plus the CMake-first consumer story
+
 ## Configuration Surface Ownership
 
 Epic 6 Phase 1 moved the highest-value analysis/reorder env-var controls onto

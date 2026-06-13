@@ -72,7 +72,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Parallel SpMV** — OpenMP row-wise parallelization (compile with `-DSPARSE_OPENMP`)
 - **errno capture** for I/O errors (`sparse_errno`)
 - **Progress / cancel callbacks** (Sprint 29 Days 6-7) — `sparse_progress_cb_t` + `opts->progress_cb` / `opts->progress_user` across LU (linked-list + CSR), Cholesky (linked-list), LDL^T (linked-list), QR, CG, GMRES, MINRES, BiCGSTAB, grow-m Lanczos, and LOBPCG.  The CSC supernodal Cholesky / LDL^T kernels and the Wu/Simon thick-restart Lanczos outer loop are NOT wired (Sprint 30+ follow-up).  Callback signature emits `phase` / `step` / `total` / `elapsed_s`; a non-zero return cancels with `SPARSE_ERR_CANCELLED`.  **Cancellation semantics are family/path-local:** LU no-reorder one-shot cancellation at step 0 preserves the caller matrix, reordered LU one-shot attempts preserve the caller matrix through a temporary reordered working copy, Cholesky no-reorder linked-list cancellation is not bit-identical because the upper triangle is stripped before the first emission, reordered Cholesky one-shot attempts preserve the caller matrix through a temporary reordered working copy, and LDL^T / QR leave the input matrix bit-identical because factor state is separately owned.  Iterative solvers and eigensolvers don't write to `A` at all.  See `include/sparse_lu.h` / `include/sparse_cholesky.h` / `include/sparse_ldlt.h` opts headers for the per-routine contract.  Default `NULL` callback runs at zero overhead (no `make wall-check` regression vs Sprint 28).
-- **Continuous integration** — Linux (Ubuntu) + Windows (MSVC via CMake) + macOS (Apple Clang + Homebrew GCC) build matrix on every PR (Sprint 29 Days 7-9); ThreadSanitizer job on Linux (macOS-15+ TSan blocked by an upstream dyld issue — Sprint 28 inheritance, Sprint 29 Day 8 routes TSan to Linux).  Bench-step regression check via `make bench-fast` (Sprint 29 Day 13) — runs the fast bench subset in < 5 min on PR.
+- **Continuous integration** — Linux remains the strongest reviewed source of truth (`make quality-review-compile`, reviewed CMake parity, dead-code); macOS enforces the Apple Clang reviewed path with supplemental Homebrew GCC and static-first Make install/`pkg-config` verification; Windows enforces the reviewed CMake subset and the CMake-first consumer story. ThreadSanitizer stays on Linux (macOS-15+ TSan blocked by an upstream dyld issue), and `make bench-fast` remains the bounded PR-time runtime benchmark signal.
 
 ## Choose a Workflow
 
@@ -870,8 +870,8 @@ make quality-review-cmake
 | Platform | Enforced | Staged | Supplemental / Excluded |
 |--------|---------|---------|---------------------------|
 | Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
-| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
-| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
+| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; supplemental static-first Make install/uninstall + `pkg-config` verification |
+| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz`; no separate reviewed install-validation lane beyond the CMake-first consumer story |
 
 Use the table above as the compact operator map for enforced, staged, and
 supplemental/excluded boundaries. For repository-wide interpretation of those
@@ -987,6 +987,26 @@ cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build && cmake
 After installation, downstream projects can use:
 - **pkg-config:** `pkg-config --cflags --libs sparse`
 - **CMake:** `find_package(Sparse REQUIRED)` + `target_link_libraries(... Sparse::sparse_lu_ortho)`
+
+The maintained package surface is intentionally static-first:
+
+- Unix-like installs produce a static archive such as `libsparse_lu_ortho.a`
+- Windows/MSVC installs produce the corresponding static `.lib`
+- the exported CMake target and `pkg-config` metadata both describe that same
+  static archive surface
+- version metadata is single-sourced from `VERSION`
+- this is a real install/export contract, not a broad shared-library or
+  dynamic-ABI guarantee
+
+Focused local proof for that package surface stays explicit:
+
+- `bash tests/test_install.sh` proves the Unix-side Make install/uninstall +
+  `pkg-config` path
+- `bash tests/test_cmake_install.sh` proves the Unix-side CMake install/export
+  + `find_package(Sparse)` path
+- macOS CI carries a narrower supplemental Make install/`pkg-config` check
+- Windows remains the reviewed CMake build/test subset rather than a separate
+  reviewed install-validation lane
 
 ## Documentation
 

@@ -2,8 +2,10 @@ name: macOS CI
 
 # macOS enforces the Apple Clang reviewed path plus platform-specific
 # checks (`wall-check`, `sanitize`). The Homebrew GCC leg remains
-# supplemental second-compiler coverage, and dead-code remains staged on
-# macOS. See README.md "Cross-Platform CI Contract" for the full model.
+# supplemental second-compiler coverage, the Make install/`pkg-config`
+# check below remains supplemental static-first package verification, and
+# dead-code remains staged on macOS. See README.md
+# "Cross-Platform CI Contract" for the full model.
 
 on:
   push:
@@ -84,12 +86,12 @@ jobs:
           make clean
           make CC=${{ matrix.cc }} sanitize
 
-  # Verify pkg-config + install flow works on macOS.  Lives in a
-  # separate job from the matrix because it installs to a temp
-  # prefix + runs verification commands — keeps the matrix output
-  # focused on compile + test signals.
+  # Verify the maintained static-first Make install/`pkg-config` path on
+  # macOS. Lives in a separate supplemental job because it installs to a temp
+  # prefix and runs verification commands; this is narrower than the Unix-side
+  # local regression scripts and does not claim full install/export parity.
   install-and-pkgconfig:
-    name: macOS supplemental install and pkg-config path
+    name: macOS supplemental static-first install and pkg-config path
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

@@ -1301,3 +1301,113 @@ That gives Day 9 one exact job:
 
 - land the bounded shared ND policy convergence batch without widening into CSC
   backend implementation files or public API redesign
+
+## Day 9 - Shared ND Policy Convergence Batch
+
+### Goal
+
+Land the bounded shared ND policy convergence batch by moving the compatibility
+and default-policy baseline to one internal owner while preserving the shipped
+typed-analysis override contract.
+
+### Actions
+
+1. Re-read the Day 8 design fence and the live ND policy duplication across:
+   - `src/sparse_analysis.c`
+   - `src/sparse_reorder_nd.c`
+   - `src/sparse_reorder_nd_internal.h`
+2. Reduced the landing to one shared internal baseline owner:
+   - `sparse_reorder_nd_default_policy()`
+3. Updated `src/sparse_analysis.c` to start from that shared baseline instead
+   of carrying its own duplicated ND compatibility parsers and hard-coded
+   default values.
+4. Preserved the existing typed analysis option override behavior by leaving
+   typed-field resolution in `src/sparse_analysis.c`.
+5. Kept the batch inside the Day 8 fence:
+   - no CSC backend widening
+   - no public API redesign
+   - no extra proof-surface widening
+
+### Findings
+
+#### 1. The strongest remaining duplicated ND policy seam is now closed at one internal owner
+
+`src/sparse_reorder_nd.c` now owns the shared internal ND compatibility/default
+baseline through:
+
+- `sparse_reorder_nd_default_policy()`
+
+`src/sparse_analysis.c` now consumes that baseline directly instead of
+duplicating the following ND compatibility/default responsibilities locally:
+
+- root-bisect mode
+- coarsening mode
+- coarsest-bisection mode
+- root-bisect max-n
+- coarsen floor ratio
+- coarsening CV fallthrough
+- separator-lift strategy
+- separator-lift weight
+
+Interpretation:
+
+- the direct ND reorder path remains the natural owner of the compatibility
+  baseline
+- the repeated-run analysis path now layers typed analysis values on top of the
+  same baseline instead of owning a second copy
+
+#### 2. The shipped typed-analysis override contract stayed intact
+
+The landed batch preserves the Day 8 compatibility fence:
+
+- zero-init-safe `sparse_analysis_reorder_opts_t` behavior still starts from the
+  same effective ND compatibility/default baseline
+- typed analysis values still override that baseline exactly as shipped
+- direct `sparse_reorder_nd(...)` still keeps its own compatibility-path
+  behavior because the shared baseline owner remains in the reorder lane
+
+One intentionally separate compatibility parser stayed local:
+
+- `supernodal_postorder`
+
+That stayed local because the Day 8 convergence target was ND policy
+duplication, not every analysis compatibility field in the file.
+
+#### 3. The batch stayed inside the bounded second-lane fence
+
+Touched code surfaces:
+
+- `src/sparse_analysis.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_nd_internal.h`
+
+Untouched by design:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+- `include/sparse_analysis.h`
+- CSC backend files
+- iterative/eigensolver files
+- graph subsystem files outside the existing reorder owner
+
+Interpretation:
+
+- this was an ownership-convergence batch, not a broader analysis or backend
+  redesign
+- the existing proof homes remain the right validation surfaces for behavioral
+  equivalence
+
+### Day 9 Close
+
+Sprint 67 Day 9 now lands one bounded second-lane maintainability batch:
+
+1. shared ND compatibility/default baseline owner:
+   - `sparse_reorder_nd_default_policy()`
+2. landed consumer convergence:
+   - `src/sparse_analysis.c` now starts from that shared baseline
+3. preserved contract:
+   - typed analysis overrides still win over compatibility env vars
+4. stayed inside the Day 8 fence:
+   - no CSC widening
+   - no public API redesign
+   - no proof-surface widening unless validation proves it necessary

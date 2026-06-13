@@ -328,7 +328,7 @@ static sparse_graph_nd_sep_lift_weight_mode_t parse_nd_sep_lift_weight_compat_ov
     return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 }
 
-static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
+sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
     sparse_graph_nd_policy_t policy = {
         .supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF,
         .nd_coarsening = parse_nd_coarsening_compat_override(),

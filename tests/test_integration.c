@@ -1176,7 +1176,7 @@ static void test_lu_factor_opts_matches_explicit_analysis_path(void) {
 }
 
 static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
-    const idx_t n = 200;
+    const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 100);
     SparseMatrix *A_opts = build_tridiag_spd(n);
     SparseMatrix *A_analysis = build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
@@ -1187,6 +1187,7 @@ static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
     double *x_analysis = NULL;
 
     REQUIRE_OK(A_opts && A_analysis ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
 
     sparse_cholesky_opts_t chol_opts = {
         .reorder = SPARSE_REORDER_AMD,

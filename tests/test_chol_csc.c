@@ -3618,7 +3618,7 @@ static int day8_chol_csc_match(const CholCsc *a, const CholCsc *b, double tol) {
 }
 
 static void test_factor_with_analysis_large_n_matches_explicit_supernodal_route(void) {
-    const idx_t n = 120;
+    const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 20);
     SparseMatrix *A = sparse_create(n, n);
     sparse_analysis_opts_t opts = {
         .factor_type = SPARSE_FACTOR_CHOLESKY,
@@ -3629,6 +3629,7 @@ static void test_factor_with_analysis_large_n_matches_explicit_supernodal_route(
     CholCsc *L_explicit = NULL;
 
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0) {

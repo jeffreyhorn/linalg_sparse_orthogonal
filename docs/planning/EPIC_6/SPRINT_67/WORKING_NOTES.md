@@ -185,3 +185,151 @@ Sprint 67 now starts from one explicit maintainability implementation baseline:
   chronology cleanup, and build/regression alignment
 - the next step is to rank those live hotspot seams precisely before writing
   the bounded Day 2 validation and Day 3 audit follow-through
+
+## Day 2 - Validation Baseline & Hotspot/Proof Rerun Recheck
+
+### Goal
+
+Reconfirm the reviewed baseline and the targeted rerun set that Sprint 67
+decomposition work must preserve before any implementation work lands.
+
+### Actions
+
+1. Rechecked the reviewed CMake parity anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+2. Re-read the reviewed baseline wrapper surface:
+   - `make -n quality-review-full`
+3. Reconfirmed the authoritative validation split for:
+   - bounded `*.c` / `*.h` days
+   - substantial decomposition/build-alignment days
+   - docs-only days
+4. Rechecked build-tree availability of the most relevant Sprint 67 proof and
+   regression surfaces:
+   - graph/reorder proofs
+   - CSC proofs
+   - iterative/eigensolver proofs
+   - representative examples
+   - maintained benchmark/reporting surfaces
+5. Reconfirmed the strongest likely Sprint 67 touched-surface classes from the
+   live branch state after the Day 1 baseline.
+
+### Findings
+
+#### 1. The strongest reviewed baseline is unchanged at Sprint 67 start
+
+The strongest local reviewed baseline is still:
+
+- `make quality-review-full`
+
+The reviewed CMake parity anchor remains exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- Sprint 67 starts from the same reviewed truthfulness baseline as the Sprint
+  66 close
+- decomposition work does not get a weaker local validation contract just
+  because the main sprint topic is maintainability rather than new end-user
+  behavior
+
+#### 2. The Day 2 authority split is now explicit
+
+The authoritative split for Sprint 67 is:
+
+- bounded `*.c` / `*.h` days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial decomposition, ownership-boundary, or
+  build/regression-alignment work:
+  - `make quality-review-full`
+- docs-only days:
+  - targeted sanity checks only
+
+Interpretation:
+
+- Sprint 67 should treat ownership-boundary changes as contract-sensitive work,
+  not as cheap refactors
+- the stronger reviewed baseline remains the default for any change that could
+  distort build, proof, or ownership truthfulness
+
+#### 3. The high-signal Sprint 67 rerun set is now fixed around the actual decomposition-risk surface
+
+The high-signal rerun set at Sprint 67 start is:
+
+- cross-family and orchestration proof surfaces:
+  - `./build/test_integration`
+- graph/reorder family proofs:
+  - `./build/test_graph`
+  - `./build/test_reorder_nd`
+- CSC direct-family proofs:
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+- iterative and eigensolver residual proofs:
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+- representative examples:
+  - `./build/example_analysis`
+  - `./build/example_basic_solve`
+- maintained benchmark/reporting surfaces likely to matter in alignment work:
+  - `./build/bench_refactor_csc`
+  - `./build/bench_chol_csc`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+All of those surfaces were present in the current `build/` tree at Day 2.
+
+Interpretation:
+
+- the Sprint 67 rerun set is anchored to the actual decomposition-risk surface
+  rather than to every executable in the repo
+- maintained benchmark/reporting surfaces remain part of the live Sprint 67
+  validation story because later build/regression alignment can still touch
+  them indirectly
+
+#### 4. The strongest likely Sprint 67 touch surfaces remain ownership-heavy implementation and proof surfaces, not packaging/productization files
+
+The highest-signal likely Sprint 67 touch surfaces at Day 2 remain:
+
+- implementation hotspots:
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_amd_qg.c`
+  - `src/sparse_analysis.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_iterative.c`
+  - `src/sparse_eigs.c`
+- proof/support surfaces:
+  - `tests/test_graph.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `tests/test_integration.c`
+- likely coordination headers only if the design proves they must move:
+  - `include/sparse_analysis.h`
+  - `include/sparse_reorder.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+
+Interpretation:
+
+- Sprint 67 still starts from a maintainability and ownership surface, not a
+  productization or platform surface
+- the heaviest likely touched source and proof seams are already explicit
+  before the deeper hotspot audit begins
+
+### Day 2 Close
+
+Sprint 67 now has:
+
+- one explicit reviewed validation contract for decomposition work
+- one fixed rerun set centered on the actual graph/reorder, CSC, and
+  iterative/eigs proof surface
+- one clear Day 3 starting point for the residual hotspot audit

@@ -647,3 +647,180 @@ That gives Day 5 one exact job:
 
 - define the ownership and extraction contract for the bounded
   `sparse_graph.c` / `sparse_reorder_nd.c` landing
+
+## Day 5 - Graph/Reorder Decomposition Design
+
+### Goal
+
+Turn the Day 4 first-landing fence into one explicit ownership and extraction
+contract so Day 6 can shrink the remaining graph/reorder orchestration shells
+without widening into graph-family redesign.
+
+### Actions
+
+1. Re-read the Day 4 boundary artifact and the current Sprint 67 working
+   baseline to keep the first-landing fence exact.
+2. Re-read the live orchestration seams in:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+3. Re-read the already-extracted support context in:
+   - `src/sparse_graph_internal.h`
+   - `src/sparse_graph_coarsen.c`
+   - `src/sparse_graph_refine.c`
+4. Mapped the current helper and orchestration ownership split across the two
+   first-landing files:
+   - environment/runtime parsing
+   - profiling/runtime accounting
+   - recursive/top-level orchestration
+   - uncoarsening/retry/fallback glue
+   - public entry-point ownership
+5. Reduced that seam map to one bounded Day 6-7 implementation contract and
+   one explicit non-widening fence.
+
+### Findings
+
+#### 1. Sprint 67 now has one exact ownership contract for the first graph/reorder landing
+
+The first landing should not try to "finish" graph decomposition across the
+whole family. It should instead make the two remaining orchestration shells
+read like durable owners:
+
+- `src/sparse_graph.c` should converge toward:
+  - graph partition top-level orchestration
+  - coarsest-level seed selection/retry ownership
+  - uncoarsening orchestration
+- `src/sparse_reorder_nd.c` should converge toward:
+  - ND policy normalization at the public boundary
+  - ND recursion/top-level orchestration
+  - ND profiling publication at the public boundary
+
+Interpretation:
+
+- Day 6 should optimize for cleaner ownership in the remaining orchestration
+  shells
+- it should not behave like a generic graph cleanup pass
+
+#### 2. `src/sparse_graph.c` is now clearly the graph orchestration shell, not the home for every graph support helper
+
+The live file still owns two different categories of logic:
+
+- durable orchestration that belongs there:
+  - `graph_uncoarsen(...)`
+  - `graph_hierarchy_coarsest(...)`
+  - `graph_partition_seed_coarsest(...)`
+  - `graph_partition_should_retry_with_forced_hem(...)`
+  - `partition_once(...)`
+  - `sparse_graph_partition(...)`
+- support/policy/runtime helpers that are weaker long-term owners:
+  - `graph_parse_env_int_range(...)`
+  - `graph_parse_finest_strategy(...)`
+  - `graph_parse_ensemble_strategy_list(...)`
+  - `graph_env_flag_enabled(...)`
+  - `graph_uncoarsen_level_passes(...)`
+  - `graph_uncoarsen_runtime_for_level(...)`
+
+The Day 5 design implication is now explicit:
+
+- the file should keep graph partition and uncoarsening orchestration
+- support parsing/runtime-accounting helpers should move only if the Day 6
+  landing needs that extraction to make the orchestration shell materially
+  clearer
+
+#### 3. `src/sparse_reorder_nd.c` is now clearly the ND orchestration shell, not the best home for every compatibility parser
+
+The live file still owns three mixed layers:
+
+- durable ND owners:
+  - `nd_recurse(...)`
+  - `sparse_reorder_nd_with_policy(...)`
+  - `sparse_reorder_nd(...)`
+- likely separable support helpers:
+  - `nd_emit_natural(...)`
+  - `nd_subgraph_to_sparse(...)`
+- compatibility/policy parsing and profiling helpers:
+  - `parse_nd_root_bisect_strategy_compat_override(...)`
+  - `parse_nd_coarsening_compat_override(...)`
+  - `parse_nd_coarsest_bisection_compat_override(...)`
+  - `parse_nd_root_bisect_max_n_compat_override(...)`
+  - `parse_nd_coarsen_floor_ratio_compat_override(...)`
+  - `parse_nd_coarsening_cv_fallthrough_compat_override(...)`
+  - `parse_nd_sep_lift_strategy_compat_override(...)`
+  - `parse_nd_sep_lift_weight_compat_override(...)`
+  - `sparse_reorder_nd_default_policy(...)`
+
+The Day 5 design implication is now explicit:
+
+- the file should keep ND public-boundary normalization and recursive
+  orchestration
+- compatibility parsers, leaf/base-case helpers, or local profiling helpers
+  should move only where that materially reduces chronology and mixed ownership
+
+#### 4. The Day 6-7 touched-file fence is now fixed and small
+
+Required first-batch implementation surfaces:
+
+- `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+
+Likely proof home:
+
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+Support only if the landed extraction truly needs it:
+
+- `src/sparse_graph_internal.h`
+- `tests/test_integration.c`
+
+Interpretation:
+
+- the first implementation batch can still stay family-local by default
+- support/header/integration widening is now explicitly conditional
+
+#### 5. The explicit non-widening fence is now strong enough to keep the landing honest
+
+The first graph/reorder landing should not widen into:
+
+- `src/sparse_graph_core.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_separator.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- public coordination headers unless the landed extraction truly forces it
+- packaging/platform/build churn
+
+Interpretation:
+
+- Sprint 67 still has real later lanes after Day 6-7
+- but the first implementation success condition is a clearer ownership story
+  in the two remaining orchestration shells, not broader source churn
+
+### Day 5 Close
+
+Sprint 67 Day 5 now fixes the first implementation contract exactly:
+
+1. required first batch:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+2. likely proof home:
+   - `tests/test_graph.c`
+   - `tests/test_reorder_nd.c`
+3. support only if needed:
+   - `src/sparse_graph_internal.h`
+   - `tests/test_integration.c`
+4. explicit non-touch set:
+   - already-extracted graph subsystem files
+   - `src/sparse_reorder_amd_qg.c`
+   - CSC/analysis residuals
+   - iterative/eigensolver residuals
+
+That gives Day 6 one exact job:
+
+- land one bounded graph/reorder ownership extraction batch without widening
+  into graph-family redesign

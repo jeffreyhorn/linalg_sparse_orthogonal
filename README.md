@@ -990,7 +990,8 @@ After installation, downstream projects can use:
 
 The maintained package surface is intentionally static-first:
 
-- the installed library is `libsparse_lu_ortho.a`
+- Unix-like installs produce a static archive such as `libsparse_lu_ortho.a`
+- Windows/MSVC installs produce the corresponding static `.lib`
 - the exported CMake target and `pkg-config` metadata both describe that same
   static archive surface
 - version metadata is single-sourced from `VERSION`

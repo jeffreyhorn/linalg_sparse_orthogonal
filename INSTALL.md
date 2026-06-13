@@ -53,7 +53,9 @@ make install PREFIX=/usr DESTDIR=/tmp/staging
 
 The maintained install surface is intentionally static-first:
 
-- `make install` installs the static archive `libsparse_lu_ortho.a`
+- Unix-like `make install` installs a static archive such as
+  `libsparse_lu_ortho.a`
+- Windows/MSVC installs use the corresponding static `.lib`
 - `cmake --install` exports the same static library through
   `Sparse::sparse_lu_ortho`
 - `pkg-config` and `find_package(Sparse)` both describe that installed static

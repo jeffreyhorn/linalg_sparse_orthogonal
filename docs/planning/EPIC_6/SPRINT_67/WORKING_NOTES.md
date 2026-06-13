@@ -824,3 +824,147 @@ That gives Day 6 one exact job:
 
 - land one bounded graph/reorder ownership extraction batch without widening
   into graph-family redesign
+
+## Day 6 - Graph/Reorder Ownership Extraction Batch 1
+
+### Goal
+
+Land the first bounded ownership extraction batch inside the Day 5 fence by
+shrinking the two remaining graph/reorder orchestration shells without
+widening into the already-extracted graph subsystem files.
+
+### Actions
+
+1. Re-read the Day 5 design contract and the live Day 6 target files:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+2. Identified the strongest mixed-ownership seams that could be extracted
+   locally without creating a broader graph-family rewrite:
+   - uncoarsen env/runtime setup in `src/sparse_graph.c`
+   - leaf/partition/side-recursion support glue inside
+     `src/sparse_reorder_nd.c`
+3. Landed the bounded local helper extraction:
+   - `graph_uncoarsen_options_t`
+   - `graph_uncoarsen_options_from_env(...)`
+   - `nd_emit_leaf_amd(...)`
+   - `nd_partition_current_graph(...)`
+   - `nd_recurse_side(...)`
+4. Verified that the batch stayed inside the Day 5 fence:
+   - no public-header widening
+   - no already-extracted graph subsystem edits
+   - no CSC/analysis or iterative/eigensolver widening
+5. Ran the required validation and reviewed-quality paths.
+
+### Findings
+
+#### 1. `src/sparse_graph.c` now reads more like an orchestration shell and less like a mixed env-parser/runtime bucket
+
+The Day 6 batch introduced:
+
+- `graph_uncoarsen_options_t`
+- `graph_uncoarsen_options_from_env(...)`
+
+This consolidates the uncoarsening control-plane selection that was previously
+spread across `graph_uncoarsen(...)`:
+
+- finest/intermediate pass counts
+- finest FM strategy
+- annealing / thick-restart / gain-noise schedule choices
+- ensemble strategy list and debug flag
+
+Interpretation:
+
+- `graph_uncoarsen(...)` now spends more of its visible surface on level-walk
+  orchestration
+- env/runtime selection is still local to the file, but it is no longer mixed
+  directly into the orchestration body
+
+#### 2. `src/sparse_reorder_nd.c` now separates recursive orchestration from three support responsibilities that previously lived inline
+
+The Day 6 batch extracted:
+
+- `nd_emit_leaf_amd(...)`
+- `nd_partition_current_graph(...)`
+- `nd_recurse_side(...)`
+
+That removes three support responsibilities from the center of `nd_recurse(...)`:
+
+- leaf AMD materialization/splice
+- root spectral-versus-multilevel partition dispatch
+- repeated side-subgraph build/map/recurse glue
+
+Interpretation:
+
+- `nd_recurse(...)` now reads more directly as ND recursion ownership
+- the support helpers stay in the same file, preserving the bounded fence,
+  while making the recursive driver itself materially smaller and clearer
+
+#### 3. The first landed extraction stayed inside the exact Day 5 fence
+
+Touched implementation surfaces:
+
+- `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+
+The batch did not widen into:
+
+- `src/sparse_graph_core.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_separator.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_graph_internal.h`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+
+Interpretation:
+
+- the landed batch is a real ownership extraction, not a disguised broad
+  maintainability wave
+- proof and support surfaces remain available for later follow-through if a
+  subsequent batch truly needs them
+
+#### 4. The reviewed baseline stayed intact after the ownership extraction
+
+Because `*.c` changed, the required validation set was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And because this was substantial decomposition work on orchestration-heavy
+files, the stronger reviewed path was also run:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 67 maintainability work keeps the same reviewed truthfulness bar as
+  the earlier Epic 6 code sprints
+- the Day 6 extraction is validated as behavior-preserving, not just
+  structurally cleaner
+
+### Day 6 Close
+
+Sprint 67 Day 6 now lands the first bounded graph/reorder ownership extraction:
+
+1. `src/sparse_graph.c`
+   - uncoarsen control-plane parsing/runtime setup is centralized into one
+     local options seam
+2. `src/sparse_reorder_nd.c`
+   - leaf handling, partition dispatch, and side recursion glue are extracted
+     out of the main recursive driver
+3. the batch stayed inside the two-file first-landing fence
+4. the full required validation and reviewed gate passed
+
+That gives Day 7 one exact follow-through job:
+
+- rerank the residual graph/reorder ownership seam after the first landed
+  extraction and decide whether a second bounded graph batch is still justified

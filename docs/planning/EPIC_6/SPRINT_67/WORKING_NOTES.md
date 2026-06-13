@@ -968,3 +968,167 @@ That gives Day 7 one exact follow-through job:
 
 - rerank the residual graph/reorder ownership seam after the first landed
   extraction and decide whether a second bounded graph batch is still justified
+
+## Day 7 - Post-Landing Audit & Residual Rerank
+
+### Goal
+
+Rerank the live maintainability seams after the Day 6 graph/reorder landing and
+decide whether Sprint 67 should spend another bounded batch inside the graph
+lane or pivot to the stronger remaining shared-policy/CSC lane.
+
+### Actions
+
+1. Re-read the Day 6 landed artifact and the live Day 6 branch state.
+2. Re-read the post-landing versions of:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+   - `src/sparse_analysis.c`
+3. Rechecked the remaining mixed-ownership surfaces against the Sprint 67
+   maintainability target:
+   - graph partition retry/fallback orchestration
+   - ND policy compatibility parsing
+   - shared analysis/reorder ND policy normalization
+4. Compared the residual graph/reorder seam against the next-ranked CSC/analysis
+   seam to see which now carries the stronger contradiction.
+5. Fixed the exact next target in writing.
+
+### Findings
+
+#### 1. The Day 6 landing closed the strongest pure graph/reorder ownership contradiction
+
+After Day 6:
+
+- `src/sparse_graph.c` reads more clearly as:
+  - uncoarsening orchestration
+  - partition sequencing
+  - retry/fallback ownership
+- `src/sparse_reorder_nd.c` reads more clearly as:
+  - ND recursive driver
+  - public reorder entry
+  - local support helpers around the recursive path
+
+Interpretation:
+
+- the broad "remaining graph/reorder orchestration shell" problem is no longer
+  the strongest maintainability seam on the branch
+- a second graph-only batch is no longer automatically justified just because
+  these files are still non-trivial
+
+#### 2. The strongest remaining contradiction has shifted into shared ND policy normalization, not deeper graph extraction
+
+The live strongest residual seam is now the duplicated ND compatibility-policy
+surface split across:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+
+Why this now ranks above a second graph-only batch:
+
+- both files still own parallel env-var compatibility parsers for:
+  - root-bisect mode
+  - coarsening mode
+  - coarsest-bisection mode
+  - root-bisect max-n
+  - coarsen floor ratio
+  - coarsening CV fallthrough
+  - separator-lift strategy
+  - separator-lift weight
+- that duplication is a stronger remaining ownership contradiction than the
+  smaller local retry/fallback seam still left in `src/sparse_graph.c`
+- it already touches the CSC/analysis lane that Day 3 ranked second
+
+Interpretation:
+
+- the next maintainability win is no longer "more graph extraction"
+- it is convergence of the shared ND policy normalization story behind the
+  public analysis/reorder boundary
+
+#### 3. `src/sparse_graph.c` still has residual glue, but it is now a lower-priority local seam rather than the sprint center
+
+The main residual graph-local seam now is:
+
+- `partition_once(...)`
+- `graph_partition_should_retry_with_forced_hem(...)`
+- `sparse_graph_partition(...)`
+
+That remains real because retry/fallback glue still lives beside the partition
+orchestration shell, but it is now:
+
+- more local
+- lower-risk
+- less contradictory than the duplicated ND policy compatibility path
+
+Interpretation:
+
+- this graph-local seam becomes support/deferred context rather than the next
+  mandatory batch
+- it should move later only if a shared-policy landing proves it necessary
+
+#### 4. The exact next target is now the shared ND policy / CSC-analysis seam
+
+The strongest next batch is now:
+
+- shared ND policy normalization across `src/sparse_reorder_nd.c` and
+  `src/sparse_analysis.c`
+
+Likely touched surfaces:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+
+Likely proof home:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+
+Support only if the landing truly needs it:
+
+- `src/sparse_reorder_nd_internal.h`
+- `include/sparse_analysis.h`
+
+Interpretation:
+
+- Sprint 67’s second code lane now converges naturally into the CSC/analysis
+  track instead of forcing a fake second graph batch
+- this still stays consistent with the Day 3 ranking: graph first, CSC/analysis
+  second
+
+#### 5. The non-widening fence stays explicit even after the rerank
+
+The next landing should still not widen into:
+
+- already-extracted graph subsystem files
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- public API redesign
+- packaging/platform/build churn
+
+Interpretation:
+
+- the rerank changes target order, not the bounded-sprint safety contract
+- the next step should still be a small ownership convergence batch, not a
+  broad cross-family rewrite
+
+### Day 7 Close
+
+Sprint 67 Day 7 now fixes the post-Day-6 order explicitly:
+
+1. graph/reorder first landing:
+   - closed the strongest pure graph/reorder contradiction
+2. strongest remaining seam:
+   - shared ND policy normalization across `src/sparse_reorder_nd.c` and
+     `src/sparse_analysis.c`
+3. graph residuals now lower-priority/local:
+   - retry/fallback glue in `src/sparse_graph.c`
+4. likely next proof home:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_integration.c`
+
+That gives Day 8 one exact job:
+
+- define the bounded shared ND policy / CSC-analysis convergence design instead
+  of forcing a second graph-only batch

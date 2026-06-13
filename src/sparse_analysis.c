@@ -515,15 +515,9 @@ static sparse_err_t factor_cholesky_with_analysis_csc(const SparseMatrix *A,
                                                       sparse_factors_t *factors) {
     CholCsc *L_csc = NULL;
     SparseMatrix *L = NULL;
-    sparse_err_t err = chol_csc_from_sparse_with_analysis(A, analysis, &L_csc);
+    sparse_err_t err = chol_csc_factor(A, analysis, &L_csc);
     if (err != SPARSE_OK)
         return err;
-
-    err = chol_csc_eliminate_supernodal(L_csc, SPARSE_CSC_SUPERNODE_MIN_SIZE);
-    if (err != SPARSE_OK) {
-        chol_csc_free(L_csc);
-        return err;
-    }
 
     L = sparse_create(analysis->n, analysis->n);
     if (!L) {

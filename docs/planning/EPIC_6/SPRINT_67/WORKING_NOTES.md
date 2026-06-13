@@ -1554,3 +1554,76 @@ Sprint 67 Day 10 now fixes the post-Day-9 rerank explicitly:
    - `src/sparse_analysis.c`
    - `src/sparse_chol_csc.c`
    - likely proof in `tests/test_integration.c` and `tests/test_chol_csc.c`
+
+## Day 11 - Large-n Cholesky analysis/CSC handoff batch
+
+Date: 2026-06-13
+Commit: `pending`
+
+### Goal
+
+Land the next bounded Sprint 67 maintainability batch by converging the
+large-`n` explicit-analysis Cholesky CSC handoff onto one family-local factor
+owner instead of keeping a second CSC orchestration shell in
+`src/sparse_analysis.c`.
+
+### Actions
+
+1. audited the live large-`n` Cholesky analysis/CSC path across:
+   - `src/sparse_analysis.c`
+   - `src/sparse_chol_csc.c`
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+2. changed `chol_csc_factor(...)` so the analysis-backed large-`n` lane now
+   resolves through `chol_csc_eliminate_supernodal(...)` with the shared
+   `SPARSE_CSC_SUPERNODE_MIN_SIZE` cutoff, matching the shipped public
+   repeated-run Cholesky lifecycle
+3. replaced the dedicated CSC elimination shell inside
+   `factor_cholesky_with_analysis_csc(...)` with a call into the family-local
+   `chol_csc_factor(...)` helper
+4. tightened the family-local helper comment in
+   `src/sparse_chol_csc_internal.h` so the large-`n` analysis-backed routing
+   contract is stated directly
+5. added two bounded proofs:
+   - `tests/test_chol_csc.c` now proves `chol_csc_factor(A, &analysis, ...)`
+     matches the explicit
+     `chol_csc_from_sparse_with_analysis(...)` +
+     `chol_csc_eliminate_supernodal(...)` route on a large SPD case
+   - `tests/test_integration.c` now asserts the large-`n` one-shot Cholesky
+     side of the existing public-path comparison actually resolved to the CSC
+     lane via `used_csc_path == 1`
+
+### Validation
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Results:
+
+- all passed
+- reviewed CMake parity anchor remained `53`
+- Makefile/CMake parity remained `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 468.96 sec`
+
+### Outcome
+
+The Day 11 landing stayed inside the Day 10 fence:
+
+- the large-`n` analysis-backed Cholesky CSC factor route now has one shared
+  family-local owner
+- the public repeated-run lifecycle no longer carries a second copy of the CSC
+  elimination dispatch for that lane
+- the proof burden stayed bounded to the Cholesky CSC family-local surface and
+  the existing public large-`n` integration comparison
+
+### Notes
+
+- the first test cut used `build_tridiag_spd(...)` inside `tests/test_chol_csc.c`,
+  but that helper does not exist on that family-local surface; the landed proof
+  now builds its SPD tridiagonal matrix inline so the test remains self-contained
+  and keeps the batch inside the intended touched-file fence

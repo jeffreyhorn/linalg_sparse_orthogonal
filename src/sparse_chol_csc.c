@@ -1111,7 +1111,11 @@ sparse_err_t chol_csc_factor(const SparseMatrix *A, const sparse_analysis_t *ana
     if (err != SPARSE_OK)
         return err;
 
-    err = chol_csc_eliminate(L);
+    if (analysis && A->rows >= SPARSE_CSC_THRESHOLD) {
+        err = chol_csc_eliminate_supernodal(L, SPARSE_CSC_SUPERNODE_MIN_SIZE);
+    } else {
+        err = chol_csc_eliminate(L);
+    }
     if (err != SPARSE_OK) {
         chol_csc_free(L);
         return err;

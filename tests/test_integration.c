@@ -1181,6 +1181,7 @@ static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
     SparseMatrix *A_analysis = build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
+    int used_csc_path = 0;
     double *b = NULL;
     double *x_opts = NULL;
     double *x_analysis = NULL;
@@ -1189,8 +1190,10 @@ static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
 
     sparse_cholesky_opts_t chol_opts = {
         .reorder = SPARSE_REORDER_AMD,
+        .used_csc_path = &used_csc_path,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A_opts, &chol_opts), SPARSE_OK);
+    ASSERT_EQ(used_csc_path, 1);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_CHOLESKY,

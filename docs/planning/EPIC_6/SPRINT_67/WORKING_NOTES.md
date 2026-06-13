@@ -501,3 +501,149 @@ That gives Day 4 one explicit job:
 
 - turn the graph/reorder lane into the exact first landing fence instead of
   keeping it as a general hotspot bucket
+
+## Day 4 - Hotspot Follow-Through & First-Landing Boundary
+
+### Goal
+
+Turn the Day 3 hotspot ranking into one exact first implementation fence so
+Sprint 67 starts from a bounded graph/reorder landing instead of a generic
+cleanup target set.
+
+### Actions
+
+1. Re-read the Day 3 ranked hotspot audit and the Sprint 67 plan fence.
+2. Re-read the current internal ownership contract in:
+   - `src/sparse_graph_internal.h`
+3. Re-read the strongest likely first-landing files directly:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+4. Re-read the nearby already-extracted graph subsystem files to confirm what
+   should stay out of the first landing:
+   - `src/sparse_graph_coarsen.c`
+   - `src/sparse_graph_refine.c`
+5. Fixed the exact first-landing boundary from the live repo state:
+   - required implementation surfaces
+   - likely proof/support surfaces
+   - explicit non-touch set
+
+### Findings
+
+#### 1. Sprint 67 now has one exact first landing boundary instead of a generic graph/reorder shortlist
+
+The exact first landing is now fixed to:
+
+- `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+
+This is the right first batch because those two files still own the strongest
+combination of:
+
+- top-level orchestration
+- retry/fallback glue
+- runtime/env-policy handling
+- residual chronology in permanent implementation surfaces
+
+Interpretation:
+
+- Sprint 67 should not start by touching every graph file that still looks big
+- it should start by shrinking the remaining orchestration shells that still
+  read least like durable owners
+
+#### 2. The already-extracted graph subsystem files are support context, not the first implementation center
+
+The following files now read as already-separated subsystem owners rather than
+the best first extraction targets:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_separator.c`
+
+Why they stay out of the first landing:
+
+- each already has a narrower ownership statement than `src/sparse_graph.c`
+- the residual chronology burden is lower than in the orchestration shells
+- widening into them immediately would blur whether Day 6-7 is still an
+  ownership extraction or just a broad graph rewrite
+
+Interpretation:
+
+- these files remain relevant context for the Day 5 design
+- they should move only if the landed first batch proves a truly necessary
+  support edit
+
+#### 3. The likely proof home is now bounded and explicit
+
+The strongest proof surfaces for the first landing are now:
+
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+Likely support only if the design actually forces it:
+
+- `src/sparse_graph_internal.h`
+- `tests/test_integration.c`
+
+Interpretation:
+
+- the first landing can stay family-local if the design is disciplined
+- cross-family proof should stay optional rather than assumed
+
+#### 4. CSC/analysis and iterative/eigensolver remain explicitly outside the first landing fence
+
+The following stay out of the first landing:
+
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- public coordination headers unless the landed graph/reorder design proves
+  they truly need moving
+
+Interpretation:
+
+- Sprint 67 still has a real second lane after graph/reorder
+- but the first implementation batch should not widen into CSC or iterative
+  work just because those files are also large
+
+#### 5. The strongest remaining Day 4 safety rule is "do not widen from orchestration cleanup into graph-family redesign"
+
+The current non-widening fence is now:
+
+- do not reopen graph construction ownership in `src/sparse_graph_core.c`
+- do not reopen heavy-edge/HCC internals in `src/sparse_graph_coarsen.c`
+- do not reopen FM-local runtime state in `src/sparse_graph_refine.c`
+- do not reopen separator-policy surfaces in `src/sparse_graph_separator.c`
+- do not widen into CSC/iterative/eigensolver work
+- do not widen into packaging/platform/build churn
+
+Interpretation:
+
+- the first landing should optimize for clearer ownership in the remaining
+  orchestration shells
+- it should not behave like a fresh architecture phase for the whole graph
+  subsystem
+
+### Day 4 Close
+
+Sprint 67 Day 4 now fixes the implementation order explicitly:
+
+1. first landing:
+   - `src/sparse_graph.c`
+   - `src/sparse_reorder_nd.c`
+2. likely proof home:
+   - `tests/test_graph.c`
+   - `tests/test_reorder_nd.c`
+3. support only if needed:
+   - `src/sparse_graph_internal.h`
+   - `tests/test_integration.c`
+4. later/deferred:
+   - CSC/analysis residual decomposition
+   - iterative/eigensolver residual decomposition
+
+That gives Day 5 one exact job:
+
+- define the ownership and extraction contract for the bounded
+  `sparse_graph.c` / `sparse_reorder_nd.c` landing

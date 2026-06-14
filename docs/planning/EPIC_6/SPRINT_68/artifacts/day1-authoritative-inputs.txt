@@ -1,0 +1,45 @@
+Sprint 68 Day 1 authoritative inputs
+====================================
+
+Date: 2026-06-13
+Branch: sprint-68
+
+1. Project-plan source
+   - docs/planning/EPIC_6/PROJECT_PLAN.md
+   - Sprint 68 section: "Sprint 68: Giant-Test Refactor Phase 2 & Numerical Assurance Expansion"
+
+2. Sprint-local planning source
+   - docs/planning/EPIC_6/SPRINT_68/PLAN.md
+
+3. Inherited closeout sources
+   - docs/planning/EPIC_6/SPRINT_67/RETROSPECTIVE.md
+   - docs/planning/EPIC_6/SPRINT_67/artifacts/day14-closeout-and-handoff.md
+
+4. Reviewed baseline sources rechecked on Day 1
+   - make -n quality-review-full
+   - ctest -N --test-dir build/quality-review-cmake
+
+5. Live touched-surface measurements captured directly from the tree
+   - README.md = 1025
+   - docs/maintainer_guide.md = 561
+   - benchmarks/README.md = 351
+   - tests/test_chol_csc.c = 4751
+   - tests/test_ldlt_csc.c = 3680
+   - tests/test_qr.c = 3197
+   - tests/test_graph.c = 2900
+   - tests/test_iterative.c = 2802
+   - tests/test_ldlt.c = 2798
+   - tests/test_svd.c = 2766
+   - tests/test_integration.c = 2371
+   - tests/test_reorder_nd.c = 2262
+   - tests/test_eigs.c = 1522
+   - tests/test_sparse_lu.c = 908
+   - tests/test_fuzz.c = 497
+   - tests/test_suitesparse.c = 288
+   - tests/test_framework_optin.c = 85
+   - examples/example_analysis.c = 210
+   - examples/example_basic_solve.c = 110
+   - benchmarks/bench_refactor_csc.c = 611
+   - benchmarks/bench_chol_csc.c = 407
+   - benchmarks/bench_iterative_reuse.c = 395
+   - benchmarks/bench_eigs_reuse.c = 278

@@ -1549,3 +1549,88 @@ Sprint 68 assurance work:
 - This stayed a docs/regression-alignment batch only.
 - It did not widen into implementation files, benchmark behavior, or new
   platform-confidence claims.
+
+## 2026-06-13 - Day 13: Full validation sweep
+
+### Goal
+
+Validate the landed Sprint 68 branch from the strongest reviewed baseline plus
+the touched giant-test, oracle, property, example, and maintained benchmark
+surfaces.
+
+### Actions
+
+1. Run the standard code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+2. Run the strongest reviewed baseline:
+   - `make quality-review-full`
+3. Re-run the touched Sprint 68 proof owners:
+   - `./build/test_integration`
+   - `./build/test_chol_csc`
+   - `./build/test_fuzz`
+   - `./build/test_framework_optin`
+   - `./build/test_reorder_nd`
+4. Re-run representative examples and maintained benchmark surfaces:
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+5. Capture exact reviewed anchors and retained representative outputs for the
+   closeout path.
+
+### Files Touched
+
+- `docs/planning/EPIC_6/SPRINT_68/artifacts/day13-full-validation-sweep.md`
+
+### Validation
+
+Day 13 validation results:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 465.15 sec`
+
+Touched Sprint 68 follow-ons:
+
+- `./build/test_integration` -> `47 / 47`
+- `./build/test_chol_csc` -> `145 / 145`
+- `./build/test_fuzz` -> `25 / 25`
+- `./build/test_framework_optin` -> `8` run, `3` skipped, `0` failed
+- `./build/test_reorder_nd` -> `34 / 34`
+- `./build/example_analysis`
+- `./build/example_basic_solve`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+### Outcome
+
+The full validation sweep passed from the landed Sprint 68 tree:
+
+- the standard code-day gate remained clean
+- the strongest reviewed baseline remained clean with exact parity anchors
+- the touched Sprint 68 proof owners retained their expected counts and
+  representative outputs
+- the maintained examples and benchmark surfaces retained the expected current
+  workflow/performance signals
+
+### Notes
+
+- non-blocking runtime note:
+  - reviewed CMake `test_reorder_nd` still dominated the total at `320.42 sec`
+    out of `465.15 sec`
+- this remained a runtime observation only; the reviewed path still completed
+  cleanly and passed all parity gates

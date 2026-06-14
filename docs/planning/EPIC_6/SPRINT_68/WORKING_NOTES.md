@@ -931,3 +931,151 @@ That gives Day 7 one exact follow-through job:
 
 - rerank the remaining giant-test and assurance queue after the first landed
   `test_chol_csc` helper extraction
+
+## Day 7 - Post-Landing Audit & Assurance Rerank
+
+### Goal
+
+Rerank the remaining Sprint 68 queue from the landed Day 6 branch state so the
+next batch is chosen from the actual maintenance pressure that remains, not
+from the pre-landing hotspot map.
+
+### Actions
+
+1. Re-read the Day 5 design contract and the landed Day 6 artifact.
+2. Re-measured the strongest remaining giant-test and assurance-owner surfaces:
+   - `tests/test_chol_csc.c`
+   - `tests/test_chol_csc_supernodal_helpers.h`
+   - `tests/test_reorder_nd.c`
+   - `tests/test_ldlt_csc.c`
+   - `tests/test_integration.c`
+   - `tests/test_iterative.c`
+   - `tests/test_eigs.c`
+   - `tests/test_svd.c`
+3. Re-read the live large-`n` Cholesky public/oracle proof lanes in:
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+4. Re-ranked the residual queue across:
+   - remaining pure giant-test refactor seams
+   - strongest second-layer oracle opportunity
+   - later property/fuzz and platform-confidence follow-through
+5. Fixed the exact Day 8-10 target set from the live post-Day-6 state.
+
+### Findings
+
+#### 1. The Day 6 batch closed the strongest pure helper-extraction contradiction inside `tests/test_chol_csc.c`
+
+After the landed helper move:
+
+- `tests/test_chol_csc.c` dropped to `4608` lines from the pre-Day-6 `4751`
+  line state
+- the family-local helper seam in
+  `tests/test_chol_csc_supernodal_helpers.h` now carries more of the narrow
+  supernodal/writeback support load
+- the main file still remains large, but it now reads more consistently as the
+  canonical family-local proof owner
+
+Interpretation:
+
+- a second immediate `test_chol_csc.c` helper-only batch is no longer the
+  strongest next move
+- the biggest first-order helper-pressure contradiction in that file is already
+  materially smaller
+
+#### 2. `tests/test_reorder_nd.c` is now the strongest remaining pure refactor seam, but not the highest-value next move
+
+`tests/test_reorder_nd.c` still stands out because it remains:
+
+- `2262` lines
+- the strongest chronology-heavy residual giant test
+- the clearest next pure refactor lane if Sprint 68 wanted a second
+  maintainability-first batch
+
+But it is no longer the strongest immediate value because:
+
+- Day 6 already captured the best first helper-extraction payoff
+- Sprint 68 still owes a stronger second-layer assurance batch
+- the public large-`n` CSC-backed Cholesky lane now has the better
+  confidence-per-change opportunity
+
+Interpretation:
+
+- `tests/test_reorder_nd.c` is now the strongest deferred pure refactor target
+- it should not displace the next oracle lane
+
+#### 3. The strongest remaining next move is now the shared oracle owner on the large-`n` CSC-backed Cholesky public path
+
+The highest-value next batch now sits in:
+
+- `tests/test_integration.c`
+
+Why this lane now ranks first:
+
+- it is the shared owner for public one-shot versus explicit repeated-run proof
+- the large-`n` CSC-backed Cholesky path is still one of Epic 6's hardest
+  retained numerical lanes
+- Day 6 reduced family-local helper clutter enough that the next best value is
+  stronger public-path oracle coverage, not another immediate local split
+
+The family-local support context remains:
+
+- `tests/test_chol_csc.c`
+
+Interpretation:
+
+- Day 8 should design one bounded large-`n` Cholesky oracle/parity batch
+- the owner should be the public/oracle surface first, not the next giant-test
+  refactor seam
+
+#### 4. The exact Day 8-10 target set is now fixed
+
+Strongest next batch:
+
+- large-`n` CSC-backed Cholesky public-path oracle/parity expansion
+
+Required likely owner:
+
+- `tests/test_integration.c`
+
+Likely support only if the oracle shape truly needs a family-local comparison
+fixture:
+
+- `tests/test_chol_csc.c`
+
+Current likely non-touch set for the next batch:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_ldlt_csc.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- `tests/test_svd.c`
+- implementation `src/` files
+- benchmark/docs truth surfaces
+
+Interpretation:
+
+- the queue is now smaller and more explicit
+- Sprint 68 should move from first-wave test refactor to second-layer oracle
+  work next
+
+### Day 7 Close
+
+Sprint 68 Day 7 fixes the post-Day-6 ranked order as:
+
+1. strongest next move:
+   - `tests/test_integration.c`
+   - one bounded large-`n` CSC-backed Cholesky oracle/parity batch
+2. likely support only if needed:
+   - `tests/test_chol_csc.c`
+3. strongest deferred pure refactor seam:
+   - `tests/test_reorder_nd.c`
+4. later assurance/follow-through owners:
+   - `tests/test_ldlt_csc.c`
+   - `tests/test_iterative.c`
+   - `tests/test_eigs.c`
+   - `tests/test_svd.c`
+
+That gives Day 8 one exact job:
+
+- define the bounded large-`n` CSC-backed Cholesky oracle/parity contract in
+  the public integration owner

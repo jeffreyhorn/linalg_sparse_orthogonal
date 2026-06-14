@@ -158,3 +158,136 @@ Sprint 68 now starts from one explicit giant-test and assurance baseline:
   follow-through, and closeout
 - the next step is to rank those live giant-test seams precisely before
   writing the Day 2 validation and Day 3 hotspot follow-through
+
+## Day 2 - Validation Baseline & Giant-Test/Proof Rerun Recheck
+
+### Goal
+
+Reconfirm the reviewed baseline and the targeted giant-test and assurance
+rerun set that Sprint 68 refactor work must preserve before any
+implementation work lands.
+
+### Actions
+
+1. Rechecked the reviewed CMake parity anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+2. Re-read the reviewed baseline wrapper surface:
+   - `make -n quality-review-full`
+3. Reconfirmed the authoritative validation split for:
+   - bounded `*.c` / `*.h` days
+   - substantial giant-test or oracle/property assurance days
+   - docs-only days
+4. Rechecked build-tree availability of the most relevant Sprint 68 proof and
+   regression surfaces:
+   - giant direct-family tests
+   - giant graph/reorder and iterative/eigensolver tests
+   - property/fuzz and opt-in framework proof surfaces
+   - representative examples
+   - maintained benchmark/reporting surfaces
+5. Reconfirmed the strongest likely Sprint 68 touched-surface classes from the
+   live branch state after the Day 1 baseline.
+
+### Findings
+
+#### 1. The strongest reviewed baseline is unchanged at Sprint 68 start
+
+The strongest local reviewed baseline is still:
+
+- `make quality-review-full`
+
+The maintained reviewed CMake parity anchor is still:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- Sprint 68 inherits the same reviewed-baseline authority split as Sprint 67
+- giant-test and assurance work is not allowed to drift onto a weaker local
+  truth surface
+
+#### 2. The authoritative validation split is now explicit before code work begins
+
+The Day 2 validation contract is now fixed as:
+
+- bounded `*.c` / `*.h` days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial test-architecture, oracle, or
+  platform-confidence work:
+  - `make quality-review-full`
+- docs-only days:
+  - targeted sanity checks only
+
+Interpretation:
+
+- Sprint 68 should treat giant-test refactors as real code moves, not “docs
+  adjacent” work
+- assurance expansion that materially changes proof surfaces should default to
+  the stronger reviewed gate
+
+#### 3. The high-signal Sprint 68 rerun set is now fixed around the real giant-test and assurance-risk surface
+
+The targeted Sprint 68 rerun set present in `build/` is:
+
+- cross-family/orchestration proof:
+  - `./build/test_integration`
+- giant direct-family proofs:
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+  - `./build/test_qr`
+  - `./build/test_svd`
+- giant graph/reorder and iterative/eigensolver proofs:
+  - `./build/test_graph`
+  - `./build/test_reorder_nd`
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+- assurance-support surfaces:
+  - `./build/test_fuzz`
+  - `./build/test_framework_optin`
+- representative examples:
+  - `./build/example_analysis`
+  - `./build/example_basic_solve`
+- maintained benchmark/reporting surfaces:
+  - `./build/bench_refactor_csc`
+  - `./build/bench_chol_csc`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- this is the smallest meaningful rerun set that still spans the strongest
+  Sprint 68 maintenance and assurance lanes
+- later days should justify any expansion beyond this set, not default to it
+
+#### 4. The current giant-test/refactor lane is already narrower than the full test tree
+
+Even though the repo has a broad reviewed suite, Sprint 68 Day 2 confirms the
+highest-value likely touched lane is concentrated in:
+
+- giant CSC and direct-family proofs
+- giant graph/reorder proofs
+- giant iterative/eigensolver proofs
+- property/fuzz support where added invariants may materially pay off
+- representative examples and maintained benchmark/reporting surfaces only
+  where proof ownership truly moves
+
+Interpretation:
+
+- Sprint 68 should not turn into a repo-wide test reorganization
+- the targeted rerun set is already narrow enough to keep later audit and
+  landing decisions honest
+
+### Day 2 Close
+
+Sprint 68 now has one explicit validation contract before implementation
+begins:
+
+- strongest local reviewed baseline is still `make quality-review-full`
+- reviewed CMake parity remains explicit at `53`
+- bounded `*.c` / `*.h` days must run `make format`, `make lint`, and
+  `make test`
+- substantial giant-test or assurance work should default to
+  `make quality-review-full`
+- the targeted Sprint 68 rerun set is now fixed around the actual giant-test,
+  assurance, example, and maintained benchmark surfaces present in `build/`

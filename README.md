@@ -581,6 +581,9 @@ That repeated-run CSC story stays intentionally simple on the Cholesky side:
 - the public one-shot vs explicit repeated-run parity/error-path contract stays
   owned by:
   - `tests/test_integration.c`
+- the bounded seeded generative follow-through for the same large-`n`
+  CSC-backed lifecycle lane stays owned by:
+  - `tests/test_fuzz.c`
 
 **Transparent dispatch (Sprint 18 Day 11).**
 `sparse_cholesky_factor_opts(mat, opts)` now routes through the CSC
@@ -754,7 +757,7 @@ default instrumented test run, not for every opt-in test path automatically.
 - Bidiagonal reduction (12 tests)
 - SVD — full, partial, rank-deficient, condition number, pseudoinverse, low-rank (91 tests)
 - Sprint 8 cross-feature integration (7 tests)
-- Fuzz and property-based tests (24 tests)
+- Fuzz and property-based tests (25 tests)
 - CSR LU — conversion, elimination, dense blocks, block solve, coverage gaps (53 tests)
 - Block solvers — block SpMV, block CG, block GMRES (15 tests)
 - Sprint 10 cross-feature integration (14 tests)
@@ -876,7 +879,7 @@ make quality-review-cmake
 |--------|---------|---------|---------------------------|
 | Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
 | macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; supplemental static-first Make install/uninstall + `pkg-config` verification |
-| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz`; no separate reviewed install-validation lane beyond the CMake-first consumer story |
+| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` (so the bounded Sprint 68 property/fuzz lifecycle lane remains outside the reviewed Windows subset); no separate reviewed install-validation lane beyond the CMake-first consumer story |
 
 Use the table above as the compact operator map for enforced, staged, and
 supplemental/excluded boundaries. For repository-wide interpretation of those

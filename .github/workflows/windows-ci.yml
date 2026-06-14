@@ -3,8 +3,11 @@ name: Windows CI
 # Windows currently enforces the reviewed CMake subset only:
 # configure + build + `ctest -N` + full `ctest`. The Makefile reviewed
 # wrappers and dead-code flow remain staged, and the current excluded
-# tests remain explicit in job output. This lane backs the reviewed CMake-first
-# consumer story; it is not a separate reviewed install-validation lane.
+# tests remain explicit in job output. In particular, `test_fuzz` is still
+# outside the reviewed Windows subset, so Sprint 68's bounded lifecycle
+# property/fuzz lane is not claimed as reviewed Windows evidence. This lane
+# backs the reviewed CMake-first consumer story; it is not a separate reviewed
+# install-validation lane.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -50,7 +53,7 @@ jobs:
           if ($count -ne [int]$env:EXPECTED_WINDOWS_CTEST_COUNT) {
             throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
           }
-          Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz"
+          Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz (including Sprint 68's bounded lifecycle property lane)"
         shell: pwsh
 
       - name: Run enforced reviewed CMake execution path (ctest)

@@ -1400,3 +1400,74 @@ The Day 10 batch landed one real additive property lane:
 - This stayed a bounded generative/property batch only.
 - It did not add generic random volume, new fuzz harnesses, or cross-family
   helper abstraction.
+
+## 2026-06-13 - Day 11: Platform-test confidence follow-through
+
+### Goal
+
+Tighten the platform-confidence wording only where Sprint 68 actually moved test
+ownership, especially the new Day 10 `test_fuzz` lifecycle property, without
+claiming broader reviewed Windows confidence than the repo enforces.
+
+### Actions
+
+1. Re-read the live platform-confidence and proof-ownership surfaces in:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+   - `.github/workflows/windows-ci.yml`
+2. Confirm the actual contradiction:
+   - Sprint 68 added a bounded seeded lifecycle property in `tests/test_fuzz.c`
+   - Windows still excludes `test_fuzz`
+   - the docs/workflow needed to say explicitly that this new property lane is
+     outside the reviewed Windows subset
+3. Update the large-`n` CSC-backed Cholesky proof split in `README.md` so it
+   now names all three relevant owners:
+   - `tests/test_chol_csc.c`
+   - `tests/test_integration.c`
+   - `tests/test_fuzz.c`
+4. Update the README test inventory count:
+   - fuzz and property-based tests `24 -> 25`
+5. Update the README cross-platform CI contract table so the Windows row now
+   states that excluding `test_fuzz` means the bounded Sprint 68 lifecycle
+   property lane is outside the reviewed Windows subset.
+6. Update `docs/maintainer_guide.md` so the maintained proof ownership and
+   platform-confidence interpretation explicitly include the new `test_fuzz`
+   lane and its Windows exclusion boundary.
+7. Update `.github/workflows/windows-ci.yml` comments and staged-exclusion
+   output so workflow logs match the maintained docs.
+
+### Files Touched
+
+- `README.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/windows-ci.yml`
+
+### Validation
+
+This was a docs/workflow-comment-only batch, so no `*.c` / `*.h` validation was
+required.
+
+Targeted Day 11 sanity checks:
+
+- touched-surface diff review
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch status recheck
+
+### Outcome
+
+The Day 11 batch tightened the platform-confidence story exactly where Sprint 68
+changed it:
+
+- the large-`n` CSC-backed Cholesky proof split now names the bounded seeded
+  generative owner in `tests/test_fuzz.c`
+- the default test inventory count now reflects the added Day 10 property lane
+- the Windows confidence story now says plainly that excluding `test_fuzz`
+  means this new property lane is not reviewed Windows evidence
+- no build, implementation, or CI behavior changed
+
+### Notes
+
+- This stayed a wording/truthfulness batch only.
+- It did not widen into new platform jobs, new staged exclusions, or broader
+  platform closure claims.

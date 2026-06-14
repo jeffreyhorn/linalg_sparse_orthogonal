@@ -1634,3 +1634,77 @@ The full validation sweep passed from the landed Sprint 68 tree:
     out of `465.15 sec`
 - this remained a runtime observation only; the reviewed path still completed
   cleanly and passed all parity gates
+
+## 2026-06-13 - Day 14: Closeout & handoff
+
+### Goal
+
+Close Sprint 68 from the validated Day 13 baseline and hand off one truthful
+next-step queue for the remaining giant-test and assurance work.
+
+### Actions
+
+1. Re-read the validated Day 13 state across:
+   - the Sprint 68 plan
+   - the Day 6, Day 9, Day 10, Day 11, Day 12, and Day 13 artifacts
+   - the current maintained truth surfaces
+2. Reduce the full sprint to the shipped package only:
+   - giant-test helper extraction in `tests/test_chol_csc.c`
+   - large-`n` CSC-backed Cholesky public-path oracle expansion in
+     `tests/test_integration.c`
+   - bounded seeded generative follow-through in `tests/test_fuzz.c`
+   - platform-confidence and maintained-doc alignment
+3. Write the closeout/handoff artifact covering:
+   - shipped maintainability outcomes
+   - shipped second-layer assurance outcomes
+   - preserved compatibility/truthfulness fences
+   - ranked carry-forward queue
+4. Recheck the Sprint 68 section of `docs/planning/EPIC_6/PROJECT_PLAN.md`
+   against the landed state and confirm whether correction is needed.
+5. Confirm the close state explicitly as ready for retrospective/PR follow-on.
+
+### Files Touched
+
+- `docs/planning/EPIC_6/SPRINT_68/artifacts/day14-closeout-and-handoff.md`
+
+### Validation
+
+This was a docs-only Day 14 closeout batch, so no new `*.c` / `*.h` validation
+was required after the Day 13 validated baseline.
+
+Day 14 close relies on the Day 13 validated state:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- reviewed CMake parity stayed exact at `53`
+- Makefile/CMake parity stayed `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 465.15 sec`
+
+### Outcome
+
+Sprint 68 closes with one coherent giant-test and assurance package:
+
+- first-wave `test_chol_csc` maintainability relief
+- stronger staged public-path oracle coverage on the large-`n` CSC-backed
+  Cholesky lane
+- bounded seeded generative follow-through for that same lifecycle lane
+- tighter platform-confidence and maintained-doc ownership wording
+- validated close from the strongest reviewed baseline
+
+The ranked carry-forward queue is now explicit:
+
+1. `tests/test_reorder_nd.c` as the strongest remaining pure giant-test seam
+2. `tests/test_ldlt_csc.c` only if a bounded next split justifies the cost
+3. later assurance expansion only where another hard lane still lacks a useful
+   second proof style
+4. further platform-confidence wording only if later test ownership changes
+   actually move a reviewed or excluded lane again
+
+### Notes
+
+- `docs/planning/EPIC_6/PROJECT_PLAN.md` does not need a Sprint 68 correction
+  from the landed branch state.
+- This stayed a closeout/handoff batch only.

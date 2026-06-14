@@ -1319,3 +1319,84 @@ The Day 9 batch landed exactly one stronger public-path oracle story:
 - This stayed a success-path oracle/parity batch only.
 - It did not widen into failure-preservation, family-local kernel plumbing, or
   performance benchmarking claims.
+
+## 2026-06-13 - Day 10: Property/fuzz expansion batch
+
+### Goal
+
+Add one bounded generative assurance lane that materially strengthens Sprint 68
+without widening back into giant-test ownership churn: a deterministic large-`n`
+CSC-backed Cholesky public-lifecycle property in the existing fuzz/property
+owner.
+
+### Actions
+
+1. Re-read the Sprint 68 plan and confirm Day 10 should be a property/fuzz
+   batch, not another rerank day.
+2. Audit the live assurance surfaces with emphasis on:
+   - `tests/test_fuzz.c`
+   - the newly landed Day 9 public-path CSC-backed Cholesky oracle
+   - existing random/property coverage already present in:
+     - `tests/test_chol_csc.c`
+     - `tests/test_ldlt_csc.c`
+     - `tests/test_graph_fm_buckets.c`
+3. Choose one bounded candidate with real payoff:
+   - deterministic same-pattern large-`n` SPD lifecycle parity on the CSC side
+   - owned by `tests/test_fuzz.c`
+   - no widening into implementation files or giant-test file splits
+4. Add one reusable local helper:
+   - `property_assert_vec_near(...)`
+5. Add one new property test:
+   - `test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(...)`
+6. Keep the new lane bounded and deterministic:
+   - `n = SPARSE_CSC_THRESHOLD + 12`
+   - three fixed seeds: `701`, `1103`, `1729`
+   - same-pattern SPD stages via `random_spd(...)`
+   - baseline plus two refactor stages
+   - one-shot/public repeated-run agreement and exact-solution agreement at
+     `1e-10`
+   - explicit `used_csc_path == 1` assertion at each one-shot stage
+7. Keep the batch inside the Day 10 fence:
+   - no giant-test-owner widening
+   - no `src/` implementation edits
+   - no benchmark/docs truth-surface edits
+
+### Files Touched
+
+- `tests/test_fuzz.c`
+
+### Validation
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+- reviewed CMake parity remained exact at `53`
+- Makefile/CMake parity remained `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 457.07 sec`
+
+### Outcome
+
+The Day 10 batch landed one real additive property lane:
+
+- `test_fuzz` now owns deterministic large-`n` CSC-backed Cholesky public
+  lifecycle parity over three seeded same-pattern SPD cases
+- each case checks:
+  - baseline one-shot vs repeated-run parity
+  - refactor stage 1 one-shot vs repeated-run parity
+  - refactor stage 2 one-shot vs repeated-run parity
+  - exact-solution agreement for all stages
+  - CSC-side routing publication at each one-shot stage
+- retained representative `test_fuzz` output now includes:
+  - `large-n CSC lifecycle property: 3/3 passed`
+
+### Notes
+
+- This stayed a bounded generative/property batch only.
+- It did not add generic random volume, new fuzz harnesses, or cross-family
+  helper abstraction.

@@ -1471,3 +1471,81 @@ changed it:
 - This stayed a wording/truthfulness batch only.
 - It did not widen into new platform jobs, new staged exclusions, or broader
   platform closure claims.
+
+## 2026-06-13 - Day 12: Docs & regression-surface alignment
+
+### Goal
+
+Align the maintained docs and regression-surface wording to the landed Sprint
+68 proof split so the branch reaches Day 13 without stale ownership language
+on examples, benchmarks, or maintained policy surfaces.
+
+### Actions
+
+1. Re-read the live post-Day-11 proof split across:
+   - `README.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+2. Confirm the remaining contradiction:
+   - the new Sprint 68 test owners were already named clearly
+   - the example and benchmark surfaces still under-stated what they do **not**
+     own
+3. Tighten `README.md` so it now says directly:
+   - the stronger numerical oracle/property guarantees for the large-`n`
+     CSC-backed Cholesky lifecycle stay test-owned
+   - `example_analysis` teaches workflow adoption
+   - `bench_refactor` / `bench_refactor_csc` prove retained
+     workflow/performance behavior
+   - those surfaces do not replace the test-owned oracle/property lanes
+4. Tighten `examples/README.md` so `example_analysis` now points directly to:
+   - `tests/test_integration.c` for staged public parity and failed-refactor
+     preservation
+   - `tests/test_fuzz.c` for bounded seeded generative lifecycle
+     follow-through
+5. Tighten `benchmarks/README.md` so it now says directly that:
+   - `bench_refactor_csc` does not own the Sprint 68 property lane
+   - `bench_chol_csc` does not own the Sprint 68 staged public oracle/parity
+     lane or the bounded seeded lifecycle property lane
+6. Tighten `docs/maintainer_guide.md` so the maintained policy owner now says
+   plainly:
+   - tests own the regression/oracle/property guarantees
+   - example surfaces stay example-side
+   - benchmark surfaces stay benchmark-side
+
+### Files Touched
+
+- `README.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+### Validation
+
+This was a docs-only alignment batch, so no `*.c` / `*.h` validation was
+required.
+
+Targeted Day 12 sanity checks:
+
+- touched-doc diff review
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch status recheck
+
+### Outcome
+
+The Day 12 batch closes the remaining maintained-docs ownership gap from the
+Sprint 68 assurance work:
+
+- the repo now says clearly which tests own the new large-`n` CSC-backed
+  Cholesky assurance lanes
+- the example and benchmark surfaces now say clearly that they do **not** own
+  those guarantees
+- the maintainer guide now owns the final pre-validation surface split across
+  tests, examples, and benchmarks
+
+### Notes
+
+- This stayed a docs/regression-alignment batch only.
+- It did not widen into implementation files, benchmark behavior, or new
+  platform-confidence claims.

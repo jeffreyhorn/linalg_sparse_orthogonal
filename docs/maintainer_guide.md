@@ -363,10 +363,15 @@ Current maintained proof ownership after Sprint 68 Day 10:
   Cholesky parity and failure-preservation contract
 - `tests/test_fuzz.c` owns the bounded seeded generative follow-through for the
   large-`n` CSC-backed Cholesky lifecycle parity lane
+- example surfaces stay example-side:
+  - `examples/example_analysis.c` teaches the repeated-run lifecycle
+  - it does not replace the regression owners above
 - benchmark surfaces stay benchmark-side:
   - `bench_refactor` / `bench_refactor_csc` prove retained repeated-run direct
     workflow/performance behavior
-  - they do not replace the family-local or public regression ownership above
+  - `bench_chol_csc` proves the maintained backend/path measurement surface
+  - they do not replace the family-local, public oracle, or property ownership
+    above
 
 Current platform-confidence interpretation after Sprint 68 Day 10:
 

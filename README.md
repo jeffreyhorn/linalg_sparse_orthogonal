@@ -81,7 +81,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
 - **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
 - **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Examples vs benchmarks:** examples teach the API workflow and ownership rules; benchmarks prove the retained workflow/performance story. Use `example_analysis` for repeated-run direct adoption, then use `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` when you want the maintained proof surfaces behind those workflows.
+- **Examples vs benchmarks:** examples teach the API workflow and ownership rules; benchmarks prove the retained workflow/performance story. Use `example_analysis` for repeated-run direct adoption, then use `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` when you want the maintained proof surfaces behind those workflows. The stronger numerical oracle/property guarantees for the large-`n` CSC-backed Cholesky lifecycle stay test-owned, not example- or benchmark-owned.
 - **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`; broader benches stay useful, but they are not the first claim-bearing performance surface.
 - **Threshold-free reporting:** use `make bench-canonical-report` when you want one bounded snapshot of the canonical maintained benchmark surface for local or CI artifact comparison. It is intentionally not a pass/fail timing gate.
 
@@ -584,6 +584,12 @@ That repeated-run CSC story stays intentionally simple on the Cholesky side:
 - the bounded seeded generative follow-through for the same large-`n`
   CSC-backed lifecycle lane stays owned by:
   - `tests/test_fuzz.c`
+- examples and benchmark surfaces stay intentionally outside that regression
+  ownership split:
+  - `example_analysis` teaches the repeated-run workflow
+  - `bench_refactor` / `bench_refactor_csc` prove retained workflow and
+    performance behavior
+  - they do not replace the test-owned oracle/property lanes above
 
 **Transparent dispatch (Sprint 18 Day 11).**
 `sparse_cholesky_factor_opts(mat, opts)` now routes through the CSC

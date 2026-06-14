@@ -1244,3 +1244,78 @@ That gives Day 9 one exact job:
 
 - land one bounded large-`n` CSC-backed Cholesky public-path oracle/parity
   batch in `tests/test_integration.c`
+
+## 2026-06-13 - Day 9: Large-`n` CSC-backed Cholesky public-path oracle/parity batch
+
+### Goal
+
+Land the bounded Day 8 oracle batch in `tests/test_integration.c` by
+strengthening the large-`n` CSC-backed Cholesky public-path success-path proof
+across multiple same-pattern SPD states, without widening into family-local
+helper tests, implementation files, or unrelated giant-test seams.
+
+### Actions
+
+1. Re-read the existing large-`n` public-path parity owner in
+   `tests/test_integration.c`, focusing on:
+   - `test_cholesky_factor_opts_matches_explicit_analysis_path(...)`
+   - `test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(...)`
+2. Confirm the Day 8 target still fit one bounded integration-owner batch:
+   - baseline one-shot versus repeated-run parity was already present in pieces
+   - the missing strength was one continuous staged oracle across baseline plus
+     later same-pattern refactors on the CSC side
+3. Extend
+   `test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(...)`
+   to carry three full stages:
+   - baseline factor/solve on the explicit repeated-run lane
+   - refactor stage 1
+   - refactor stage 2
+4. Add one-shot peers for all three stages and attach `used_csc_path` capture
+   to each one-shot Cholesky call so CSC-side routing is asserted explicitly
+   when publication state is observed.
+5. Keep the fixed exact-solution oracle and strengthen the numerical contract at
+   each stage:
+   - repeated-run solve matches exact solution to `1e-12`
+   - one-shot solve matches exact solution to `1e-12`
+   - repeated-run and one-shot agree to `1e-12`
+6. Keep the batch inside the Day 8 fence:
+   - no `tests/test_chol_csc.c` edit
+   - no other giant-test edits
+   - no `src/` implementation edits
+   - no benchmark/docs truth-surface churn
+
+### Files Touched
+
+- `tests/test_integration.c`
+
+### Validation
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+- reviewed CMake parity remained exact at `53`
+- Makefile/CMake parity remained `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 452.07 sec`
+
+### Outcome
+
+The Day 9 batch landed exactly one stronger public-path oracle story:
+
+- the large-`n` CSC-backed Cholesky repeated-run lane is now checked at the
+  baseline matrix and two later same-pattern SPD refactor states
+- each stage is paired against a one-shot Cholesky solve on the same matrix
+- each one-shot stage now asserts `used_csc_path == 1`
+- the public-path owner now proves one continuous staged CSC-backed parity lane
+  instead of a more fragmented baseline/refactor split
+
+### Notes
+
+- This stayed a success-path oracle/parity batch only.
+- It did not widen into failure-preservation, family-local kernel plumbing, or
+  performance benchmarking claims.

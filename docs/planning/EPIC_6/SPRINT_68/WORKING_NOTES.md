@@ -291,3 +291,189 @@ begins:
   `make quality-review-full`
 - the targeted Sprint 68 rerun set is now fixed around the actual giant-test,
   assurance, example, and maintained benchmark surfaces present in `build/`
+
+## Day 3 - Giant-Test Residual Audit
+
+### Goal
+
+Reduce Sprint 68’s broad giant-test and assurance claim to a ranked live seam
+map so the sprint can land bounded high-value refactors instead of generic
+test cleanup.
+
+### Actions
+
+1. Measured the strongest remaining giant tests by:
+   - total line count
+   - test count / `RUN_TEST(...)` fan-out
+   - helper density
+   - sprint/day chronology density
+2. Re-read the visible section structure and chronology markers across the
+   highest-value giant-test files:
+   - `tests/test_chol_csc.c`
+   - `tests/test_ldlt_csc.c`
+   - `tests/test_qr.c`
+   - `tests/test_graph.c`
+   - `tests/test_iterative.c`
+   - `tests/test_ldlt.c`
+   - `tests/test_svd.c`
+   - `tests/test_integration.c`
+   - `tests/test_reorder_nd.c`
+   - `tests/test_eigs.c`
+3. Compared “large because broad but coherent” against “large because too many
+   unrelated scenarios and chronology layers still coexist in one permanent
+   file.”
+4. Re-ranked the strongest Sprint 68 refactor and assurance candidates from
+   that live state.
+5. Recorded the explicit hotspot map and first-order narrowing for Day 4.
+
+### Findings
+
+#### 1. The broad Sprint 68 claim is now reduced to a ranked live seam map
+
+The current giant-test field separates into three real classes:
+
+- strongest first-lane giant-test refactor candidates:
+  - `tests/test_chol_csc.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_ldlt_csc.c`
+- strongest second-lane oracle/assurance candidates:
+  - `tests/test_integration.c`
+  - `tests/test_eigs.c`
+  - `tests/test_iterative.c`
+  - `tests/test_svd.c`
+- large but more internally coherent or lower-priority follow-through surfaces:
+  - `tests/test_qr.c`
+  - `tests/test_graph.c`
+  - `tests/test_ldlt.c`
+
+Interpretation:
+
+- Sprint 68 should not chase every large test equally
+- the highest-value work is concentrated in a smaller set of files where size,
+  chronology, helper sprawl, and mixed proof ownership still collide
+
+#### 2. `tests/test_chol_csc.c` is the strongest first refactor target
+
+Measured pressure:
+
+- lines = `4751`
+- tests = `144`
+- `RUN_TEST(...)` fan-out = `145`
+- helper-ish support functions = `14`
+- chronology density:
+  - `Sprint` mentions = `35`
+  - `Day` mentions = `60`
+
+Why it is the strongest first target:
+
+- it combines:
+  - family-local CSC factorization behavior
+  - dense primitive coverage
+  - supernodal extract/writeback plumbing
+  - dispatch and backend-contract proof
+  - large corpus and regression lanes
+- that means it is large not just because the feature surface is broad, but
+  because multiple ownership layers still live in one permanent test file
+- it also has the best near-term assurance leverage because Cholesky CSC still
+  anchors several of Epic 6’s hardest retained direct-path claims
+
+Interpretation:
+
+- if Sprint 68 only lands one giant-test refactor batch, this is currently the
+  best first target
+
+#### 3. `tests/test_reorder_nd.c` is the strongest second refactor target, but for a different reason
+
+Measured pressure:
+
+- lines = `2262`
+- tests = `34`
+- chronology density:
+  - `Sprint` mentions = `81`
+  - `Day` mentions = `99`
+
+Why it still ranks very high:
+
+- it has less raw line count than `test_chol_csc.c`, but the strongest
+  residual pain is chronology and compatibility-story layering
+- the file still mixes:
+  - public ND behavior
+  - compatibility/env-policy proof
+  - post-Sprint-27 and Sprint-28 follow-through contracts
+  - enum dispatch and supernodal-postorder validation
+- that makes it a strong refactor candidate, but slightly worse than
+  `test_chol_csc.c` as a first landing because its maintenance pressure is
+  more about chronology and proof layering than about one obvious helper split
+
+Interpretation:
+
+- `test_reorder_nd.c` is likely the best second target or the main competitor
+  if Day 4 prefers chronology reduction over CSC-family-local helper
+  extraction
+
+#### 4. `tests/test_ldlt_csc.c` is large and real, but cleaner than the first two targets
+
+Measured pressure:
+
+- lines = `3680`
+- tests = `96`
+- helper-ish support = `23`
+- chronology density:
+  - `Sprint` mentions = `30`
+  - `Day` mentions = `51`
+
+Why it is not first:
+
+- it is large and helper-heavy, but its structure reads more consistently as a
+  family-local owner than `test_chol_csc.c`
+- compared with `test_reorder_nd.c`, it carries less cross-family compatibility
+  layering
+- compared with `test_chol_csc.c`, it carries fewer distinct proof roles in
+  one permanent file
+
+Interpretation:
+
+- it remains a strong later Sprint 68 seam, but not the best first landing
+
+#### 5. Some large files are big, but not the best first refactor targets
+
+Current lower-priority or later lanes:
+
+- `tests/test_qr.c`
+  - large (`3197` lines) but segmented into more coherent numerical phases
+- `tests/test_graph.c`
+  - large (`2900` lines) and chronology-heavy, but Sprint 67 already reduced
+    adjacent ownership pressure in the implementation layer, so the immediate
+    Sprint 68 payoff is weaker than in `test_chol_csc.c`
+- `tests/test_svd.c`
+  - very broad and chronology-heavy, but much of its size comes from coherent
+    phase-by-phase algorithm coverage rather than one obvious first split seam
+- `tests/test_integration.c`
+  - high-value assurance owner, but it is better treated first as an
+    oracle/parity surface than as the first giant-test refactor target
+
+Interpretation:
+
+- size alone is not enough to justify the first Sprint 68 landing
+- the first target should be chosen where maintenance pain and bounded split
+  opportunity coincide
+
+### Day 3 Close
+
+Sprint 68’s broad giant-test claim is now reduced to one ranked live seam map:
+
+- strongest first target:
+  - `tests/test_chol_csc.c`
+- strongest second target:
+  - `tests/test_reorder_nd.c`
+- strongest later giant direct-family target:
+  - `tests/test_ldlt_csc.c`
+- strongest oracle/assurance owner:
+  - `tests/test_integration.c`
+- strongest later assurance/follow-through owners:
+  - `tests/test_eigs.c`
+  - `tests/test_iterative.c`
+  - `tests/test_svd.c`
+
+The next step is to turn that ranking into one explicit first-landing boundary
+instead of a generic shortlist.

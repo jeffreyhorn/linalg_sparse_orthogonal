@@ -1,6 +1,16 @@
 #ifndef TEST_CHOL_CSC_SUPERNODAL_HELPERS_H
 #define TEST_CHOL_CSC_SUPERNODAL_HELPERS_H
 
+#include "sparse_chol_csc_internal.h"
+#include "sparse_cholesky.h"
+#include "sparse_matrix.h"
+#include "sparse_reorder.h"
+#include "test_framework.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 /* Family-local helper seam for the supernodal/writeback/dispatch proof group
  * in `test_chol_csc.c`. Keep this narrow and specific instead of widening the
  * shared solver test helper layer with CSC-family details.

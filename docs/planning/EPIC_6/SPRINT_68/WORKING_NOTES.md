@@ -800,3 +800,134 @@ That gives Day 6 one exact job:
 
 - land one bounded `test_chol_csc.c` helper-extraction batch without widening
   into a broader test-suite redesign
+
+## Day 6 - Giant-Test Refactor Batch 1
+
+### Goal
+
+Land the first bounded giant-test refactor batch inside the Day 5 fence by
+reducing local support-helper pressure in `tests/test_chol_csc.c` without
+widening into new test binaries, oracle surfaces, or implementation files.
+
+### Actions
+
+1. Re-read the Day 5 design contract and the live first-batch targets:
+   - `tests/test_chol_csc.c`
+   - `tests/test_chol_csc_supernodal_helpers.h`
+2. Identified the strongest family-local support helpers that could move
+   cleanly without shifting proof ownership:
+   - supernode diagonal-block lookup support
+   - scalar-vs-batched factored CSC comparison support
+   - writeback round-trip comparison scaffolding
+3. Landed the bounded helper extraction into the existing family-local header:
+   - `day7_chol_csc_get(...)`
+   - `day8_chol_csc_match(...)`
+   - `day10_factored_matches(...)`
+   - `day10_roundtrip_check(...)`
+4. Verified that the batch stayed inside the Day 5 fence:
+   - no new `test_chol_csc_*.c` binaries
+   - no `tests/test_integration.c` widening
+   - no shared cross-family helper layer
+   - no implementation-file edits
+5. Ran the required validation and the stronger reviewed-quality path.
+
+### Findings
+
+#### 1. `tests/test_chol_csc.c` now reads more like the canonical proof owner and less like a mixed support-helper bucket
+
+The Day 6 batch moved four family-local support helpers into the existing
+`tests/test_chol_csc_supernodal_helpers.h` seam:
+
+- `day7_chol_csc_get(...)`
+- `day8_chol_csc_match(...)`
+- `day10_factored_matches(...)`
+- `day10_roundtrip_check(...)`
+
+Those helpers were previously embedded directly in the main test owner even
+though they primarily serve:
+
+- supernode diagonal-block reference lookup
+- scalar-vs-batched factored CSC comparisons
+- writeback round-trip scaffolding
+
+Interpretation:
+
+- the main file now spends less visible surface area on local support plumbing
+- the family-local proof bodies remain in the canonical owner instead of being
+  split into new binaries
+
+#### 2. The landed batch kept the family-local helper seam narrow and specific
+
+The helper extraction stayed inside the existing header:
+
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+No new generic test helper layer was introduced.
+
+That matters because the extracted helpers are still tightly tied to:
+
+- Cholesky CSC factored-structure comparisons
+- supernodal/writeback proof scaffolding
+- dispatch-fixture preparation inside this family only
+
+Interpretation:
+
+- Sprint 68 got a real local maintainability win
+- it did not pay for that win by creating a vague cross-family abstraction
+
+#### 3. The first landed extraction stayed inside the exact Day 5 fence
+
+Touched test surfaces:
+
+- `tests/test_chol_csc.c`
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+The batch did not widen into:
+
+- new `tests/test_chol_csc_*.c` binaries
+- `tests/test_integration.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_ldlt_csc.c`
+- any `src/` implementation file
+- benchmark or maintained-doc truth surfaces
+
+Interpretation:
+
+- the landed batch is a real helper extraction, not a disguised broader
+  assurance or architecture wave
+- the remaining Sprint 68 lanes stay available for later rerank
+
+#### 4. The reviewed baseline stayed intact after the giant-test refactor batch
+
+Because `*.c` / `*.h` changed, the required validation set was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And because this was substantial giant-test architecture work, the stronger
+reviewed path was also run:
+
+- `make quality-review-full`
+
+The reviewed CMake parity anchor remained:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+No reviewed CMake failed-test log was left behind after the run.
+
+### Day 6 Close
+
+Sprint 68 Day 6 now hands off one concrete first landing result:
+
+1. `tests/test_chol_csc.c`
+   - retains the scenario assertions and canonical family-local proof bodies
+2. `tests/test_chol_csc_supernodal_helpers.h`
+   - now owns more of the narrow supernodal/writeback support scaffolding
+3. the batch stayed inside the exact two-file landing fence
+4. validation and the stronger reviewed path completed from the landed state
+
+That gives Day 7 one exact follow-through job:
+
+- rerank the remaining giant-test and assurance queue after the first landed
+  `test_chol_csc` helper extraction

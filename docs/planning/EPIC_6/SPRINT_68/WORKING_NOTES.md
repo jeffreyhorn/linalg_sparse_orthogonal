@@ -621,3 +621,182 @@ That gives Day 5 one exact job:
 
 - define the bounded ownership and helper-extraction contract inside
   `tests/test_chol_csc.c`
+
+## Day 5 - Giant-Test Refactor Design
+
+### Goal
+
+Turn the Day 4 first-landing fence into one explicit ownership and extraction
+contract so Day 6 can reduce `tests/test_chol_csc.c` maintenance pressure
+without widening into generic test-framework churn or shared assurance work.
+
+### Actions
+
+1. Re-read the Day 4 boundary artifact and Sprint 68 plan fence.
+2. Re-read the live section structure and helper density in:
+   - `tests/test_chol_csc.c`
+3. Re-read the existing family-local helper seam in:
+   - `tests/test_chol_csc_supernodal_helpers.h`
+4. Mapped the current ownership split inside the first-landing file across:
+   - baseline CSC-format and scalar-kernel proof
+   - supernodal helper/plumbing proof
+   - writeback and dispatch proof
+   - main `RUN_TEST(...)` fan-out and chronology
+5. Reduced that map to one bounded Day 6-7 implementation contract and one
+   explicit non-widening fence.
+
+### Findings
+
+#### 1. Sprint 68 now has one exact refactor contract for the first giant-test landing
+
+The first landing should not try to "finish" Cholesky CSC test cleanup across
+every proof role in the file. It should instead make the permanent owner read
+more clearly as:
+
+- one canonical `test_chol_csc` binary and proof owner
+- one family-local helper seam for supernodal/writeback/dispatch support code
+- one main file that keeps the actual assertions and proof intent readable
+
+Interpretation:
+
+- Day 6 should optimize for lower local maintenance pressure inside the
+  existing owner
+- it should not behave like a broad test-suite architecture redesign
+
+#### 2. `tests/test_chol_csc.c` should stay the canonical family-local proof owner, not split into multiple test binaries
+
+The live file still owns multiple proof lanes, but that alone does not justify
+splitting it into separate `test_*.c` binaries in the first batch.
+
+Why the first landing should keep one binary:
+
+- the current file already serves as the clear family-local owner for CSC
+  Cholesky behavior
+- several late sections depend on shared local builders, comparison helpers,
+  and internal-family context
+- widening into multiple binaries would immediately drag in build-list churn,
+  test registration churn, and proof-ownership ambiguity
+
+The Day 5 design implication is now explicit:
+
+- keep `tests/test_chol_csc.c` as the canonical proof owner
+- reduce local clutter by extracting bounded helper/support code, not by
+  multiplying test binaries on the first pass
+
+#### 3. The first extraction seam is the supernodal/writeback/dispatch support lane, not the scalar/core proof lane
+
+The live file has two materially different categories of content:
+
+- durable proof sections that should stay in `tests/test_chol_csc.c`:
+  - CSC allocation / growth / conversion / validation proof
+  - scalar elimination and solve proof
+  - high-level family-local assertions and scenario bodies
+- support-heavy local seams that are better extraction candidates:
+  - supernode detection allocation helpers
+  - factored CSC comparison helpers for scalar-vs-batched checks
+  - large SPD fixture builders for dispatch and backend-path checks
+  - repetitive round-trip scaffolding for writeback and supernodal parity
+
+The strongest bounded candidate functions are now explicit:
+
+- keep using the existing helper-header lane for family-local support like:
+  - `detect_supernodes_alloc(...)`
+  - `day8_count_supernodes(...)`
+  - `day9_assert_batched_matches_scalar(...)`
+  - `day11_build_spd(...)`
+- likely move additional supernodal/writeback support there if Day 6 needs it:
+  - `day8_chol_csc_match(...)`
+  - `day7_chol_csc_get(...)`
+  - `day10_factored_matches(...)`
+  - `day10_roundtrip_check(...)`
+
+Design consequence:
+
+- keep scenario assertions and proof bodies in the main file
+- move only family-local support scaffolding where that materially clarifies
+  the supernodal/writeback/dispatch tail
+
+#### 4. The first batch should tighten `RUN_TEST(...)` chronology locally, not redesign the whole runner surface
+
+The giant `RUN_TEST(...)` tail is part of the maintenance burden, but it is
+not the first thing to abstract away behind clever registration machinery.
+
+The safer Day 6 contract is:
+
+- keep one explicit `RUN_TEST(...)` owner in `tests/test_chol_csc.c`
+- allow bounded regrouping or local ordering cleanup only where helper
+  extraction would otherwise make the proof story harder to follow
+- avoid introducing macro-driven or data-driven runner indirection just to make
+  the file look shorter
+
+Interpretation:
+
+- Sprint 68 should remove real local ownership pressure
+- it should not trade one giant readable owner for opaque registration tricks
+
+#### 5. The Day 6-7 touched-file fence is now fixed and small
+
+Required first-batch implementation surface:
+
+- `tests/test_chol_csc.c`
+
+Support only if the landed extraction truly needs it:
+
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+Proof/support surfaces that stay out unless the landed refactor unexpectedly
+moves ownership wording:
+
+- `tests/test_integration.c`
+- `README.md`
+- `docs/maintainer_guide.md`
+- `benchmarks/README.md`
+
+Interpretation:
+
+- the first implementation batch can still stay family-local by default
+- oracle/docs widening is now explicitly conditional rather than assumed
+
+#### 6. The explicit non-widening fence is now strong enough to keep the landing honest
+
+The first Cholesky CSC test landing should not widen into:
+
+- new `tests/test_chol_csc_*.c` binaries
+- shared cross-family test helper layers
+- `tests/test_integration.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_ldlt_csc.c`
+- implementation `src/` files
+- benchmark or maintained-doc truth surfaces
+
+That matters because Sprint 68 still has real later lanes after the first
+refactor landing:
+
+- ND chronology follow-through
+- oracle/parity expansion
+- property/fuzz expansion
+- platform-confidence follow-through
+
+### Day 5 Close
+
+Sprint 68 Day 5 closes with one exact first implementation contract:
+
+1. required first batch:
+   - `tests/test_chol_csc.c`
+2. support only if needed:
+   - `tests/test_chol_csc_supernodal_helpers.h`
+3. keep as durable owner:
+   - one canonical `test_chol_csc` binary
+   - scenario assertions and proof bodies in the main file
+4. likely extraction lane:
+   - supernodal/writeback/dispatch support helpers only
+5. explicit non-touch set:
+   - oracle lane
+   - other giant tests
+   - implementation files
+   - benchmark/docs truth surfaces
+
+That gives Day 6 one exact job:
+
+- land one bounded `test_chol_csc.c` helper-extraction batch without widening
+  into a broader test-suite redesign

@@ -477,3 +477,147 @@ Sprint 68’s broad giant-test claim is now reduced to one ranked live seam map:
 
 The next step is to turn that ranking into one explicit first-landing boundary
 instead of a generic shortlist.
+
+## Day 4 - Hotspot Follow-Through & First-Landing Boundary
+
+### Goal
+
+Turn the Day 3 giant-test ranking into one exact first implementation fence so
+Sprint 68 starts from a bounded Cholesky CSC test refactor instead of a
+generic multi-file cleanup target set.
+
+### Actions
+
+1. Re-read the Day 3 ranked giant-test audit and the Sprint 68 plan fence.
+2. Re-read the strongest likely first-landing region in:
+   - `tests/test_chol_csc.c`
+3. Re-read the strongest likely second-lane chronology region in:
+   - `tests/test_reorder_nd.c`
+4. Rechecked the current family-local support surface already available under:
+   - `tests/test_chol_csc_supernodal_helpers.h`
+5. Fixed the exact first-landing boundary from the live repo state:
+   - required refactor surface
+   - support only if needed
+   - explicit deferred/non-touch set
+
+### Findings
+
+#### 1. Sprint 68 now has one exact first landing boundary instead of a generic giant-test shortlist
+
+The exact first landing is now fixed to:
+
+- `tests/test_chol_csc.c`
+
+This is the right first batch because that file still carries the strongest
+combined burden of:
+
+- raw size
+- family-local CSC factorization proof
+- dense primitive proof
+- supernodal helper/plumbing proof
+- backend-contract and dispatch proof
+- large corpus and regression lanes
+
+Interpretation:
+
+- Sprint 68 should not start by touching every large permanent test file
+- it should start where one file still owns the densest mix of proof roles and
+  helper pressure
+
+#### 2. `tests/test_reorder_nd.c` is now fixed as the strongest second batch, not a co-equal first landing
+
+`tests/test_reorder_nd.c` remains a high-value Sprint 68 seam because it still
+mixes:
+
+- public ND behavior
+- compatibility/env-policy proof
+- supernodal-postorder validation
+- Sprint-history-heavy chronology
+
+But it stays out of the first landing because its strongest pressure is
+chronology and proof layering, not the same kind of bounded helper and owner
+split opportunity that now stands out in `tests/test_chol_csc.c`.
+
+Interpretation:
+
+- Day 4 closes the competition between the first two candidates
+- Cholesky CSC refactor first; ND chronology follow-through second
+
+#### 3. The current helper support surface is context, not a reason to widen the first batch
+
+The first landing may use the already-existing family-local support surface:
+
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+But that file is support only if the Day 5 design proves it necessary.
+
+Why that matters:
+
+- the first batch should stay family-local by default
+- Sprint 68 should not invent new shared test abstractions before proving the
+  bounded `test_chol_csc.c` split
+- cross-family helper widening would blur whether the sprint is still reducing
+  one giant owner or starting a broad test-framework redesign
+
+#### 4. `tests/test_integration.c` stays in the oracle lane, not the first refactor lane
+
+`tests/test_integration.c` remains the strongest shared assurance owner, but it
+is explicitly outside the first landing fence.
+
+Why it stays out:
+
+- its value is public-path parity and oracle follow-through
+- the first Sprint 68 move is not to refactor the oracle owner
+- pulling it into the first landing would blur the difference between
+  family-local test-architecture cleanup and second-layer assurance expansion
+
+Interpretation:
+
+- refactor-first and oracle-first remain separate lanes on purpose
+
+#### 5. The non-touch set for the first landing is now explicit
+
+The following stay outside the Day 5-7 first batch unless the design proves a
+truly necessary support edit:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_ldlt_csc.c`
+- `tests/test_qr.c`
+- `tests/test_graph.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- `tests/test_svd.c`
+- `tests/test_integration.c`
+- implementation `src/` files
+- benchmark/docs truth surfaces
+
+Interpretation:
+
+- Sprint 68 now has a real first-batch fence instead of a soft hotspot cloud
+- success means reducing `tests/test_chol_csc.c` ownership pressure without
+  widening into unrelated assurance or implementation work
+
+### Day 4 Close
+
+Sprint 68 Day 4 fixes the implementation order as:
+
+1. exact first landing:
+   - `tests/test_chol_csc.c`
+2. support only if needed:
+   - `tests/test_chol_csc_supernodal_helpers.h`
+3. strongest second target:
+   - `tests/test_reorder_nd.c`
+4. explicit oracle/assurance lane:
+   - `tests/test_integration.c`
+5. later/deferred giant-test follow-through:
+   - `tests/test_ldlt_csc.c`
+   - `tests/test_qr.c`
+   - `tests/test_graph.c`
+   - `tests/test_iterative.c`
+   - `tests/test_eigs.c`
+   - `tests/test_svd.c`
+
+That gives Day 5 one exact job:
+
+- define the bounded ownership and helper-extraction contract inside
+  `tests/test_chol_csc.c`

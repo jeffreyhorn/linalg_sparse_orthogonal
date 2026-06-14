@@ -469,11 +469,11 @@ static void test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(voi
 
     for (size_t case_idx = 0; case_idx < sizeof(seeds) / sizeof(seeds[0]); case_idx++) {
         SparseMatrix *A_base = random_spd(n, seeds[case_idx]);
-        SparseMatrix *A_ref1 = random_spd(n, seeds[case_idx] + 1u);
-        SparseMatrix *A_ref2 = random_spd(n, seeds[case_idx] + 2u);
-        SparseMatrix *A_one0 = random_spd(n, seeds[case_idx]);
-        SparseMatrix *A_one1 = random_spd(n, seeds[case_idx] + 1u);
-        SparseMatrix *A_one2 = random_spd(n, seeds[case_idx] + 2u);
+        SparseMatrix *A_ref1 = NULL;
+        SparseMatrix *A_ref2 = NULL;
+        SparseMatrix *A_one0 = NULL;
+        SparseMatrix *A_one1 = NULL;
+        SparseMatrix *A_one2 = NULL;
         sparse_analysis_t analysis = {0};
         sparse_factors_t factors = {0};
         double *x_exact = NULL;
@@ -490,8 +490,14 @@ static void test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(voi
         int used_csc_path1 = 0;
         int used_csc_path2 = 0;
 
-        REQUIRE_OK(A_base && A_ref1 && A_ref2 && A_one0 && A_one1 && A_one2 ? SPARSE_OK
-                                                                            : SPARSE_ERR_ALLOC);
+        REQUIRE_OK(A_base ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        A_ref1 = sparse_copy(A_base);
+        A_ref2 = sparse_copy(A_base);
+        A_one0 = sparse_copy(A_base);
+        A_one1 = sparse_copy(A_base);
+        A_one2 = sparse_copy(A_base);
+        REQUIRE_OK(A_ref1 && A_ref2 && A_one0 && A_one1 && A_one2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
         sparse_analysis_opts_t analysis_opts = {
             .factor_type = SPARSE_FACTOR_CHOLESKY,
@@ -530,6 +536,16 @@ static void test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(voi
 
         for (idx_t i = 0; i < n; i++)
             x_exact[i] = 1.0 + 0.01 * (double)i;
+
+        for (idx_t i = 0; i < n; i++) {
+            const double base_diag = sparse_get(A_base, i, i);
+            const double ref1_diag = base_diag + 0.5;
+            const double ref2_diag = base_diag + 1.0 + 0.01 * (double)i;
+            ASSERT_EQ(sparse_set(A_ref1, i, i, ref1_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_ref2, i, i, ref2_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_one1, i, i, ref1_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_one2, i, i, ref2_diag), SPARSE_OK);
+        }
 
         sparse_matvec(A_base, x_exact, b0);
         sparse_matvec(A_ref1, x_exact, b1);

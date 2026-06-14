@@ -1079,3 +1079,168 @@ That gives Day 8 one exact job:
 
 - define the bounded large-`n` CSC-backed Cholesky oracle/parity contract in
   the public integration owner
+
+## Day 8 - Differential/Oracle Coverage Design
+
+### Goal
+
+Define one bounded second-layer oracle/parity batch for the large-`n`
+CSC-backed Cholesky public path so Day 9 strengthens public confidence on the
+hardest retained direct lane without duplicating family-local proof.
+
+### Actions
+
+1. Re-read the Day 7 rerank artifact and Sprint 68 plan fence.
+2. Re-read the current public large-`n` CSC-backed Cholesky proof owner in:
+   - `tests/test_integration.c`
+3. Re-read the current family-local support context in:
+   - `tests/test_chol_csc.c`
+4. Mapped the current public-path proof split across:
+   - one-shot `factor_opts` vs explicit analysis-path parity
+   - repeated-run same-pattern refactor vs one-shot parity
+   - failure-preservation and path-selection publication
+5. Reduced that map to one bounded Day 9 oracle/parity contract, one explicit
+   tolerance/failure contract, and one small file fence.
+
+### Findings
+
+#### 1. The strongest Day 9 assurance owner is the existing public lifecycle parity lane in `tests/test_integration.c`
+
+The next batch should center on the current public owner instead of inventing a
+new oracle lane:
+
+- `test_cholesky_factor_opts_matches_explicit_analysis_path(...)`
+- `test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(...)`
+
+Why this is the right owner:
+
+- it already owns the public one-shot versus explicit repeated-run contract
+- it already sits on the large-`n` CSC-backed side of the Cholesky path
+- it can absorb one stronger parity/oracle batch without widening into
+  implementation details
+
+Interpretation:
+
+- Day 9 should strengthen the public-path integration proof directly
+- it should not create a parallel second oracle in a family-local test first
+
+#### 2. The strongest additive proof is a staged public-path parity oracle, not another family-local helper check
+
+The current public lane already proves:
+
+- one-shot `factor_opts` matches the explicit analysis path
+- same-pattern repeated-run refactor matches one-shot at two stages
+
+The missing strength is that those proofs are still separated instead of
+showing one continuous public-path story:
+
+- build one large-`n` baseline on the CSC side
+- confirm one-shot and explicit repeated-run agree
+- refactor to a same-pattern second SPD matrix and confirm they still agree
+- refactor to a same-pattern third SPD matrix and confirm they still agree
+- keep the exact-solution oracle fixed so every stage checks both:
+  - public-path parity
+  - external-style numerical correctness
+
+Interpretation:
+
+- the new batch should unify and deepen the public-path parity story
+- it should add one stronger oracle lane rather than duplicating existing
+  family-local CSC helper checks
+
+#### 3. The Day 9 tolerance and failure-classification contract is now explicit
+
+Intended Day 9 oracle contract:
+
+- matrix size must stay on the CSC side:
+  - `n >= SPARSE_CSC_THRESHOLD`
+- every public one-shot solve and explicit repeated-run solve must agree with
+  the fixed exact solution to:
+  - `1e-12`
+- every public one-shot solve and explicit repeated-run solve pair must agree
+  with each other to:
+  - `1e-12`
+- if path-publication state is observed, the test should assert CSC-side
+  routing explicitly rather than assuming it implicitly
+
+Failure classification:
+
+- not a failure-preservation batch
+- not a family-local kernel/residual batch
+- not a benchmark/throughput batch
+- one bounded public oracle/parity batch on valid same-pattern SPD transitions
+
+Interpretation:
+
+- Day 9 should improve assurance on the success-path parity lane
+- it should not mix in unrelated error-path or performance claims
+
+#### 4. `tests/test_chol_csc.c` is support context only, and likely not required for the landing
+
+The family-local file remains useful background because it already owns:
+
+- large-`n` analysis-backed helper parity
+- CSC-side dispatch/path publication proof
+- supernodal residual and writeback family-local contracts
+
+But the current design does not require touching it if the public integration
+test can carry the full oracle/parity batch alone.
+
+Interpretation:
+
+- likely required Day 9 owner:
+  - `tests/test_integration.c`
+- likely support:
+  - none
+- `tests/test_chol_csc.c` should stay untouched unless the final test shape
+  proves it truly needs a shared family-local fixture
+
+#### 5. The Day 9 file fence is now fixed and small
+
+Required likely implementation surface:
+
+- `tests/test_integration.c`
+
+Support only if the final oracle shape truly needs it:
+
+- `tests/test_chol_csc.c`
+
+Current explicit non-touch set:
+
+- `tests/test_reorder_nd.c`
+- `tests/test_ldlt_csc.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- `tests/test_svd.c`
+- implementation `src/` files
+- benchmark/docs truth surfaces
+
+Interpretation:
+
+- the next batch can stay truthful and bounded
+- Sprint 68 can strengthen assurance without reopening the refactor lane
+
+### Day 8 Close
+
+Sprint 68 Day 8 closes with one exact Day 9 oracle contract:
+
+1. owner:
+   - `tests/test_integration.c`
+2. likely support only if needed:
+   - `tests/test_chol_csc.c`
+3. proof shape:
+   - large-`n` CSC-backed Cholesky public-path staged parity across multiple
+     same-pattern SPD states
+4. oracle/tolerance contract:
+   - exact-solution agreement at `1e-12`
+   - one-shot vs explicit repeated-run agreement at `1e-12`
+   - explicit CSC-side routing assertion when publication state is observed
+5. explicit non-touch set:
+   - other giant tests
+   - implementation files
+   - benchmark/docs truth surfaces
+
+That gives Day 9 one exact job:
+
+- land one bounded large-`n` CSC-backed Cholesky public-path oracle/parity
+  batch in `tests/test_integration.c`

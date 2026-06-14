@@ -3617,6 +3617,40 @@ static int day8_chol_csc_match(const CholCsc *a, const CholCsc *b, double tol) {
     return 1;
 }
 
+static void test_factor_with_analysis_large_n_matches_explicit_supernodal_route(void) {
+    const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 20);
+    SparseMatrix *A = sparse_create(n, n);
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_analysis_t an = {0};
+    CholCsc *L_helper = NULL;
+    CholCsc *L_explicit = NULL;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+    REQUIRE_OK(chol_csc_factor(A, &an, &L_helper));
+
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &L_explicit));
+    REQUIRE_OK(chol_csc_eliminate_supernodal(L_explicit, SPARSE_CSC_SUPERNODE_MIN_SIZE));
+
+    ASSERT_TRUE(day8_chol_csc_match(L_helper, L_explicit, 1e-12));
+
+    chol_csc_free(L_helper);
+    chol_csc_free(L_explicit);
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
 /* Dense 10×10 SPD factor via the full batched path; compare residual
  * ||A·x - b|| / ||b|| against the scalar kernel's solve. */
 static void test_eliminate_supernodal_dense_10x10_residual(void) {
@@ -4621,6 +4655,7 @@ int main(void) {
     RUN_TEST(test_solve_perm_amd_nos4);
     RUN_TEST(test_factor_solve_nos4);
     RUN_TEST(test_factor_solve_bcsstk04_amd);
+    RUN_TEST(test_factor_with_analysis_large_n_matches_explicit_supernodal_route);
     RUN_TEST(test_factor_shim_null);
     RUN_TEST(test_factor_solve_null);
     RUN_TEST(test_factor_detects_indefinite);

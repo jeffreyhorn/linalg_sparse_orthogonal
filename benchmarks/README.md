@@ -164,6 +164,8 @@ surfaces for the public repeated-run direct lifecycle:
   - reads as the main throughput/proof surface for the large-`n` CSC-backed
     repeated-run direct lane, not as the error-path contract surface; failed
     refactor preservation stays owned by `tests/test_integration.c`
+  - the family-local large-`n` analysis-backed CSC helper parity stays owned
+    by `tests/test_chol_csc.c`, not by this benchmark surface
   - reports CSV rows with:
     - `benchmark`
     - `category`

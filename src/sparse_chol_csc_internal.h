@@ -513,12 +513,17 @@ sparse_err_t chol_csc_solve_perm(const CholCsc *L, const idx_t *perm, const doub
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
- * Convert A to CSC (optionally applying `analysis->perm`), run
- * `chol_csc_eliminate`, and return the factored CholCsc.
+ * Convert A to CSC (optionally applying `analysis->perm`), run the
+ * resolved CSC elimination path, and return the factored CholCsc.
  *
  * Pass `analysis = NULL` for no reordering and heuristic capacity.
  * Pass a Cholesky analysis (type SPARSE_FACTOR_CHOLESKY) to use the
- * fill-reducing permutation and pre-size capacity to `sym_L.nnz`.
+ * fill-reducing permutation and pre-size capacity to `sym_L.nnz`. On
+ * the analysis-backed large-n lane (`A->rows >= SPARSE_CSC_THRESHOLD`),
+ * this helper mirrors the public repeated-run Cholesky lifecycle and
+ * routes through `chol_csc_eliminate_supernodal` with the shared
+ * `SPARSE_CSC_SUPERNODE_MIN_SIZE` cutoff; smaller or analysis-free
+ * calls keep using scalar `chol_csc_eliminate`.
  *
  * @param A           Symmetric positive-definite matrix.
  * @param analysis    Optional symbolic analysis.

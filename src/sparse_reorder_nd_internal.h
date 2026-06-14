@@ -70,6 +70,19 @@
 extern idx_t sparse_reorder_nd_base_threshold;
 
 /**
+ * @brief Resolve the compatibility/default ND policy baseline.
+ *
+ * This is the shared internal owner for the legacy env-var compatibility path
+ * and the internal default values used by both the direct
+ * `sparse_reorder_nd(...)` path and the explicit analysis lifecycle.
+ *
+ * Callers that layer typed analysis options on top should start from this
+ * baseline and then apply typed-field overrides, so typed values continue to
+ * win over compatibility env vars exactly as shipped.
+ */
+sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void);
+
+/**
  * @brief Policy-aware ND entry point used by `sparse_analyze(...)`.
  *
  * Preserves the public `sparse_reorder_nd(...)` compatibility surface while

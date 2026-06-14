@@ -153,6 +153,18 @@ typedef enum {
     FINEST_FM_ENSEMBLE = 4,
 } finest_fm_strategy_t;
 
+typedef struct {
+    int finest_passes;
+    int intermediate_passes;
+    finest_fm_strategy_t finest_strategy;
+    fm_anneal_schedule_t anneal_schedule_choice;
+    fm_thick_restart_perturb_t thick_restart_perturb_choice;
+    fm_gain_noise_schedule_t gain_noise_schedule_choice;
+    int ensemble_strategy_list[4];
+    int ensemble_strategy_count;
+    int ensemble_debug;
+} graph_uncoarsen_options_t;
+
 static int graph_parse_env_int_range(const char *name, int default_value, int min_value,
                                      int max_value) {
     const char *env = getenv(name);
@@ -250,6 +262,28 @@ static int graph_parse_ensemble_strategy_list(int out[4]) {
 
 static int graph_env_flag_enabled(const char *name) { return getenv(name) != NULL; }
 
+static graph_uncoarsen_options_t graph_uncoarsen_options_from_env(void) {
+    graph_uncoarsen_options_t opts = {
+        .finest_passes = graph_parse_env_int_range("SPARSE_FM_FINEST_PASSES", 3, 1, 16),
+        .intermediate_passes = graph_parse_env_int_range("SPARSE_FM_INTERMEDIATE_PASSES", 1, 1, 10),
+        .finest_strategy = graph_parse_finest_strategy(),
+        .anneal_schedule_choice = sparse_graph_parse_fm_anneal_schedule(),
+        .thick_restart_perturb_choice = sparse_graph_parse_fm_thick_restart_perturb(),
+        .gain_noise_schedule_choice = sparse_graph_parse_fm_gain_noise_schedule(),
+        .ensemble_strategy_list = {0, 0, 0, 0},
+        .ensemble_strategy_count = 0,
+        .ensemble_debug = 0,
+    };
+
+    if (opts.finest_strategy == FINEST_FM_ENSEMBLE) {
+        opts.ensemble_strategy_count =
+            graph_parse_ensemble_strategy_list(opts.ensemble_strategy_list);
+        opts.ensemble_debug = graph_env_flag_enabled("SPARSE_FM_ENSEMBLE_DEBUG");
+    }
+
+    return opts;
+}
+
 static int graph_uncoarsen_level_passes(int level, int finest_passes, int intermediate_passes) {
     if (level == 0)
         return finest_passes;
@@ -316,6 +350,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     if (coarsest_n > 0)
         memcpy(cur, coarsest_part, (size_t)coarsest_n * sizeof(idx_t));
 
+    graph_uncoarsen_options_t opts = graph_uncoarsen_options_from_env();
+
     /* Sprint 23 Day 11: 3-pass FM at the finest level.  Sprint 22 ran
      * a single FM pass per uncoarsening level; Day 11's exploration
      * (`docs/planning/EPIC_2/SPRINT_23/davis_notes.md` §"Day-11
@@ -338,8 +374,6 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * 1 — the multilevel coarsening already gives those levels a
      * mostly-converged input, and adding passes there is wall-time
      * cost without measurable fill win. */
-    int finest_passes = graph_parse_env_int_range("SPARSE_FM_FINEST_PASSES", 3, 1, 16);
-
     /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY env-var parser
      * stub.  Day 4's per-recursion-level profile identified
      * sub-axis (b) bucket-tie-break (FIFO via tails[]) as the
@@ -358,7 +392,6 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * unimplemented in Sprint 26 (rejected per Day 4 design); they
      * fall through to baseline.  See SPRINT_26/finest_fm_design.md
      * "Rejected alternatives" for the reasoning. */
-    finest_fm_strategy_t finest_strategy = graph_parse_finest_strategy();
     /* Sprint 27 Day 5 dispatch update: Day 5 lands the `annealing`
      * skeleton.  Sprint 26 Day 6's design rejected annealing on
      * cost grounds (20-50 % wall expansion); Sprint 26 Day 5's
@@ -368,16 +401,10 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * `fm_anneal_schedule` thread-locals; Day 6 lands the
      * acceptance-probability overlay + measurement.  `thick_restart`
      * stays unimplemented (Sprint 27 item 6 budget; Days 10-12). */
-    fm_anneal_schedule_t anneal_schedule_choice = sparse_graph_parse_fm_anneal_schedule();
-    fm_thick_restart_perturb_t thick_restart_perturb_choice =
-        sparse_graph_parse_fm_thick_restart_perturb();
     /* Sprint 28 Day 2: gain-noise schedule for the formal thick-restart
      * variant.  Only consulted by graph_refine_fm when
      * fm_thick_restart_perturb == GAIN_NOISE_FORMAL; defaults to
      * linear so the default-off code path stays bit-identical. */
-    fm_gain_noise_schedule_t gain_noise_schedule_choice =
-        sparse_graph_parse_fm_gain_noise_schedule();
-
     /* Sprint 28 Day 4: multi-strategy FM ensemble strategy list.
      * Parsed from `SPARSE_FM_ENSEMBLE_STRATEGIES` (default
      * "baseline,fifo,annealing"); recognized values are the same
@@ -390,12 +417,6 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * de-duplicated by first-occurrence-wins; empty list degenerates
      * to {baseline} so ensemble == baseline matches Sprint 27
      * default.  See docs/planning/EPIC_2/SPRINT_28/ensemble_fm_design.md. */
-    int ensemble_strategy_list[4] = {0, 0, 0, 0};
-    int ensemble_strategy_count = 0;
-    if (finest_strategy == FINEST_FM_ENSEMBLE)
-        ensemble_strategy_count = graph_parse_ensemble_strategy_list(ensemble_strategy_list);
-    const int ensemble_debug =
-        finest_strategy == FINEST_FM_ENSEMBLE && graph_env_flag_enabled("SPARSE_FM_ENSEMBLE_DEBUG");
     /* Sprint 26 Day 7 dispatch: `fifo` sets `fm_pop_use_tail = 1`
      * for the finest-level call below (restored to 0 after).
      * Sprint 27 Day 5 adds the parallel `annealing` dispatch
@@ -423,8 +444,6 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 4 + Sprint 24
      * RETROSPECTIVE.md "Performance highlights" lesson "multi-
      * pass FM's payoff scales with the cost of a single pass". */
-    int intermediate_passes = graph_parse_env_int_range("SPARSE_FM_INTERMEDIATE_PASSES", 1, 1, 10);
-
     /* Walk levels from coarsest down to root.  At each step, project
      * `cur` (on coarse[level]) through cmaps[level] onto the next-
      * finer graph (root if level == 0, else coarse[level - 1]) and
@@ -446,12 +465,13 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
          * distant enough that Sprint 22's single-pass default
          * captured the cost-effective sweet spot until Sprint 23
          * Day 11's multi-pass exploration. */
-        int passes = graph_uncoarsen_level_passes(level, finest_passes, intermediate_passes);
+        int passes =
+            graph_uncoarsen_level_passes(level, opts.finest_passes, opts.intermediate_passes);
         sparse_graph_fm_runtime_t prev_runtime = {0};
         sparse_graph_fm_runtime_get(&prev_runtime);
         sparse_graph_fm_runtime_t runtime = graph_uncoarsen_runtime_for_level(
-            &prev_runtime, level, finest_strategy, passes, anneal_schedule_choice,
-            thick_restart_perturb_choice, gain_noise_schedule_choice);
+            &prev_runtime, level, opts.finest_strategy, passes, opts.anneal_schedule_choice,
+            opts.thick_restart_perturb_choice, opts.gain_noise_schedule_choice);
         sparse_graph_fm_runtime_set(&runtime);
         /* Sprint 27 Day 11: thick-restart anchor allocation.  Tracks
          * the global-best partition + cut across all passes at the
@@ -493,7 +513,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         idx_t *ensemble_working = NULL;
         idx_t *ensemble_best = NULL;
         const int ens_active =
-            (level == 0 && finest_strategy == FINEST_FM_ENSEMBLE && dst_graph->n >= 1);
+            (level == 0 && opts.finest_strategy == FINEST_FM_ENSEMBLE && dst_graph->n >= 1);
         if (ens_active) {
             ensemble_start = malloc((size_t)dst_graph->n * sizeof(idx_t));
             ensemble_working = malloc((size_t)dst_graph->n * sizeof(idx_t));
@@ -546,8 +566,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 memcpy(ensemble_start, next, (size_t)dst_graph->n * sizeof(idx_t));
                 idx_t best_cut = 0;
                 int best_strat_idx = 0;
-                for (int s = 0; s < ensemble_strategy_count; s++) {
-                    int strat = ensemble_strategy_list[s];
+                for (int s = 0; s < opts.ensemble_strategy_count; s++) {
+                    int strat = opts.ensemble_strategy_list[s];
                     /* Reset to defaults (cleared between strategies). */
                     sparse_graph_fm_runtime_t strategy_runtime = prev_runtime;
                     strategy_runtime.pop_use_tail = 0;
@@ -555,9 +575,9 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                     strategy_runtime.use_thick_restart = 0;
                     strategy_runtime.anneal_pass_idx = p;
                     strategy_runtime.anneal_total_passes = passes;
-                    strategy_runtime.anneal_schedule = anneal_schedule_choice;
-                    strategy_runtime.thick_restart_perturb = thick_restart_perturb_choice;
-                    strategy_runtime.gain_noise_schedule = gain_noise_schedule_choice;
+                    strategy_runtime.anneal_schedule = opts.anneal_schedule_choice;
+                    strategy_runtime.thick_restart_perturb = opts.thick_restart_perturb_choice;
+                    strategy_runtime.gain_noise_schedule = opts.gain_noise_schedule_choice;
                     /* Set strategy-specific overrides.  `baseline`
                      * keeps the defaults; `thick_restart` is skipped
                      * by the parser so doesn't appear here. */
@@ -588,7 +608,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                         memcpy(ensemble_best, ensemble_working,
                                (size_t)dst_graph->n * sizeof(idx_t));
                     }
-                    if (ensemble_debug) {
+                    if (opts.ensemble_debug) {
                         /* `best_so_far` reflects the state at the moment
                          * this strategy ran — multiple per-pass rows can
                          * report best_so_far=1 if a later strategy beats

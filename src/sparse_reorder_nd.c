@@ -41,6 +41,7 @@
  * children never need to consult the parent graph during ordering.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
@@ -328,7 +329,7 @@ static sparse_graph_nd_sep_lift_weight_mode_t parse_nd_sep_lift_weight_compat_ov
     return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 }
 
-static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
+sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
     sparse_graph_nd_policy_t policy = {
         .supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF,
         .nd_coarsening = parse_nd_coarsening_compat_override(),
@@ -341,6 +342,103 @@ static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
         .nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override(),
     };
     return policy;
+}
+
+static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_map, idx_t *perm,
+                               idx_t *next_pos, int depth, const sparse_graph_nd_policy_t *policy);
+
+static sparse_err_t nd_emit_leaf_amd(const sparse_graph_t *G, const idx_t *vertex_id_map,
+                                     idx_t *perm, idx_t *next_pos) {
+    long long lsub_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
+    SparseMatrix *A_leaf = nd_subgraph_to_sparse(G);
+    if (nd_prof_enabled)
+        nd_prof_leaf_subgraph_ns += nd_prof_now_ns() - lsub_t0;
+    if (!A_leaf)
+        return SPARSE_ERR_ALLOC;
+
+    idx_t *leaf_perm = NULL;
+    if (sparse_malloc_idx_array(G->n, sizeof(idx_t), (void **)&leaf_perm) != SPARSE_OK) {
+        sparse_free(A_leaf);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    long long lamd_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
+    sparse_err_t leaf_rc = sparse_reorder_amd_qg(A_leaf, leaf_perm);
+    if (nd_prof_enabled) {
+        nd_prof_leaf_amd_ns += nd_prof_now_ns() - lamd_t0;
+        nd_prof_leaf_amd_calls++;
+    }
+    if (leaf_rc != SPARSE_OK) {
+        free(leaf_perm);
+        sparse_free(A_leaf);
+        return leaf_rc;
+    }
+
+    /* Splice the leaf-local permutation through vertex_id_map
+     * to write global root-graph IDs into perm[]. */
+    for (idx_t i = 0; i < G->n; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
+        perm[*next_pos + i] = vertex_id_map[leaf_perm[i]];
+    }
+    *next_pos += G->n;
+    free(leaf_perm);
+    sparse_free(A_leaf);
+    return SPARSE_OK;
+}
+
+static sparse_err_t nd_partition_current_graph(const sparse_graph_t *G, idx_t *part,
+                                               idx_t *sep_count, int depth,
+                                               const sparse_graph_nd_policy_t *policy) {
+    int used_root_spectral = 0;
+    if (depth == 0) {
+        if (policy->nd_root_bisect == SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL &&
+            G->n <= policy->nd_root_bisect_max_n && G->n >= 3) {
+            sparse_err_t rc = graph_bisect_coarsest_spectral(G, part);
+            if (rc == SPARSE_OK)
+                rc = graph_edge_separator_to_vertex_separator(G, part);
+            if (rc != SPARSE_OK)
+                return rc;
+            used_root_spectral = 1;
+        }
+    }
+
+    if (!used_root_spectral)
+        return sparse_graph_partition(G, part, sep_count);
+
+    return SPARSE_OK;
+}
+
+/* Helper participates in the same ND recursion chain as `nd_recurse`.
+ * Keeping the side-subgraph build/map/recurse glue local is clearer than
+ * inlining two copies back into the recursive driver. */
+// NOLINTNEXTLINE(misc-no-recursion)
+static sparse_err_t nd_recurse_side(const sparse_graph_t *G, const idx_t *vertex_id_map,
+                                    const idx_t *vertex_set, idx_t vertex_count, idx_t *perm,
+                                    idx_t *next_pos, int depth,
+                                    const sparse_graph_nd_policy_t *policy) {
+    sparse_graph_t subgraph = {0};
+    idx_t *map = NULL;
+    if (sparse_malloc_idx_array(vertex_count, sizeof(idx_t), (void **)&map) != SPARSE_OK)
+        return SPARSE_ERR_ALLOC;
+
+    long long sg_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
+    sparse_err_t rc = sparse_graph_subgraph(G, vertex_set, vertex_count, &subgraph, NULL);
+    if (nd_prof_enabled)
+        nd_prof_subgraph_ns += nd_prof_now_ns() - sg_t0;
+    if (rc != SPARSE_OK) {
+        free(map);
+        return rc;
+    }
+
+    for (idx_t i = 0; i < vertex_count; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
+        map[i] = vertex_id_map[vertex_set[i]];
+    }
+
+    rc = nd_recurse(&subgraph, map, perm, next_pos, depth + 1, policy);
+    sparse_graph_free(&subgraph);
+    free(map);
+    return rc;
 }
 
 /* The driver is genuinely recursive — each level descends two
@@ -385,38 +483,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * distinguish a successful reorder from a degraded fallback
      * (e.g., they can retry or surface the error). */
     if (n <= sparse_reorder_nd_base_threshold) {
-        long long lsub_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-        SparseMatrix *A_leaf = nd_subgraph_to_sparse(G);
-        if (nd_prof_enabled)
-            nd_prof_leaf_subgraph_ns += nd_prof_now_ns() - lsub_t0;
-        if (!A_leaf)
-            return SPARSE_ERR_ALLOC;
-        idx_t *leaf_perm = malloc((size_t)n * sizeof(idx_t));
-        if (!leaf_perm) {
-            sparse_free(A_leaf);
-            return SPARSE_ERR_ALLOC;
-        }
-        long long lamd_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-        sparse_err_t leaf_rc = sparse_reorder_amd_qg(A_leaf, leaf_perm);
-        if (nd_prof_enabled) {
-            nd_prof_leaf_amd_ns += nd_prof_now_ns() - lamd_t0;
-            nd_prof_leaf_amd_calls++;
-        }
-        if (leaf_rc != SPARSE_OK) {
-            free(leaf_perm);
-            sparse_free(A_leaf);
-            return leaf_rc;
-        }
-        /* Splice the leaf-local permutation through vertex_id_map
-         * to write global root-graph IDs into perm[]. */
-        for (idx_t i = 0; i < n; i++) {
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
-            perm[*next_pos + i] = vertex_id_map[leaf_perm[i]];
-        }
-        *next_pos += n;
-        free(leaf_perm);
-        sparse_free(A_leaf);
-        return SPARSE_OK;
+        return nd_emit_leaf_amd(G, vertex_id_map, perm, next_pos);
     }
 
     /* Partition: 3-way label part[i] ∈ {0, 1, 2}. */
@@ -449,23 +516,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * Default-off (env var unset / `multilevel`) leaves the existing
      * multilevel `sparse_graph_partition` path unchanged — Sprint 27
      * Day 6 behaviour preserved bit-identically. */
-    int used_root_spectral = 0;
-    if (depth == 0) {
-        if (policy->nd_root_bisect == SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL &&
-            n <= policy->nd_root_bisect_max_n && n >= 3) {
-            rc = graph_bisect_coarsest_spectral(G, part);
-            if (rc == SPARSE_OK)
-                rc = graph_edge_separator_to_vertex_separator(G, part);
-            if (rc != SPARSE_OK) {
-                free(part);
-                return rc;
-            }
-            used_root_spectral = 1;
-        }
-    }
-    if (!used_root_spectral) {
-        rc = sparse_graph_partition(G, part, &sep_count);
-    }
+    rc = nd_partition_current_graph(G, part, &sep_count, depth, policy);
 
     if (nd_prof_enabled) {
         long long elapsed = nd_prof_now_ns() - part_t0;
@@ -536,76 +587,21 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     }
 
     /* Recurse on side 0. */
-    {
-        sparse_graph_t G0 = {0};
-        idx_t *map0 = malloc((size_t)n0 * sizeof(idx_t));
-        if (!map0) {
-            free(part);
-            free(vs0);
-            free(vs1);
-            return SPARSE_ERR_ALLOC;
-        }
-        long long sg0_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-        rc = sparse_graph_subgraph(G, vs0, n0, &G0, NULL);
-        if (nd_prof_enabled)
-            nd_prof_subgraph_ns += nd_prof_now_ns() - sg0_t0;
-        if (rc != SPARSE_OK) {
-            free(map0);
-            free(part);
-            free(vs0);
-            free(vs1);
-            return rc;
-        }
-        /* `vs0[i] ∈ [0, n)` by construction (we built it from `part`),
-         * and `vertex_id_map` has length `n`.  The analyser doesn't
-         * track the relationship. */
-        for (idx_t i = 0; i < n0; i++)
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
-            map0[i] = vertex_id_map[vs0[i]];
-        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1, policy);
-        sparse_graph_free(&G0);
-        free(map0);
-        if (rc != SPARSE_OK) {
-            free(part);
-            free(vs0);
-            free(vs1);
-            return rc;
-        }
+    rc = nd_recurse_side(G, vertex_id_map, vs0, n0, perm, next_pos, depth, policy);
+    if (rc != SPARSE_OK) {
+        free(part);
+        free(vs0);
+        free(vs1);
+        return rc;
     }
 
     /* Recurse on side 1. */
-    {
-        sparse_graph_t G1 = {0};
-        idx_t *map1 = malloc((size_t)n1 * sizeof(idx_t));
-        if (!map1) {
-            free(part);
-            free(vs0);
-            free(vs1);
-            return SPARSE_ERR_ALLOC;
-        }
-        long long sg1_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-        rc = sparse_graph_subgraph(G, vs1, n1, &G1, NULL);
-        if (nd_prof_enabled)
-            nd_prof_subgraph_ns += nd_prof_now_ns() - sg1_t0;
-        if (rc != SPARSE_OK) {
-            free(map1);
-            free(part);
-            free(vs0);
-            free(vs1);
-            return rc;
-        }
-        for (idx_t i = 0; i < n1; i++)
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
-            map1[i] = vertex_id_map[vs1[i]];
-        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1, policy);
-        sparse_graph_free(&G1);
-        free(map1);
-        if (rc != SPARSE_OK) {
-            free(part);
-            free(vs0);
-            free(vs1);
-            return rc;
-        }
+    rc = nd_recurse_side(G, vertex_id_map, vs1, n1, perm, next_pos, depth, policy);
+    if (rc != SPARSE_OK) {
+        free(part);
+        free(vs0);
+        free(vs1);
+        return rc;
     }
 
     /* Separator last — the rule that makes ND fill-reducing. */

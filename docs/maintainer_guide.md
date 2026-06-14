@@ -353,6 +353,19 @@ Current direct-family interpretation after Sprint 63:
 - LDL^T keeps the cleanest cancellation story because factor state is owned
   separately from the input matrix
 
+Current maintained proof ownership after Sprint 67 Day 11:
+
+- `tests/test_reorder_nd.c` owns the shared ND compatibility/default-policy
+  convergence proof surface
+- `tests/test_chol_csc.c` owns the family-local large-`n` analysis-backed
+  Cholesky CSC handoff proof surface
+- `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
+  Cholesky parity and failure-preservation contract
+- benchmark surfaces stay benchmark-side:
+  - `bench_refactor` / `bench_refactor_csc` prove retained repeated-run direct
+    workflow/performance behavior
+  - they do not replace the family-local or public regression ownership above
+
 Current deferred direct-usability queue:
 
 - no-reorder linked-list Cholesky bit-identical cancellation restoration

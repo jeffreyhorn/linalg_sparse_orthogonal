@@ -300,3 +300,169 @@ implementation work:
 - the high-signal Sprint 69 rerun set is fixed around the actual final
   product, proof-owner, example, and maintained benchmark/report surfaces
   present in `build/`
+
+## Day 3 - Public Surface Audit I
+
+### Goal
+
+Re-rank the final public product surfaces by contradiction density, adoption
+value, and Epic 6 closeout payoff before any final simplification work lands.
+
+### Actions
+
+1. Audited the highest-value maintained public product surfaces:
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+2. Re-read the strongest public reference and interpretation surfaces:
+   - `include/sparse_cholesky.h`
+   - `include/sparse_analysis.h`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+3. Measured current size concentration across those public surfaces.
+4. Ran targeted terminology scans for:
+   - example / benchmark / test ownership wording
+   - workflow / proof / property / oracle wording
+   - install / platform / canonical-report wording
+5. Ranked the live contradiction set by:
+   - public product-story importance
+   - cross-surface duplication density
+   - risk of user or maintainer misread
+   - likely simplification payoff in Sprint 69
+
+### Findings
+
+#### 1. The strongest remaining Sprint 69 problem is duplicated product-story ownership, not missing coverage
+
+The live repo already documents the final Epic 6 state in many places. The
+main residual pressure is that the same story is still told across too many
+surfaces:
+
+- workflow choice and repeated-run adoption
+- examples vs benchmarks vs tests ownership
+- benchmark canonical/reporting interpretation
+- platform/install confidence limits
+- maintainer-policy vs user-facing explanation boundaries
+
+Interpretation:
+
+- Sprint 69 should optimize for simplification and sharper authority splits,
+  not for adding more explanatory surface area
+- the strongest risk is not a missing statement; it is drift or reader
+  overload from repeated parallel explanations
+
+#### 2. README is the strongest first target because it carries the densest mix of product narrative, proof ownership, platform truth, and install story
+
+`README.md` remains the strongest Day 3 hotspot because it combines:
+
+- top-level product narrative
+- workflow-choice guidance
+- tests/examples/benchmarks ownership summary
+- benchmark canonical/reporting summary
+- quality/platform truth summary
+- install/package summary
+
+Interpretation:
+
+- this is the highest-value first landing because small README clarifications
+  can remove duplicated explanation pressure from several adjacent surfaces
+- the risk is not that README is wrong in one obvious place; it is that it is
+  now the densest multi-role surface in the final Epic 6 state
+
+#### 3. Tutorial is the strongest second target because it still repeats product-story framing that now belongs more compactly elsewhere
+
+`docs/tutorial.md` is the strongest second hotspot because it still carries:
+
+- workflow-choice framing
+- examples vs benchmarks interpretation
+- repeated-run direct-path handoff language
+- public-product explanation that partly overlaps with README and
+  `examples/README.md`
+
+Interpretation:
+
+- tutorial is still valuable, but its strongest residual risk is explanatory
+  overlap rather than missing usage content
+- it reads like the best second landing once README has been simplified first
+
+#### 4. The maintainer guide is the strongest policy authority surface, but it should not be the first simplification target by volume alone
+
+`docs/maintainer_guide.md` is large and policy-heavy, but it is already the
+right home for:
+
+- documentation ownership interpretation
+- benchmark-governance interpretation
+- packaging/platform residual interpretation
+- proof-ownership policy
+
+Interpretation:
+
+- it remains a crucial support surface, but the main Sprint 69 pressure is not
+  “make the maintainer guide smaller” in isolation
+- the first win is to reduce what README/tutorial/examples/benchmarks still
+  need to say because the maintainer guide already owns the policy layer
+
+#### 5. Public headers are real final product surfaces, but most are weaker first targets than the public docs
+
+The live header ranking is now clearer:
+
+- strongest header target:
+  - `include/sparse_cholesky.h`
+- real but lower-priority support headers:
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+
+Why `include/sparse_cholesky.h` stands out:
+
+- it carries the densest public-path explanation tied to the final Epic 6
+  product story:
+  - transparent CSC dispatch
+  - benchmark/test reference notes
+  - backend-contract error semantics
+  - one-shot vs repeated-run lifecycle interpretation
+
+Interpretation:
+
+- `include/sparse_cholesky.h` is the best header-side support candidate for
+  Sprint 69
+- the other large headers are substantial, but their residual pressure is more
+  reference breadth than final product-story contradiction
+
+#### 6. Examples and benchmark READMEs are important support surfaces, but they are weaker first targets than README/tutorial
+
+`examples/README.md` and `benchmarks/README.md` are already relatively sharp:
+
+- examples README stays local to adoption entry points
+- benchmarks README stays local to benchmark categories, schemas, and
+  ownership limits
+
+Their main remaining risk is support-side drift relative to README/tutorial,
+not that they need broad redesign first.
+
+Interpretation:
+
+- they are likely part of the first touched set
+- they are not the best first design center for Sprint 69
+
+### Day 3 Close
+
+Sprint 69’s broad “public product surface finalization” claim is now reduced
+to one ranked live seam map:
+
+- strongest first target:
+  - `README.md`
+- strongest second target:
+  - `docs/tutorial.md`
+- strongest policy/support surface:
+  - `docs/maintainer_guide.md`
+- strongest header-side support candidate:
+  - `include/sparse_cholesky.h`
+- important support surfaces, but weaker first design centers:
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`

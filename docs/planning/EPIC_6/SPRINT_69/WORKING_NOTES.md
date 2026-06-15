@@ -745,3 +745,99 @@ That gives Day 6 one exact job:
 
 - land one bounded README/tutorial productization batch without widening into
   broad cross-surface or header cleanup
+
+## Day 6 - Docs/Examples Productization Batch 1
+
+### Goal
+
+Land the first bounded Sprint 69 productization batch on the exact first
+landing pair so README becomes a tighter front door and the tutorial stays the
+teaching flow without re-owning the full product-policy story.
+
+### Actions
+
+1. Edited `README.md` inside the Day 5 fence to tighten the workflow/front-door
+   summary.
+2. Edited `docs/tutorial.md` inside the Day 5 fence to simplify the
+   repeated-run Cholesky handoff and push support-surface ownership detail
+   outward instead of restating it locally.
+3. Rechecked that the batch did not widen into:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+   - public headers
+   - implementation files
+4. Re-read the touched sections to confirm the landed role split stayed
+   explicit.
+
+### Findings
+
+#### 1. README now reads more clearly as the compact product-story front door
+
+The landed README batch keeps the same workflow choices, but tightens their
+roles:
+
+- repeated-run direct lifecycle now points more cleanly to:
+  - `example_analysis` as the strongest shipped adoption reference
+  - `docs/tutorial.md` as the step-by-step teaching flow
+- the examples/benchmarks/tests ownership line is now shorter and more direct:
+  - examples teach workflow
+  - benchmarks prove retained workflow/performance behavior
+  - tests own regression/oracle/property guarantees
+
+Interpretation:
+
+- README now spends less space re-explaining the same lifecycle story in
+  multiple ways
+- it reads more like the front door and less like a second tutorial
+
+#### 2. Tutorial now keeps the usage handoff while shedding some repeated ownership framing
+
+The landed tutorial batch keeps the repeated-run Cholesky teaching lane but
+compresses the support-surface explanation:
+
+- `example_analysis` stays the strongest small teaching surface
+- `bench_refactor` / `bench_refactor_csc` remain the benchmark-side repeated-run
+  proof surfaces
+- `make bench-canonical-report` stays the threshold-free reporting surface
+- regression/oracle/property ownership is now stated more compactly as
+  test-owned, without expanding back into the larger cross-surface product
+  summary
+
+Interpretation:
+
+- tutorial still teaches the right next step after one-shot Cholesky
+- it now points outward instead of trying to fully restate the top-level
+  ownership split
+
+#### 3. The first batch stayed bounded to the exact first landing
+
+The landed batch touched only:
+
+- `README.md`
+- `docs/tutorial.md`
+
+It did not widen into:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- any public header
+- any implementation or proof-owner test surface
+
+Interpretation:
+
+- the Day 5 non-widening fence held
+- Sprint 69 still has real support-surface follow-through available for later
+  days if the post-landing audit proves it is needed
+
+### Day 6 Close
+
+Sprint 69 now has one landed first productization slice:
+
+- README is tighter as the compact public front door
+- tutorial is tighter as the teaching flow
+- the product-story ownership split is preserved without widening into support
+  surfaces yet
+- the next step is to audit whether support-surface follow-through is actually
+  required, rather than widening automatically

@@ -179,13 +179,15 @@ small usage examples and move to the explicit repeated-run direct lifecycle
 only when you need analyze-once / factor-many reuse. The strongest shipped
 example for that path is `examples/example_analysis.c`.
 
-Use the examples and benchmarks for different jobs:
+After you adopt that lifecycle:
 
-- `examples/example_analysis.c` teaches the API lifecycle and ownership model
-- `bench_refactor` / `bench_refactor_csc` prove the retained repeated-run
-  direct performance story
-- `make bench-canonical-report` captures the maintained canonical benchmark
-  rows as a threshold-free snapshot, not as a pass/fail timing gate
+- keep `examples/example_analysis.c` as the strongest small teaching surface
+- move to `bench_refactor` / `bench_refactor_csc` when you want retained
+  repeated-run benchmark-side proof
+- use `make bench-canonical-report` for a threshold-free snapshot of the
+  canonical maintained benchmark surface
+- keep regression/oracle/property ownership with the maintained test surfaces,
+  not with the tutorial prose
 
 On that explicit repeated-run direct path, failed same-pattern refactors keep
 the previous usable factor state intact. Obvious nnz drift is still rejected

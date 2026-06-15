@@ -841,3 +841,121 @@ Sprint 69 now has one landed first productization slice:
   surfaces yet
 - the next step is to audit whether support-surface follow-through is actually
   required, rather than widening automatically
+
+## Day 7 - Post-Landing Audit & Support-Surface Rerank
+
+### Goal
+
+Audit the live post-Day-6 state and rerank the remaining Sprint 69 queue so
+the next batch follows the real residual product-story contradiction instead
+of widening automatically into every support surface.
+
+### Actions
+
+1. Re-read the landed Day 6 README and tutorial changes.
+2. Re-read the strongest current support surfaces:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. Rechecked the current branch shape against `master...HEAD` to confirm the
+   sprint is still bounded to the intended productization lane.
+4. Reranked the remaining surfaces by:
+   - support-side drift from the landed README/tutorial story
+   - risk of ownership confusion for adoption or proof surfaces
+   - likelihood that a bounded support batch will actually close the next
+     contradiction
+
+### Findings
+
+#### 1. The Day 6 batch closed the strongest top-level public-story contradiction
+
+After Day 6:
+
+- `README.md` now reads more clearly as the compact product-story front door
+- `docs/tutorial.md` now reads more clearly as the step-by-step teaching flow
+- the strongest first-order overlap between those two surfaces is materially
+  reduced
+
+Interpretation:
+
+- a second README/tutorial-only batch is no longer the highest-value next move
+- the queue has now shifted from front-door simplification to support-surface
+  reconciliation
+
+#### 2. The strongest remaining contradiction is now support-surface drift around the landed ownership split
+
+The live residual pressure is now concentrated in the support surfaces that
+mirror the public workflow story:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+Why this is the strongest next seam:
+
+- README/tutorial now say the compact product story more cleanly
+- the remaining risk is that support surfaces still carry longer or slightly
+  different phrasings of:
+  - adoption ownership
+  - benchmark-side proof ownership
+  - test-owned oracle/property ownership
+
+Interpretation:
+
+- Day 8 should define one bounded support-surface reconciliation batch
+- Sprint 69 should not widen next into headers or project-level residual
+  surfaces yet
+
+#### 3. Examples README is now the strongest support-side target
+
+`examples/README.md` is the strongest next surface because it directly mirrors
+the adoption handoff that Day 6 tightened in README/tutorial:
+
+- `example_analysis` as the strongest repeated-run adoption example
+- explicit non-ownership of regression/oracle/property guarantees
+- benchmark handoff after adoption
+
+Interpretation:
+
+- it is the best next support surface because it can close the adoption-side
+  drift cleanly with a bounded batch
+
+#### 4. Benchmarks README is the strongest second support target
+
+`benchmarks/README.md` remains the strongest second support target because it
+still carries the benchmark-side ownership and canonical-report interpretation
+that the Day 6 README/tutorial batch points toward.
+
+Interpretation:
+
+- it belongs in the next bounded support batch
+- but it is slightly downstream of examples because adoption confusion is the
+  stronger immediate user-facing risk
+
+#### 5. The maintainer guide remains support-only, not the next design center
+
+`docs/maintainer_guide.md` still reads as the correct policy home rather than
+the next design center.
+
+Interpretation:
+
+- it likely needs a bounded follow-through edit after examples/benchmarks move
+- it should still be driven by the landed user-facing story rather than by a
+  fresh broad policy rewrite
+
+### Day 7 Close
+
+Sprint 69’s queue is now reranked from a landed state:
+
+- the broad README/tutorial overlap problem is no longer the strongest next
+  seam
+- the strongest remaining contradiction is support-surface drift around the
+  landed ownership split
+- exact next target set:
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - likely `docs/maintainer_guide.md` as support only
+- explicitly not next:
+  - public headers
+  - implementation files
+  - project-level residual-finalization surfaces

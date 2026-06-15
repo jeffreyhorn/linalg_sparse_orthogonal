@@ -214,6 +214,7 @@ static void day10_roundtrip_check(SparseMatrix *A, int use_amd, double tol) {
     SparseMatrix *ref = sparse_copy(A);
     ASSERT_TRUE(ref != NULL);
     sparse_cholesky_opts_t opts = {
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
         .reorder = use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE,
     };
     REQUIRE_OK(sparse_cholesky_factor_opts(ref, &opts));

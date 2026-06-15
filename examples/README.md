@@ -78,8 +78,7 @@ examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
 Treat it as the main adoption example for the repeated-run direct path, not as
-the full regression owner for the large-`n` CSC-backed Cholesky lifecycle.
-Specifically:
+the owner of the larger regression/oracle/property story. Specifically:
 
 - failed refactor preservation and staged public one-shot vs repeated-run
   parity stay intentionally owned by `tests/test_integration.c`
@@ -95,6 +94,12 @@ harnesses:
 - `bench_eigs_reuse` for eigensolver handles
 - `make bench-canonical-report` when you want one threshold-free snapshot of
   the canonical maintained benchmark surface
+
+That keeps the support split explicit:
+
+- examples = adoption and workflow teaching
+- benchmarks = retained workflow/performance proof
+- tests = regression/oracle/property guarantees
 
 ```bash
 ./build/example_analysis

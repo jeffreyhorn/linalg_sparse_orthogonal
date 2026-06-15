@@ -710,3 +710,166 @@ That gives later Sprint 70 and Sprint 72 planning one exact job:
 
 - converge the direct-solver product story first, then widen only where the
   bounded ownership changes prove it is necessary
+
+## Day 5 - Capability Ceiling Audit I
+
+### Goal
+
+Reduce the broad Epic 7 capability-expansion question to one ranked live
+ceiling map so later modernization work starts from the strongest product
+constraints instead of a vague "more features" backlog.
+
+### Inputs Rechecked
+
+I re-read the live public capability surfaces and the strongest existing Epic
+7 review claims:
+
+- `include/sparse_types.h`
+- `README.md`
+- `include/sparse_eigs.h`
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `docs/planning/EPIC_7/reviews/review-codex-2026-06-15.md`
+
+### Findings
+
+#### 1. The strongest current capability ceiling is still the 32-bit index model
+
+The live repo still fixes the global sparse index type to:
+
+- `typedef int32_t idx_t;`
+- `#define IDX_MAX INT32_MAX`
+
+This is the strongest capability ceiling because it hits all three layers at
+once:
+
+- public product limits:
+  - matrix dimensions and nnz cap at roughly 2.1 billion
+- implementation assumptions:
+  - allocator, overflow, and workspace math are built around `idx_t`
+- compatibility implications:
+  - widening this is a public-header, ABI, and downstream rebuild event
+
+Interpretation:
+
+- this is not a narrow implementation detail
+- it is the broadest capability-width limit in the current product line
+- it is therefore the strongest first modernization candidate
+
+#### 2. The second strongest ceiling is real-only scalar support
+
+The repo still presents itself as:
+
+- real-only
+- double-precision only
+
+This is visible across the live public API:
+
+- solver inputs and outputs use `double *`
+- eigensolver buffers use `double *`
+- preconditioner and matrix-free callbacks use `double *`
+- factor/result structs store `double` state directly
+
+Why this ranks second:
+
+- it excludes major sparse-library workloads directly:
+  - complex Hermitian / unsymmetric problems
+  - single-precision or mixed-precision workflows
+  - integer-valued exact or symbolic-adjacent product lines
+- it cuts across almost every public header, not just one subsystem
+- the implementation burden is even broader than the index-width burden
+
+Interpretation:
+
+- real-only is a deeper eventual modernization lane than index width
+- but it has higher surface area and proof burden than the 32-bit index ceiling
+- it therefore ranks as the strongest second capability ceiling, not the first
+
+#### 3. The third strongest ceiling is the symmetric-only sparse eigensolver surface
+
+The live public eigensolver contract is still:
+
+- `sparse_eigs_sym(...)`
+- grow-m Lanczos
+- thick-restart Lanczos
+- explicit LOBPCG
+- symmetric matrices only
+
+This is a real state-of-the-art positioning limit because:
+
+- the library has a credible sparse symmetric eigensolver story now
+- but it still has no public unsymmetric sparse eigensolver story
+- so the capability ceiling is product-facing, not merely internal
+
+Why it ranks third instead of first:
+
+- it is narrower than index width or scalar support
+- it affects one important capability family rather than nearly every family
+- the current symmetric story is already relatively strong within its lane
+
+Interpretation:
+
+- this is a meaningful Epic 7 capability target
+- but it is a narrower modernization lane than the global width/type ceilings
+
+#### 4. Public caveats, implementation assumptions, and compatibility implications are now separated
+
+The Day 5 split is now explicit:
+
+- public caveats:
+  - 32-bit indices
+  - real-only scalar support
+  - symmetric-only eigensolver scope
+- implementation assumptions:
+  - widespread `idx_t` use in dimensions, nnz, permutations, and workspaces
+  - widespread `double` storage in solver, iterative, and eigensolver contracts
+  - symmetric-specific eigensolver naming, docs, and buffer/result semantics
+- compatibility implications:
+  - index-width widening is a public typedef and ABI event
+  - scalar-type widening is a larger API and packaging event still
+  - eigensolver-family widening is less ABI-heavy than scalar generalization,
+    but it still changes the public product promise and proof burden
+
+This is the most useful Day 5 clarification:
+
+- Epic 7 capability work should not treat all ceilings as one kind of problem
+- some are type-width/product-line ceilings
+- some are algorithm-family ceilings
+- some are broad package/ABI events even before implementation difficulty is
+  considered
+
+#### 5. The strongest Day 5 modernization shortlist is now explicit
+
+Sprint 70 Day 5 now leaves one ranked shortlist for later capability design:
+
+1. first capability modernization candidate:
+   - 32-bit index ceiling
+2. strongest second modernization candidate:
+   - real-only scalar ceiling
+3. narrower but still important capability candidate:
+   - unsymmetric sparse eigensolver gap
+4. later/deferred or support context:
+   - broader precision-product expansion
+   - broader algorithm-family wishlist not yet justified by the live public
+     contract
+
+### Day 5 Close
+
+Sprint 70 now has one concrete capability-ceiling ranking instead of a generic
+"more capability" plan:
+
+- first:
+  - 32-bit index-width ceiling
+- second:
+  - real-only scalar ceiling
+- third:
+  - symmetric-only eigensolver ceiling
+
+That gives Day 6 one exact job:
+
+- separate the first realistic Epic 7 capability modernization lane from the
+  larger deferred ambitions without blurring width, scalar, and algorithm
+  expansion into one fake batch

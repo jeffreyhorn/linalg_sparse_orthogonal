@@ -326,3 +326,219 @@ Sprint 70 now has one explicit validation contract before deeper audits begin:
   default to `make quality-review-full`
 - the high-signal Sprint 70 rerun set is fixed around the reviewed CMake proof
   tree, maintained benchmark binaries, and install/package regression scripts
+
+## Day 3 - Product-Model Gap Inventory I
+
+### Goal
+
+Audit the strongest remaining linked-list/product-model and conversion-heavy
+workflow seams in the live library so Epic 7 can target real ownership and
+usability ceilings rather than broad “matrix model” rhetoric.
+
+### Actions
+
+1. Re-read the Sprint 70 Day 3 plan target and the Epic 7 review’s product-
+   model finding.
+2. Re-read the strongest public product-model surfaces:
+   - `README.md`
+   - `include/sparse_matrix.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_ldlt.h`
+   - `include/sparse_analysis.h`
+3. Re-read the strongest implementation seams defining the current
+   linked-list-versus-compressed split:
+   - `src/sparse_matrix.c`
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_ldlt_csc.c`
+   - `src/sparse_lu_csr.c`
+4. Rechecked the highest-signal conversion and publication paths:
+   - `chol_csc_from_sparse_with_analysis`
+   - `chol_csc_writeback_to_sparse`
+   - `ldlt_csc_from_sparse_with_analysis`
+   - `ldlt_csc_writeback_to_ldlt`
+   - `lu_csr_from_sparse`
+   - `lu_csr_to_sparse`
+5. Rechecked the strongest user-facing workflow friction signals:
+   - copy-first one-shot direct examples and header guidance
+   - identity-permutation preconditions
+   - logical vs physical accessor split
+   - same-pattern repeated-run lifecycle ownership
+
+### Findings
+
+#### 1. The strongest exact product-model seam is still the one-shot direct workflow centered on copied `SparseMatrix` mutation
+
+The dominant public one-shot direct story is still:
+
+- construct or load a `SparseMatrix`
+- `sparse_copy()` it to preserve the original
+- factor the copy in place
+- solve through the factored copy
+- manage permutations or reordered publication implicitly through the matrix
+
+That pattern is explicit across the public surfaces:
+
+- `README.md`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+
+This remains a real strength for straightforward usage:
+
+- one object
+- one familiar sparse matrix type
+- low ceremony for small or occasional solves
+
+But it is also the strongest current Epic 7 burden because it keeps the public
+center of gravity on:
+
+- matrix copying
+- in-place factor mutation
+- publication through the same general-purpose matrix container
+- implicit lifecycle knowledge around when the original matrix view is still
+  valid
+
+Interpretation:
+
+- the largest exact seam is not “there is a linked-list type”
+- it is that the default direct-solver product story still makes the mutable
+  linked-list matrix the main object callers live inside even when the numeric
+  backend is no longer really centered there
+
+#### 2. The second strongest seam is the matrix API’s mixed logical/physical/permuted-state contract
+
+`include/sparse_matrix.h` and `src/sparse_matrix.c` still expose a broad matrix
+surface where many operations depend on whether the matrix is in:
+
+- original identity-permutation state
+- reordered state
+- factored state
+- logical-accessor view versus physical-storage view
+
+The current API makes that explicit through:
+
+- separate logical and physical accessors
+- public permutation-array accessors
+- `sparse_reset_perms(...)`
+- many operation notes that warn “do not use on matrices with non-identity
+  permutations”
+- same-matrix factored-state markers and compatibility checks
+
+This remains a real strength for power users because:
+
+- the representation is inspectable
+- permutation state is not hidden
+- advanced callers can reason about exact storage/layout transitions
+
+But it is also a product-model cost because a large part of the generic matrix
+API is conditionally safe or meaningful depending on matrix state.
+
+Interpretation:
+
+- the next strongest product-model burden is not raw file size alone
+- it is that `SparseMatrix` still tries to be:
+  - mutable construction container
+  - generic arithmetic container
+  - reordered/factored state carrier
+  - permutation owner
+  - interoperability shell
+
+#### 3. The third strongest seam is compressed backend work that still converts out of and publishes back into `SparseMatrix`
+
+The highest-value fast numeric paths are now clearly compressed working-format
+paths:
+
+- CSC Cholesky
+- CSC LDL^T
+- CSR LU
+
+But the public product story still routes through repeated translation layers:
+
+- `SparseMatrix` → CSC/CSR conversion
+- compressed factor/elimination/solve
+- writeback or publication back into a linked-list-facing result model
+
+The clearest exact examples are:
+
+- `lu_csr_from_sparse(...)` and `lu_csr_to_sparse(...)`
+- `chol_csc_from_sparse_with_analysis(...)`
+- `chol_csc_writeback_to_sparse(...)`
+- `ldlt_csc_from_sparse_with_analysis(...)`
+- `ldlt_csc_writeback_to_ldlt(...)`
+
+The fast paths are real and worthwhile, but the public product center is still
+not a compressed-first workflow model.
+
+Interpretation:
+
+- this is the strongest current performance-facing product-model burden
+- the compressed backends no longer look experimental, but they still read as
+  implementation-owned accelerators living behind a linked-list-first public
+  center
+
+#### 4. The shared repeated-run direct lifecycle is a real convergence step, but it is still a parallel surface rather than the single dominant product model
+
+The shared direct lifecycle in `include/sparse_analysis.h` is already a major
+improvement:
+
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+It owns:
+
+- symbolic/permutation reuse
+- family-agnostic same-pattern repeated-run story
+- clearer factor/workspace separation than the one-shot direct APIs
+
+But the Day 3 reread still shows a split product story:
+
+- one-shot family headers remain the default front door
+- the shared lifecycle is the advanced repeated-run path
+- some family-local factor objects still coexist beside shared
+  `sparse_factors_t`
+- the shared path still assumes callers understand identity-permutation and
+  same-pattern preconditions at a fairly detailed level
+
+Interpretation:
+
+- the repeated-run lifecycle is not a weakness
+- the weakness is that the library still presents two strong product models in
+  parallel rather than one clearly dominant long-term ownership story
+
+#### 5. The strongest Day 3 ranking now reduces the broad product-model problem to four concrete seams
+
+The current ranked Day 3 product-model seams are:
+
+1. copy-first, in-place one-shot direct workflow centered on `SparseMatrix`
+2. mixed logical/physical/permuted-state semantics across the generic matrix
+   API
+3. compressed backend conversion/writeback ownership split
+4. shared repeated-run lifecycle versus family-local one-shot and owned-factor
+   parallel surfaces
+
+Lower but still real support context:
+
+- compile-time tuning and threshold knobs documented on public matrix/direct
+  surfaces
+- public permutation-array accessors that expose how much state still lives on
+  the matrix object itself
+- interop and Matrix Market flow that still reinforce `SparseMatrix` as the
+  universal public shell
+
+### Day 3 Close
+
+Sprint 70 now has one explicit first product-model hotspot map:
+
+- the broad Epic 7 product-model concern is reduced to four concrete seams
+- the strongest exact target is the copied-matrix, in-place one-shot direct
+  workflow
+- the second strongest target is the mixed logical/physical/permuted-state
+  contract on the generic matrix API
+- the third strongest target is the compressed backend conversion/writeback
+  ownership split
+- the next step is to rerank those seams against user cost, performance cost,
+  compatibility burden, and proof burden before fixing the first true Epic 7
+  product-model boundary

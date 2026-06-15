@@ -1552,3 +1552,144 @@ That gives Day 10 one exact job:
 
 - freeze the exact validation, package, benchmark, and platform non-goal fence
   for later Epic 7 implementation without widening any of the reviewed claims
+
+## Day 10 - Validation and Platform Contract II
+
+### Goal
+
+Turn the Day 9 preservation map into one exact Epic 7 truthfulness fence so
+later implementation sprints have an explicit non-goal and preservation
+checklist before any product, capability, performance, or cleanup work lands.
+
+### Inputs Rechecked
+
+I re-read the live Day 9 audit and the maintained contract-authority surfaces:
+
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day9-validation-and-platform-contract-audit.md`
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+- `Makefile`
+
+### Findings
+
+#### 1. Maintained reviewed truth, supplemental proof, and deferred ambitions are now separated explicitly
+
+The Day 10 split is now fixed:
+
+- maintained reviewed truth:
+  - `make quality-review-full`
+  - Linux reviewed Makefile compile-quality path
+  - Linux reviewed CMake parity path
+  - Linux enforced dead-code report/check path
+  - reviewed Windows CMake subset
+  - reviewed macOS Apple Clang compile/CMake/wall-check/sanitize lane
+- supplemental-but-truthful proof:
+  - Linux direct runtime, TSan, coverage, `bench-fast`
+  - macOS Homebrew GCC direct build/test/wall-check
+  - macOS static-first Make install/`pkg-config`
+  - local Unix-side install/package regression scripts
+  - threshold-free canonical benchmark report artifacts
+- explicitly deferred platform/release ambitions:
+  - shared-library maturity claims
+  - Windows reviewed Makefile parity
+  - Windows reviewed dead-code
+  - macOS reviewed dead-code
+  - broad reviewed install-validation parity across every platform
+
+This is the most useful Day 10 clarification:
+
+- later Epic 7 work can add or improve proof
+- but it should not silently upgrade supplemental or local proof into reviewed
+  truth without new reviewed evidence
+
+#### 2. The strongest contract non-goals are now explicit
+
+Sprint 70 Day 10 confirms the following non-goals for later Epic 7 work:
+
+- no fake shared-library or dynamic-ABI maturity claims
+- no inflated Windows parity claims beyond the reviewed CMake subset
+- no install/package story broader than:
+  - local Unix-side proof scripts
+  - supplemental macOS Make install/`pkg-config`
+  - reviewed Windows CMake-consumer path
+- no reinterpretation of `make bench-canonical-report` as a pass/fail or
+  portable timing gate
+- no benchmark or example wording that steals test-owned regression, oracle,
+  or property guarantees
+- no silent promotion of staged dead-code lanes into reviewed platform claims
+
+Interpretation:
+
+- the repo can evolve within these boundaries
+- but it should not market future partial progress as if the whole reviewed
+  contract had widened already
+
+#### 3. The later-sprint preservation checklist is now explicit
+
+Later Epic 7 implementation work should preserve the following checklist:
+
+1. strongest local reviewed baseline still reads as:
+   - `make quality-review-full`
+2. reviewed CMake parity claims still route through:
+   - `make quality-review-cmake`
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. platform wording still preserves:
+   - Linux strongest reviewed truth
+   - macOS narrower reviewed lane plus supplemental install proof
+   - Windows reviewed CMake subset only
+4. install/package wording still preserves:
+   - static-first release shape
+   - local Unix-side script proof ownership
+   - no broad reviewed install-validation claim
+5. benchmark wording still preserves:
+   - canonical maintained surface is bounded
+   - `bench-canonical-report` is threshold-free artifact reporting
+6. dead-code wording still preserves:
+   - Linux enforced
+   - macOS staged
+   - Windows staged
+   - serialized execution limit remains explicit
+
+This is the main Day 10 deliverable:
+
+- later sprints now have one exact contract-preservation checklist instead of
+  a diffuse "be careful with docs/CI wording" warning
+
+#### 4. The lower-value residuals should remain deferred unless a touched lane truly forces them
+
+The following remain explicitly deferred rather than being pulled into early
+Epic 7 implementation work:
+
+- reviewed shared-library packaging claims
+- Windows Makefile reviewed-wrapper parity
+- Windows dead-code enablement
+- macOS dead-code enablement
+- broad reviewed install-validation convergence
+- new timing-threshold governance beyond the currently justified surfaces
+
+Interpretation:
+
+- these may become future work
+- but Sprint 70 closes with them outside the maintained reviewed truth fence
+
+### Day 10 Close
+
+Sprint 70 now has one explicit validation/platform/package truthfulness fence:
+
+1. maintained reviewed truth:
+   - strongest local reviewed baseline plus current reviewed platform lanes
+2. supplemental-but-truthful proof:
+   - direct runtime, extra compiler/sanitizer lanes, local install scripts,
+     and threshold-free benchmark artifacts
+3. explicitly deferred ambitions:
+   - shared-library maturity, reviewed Windows Makefile/dead-code parity, and
+     broad install-validation parity
+
+That gives Day 11 one exact job:
+
+- synthesize the product, capability, surface, and contract audits into one
+  explicit Epic 7 state-of-the-art target and success rubric

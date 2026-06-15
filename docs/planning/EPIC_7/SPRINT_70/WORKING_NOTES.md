@@ -1364,3 +1364,191 @@ That gives Day 9 one exact job:
 
 - move from surface cleanup ranking to the validation/platform contract audit
   without reopening the newly fixed public/proof cleanup fence
+
+## Day 9 - Validation and Platform Contract I
+
+### Goal
+
+Reduce the broad Epic 7 validation/platform truthfulness concern to one ranked
+contract-preservation map so later implementation work knows exactly which
+reviewed, supplemental, staged, and excluded claims must not drift.
+
+### Inputs Rechecked
+
+I re-read the maintained validation, install, benchmark-report, and workflow
+surfaces:
+
+- `Makefile`
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+- `scripts/bench_canonical_report.sh`
+
+### Findings
+
+#### 1. The strongest local reviewed truth surface is still the Linux-composed baseline, not any single narrower command
+
+The live local truth hierarchy remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `make quality-review-cmake`
+  - `ctest -N --test-dir build/quality-review-cmake`
+- reviewed Makefile compile-quality anchor:
+  - `make quality-review-compile`
+
+This matters because later Epic 7 work can easily drift if it treats:
+
+- `make test`
+- one workflow leg
+- one install script
+
+as if they replace the stronger composed reviewed baseline.
+
+Interpretation:
+
+- `make quality-review-full` remains the strongest local reviewed claim
+- narrower commands remain supporting proof, not replacement truth surfaces
+
+#### 2. The strongest platform truthfulness sensitivity is still the reviewed-subset asymmetry
+
+The current reviewed-platform contract is intentionally asymmetric:
+
+- Linux:
+  - strongest reviewed source of truth
+  - reviewed Makefile compile-quality path
+  - reviewed CMake parity path
+  - enforced dead-code report/check path
+- macOS:
+  - reviewed Apple Clang lane
+  - supplemental Homebrew GCC
+  - supplemental static-first Make install/`pkg-config`
+- Windows:
+  - reviewed CMake subset only
+  - explicit staged exclusions including `test_fuzz`
+  - no reviewed Makefile or dead-code lane
+
+This is the strongest current truthfulness sensitivity because:
+
+- it is easy to over-read platform breadth from the repo's overall maturity
+- the Windows surface is materially narrower than Linux
+- macOS install/package confidence is intentionally supplemental, not a full
+  reviewed parity claim
+
+Interpretation:
+
+- later Epic 7 work can move within this contract
+- but must not collapse it into fake cross-platform parity claims
+
+#### 3. The strongest install/package proof sensitivity is the split between local regression scripts and reviewed CI lanes
+
+The install/package proof split is now explicit:
+
+- local Unix-side proof:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- reviewed CI interpretation:
+  - Linux does not claim a separate reviewed install-validation lane
+  - macOS carries only a narrower supplemental Make install/`pkg-config` lane
+  - Windows remains a reviewed CMake-consumer lane, not a separate reviewed
+    install-validation lane
+
+This is a high-risk drift point because install/package claims can sound
+broader than the reviewed evidence if later work blurs:
+
+- local regression scripts
+- supplemental platform checks
+- reviewed cross-platform proof
+
+Interpretation:
+
+- the scripts are real maintained proof surfaces
+- but they do not by themselves widen the reviewed CI contract
+
+#### 4. The strongest benchmark/reporting truthfulness sensitivity is still the threshold-free canonical-report reading
+
+The canonical maintained benchmark/report surface remains intentionally narrow:
+
+- `make bench-canonical-report`
+- `scripts/bench_canonical_report.sh`
+- four canonical proof benchmarks only
+
+The key truthfulness rule is unchanged:
+
+- this is an artifact-friendly snapshot surface
+- not a pass/fail timing gate
+- not portable performance proof by itself
+
+This remains one of the strongest contract sensitivities because later Epic 7
+performance or capability work could easily tempt broader timing claims than
+the current benchmark-governance model justifies.
+
+Interpretation:
+
+- later work may extend reporting or observability
+- but should preserve the current threshold-free reading unless a narrower
+  justified threshold surface is explicitly introduced
+
+#### 5. Dead-code staging remains the strongest operational quality residual
+
+The dead-code contract remains:
+
+- Linux:
+  - enforced
+- macOS:
+  - staged pending fresh measurement
+- Windows:
+  - staged
+
+with one operational limit still explicit:
+
+- serialized dead-code execution because the workflow shares build/artifact
+  paths
+
+Interpretation:
+
+- this is still a real residual
+- but it is intentionally bounded and already truthfully documented
+- later Epic 7 work should preserve that explicit staged reading unless it
+  lands new reviewed evidence
+
+#### 6. The current lower-risk contract surfaces are now clearer
+
+The lower-risk or already-well-bounded contract surfaces are:
+
+- the static-first release shape itself
+  - already coherent across README, INSTALL, maintainer guide, and tests
+- the canonical benchmark set definition
+  - already bounded and explicit
+- the local reviewed wrapper naming
+  - already coherent across Makefile and docs
+
+These still matter, but they are not the strongest current drift points
+compared with:
+
+- platform reviewed-subset asymmetry
+- install/package proof ownership
+- dead-code staging
+- threshold-free benchmark-report interpretation
+
+### Day 9 Close
+
+Sprint 70 now has one ranked contract-preservation map:
+
+1. strongest platform truthfulness sensitivity:
+   - reviewed-subset asymmetry across Linux / macOS / Windows
+2. strongest install/package proof sensitivity:
+   - local regression scripts versus reviewed CI-lane interpretation
+3. strongest benchmark/reporting sensitivity:
+   - threshold-free canonical-report reading
+4. strongest operational quality residual:
+   - staged/serialized dead-code contract
+
+That gives Day 10 one exact job:
+
+- freeze the exact validation, package, benchmark, and platform non-goal fence
+  for later Epic 7 implementation without widening any of the reviewed claims

@@ -1,3 +1,9 @@
+Sprint 70 Day 1 authoritative inputs
+====================================
+
+Date: 2026-06-15
+Branch: sprint-70
+
 docs/planning/EPIC_7/PROJECT_PLAN.md
 docs/planning/EPIC_7/SPRINT_70/PLAN.md
 docs/planning/EPIC_6/EPIC_6_RETROSPECTIVE.md

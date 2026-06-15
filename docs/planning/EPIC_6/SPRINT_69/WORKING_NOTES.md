@@ -1287,3 +1287,81 @@ Sprint 69 Day 10 closes with one explicit pre-close audit result:
 - the exact Day 13-14 handoff set is fixed
 - the remaining queue is now smaller and more concrete than a generic final
   docs pass
+
+## Day 11 - Final Cross-Surface Follow-Through
+
+### Goal
+
+Run the final pre-validation recheck and confirm whether any bounded last-mile
+follow-through batch is actually needed before the full maintained validation
+sweep.
+
+### Actions
+
+1. Re-read the Day 11 plan block so the follow-through stayed conditional
+   rather than automatic.
+2. Rechecked the live cross-surface ownership wording across:
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. Rechecked the final claimed support surfaces for:
+   - examples vs benchmarks vs tests ownership
+   - `example_analysis` repeated-run adoption handoff
+   - `make bench-canonical-report` bounded reporting interpretation
+   - large-`n` CSC-backed Cholesky regression/oracle/property ownership
+4. Reconfirmed the Day 12 validation set against the now-stable public product
+   story.
+
+### Findings
+
+#### 1. No bounded Day 11 follow-through batch is required
+
+The final pre-validation recheck did not expose a new contradiction:
+
+- `README.md` still reads cleanly as the compact product-story front door
+- `docs/tutorial.md` still reads cleanly as the step-by-step teaching flow
+- `examples/README.md` still reads cleanly as the adoption-side handoff
+- `benchmarks/README.md` still reads cleanly as the workflow/performance proof
+  side
+- `docs/maintainer_guide.md` still owns the policy layer without needing a
+  last-minute reconciliation edit
+
+Interpretation:
+
+- the Day 10 audit result still holds under a direct final recheck
+- forcing a Day 11 wording batch would widen the sprint without improving the
+  truthfulness of the final branch story
+
+#### 2. The sprint is now ready for the full validation sweep
+
+The exact Day 12 validation set remains:
+
+- maintained gates:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- reviewed truthfulness anchors:
+  - reviewed CMake parity count
+  - Makefile/CMake parity
+  - final reviewed CMake pass count
+- targeted follow-ons:
+  - representative public-proof tests
+  - key examples
+  - canonical maintained benchmark/report surfaces
+  - local install/package regressions
+
+Interpretation:
+
+- Sprint 69 is ready to move directly into measured validation
+- no more design or support-surface cleanup is needed first
+
+### Day 11 Close
+
+Sprint 69 Day 11 closes as an explicit bounded no-op follow-through pass:
+
+- no additional cross-surface edit was required
+- the final pre-validation state is now recorded explicitly
+- the branch is ready for the full maintained validation sweep

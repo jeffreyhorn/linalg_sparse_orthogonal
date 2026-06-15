@@ -1365,3 +1365,149 @@ Sprint 69 Day 11 closes as an explicit bounded no-op follow-through pass:
 - no additional cross-surface edit was required
 - the final pre-validation state is now recorded explicitly
 - the branch is ready for the full maintained validation sweep
+
+## Day 12 - Full Validation Sweep
+
+### Goal
+
+Run the full maintained gate set, reconfirm the reviewed truthfulness anchors,
+and freeze the final Sprint 69 validated baseline from the integrated Epic 6
+branch state.
+
+### Actions
+
+1. Ran the full maintained gate set:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Reconfirmed the reviewed truthfulness anchors from the reviewed CMake path:
+   - `ctest -N --test-dir build/quality-review-cmake`
+   - Makefile/CMake parity
+   - final reviewed CMake `ctest` pass count
+3. Ran the targeted Sprint 69 follow-on set:
+   - `./build/test_integration`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/test_reorder_nd`
+   - `./build/test_fuzz`
+   - `./build/test_framework_optin`
+   - `./build/test_iterative`
+   - `./build/test_eigs`
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+   - `make bench-canonical-report`
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+4. Re-ran the mutable build-tree follow-ons sequentially after one initial
+   parallel collision between local install/report commands, so the retained
+   install/report proof stayed truthful.
+
+### Findings
+
+#### 1. The full maintained gate set passed
+
+The full maintained validation stack passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 797.77 sec`
+
+Interpretation:
+
+- Sprint 69 now closes from a measured validated branch baseline
+- the integrated Epic 6 branch still preserves the exact reviewed truthfulness
+  anchor count through final validation
+
+#### 2. The targeted final proof surfaces all passed
+
+The final Sprint 69 follow-ons all passed:
+
+- `./build/test_integration` -> `47 / 47`
+- `./build/test_chol_csc` -> `145 / 145`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/test_reorder_nd` -> `34 / 34`
+- `./build/test_fuzz` -> `25 / 25`
+- `./build/test_framework_optin` -> `8` run, `3` skipped, `0` failed
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_eigs` -> `30 / 30`
+- `bash tests/test_install.sh` -> `11 / 11`
+- `bash tests/test_cmake_install.sh` -> `13 / 13`
+- `make bench-canonical-report` -> passed
+
+Interpretation:
+
+- the final public product story, assurance support, benchmark/report surface,
+  and local install/package proof all still hold from the integrated branch
+  state
+
+#### 3. Representative retained outputs stayed healthy
+
+Representative retained outputs:
+
+- `example_analysis` residual stayed `4.44e-16`
+- `example_basic_solve` residual stayed `0.00e+00`
+- `test_fuzz` retained `large-n CSC lifecycle property: 3/3 passed`
+- `test_reorder_nd` retained:
+  - `Pres_Poisson ND/AMD = 0.923`
+  - `bcsstk14 ND/AMD = 1.124`
+- `bench_refactor_csc nos4` retained:
+  - `speedup_refactor = 1.73`
+  - residuals `8.24e-16` / `7.06e-16`
+- `bench_chol_csc nos4` retained:
+  - `csc_scalar_path=scalar`
+  - `csc_supernodal_path=supernodal`
+  - `csc_supernodal_dense_kernel=builtin`
+  - `speedup_csc = 1.04x`
+  - `speedup_csc_sn = 1.07x`
+- `bench_iterative_reuse` retained:
+  - `cg 0.96x`
+  - `gmres 1.01x`
+  - `minres 0.77x`
+- `bench_eigs_reuse` retained:
+  - `growm 1.00x`
+  - `thick_restart 0.92x`
+  - `lobpcg 0.98x`
+  - `lambda_max_diff = 0.000e+00`
+- both install/package regressions reported installed `pkg-config` version
+  `2.2.0`
+- `make bench-canonical-report` regenerated:
+  - `build/bench-reports/canonical/bench_refactor_csc.csv`
+  - `build/bench-reports/canonical/bench_chol_csc.csv`
+  - `build/bench-reports/canonical/bench_iterative_reuse.csv`
+  - `build/bench-reports/canonical/bench_eigs_reuse.csv`
+  - `build/bench-reports/canonical/manifest.txt`
+
+#### 4. One non-blocking runtime note remains explicit
+
+The reviewed CMake path was still dominated by `test_reorder_nd`:
+
+- `test_reorder_nd = 525.85 sec`
+- total reviewed CMake time = `797.77 sec`
+
+Interpretation:
+
+- this remains a real runtime concentration point
+- it did not affect truthfulness, parity, or validation success
+
+### Day 12 Close
+
+Sprint 69 now has one measured final validation baseline:
+
+- all maintained gates passed
+- all targeted final proof surfaces passed
+- reviewed truthfulness anchors stayed exact
+- Day 13-14 can now close from this validated baseline instead of from a
+  stale earlier sprint result

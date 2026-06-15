@@ -1693,3 +1693,210 @@ That gives Day 11 one exact job:
 
 - synthesize the product, capability, surface, and contract audits into one
   explicit Epic 7 state-of-the-art target and success rubric
+
+## Day 11 - State-of-the-Art Target Synthesis
+
+### Goal
+
+Turn the Day 3-10 audit outputs into one explicit Epic 7 target model so the
+later implementation sprints inherit a concrete success rubric instead of a
+broad "modernize the library" aspiration.
+
+### Inputs Rechecked
+
+I re-read the live Sprint 70 audit and fence artifacts that now define the
+current Epic 7 seam map:
+
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day3-product-model-gap-inventory.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day4-first-product-model-boundary.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day5-capability-ceiling-audit.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day6-capability-modernization-fence.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day7-public-and-proof-surface-audit.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day8-support-surface-fence.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day9-validation-and-platform-contract-audit.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day10-validation-platform-fence.md`
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+
+### Findings
+
+#### 1. Epic 7 now has one explicit target model across six permanent axes
+
+The Day 11 synthesis fixes the following target model:
+
+- product model:
+  - the public direct-solver story should read as a coherent owned-factor and
+    repeated-run workflow with the generic mutable matrix shell no longer
+    carrying the whole long-term product identity by default
+- capability surface:
+  - the repo should have a credible modernization path beyond the permanent
+    `int32_t` ceiling, while preparing the scalar surface for later widening
+    without pretending that full type-generic or complex support already
+    exists
+- performance maturity:
+  - the fastest maintained numeric paths should read as first-class product
+    lanes with explicit benchmark-governed proof, not as incidental backend
+    accelerators behind a linked-list-first public story
+- public/product documentation:
+  - the front door, install story, and key headers should read like stable
+    product/reference surfaces rather than a stitched-together sprint archive
+- platform/release maturity:
+  - the repo should preserve a static-first, truthful, explicitly asymmetric
+    reviewed contract instead of claiming a broader release/platform story than
+    the evidence supports
+- assurance and proof architecture:
+  - the strongest proof owners should remain explicit, with giant tests,
+    benchmarks, examples, and install/package scripts each carrying a bounded
+    role instead of blurred guarantees
+
+This is the strongest Day 11 clarification:
+
+- "state of the art" for Epic 7 is not a promise to solve every structural
+  limitation in one epic
+- it is the combination of coherent product boundaries, bounded capability
+  modernization, trustworthy performance evidence, and truthfully documented
+  platform/proof ownership
+
+#### 2. True target qualities, strong-but-bounded qualities, and deferred ambitions are now separated explicitly
+
+Day 11 fixes three distinct categories.
+
+True state-of-the-art target qualities for Epic 7:
+
+- direct-solver workflow boundaries that center the real repeated-run and
+  owned-factor product lanes
+- a credible index-width modernization path instead of a permanent implicit
+  `int32_t` ceiling
+- benchmarked compressed-backend maturity that reads as a maintained product
+  capability rather than a hidden implementation detail
+- public docs and key headers that give a coherent modern product story
+- proof ownership that is explicit, bounded, and resistant to drift
+- reviewed-platform and install/package wording that remains strictly evidence
+  based
+
+Strong-but-bounded qualities that should remain framed honestly:
+
+- static-first packaging and release shape
+- self-contained default build and dependency posture
+- symmetric sparse eigensolver strength without broad unsymmetric coverage
+- supplemental install/package and extra-compiler proof outside the reviewed
+  core lanes
+- threshold-free benchmark reporting rather than portable timing-gate claims
+
+Intentionally deferred beyond-Epic-7 ambitions:
+
+- full type-generic scalar support across the library
+- broad complex-valued capability claims
+- a full unsymmetric sparse eigensolver family
+- reviewed shared-library and dynamic-ABI maturity
+- reviewed Windows Makefile parity
+- reviewed Windows dead-code parity
+- reviewed macOS dead-code parity
+- broad reviewed install-validation parity on every platform
+
+Interpretation:
+
+- later work can widen the product
+- but the repo should not claim these deferred ambitions as if Sprint 70 had
+  already made them real
+
+#### 3. The strongest Epic 7 success criteria are now explicit
+
+Later Epic 7 implementation should be judged against the following success
+criteria:
+
+1. the public direct-workflow story becomes more coherent without a fake
+   repo-wide matrix rewrite
+2. the strongest permanent capability ceiling is narrowed in a way that is
+   reflected in public types, docs, and proof
+3. benchmark and performance language stay bounded to maintained measured
+   surfaces
+4. the front-door, install, and key-header surfaces become materially more
+   product-like and less archaeology-heavy
+5. reviewed-platform truth stays exact even when supplemental proof expands
+6. proof-owner roles remain explicit across tests, examples, benchmarks, and
+   install scripts
+7. later sprints reduce major permanent-source and giant-test hotspots only
+   where ownership clarity or validation value justifies the proof cost
+
+This is the core Day 11 rubric:
+
+- Epic 7 succeeds if the library becomes more coherent, more honest, and more
+  extensible on the highest-value seams
+- not if it simply accumulates more surface area or more aspirational wording
+
+#### 4. The strongest anti-goals are now fixed in writing
+
+Sprint 70 Day 11 also fixes the following anti-goals:
+
+- no fake "state-of-the-art" language that outruns shipped capability or proof
+- no broad `SparseMatrix` rewrite disguised as workflow cleanup
+- no one-sprint attempt to solve index width, scalar breadth, and eigensolver
+  expansion together
+- no benchmark-report wording that turns canonical snapshots into timing gates
+- no platform or install-language widening without new reviewed evidence
+- no giant-test breakup campaign detached from clear ownership or validation
+  gain
+- no permanent-surface cleanup pass that steals authority from tests, examples,
+  benchmarks, or policy docs
+
+Interpretation:
+
+- later sprints should move on ranked seams
+- not on generic modernization pressure
+
+#### 5. The Sprint 71-79 carry-in queue is now ranked against the target model
+
+The final carry-in queue for the remaining Epic 7 sprints is now explicit:
+
+1. public direct-workflow boundary convergence
+   - clarify the public direct-solver ownership boundary across README, key
+     headers, and example handoff
+2. product-model and configuration modernization
+   - reduce linked-list-first identity pressure and continue env-var/default
+     modernization on the highest-value public seams
+3. capability modernization phase 1
+   - start the bounded index-width modernization lane
+4. backend and performance maturity phase 1
+   - deepen maintained compressed-backend/product alignment without widening
+     benchmark claims
+5. benchmark and proof-surface refinement
+   - preserve bounded benchmark governance while reducing the strongest proof
+     archaeology seams
+6. packaging/platform/install convergence phase 2
+   - improve product coherence without inflating reviewed platform maturity
+7. permanent-surface and header cleanup
+   - reduce chronology density on the strongest public/reference surfaces
+8. giant-test and large-source follow-through
+   - touch only where ownership clarity or assurance value remains highest
+9. final integration and validation package
+   - rerun the strongest proof, benchmark, and install/package surfaces
+10. Epic 7 closeout and handoff
+    - freeze the final shipped reading, residual queue, and retrospective state
+
+This ordering matters because it matches the actual target model:
+
+- product coherence first
+- capability and backend maturity next
+- cleanup and closeout only after those structural seams move
+
+### Day 11 Close
+
+Sprint 70 now has one explicit Epic 7 target synthesis:
+
+1. target quality:
+   - coherent direct-workflow product model, bounded capability modernization,
+     benchmark-governed performance maturity, product-like public surfaces, and
+     truthful platform/proof ownership
+2. strong-but-bounded quality:
+   - static-first packaging, self-contained default build, symmetric-eigs
+     strength, and supplemental proof outside the reviewed core lanes
+3. deferred ambition:
+   - full type-generic scalar breadth, broad unsymmetric eigs, shared-library
+     maturity, and full reviewed cross-platform parity
+
+That gives Day 12 one exact job:
+
+- convert the target synthesis into one explicit later-sprint execution map so
+  Epic 7 implementation can start from ranked contracts instead of broad themes

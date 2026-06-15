@@ -1171,3 +1171,119 @@ Sprint 69 now has one landed support-surface reconciliation slice:
 - the maintainer guide did not need widening from this batch
 - the next step is to audit whether any final cross-surface contradiction
   remains before validation and handoff planning
+
+## Day 10 - Post-Landing Audit & Final Validation/Handoff Design
+
+### Goal
+
+Audit the live post-Day-9 branch against the Sprint 69 closeout target,
+decide whether any bounded Day 11 follow-through is truly necessary, and fix
+the exact Day 12-14 validation and handoff sequence before those steps run.
+
+### Actions
+
+1. Re-read the Day 10-14 Sprint 69 plan blocks and the Sprint 69 project-plan
+   target so the closeout sequence stayed tied to the actual epic goal.
+2. Audited the current post-Day-9 public product surfaces:
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. Rechecked the current cross-surface ownership wording for:
+   - examples vs benchmarks vs tests
+   - `make bench-canonical-report`
+   - large-`n` CSC-backed Cholesky regression/oracle/property ownership
+4. Fixed the exact final validation set and the exact Day 13-14 handoff set in
+   writing from the live branch state.
+
+### Findings
+
+#### 1. No new cross-surface contradiction remains that forces a Day 11 batch
+
+After the Day 6 and Day 9 landings, the public/front-door and support-side
+story now reads consistently:
+
+- `README.md` is the compact product-story front door
+- `docs/tutorial.md` is the step-by-step teaching flow
+- `examples/README.md` reads cleanly as the adoption-side handoff
+- `benchmarks/README.md` reads cleanly as the workflow/performance proof side
+- `docs/maintainer_guide.md` still owns the policy layer without requiring a
+  new widening edit
+
+Interpretation:
+
+- the strongest remaining queue is no longer a generic “final docs pass”
+- there is no live contradiction large enough to justify a forced Day 11
+  follow-through batch from the current branch state
+- Day 11 should stay conditional: only land a bounded follow-through if a real
+  contradiction appears during the final pre-validation recheck
+
+#### 2. The exact Day 12 validation set is now fixed from the final product story
+
+The final maintained validation set should be:
+
+- full maintained gates:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- reviewed truthfulness anchors:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - Makefile/CMake parity
+  - final reviewed CMake `ctest` pass count
+- targeted follow-ons:
+  - `./build/test_integration`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+  - `./build/test_reorder_nd`
+  - `./build/test_fuzz`
+  - `./build/test_framework_optin`
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+  - `./build/example_analysis`
+  - `./build/example_basic_solve`
+  - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+Interpretation:
+
+- the validation sweep now covers the final Epic 6 public product story, not
+  just the most recent docs edits
+- install/package and canonical-reporting surfaces remain part of the final
+  truth set because the integrated product story still claims them
+
+#### 3. The exact Day 13-14 handoff set is now fixed too
+
+The closeout package should now be read as:
+
+- Day 13:
+  - Sprint 69 closeout and handoff artifact
+  - final Epic 6 summary inputs
+  - final carry-forward queue and deferred-limit package
+  - project-level recheck on `docs/planning/EPIC_6/PROJECT_PLAN.md`
+- Day 14:
+  - final Sprint 69 closeout confirmation from the Day 12 baseline
+  - final Epic 6 handoff state
+  - retrospective/PR-ready branch summary
+
+Interpretation:
+
+- the only planned work after Day 12 is explicit closeout writing and
+  residual-finalization, not more open-ended design
+- Sprint 69 is now positioned to close from a measured final branch baseline
+
+### Day 10 Close
+
+Sprint 69 Day 10 closes with one explicit pre-close audit result:
+
+- no bounded Day 11 follow-through batch is currently required
+- the exact Day 12 validation set is fixed
+- the exact Day 13-14 handoff set is fixed
+- the remaining queue is now smaller and more concrete than a generic final
+  docs pass

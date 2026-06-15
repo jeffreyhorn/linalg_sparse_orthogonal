@@ -873,3 +873,157 @@ That gives Day 6 one exact job:
 - separate the first realistic Epic 7 capability modernization lane from the
   larger deferred ambitions without blurring width, scalar, and algorithm
   expansion into one fake batch
+
+## Day 6 - Capability Ceiling Audit II & Modernization Fence
+
+### Goal
+
+Turn the Day 5 ranked capability ceilings into one exact first Epic 7
+modernization fence so later implementation starts from a bounded capability
+lane rather than from a broad "64-bit + complex + more algorithms" promise.
+
+### Inputs Rechecked
+
+I re-read the live Day 5 ranking and the Epic 7 capability-planning inputs:
+
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day5-capability-ceiling-audit.md`
+- `docs/planning/EPIC_7/PROJECT_PLAN.md`
+- `docs/planning/EPIC_7/reviews/review-codex-2026-06-15.md`
+- `docs/planning/EPIC_7/reviews/todo-codex-2026-06-15.md`
+- `include/sparse_types.h`
+- `README.md`
+- `include/sparse_eigs.h`
+
+### Findings
+
+#### 1. The first realistic Epic 7 capability lane is index-width modernization, not broad type generalization
+
+Re-ranking the Day 5 ceilings against:
+
+- user value
+- ecosystem impact
+- implementation risk
+- proof burden
+
+leaves the same ordering, but with a sharper first lane:
+
+1. first bounded modernization candidate:
+   - index-width path
+2. medium-term capability target:
+   - scalar-surface broadening
+3. later capability target:
+   - unsymmetric sparse eigensolver expansion
+
+Why index width stays first:
+
+- it is the broadest current product ceiling
+- it is easier to isolate into one explicit typedef/overflow/build contract
+  than scalar-type generalization
+- it gives the repo a real capability-modernization path without requiring a
+  full product-line rewrite
+
+Interpretation:
+
+- the first Epic 7 capability lane should be "make width widening real"
+- not "make every numeric surface type-generic"
+
+#### 2. Real-only scalar support is the strongest second lane, but it is not the right first landing
+
+The Day 5 scalar ranking still holds, but Day 6 makes the implementation
+interpretation explicit:
+
+- scalar breadth is a bigger market and product-line ceiling than the
+  symmetric eigensolver gap
+- but it has the highest surface-area burden across:
+  - public headers
+  - factor/result structs
+  - callbacks
+  - examples/tests/docs
+  - packaging expectations
+
+Interpretation:
+
+- scalar-surface work should start as preparation and seam definition
+- it should not be represented as the first shipped capability closure
+- the first lane can make scalar generalization easier later, but should not
+  pretend to deliver it outright
+
+#### 3. Unsymmetric sparse eigensolver expansion is important, but it is now explicit later work
+
+The eigensolver-family gap remains real:
+
+- no public unsymmetric sparse eigensolver story
+
+But Day 6 makes its place in the queue explicit:
+
+- it is narrower than width and scalar breadth
+- it depends on broader capability and product-model maturity first
+- it carries a large proof and documentation burden for a narrower first Epic 7
+  payoff
+
+Interpretation:
+
+- this is a credible later Epic 7 or next-epic target
+- it should not compete with the first bounded modernization lane
+
+#### 4. The strongest exact first modernization fence is now explicit
+
+The first bounded Epic 7 capability fence should center on the index-width
+contract:
+
+- required first modernization center:
+  - `include/sparse_types.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- likely support only if needed:
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `INSTALL.md`
+- proof and safety support only if the implementation batch demands it:
+  - width-sensitive overflow and bounds tests
+  - install/package sanity where the public typedef or build reading changes
+
+Why this is the right fence:
+
+- `idx_t` is the public width center
+- README and maintainer policy already own the current documented width limit
+- the first lane can define one real modernization path without immediately
+  widening every numeric algorithm family
+
+Interpretation:
+
+- first capability work should start by making the width contract real and
+  bounded
+- public numeric headers beyond `sparse_types.h` should move only where the
+  width path truly forces them
+
+#### 5. The strongest Day 6 non-goal fence is now explicit
+
+Sprint 70 Day 6 confirms the following capability non-goals for the first Epic
+7 modernization lane:
+
+- no claim of full type-generic conversion in one sprint
+- no fake "complex-ready" story without end-to-end proof
+- no broad unsymmetric eigensolver wishlist disguised as a first capability
+  batch
+- no package/ABI claim wider than the actually landed width seam
+- no simultaneous attempt to solve width, scalar breadth, and algorithm-family
+  expansion in one lane
+
+### Day 6 Close
+
+Sprint 70 now has one exact capability modernization order:
+
+1. first bounded lane:
+   - index-width modernization path
+2. strongest second lane:
+   - scalar-surface preparation and broadening
+3. later capability lane:
+   - unsymmetric sparse eigensolver expansion
+
+That gives later Sprint 70 and Sprint 74 planning one exact job:
+
+- land the first real width-modernization seam first, then widen only where
+  that bounded path proves broader scalar or algorithm-family work is justified

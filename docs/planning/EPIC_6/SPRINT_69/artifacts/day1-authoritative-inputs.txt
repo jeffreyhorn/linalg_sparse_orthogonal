@@ -1,0 +1,44 @@
+Sprint 69 Day 1 authoritative inputs
+====================================
+
+Date: 2026-06-15
+Branch: sprint-69
+
+1. Project-plan source
+   - docs/planning/EPIC_6/PROJECT_PLAN.md
+   - Sprint 69 section: "Sprint 69: Public Product Surface Finalization, Integration & Epic 6 Closeout"
+
+2. Sprint-local planning source
+   - docs/planning/EPIC_6/SPRINT_69/PLAN.md
+
+3. Inherited closeout sources
+   - docs/planning/EPIC_6/SPRINT_68/RETROSPECTIVE.md
+   - docs/planning/EPIC_6/SPRINT_68/artifacts/day14-closeout-and-handoff.md
+
+4. Reviewed baseline sources rechecked on Day 1
+   - make -n quality-review-full
+   - ctest -N --test-dir build/quality-review-cmake
+
+5. Live touched-surface measurements captured directly from the tree
+   - README.md = 1034
+   - docs/tutorial.md = 477
+   - examples/README.md = 161
+   - benchmarks/README.md = 356
+   - docs/maintainer_guide.md = 578
+   - include/sparse_analysis.h = 498
+   - include/sparse_cholesky.h = 232
+   - include/sparse_iterative.h = 765
+   - include/sparse_eigs.h = 650
+   - tests/test_integration.c = 2411
+   - tests/test_chol_csc.c = 4608
+   - tests/test_ldlt_csc.c = 3680
+   - tests/test_reorder_nd.c = 2262
+   - tests/test_fuzz.c = 651
+   - tests/test_framework_optin.c = 85
+   - examples/example_analysis.c = 210
+   - examples/example_basic_solve.c = 110
+   - benchmarks/bench_refactor_csc.c = 611
+   - benchmarks/bench_chol_csc.c = 407
+   - benchmarks/bench_iterative_reuse.c = 395
+   - benchmarks/bench_eigs_reuse.c = 278
+   - docs/planning/EPIC_6/PROJECT_PLAN.md = 344

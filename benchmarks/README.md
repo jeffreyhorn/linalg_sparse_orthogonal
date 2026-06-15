@@ -182,6 +182,14 @@ surfaces for the public repeated-run direct lifecycle:
     - `res_public`
     - `res_csc`
 
+Read that support split narrowly:
+
+- examples such as `example_analysis` stay the adoption entry points
+- `bench_refactor` / `bench_refactor_csc` stay the retained
+  workflow/performance proof surfaces after adoption
+- tests still own regression/oracle/property guarantees for the large-`n`
+  CSC-backed lifecycle lane
+
 `bench_chol_csc` remains the maintained benchmark-side proof surface for the
 first Sprint 64 backend-aware Cholesky CSC lane:
 
@@ -206,6 +214,12 @@ first Sprint 64 backend-aware Cholesky CSC lane:
 - it is not the owner of the Sprint 68 staged public-path oracle/parity lane
   or the bounded seeded lifecycle property lane; those remain test-owned in
   `tests/test_integration.c` and `tests/test_fuzz.c`
+
+So the benchmark-side reading stays:
+
+- benchmarks = proof and measurement surfaces
+- examples = adoption surfaces
+- tests = regression/oracle/property owners
 
 The two reuse benchmarks stay intentionally narrow and should be read as public
 handle-path proof surfaces, not broad solver bake-offs:

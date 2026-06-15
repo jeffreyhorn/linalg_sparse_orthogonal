@@ -466,3 +466,137 @@ to one ranked live seam map:
   - `include/sparse_analysis.h`
   - `include/sparse_iterative.h`
   - `include/sparse_eigs.h`
+
+## Day 4 - Public Surface Audit II & Landing Boundary
+
+### Goal
+
+Convert the Day 3 public-surface ranking into one exact first implementation
+fence so Sprint 69 starts from a bounded product-story simplification batch
+instead of a generic multi-surface cleanup set.
+
+### Actions
+
+1. Re-read the Day 3 ranked seam map and compared it against the Sprint 69
+   closeout goal.
+2. Re-read the highest-value current user-facing surfaces:
+   - `README.md`
+   - `docs/tutorial.md`
+3. Re-read the strongest support/policy/reference candidates:
+   - `docs/maintainer_guide.md`
+   - `include/sparse_cholesky.h`
+4. Fixed the exact first landing, support-only surfaces, and deferred
+   residuals in writing.
+5. Recorded the explicit non-touch set that should stay outside the first
+   productization batch.
+
+### Findings
+
+#### 1. The exact first landing is now fixed to README plus tutorial
+
+The exact first landing is now:
+
+- `README.md`
+- `docs/tutorial.md`
+
+Why this is the right first batch:
+
+- together they carry the densest user-facing repeated-run workflow and
+  product-story overlap
+- they are the strongest pair for simplifying:
+  - workflow choice
+  - top-level adoption guidance
+  - examples vs benchmarks vs tests interpretation
+  - compact canonical benchmark/report wording
+- simplifying these two first reduces explanation pressure everywhere else
+
+Interpretation:
+
+- Sprint 69 should start by tightening the two highest-value public-facing
+  narrative surfaces, not by spreading evenly across every maintained doc
+  and header
+
+#### 2. The maintainer guide is support context, not the first-batch center
+
+`docs/maintainer_guide.md` remains the strongest policy/support surface.
+
+Why it stays support-only unless the design proves otherwise:
+
+- it already owns the maintainer-policy layer well
+- the first Sprint 69 goal is to reduce what user-facing surfaces still need
+  to restate
+- moving it first would blur policy authority with top-level product
+  simplification work
+
+Interpretation:
+
+- maintainer-guide edits are likely in the first landed set
+- but they should follow the README/tutorial simplification contract rather
+  than define it
+
+#### 3. The strongest header-side candidate is explicitly deferred behind the first docs batch
+
+`include/sparse_cholesky.h` remains the strongest header-side support
+candidate, but it is not in the exact first landing.
+
+Why it is deferred:
+
+- header-local caveats and API interpretation are already reasonably bounded
+- the stronger immediate contradiction is duplicated public-story framing in
+  README/tutorial
+- touching headers too early risks widening Sprint 69 into reference cleanup
+  before the top-level story is simplified
+
+Interpretation:
+
+- header follow-through remains likely later
+- it is not the right first design center for Day 5
+
+#### 4. Examples and benchmark READMEs are first-batch support surfaces, not first-batch centers
+
+The first docs batch may need:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+
+Why they stay support-only:
+
+- they already read as relatively local surfaces
+- their main remaining pressure is alignment with README/tutorial, not
+  independent redesign
+- changing them first would weaken the goal of simplifying the main public
+  narrative
+
+#### 5. The first-batch non-touch set is now explicit
+
+The following stay outside the first landing fence:
+
+- `include/sparse_cholesky.h`
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `docs/planning/EPIC_6/PROJECT_PLAN.md`
+- implementation `src/` files
+- permanent proof-owner test files
+- install/package or platform workflow surfaces unless the first docs design
+  truly proves they must move
+
+### Day 4 Close
+
+Sprint 69 now has one exact first landing boundary:
+
+- exact first landing:
+  - `README.md`
+  - `docs/tutorial.md`
+- likely support only if needed:
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- strongest header-side support candidate, explicitly deferred:
+  - `include/sparse_cholesky.h`
+
+That gives Day 5 one exact job:
+
+- define the bounded productization contract centered on README/tutorial, with
+  support-surface follow-through only where the simplified public story truly
+  requires it

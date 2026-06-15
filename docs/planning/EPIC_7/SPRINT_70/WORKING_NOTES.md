@@ -1208,3 +1208,159 @@ That gives Day 8 one exact job:
 - separate the highest-value future cleanup lanes from lower-value surface
   churn and freeze the support-surface fence before Sprint 70 moves on to the
   validation/platform contract audit
+
+## Day 8 - Public-Surface and Proof-Surface Audit II
+
+### Goal
+
+Turn the Day 7 contradiction ranking into one explicit Epic 7 cleanup fence so
+later work starts from the highest-value public, header, and proof lanes
+instead of reopening every documentation or giant-test surface at once.
+
+### Inputs Rechecked
+
+I re-read the live Day 7 ranking and the Epic 7 project-plan contract around
+later cleanup lanes:
+
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day7-public-and-proof-surface-audit.md`
+- `docs/planning/EPIC_7/PROJECT_PLAN.md`
+- `README.md`
+- `INSTALL.md`
+- `include/sparse_cholesky.h`
+- `tests/test_reorder_nd.c`
+- `tests/test_chol_csc.c`
+
+### Findings
+
+#### 1. The highest-value future public cleanup lane is the front-door and install pair, not a broad multi-doc rewrite
+
+Re-ranking the Day 7 public/support surfaces against:
+
+- user-facing product value
+- contradiction density
+- likelihood of durable simplification
+- risk of reopening solved Epic 6/69 ownership work
+
+leaves the strongest public cleanup lane as:
+
+- `README.md`
+- `INSTALL.md`
+
+Why this pair comes first:
+
+- README still carries the densest mixed public-story burden
+- INSTALL is the strongest remaining operator/support drift surface
+- both are high-value user-facing surfaces that can likely be simplified
+  without reopening deeper policy or benchmark-governance work
+
+Interpretation:
+
+- the later public-product cleanup lane should be front-door plus install
+- not a broad simultaneous rewrite of README/tutorial/examples/benchmarks
+
+#### 2. The strongest later header/reference lane is narrow, centered on `include/sparse_cholesky.h`
+
+The header/reference queue is now sharp:
+
+- first header/reference candidate:
+  - `include/sparse_cholesky.h`
+- later support only if needed:
+  - other public headers
+
+Why this is the right lane:
+
+- `include/sparse_cholesky.h` concentrates the strongest mixed reference burden
+- widening immediately into more headers would blur one concrete cleanup seam
+  into generic header churn
+- the other headers do not currently show the same contradiction density
+
+Interpretation:
+
+- the header/reference lane should start narrow
+- do not widen into all public headers just because one header is history-dense
+
+#### 3. The strongest later proof-surface cleanup lane is ND-first, CSC-Cholesky second
+
+The proof-surface queue is now explicit:
+
+1. first giant-test cleanup candidate:
+   - `tests/test_reorder_nd.c`
+2. strongest second giant-test cleanup candidate:
+   - `tests/test_chol_csc.c`
+3. support only if later cleanup truly needs it:
+   - `tests/test_integration.c`
+   - `tests/test_fuzz.c`
+
+Why this order holds:
+
+- ND still carries the densest live chronology burden
+- CSC Cholesky remains large and history-heavy, but with clearer family-local
+  ownership
+- integration and fuzz are important proof owners, but they are not the
+  strongest current contradiction centers
+
+Interpretation:
+
+- later proof cleanup should stay targeted to the biggest archaeology-heavy
+  owners first
+- not widen into every proof-owner file
+
+#### 4. The support-surface fence is now explicit
+
+Sprint 70 Day 8 fixes the likely later support-surface fence as:
+
+- likely future public-product cleanup:
+  - `README.md`
+  - `INSTALL.md`
+- likely future header/reference cleanup:
+  - `include/sparse_cholesky.h`
+- likely future giant-test cleanup:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_chol_csc.c`
+- support only if a later batch truly forces it:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+
+This is the most useful Day 8 clarification:
+
+- the remaining Epic 7 cleanup problem is no longer "all docs and all giant
+  tests are too big"
+- it is now a bounded set of likely lanes with explicit support-only surfaces
+
+#### 5. The strongest Day 8 non-goal fence is now explicit
+
+Sprint 70 Day 8 confirms the following surface-cleanup non-goals:
+
+- no repo-wide rewrite of every public doc surface in one sprint
+- no broad public-header cleanup campaign without a ranked header center
+- no giant-test breakup wave disconnected from the strongest archaeology-heavy
+  proof owners
+- no reopening of benchmark-governance or maintainer-policy authority just to
+  simplify wording elsewhere
+- no mixing public cleanup, proof cleanup, and platform/install contract work
+  into one fake "documentation pass"
+
+### Day 8 Close
+
+Sprint 70 now has one explicit future cleanup fence:
+
+1. public-product cleanup:
+   - `README.md`
+   - `INSTALL.md`
+2. header/reference cleanup:
+   - `include/sparse_cholesky.h`
+3. proof-surface cleanup:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_chol_csc.c`
+4. support-only surfaces unless later work proves otherwise:
+   - tutorial / examples / benchmarks / maintainer guide
+   - integration / fuzz
+
+That gives Day 9 one exact job:
+
+- move from surface cleanup ranking to the validation/platform contract audit
+  without reopening the newly fixed public/proof cleanup fence

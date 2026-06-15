@@ -191,3 +191,138 @@ Sprint 70 now starts from one explicit Epic 7 baseline:
   cleanup
 - the next step is to recheck the exact validation and rerun contract before
   the deeper product-model and capability audits begin
+
+## Day 2 - Validation Baseline & Rerun Recheck
+
+### Goal
+
+Reconfirm the reviewed baseline and the targeted rerun set that Sprint 70
+planning and later Epic 7 implementation sprints must preserve before deeper
+audit and architecture-contract work continues.
+
+### Actions
+
+1. Rechecked the reviewed CMake parity anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+2. Re-read the reviewed baseline wrapper surface:
+   - `make -n quality-review-full`
+3. Reconfirmed the authoritative validation split for:
+   - bounded `*.c` / `*.h` days
+   - substantial architecture, capability, benchmark, or platform work
+   - docs-only days
+4. Rechecked the current availability of the most relevant Sprint 70 proof and
+   regression surfaces across:
+   - the reviewed CMake tree
+   - maintained benchmark binaries in the root `build/` tree
+   - install/package regression scripts in `tests/`
+5. Reconfirmed the strongest likely Sprint 70 touched-surface classes from the
+   live branch state after the Day 1 baseline.
+
+### Findings
+
+#### 1. The strongest reviewed baseline is unchanged at Sprint 70 start
+
+Sprint 70 still starts from:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- Sprint 70 inherits the exact same reviewed-baseline authority split as the
+  Epic 6 close
+- even though the sprint opens with docs-only planning work, later Epic 7
+  implementation sprints should still default back to the same reviewed truth
+  surfaces rather than inventing a lighter local rule set
+
+#### 2. The validation split is now explicit before any architecture or implementation movement
+
+The validation contract for Sprint 70 is:
+
+- bounded `*.c` / `*.h` days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial architecture, capability,
+  benchmark-governance, or platform work:
+  - `make quality-review-full`
+- docs-only days:
+  - targeted sanity checks only
+
+Interpretation:
+
+- later Epic 7 work keeps the same authority split the repo already maintains
+- Sprint 70 is not allowed to invent a planning-specific validation story that
+  would be weaker than the live library contract
+
+#### 3. The high-signal Sprint 70 rerun set is now fixed around the actual Epic 7 risk surface
+
+The targeted Sprint 70 rerun set present in the reviewed CMake tree is:
+
+- cross-family/orchestration and direct-family proof owners:
+  - `build/quality-review-cmake/test_integration`
+  - `build/quality-review-cmake/test_chol_csc`
+  - `build/quality-review-cmake/test_ldlt_csc`
+  - `build/quality-review-cmake/test_reorder_nd`
+- assurance and broader numerical proof support:
+  - `build/quality-review-cmake/test_fuzz`
+  - `build/quality-review-cmake/test_framework_optin`
+  - `build/quality-review-cmake/test_iterative`
+  - `build/quality-review-cmake/test_eigs`
+  - `build/quality-review-cmake/test_graph`
+  - `build/quality-review-cmake/test_qr`
+  - `build/quality-review-cmake/test_svd`
+- representative examples:
+  - `build/quality-review-cmake/example_analysis`
+  - `build/quality-review-cmake/example_basic_solve`
+- maintained benchmark/reporting surfaces:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+  - and the same maintained benchmark binaries are also present in
+    `build/quality-review-cmake/`
+- maintained install/package proof scripts:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+Interpretation:
+
+- the reviewed CMake tree is currently the authoritative local binary surface
+  for the key proof-owner tests and representative examples
+- the root `build/` tree is still carrying the maintained benchmark binaries
+  and remains relevant for benchmark-governance and reporting follow-through
+- install/package proof remains script-owned rather than binary-owned
+
+#### 4. Sprint 70’s likely touched-surface class is already narrower than the full reviewed suite
+
+Day 2 confirms the most likely Sprint 70 touched lane is concentrated in:
+
+- maintained public product and policy surfaces
+- product-model, capability, and configuration audit seams
+- proof/adoption/reporting surfaces only where later architecture or
+  contradiction analysis truly points to them
+- project-level Epic 7 planning and review surfaces
+
+Interpretation:
+
+- Sprint 70 should stay bounded to baseline, audit, and contract work rather
+  than widening into generic repo churn
+- the rerun set is intentionally broader than the likely touched surfaces
+  because it is preserving later Epic 7 truthfulness, not predicting every
+  Day 3-14 edit target
+
+### Day 2 Close
+
+Sprint 70 now has one explicit validation contract before deeper audits begin:
+
+- strongest local reviewed baseline is still `make quality-review-full`
+- reviewed CMake parity remains explicit at `53`
+- bounded code-touching days must run `make format`, `make lint`, and
+  `make test`
+- substantial architecture, capability, benchmark, or platform work should
+  default to `make quality-review-full`
+- the high-signal Sprint 70 rerun set is fixed around the reviewed CMake proof
+  tree, maintained benchmark binaries, and install/package regression scripts

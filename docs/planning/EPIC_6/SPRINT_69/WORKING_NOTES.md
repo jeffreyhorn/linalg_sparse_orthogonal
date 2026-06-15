@@ -959,3 +959,118 @@ Sprint 69’s queue is now reranked from a landed state:
   - public headers
   - implementation files
   - project-level residual-finalization surfaces
+
+## Day 8 - Support-Surface Reconciliation Design
+
+### Goal
+
+Turn the Day 7 rerank into one exact support-surface reconciliation contract
+so the next Sprint 69 batch closes the adoption/proof-owner drift without
+widening into headers, implementation, or project-level closeout surfaces.
+
+### Actions
+
+1. Re-read the Day 7 rerank and the current support-side wording in:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+2. Compared those surfaces directly against the landed Day 6 README/tutorial
+   ownership split.
+3. Fixed the exact touched-file fence for the next support batch.
+4. Recorded the preserved non-widening rules for the support reconciliation
+   lane.
+
+### Findings
+
+#### 1. The next batch should be owned by examples plus benchmarks
+
+The Day 9-style support reconciliation owner set is now:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+
+Why this is the right owner pair:
+
+- `examples/README.md` is the direct adoption-side mirror of the Day 6 README /
+  tutorial simplification
+- `benchmarks/README.md` is the direct benchmark-side mirror of that same
+  ownership split
+- together they can close the strongest remaining user-facing drift without
+  needing a broad policy or header rewrite
+
+#### 2. The exact reconciliation shape is support-side role alignment, not a new product narrative
+
+The strongest next support batch should:
+
+1. keep `example_analysis` as the strongest repeated-run adoption example
+2. keep example surfaces explicitly outside regression/oracle/property
+   ownership
+3. keep `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`
+   as maintained benchmark-side proof surfaces after adoption
+4. keep the canonical report surface bounded to:
+   - `make bench-canonical-report`
+5. keep tests as the owners of regression/oracle/property guarantees
+
+Why this shape is right:
+
+- README/tutorial already tell the compact product story
+- the missing step is for support surfaces to mirror that landed split more
+  compactly and consistently
+
+#### 3. The maintainer guide remains support-only if needed, not the batch owner
+
+`docs/maintainer_guide.md` should move only if the examples/benchmarks batch
+would otherwise leave a policy contradiction behind.
+
+Interpretation:
+
+- the maintainer guide is still the policy home
+- but the support reconciliation batch should stay user-facing first, with
+  policy follow-through only where the landed support wording truly forces it
+
+#### 4. The exact Day 9 file fence is now fixed
+
+Required likely implementation surfaces:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+
+Support only if the final reconciliation shape truly needs it:
+
+- `docs/maintainer_guide.md`
+
+Explicit non-touch set:
+
+- `README.md`
+- `docs/tutorial.md`
+- public headers
+- implementation `src/` files
+- permanent proof-owner test files
+- `docs/planning/EPIC_6/PROJECT_PLAN.md`
+- install/package or platform workflow surfaces
+
+### Day 8 Close
+
+Sprint 69 Day 8 closes with one exact support-surface reconciliation contract:
+
+1. owner pair:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+2. likely support only if needed:
+   - `docs/maintainer_guide.md`
+3. proof/ownership shape:
+   - examples = adoption entry point
+   - benchmarks = workflow/performance proof
+   - tests = regression/oracle/property guarantees
+   - `make bench-canonical-report` = bounded threshold-free reporting surface
+4. explicit non-touch set:
+   - README/tutorial
+   - public headers
+   - implementation files
+   - project-level residual/finalization surfaces
+
+That gives Day 9 one exact job:
+
+- land one bounded support-surface reconciliation batch on examples and
+  benchmarks, with maintainer follow-through only if the landed wording truly
+  requires it

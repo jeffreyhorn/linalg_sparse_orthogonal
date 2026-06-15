@@ -1027,3 +1027,184 @@ That gives later Sprint 70 and Sprint 74 planning one exact job:
 
 - land the first real width-modernization seam first, then widen only where
   that bounded path proves broader scalar or algorithm-family work is justified
+
+## Day 7 - Public-Surface and Proof-Surface Audit I
+
+### Goal
+
+Reduce the broad Epic 7 public-surface and proof-surface cleanup question to
+one ranked contradiction map so later cleanup work starts from the strongest
+remaining drift instead of from generic documentation or test churn.
+
+### Inputs Rechecked
+
+I re-read the strongest maintained public and proof surfaces:
+
+- `README.md`
+- `docs/tutorial.md`
+- `INSTALL.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- `include/sparse_cholesky.h`
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_fuzz.c`
+
+I also rechecked chronology/policy density directly with targeted `rg`
+searches across those surfaces.
+
+### Findings
+
+#### 1. The strongest remaining public-surface contradiction is still the overloaded front door in `README.md`
+
+`README.md` is still the strongest public-surface cleanup target because it
+continues to mix several roles at once:
+
+- compact product front door
+- workflow chooser
+- maintained benchmark/reporting summary
+- platform/install quality summary
+- deep algorithm/performance history
+- giant test inventory and maintainer routing notes
+
+The file is now far more coherent than the pre-Epic-6 state, but it still
+reads as the densest place where mature product guidance and delivery-history
+accumulation compete with each other.
+
+Interpretation:
+
+- this is the strongest user-facing cleanup seam
+- the problem is no longer missing ownership
+- it is residual density and chronology overexposure
+
+#### 2. The strongest header-side contradiction is `include/sparse_cholesky.h`
+
+Among the likely public headers, `include/sparse_cholesky.h` still carries the
+strongest mix of:
+
+- API-local caveats that belong there
+- older sprint-history and ABI-history explanation
+- benchmark references and performance-reading guidance
+- dispatch/telemetry interpretation that partially overlaps public docs and
+  maintainer policy
+
+This makes it the strongest current header-side candidate because it most
+clearly risks reading broader or more archival than a mature reference header
+should.
+
+Interpretation:
+
+- this is not a correctness problem
+- it is the strongest public-reference cleanup seam
+- it should rank ahead of broader header churn because it concentrates the
+  most mixed ownership in one high-signal place
+
+#### 3. The strongest support-surface drift is `INSTALL.md`, not the examples or benchmark READMEs
+
+`INSTALL.md` still carries the strongest support-surface drift because:
+
+- most of the operator contract is already truthful
+- but the platform notes still preserve older sprint-history explanation more
+  directly than the current mature install surface needs
+
+By contrast:
+
+- `examples/README.md` is already relatively clean and bounded
+- `benchmarks/README.md` is still dense, but much of that density is
+  legitimately benchmark-local rather than accidental drift
+- `docs/maintainer_guide.md` is policy-dense by design and therefore does not
+  rank as the strongest contradiction center
+
+Interpretation:
+
+- `INSTALL.md` is the strongest support-surface cleanup candidate
+- examples and benchmarks now read more like bounded support surfaces than like
+  the main contradiction centers
+
+#### 4. The strongest proof-surface contradiction is `tests/test_reorder_nd.c`
+
+`tests/test_reorder_nd.c` is now the strongest remaining proof-surface cleanup
+candidate because it still carries the densest concentration of:
+
+- sprint-day chronology
+- historical tuning commentary
+- preserved planning archaeology
+- live proof mixed with large volumes of historical rationale
+
+This is a stronger contradiction than simple file size alone:
+
+- it makes current regression ownership harder to review quickly
+- it blurs durable algorithm explanation with sprint-local history
+- it is the clearest remaining giant-test surface where the repo still reads
+  like an archive inside a permanent proof owner
+
+Interpretation:
+
+- this is the strongest later giant-test cleanup seam
+- stronger than `tests/test_integration.c`
+- and stronger than any current docs/support surface except the front door
+
+#### 5. The second strongest proof-surface contradiction is `tests/test_chol_csc.c`
+
+`tests/test_chol_csc.c` remains a major proof-surface burden because it mixes:
+
+- family-local CSC correctness
+- supernodal helper proof
+- dispatch proof
+- large fixture proof
+- substantial retained sprint chronology
+
+It ranks behind `tests/test_reorder_nd.c` because:
+
+- its ownership split is somewhat clearer after recent Epic 6 and 7 cleanup
+- it still contains a large amount of sprint-local history, but less policy
+  ambiguity than the ND test surface
+
+Interpretation:
+
+- this remains one of the strongest future giant-test cleanup candidates
+- but it is now clearly second to the ND proof surface
+
+#### 6. The current lower-priority surfaces are now explicit
+
+The Day 7 lower-priority or support-only surfaces are now clearer:
+
+- `docs/tutorial.md`
+  - still dense, but its current density is mostly teaching flow rather than
+    contradiction
+- `examples/README.md`
+  - bounded and relatively clean after Epic 6/69 alignment
+- `benchmarks/README.md`
+  - dense, but much of that density is benchmark-local truth rather than
+    drift
+- `docs/maintainer_guide.md`
+  - intentionally policy-heavy; it is a support authority, not the strongest
+    contradiction center
+- `tests/test_integration.c`
+  - still important, but more coherent than the largest remaining giant-test
+    hotspots
+- `tests/test_fuzz.c`
+  - bounded and readable relative to the larger proof owners
+
+### Day 7 Close
+
+Sprint 70 now has one concrete public/proof-surface contradiction ranking:
+
+1. strongest public front-door contradiction:
+   - `README.md`
+2. strongest header/reference contradiction:
+   - `include/sparse_cholesky.h`
+3. strongest support-surface contradiction:
+   - `INSTALL.md`
+4. strongest proof-surface contradiction:
+   - `tests/test_reorder_nd.c`
+5. strongest second proof-surface contradiction:
+   - `tests/test_chol_csc.c`
+
+That gives Day 8 one exact job:
+
+- separate the highest-value future cleanup lanes from lower-value surface
+  churn and freeze the support-surface fence before Sprint 70 moves on to the
+  validation/platform contract audit

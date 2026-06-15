@@ -1511,3 +1511,99 @@ Sprint 69 now has one measured final validation baseline:
 - reviewed truthfulness anchors stayed exact
 - Day 13-14 can now close from this validated baseline instead of from a
   stale earlier sprint result
+
+## Day 13 - Epic 6 Summary, Residual Finalization & Handoff Package
+
+### Goal
+
+Write the Sprint 69 closeout package, finalize the explicit Epic 6 residual
+queue from the validated Day 12 baseline, and recheck whether any
+project-level planning surface truly needs correction before the final close.
+
+### Actions
+
+1. Re-read the Day 12 validation artifact and the Day 10 handoff design so the
+   final package stayed tied to measured evidence.
+2. Summarized the final Sprint 69 delivered state from the validated branch
+   baseline.
+3. Fixed the final Epic 6 carry-forward queue and deferred-limit package in
+   writing instead of leaving it implied by sprint history.
+4. Rechecked `docs/planning/EPIC_6/PROJECT_PLAN.md` against the delivered
+   Sprint 69 and Epic 6 state.
+5. Recorded the remaining non-blocking residuals that still matter after Epic
+   6 close.
+
+### Findings
+
+#### 1. Sprint 69 now closes one integrated public product package
+
+From the validated Day 12 baseline, Sprint 69 hands off:
+
+- final public front-door and teaching-flow productization
+- reconciled examples / benchmarks / tests ownership interpretation
+- preserved canonical benchmark/report reading
+- preserved install/package/productization reading
+- preserved large-`n` CSC-backed Cholesky regression/oracle/property reading
+- final integrated validation baseline across quality, proof, reporting, and
+  install/package surfaces
+
+Interpretation:
+
+- the sprint did not add new implementation scope
+- it finalized the public product story and proved that the integrated Epic 6
+  branch still matches it
+
+#### 2. The final Epic 6 carry-forward queue is now explicit
+
+The final ranked carry-forward queue after Epic 6 is:
+
+1. `test_reorder_nd` runtime concentration reduction only if future work needs
+   a meaningfully cheaper reviewed path
+2. remaining giant-test maintainability follow-through on:
+   - `tests/test_reorder_nd.c`
+   - `tests/test_ldlt_csc.c`
+   only when the proof cost is justified
+3. direct-family usability follow-through only where a real contradiction
+   remains:
+   - CSC progress-callback parity for Cholesky / LDL^T
+   - no-reorder linked-list Cholesky bit-identical cancellation restoration
+4. broader platform-confidence or packaging tightening only if a later product
+   surface change reopens a real reviewed-truth gap
+5. broader benchmark or docs simplification only if later work genuinely
+   changes ownership again
+
+Interpretation:
+
+- the post-Epic-6 queue is now bounded and concrete
+- no residual is being left behind as vague “more polish later”
+
+#### 3. The project-level planning surface does not need a correction
+
+The final recheck of `docs/planning/EPIC_6/PROJECT_PLAN.md` found no mismatch
+that requires a Sprint 69 or Epic 6 correction.
+
+Interpretation:
+
+- the project-level Epic 6 summary surface is still truthful as written
+- Day 14 can close without widening into planning-file churn
+
+#### 4. The remaining non-blocking residuals are now written down explicitly
+
+Explicit non-blocking residuals after Epic 6:
+
+- reviewed runtime is still dominated by `test_reorder_nd`
+- Windows still excludes `test_fuzz` from the reviewed CMake subset, and that
+  remains an intentional confidence-boundary note rather than a hidden gap
+- canonical benchmark reporting remains threshold-free by design, not a
+  pass/fail timing gate
+- backend-aware performance layering remains intentionally bounded to the
+  Sprint 64 first lane rather than widened into a general backend framework
+
+### Day 13 Close
+
+Sprint 69 now has one explicit closeout package from the validated baseline:
+
+- Sprint 69 delivered state is summarized
+- the final Epic 6 carry-forward queue is fixed in writing
+- final non-blocking residuals are explicit
+- `PROJECT_PLAN.md` does not need a correction

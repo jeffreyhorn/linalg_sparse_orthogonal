@@ -6,6 +6,7 @@
  */
 #include "test_framework.h"
 
+#include "sparse_analysis.h"
 #include "sparse_cholesky.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
@@ -287,6 +288,11 @@ static SparseMatrix *random_spd(idx_t n, unsigned seed) {
     return A;
 }
 
+static void property_assert_vec_near(const double *a, const double *b, idx_t n, double tol) {
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(a[i], b[i], tol);
+}
+
 /* Property: LU factor -> solve -> residual small */
 static void test_property_lu(void) {
     int pass_count = 0;
@@ -451,6 +457,153 @@ static void test_property_svd(void) {
     ASSERT_TRUE(pass_count >= 9);
 }
 
+/* Property: large-n CSC-backed public one-shot Cholesky and explicit repeated
+ * lifecycle stay numerically aligned across same-pattern SPD stages. */
+static void test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(void) {
+    static const unsigned seeds[] = {701u, 1103u, 1729u};
+    const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 12);
+    const double tol = 1e-10;
+    int pass_count = 0;
+
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    for (size_t case_idx = 0; case_idx < sizeof(seeds) / sizeof(seeds[0]); case_idx++) {
+        SparseMatrix *A_base = random_spd(n, seeds[case_idx]);
+        SparseMatrix *A_ref1 = NULL;
+        SparseMatrix *A_ref2 = NULL;
+        SparseMatrix *A_one0 = NULL;
+        SparseMatrix *A_one1 = NULL;
+        SparseMatrix *A_one2 = NULL;
+        sparse_analysis_t analysis = {0};
+        sparse_factors_t factors = {0};
+        double *x_exact = NULL;
+        double *b0 = NULL;
+        double *b1 = NULL;
+        double *b2 = NULL;
+        double *x_public0 = NULL;
+        double *x_public1 = NULL;
+        double *x_public2 = NULL;
+        double *x_one0 = NULL;
+        double *x_one1 = NULL;
+        double *x_one2 = NULL;
+        int used_csc_path0 = 0;
+        int used_csc_path1 = 0;
+        int used_csc_path2 = 0;
+
+        REQUIRE_OK(A_base ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        A_ref1 = sparse_copy(A_base);
+        A_ref2 = sparse_copy(A_base);
+        A_one0 = sparse_copy(A_base);
+        A_one1 = sparse_copy(A_base);
+        A_one2 = sparse_copy(A_base);
+        REQUIRE_OK(A_ref1 && A_ref2 && A_one0 && A_one1 && A_one2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        sparse_analysis_opts_t analysis_opts = {
+            .factor_type = SPARSE_FACTOR_CHOLESKY,
+            .reorder = SPARSE_REORDER_AMD,
+        };
+        sparse_cholesky_opts_t chol_opts0 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .used_csc_path = &used_csc_path0,
+        };
+        sparse_cholesky_opts_t chol_opts1 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .used_csc_path = &used_csc_path1,
+        };
+        sparse_cholesky_opts_t chol_opts2 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .used_csc_path = &used_csc_path2,
+        };
+
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts, &analysis));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis, &factors));
+
+        x_exact = malloc((size_t)n * sizeof(double));
+        b0 = malloc((size_t)n * sizeof(double));
+        b1 = malloc((size_t)n * sizeof(double));
+        b2 = malloc((size_t)n * sizeof(double));
+        x_public0 = malloc((size_t)n * sizeof(double));
+        x_public1 = malloc((size_t)n * sizeof(double));
+        x_public2 = malloc((size_t)n * sizeof(double));
+        x_one0 = malloc((size_t)n * sizeof(double));
+        x_one1 = malloc((size_t)n * sizeof(double));
+        x_one2 = malloc((size_t)n * sizeof(double));
+        REQUIRE_OK(x_exact && b0 && b1 && b2 && x_public0 && x_public1 && x_public2 && x_one0 &&
+                           x_one1 && x_one2
+                       ? SPARSE_OK
+                       : SPARSE_ERR_ALLOC);
+
+        for (idx_t i = 0; i < n; i++)
+            x_exact[i] = 1.0 + 0.01 * (double)i;
+
+        for (idx_t i = 0; i < n; i++) {
+            const double base_diag = sparse_get(A_base, i, i);
+            const double ref1_diag = base_diag + 0.5;
+            const double ref2_diag = base_diag + 1.0 + 0.01 * (double)i;
+            ASSERT_EQ(sparse_set(A_ref1, i, i, ref1_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_ref2, i, i, ref2_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_one1, i, i, ref1_diag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A_one2, i, i, ref2_diag), SPARSE_OK);
+        }
+
+        sparse_matvec(A_base, x_exact, b0);
+        sparse_matvec(A_ref1, x_exact, b1);
+        sparse_matvec(A_ref2, x_exact, b2);
+
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b0, x_public0));
+        REQUIRE_OK(sparse_cholesky_factor_opts(A_one0, &chol_opts0));
+        ASSERT_EQ(used_csc_path0, 1);
+        REQUIRE_OK(sparse_cholesky_solve(A_one0, b0, x_one0));
+        property_assert_vec_near(x_public0, x_exact, n, tol);
+        property_assert_vec_near(x_one0, x_exact, n, tol);
+        property_assert_vec_near(x_public0, x_one0, n, tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref1, &analysis, &factors));
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x_public1));
+        REQUIRE_OK(sparse_cholesky_factor_opts(A_one1, &chol_opts1));
+        ASSERT_EQ(used_csc_path1, 1);
+        REQUIRE_OK(sparse_cholesky_solve(A_one1, b1, x_one1));
+        property_assert_vec_near(x_public1, x_exact, n, tol);
+        property_assert_vec_near(x_one1, x_exact, n, tol);
+        property_assert_vec_near(x_public1, x_one1, n, tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref2, &analysis, &factors));
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x_public2));
+        REQUIRE_OK(sparse_cholesky_factor_opts(A_one2, &chol_opts2));
+        ASSERT_EQ(used_csc_path2, 1);
+        REQUIRE_OK(sparse_cholesky_solve(A_one2, b2, x_one2));
+        property_assert_vec_near(x_public2, x_exact, n, tol);
+        property_assert_vec_near(x_one2, x_exact, n, tol);
+        property_assert_vec_near(x_public2, x_one2, n, tol);
+
+        pass_count++;
+
+        free(x_exact);
+        free(b0);
+        free(b1);
+        free(b2);
+        free(x_public0);
+        free(x_public1);
+        free(x_public2);
+        free(x_one0);
+        free(x_one1);
+        free(x_one2);
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        sparse_free(A_base);
+        sparse_free(A_ref1);
+        sparse_free(A_ref2);
+        sparse_free(A_one0);
+        sparse_free(A_one1);
+        sparse_free(A_one2);
+    }
+
+    printf("    large-n CSC lifecycle property: %d/%zu passed\n", pass_count,
+           sizeof(seeds) / sizeof(seeds[0]));
+    ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -491,6 +644,7 @@ int main(void) {
     RUN_TEST(test_property_cholesky);
     RUN_TEST(test_property_qr);
     RUN_TEST(test_property_svd);
+    RUN_TEST(test_property_large_n_cholesky_public_lifecycle_same_pattern_csc);
 
     fuzz_cleanup_tmp();
     TEST_SUITE_END();

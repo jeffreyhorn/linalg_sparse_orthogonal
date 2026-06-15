@@ -78,9 +78,13 @@ examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
 Treat it as the main adoption example for the repeated-run direct path, not as
-the full error-path contract reference. Failed refactor preservation and
-large-`n` CSC-backed Cholesky rejection behavior stay intentionally owned by
-the integration proof surface.
+the full regression owner for the large-`n` CSC-backed Cholesky lifecycle.
+Specifically:
+
+- failed refactor preservation and staged public one-shot vs repeated-run
+  parity stay intentionally owned by `tests/test_integration.c`
+- the bounded seeded generative lifecycle follow-through stays owned by
+  `tests/test_fuzz.c`
 
 For retained workflow/performance proof after you adopt that lifecycle, move to
 the benchmark surfaces rather than expecting the examples to double as timing

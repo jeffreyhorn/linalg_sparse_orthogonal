@@ -353,7 +353,7 @@ Current direct-family interpretation after Sprint 63:
 - LDL^T keeps the cleanest cancellation story because factor state is owned
   separately from the input matrix
 
-Current maintained proof ownership after Sprint 67 Day 11:
+Current maintained proof ownership after Sprint 68 Day 10:
 
 - `tests/test_reorder_nd.c` owns the shared ND compatibility/default-policy
   convergence proof surface
@@ -361,10 +361,27 @@ Current maintained proof ownership after Sprint 67 Day 11:
   Cholesky CSC handoff proof surface
 - `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
   Cholesky parity and failure-preservation contract
+- `tests/test_fuzz.c` owns the bounded seeded generative follow-through for the
+  large-`n` CSC-backed Cholesky lifecycle parity lane
+- example surfaces stay example-side:
+  - `examples/example_analysis.c` teaches the repeated-run lifecycle
+  - it does not replace the regression owners above
 - benchmark surfaces stay benchmark-side:
   - `bench_refactor` / `bench_refactor_csc` prove retained repeated-run direct
     workflow/performance behavior
-  - they do not replace the family-local or public regression ownership above
+  - `bench_chol_csc` proves the maintained backend/path measurement surface
+  - they do not replace the family-local, public oracle, or property ownership
+    above
+
+Current platform-confidence interpretation after Sprint 68 Day 11:
+
+- Linux and macOS still exercise the full `test_fuzz` binary in their direct
+  `make test` / reviewed local paths, so the bounded seeded generative
+  lifecycle property is part of those proof surfaces
+- Windows still excludes `test_fuzz` from the reviewed CMake subset, so that
+  property lane must not be implied as reviewed Windows evidence
+- this is a narrow confidence-boundary note only; it does not reopen the
+  broader staged Windows exclusions or claim new platform parity
 
 Current deferred direct-usability queue:
 

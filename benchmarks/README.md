@@ -166,6 +166,8 @@ surfaces for the public repeated-run direct lifecycle:
     refactor preservation stays owned by `tests/test_integration.c`
   - the family-local large-`n` analysis-backed CSC helper parity stays owned
     by `tests/test_chol_csc.c`, not by this benchmark surface
+  - the bounded seeded generative large-`n` lifecycle follow-through stays
+    owned by `tests/test_fuzz.c`, not by this benchmark surface
   - reports CSV rows with:
     - `benchmark`
     - `category`
@@ -201,6 +203,9 @@ first Sprint 64 backend-aware Cholesky CSC lane:
   `builtin`
 - this keeps the Sprint 64 benchmark refresh bounded to path measurability and
   truthfulness, not broad benchmark-governance churn
+- it is not the owner of the Sprint 68 staged public-path oracle/parity lane
+  or the bounded seeded lifecycle property lane; those remain test-owned in
+  `tests/test_integration.c` and `tests/test_fuzz.c`
 
 The two reuse benchmarks stay intentionally narrow and should be read as public
 handle-path proof surfaces, not broad solver bake-offs:

@@ -1959,41 +1959,62 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
     SparseMatrix *A_base = build_tridiag_spd(n);
     SparseMatrix *A_refactor1 = build_tridiag_spd(n);
     SparseMatrix *A_refactor2 = build_tridiag_spd(n);
+    SparseMatrix *A_one_shot0 = build_tridiag_spd(n);
     SparseMatrix *A_one_shot1 = build_tridiag_spd(n);
     SparseMatrix *A_one_shot2 = build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
+    double *b0 = NULL;
     double *b1 = NULL;
     double *b2 = NULL;
+    double *x_public0 = NULL;
     double *x_public1 = NULL;
     double *x_public2 = NULL;
+    double *x_one_shot0 = NULL;
     double *x_one_shot1 = NULL;
     double *x_one_shot2 = NULL;
+    int used_csc_path0 = 0;
+    int used_csc_path1 = 0;
+    int used_csc_path2 = 0;
 
-    REQUIRE_OK(A_base && A_refactor1 && A_refactor2 && A_one_shot1 && A_one_shot2
+    REQUIRE_OK(A_base && A_refactor1 && A_refactor2 && A_one_shot0 && A_one_shot1 && A_one_shot2
                    ? SPARSE_OK
                    : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_CHOLESKY,
         .reorder = SPARSE_REORDER_AMD,
     };
-    sparse_cholesky_opts_t chol_opts = {
+    sparse_cholesky_opts_t chol_opts0 = {
         .reorder = SPARSE_REORDER_AMD,
+        .used_csc_path = &used_csc_path0,
+    };
+    sparse_cholesky_opts_t chol_opts1 = {
+        .reorder = SPARSE_REORDER_AMD,
+        .used_csc_path = &used_csc_path1,
+    };
+    sparse_cholesky_opts_t chol_opts2 = {
+        .reorder = SPARSE_REORDER_AMD,
+        .used_csc_path = &used_csc_path2,
     };
 
     REQUIRE_OK(sparse_analyze(A_base, &analysis_opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A_base, &analysis, &factors));
 
     x_exact = malloc((size_t)n * sizeof(double));
+    b0 = malloc((size_t)n * sizeof(double));
     b1 = malloc((size_t)n * sizeof(double));
     b2 = malloc((size_t)n * sizeof(double));
+    x_public0 = malloc((size_t)n * sizeof(double));
     x_public1 = malloc((size_t)n * sizeof(double));
     x_public2 = malloc((size_t)n * sizeof(double));
+    x_one_shot0 = malloc((size_t)n * sizeof(double));
     x_one_shot1 = malloc((size_t)n * sizeof(double));
     x_one_shot2 = malloc((size_t)n * sizeof(double));
-    REQUIRE_OK(x_exact && b1 && b2 && x_public1 && x_public2 && x_one_shot1 && x_one_shot2
+    REQUIRE_OK(x_exact && b0 && b1 && b2 && x_public0 && x_public1 && x_public2 && x_one_shot0 &&
+                       x_one_shot1 && x_one_shot2
                    ? SPARSE_OK
                    : SPARSE_ERR_ALLOC);
 
@@ -2005,13 +2026,27 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
         ASSERT_EQ(sparse_set(A_one_shot2, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
     }
 
+    sparse_matvec(A_base, x_exact, b0);
     sparse_matvec(A_refactor1, x_exact, b1);
     sparse_matvec(A_refactor2, x_exact, b2);
+
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b0, x_public0));
+
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot0, &chol_opts0));
+    ASSERT_EQ(used_csc_path0, 1);
+    REQUIRE_OK(sparse_cholesky_solve(A_one_shot0, b0, x_one_shot0));
+
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_public0[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_one_shot0[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_public0[i], x_one_shot0[i], 1e-12);
+    }
 
     REQUIRE_OK(sparse_refactor_numeric(A_refactor1, &analysis, &factors));
     REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x_public1));
 
-    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts1));
+    ASSERT_EQ(used_csc_path1, 1);
     REQUIRE_OK(sparse_cholesky_solve(A_one_shot1, b1, x_one_shot1));
 
     for (idx_t i = 0; i < n; i++) {
@@ -2023,7 +2058,8 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
     REQUIRE_OK(sparse_refactor_numeric(A_refactor2, &analysis, &factors));
     REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x_public2));
 
-    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts2));
+    ASSERT_EQ(used_csc_path2, 1);
     REQUIRE_OK(sparse_cholesky_solve(A_one_shot2, b2, x_one_shot2));
 
     for (idx_t i = 0; i < n; i++) {
@@ -2033,10 +2069,13 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
     }
 
     free(x_exact);
+    free(b0);
     free(b1);
     free(b2);
+    free(x_public0);
     free(x_public1);
     free(x_public2);
+    free(x_one_shot0);
     free(x_one_shot1);
     free(x_one_shot2);
     sparse_factor_free(&factors);
@@ -2044,6 +2083,7 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
     sparse_free(A_base);
     sparse_free(A_refactor1);
     sparse_free(A_refactor2);
+    sparse_free(A_one_shot0);
     sparse_free(A_one_shot1);
     sparse_free(A_one_shot2);
 }

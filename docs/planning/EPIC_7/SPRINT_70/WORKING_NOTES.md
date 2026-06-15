@@ -542,3 +542,171 @@ Sprint 70 now has one explicit first product-model hotspot map:
 - the next step is to rerank those seams against user cost, performance cost,
   compatibility burden, and proof burden before fixing the first true Epic 7
   product-model boundary
+
+## Day 4 - Product-Model Gap Inventory II & First Boundary
+
+### Goal
+
+Rerank the Day 3 product-model seams against user cost, performance cost,
+compatibility burden, and proof burden, then freeze one exact first Epic 7
+product-model boundary that later implementation sprints should respect.
+
+### Actions
+
+1. Re-read the Sprint 70 Day 4 plan target and the Day 3 product-model audit.
+2. Re-ranked the Day 3 seam set against:
+   - user-facing workflow importance
+   - numeric-path performance cost
+   - compatibility burden
+   - proof burden
+3. Re-checked the strongest public direct-workflow ownership surfaces:
+   - `README.md`
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+4. Re-checked the strongest support-only implementation surfaces behind that
+   ownership boundary:
+   - `include/sparse_matrix.h`
+   - `src/sparse_matrix.c`
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_ldlt_csc.c`
+   - `src/sparse_lu_csr.c`
+5. Fixed the first Epic 7 product-model boundary and the explicit non-goal
+   fence in writing.
+
+### Findings
+
+#### 1. The strongest first Epic 7 product-model target is the public direct-workflow ownership boundary, not a generic matrix-API rewrite
+
+The Day 3 ranking holds, but the rerank clarifies the first implementation
+boundary:
+
+- the copy-first, in-place one-shot direct workflow is still the strongest
+  exact seam
+- however, the first realistic Epic 7 landing should start at the public
+  workflow ownership boundary rather than at a broad rewrite of the generic
+  matrix API
+
+Why this is the correct first target:
+
+- highest user-facing payoff
+- strongest coherence gain across one-shot and repeated-run workflows
+- lower proof burden than rewriting broad matrix arithmetic or accessor
+  semantics first
+- creates the right architecture center for later compressed-path and matrix-
+  state work instead of reopening everything at once
+
+Interpretation:
+
+- Epic 7 should first converge the direct-solver product story around clearer
+  workflow ownership and factor/workspace boundaries
+- it should not begin by trying to redesign every logical/physical/permutation
+  surface on `SparseMatrix`
+
+#### 2. The exact first product-model boundary is now fixed to the shared direct-workflow ownership lane
+
+The exact first Epic 7 product-model boundary is now:
+
+- public workflow and ownership surfaces:
+  - `README.md`
+  - `include/sparse_analysis.h`
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+
+Likely support only if needed:
+
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+- `tests/test_integration.c`
+
+This boundary is intentionally centered on:
+
+- one-shot versus repeated-run ownership wording
+- factor/workspace ownership clarity
+- copy discipline and preserved-original discipline
+- same-pattern reuse interpretation
+
+It is intentionally not yet centered on:
+
+- generic matrix arithmetic redesign
+- permutation-accessor redesign
+- compressed storage publication rewrites
+
+#### 3. The mixed logical/physical/permuted-state generic matrix API is now support context, not the first batch center
+
+The Day 3 second-ranked seam remains real:
+
+- `include/sparse_matrix.h`
+- `src/sparse_matrix.c`
+
+But it is not the correct first batch center because:
+
+- it is broader than the first direct-workflow convergence lane
+- it has a higher proof burden across arithmetic, accessors, permutation
+  exposure, and matrix-state transitions
+- it risks turning Sprint 72 into a generic matrix redesign rather than a
+  bounded product-model convergence sprint
+
+Interpretation:
+
+- this seam stays important
+- it now reads as the strongest second-phase or support seam rather than the
+  correct first landing
+
+#### 4. Compressed backend conversion/writeback ownership is also support context, not the first batch center
+
+The CSC/CSR conversion and writeback seam remains the strongest
+performance-facing product-model burden:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+
+But it should stay outside the first Epic 7 product-model landing because:
+
+- the public workflow ownership story should be clarified before deeper
+  compressed/publication surgery
+- these paths are lower-ceremony for internal implementation than for public
+  callers today
+- moving them first would blur product-model convergence into backend rewrite
+
+Interpretation:
+
+- compressed path ownership remains a real Epic 7 lane
+- it now reads as a later first-phase or second-phase target after the public
+  workflow boundary is stabilized
+
+#### 5. The strongest Day 4 non-goal fence is now explicit
+
+Sprint 70 Day 4 confirms the following non-goals for the first Epic 7
+product-model landing:
+
+- no broad rewrite of every `SparseMatrix` entry point
+- no generic matrix arithmetic redesign in the first batch
+- no fake abstraction layer added only for aesthetics
+- no capability-surface widening disguised as product-model cleanup
+- no broad CSC/CSR publication rewrite before the public direct-workflow
+  boundary is clarified
+- no proliferation of new parallel ownership surfaces without retiring or
+  shrinking an older one
+
+### Day 4 Close
+
+Sprint 70 now has one explicit first product-model boundary:
+
+- first target:
+  - public direct-workflow ownership convergence
+- support only if needed:
+  - example adoption surfaces
+  - cross-family direct proof in `tests/test_integration.c`
+- later/deferred:
+  - broad generic matrix-API redesign
+  - compressed backend conversion/writeback convergence
+  - capability-adjacent type or storage widening
+
+That gives later Sprint 70 and Sprint 72 planning one exact job:
+
+- converge the direct-solver product story first, then widen only where the
+  bounded ownership changes prove it is necessary

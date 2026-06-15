@@ -2129,3 +2129,184 @@ That gives Day 13 one exact job:
 
 - re-read the full Sprint 70 package for coherence, gaps, and handoff quality
   before the sprint closeout days
+
+## Day 13 - Sprint 70 Baseline Package Review
+
+### Goal
+
+Re-read the full Sprint 70 planning package for coherence, contradiction risk,
+and handoff quality before the closeout days so Sprint 70 ends from one
+consistent Epic 7 starting contract rather than from a loose audit bundle.
+
+### Inputs Rechecked
+
+I re-read the full Sprint 70 artifact set plus the broader Epic 7 planning and
+authority surfaces it is supposed to match:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md`
+- `docs/planning/EPIC_7/reviews/review-codex-2026-06-15.md`
+- `docs/planning/EPIC_7/reviews/todo-codex-2026-06-15.md`
+- all Sprint 70 artifacts:
+  - `day1-scope-and-architecture-baseline.md`
+  - `day2-validation-baseline-and-rerun-recheck.md`
+  - `day3-product-model-gap-inventory.md`
+  - `day4-first-product-model-boundary.md`
+  - `day5-capability-ceiling-audit.md`
+  - `day6-capability-modernization-fence.md`
+  - `day7-public-and-proof-surface-audit.md`
+  - `day8-support-surface-fence.md`
+  - `day9-validation-and-platform-contract-audit.md`
+  - `day10-validation-platform-fence.md`
+  - `day11-epic7-target-synthesis.md`
+  - `day12-epic7-architecture-contract.md`
+- live contract-authority surfaces:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+
+#### 1. The Sprint 70 package now covers the full planned baseline contract without a missing lane
+
+The Day 13 re-read confirms the package now covers every required Sprint 70
+lane:
+
+- baseline and validation recheck:
+  - Day 1
+  - Day 2
+- product-model gap inventory and first boundary:
+  - Day 3
+  - Day 4
+- capability ceiling ranking and first modernization fence:
+  - Day 5
+  - Day 6
+- public/proof-surface contradiction ranking and cleanup fence:
+  - Day 7
+  - Day 8
+- validation/platform/package truthfulness ranking and fence:
+  - Day 9
+  - Day 10
+- explicit state-of-the-art target synthesis:
+  - Day 11
+- explicit architecture contract and cross-cutting non-goal fence:
+  - Day 12
+
+This is the main Day 13 checklist result:
+
+- Sprint 70 no longer reads like separate audits that happen to sit next to
+  each other
+- it now reads like one layered baseline package that starts with seam
+  ranking, then fixes fences, then fixes the target, then fixes the execution
+  contract
+
+#### 2. The Sprint 70 artifacts agree with the Epic 7 review and todo instead of drifting from them
+
+The Day 13 review confirms the Sprint 70 package stays aligned with the Epic 7
+review and remediation todo:
+
+- product-model convergence remains the first structural lane
+- capability modernization remains ordered as:
+  - index width first
+  - scalar breadth second
+  - unsymmetric eigensolver expansion later
+- residual configuration modernization remains a real Epic 7 lane
+- backend/performance maturity remains bounded by benchmark-governed proof
+- packaging/platform convergence remains truthfulness first, not marketing
+  first
+- large-source and giant-test cleanup remain later supporting lanes, not the
+  first modernization center
+
+This matters because the Sprint 70 package does not merely resemble the Epic 7
+review themes at a high level:
+
+- it preserves their actual ranking
+- it narrows them into executable fences
+- and it does not smuggle in a contradictory "solve everything at once"
+  modernization story
+
+#### 3. No contradiction is currently visible between the Sprint 70 package and the live repo wording
+
+The Day 13 re-read did not surface a contradiction between the Sprint 70
+planning package and the current repo wording in:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+
+The package stays coherent with the live maintained reading:
+
+- the library remains static first
+- the strongest reviewed local baseline remains `make quality-review-full`
+- platform confidence remains explicitly asymmetric
+- benchmark reporting remains threshold free on the canonical report surface
+- direct-workflow, benchmark, example, test, and install/package ownership are
+  still treated as bounded roles rather than collapsed into one proof story
+
+This is the most useful Day 13 contradiction check:
+
+- Sprint 70 is still planning from the real repo
+- not from an imagined broader product or platform contract
+
+#### 4. No wording-tightening edit is currently required inside the planning artifacts
+
+I specifically checked for late-package drift that would justify another
+artifact-only wording correction before closeout:
+
+- target quality vs deferred ambition wording
+- public-surface cleanup priority wording
+- index-width-first capability wording
+- benchmark-governance reading
+- packaging/platform asymmetry reading
+- large cleanup later-sprint positioning
+
+No unresolved contradiction remained after that pass.
+
+Interpretation:
+
+- Day 13 closes as an explicit coherence review rather than as a stealth Day 12
+  wording patch
+- Day 14 can now close from a stable planning baseline
+
+#### 5. The Day 14 handoff queue is now explicit
+
+The exact Day 14 handoff queue is now fixed:
+
+1. summarize Sprint 70 as one coherent Epic 7 starting contract:
+   - baseline
+   - target
+   - architecture contract
+   - non-goal fence
+   - validation/platform truthfulness contract
+2. rank the carry-forward queue for Sprint 71 and beyond with the current
+   ordering preserved:
+   - public-surface de-chronologization
+   - product-model convergence
+   - configuration modernization
+   - capability modernization
+   - backend/performance maturity
+   - packaging/platform convergence
+3. recheck whether `docs/planning/EPIC_7/PROJECT_PLAN.md` needs any correction
+   after the deeper Sprint 70 baseline work
+4. confirm the final Sprint 70 branch state and documentation footprint
+
+This closes the remaining handoff uncertainty too:
+
+- Day 14 does not need another architectural re-think
+- it only needs a clean closeout and carry-forward summary
+
+### Day 13 Close
+
+Sprint 70 now has a coherent reviewed planning package:
+
+1. coverage:
+   - every planned Sprint 70 baseline, target, and contract lane is present
+2. coherence:
+   - the artifacts agree with the Epic 7 review, todo, project plan, and live
+     repo wording
+3. handoff readiness:
+   - no unresolved contradiction remains before the closeout day
+
+That gives Day 14 one exact job:
+
+- close Sprint 70 with one explicit Epic 7 starting contract and ranked
+  carry-forward queue for Sprint 71

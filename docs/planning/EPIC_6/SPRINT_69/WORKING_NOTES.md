@@ -600,3 +600,148 @@ That gives Day 5 one exact job:
 - define the bounded productization contract centered on README/tutorial, with
   support-surface follow-through only where the simplified public story truly
   requires it
+
+## Day 5 - Docs/Examples Productization Design
+
+### Goal
+
+Turn the Day 4 first-landing boundary into one explicit productization
+contract so the first Sprint 69 implementation batch stays bounded to the
+highest-value README/tutorial simplification seam.
+
+### Actions
+
+1. Re-read the Day 4 first-landing boundary and the strongest current
+   user-facing product-story overlap in:
+   - `README.md`
+   - `docs/tutorial.md`
+2. Re-read the likely support surfaces that may need to move only if the
+   simplified public story requires it:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. Designed the intended durable ownership split for:
+   - top-level product narrative
+   - workflow-choice guidance
+   - examples/benchmarks/tests ownership wording
+   - policy interpretation versus user-facing teaching
+4. Fixed the exact Day 6-7 touched-file fence in writing.
+5. Recorded the explicit non-widening rules for the first implementation batch.
+
+### Findings
+
+#### 1. README should converge toward the compact product-story front door, not the long-form owner of every workflow nuance
+
+`README.md` should converge toward:
+
+- the compact top-level product narrative
+- the shortest workflow-choice guide that points readers at the right next
+  surface
+- the compact ownership summary for:
+  - tests
+  - examples
+  - benchmarks
+- the compact platform/install truth summary
+
+So the first landing is not about adding more explanation. It is about making
+README more obviously the front door and less of a parallel long-form tutorial
+and policy surface.
+
+#### 2. Tutorial should keep teaching flow and examples of use, not duplicate the README’s compact product story
+
+`docs/tutorial.md` should converge toward:
+
+- user-facing teaching flow
+- step-by-step public-API usage guidance
+- workflow handoff from one-shot entry points to repeated-run or handle paths
+- explicit “where to go next” links when benchmark/test/policy detail matters
+
+Design consequence:
+
+- tutorial should keep concrete teaching value
+- tutorial should lose duplicated top-level framing that README can say more
+  compactly
+
+#### 3. Examples and benchmarks should remain support surfaces that inherit the simplified ownership split, not define it
+
+The intended durable role split remains:
+
+- `examples/README.md`
+  - local adoption entry points
+  - example-local behavior and invocation
+  - no expansion into regression/oracle/property ownership
+- `benchmarks/README.md`
+  - benchmark-local categories, schemas, and maintained benchmark meaning
+  - no expansion into test-owned guarantees
+
+Design consequence:
+
+- they may need wording follow-through after the first batch
+- they should not become first-batch centers or alternate product-story homes
+
+#### 4. The maintainer guide should stay the policy authority, not re-enter the first batch as another user-facing explainer
+
+`docs/maintainer_guide.md` already owns:
+
+- documentation ownership interpretation
+- quality/platform/benchmark policy interpretation
+- maintainer-facing authority splits
+
+Design consequence:
+
+- maintainer-guide changes should be conditional support edits only
+- the first batch should reduce what user-facing docs need to restate, not
+  create another major policy rewrite
+
+#### 5. The first implementation fence is now exact
+
+Required first-batch implementation surfaces:
+
+- `README.md`
+- `docs/tutorial.md`
+
+Support only if the landed simplification truly needs them:
+
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+Explicitly not in the first batch:
+
+- `include/sparse_cholesky.h`
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `docs/planning/EPIC_6/PROJECT_PLAN.md`
+- implementation `src/` files
+- permanent proof-owner test files
+- install/package or platform workflow surfaces unless the first docs batch
+  proves they truly must move
+
+### Day 5 Close
+
+Sprint 69 Day 5 closes with one exact first implementation contract:
+
+1. required first batch:
+   - `README.md`
+   - `docs/tutorial.md`
+2. support only if needed:
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. durable ownership target:
+   - README = compact product-story front door
+   - tutorial = user-facing teaching flow
+   - examples = adoption/local entry points
+   - benchmarks = workflow/performance proof and schema explanation
+   - maintainer guide = policy authority
+4. explicit non-touch set:
+   - public headers
+   - implementation files
+   - proof-owner tests
+   - project-level residual surfaces
+
+That gives Day 6 one exact job:
+
+- land one bounded README/tutorial productization batch without widening into
+  broad cross-surface or header cleanup

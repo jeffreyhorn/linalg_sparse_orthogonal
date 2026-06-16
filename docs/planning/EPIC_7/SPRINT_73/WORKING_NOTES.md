@@ -1530,3 +1530,87 @@ The batch stayed inside the Day 10 touch fence:
    ownership split
 2. `include/sparse_analysis.h` remained support-only and did not need edits
 3. `src/sparse_reorder_amd_qg.c` stayed explicitly deferred support context
+
+## Sprint 73 Day 12: Proof Alignment
+
+Date: 2026-06-16
+Branch: `sprint-73`
+
+### Goal
+
+Confirm that the landed precedence and compatibility lanes already have the
+right focused proof owners and align the maintainer policy surface with that
+live proof map.
+
+### Day 12 Review Result
+
+No new regression code was actually needed.
+
+The live proof already sits in the right owners:
+
+- `tests/test_graph.c` owns the graph/FM compatibility and internal-precedence
+  lane
+- `tests/test_reorder_nd.c` owns the ND typed/default/env and
+  internal-precedence lane
+
+The focused Day 9 precedence regressions already pin the actual new ownership
+boundaries:
+
+- `test_hcc_debug_override_precedence`
+- `test_nd_profile_override_precedence`
+
+The earlier ND typed/default/env regressions also already cover the sustained
+typed/default/env boundary:
+
+- typed analysis fields override compatibility env vars
+- internal/default-policy fallthrough remains explicit where intended
+
+### Landed Follow-Through
+
+The real gap was proof-owner policy wording, so I updated:
+
+- `docs/maintainer_guide.md`
+
+It now states directly that:
+
+- `tests/test_graph.c` is the maintained proof owner for graph/FM
+  compatibility behavior and `SPARSE_HCC_DEBUG` override precedence
+- `tests/test_reorder_nd.c` is the maintained proof owner for ND
+  typed/default/env behavior and `SPARSE_ND_PROFILE` override precedence
+- `src/sparse_reorder_amd_qg.c` and `SPARSE_QG_PROFILE` remain support-only
+  deferred context with no implied new proof owner
+- example and benchmark surfaces remain support context, not proof owners, on
+  this lane
+
+### Touched Surfaces
+
+Docs:
+
+- `docs/maintainer_guide.md`
+
+Raw `wc -l` counts after the landing:
+
+- `docs/maintainer_guide.md` = `621`
+- `tests/test_graph.c` = `2925`
+- `tests/test_reorder_nd.c` = `2287`
+
+### Day 13 Validation Queue
+
+The final Sprint 73 validation queue is now explicit:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- focused follow-ons:
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_graph_fm_buckets`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_reorder`
+  - `./build/quality-review-cmake/bench_amd_qg`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`

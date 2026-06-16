@@ -270,6 +270,26 @@ Interpretation:
 - when future sprints move another control, update the typed path, the
   precedence wording, and this residual queue together
 
+Current maintained proof ownership after Sprint 73 Day 12:
+
+- `tests/test_graph.c` owns the graph/FM compatibility and internal-precedence
+  proof surface for:
+  - FM-family compatibility env behavior
+  - `SPARSE_HCC_DEBUG` internal override precedence
+- `tests/test_reorder_nd.c` owns the ND typed/default/env and internal-
+  precedence proof surface for:
+  - typed analysis ND controls overriding compatibility env vars
+  - internal/default-policy ND fallback behavior
+  - `SPARSE_ND_PROFILE` internal override precedence
+- `src/sparse_reorder_amd_qg.c` and `SPARSE_QG_PROFILE` remain explicitly
+  deferred support-only context:
+  - no new proof owner should be implied for that lane until a later sprint
+    actually changes its maintained contract
+- examples and benchmarks stay non-owner support surfaces on this lane:
+  - `examples/example_analysis.c` remains adoption/teaching context
+  - `bench_reorder` and `bench_amd_qg` remain benchmark/reporting context
+  - they do not replace the focused proof owners above
+
 ## Documentation Ownership Rules
 
 Sprint 48 exists because too much maintainer policy drifted into user-facing

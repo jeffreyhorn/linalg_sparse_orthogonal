@@ -730,3 +730,176 @@ Sprint 74 Day 5 closes with:
 2. one preserved compatibility checklist
 3. one exact first-batch touch set
 4. one explicit non-touch set before Day 6 implementation begins
+
+## Day 6 - Index-Width Integration Batch 1
+
+### Goal
+
+Land the first bounded Sprint 74 capability-modernization batch inside the
+Day 5 fence so the width contract stops reading like a fixed hand-edited
+typedef and the matrix shell consumes the checked width bridge more
+consistently.
+
+### Actions
+
+1. Re-read the Day 5 contract and the touched seams:
+   - `include/sparse_types.h`
+   - `src/sparse_types.c`
+   - `src/sparse_alloc_internal.h`
+   - `src/sparse_alloc_internal.c`
+   - `include/sparse_matrix.h`
+   - `src/sparse_matrix.c`
+   - `tests/test_sparse_matrix.c`
+2. Replace the fixed-width typedef/readme path with one explicit compile-time
+   width contract in `include/sparse_types.h`.
+3. Tighten the internal `idx_t` <-> `size_t` bridge and route the highest-value
+   matrix-shell allocations and byte-count math through it.
+4. Add a focused proof that the public width contract is internally coherent in
+   the maintained reviewed build.
+5. Run the full required quality gate because `*.c` and `*.h` changed.
+
+### Findings
+
+#### 1. The width contract now reads as one bounded compile-time surface
+
+The first batch did not attempt a repo-wide 64-bit conversion.
+
+It instead landed one explicit compile-time width contract in
+`include/sparse_types.h`:
+
+- `SPARSE_IDX_BITS` now selects `32` or `64`
+- `idx_t`, `IDX_MAX`, `SPARSE_PRIDX`, and `SPARSE_SCNIDX` now come from that
+  one contract
+- `_Static_assert` now ties the selected macro width back to `sizeof(idx_t)`
+- `sparse_idx_bits()` now reports the selected width at runtime
+
+That keeps the shipped default exactly where it was (`32`-bit) while making the
+32-bit ceiling read as a deliberate bounded contract rather than an implicit
+permanent typedef.
+
+#### 2. The checked width bridge is now reused more consistently
+
+The first batch stayed inside the Day 5 internal-bridge fence:
+
+- `src/sparse_alloc_internal.h`
+- `src/sparse_alloc_internal.c`
+
+The landed follow-through is:
+
+- null-output hardening in the checked conversion helpers
+- `IDX_MAX` comparison widened through `uintmax_t` rather than `size_t`
+- `sparse_malloc_idx_array(...)` and `sparse_calloc_idx_array(...)` now reuse
+  the checked helper path directly
+
+This keeps the existing failure behavior but makes the width bridge more
+clearly central instead of partially duplicated.
+
+#### 3. The matrix shell now consumes that bridge on the highest-value touched seam
+
+The matrix-shell follow-through stayed bounded to:
+
+- `include/sparse_matrix.h`
+- `src/sparse_matrix.c`
+
+The useful Day 6 convergence is:
+
+- `sparse_create(...)` now allocates the row/column headers and permutation
+  buffers through one checked shell-allocation helper
+- `sparse_free(...)` now tears that shell state down through the paired helper
+- `sparse_copy(...)` now computes permutation byte counts through checked
+  conversions instead of raw casts
+- `sparse_memory_usage(...)` now uses checked accumulation and returns
+  `SIZE_MAX` on overflow
+- `sparse_matmul(...)` now allocates its `idx_t` support buffers through the
+  checked width bridge
+- Matrix Market and matrix-print formatting/scanning now use
+  `SPARSE_PRIDX` / `SPARSE_SCNIDX` instead of hard-coded 32-bit format
+  specifiers
+
+This is the right first seam: the matrix shell remains the same public product
+surface, but its highest-value width-sensitive allocations and I/O formatting
+now read more coherently.
+
+#### 4. The proof stayed narrow and width-contract-local
+
+The only required proof expansion was in `tests/test_sparse_matrix.c`.
+
+The new `test_idx_width_contract(...)` proves:
+
+- `sparse_idx_bits()` matches `SPARSE_IDX_BITS`
+- `sizeof(idx_t)` matches that selected width
+- the maintained reviewed build still maps the default width contract to the
+  expected `idx_t` and `IDX_MAX` values
+
+No wider Sprint 74 support surfaces were forced:
+
+- `tests/test_integration.c` did not need edits
+- `README.md` did not need edits
+- `docs/maintainer_guide.md` did not need edits
+- `INSTALL.md` did not need edits
+
+#### 5. The landing stayed inside the Day 5 fence
+
+Touched implementation and proof surfaces:
+
+- `include/sparse_types.h`
+- `src/sparse_types.c`
+- `src/sparse_alloc_internal.h`
+- `src/sparse_alloc_internal.c`
+- `include/sparse_matrix.h`
+- `src/sparse_matrix.c`
+- `tests/test_sparse_matrix.c`
+
+Explicitly not touched:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `include/sparse_svd.h`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_svd.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- package/install workflow files
+- broader docs/product/configuration surfaces
+
+### Validation
+
+Because `*.c` and `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 477.93 sec`
+
+Raw touched-surface `wc -l` counts after the landing:
+
+- `include/sparse_types.h` = `278`
+- `src/sparse_types.c` = `52`
+- `include/sparse_matrix.h` = `610`
+- `src/sparse_matrix.c` = `1125`
+- `src/sparse_alloc_internal.h` = `63`
+- `src/sparse_alloc_internal.c` = `60`
+- `tests/test_sparse_matrix.c` = `1071`
+
+### Day 6 Exit State
+
+Sprint 74 Day 6 closes with:
+
+1. one explicit compile-time width contract instead of one fixed hand-edited
+   width typedef
+2. one clearer checked bridge between public `idx_t` counts and internal byte
+   math
+3. one bounded matrix-shell follow-through on the highest-value width-sensitive
+   seams
+4. one focused width-contract proof in the maintained matrix-shell test owner
+5. one fully validated first capability landing inside the Sprint 74 fence

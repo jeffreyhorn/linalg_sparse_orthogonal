@@ -9,6 +9,8 @@
  * strategy enumeration used throughout the library.
  */
 
+#include <inttypes.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -16,34 +18,67 @@
 #include "sparse_version.h"
 
 /**
- * @brief Signed 32-bit index type for matrix dimensions and indices.
+ * @brief Signed compile-time-selected index type for matrix dimensions and
+ *        indices.
  *
  * All matrix dimensions, row/column indices, and nonzero counts use this
- * type.  The 32-bit limit caps matrix dimensions at ~2.1 billion and
- * nonzero counts at INT32_MAX (~2.1 billion entries).
+ * type. The default reviewed build uses 32-bit indices, capping matrix
+ * dimensions at ~2.1 billion and nonzero counts at INT32_MAX (~2.1 billion
+ * entries).
+ *
+ * Select the width at compile time with `-DSPARSE_IDX_BITS=32` or
+ * `-DSPARSE_IDX_BITS=64`. The library is compiled for one width at a time;
+ * callers and downstream code that store or pass index values must rebuild
+ * against the same width and use @c idx_t instead of bare integer types.
  *
  * **Rationale:** 32-bit indices halve memory for index arrays compared to
- * 64-bit, improving cache efficiency for typical sparse matrix sizes.
- * Most sparse matrices in practice have well under 2 billion nonzeros.
- *
- * **Migration path:** To support larger matrices, change this typedef to
- * @c int64_t and recompile.  The library uses @c idx_t consistently, so
- * no other source changes are needed — but all downstream code that
- * stores or passes index values must also use @c idx_t (not bare @c int).
+ * 64-bit, improving cache efficiency for typical sparse matrix sizes. The
+ * 64-bit path is the bounded wider-index modernization seam for larger
+ * matrices that need it.
  */
+#ifndef SPARSE_IDX_BITS
+#define SPARSE_IDX_BITS 32
+#endif
+
+#if SPARSE_IDX_BITS == 32
 typedef int32_t idx_t;
+#define IDX_MAX INT32_MAX
+#define SPARSE_PRIDX PRId32
+#define SPARSE_SCNIDX SCNd32
+#elif SPARSE_IDX_BITS == 64
+typedef int64_t idx_t;
+#define IDX_MAX INT64_MAX
+#define SPARSE_PRIDX PRId64
+#define SPARSE_SCNIDX SCNd64
+#else
+#error "SPARSE_IDX_BITS must be 32 or 64"
+#endif
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(idx_t) * CHAR_BIT == SPARSE_IDX_BITS,
+               "idx_t width must match SPARSE_IDX_BITS");
+#endif
 
 /**
  * @brief Maximum representable value of @c idx_t.
  *
- * Tracks the @c idx_t typedef above — pinned at @c INT32_MAX while
- * @c idx_t is @c int32_t.  The migration-to-int64_t path documented
- * above is "change the typedef and recompile"; this macro must be
- * updated alongside that change so callers that need a width-aware
- * upper bound (e.g. integer-overflow guards in size-computing
- * allocators) keep tracking the real @c idx_t range.
+ * Tracks the configured @c idx_t typedef above. Callers that need a
+ * width-aware upper bound (for example, integer-overflow guards in
+ * size-computing allocators) should use this macro instead of assuming a
+ * fixed width.
  */
-#define IDX_MAX INT32_MAX
+
+/**
+ * @brief `printf` format fragment for @c idx_t values.
+ *
+ * Example: `printf("%" SPARSE_PRIDX "\n", value);`
+ */
+
+/**
+ * @brief `scanf` / `fscanf` format fragment for @c idx_t values.
+ *
+ * Example: `fscanf(fp, "%" SPARSE_SCNIDX, &value);`
+ */
 
 /**
  * @brief Error codes returned by library functions.
@@ -229,5 +264,15 @@ const char *sparse_strerror(sparse_err_t err);
  * @return The captured errno value.
  */
 int sparse_errno(void);
+
+/**
+ * @brief Return the configured width of @c idx_t in bits.
+ *
+ * Reports the compile-time width contract selected via @c SPARSE_IDX_BITS
+ * for the currently built library.
+ *
+ * @return 32 or 64.
+ */
+size_t sparse_idx_bits(void);
 
 #endif /* SPARSE_TYPES_H */

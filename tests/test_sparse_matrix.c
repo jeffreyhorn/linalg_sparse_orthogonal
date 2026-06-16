@@ -1,6 +1,7 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -432,6 +433,21 @@ static void test_memory_usage(void) {
 
     ASSERT_EQ(sparse_memory_usage(NULL), 0);
     sparse_free(m);
+}
+
+static void test_idx_width_contract(void) {
+    ASSERT_EQ(sparse_idx_bits(), SPARSE_IDX_BITS);
+    ASSERT_EQ(sizeof(idx_t) * CHAR_BIT, sparse_idx_bits());
+
+#if SPARSE_IDX_BITS == 32
+    ASSERT_EQ(sizeof(idx_t), sizeof(int32_t));
+    ASSERT_TRUE((uintmax_t)IDX_MAX == (uintmax_t)INT32_MAX);
+#elif SPARSE_IDX_BITS == 64
+    ASSERT_EQ(sizeof(idx_t), sizeof(int64_t));
+    ASSERT_TRUE((uintmax_t)IDX_MAX == (uintmax_t)INT64_MAX);
+#else
+    ASSERT_TRUE(0);
+#endif
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1021,6 +1037,7 @@ int main(void) {
 
     /* Memory info */
     RUN_TEST(test_memory_usage);
+    RUN_TEST(test_idx_width_contract);
 
     /* Infinity norm */
     RUN_TEST(test_norminf_identity);

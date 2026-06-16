@@ -353,14 +353,21 @@ Current direct-family interpretation after Sprint 63:
 - LDL^T keeps the cleanest cancellation story because factor state is owned
   separately from the input matrix
 
-Current maintained proof ownership after Sprint 68 Day 10:
+Current maintained proof ownership after Sprint 72 Day 12:
 
 - `tests/test_reorder_nd.c` owns the shared ND compatibility/default-policy
   convergence proof surface
 - `tests/test_chol_csc.c` owns the family-local large-`n` analysis-backed
   Cholesky CSC handoff proof surface
+- `tests/test_chol_csc.c` also owns the family-local Cholesky CSC publish-back
+  ownership proof surface:
+  - a writeback-produced shell is factored, solve-ready, and carries the
+    published reorder permutation payload
 - `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
   Cholesky parity and failure-preservation contract
+- `tests/test_integration.c` also owns the matrix-shell reset boundary:
+  - `sparse_reset_perms()` invalidates stale reordered one-shot solve
+    compatibility and recovers a plain matrix shell
 - `tests/test_fuzz.c` owns the bounded seeded generative follow-through for the
   large-`n` CSC-backed Cholesky lifecycle parity lane
 - example surfaces stay example-side:

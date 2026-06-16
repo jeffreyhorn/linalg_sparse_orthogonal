@@ -1514,3 +1514,116 @@ Sprint 72 Day 11 closes with:
 4. one confirmed non-move of the broader README/tutorial/example adoption
    surfaces
 5. one clean Day 11 validation pass
+
+## Day 12 - Regression Expansion and Build Alignment
+
+### Goal
+
+Tighten the maintained proof/reference ownership surface around the Sprint 72
+boundary without manufacturing extra regression churn where the live tests
+already cover the landed behavior.
+
+### Actions
+
+1. Re-read the touched proof-owner tests and the policy/reference surfaces
+   from the post-Day-11 state:
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+   - `docs/maintainer_guide.md`
+   - support references only if wording proved necessary
+2. Decide whether the landed Sprint 72 boundary still lacks any focused proof:
+   - Day 6 matrix-shell reset invalidation
+   - Day 9 Cholesky CSC publish-back solve-ready shell
+3. Tighten doc/build/test ownership wording only where the sustained contract
+   moved.
+4. Keep the README/tutorial/examples/benchmarks surfaces out of scope unless a
+   real contradiction appears.
+5. Record the final touched proof surface and sanity-check result.
+
+### Findings
+
+#### 1. No new regression code was actually needed
+
+The Day 12 reread shows that the Sprint 72 ownership boundary already has the
+right focused proof in the strongest existing homes:
+
+- `tests/test_integration.c` already proves the Day 6 matrix-shell boundary:
+  `sparse_reset_perms()` invalidates stale reordered one-shot LU solve
+  compatibility and recovers a plain matrix shell
+- `tests/test_chol_csc.c` already proves the Day 9 family-local CSC boundary:
+  Cholesky CSC writeback publishes a solve-ready shell with the expected
+  reorder payload and identity internal row/column permutation shells
+
+That means Sprint 72 Day 12 should not invent another proof surface or move
+those checks into less appropriate homes.
+
+#### 2. The real Day 12 gap was policy/reference ownership wording
+
+The strongest remaining mismatch was not in code or tests. It was in the
+maintained proof-ownership wording:
+
+- `docs/maintainer_guide.md` still described the current maintained proof map
+  only through the Sprint 68 Cholesky lifecycle lanes
+- it did not yet name the new Sprint 72 proof owners for:
+  - the matrix-shell reset boundary
+  - the Cholesky CSC publish-back ownership boundary
+
+That was the exact useful Day 12 alignment target.
+
+#### 3. The maintained proof map is now explicit through the Sprint 72 boundary
+
+The landed Day 12 docs-only batch updates `docs/maintainer_guide.md` so the
+maintained proof map now says directly:
+
+- `tests/test_chol_csc.c` owns the family-local Cholesky CSC publish-back
+  ownership proof surface
+- `tests/test_integration.c` owns the matrix-shell reset boundary through
+  `sparse_reset_perms()`
+
+This keeps the proof ownership aligned with the actual landed implementation
+and regression surfaces instead of letting the maintainer policy stop at the
+older Sprint 68 story.
+
+#### 4. No broader reference or adoption surfaces needed to move
+
+The Day 12 reread confirms that the broader support surfaces still remain
+coherent and did not need edits:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+
+That preserved the Sprint 72 non-goal fence:
+
+- no generic docs spill
+- no example or benchmark churn without a real contract change
+- no extra regression work detached from the strongest proof homes
+
+### Validation
+
+This was a docs-only Day 12 alignment pass, so I did not rerun
+`make format`, `make lint`, or `make test`.
+
+Targeted sanity checks passed:
+
+- touched-surface diff review
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch-status recheck
+
+Touched-surface raw `wc -l` count:
+
+- `docs/maintainer_guide.md` = `585`
+
+### Day 12 Exit State
+
+Sprint 72 Day 12 closes with:
+
+1. one explicit confirmation that no new regression code was needed
+2. one maintained proof-ownership update in `docs/maintainer_guide.md`
+3. one final touched proof surface fixed to:
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+4. one preserved non-move of the broader README/tutorial/example/benchmark
+   support surfaces

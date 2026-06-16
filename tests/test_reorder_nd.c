@@ -737,6 +737,30 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_nd_profile_override_precedence(void) {
+    tf_unsetenv("SPARSE_ND_PROFILE");
+    ASSERT_FALSE(sparse_reorder_nd_profile_current());
+
+    if (tf_setenv("SPARSE_ND_PROFILE", "1") != 0) {
+        printf("    skipped (setenv SPARSE_ND_PROFILE failed)\n");
+        return;
+    }
+    ASSERT_TRUE(sparse_reorder_nd_profile_current());
+
+    sparse_reorder_nd_profile_override_begin(0);
+    ASSERT_FALSE(sparse_reorder_nd_profile_current());
+    sparse_reorder_nd_profile_override_end();
+    ASSERT_TRUE(sparse_reorder_nd_profile_current());
+
+    tf_unsetenv("SPARSE_ND_PROFILE");
+    ASSERT_FALSE(sparse_reorder_nd_profile_current());
+
+    sparse_reorder_nd_profile_override_begin(1);
+    ASSERT_TRUE(sparse_reorder_nd_profile_current());
+    sparse_reorder_nd_profile_override_end();
+    ASSERT_FALSE(sparse_reorder_nd_profile_current());
+}
+
 static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
@@ -2220,6 +2244,7 @@ int main(void) {
      * dispatch fires and produces a different cut.  Day 9's flip-or-
      * stay decision lands separately. */
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
+    RUN_TEST(test_nd_profile_override_precedence);
     RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
     RUN_TEST(test_analysis_typed_nd_root_bisect_max_n_overrides_env);
     RUN_TEST(test_analysis_typed_nd_coarsen_floor_ratio_overrides_env);

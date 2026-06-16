@@ -76,6 +76,8 @@ static _Thread_local int coarsen_floor_ratio_override_active = 0;
 static _Thread_local idx_t coarsen_floor_ratio_override = 100;
 static _Thread_local int coarsening_cv_fallthrough_override_active = 0;
 static _Thread_local double coarsening_cv_fallthrough_override = 0.30;
+static _Thread_local int hcc_debug_override_active = 0;
+static _Thread_local int hcc_debug_override = 0;
 
 /* Resolve the active coarsening strategy. Exposed through
  * `sparse_graph_coarsening_strategy_current()` so the remaining
@@ -92,6 +94,12 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
     if (env && strcmp(env, "hcc") == 0)
         return COARSENING_HCC;
     return COARSENING_HCC;
+}
+
+int sparse_graph_hcc_debug_current(void) {
+    if (hcc_debug_override_active)
+        return hcc_debug_override;
+    return getenv("SPARSE_HCC_DEBUG") != NULL;
 }
 
 coarsening_strategy_t sparse_graph_coarsening_strategy_current(void) {
@@ -126,6 +134,16 @@ void sparse_graph_coarsening_cv_fallthrough_override_begin(double threshold) {
 void sparse_graph_coarsening_cv_fallthrough_override_end(void) {
     coarsening_cv_fallthrough_override_active = 0;
     coarsening_cv_fallthrough_override = 0.30;
+}
+
+void sparse_graph_hcc_debug_override_begin(int enabled) {
+    hcc_debug_override = enabled != 0;
+    hcc_debug_override_active = 1;
+}
+
+void sparse_graph_hcc_debug_override_end(void) {
+    hcc_debug_override_active = 0;
+    hcc_debug_override = 0;
 }
 
 void sparse_graph_force_hem_override_begin(void) { force_hem_override = 1; }
@@ -190,7 +208,7 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
                 var = 0.0;
             double cv = (mean > 0.0) ? sqrt(var) / mean : 0.0;
             if (cv > cv_threshold) {
-                if (getenv("SPARSE_HCC_DEBUG")) {
+                if (sparse_graph_hcc_debug_current()) {
                     fprintf(stderr,
                             "hcc-debug strategy=hcc fell through to heavy_edge: "
                             "n_fine=%d CV=%.3f > threshold=%.3f\n",
@@ -253,7 +271,7 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
     }
     free(perm);
 
-    if (getenv("SPARSE_HCC_DEBUG")) {
+    if (sparse_graph_hcc_debug_current()) {
         const char *strategy_name = (strategy == COARSENING_HCC) ? "hcc" : "heavy_edge";
         idx_t *cluster_sizes = NULL;
         if (n_coarse > 0) {

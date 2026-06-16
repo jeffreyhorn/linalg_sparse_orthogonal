@@ -91,4 +91,26 @@ sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void);
 sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
                                            const sparse_graph_nd_policy_t *policy);
 
+/**
+ * @brief Return whether ND profile tracing is currently enabled.
+ *
+ * The current-thread override wins when active; otherwise the legacy
+ * `SPARSE_ND_PROFILE` compatibility env var controls the result.
+ */
+int sparse_reorder_nd_profile_current(void);
+
+/**
+ * @brief Override ND profile tracing for the current thread.
+ *
+ * Used by focused tests and internal call sites that need an explicit
+ * precedence seam instead of ambient process env state. The begin/end calls
+ * must be paired.
+ */
+void sparse_reorder_nd_profile_override_begin(int enabled);
+
+/**
+ * @brief Clear the current-thread ND profile override.
+ */
+void sparse_reorder_nd_profile_override_end(void);
+
 #endif /* SPARSE_REORDER_ND_INTERNAL_H */

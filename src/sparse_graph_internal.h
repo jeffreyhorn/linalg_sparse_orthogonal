@@ -347,6 +347,28 @@ void sparse_graph_coarsening_cv_fallthrough_override_begin(double threshold);
 void sparse_graph_coarsening_cv_fallthrough_override_end(void);
 
 /**
+ * @brief Return whether HCC debug tracing is currently enabled.
+ *
+ * The current-thread override wins when active; otherwise the legacy
+ * `SPARSE_HCC_DEBUG` compatibility env var controls the result.
+ */
+int sparse_graph_hcc_debug_current(void);
+
+/**
+ * @brief Override HCC debug tracing for the current thread.
+ *
+ * Used by focused tests and internal call sites that need an explicit
+ * precedence seam instead of ambient process env state. The begin/end calls
+ * must be paired.
+ */
+void sparse_graph_hcc_debug_override_begin(int enabled);
+
+/**
+ * @brief Clear the current-thread HCC debug override.
+ */
+void sparse_graph_hcc_debug_override_end(void);
+
+/**
  * @brief Force temporary Heavy-Edge-Matching fallback for the current
  *        thread.
  *

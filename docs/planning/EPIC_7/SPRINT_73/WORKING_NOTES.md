@@ -1205,3 +1205,169 @@ Sprint 73 Day 8 closes with:
 3. one preserved compatibility checklist for real maintained ND/coarsening
    controls
 4. one explicit non-touch set before Day 9 implementation begins
+
+## Sprint 73 Day 9: Debug/Profile Rationalization Batch
+
+Date: 2026-06-16
+Branch: `sprint-73`
+Planned Time: 12 hours
+
+### Context Snapshot
+
+Day 8 fixed the second Sprint 73 implementation fence around the strongest
+remaining developer-only/profile spill:
+
+- `SPARSE_HCC_DEBUG` in `src/sparse_graph_coarsen.c`
+- `SPARSE_ND_PROFILE` in `src/sparse_reorder_nd.c`
+
+with explicit support-only follow-through for:
+
+- `SPARSE_QG_PROFILE` in `src/sparse_reorder_amd_qg.c`
+
+The key Day 9 rule was:
+
+- narrow debug/profile activation into clearer internal entry-boundary seams
+- preserve the real maintained coarsening compatibility controls
+- avoid widening into a new public typed debug/profile surface
+
+### Implementation
+
+#### 1. `SPARSE_HCC_DEBUG` now has one explicit internal precedence seam
+
+I landed the graph/coarsen side in:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_internal.h`
+
+The main change is:
+
+- HCC debug activation now resolves through
+  `sparse_graph_hcc_debug_current()`
+- current-thread begin/end override helpers now exist:
+  - `sparse_graph_hcc_debug_override_begin(...)`
+  - `sparse_graph_hcc_debug_override_end()`
+
+That tightened the ownership boundary in the right place:
+
+- the legacy `SPARSE_HCC_DEBUG` env var remains the compatibility/default
+  source when no override is active
+- the implementation no longer re-reads `getenv("SPARSE_HCC_DEBUG")` at each
+  debug print site
+- focused tests now have one explicit precedence seam instead of ambient
+  process env dependence
+
+The Day 8 support fence stayed intact:
+
+- no `src/sparse_graph.c` or `src/sparse_graph_refine.c` follow-through was
+  needed
+- no public header or maintainer-doc wording moved
+
+#### 2. `SPARSE_ND_PROFILE` now has one explicit internal precedence seam
+
+I landed the ND side in:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_nd_internal.h`
+
+The main change is:
+
+- ND profile activation now resolves through
+  `sparse_reorder_nd_profile_current()`
+- current-thread begin/end override helpers now exist:
+  - `sparse_reorder_nd_profile_override_begin(...)`
+  - `sparse_reorder_nd_profile_override_end()`
+
+That improved the ownership split without widening the feature:
+
+- the legacy `SPARSE_ND_PROFILE` env var still controls the default behavior
+  when no override is active
+- the top-level ND entry path now consumes one explicit internal owner rather
+  than open-coding another direct env read
+- the change stayed developer-only and did not create a new typed public
+  analysis option
+
+#### 3. Focused proof landed in the right owners
+
+I added the bounded precedence regressions in:
+
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+Those tests prove the exact Day 9 ownership contract:
+
+- env-set default remains visible when no override is active
+- explicit internal override wins while active
+- clearing the override restores env-driven behavior
+- explicit internal enable/disable also works with the env unset
+
+The new proof owners are:
+
+- `test_hcc_debug_override_precedence`
+- `test_nd_profile_override_precedence`
+
+#### 4. The support-only `SPARSE_QG_PROFILE` lane stayed deferred
+
+I rechecked the Day 8 support-only candidate and did not widen into it:
+
+- `src/sparse_reorder_amd_qg.c`
+
+That keeps the batch inside the planned fence:
+
+- graph/coarsen + ND profile ownership moved
+- QG profile stayed support-only
+- no SVD-routing, separator-lift, public-doc, or public-header spill landed
+
+### Touched Surfaces
+
+Code:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_internal.h`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_nd_internal.h`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+Raw `wc -l` counts after the landing:
+
+- `src/sparse_graph_coarsen.c` = `659`
+- `src/sparse_graph_internal.h` = `894`
+- `src/sparse_reorder_nd.c` = `757`
+- `src/sparse_reorder_nd_internal.h` = `116`
+- `tests/test_graph.c` = `2925`
+- `tests/test_reorder_nd.c` = `2287`
+
+### Validation
+
+Because `*.c` and `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 296.46 sec`
+
+Focused proof highlights from the new boundary:
+
+- `tests/test_graph.c`:
+  - `test_hcc_debug_override_precedence`
+- `tests/test_reorder_nd.c`:
+  - `test_nd_profile_override_precedence`
+
+### Day 9 Exit State
+
+Sprint 73 Day 9 closes with:
+
+1. one explicit internal precedence seam for `SPARSE_HCC_DEBUG`
+2. one explicit internal precedence seam for `SPARSE_ND_PROFILE`
+3. two focused regressions in the right proof owners
+4. the `SPARSE_QG_PROFILE` support-only lane still deferred instead of
+   widened into this batch

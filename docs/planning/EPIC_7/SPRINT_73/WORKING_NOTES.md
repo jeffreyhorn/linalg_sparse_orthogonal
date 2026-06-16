@@ -1685,3 +1685,85 @@ The touched Sprint 73 follow-ons also all passed:
 Reviewed CMake `test_reorder_nd` still dominated the total runtime at
 `294.22 sec` out of the `421.78 sec` total, but the full reviewed path
 completed cleanly and all parity anchors stayed exact.
+
+## Sprint 73 Day 14: Closeout and Handoff
+
+Date: 2026-06-16
+Branch: `sprint-73`
+
+### Goal
+
+Close Sprint 73 from the Day 13 validated baseline with one explicit
+configuration-modernization package and a ranked carry-forward queue for
+Sprint 74 and beyond.
+
+### Closeout State
+
+Sprint 73 now hands off one coherent residual-configuration package across:
+
+- residual env-var inventory and rerank
+- FM/graph policy integration
+- debug/profile precedence rationalization
+- docs/maintainer/header follow-through
+- proof-owner alignment
+- validated Day 13 close state
+
+The landed package is now explicit:
+
+- recognized `SPARSE_FM_*` compatibility env vars no longer behave like a
+  loose multi-parser lane
+- graph orchestration now owns that compatibility parsing and lowers it into
+  one internal typed FM policy/runtime contract
+- `SPARSE_HCC_DEBUG` and `SPARSE_ND_PROFILE` now each resolve through one
+  explicit internal precedence seam
+- `docs/maintainer_guide.md` now states the narrower compatibility/internal/
+  developer-only split directly
+- the live proof map now names the right owners for the touched precedence and
+  compatibility contracts
+
+### Preserved Fence
+
+The bounded Sprint 73 truthfulness fence stayed intact:
+
+- no new public typed FM option family was added
+- no new public typed debug/profile option family was added
+- `SPARSE_QG_PROFILE` stayed explicitly deferred as support-only context
+- no broader public/product/platform claim was widened to tell a larger
+  modernization story than the landed code supports
+
+### Ranked Carry-Forward Queue
+
+The strongest Sprint 74+ carry-forward queue is now explicit:
+
+1. ND compatibility/default-policy convergence beyond the already-landed
+   `SPARSE_ND_PROFILE` precedence seam
+2. residual support-only control cleanup where `SPARSE_QG_PROFILE` or later
+   SVD-routing wording truly moves
+3. capability modernization starting with the indexed-width fence fixed in
+   Sprint 70
+4. later backend/performance maturity only where benchmark-governed ownership
+   seams actually justify it
+5. later permanent-surface cleanup only after higher-value configuration and
+   capability lanes move
+
+### Project Plan Recheck
+
+I rechecked:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md`
+
+It does not need a Sprint 73 correction. The landed work still matches the
+Sprint 73 project-plan contract.
+
+### Final Validation Footprint
+
+Sprint 73 closes from the Day 13 validated baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- reviewed CMake parity `53`
+- Makefile/CMake parity `53 vs 53`
+- reviewed CMake `ctest` `53 / 53`
+- `Total Test time (real) = 421.78 sec`

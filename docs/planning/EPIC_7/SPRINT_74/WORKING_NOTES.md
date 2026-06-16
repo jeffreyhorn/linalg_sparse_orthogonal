@@ -1042,3 +1042,145 @@ Sprint 74 Day 7 closes with:
    contracts
 4. one explicit non-center list keeping later width and algorithm-breadth work
    deferred
+
+## Day 8 - Scalar Surface Preparation Design
+
+### Goal
+
+Turn the Day 7 rerank into one explicit Day 9 implementation fence for the
+strongest remaining real-only scalar contract, without widening Sprint 74 into
+fake scalar genericity or broader algorithm-surface work.
+
+### Actions
+
+1. Re-read the Day 7 rerank artifact and the Sprint 74 plan around the scalar
+   preparation lane.
+2. Re-audit the strongest live public scalar-contract surfaces in:
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+3. Re-check the later or support-only scalar surfaces in:
+   - `include/sparse_svd.h`
+   - `src/sparse_iterative.c`
+   - `src/sparse_eigs.c`
+   - `src/sparse_svd.c`
+4. Classify the strongest remaining scalar contradiction by:
+   - public callback shape
+   - public dense buffer/result carrier shape
+   - current user-facing real-only wording
+   - bounded Sprint 74 payoff without false widening claims
+5. Fix the exact Day 9 implementation center, likely proof homes, and explicit
+   non-goal fence in writing.
+
+### Findings
+
+#### 1. The strongest scalar contradiction is concentrated in iterative and eigs public contracts
+
+The strongest remaining capability seam is still not the whole repo's use of
+`double`.
+
+It is the denser public callback and result contracts centered on:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+The strongest live contradiction is that these two headers still carry the most
+reused and caller-facing real-only contract points through:
+
+- `sparse_precond_fn`
+- `sparse_matvec_fn`
+- iterative one-shot and block solve RHS/result signatures
+- iterative residual-history and progress fields
+- `sparse_eigs_opts_t`
+- `sparse_eigs_t`
+
+That makes them the best bounded Sprint 74 scalar-preparation center.
+
+#### 2. The right next move is contract preparation, not broad scalar genericity
+
+The useful Day 8 clarification is:
+
+- the next lane is not "make iterative and eigs type generic now"
+- it is "prepare the strongest public real-only callback/result seam so later
+  scalar widening has a cleaner bounded ownership center"
+
+That means the next batch should favor:
+
+- clearer real-only contract wording where the current public shape is densest
+- separation between today's shipped real-only promise and later widening
+  intent
+- bounded implementation and proof only where public contract cleanup truly
+  forces it
+
+And it should explicitly avoid:
+
+- repo-wide scalar abstraction
+- fake complex-readiness language
+- broad implementation churn across unrelated solver families
+
+#### 3. SVD remains real but support-only for this batch
+
+`include/sparse_svd.h` and `src/sparse_svd.c` remain real-only surfaces, but
+they are not the strongest next center because:
+
+- the SVD surface is narrower and more family-local
+- its result carriers matter less to the broad public callback contract than
+  iterative and eigs
+- touching it now would widen Sprint 74 for less value than the denser
+  iterative/eigs public seam
+
+So SVD remains support-only if wording truly forces it, not a required Day 9
+center.
+
+#### 4. The Day 9 target set is now explicit
+
+Required Day 9 design and implementation center:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+Likely implementation center if the public-contract cleanup proves it is
+needed:
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+Likely proof homes:
+
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+
+Support only if wording truly forces it:
+
+- `include/sparse_svd.h`
+- `src/sparse_svd.c`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Explicitly not next:
+
+- another broad width-contract batch
+- repo-wide scalar-generic conversion
+- fake complex-readiness or broader precision-product claims
+- unsymmetric eigensolver expansion
+- reopening broad matrix-shell or configuration lanes
+
+### Validation
+
+This was a docs-only Day 8 design pass, so I did not rerun `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the design in direct rereads of the iterative, eigensolver, and SVD
+public headers plus the strongest real-only callback/result signatures in the
+live implementation.
+
+### Day 8 Exit State
+
+Sprint 74 Day 8 closes with:
+
+1. one exact scalar-preparation center fixed to iterative and eigensolver
+   public contracts
+2. one bounded Day 9 implementation lane that stays narrower than full scalar
+   genericity
+3. one support-only classification for SVD and broader public follow-through
+4. one explicit non-goal fence keeping fake capability expansion out of Sprint
+   74

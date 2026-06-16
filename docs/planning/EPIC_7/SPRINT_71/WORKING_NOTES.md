@@ -1284,3 +1284,132 @@ That gives Day 10 one exact job:
 
 - audit the landed header batch and rerank whether any support-only
   follow-through is still justified from the live post-Day-9 state
+
+## Day 10 - Tutorial / Example / Benchmark Cross-Surface Design
+
+### Goal
+
+Define the bounded support-surface reconciliation still justified after the
+Day 6 and Day 9 landings, keeping the examples/benchmarks/tutorial split
+sharpened without reopening policy or implementation work.
+
+### Actions
+
+1. Re-read the Day 10 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the current support surfaces against the cleaned README and
+   Cholesky header:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+3. Re-read `docs/maintainer_guide.md` only to confirm it still remains policy
+   authority rather than the primary cleanup center.
+4. Ran targeted terminology scans across the support surfaces for:
+   - repeated-run teaching flow
+   - example versus benchmark versus test ownership
+   - threshold-free benchmark-report interpretation
+   - maintainer-policy spill into user-facing support docs
+5. Rechecked the current raw `wc -l` hotspot counts for the support surfaces.
+
+### Findings
+
+#### 1. `docs/tutorial.md` is now the strongest remaining support cleanup center
+
+The Day 10 reread confirms that `docs/tutorial.md` still carries the densest
+remaining mix of:
+
+- repeated-run direct-lifecycle teaching
+- ownership handoff to examples and benchmarks
+- reminders that tests own regression/oracle/property guarantees
+- direct-family behavioral guidance layered into the teaching flow
+
+Interpretation:
+
+- the tutorial is now the strongest remaining support cleanup center
+- not because it is wrong, but because it still carries the most repeated
+  support-side explanation after the front-door and header cleanups
+
+#### 2. `examples/README.md` and `benchmarks/README.md` should move with the tutorial as one bounded support batch
+
+The reread confirms that:
+
+- `examples/README.md` owns the adoption/example-side handoff
+- `benchmarks/README.md` owns the workflow/performance proof handoff
+
+They should move with the tutorial because:
+
+- the tutorial, examples, and benchmarks together carry the support-side
+  repeated-run story
+- tightening only one of them would leave the support split uneven
+- the remaining drift is cross-surface alignment, not three unrelated problems
+
+Interpretation:
+
+- the exact Day 11 support batch should be:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+
+#### 3. `docs/maintainer_guide.md` still remains policy authority and support-only
+
+The maintainer guide still reads as the correct home for:
+
+- direct-family policy interpretation
+- benchmark-governance interpretation
+- deferred-queue and cross-surface ownership authority
+
+Interpretation:
+
+- it should remain support-only for this batch
+- Day 11 should simplify user-facing support surfaces partly by not repeating
+  what the maintainer guide already owns
+
+#### 4. The exact support batch boundary is now fixed
+
+The Day 11 batch should cover:
+
+- required support surfaces:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+- support only if later wording truly forces it:
+  - `docs/maintainer_guide.md`
+
+The Day 11 batch should preserve:
+
+- the tutorial as the step-by-step teaching flow
+- examples as adoption and workflow-teaching surfaces
+- benchmarks as retained workflow/performance proof surfaces
+- tests as regression/oracle/property owners
+- `make bench-canonical-report` as threshold-free artifact reporting
+
+#### 5. The Day 11 non-touch set is now explicit
+
+The support batch should not touch:
+
+- `README.md`
+- `INSTALL.md`
+- `include/sparse_cholesky.h`
+- other public headers
+- implementation `src/` files
+- permanent proof-owner test files
+- platform/install workflow files
+
+Interpretation:
+
+- Day 11 now has a real bounded support batch
+- not a broad second documentation sweep
+
+## Day 10 Exit State
+
+Sprint 71 Day 10 closes with one exact support-surface reconciliation design:
+
+1. `docs/tutorial.md` is the strongest remaining support cleanup center
+2. `examples/README.md` and `benchmarks/README.md` should move with it as one
+   bounded support batch
+3. `docs/maintainer_guide.md` remains policy authority and support-only
+4. the Day 11 boundary and non-touch set are explicit
+
+That gives Day 11 one exact job:
+
+- land the bounded tutorial/examples/benchmarks reconciliation batch without
+  widening into maintainer policy, headers, implementation, or proof surfaces

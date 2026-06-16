@@ -1,0 +1,27 @@
+Sprint 71 Day 1 authoritative inputs
+====================================
+
+Date: 2026-06-16
+Branch: sprint-71
+
+docs/planning/EPIC_7/PROJECT_PLAN.md
+docs/planning/EPIC_7/SPRINT_71/PLAN.md
+docs/planning/EPIC_7/SPRINT_70/RETROSPECTIVE.md
+docs/planning/EPIC_7/SPRINT_70/artifacts/day14-closeout-and-handoff.md
+README.md
+INSTALL.md
+docs/tutorial.md
+examples/README.md
+benchmarks/README.md
+docs/maintainer_guide.md
+include/sparse_cholesky.h
+include/sparse_analysis.h
+include/sparse_iterative.h
+include/sparse_eigs.h
+tests/test_reorder_nd.c
+tests/test_chol_csc.c
+tests/test_integration.c
+tests/test_fuzz.c
+make -n quality-review-full
+ctest -N --test-dir build/quality-review-cmake
+wc -l README.md INSTALL.md docs/tutorial.md examples/README.md benchmarks/README.md docs/maintainer_guide.md include/sparse_cholesky.h include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h tests/test_reorder_nd.c tests/test_chol_csc.c tests/test_integration.c tests/test_fuzz.c docs/planning/EPIC_7/PROJECT_PLAN.md docs/planning/EPIC_7/SPRINT_70/RETROSPECTIVE.md

@@ -167,3 +167,145 @@ Sprint 73 Day 1 closes with:
 2. one preserved Sprint 70 non-goal fence
 3. one live reviewed baseline anchor
 4. one ranked live residual-control hotspot map
+
+## Day 2 - Validation Baseline and Truth-Surface Recheck
+
+### Goal
+
+Reconfirm the Sprint 73 implementation-day validation contract and fix the
+highest-signal rerun set before any configuration-modernization batch lands.
+
+### Actions
+
+1. Reconfirm the strongest local reviewed baseline wording:
+   - `make quality-review-full`
+   - reviewed CMake parity anchor
+2. Reconfirm the Sprint 73 authority split:
+   - `*.c` / `*.h` landing days require `make format`, `make lint`, and
+     `make test`
+   - substantial architecture or precedence-boundary batches default to
+     `make quality-review-full`
+   - docs-only audit/design/review days use targeted sanity checks only
+3. Recheck the live proof surfaces Sprint 73 is most likely to stress:
+   - graph/reorder proof owners
+   - integration and compatibility proof owners
+   - representative examples
+   - maintained reorder/reporting surfaces
+   - install/package proof scripts
+4. Refresh the targeted rerun set most likely to matter in Sprint 73.
+5. Record the authoritative validation split in the working notes.
+
+### Findings
+
+#### 1. The strongest reviewed baseline remains unchanged
+
+Sprint 73 still inherits the same strongest local reviewed baseline:
+
+- `make quality-review-full`
+
+The reviewed CMake parity anchor remains exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+That keeps the sprint aligned with the Sprint 70 truthfulness fence before any
+typed/default/env precedence or policy-ownership work lands.
+
+#### 2. The Sprint 73 authority split is now explicit before code work
+
+The Day 2 recheck fixes the same three-part validation split Sprint 70 and
+Sprint 72 used:
+
+- bounded `*.c` / `*.h` landing days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- substantial architecture or precedence-boundary batches:
+  - `make quality-review-full`
+- docs-only audit/design/review days:
+  - targeted sanity checks only
+
+That is the right split for Sprint 73 because the likely work crosses graph,
+reorder, compatibility, and control-precedence boundaries rather than one tiny
+file-local helper seam.
+
+#### 3. The live proof-surface split is now fixed for Sprint 73
+
+The Day 2 recheck shows this live local split:
+
+- the reviewed CMake tree currently owns the key proof-owner tests,
+  representative examples, and reorder benchmark binaries most relevant to
+  Sprint 73:
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_graph_fm_buckets`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_framework_optin`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_reorder`
+  - `./build/quality-review-cmake/bench_amd_qg`
+- maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- the root `build/` tree is not currently carrying the usual maintained
+  benchmark binaries such as:
+  - `build/bench_reorder`
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+
+That truth matters: Sprint 73 should anchor its Day 2 rerun set to the live
+reviewed CMake tree and the maintained proof scripts, rather than assuming the
+root benchmark binaries are materialized right now.
+
+#### 4. The high-signal Sprint 73 rerun set is now explicit
+
+The strongest likely rerun set for Sprint 73 is:
+
+- graph/FM proof owners:
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_graph_fm_buckets`
+- reorder/precedence proof owners:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_integration`
+- compatibility/support proof owners:
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_framework_optin`
+- representative adoption surfaces:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained reorder/reporting surfaces currently materialized in the reviewed
+  tree:
+  - `./build/quality-review-cmake/bench_reorder`
+  - `./build/quality-review-cmake/bench_amd_qg`
+- maintained install/package proof scripts:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+This is the right Day 2 fix: the rerun contract is now tied to the live
+configuration-risk surface and the current local binary split, not to a stale
+assumption about which benchmark binaries happen to exist in `build/`.
+
+### Validation
+
+This was a docs-only Day 2 pass, so I did not run `make format`, `make lint`,
+or `make test`.
+
+I did recheck the reviewed baseline and proof-surface split with:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+- direct existence checks on the reviewed CMake proof/test/example/benchmark
+  binaries
+- direct existence checks on the root `build/` benchmark binaries
+- direct existence checks on the install/package regression scripts
+
+### Day 2 Exit State
+
+Sprint 73 Day 2 closes with:
+
+1. one explicit implementation-day validation split
+2. one stable reviewed CMake parity anchor
+3. one truthful live proof-surface map
+4. one exact rerun set for the strongest likely Sprint 73 configuration lanes

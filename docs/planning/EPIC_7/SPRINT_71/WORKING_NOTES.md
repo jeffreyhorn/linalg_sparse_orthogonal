@@ -659,3 +659,150 @@ That gives Day 5 one exact job:
 
 - design the bounded front-door and install cleanup batch without widening
   into header, implementation, or proof-surface churn
+
+## Day 5 - Front-Door & Install Cleanup Design
+
+### Goal
+
+Define the exact Sprint 71 first landing contract for `README.md` and
+`INSTALL.md` before any edits land, keeping the batch bounded to stable public
+product and install claims only.
+
+### Actions
+
+1. Re-read the Day 5 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the current Day 4 boundary and Sprint 70 truthfulness fence against
+   the exact `README.md` and `INSTALL.md` seams most likely to move.
+3. Re-read the current front-door ownership cluster in `README.md`:
+   - workflow choice
+   - examples / benchmarks / tests split
+   - canonical benchmark-report interpretation
+   - install/package summary
+4. Re-read the current install/operator cluster in `INSTALL.md`:
+   - supported-platform table
+   - quick-start compile-quality path
+   - maintained release shape
+   - focused install/package proof scripts
+5. Fixed the exact preserved-claim checklist, support-surface authority split,
+   and first-batch non-touch set in writing.
+
+### Findings
+
+#### 1. The first batch should make `README.md` read more like a compact product front door, not like a compressed maintainer archive
+
+The Day 5 reread confirms that the `README.md` batch should center on:
+
+- compact workflow-choice guidance
+- shorter ownership framing for examples, benchmarks, and tests
+- tighter install/package summary wording
+- cleaner benchmark-report interpretation
+
+It should not try to become:
+
+- the full policy authority
+- the full install runbook
+- the full benchmark-governance explainer
+
+Interpretation:
+
+- the `README.md` landing should compress duplicated policy and chronology
+- not broaden or relitigate the underlying product claims
+
+#### 2. The `INSTALL.md` batch should make the install story read as stable operator guidance plus bounded package-contract truth
+
+The Day 5 reread confirms that the `INSTALL.md` landing should center on:
+
+- concise operator build/install flow
+- explicit static-first maintained release shape
+- narrow, truthful platform-lane summary
+- explicit local install/package proof ownership
+
+It should not try to become:
+
+- the main benchmark or workflow-choice surface
+- a broad reviewed install-validation claim
+- a shared-library or dynamic-ABI promise
+
+Interpretation:
+
+- the `INSTALL.md` landing should keep the install contract stable while
+  reducing layered explanatory spill
+
+#### 3. The support/authority split for the first batch is now explicit
+
+The first batch should leave these responsibilities where they already belong:
+
+- `docs/tutorial.md`
+  - step-by-step teaching flow
+- `examples/README.md`
+  - adoption and workflow teaching
+- `benchmarks/README.md`
+  - workflow/performance proof interpretation
+- `docs/maintainer_guide.md`
+  - deeper policy authority and deferred-queue reading
+
+Interpretation:
+
+- the first cleanup batch should simplify `README.md` and `INSTALL.md`
+  partly by not repeating what these support surfaces already own
+- but it should not force support-surface edits unless the landed wording
+  truly creates a contradiction
+
+#### 4. The preserved claim checklist for Day 6 is now fixed
+
+The first cleanup batch must preserve:
+
+`README.md`
+
+- the orthogonal linked-list public center as the current shipped product
+  reading
+- the examples versus benchmarks versus tests ownership split
+- `make bench-canonical-report` as threshold-free artifact reporting, not a
+  timing gate
+- the current platform-confidence summary
+
+`INSTALL.md`
+
+- the static-first install/export contract
+- the reviewed Linux/macOS/Windows asymmetry
+- the local install/package regression scripts as maintained supplemental proof
+- the CMake-first Windows consumer story without widening it into a reviewed
+  install-validation claim
+
+Cross-surface
+
+- no new capability claims
+- no new release-maturity or shared-library claims
+- no benchmark/example wording that steals test-owned guarantees
+
+#### 5. The exact first-batch non-touch set is now fixed
+
+The Day 6 batch should not touch:
+
+- `include/sparse_cholesky.h`
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- implementation `src/` files
+- permanent proof-owner test files
+- platform workflow files
+- support surfaces unless the `README.md` / `INSTALL.md` landing forces them
+
+Interpretation:
+
+- Day 6 now has a real bounded design
+- not an open-ended public cleanup license
+
+## Day 5 Exit State
+
+Sprint 71 Day 5 closes with one exact first-batch design:
+
+1. `README.md` should become a more compact product front door
+2. `INSTALL.md` should become a cleaner operator/install contract surface
+3. support surfaces keep their current teaching, proof, and policy authority
+4. the preserved-claim checklist and first-batch non-touch set are explicit
+
+That gives Day 6 one exact job:
+
+- land the bounded `README.md` / `INSTALL.md` cleanup batch without widening
+  claims or dragging in support or reference surfaces unnecessarily

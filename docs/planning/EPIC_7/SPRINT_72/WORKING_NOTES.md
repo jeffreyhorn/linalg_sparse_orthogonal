@@ -276,3 +276,172 @@ That gives Day 3 one exact job:
 
 - audit the live product-model surfaces and reduce the broad ownership problem
   to a ranked contradiction map
+
+## Day 3 - Product-Model Surface Audit I
+
+### Goal
+
+Re-rank where `SparseMatrix` still behaves like the right public owner and
+where it now reads more like a compatibility shell around the stronger
+compressed direct-workflow paths.
+
+### Actions
+
+1. Re-read the Day 3 scope in `docs/planning/EPIC_7/SPRINT_72/PLAN.md`.
+2. Audit the current top product-model surfaces:
+   - `include/sparse_matrix.h`
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+   - `src/sparse_matrix.c`
+3. Re-read the strongest compressed direct-path support seams:
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_ldlt_csc.c`
+   - `src/sparse_lu_csr.c`
+4. Recheck the strongest current proof-owner surfaces for product-model drift:
+   - `tests/test_sparse_matrix.c`
+   - `tests/test_integration.c`
+   - `tests/test_chol_csc.c`
+   - `tests/test_ldlt_csc.c`
+5. Classify the remaining burdens into:
+   - copy/mutation surprise
+   - mixed logical versus physical matrix-state semantics
+   - duplicated publication or writeback ownership
+   - factor/workspace ownership blur
+6. Fix the first ranked contradiction map in writing.
+
+### Findings
+
+#### 1. The strongest exact Sprint 72 seam is still the copy-first one-shot direct workflow centered on `SparseMatrix`
+
+The public direct-solver story still leads callers toward:
+
+- building or loading a `SparseMatrix`
+- copying the matrix when they need to preserve the coefficient view
+- factoring the copy in place through the family-local one-shot entry point
+- solving through the now-factored matrix shell
+- relying on the matrix object itself to keep carrying permutation and
+  factored-state compatibility
+
+That remains a real strength for smaller or occasional use because it is still
+low-ceremony and easy to explain.
+
+It is also still the strongest Day 3 ceiling because the public center of
+gravity remains:
+
+- copy-first
+- mutation-heavy
+- matrix-state-sensitive
+- centered on a linked-list compatibility shell even when the strongest
+  numeric work is now clearly happening in CSC or CSR working formats
+
+#### 2. The second strongest seam is the mixed logical/physical/permuted-state contract of the generic matrix API
+
+`SparseMatrix` still carries too many roles at once:
+
+- mutable construction and edit surface
+- generic arithmetic surface
+- permutation owner
+- factored-state carrier
+- interoperability shell
+- storage-inspection surface for advanced callers
+
+That shows up in the public surface through:
+
+- distinct logical versus physical element accessors
+- public permutation-array accessors
+- `sparse_reset_perms(...)`
+- warnings around arithmetic or mutation on non-identity-permutation matrices
+- factored-state markers and state checks
+
+This is powerful, but it also means a meaningful part of the generic matrix
+API is only safe if the caller already knows which logical or physical state
+the matrix is currently in.
+
+#### 3. The third strongest seam is compressed direct-path work that still converts out of and publishes back into `SparseMatrix`
+
+The strongest direct numeric paths now clearly live in compressed working
+formats:
+
+- CSC Cholesky
+- CSC LDL^T
+- CSR LU
+
+But the current product story still routes through:
+
+- linked-list input state
+- conversion into CSC or CSR working formats
+- compressed numeric factorization and solve
+- publication or writeback back into a linked-list-facing result surface
+
+The strongest exact examples are:
+
+- `chol_csc_from_sparse_with_analysis(...)`
+- `chol_csc_writeback_to_sparse(...)`
+- `ldlt_csc_from_sparse_with_analysis(...)`
+- `ldlt_csc_writeback_to_ldlt(...)`
+- `lu_csr_from_sparse(...)`
+- `lu_csr_to_sparse(...)`
+
+So the compressed paths are already the real implementation centers, but they
+still do not read like the library's dominant public product model.
+
+#### 4. The shared repeated-run lifecycle is already a convergence step, but it still sits beside the one-shot family surfaces rather than replacing them as the dominant product center
+
+The shared repeated-run lifecycle already aligns better with long-term
+factor/workspace ownership:
+
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+It already owns:
+
+- symbolic and permutation reuse
+- cross-family repeated-run direct workflow
+- a cleaner factor/workspace split than the one-shot family-local paths
+
+But it still reads as a parallel advanced surface rather than the single
+dominant product model because:
+
+- the one-shot family headers remain the easier public front door
+- family-local owned-factor types still coexist beside shared
+  `sparse_factors_t`
+- same-pattern and identity-permutation preconditions remain fairly visible at
+  the caller boundary
+
+#### 5. The broad Sprint 72 product-model problem now reduces to four ranked seams
+
+The ranked Day 3 product-model seams are now explicit:
+
+1. copy-first, in-place one-shot direct workflow centered on `SparseMatrix`
+2. mixed logical/physical/permuted-state semantics across the generic matrix
+   API
+3. compressed direct-path conversion and publication/writeback ownership split
+4. shared repeated-run lifecycle versus family-local one-shot and owned-factor
+   parallel surfaces
+
+Useful lower-priority support context:
+
+- compile-time threshold and backend-selector spill around the public direct
+  workflow
+- public permutation-array exposure that reinforces how much state still lives
+  on the matrix object
+- interoperability and Matrix Market flows that keep `SparseMatrix` as the
+  universal public shell
+
+### Day 3 Exit State
+
+Sprint 72 Day 3 closes with one explicit current-state hotspot map:
+
+1. the broad product-model problem is reduced to four ranked seams
+2. the strongest exact target is still the copied-matrix, in-place one-shot
+   direct workflow
+3. the generic matrix API state-mixing seam is fixed as the strongest second
+   contradiction
+4. the compressed-path publication seam and repeated-run parallel-surface seam
+   are both now explicit
+5. Day 4 can now rerank those seams into the first true Sprint 72 convergence
+   boundary instead of starting from a generic matrix-model slogan

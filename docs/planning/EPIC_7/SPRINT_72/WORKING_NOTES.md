@@ -149,3 +149,130 @@ That gives Day 2 one exact job:
 
 - recheck the implementation-day validation contract and the highest-signal
   rerun surfaces Sprint 72 must preserve before ownership work starts
+
+## Day 2 - Validation Baseline & Rerun Recheck
+
+### Goal
+
+Reconfirm the Sprint 72 implementation-day validation contract and fix the
+highest-signal rerun set before any ownership convergence work lands.
+
+### Actions
+
+1. Re-read the Day 2 scope in `docs/planning/EPIC_7/SPRINT_72/PLAN.md`.
+2. Recheck the reviewed CMake parity anchor with
+   `ctest -N --test-dir build/quality-review-cmake`.
+3. Reconfirm the strongest local reviewed baseline reading from the Day 1
+   `make -n quality-review-full` wrapper recheck.
+4. Reconfirm the live proof-surface split across:
+   - reviewed CMake tree
+   - maintained root benchmark binaries
+   - maintained install/package proof scripts
+5. Fix the authoritative Sprint 72 rerun set and validation split in writing.
+
+### Findings
+
+#### 1. The strongest local reviewed baseline is still `make quality-review-full`
+
+The Day 2 reread confirms Sprint 72 still starts from the same strongest local
+reviewed baseline carried through late Epic 6 and early Epic 7:
+
+- `make quality-review-full`
+
+That still means:
+
+- bounded `*.c` / `*.h` landing days require:
+  - `make format`
+  - `make lint`
+  - `make test`
+- substantial architecture or ownership-boundary batches should escalate to:
+  - `make quality-review-full`
+- docs-only audit/design/review days use targeted sanity checks only
+
+#### 2. Reviewed CMake parity remains the main truthfulness anchor
+
+The Day 2 live parity anchor remains:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- Sprint 72 still begins from a stable reviewed-truth surface
+- the implementation sprint does not need a new validation reading
+
+#### 3. The proof-surface split is now explicit for Sprint 72
+
+The Day 2 recheck confirms the live local proof split reads as:
+
+- reviewed CMake tree:
+  - key proof-owner tests
+  - representative examples
+- root `build/` tree:
+  - maintained benchmark binaries
+- scripts:
+  - maintained install/package proof
+
+Specifically confirmed present:
+
+- reviewed CMake proof owners and representative examples:
+  - `build/quality-review-cmake/test_sparse_matrix`
+  - `build/quality-review-cmake/test_integration`
+  - `build/quality-review-cmake/test_chol_csc`
+  - `build/quality-review-cmake/test_ldlt_csc`
+  - `build/quality-review-cmake/test_iterative`
+  - `build/quality-review-cmake/test_eigs`
+  - `build/quality-review-cmake/example_analysis`
+  - `build/quality-review-cmake/example_basic_solve`
+- maintained benchmark/reporting surfaces:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+- maintained install/package proof scripts:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+#### 4. The highest-signal Sprint 72 rerun set is now fixed
+
+The strongest likely Sprint 72 rerun set is now explicit:
+
+- direct-workflow and ownership-boundary proof:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+- direct CSC-family proof owners:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+- likely support family proofs:
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_eigs`
+- representative adoption surfaces:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained benchmark/reporting surfaces:
+  - `./build/bench_refactor_csc`
+  - `./build/bench_chol_csc`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+- maintained install/package proof scripts:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+Interpretation:
+
+- Sprint 72 now has a precise rerun set tied to the actual ownership seam
+- the sprint does not need to improvise its proof surface later
+
+### Day 2 Exit State
+
+Sprint 72 Day 2 closes with one explicit validation contract:
+
+1. strongest local reviewed baseline remains `make quality-review-full`
+2. reviewed CMake parity remains the main truthfulness anchor at `53`
+3. the reviewed CMake versus root benchmark versus script-owned proof split is
+   explicit
+4. the highest-signal Sprint 72 rerun set is fixed before ownership work starts
+
+That gives Day 3 one exact job:
+
+- audit the live product-model surfaces and reduce the broad ownership problem
+  to a ranked contradiction map

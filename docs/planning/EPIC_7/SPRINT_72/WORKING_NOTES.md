@@ -574,3 +574,125 @@ Sprint 72 Day 4 closes with one explicit first convergence boundary:
 4. the first landing surfaces and support-only surfaces are fixed
 5. Day 5 can now design a bounded implementation contract instead of debating
    where Sprint 72 should start
+
+## Day 5 - Ownership Convergence Design
+
+### Goal
+
+Define the bounded implementation contract for the first Sprint 72 landing so
+the code batch can improve direct-workflow ownership clarity without widening
+into a broad matrix-model rewrite.
+
+### Actions
+
+1. Re-read the Day 5 scope in `docs/planning/EPIC_7/SPRINT_72/PLAN.md`.
+2. Re-read the Sprint 70 target synthesis and architecture contract against
+   the Day 4 first-batch surfaces.
+3. Design the first landing around:
+   - clearer direct-workflow ownership
+   - reduced copy/mutation surprise
+   - cleaner factor/workspace separation
+   - preserved public compatibility
+4. Decide what remains clearly owned by `SparseMatrix`, what should be pushed
+   more explicitly toward the repeated-run lifecycle, and what must stay
+   untouched in Sprint 72.
+5. Fix the first-batch non-touch set and compatibility checklist in writing.
+
+### Findings
+
+#### 1. `SparseMatrix` remains the owner of bounded matrix-shell compatibility, not the owner of the long-term direct-solver product identity
+
+The Day 5 design now fixes the intended ownership split:
+
+`SparseMatrix` should remain the public owner of:
+
+- mutable sparse construction and edit flow
+- Matrix Market and generic interop shell behavior
+- one-shot direct-workflow compatibility
+- permutation-bearing matrix-shell publication for callers that still choose
+  the one-shot lane
+- factored-state compatibility markers needed by the one-shot lane
+
+`SparseMatrix` should not keep reading like the owner of:
+
+- reusable symbolic analysis
+- long-lived factor/workspace state
+- the best long-term repeated-run direct workflow
+- the dominant product identity of the fastest compressed direct paths
+
+Interpretation:
+
+- Sprint 72 should clarify a bounded matrix-shell role
+- it should not pretend the matrix object is disappearing
+- it should also stop letting the matrix shell read like the full long-term
+  direct-solver center
+
+#### 2. The repeated-run lifecycle becomes the explicit long-lived owner of reusable symbolic and factor/workspace state
+
+The Day 5 design fixes the repeated-run side as the clearer owner of:
+
+- reusable symbolic and permutation preparation
+- refactorable same-pattern numeric flow
+- explicit factor/workspace lifetime separate from the matrix shell
+- the strongest cross-family long-run direct workflow
+
+That means the first batch should clarify the public relationship:
+
+- one-shot family lanes remain supported
+- repeated-run analysis/factor surfaces are the clearer reuse lane
+- the matrix shell is not the best place to accumulate more long-lived solver
+  ownership over time
+
+#### 3. The first code batch should target ownership language and factor-state transitions, not deep compressed-path mechanics
+
+The best first bounded implementation design is now explicit:
+
+- clarify the public ownership split in:
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+- tighten the matrix-shell ownership mechanics in:
+  - `src/sparse_matrix.c`
+
+The strongest likely Day 6-7 implementation themes are:
+
+- clearer invalidation/reset behavior around matrix mutation versus factored
+  compatibility state
+- clearer handoff wording between one-shot family APIs and repeated-run
+  analysis/factor APIs
+- clearer statement that compressed-path families publish back through the
+  matrix shell for compatibility, not because the matrix shell is the real
+  long-lived factor owner
+
+Explicitly not in the first batch:
+
+- CSC or CSR conversion redesign
+- compressed-path publication/writeback redesign
+- new family-local factor types
+- removal of existing one-shot public entry points
+
+#### 4. The first-batch non-touch set is now fixed
+
+Sprint 72 Day 5 fixes the first-batch non-touch set:
+
+- unrelated solver families outside the first ownership lane
+- capability or type surfaces
+- packaging/platform/install/workflow files
+- broad public-doc cleanup spill
+- giant proof-surface redesign
+- deep compressed-path internal files unless the first ownership batch truly
+  forces a bounded follow-through
+
+### Day 5 Exit State
+
+Sprint 72 Day 5 closes with one explicit implementation contract:
+
+1. `SparseMatrix` keeps a bounded compatibility-shell role
+2. repeated-run analysis/factor surfaces are fixed as the clearer long-lived
+   reuse lane
+3. the first code batch is aimed at ownership language and factor-state
+   mechanics, not deep compressed-path redesign
+4. the non-touch set and compatibility fence are fixed before code edits begin
+5. Day 6 can now land the first ownership cleanup against an explicit design

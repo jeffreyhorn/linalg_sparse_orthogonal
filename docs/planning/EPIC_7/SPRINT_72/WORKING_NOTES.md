@@ -1627,3 +1627,148 @@ Sprint 72 Day 12 closes with:
    - `tests/test_chol_csc.c`
 4. one preserved non-move of the broader README/tutorial/example/benchmark
    support surfaces
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+
+Validate the landed Sprint 72 branch from the strongest reviewed baseline and
+the touched ownership/proof surfaces before closeout.
+
+### Actions
+
+1. Run the standard code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+2. Run the strongest reviewed baseline:
+   - `make quality-review-full`
+3. Recheck the reviewed CMake parity anchor and final reviewed `ctest` count.
+4. Run the highest-signal Sprint 72 follow-ons from the validated state:
+   - `./build/quality-review-cmake/test_sparse_matrix`
+   - `./build/quality-review-cmake/test_integration`
+   - `./build/quality-review-cmake/test_chol_csc`
+   - `./build/quality-review-cmake/example_analysis`
+   - `./build/quality-review-cmake/example_basic_solve`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+5. Record the retained proof/runtime anchors and fix the Day 14 closeout queue
+   from the validated state.
+
+### Findings
+
+#### 1. The full standard gate passed cleanly
+
+The normal code-day gate passed without qualification:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The root test sweep retained the key touched Sprint 72 owners in that broader
+pass:
+
+- `test_sparse_matrix` -> `56 / 56`
+- `test_integration` -> `48 / 48`
+- `test_chol_csc` -> `146 / 146`
+
+#### 2. The strongest reviewed baseline also passed with exact parity anchors
+
+`make quality-review-full` completed successfully end to end.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 334.55 sec`
+
+That means the Sprint 72 ownership and publish-back work remained fully inside
+the current reviewed-truth contract.
+
+#### 3. The touched Sprint 72 proof surfaces retained the expected signals
+
+The focused reruns on the ownership-boundary surfaces all passed:
+
+- `./build/quality-review-cmake/test_sparse_matrix` -> `56 / 56`
+- `./build/quality-review-cmake/test_integration` -> `48 / 48`
+- `./build/quality-review-cmake/test_chol_csc` -> `146 / 146`
+
+The retained proof signals match the landed boundaries:
+
+- `test_integration`
+  - retained the Day 6 matrix-shell reset boundary:
+    `test_reset_perms_invalidates_permuted_lu_shell`
+- `test_chol_csc`
+  - retained the Day 9 family-local publish-back boundary:
+    `test_writeback_publishes_solve_ready_factored_shell`
+
+#### 4. Representative examples, maintained benchmarks, and install proofs
+stayed clean
+
+The representative adoption surfaces still behaved as expected:
+
+- `example_analysis`
+  - solve residual stayed `4.44e-16`
+- `example_basic_solve`
+  - residual stayed `0.00e+00`
+
+The maintained benchmark/reporting surfaces still returned coherent proof rows:
+
+- `bench_refactor_csc nos4`
+  - `speedup_refactor = 1.69`
+  - residuals `8.24e-16` / `7.06e-16`
+- `bench_chol_csc nos4`
+  - retained `scalar`, `supernodal`, `builtin`
+  - residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+
+The maintained install/package proof scripts also stayed clean:
+
+- `bash tests/test_install.sh` -> `11 / 11`
+- `bash tests/test_cmake_install.sh` -> `13 / 13`
+- installed `pkg-config` version remained `2.2.0`
+
+#### 5. The only noteworthy runtime residual remains reviewed reorder runtime
+
+The reviewed CMake path was still dominated by `test_reorder_nd`:
+
+- `test_reorder_nd = 240.93 sec`
+- total reviewed CMake `ctest` time = `334.55 sec`
+
+That remains a runtime note only. The reviewed path still completed cleanly
+with exact parity anchors.
+
+### Validation
+
+Validation commands passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Targeted Sprint 72 follow-ons passed:
+
+- `./build/quality-review-cmake/test_sparse_matrix`
+- `./build/quality-review-cmake/test_integration`
+- `./build/quality-review-cmake/test_chol_csc`
+- `./build/quality-review-cmake/example_analysis`
+- `./build/quality-review-cmake/example_basic_solve`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+### Day 13 Exit State
+
+Sprint 72 Day 13 closes with:
+
+1. the full standard code-day gate passed
+2. the strongest reviewed baseline passed with exact parity anchors
+3. the touched Sprint 72 ownership proof surfaces retained the expected
+   regression signals
+4. representative examples, maintained benchmarks, and install/package proof
+   scripts all stayed clean
+5. the Day 14 closeout queue is now fixed from a fully validated branch state

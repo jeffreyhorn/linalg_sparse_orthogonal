@@ -38,7 +38,8 @@
  * This header exposes the family-local owned-factor LDL^T surface. For
  * stable-pattern repeated direct runs across LU, Cholesky, or LDL^T, the
  * shared analysis/factor/refactor path in `sparse_analysis.h` is the common
- * repeated-run contract.
+ * repeated-run contract and the clearer owner of reusable symbolic and
+ * factor/workspace state.
  */
 
 #include "sparse_matrix.h"

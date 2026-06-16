@@ -75,6 +75,22 @@ static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
     return n;
 }
 
+static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat) {
+    if (!mat)
+        return 0;
+    for (idx_t i = 0; i < mat->rows; i++) {
+        if ((mat->row_perm && mat->row_perm[i] != i) ||
+            (mat->inv_row_perm && mat->inv_row_perm[i] != i))
+            return 1;
+    }
+    for (idx_t i = 0; i < mat->cols; i++) {
+        if ((mat->col_perm && mat->col_perm[i] != i) ||
+            (mat->inv_col_perm && mat->inv_col_perm[i] != i))
+            return 1;
+    }
+    return 0;
+}
+
 /* ─── Lifecycle ──────────────────────────────────────────────────────── */
 
 SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
@@ -1040,6 +1056,8 @@ const idx_t *sparse_inv_col_perm(const SparseMatrix *mat) { return mat ? mat->in
 sparse_err_t sparse_reset_perms(SparseMatrix *mat) {
     if (!mat)
         return SPARSE_ERR_NULL;
+    int drop_factor_compat =
+        (mat->reorder_perm != NULL) || sparse_matrix_has_non_identity_row_col_perms(mat);
     for (idx_t i = 0; i < mat->rows; i++) {
         mat->row_perm[i] = i;
         mat->inv_row_perm[i] = i;
@@ -1048,5 +1066,8 @@ sparse_err_t sparse_reset_perms(SparseMatrix *mat) {
         mat->col_perm[j] = j;
         mat->inv_col_perm[j] = j;
     }
+    sparse_factor_state_replace_reorder_perm(mat, NULL);
+    if (drop_factor_compat)
+        sparse_factor_state_clear(mat);
     return SPARSE_OK;
 }

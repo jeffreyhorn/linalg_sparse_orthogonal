@@ -187,6 +187,42 @@ static void test_multiple_rhs_same_factorization(void) {
     sparse_free(A);
 }
 
+static void test_reset_perms_invalidates_permuted_lu_shell(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    ASSERT_ERR(sparse_insert(A, 0, 1, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 1, 3.0), SPARSE_OK);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    const idx_t *rp_before = sparse_row_perm(LU);
+    ASSERT_TRUE(rp_before[0] != 0 || rp_before[1] != 1);
+
+    double b[2] = {1.0, 4.0};
+    double x[2];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    ASSERT_ERR(sparse_reset_perms(LU), SPARSE_OK);
+
+    const idx_t *rp = sparse_row_perm(LU);
+    const idx_t *irp = sparse_inv_row_perm(LU);
+    const idx_t *cp = sparse_col_perm(LU);
+    const idx_t *icp = sparse_inv_col_perm(LU);
+    for (idx_t i = 0; i < 2; i++) {
+        ASSERT_EQ(rp[i], i);
+        ASSERT_EQ(irp[i], i);
+        ASSERT_EQ(cp[i], i);
+        ASSERT_EQ(icp[i], i);
+    }
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_ERR_BADARG);
+
+    sparse_free(LU);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Workflow 4: Round-trip: create -> save -> load -> compare
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2355,6 +2391,7 @@ int main(void) {
     RUN_TEST(test_load_factor_solve_save);
     RUN_TEST(test_create_copy_factor_refine);
     RUN_TEST(test_multiple_rhs_same_factorization);
+    RUN_TEST(test_reset_perms_invalidates_permuted_lu_shell);
     RUN_TEST(test_full_roundtrip);
     RUN_TEST(test_all_reference_matrices);
     RUN_TEST(test_both_pivots_agree_integration);

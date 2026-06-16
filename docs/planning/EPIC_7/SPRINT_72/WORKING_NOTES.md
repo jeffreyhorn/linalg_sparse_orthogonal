@@ -839,3 +839,144 @@ Sprint 72 Day 6 closes with:
 3. one focused integration regression proving stale permuted one-shot LU shells
    are invalidated after permutation reset
 4. one full reviewed validation pass with exact parity preserved
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+
+Re-rank the remaining Sprint 72 product-model seams from the live post-Day-6
+state so the next implementation lane follows the strongest remaining
+ownership contradiction instead of forcing a fake second matrix-shell batch.
+
+### Actions
+
+1. Re-read the Day 6 landing against the Day 3-5 product-model ranking.
+2. Re-check the touched first-lane surfaces:
+   - `include/sparse_matrix.h`
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+   - `src/sparse_matrix.c`
+   - `tests/test_integration.c`
+3. Re-check the strongest deferred compressed-path candidates:
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_ldlt_csc.c`
+   - `src/sparse_lu_csr.c`
+4. Decide whether the second lane should stay on the direct matrix shell or
+   move to the strongest compressed-path publication seam.
+5. Fix the exact Day 8 design target in writing.
+
+### Findings
+
+#### 1. The Day 6 landing closed the strongest first matrix-shell contradiction
+
+The Day 6 batch materially closed the exact contradiction Sprint 72 ranked
+first on Day 3:
+
+- the public ownership split is no longer mostly implied
+- `SparseMatrix` now reads more directly as the mutable construction and
+  one-shot compatibility shell
+- the repeated-run analysis/factor lane now reads more directly as the clearer
+  long-lived owner of reusable symbolic and factor/workspace state
+- the shell reset path no longer leaves stale one-shot solve compatibility
+  behind after permutation recovery
+
+That means the original first direct-workflow contradiction is no longer the
+strongest remaining Sprint 72 seam.
+
+#### 2. A second matrix-shell batch would now be lower-yield than the deferred compressed-path seam
+
+The post-Day-6 state still leaves `SparseMatrix` carrying many roles, but the
+strongest first-order contradiction is no longer in:
+
+- `include/sparse_matrix.h`
+- `src/sparse_matrix.c`
+- the basic one-shot versus repeated-run ownership wording
+
+What remains on the matrix-shell side is now more support/deferred pressure:
+
+- mixed logical versus physical matrix-state semantics
+- broader compatibility-shell accumulation over time
+- later cleanup around generic matrix-state density and chronology
+
+Those are real, but they are no longer the best next bounded Sprint 72
+landing.
+
+#### 3. The strongest remaining seam is now the Cholesky CSC publish-back contract
+
+The post-Day-6 rerank shifts the strongest remaining ownership blur to the
+transparent CSC-backed Cholesky path centered on:
+
+- `src/sparse_chol_csc.c`
+- support only if needed:
+  - `include/sparse_cholesky.h`
+  - `tests/test_chol_csc.c`
+  - `tests/test_integration.c`
+
+Why this seam is now strongest:
+
+- the Cholesky CSC backend is the clearest live place where a compressed factor
+  is still transparently transplanted back into the public matrix shell
+- `chol_csc_writeback_to_sparse(...)` is doing real product-model work:
+  conversion, filtering, pool/header transplant, factor-state publication, and
+  permutation-state publication
+- the public header still documents the path in terms of temporary reordered
+  working copies and later publish-back, which means the compressed-path
+  ownership seam is not merely internal
+
+Interpretation:
+
+- the matrix-shell side is now clearer about what it is
+- the next ambiguity is how a CSC-owned factor/result gets published back
+  through that shell for one-shot compatibility
+
+#### 4. LDL^T and LU remain real compressed-path lanes, but they are weaker second targets than Cholesky
+
+The rerank also clarifies why the other deferred files are not the best Day 8
+design center:
+
+- `src/sparse_ldlt_csc.c` is large and real, but its strongest writeback seam
+  lands in a separately-owned `sparse_ldlt_t` result struct rather than
+  overwriting the caller matrix shell, so the public product-model
+  contradiction is weaker than on the Cholesky side
+- `src/sparse_lu_csr.c` remains an important support seam, but its strongest
+  current pressure is still more internal conversion/update structure than
+  matrix-shell publication ownership
+
+So the Cholesky CSC lane is the best second Sprint 72 landing because it still
+connects compressed working ownership to the live public matrix-shell contract
+most directly.
+
+#### 5. The proof and support rerank is now explicit
+
+The strongest likely Day 8-9 proof homes are now:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+
+Support only if the design truly forces it:
+
+- `include/sparse_cholesky.h`
+
+Explicitly not the next design center:
+
+- `tests/test_sparse_matrix.c`
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+
+### Day 7 Exit State
+
+Sprint 72 Day 7 closes with:
+
+1. the Day 6 landing confirmed as having closed the strongest first
+   matrix-shell contradiction
+2. the second implementation lane reranked away from another generic
+   matrix-shell batch
+3. the strongest remaining ownership seam fixed to the Cholesky CSC
+   publish-back/publication contract
+4. the exact Day 8 design target fixed to `src/sparse_chol_csc.c` with
+   `tests/test_chol_csc.c` and `tests/test_integration.c` as the likely proof
+   homes

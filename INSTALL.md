@@ -230,7 +230,7 @@ maintained static-first install/export contract:
 - `tests/test_cmake_install.sh` covers CMake install/export plus
   `find_package(Sparse)`
 
-They complement, rather than widen, the narrower reviewed platform lanes:
+They complement, rather than replace, the narrower reviewed platform lanes:
 
 - Linux remains the strongest reviewed source of truth
 - macOS carries supplemental Make install/`pkg-config` verification

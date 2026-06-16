@@ -1002,7 +1002,7 @@ After installation, downstream projects can use `pkg-config` or
 `find_package(Sparse)` against the same installed static package surface:
 
 - **pkg-config:** `pkg-config --cflags --libs sparse`
-- **CMake:** `find_package(Sparse REQUIRED)` +
+- **CMake:** `find_package(Sparse REQUIRED)`, then
   `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
 The maintained package surface is intentionally static-first:

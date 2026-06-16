@@ -194,3 +194,159 @@ Sprint 71 now starts from one explicit cleanup baseline:
   recentering, and truth-surface review
 - the next step is to recheck the exact docs-only validation and truth-surface
   contract before the deeper public/reference audit begins
+
+## Day 2 - Validation Baseline & Truth-Surface Recheck
+
+### Goal
+
+Reconfirm the docs-only validation contract and the exact truth surfaces that
+Sprint 71 cleanup must preserve before the sprint starts rewriting public or
+reference-facing wording.
+
+### Actions
+
+1. Reconfirmed the strongest local reviewed baseline wording:
+   - `make quality-review-full`
+   - `ctest -N --test-dir build/quality-review-cmake`
+2. Re-read the strongest current truth-authority surfaces:
+   - `README.md`
+   - `INSTALL.md`
+   - `docs/maintainer_guide.md`
+   - `benchmarks/README.md`
+   - `examples/README.md`
+3. Reconfirmed the Sprint 71 authority split for:
+   - docs-only days
+   - future `*.c` / `*.h` days
+   - substantial architecture or implementation days in later sprints
+4. Fixed the targeted Sprint 71 docs-only sanity set explicitly:
+   - diff review
+   - terminology/alignment scans
+   - touched-surface `wc -l`
+   - branch-state rechecks
+5. Recorded the preserved truth-surface checklist that later Sprint 71 cleanup
+   batches must not distort.
+
+### Findings
+
+#### 1. The strongest reviewed baseline is unchanged at Sprint 71 start
+
+Sprint 71 still starts from:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- Sprint 71 inherits the exact same reviewed-baseline authority split as the
+  Sprint 70 close
+- even though this sprint is public/reference cleanup, it should still read
+  from the same reviewed truth surface rather than inventing a lighter local
+  rule set
+
+#### 2. The docs-only versus code-touching validation split is now explicit before cleanup starts
+
+Sprint 71 now fixes the following validation split:
+
+- docs-only days:
+  - targeted sanity checks only
+- bounded `*.c` / `*.h` days, if they appear later:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial architecture, capability, backend, or
+  platform work in later sprints:
+  - `make quality-review-full`
+
+This is the most useful Day 2 clarification:
+
+- Sprint 71 is intentionally docs-only
+- but the sprint still preserves the same code-day and substantial-day
+  validation contract the repo already uses
+
+#### 3. The preserved truth surfaces Sprint 71 must not distort are now explicit
+
+The Day 2 pass fixes the following truth-surface checklist for later Sprint 71
+cleanup:
+
+- `README.md` must preserve:
+  - the orthogonal linked-list public center as the shipped current product
+    reading
+  - examples vs benchmarks vs tests ownership
+  - the threshold-free reading of `make bench-canonical-report`
+  - the current platform-confidence summary
+- `INSTALL.md` must preserve:
+  - static-first install/release shape
+  - reviewed Linux/macOS/Windows lane asymmetry
+  - local install/package regression ownership without promoting it to a broad
+    reviewed install-validation claim
+- `docs/maintainer_guide.md` must remain:
+  - the main policy authority
+  - the home for deeper rationale and deferred-queue reading that should not
+    stay duplicated in user-facing docs
+- `benchmarks/README.md` must preserve:
+  - benchmarks as workflow/performance proof surfaces
+  - tests as regression/oracle/property owners
+- `examples/README.md` must preserve:
+  - examples as adoption and workflow-teaching surfaces
+  - no benchmark- or test-owned guarantee widening
+
+Interpretation:
+
+- Sprint 71 can simplify wording
+- but it should not simplify by blurring ownership or broadening claims
+
+#### 4. The targeted docs-only sanity set is now fixed for the whole sprint
+
+The maintained Sprint 71 docs-only sanity set is now:
+
+1. diff review on touched public/reference/support surfaces
+2. terminology/alignment scans on:
+   - workflow ownership
+   - benchmark/test/example authority
+   - static-first packaging and reviewed-platform wording
+3. touched-surface `wc -l` checks where snapshot measurements are recorded
+4. branch-state rechecks after each landing batch
+
+This is the main Day 2 operational output:
+
+- later Sprint 71 days now have one exact sanity routine
+- not a vague “docs look fine” standard
+
+#### 5. The strongest Day 3 audit targets are now confirmed against the live truth surfaces
+
+The Day 2 reread confirms the strongest Day 3 public-audit targets remain:
+
+- top public contradiction centers:
+  - `README.md`
+  - `INSTALL.md`
+- strongest support surfaces to re-rank:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+- strongest policy surface that should remain support-first unless later
+  cleanup truly forces it:
+  - `docs/maintainer_guide.md`
+
+So the Day 1 baseline and Sprint 70 queue remain directionally correct:
+
+- Sprint 71 should audit the public/docs contradiction map next
+- not jump early into headers, implementation, or broader policy churn
+
+## Day 2 Exit State
+
+Sprint 71 now has one explicit docs-only validation and truth-surface
+contract:
+
+- strongest local reviewed baseline remains unchanged
+- docs-only, code-day, and substantial-day validation expectations are all
+  explicit
+- the preserved product/install/benchmark/example/policy truth surfaces are
+  fixed in writing
+- the targeted Sprint 71 sanity set is now defined before deeper audit begins
+
+That gives Day 3 one exact job:
+
+- re-rank the strongest remaining chronology and policy-density seams across
+  the live public doc surfaces before cleanup design begins

@@ -903,3 +903,142 @@ Sprint 74 Day 6 closes with:
    seams
 4. one focused width-contract proof in the maintained matrix-shell test owner
 5. one fully validated first capability landing inside the Sprint 74 fence
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+
+Audit the Day 6 width-contract landing against the remaining Sprint 74
+capability ceilings so the next implementation lane is chosen from the live
+post-landing seam map rather than from the original broader backlog.
+
+### Actions
+
+1. Re-read the Day 5 design contract and the Day 6 landing artifact.
+2. Re-audit the post-Day-6 state of:
+   - `include/sparse_types.h`
+   - `include/sparse_matrix.h`
+   - `src/sparse_matrix.c`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+   - `include/sparse_svd.h`
+   - `src/sparse_iterative.c`
+   - `src/sparse_eigs.c`
+   - `src/sparse_svd.c`
+3. Re-rank the remaining capability seams by:
+   - what contradiction the Day 6 batch actually closed
+   - which real-only public contracts still remain densest
+   - which later lanes are still valid but not yet the strongest move
+4. Fix the exact Day 8 design center and explicit non-centers in writing.
+
+### Findings
+
+#### 1. The Day 6 batch closed the strongest width-first contradiction
+
+The Day 6 landing materially changed the capability queue:
+
+- the width contract no longer reads like a fixed hand-edited typedef
+- the checked `idx_t` <-> `size_t` bridge now has a clearer ownership center
+- the matrix shell no longer reads like the strongest remaining capability
+  contradiction
+
+That means a second same-lane width batch is no longer the highest-value next
+move.
+
+#### 2. The strongest remaining seam has shifted to the real-only scalar surface
+
+The strongest remaining capability contradiction is now the public real-only
+numerics surface, centered on:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+with implementation support most likely in:
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+The Day 7 useful clarification is:
+
+- the next best lane is not "finish width everywhere"
+- it is "prepare the strongest real-only callback/result surface so later
+  scalar widening has a cleaner bounded contract"
+
+That is where the live public ceiling still reads densest:
+
+- `sparse_precond_fn` still hard-codes `const double *` / `double *`
+- `sparse_matvec_fn` still hard-codes `const double *` / `double *`
+- iterative one-shot and block solves still expose dense `double` RHS / result
+  contracts directly
+- `sparse_eigs_t` still exposes `double *eigenvalues` and
+  `double *eigenvectors` as the main public result carrier
+
+#### 3. The SVD and algorithm-breadth lanes are still real, but not next
+
+The later capability lanes remain valid:
+
+- `include/sparse_svd.h`
+- `src/sparse_svd.c`
+- later eigensolver-family breadth beyond `sparse_eigs_sym(...)`
+
+But they are now more clearly later work because:
+
+- SVD remains a dense-real result surface, but it is narrower and more
+  family-local than the iterative/eigs callback and result contracts
+- unsymmetric eigensolver breadth is still a product-expansion question, not
+  the strongest current contract contradiction
+- the width-first lane already moved enough that reopening it before the
+  scalar surface would widen Sprint 74 for less value
+
+#### 4. The Day 8 target set is now explicit
+
+Required next design center:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+Likely implementation center if the design proves it:
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+Likely proof homes:
+
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+
+Support only if wording truly forces it:
+
+- `include/sparse_svd.h`
+- `src/sparse_svd.c`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Explicitly not next:
+
+- another broad width-contract batch in `include/sparse_types.h`
+- another broad matrix-shell batch in `include/sparse_matrix.h` /
+  `src/sparse_matrix.c`
+- unsymmetric eigensolver expansion
+- fake complex-readiness or broad scalar-generic implementation claims
+
+### Validation
+
+This was a docs-only Day 7 audit pass, so I did not rerun `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the rerank in direct rereads of the landed width-contract surfaces,
+the deferred scalar and eigensolver headers, and the strongest real-only
+callback/result seams in the live implementation.
+
+### Day 7 Exit State
+
+Sprint 74 Day 7 closes with:
+
+1. the Day 6 width-first lane explicitly closed as the strongest first
+   contradiction
+2. one new strongest remaining seam fixed to the real-only scalar surface
+3. one exact Day 8 design center around iterative and eigensolver public
+   contracts
+4. one explicit non-center list keeping later width and algorithm-breadth work
+   deferred

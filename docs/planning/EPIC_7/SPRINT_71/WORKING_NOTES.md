@@ -508,3 +508,154 @@ Sprint 71 Day 3 closes with one concrete public-surface contradiction map:
 That gives Day 4 one exact job:
 
 - refine this ranking into a first public/reference cleanup fence for Sprint 71
+
+## Day 4 - Public-Surface History Audit II & First Landing Boundary
+
+### Goal
+
+Refine the Day 3 contradiction ranking into one exact first cleanup fence for
+Sprint 71, separating the first landing surfaces from support-only and
+deferred cleanup lanes before design begins.
+
+### Actions
+
+1. Re-read the Day 4 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-ranked the Day 3 surfaces against:
+   - top-level user value
+   - duplication density
+   - truthfulness sensitivity
+   - likely cleanup leverage
+3. Re-read `include/sparse_cholesky.h` as the strongest current
+   header/reference candidate.
+4. Re-read the current support surfaces to decide whether any must move in the
+   first landing:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+5. Fixed the first-batch non-goal and non-touch fence explicitly in writing.
+
+### Findings
+
+#### 1. `README.md` and `INSTALL.md` are the exact first landing pair
+
+The Day 4 rerank confirms that the highest-leverage first cleanup pair is:
+
+- `README.md`
+- `INSTALL.md`
+
+Why this pair wins:
+
+- they are the two strongest user-facing contradiction centers
+- they carry the densest mix of product story, workflow framing, install and
+  package interpretation, and reviewed-platform wording
+- simplifying them first gives the largest readability gain without needing to
+  reopen implementation, proof, or policy ownership
+
+Interpretation:
+
+- the strongest first Sprint 71 cleanup fence is front door plus install story
+- not tutorial cleanup first
+- not public-header cleanup first
+
+#### 2. `include/sparse_cholesky.h` is the strongest header/reference center, but it should stay deferred behind the first public-docs batch
+
+`include/sparse_cholesky.h` remains the strongest current reference-side
+candidate because it still carries dense narrative around:
+
+- one-shot versus repeated-run ownership
+- transparent CSC dispatch interpretation
+- backend path and benchmark references
+- cancellation and contract semantics
+
+Interpretation:
+
+- it is the right header-side center for later Sprint 71 cleanup
+- but it should remain outside the first landing so Sprint 71 does not widen
+  too early from public-doc simplification into reference-header cleanup
+
+#### 3. `docs/tutorial.md` is support-only for the first batch
+
+The tutorial still has repeated ownership framing, but the Day 4 rerank
+confirms it should move only if the first `README.md` / `INSTALL.md` batch
+forces follow-through.
+
+Interpretation:
+
+- the tutorial is still a real later target
+- but it is not necessary to make the first cleanup landing coherent
+
+#### 4. `benchmarks/README.md` and `examples/README.md` are support-only, not first-batch centers
+
+The support-surface reread confirms:
+
+- `benchmarks/README.md` remains the strongest support contradiction center
+- `examples/README.md` remains lower-risk support context
+
+But neither should be first-batch required because:
+
+- both already carry the intended ownership split more cleanly than the
+  front-door and install surfaces
+- moving them too early would widen the landing beyond the highest-value user
+  surfaces
+
+#### 5. `docs/maintainer_guide.md` remains policy authority and support-only
+
+The maintainer guide still reads as the correct home for deeper rationale and
+deferred reading.
+
+Interpretation:
+
+- Sprint 71 should keep using it as the policy authority
+- it should move only if the first cleanup batch truly needs a follow-through
+  recentering pass
+
+#### 6. The first cleanup fence and non-touch set are now explicit
+
+The exact first Sprint 71 cleanup boundary is now:
+
+- required first landing:
+  - `README.md`
+  - `INSTALL.md`
+- support only if the first landing forces them:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- strongest deferred reference center:
+  - `include/sparse_cholesky.h`
+
+The explicit first-batch non-touch set is:
+
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- implementation `src/` files
+- permanent proof-owner test files
+- platform workflow files
+- benchmark-governance or install/package claim widening
+
+Interpretation:
+
+- Day 5 can now design a bounded first batch against a real fence
+- support surfaces are bounded rather than implicitly assumed
+
+## Day 4 Exit State
+
+Sprint 71 Day 4 closes with one exact first cleanup boundary:
+
+1. required first landing:
+   - `README.md`
+   - `INSTALL.md`
+2. support only if needed:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. strongest deferred reference center:
+   - `include/sparse_cholesky.h`
+
+That gives Day 5 one exact job:
+
+- design the bounded front-door and install cleanup batch without widening
+  into header, implementation, or proof-surface churn

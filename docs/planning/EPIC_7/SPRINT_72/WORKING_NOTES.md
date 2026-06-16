@@ -1112,3 +1112,143 @@ Sprint 72 Day 8 closes with:
    `tests/test_integration.c`
 4. one preserved compatibility checklist that keeps the batch bounded to
    publication ownership cleanup
+
+## Day 9 - Compressed-Path Ownership Batch
+
+### Goal
+
+Land the bounded second Sprint 72 implementation batch so the Cholesky CSC
+publish-back seam reads as distinct materialize, transplant, and publication
+phases without widening the public one-shot contract or the broader compressed
+direct-family design.
+
+### Actions
+
+1. Re-read the Day 8 design against the live `chol_csc_writeback_to_sparse(...)`
+   implementation in `src/sparse_chol_csc.c`.
+2. Extract the smallest helper split that cleanly separates:
+   - reorder-permutation payload copying
+   - CSC-factor to temporary-shell materialization
+   - caller-shell transplant
+   - factor and reorder compatibility publication
+3. Keep the Day 8 non-touch set intact:
+   - no LDL^T follow-through
+   - no LU CSR follow-through
+   - no `SparseMatrix` redesign
+   - no public API expansion
+4. Add one focused family-local regression in `tests/test_chol_csc.c` that
+   proves the writeback-produced shell is publish-ready and solve-ready.
+5. Run the full Day 9 validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+
+### Findings
+
+#### 1. `chol_csc_writeback_to_sparse(...)` now reads as one bounded publication pipeline instead of one mixed helper body
+
+The Day 9 code batch landed exactly where Day 8 ranked the strongest remaining
+compressed-path ownership blur:
+
+- `src/sparse_chol_csc.c`
+
+The old helper body mixed:
+
+- permutation publication copying
+- temporary linked-list factor materialization
+- caller-shell storage transplant
+- factor and reorder compatibility publication
+
+The landed split now gives each phase a direct internal owner:
+
+- `chol_csc_copy_reorder_perm(...)`
+- `chol_csc_materialize_sparse_factor(...)`
+- `chol_csc_transplant_materialized_factor(...)`
+- `chol_csc_publish_materialized_factor(...)`
+
+That keeps the public one-shot contract unchanged, but it makes the internal
+publish-back seam read as one bounded pipeline instead of one large blended
+implementation block.
+
+#### 2. The batch preserves the strongest Day 8 compatibility rules
+
+The landed Day 9 refactor preserves the exact bounded contract Sprint 72
+needed:
+
+- one-shot Cholesky factorization still publishes a solve-ready matrix shell
+  on success
+- reordered one-shot attempts still publish only after successful factorization
+- `used_csc_path` semantics stay unchanged
+- linked-list and CSC parity stay preserved
+- the Day 6 matrix-shell reset rule stays intact
+
+The helper split is intentionally internal. It does not widen into:
+
+- new family-local factor types
+- threshold or dispatch-policy changes
+- public API redesign
+- broad compressed-path cleanup across every direct family
+
+#### 3. The new proof closes the exact family-local publish-back claim
+
+The Day 9 regression lives in the planned strongest proof home:
+
+- `tests/test_chol_csc.c`
+
+The new test proves that a CSC factor written back through
+`chol_csc_writeback_to_sparse(...)` leaves the caller shell in the intended
+post-publication state:
+
+- the matrix is factored and solve-ready
+- the published reorder permutation matches the explicit permutation payload
+- the internal row and column permutation shells are identity
+- the writeback-produced shell solves the original SPD system correctly
+
+That is the right proof shape for this batch because it validates the exact
+publication seam without widening into unrelated public-path integration work.
+
+#### 4. The second implementation batch stayed inside the Day 8 fence
+
+The landed Day 9 batch touched only:
+
+- `src/sparse_chol_csc.c`
+- `tests/test_chol_csc.c`
+
+It did not widen into:
+
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+- `src/sparse_matrix.c`
+- `include/sparse_matrix.h`
+- public capability/type surfaces
+- packaging/platform/docs truth surfaces
+- broad benchmark/example spill
+
+### Validation
+
+The full Day 9 gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity stayed `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `test_reorder_nd` remained the dominant reviewed long-tail test at
+  `227.22 sec`
+- `Total Test time (real) = 325.88 sec`
+
+### Day 9 Exit State
+
+Sprint 72 Day 9 closes with:
+
+1. one landed Cholesky CSC publish-back ownership split
+2. one focused family-local regression proving the writeback-produced shell is
+   published and solve-ready
+3. one preserved one-shot Cholesky compatibility contract
+4. one full reviewed validation pass with exact parity preserved

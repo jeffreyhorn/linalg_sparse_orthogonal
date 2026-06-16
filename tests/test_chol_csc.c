@@ -4187,6 +4187,61 @@ static void test_writeback_rejects_shape_mismatch(void) {
     sparse_free(big);
 }
 
+/* Writeback should publish a solve-ready factored shell with identity internal
+ * perms and the external reorder permutation carried in factor state. */
+static void test_writeback_publishes_solve_ready_factored_shell(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    REQUIRE_OK(perm ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_reorder_amd(A, perm));
+
+    CholCsc *L = NULL;
+    REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &L));
+    REQUIRE_OK(chol_csc_eliminate(L));
+
+    SparseMatrix *got = sparse_copy(A);
+    ASSERT_TRUE(got != NULL);
+    REQUIRE_OK(chol_csc_writeback_to_sparse(L, got, perm));
+
+    ASSERT_TRUE(got->factored);
+    ASSERT_TRUE(got->reorder_perm != NULL);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_EQ(got->row_perm[i], i);
+        ASSERT_EQ(got->inv_row_perm[i], i);
+        ASSERT_EQ(got->col_perm[i], i);
+        ASSERT_EQ(got->inv_col_perm[i], i);
+        ASSERT_EQ(got->reorder_perm[i], perm[i]);
+    }
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = calloc((size_t)n, sizeof(double));
+    REQUIRE_OK(ones && b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+    REQUIRE_OK(sparse_cholesky_solve(got, b, x));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    free(ones);
+    free(b);
+    free(x);
+    free(perm);
+    chol_csc_free(L);
+    sparse_free(got);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 18 Day 11: transparent dispatch in sparse_cholesky_factor_opts
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -4592,6 +4647,7 @@ int main(void) {
     RUN_TEST(test_writeback_rejects_nonidentity_row_perm);
     RUN_TEST(test_writeback_rejects_null);
     RUN_TEST(test_writeback_rejects_shape_mismatch);
+    RUN_TEST(test_writeback_publishes_solve_ready_factored_shell);
 
     /* Sprint 18 Day 11 — transparent dispatch in sparse_cholesky_factor_opts */
     RUN_TEST(test_dispatch_auto_small_uses_linked_list);

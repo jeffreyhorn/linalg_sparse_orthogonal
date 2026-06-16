@@ -1433,44 +1433,32 @@ cleanup:
  * Sprint 18 Day 10: CSC → linked-list writeback for transparent dispatch
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, const idx_t *perm) {
-    if (!L || !mat)
+static sparse_err_t chol_csc_copy_reorder_perm(idx_t n, const idx_t *perm, idx_t **perm_copy_out) {
+    if (!perm_copy_out)
         return SPARSE_ERR_NULL;
-    if (mat->rows != L->n || mat->cols != L->n)
-        return SPARSE_ERR_SHAPE;
-    if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
-        return SPARSE_ERR_BADARG;
+    *perm_copy_out = NULL;
+    if (!perm || n <= 0)
+        return SPARSE_OK;
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
+    idx_t *perm_copy = malloc((size_t)n * sizeof(idx_t));
+    if (!perm_copy)
+        return SPARSE_ERR_ALLOC;
+    for (idx_t i = 0; i < n; i++)
+        perm_copy[i] = perm[i];
+    *perm_copy_out = perm_copy;
+    return SPARSE_OK;
+}
+
+static sparse_err_t chol_csc_materialize_sparse_factor(const CholCsc *L, SparseMatrix **tmp_out) {
+    if (!L || !tmp_out)
+        return SPARSE_ERR_NULL;
+    *tmp_out = NULL;
 
     idx_t n = L->n;
-
-    /* Copy the caller's perm (if any) up front so a later allocation
-     * failure doesn't leave `mat` half-updated. */
-    idx_t *perm_copy = NULL;
-    if (perm && n > 0) {
-        if ((size_t)n > SIZE_MAX / sizeof(idx_t))
-            return SPARSE_ERR_ALLOC;
-        perm_copy = malloc((size_t)n * sizeof(idx_t));
-        if (!perm_copy)
-            return SPARSE_ERR_ALLOC;
-        for (idx_t i = 0; i < n; i++)
-            perm_copy[i] = perm[i];
-    }
-
-    /* Empty-matrix shortcut: nothing to transplant, just set state. */
-    if (n == 0) {
-        sparse_factor_state_publish_factored(mat, L->factor_norm, perm_copy);
-        /* cached_norm stays as-is (no matrix contents to invalidate). */
-        return SPARSE_OK;
-    }
-
-    /* Build a fresh SparseMatrix holding L (already in "new"
-     * coordinate space — chol_csc_from_sparse put it there at
-     * conversion time).  Insert CSC column-by-column. */
     SparseMatrix *tmp = sparse_create(n, n);
-    if (!tmp) {
-        free(perm_copy);
+    if (!tmp)
         return SPARSE_ERR_ALLOC;
-    }
 
     /* Skip exact zeros (common when the CSC was pre-populated with the
      * full sym_L pattern but some fill positions never received a non-
@@ -1498,12 +1486,16 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
             sparse_err_t ierr = sparse_insert(tmp, i, j, v);
             if (ierr != SPARSE_OK) {
                 sparse_free(tmp);
-                free(perm_copy);
                 return ierr;
             }
         }
     }
 
+    *tmp_out = tmp;
+    return SPARSE_OK;
+}
+
+static void chol_csc_transplant_materialized_factor(SparseMatrix *mat, SparseMatrix *tmp) {
     /* Transplant tmp's internal storage into mat.  Matches the
      * post-permute swap in sparse_cholesky_factor_opts: free the
      * caller's current storage, move tmp's pool + headers over, null
@@ -1526,11 +1518,47 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
     tmp->pool.head = NULL;
     tmp->pool.current = NULL;
     tmp->pool.free_list = NULL;
-    sparse_free(tmp);
+}
 
+static void chol_csc_publish_materialized_factor(const CholCsc *L, SparseMatrix *mat,
+                                                 idx_t *perm_copy) {
     /* Row/col perms stay identity (precondition enforced).  Apply the
      * fill-reducing perm and the factor state. */
     sparse_factor_state_publish_factored(mat, L->factor_norm, perm_copy);
+}
+
+sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, const idx_t *perm) {
+    if (!L || !mat)
+        return SPARSE_ERR_NULL;
+    if (mat->rows != L->n || mat->cols != L->n)
+        return SPARSE_ERR_SHAPE;
+    if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
+
+    idx_t n = L->n;
+
+    idx_t *perm_copy = NULL;
+    sparse_err_t err = chol_csc_copy_reorder_perm(n, perm, &perm_copy);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Empty-matrix shortcut: nothing to transplant, just set state. */
+    if (n == 0) {
+        chol_csc_publish_materialized_factor(L, mat, perm_copy);
+        /* cached_norm stays as-is (no matrix contents to invalidate). */
+        return SPARSE_OK;
+    }
+
+    SparseMatrix *tmp = NULL;
+    err = chol_csc_materialize_sparse_factor(L, &tmp);
+    if (err != SPARSE_OK) {
+        free(perm_copy);
+        return err;
+    }
+
+    chol_csc_transplant_materialized_factor(mat, tmp);
+    sparse_free(tmp);
+    chol_csc_publish_materialized_factor(L, mat, perm_copy);
 
     return SPARSE_OK;
 }

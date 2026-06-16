@@ -806,3 +806,101 @@ That gives Day 6 one exact job:
 
 - land the bounded `README.md` / `INSTALL.md` cleanup batch without widening
   claims or dragging in support or reference surfaces unnecessarily
+
+## Day 6 - Front-Door & Install Cleanup Batch
+
+### Goal
+
+Land the highest-value Sprint 71 public cleanup on `README.md` and
+`INSTALL.md` without widening product, benchmark, install, or platform claims.
+
+### Actions
+
+1. Edited the front-door workflow and install-summary seams in `README.md`.
+2. Edited the quick-start and install-proof wording in `INSTALL.md`.
+3. Preserved the Sprint 70 truthfulness fence across:
+   - linked-list public-center reading
+   - examples / benchmarks / tests ownership
+   - threshold-free canonical benchmark reporting
+   - static-first install/export contract
+   - reviewed Linux/macOS/Windows asymmetry
+4. Re-ran the Sprint 71 docs-only sanity set:
+   - touched-surface diff review
+   - terminology/alignment scans
+   - touched-surface `wc -l`
+   - branch-status recheck
+
+### Findings
+
+#### 1. `README.md` now reads more directly as the compact front door
+
+The landed `README.md` batch tightened:
+
+- repeated-run workflow handoff
+- examples / benchmarks / tests ownership wording
+- canonical benchmark-surface wording
+- install/package summary wording
+
+The main effect is not new content. It is lower density:
+
+- `example_analysis` remains the strongest small adoption entry point
+- the tutorial remains the fuller teaching flow
+- benchmark surfaces stay proof-side rather than being re-explained at length
+- install/package summary still stays explicit, but reads less like a second
+  install guide
+
+#### 2. `INSTALL.md` now reads more directly as operator guidance plus bounded install-contract truth
+
+The landed `INSTALL.md` batch tightened:
+
+- the quick-start compile-quality wrapper explanation
+- the framing around the canonical operator/front-door split
+- the focused install-proof interpretation
+
+The install contract itself did not move:
+
+- static-first release shape remains explicit
+- local install/package proof scripts remain explicit
+- Windows remains the reviewed CMake-first consumer story
+
+#### 3. The Day 6 landing stayed inside the Day 5 fence
+
+The batch did not widen into:
+
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- public headers
+- implementation files
+- proof-owner tests
+- workflow files
+
+#### 4. The docs-only sanity set stayed clean after the landing
+
+Day 6 touched-surface measurements after the landing:
+
+- `README.md` = `1037`
+- `INSTALL.md` = `237`
+
+Targeted terminology checks still kept the intended authority split explicit:
+
+- examples = workflow/adoption teaching
+- benchmarks = retained workflow/performance proof
+- tests = regression/oracle/property ownership
+- install scripts = maintained supplemental local proof
+- Windows = reviewed CMake-first consumer story, not a reviewed install lane
+
+## Day 6 Exit State
+
+Sprint 71 Day 6 closes with the first bounded public cleanup batch landed:
+
+1. `README.md` is materially tighter as the compact front door
+2. `INSTALL.md` is materially tighter as the operator/install contract surface
+3. no support, reference, implementation, or workflow widening was needed
+4. the preserved truthfulness fence stayed intact
+
+That gives Day 7 one exact job:
+
+- audit the landed front-door/install batch and rerank the remaining support
+  and reference cleanup queue from the live post-landing state

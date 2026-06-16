@@ -78,12 +78,12 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 - **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
 - For those one-shot direct paths, start from a fresh matrix or a fresh `sparse_copy()` when you still need the original coefficient view later. `example_basic_solve` is the smallest shipped reference for that discipline.
-- **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped adoption reference; the [tutorial](docs/tutorial.md) is the step-by-step teaching flow.
+- **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. Start with `example_analysis`, then use the [tutorial](docs/tutorial.md) when you want the fuller step-by-step flow.
 - **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
 - **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Examples vs benchmarks vs tests:** examples teach the API workflow, benchmarks prove the retained workflow/performance story, and tests own regression/oracle/property guarantees. After adopting the repeated-run direct path, move from `example_analysis` to `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` when you want the maintained benchmark-side proof surfaces.
-- **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`; broader benches stay useful, but they are not the first claim-bearing performance surface.
-- **Threshold-free reporting:** use `make bench-canonical-report` when you want one bounded snapshot of the canonical maintained benchmark surface for local or CI artifact comparison. It is intentionally not a pass/fail timing gate.
+- **Examples vs benchmarks vs tests:** examples teach the API workflow, benchmarks prove the retained workflow/performance story, and tests own regression/oracle/property guarantees. After adopting the repeated-run direct path, move from `example_analysis` to `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` for the maintained benchmark-side proof surfaces.
+- **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`.
+- **Threshold-free reporting:** `make bench-canonical-report` writes one bounded snapshot of that maintained benchmark surface for local or CI artifact comparison. It is intentionally not a pass/fail timing gate.
 
 The rest of this README keeps the deeper algorithm, API, and benchmark details.
 
@@ -998,9 +998,12 @@ make && make test && make install PREFIX=/usr/local
 cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build && cmake --install build
 ```
 
-After installation, downstream projects can use:
+After installation, downstream projects can use `pkg-config` or
+`find_package(Sparse)` against the same installed static package surface:
+
 - **pkg-config:** `pkg-config --cflags --libs sparse`
-- **CMake:** `find_package(Sparse REQUIRED)` + `target_link_libraries(... Sparse::sparse_lu_ortho)`
+- **CMake:** `find_package(Sparse REQUIRED)` +
+  `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
 The maintained package surface is intentionally static-first:
 
@@ -1019,8 +1022,8 @@ Focused local proof for that package surface stays explicit:
 - `bash tests/test_cmake_install.sh` proves the Unix-side CMake install/export
   + `find_package(Sparse)` path
 - macOS CI carries a narrower supplemental Make install/`pkg-config` check
-- Windows remains the reviewed CMake build/test subset rather than a separate
-  reviewed install-validation lane
+- Windows remains the reviewed CMake-first consumer story rather than a
+  separate reviewed install-validation lane
 
 ## Documentation
 

@@ -38,10 +38,9 @@
 /**
  * @brief Cholesky numeric backend selector.
  *
- * Since Sprint 18 Day 11, `sparse_cholesky_factor_opts` dispatches
- * between the linked-list kernel and the CSC working-format kernel
- * based on matrix size — but callers can force either path via
- * `sparse_cholesky_opts_t::backend`.
+ * `sparse_cholesky_factor_opts` dispatches between the linked-list
+ * kernel and the CSC working-format kernel based on matrix size, but
+ * callers can force either path via `sparse_cholesky_opts_t::backend`.
  *
  * - `SPARSE_CHOL_BACKEND_AUTO` (default, zero-initialised): use the
  *   CSC backend when `mat->rows >= SPARSE_CSC_THRESHOLD`, otherwise
@@ -61,17 +60,11 @@ typedef enum {
 /**
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
  *
- * @warning **ABI break in v2.0.0.**  Sprint 18 Day 11 added the
- * `backend` and `used_csc_path` fields to this struct, changing its
- * size (and therefore layout) relative to the v1.x version shipped
- * through Sprint 17.  The library's `VERSION` bumped to `2.0.0` to
- * signal the break.  Source-level compatibility is preserved:
- * zero-initialising `sparse_cholesky_opts_t` still yields the
- * expected defaults (AUTO backend, no telemetry), so pre-Sprint-18
- * caller code compiles and links against v2.x without edits.
- * Pre-compiled downstream binaries linked against v1.x must be
- * recompiled against v2.x — stack-allocating the old (4-byte)
- * struct would cause the new library to read past its end.
+ * @warning **ABI break in v2.0.0.** Adding `backend` and
+ * `used_csc_path` changed this struct's size relative to v1.x.
+ * Source compatibility is preserved for callers that zero-initialize
+ * `sparse_cholesky_opts_t`, but downstream binaries built against
+ * v1.x must be recompiled against v2.x.
  *
  * @note **Transparent CSC dispatch.**  `sparse_cholesky_factor_opts`
  * routes to the CSC supernodal kernel whenever `mat->rows >=
@@ -82,13 +75,9 @@ typedef enum {
  * internally, so callers receive the standard `SparseMatrix` result
  * format regardless of which backend ran.  For smaller matrices the
  * linked-list kernel runs instead.  Set `backend` explicitly to
- * force one path on the same binary — benchmarks and tests use
+ * force one path on the same binary. Benchmarks and tests use
  * `SPARSE_CHOL_BACKEND_CSC` and `SPARSE_CHOL_BACKEND_LINKED_LIST` to
- * exercise both sides.  For current speedups see
- * `benchmarks/bench_chol_csc.c` and
- * `docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md` — measurements vary
- * with machine and run, so the benchmark output is the source of
- * truth rather than a baked-in figure.
+ * exercise both sides.
  *
  * The optional `used_csc_path` output pointer is set to 1 when the
  * CSC backend ran and 0 when the linked-list backend ran.  Pass NULL
@@ -100,9 +89,8 @@ typedef struct {
                                         sparse_reorder.h) */
     sparse_chol_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
     int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
-    /** Sprint 29 Day 6 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each column-elimination
-     *  iteration of the linked-list backend with `phase =
+    /** Optional progress / cancellation callback. Invoked at the top of each
+     *  column-elimination iteration of the linked-list backend with `phase =
      *  "cholesky_factor"`, `step = k`, `total = n`.  Return 0 to
      *  continue; non-zero cancels the factorisation —
      *  `SPARSE_ERR_CANCELLED` propagates up.  NULL (default)
@@ -115,11 +103,7 @@ typedef struct {
      *  rejected as unfactored. Reordered one-shot attempts may still
      *  preserve the caller-owned matrix because they factor a
      *  temporary reordered working copy and only publish back on
-     *  success.
-     *  See `sparse_progress_cb_t` in `sparse_types.h` for the
-     *  generic callback contract and `docs/maintainer_guide.md`
-     *  for the broader maintainer-policy interpretation.  Trailing
-     *  field for designated-init back-compat. */
+     *  success. Trailing field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
@@ -184,10 +168,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * and publish that payload back to `mat` only after success, so cancelled or
  * failed reordered attempts leave the caller-owned matrix in its original
  * coordinate space.
- * On the CSC supernodal lane, `SPARSE_ERR_BACKEND_CONTRACT` is reserved for
- * the bounded Sprint 64 backend-aware dense-kernel seam: the caller request
- * was otherwise valid, but the selected internal dense-kernel descriptor or a
- * required callback could not be resolved.
+ * On the CSC supernodal lane, `SPARSE_ERR_BACKEND_CONTRACT` means the caller
+ * request was otherwise valid, but the selected internal dense-kernel
+ * descriptor or a required callback could not be resolved.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat or opts is NULL.

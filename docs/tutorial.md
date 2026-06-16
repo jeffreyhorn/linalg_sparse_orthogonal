@@ -176,18 +176,12 @@ sparse_free(L);
 
 For stable-pattern repeated direct solves, keep the one-shot Cholesky path for
 small usage examples and move to the explicit repeated-run direct lifecycle
-only when you need analyze-once / factor-many reuse. The strongest shipped
-example for that path is `examples/example_analysis.c`.
-
-After you adopt that lifecycle:
-
-- keep `examples/example_analysis.c` as the strongest small teaching surface
-- move to `bench_refactor` / `bench_refactor_csc` when you want retained
-  repeated-run benchmark-side proof
-- use `make bench-canonical-report` for a threshold-free snapshot of the
-  canonical maintained benchmark surface
-- keep regression/oracle/property ownership with the maintained test surfaces,
-  not with the tutorial prose
+only when you need analyze-once / factor-many reuse. Start with
+`examples/example_analysis.c`, then move to `bench_refactor` /
+`bench_refactor_csc` when you want retained benchmark-side proof. Use
+`make bench-canonical-report` for a threshold-free snapshot of the canonical
+maintained benchmark surface, and keep regression/oracle/property ownership
+with the maintained test surfaces rather than with this tutorial.
 
 On that explicit repeated-run direct path, failed same-pattern refactors keep
 the previous usable factor state intact. Obvious nnz drift is still rejected

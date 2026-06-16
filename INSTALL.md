@@ -39,8 +39,8 @@ make install PREFIX=/usr/local   # install library, headers, pkg-config
 
 `make quality-review-compile` is the maintained local compile-quality wrapper
 (`format-check` + `lint`). `make quality-review` adds `test` and
-`deadcode-check` on top of that reviewed path. For the full command map and
-failure-rerun guidance, use `README.md` as the canonical operator reference.
+`deadcode-check` on top of that reviewed path. For the fuller command map and
+failure-rerun guidance, use `README.md` as the canonical front-door reference.
 
 The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 (e.g., packaging):

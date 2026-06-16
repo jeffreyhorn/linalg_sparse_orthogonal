@@ -1371,3 +1371,88 @@ Sprint 73 Day 9 closes with:
 3. two focused regressions in the right proof owners
 4. the `SPARSE_QG_PROFILE` support-only lane still deferred instead of
    widened into this batch
+
+## Sprint 73 Day 10: Follow-Through Design
+
+Date: 2026-06-16
+Branch: `sprint-73`
+
+### Goal
+
+Decide the smallest maintained-surface follow-through actually required by the
+Day 6 and Day 9 landed configuration contract.
+
+### What I Rechecked
+
+- `docs/planning/EPIC_7/SPRINT_73/PLAN.md`
+- `docs/planning/EPIC_7/SPRINT_73/artifacts/day9-debug-profile-rationalization-batch.md`
+- `docs/maintainer_guide.md`
+- `include/sparse_analysis.h`
+- `src/sparse_reorder_amd_qg.c`
+
+### Day 10 Design Result
+
+The public header surface is already coherent after the landed code, so Sprint
+73 does not need a broad docs/header cleanup batch.
+
+The only maintained surface that now clearly needs follow-through is:
+
+- `docs/maintainer_guide.md`
+
+That is the one place still reading as if all residual FM-family env vars are
+simply deferred, when the live code now has a narrower ownership split:
+
+- recognized `SPARSE_FM_*` compatibility env vars are parsed once in
+  `src/sparse_graph.c`
+- they lower into one internal typed FM policy/runtime contract
+- the refinement subsystem no longer behaves like a second independent parser
+- developer-only FM debug flags remain intentionally internal
+
+### Exact Day 11 Touch Set
+
+Required:
+
+- `docs/maintainer_guide.md`
+
+Support only if wording truly forces it:
+
+- `include/sparse_analysis.h`
+
+Explicit non-touch set:
+
+- `src/sparse_reorder_amd_qg.c`
+- `README.md`
+- `INSTALL.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `src/sparse_analysis.c`
+- `src/sparse_svd.c`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+### Preserved Truthfulness Checklist
+
+Day 11 must preserve:
+
+- no new public typed FM option family
+- no public typed debug/profile option family
+- `SPARSE_ND_PROFILE`, `SPARSE_HCC_DEBUG`, and `SPARSE_QG_PROFILE` remain
+  internal or developer-only surfaces
+- `include/sparse_analysis.h` stays truthful if left unchanged:
+  - lower-level FM tuning and debug/profile env vars remain internal or
+    compatibility-only for now
+- `SPARSE_QG_PROFILE` remains support-only deferred follow-through, not a
+  hidden Sprint 73 widening
+
+### Sanity Outcome
+
+The Day 10 recheck found one real policy-drift target, not a broader public or
+header contradiction:
+
+1. `docs/maintainer_guide.md` needs the Day 6 and Day 9 ownership split stated
+   directly
+2. `include/sparse_analysis.h` already remains accurate and should stay
+   untouched unless the Day 11 wording forces a narrow consistency edit
+3. `src/sparse_reorder_amd_qg.c` remains explicitly deferred support context,
+   not a Day 11 follow-through center

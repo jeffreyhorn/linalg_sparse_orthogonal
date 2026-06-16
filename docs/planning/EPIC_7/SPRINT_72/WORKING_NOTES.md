@@ -1772,3 +1772,147 @@ Sprint 72 Day 13 closes with:
 4. representative examples, maintained benchmarks, and install/package proof
    scripts all stayed clean
 5. the Day 14 closeout queue is now fixed from a fully validated branch state
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+
+Close Sprint 72 with one explicit first-phase product-model convergence
+package and a ranked carry-forward queue for Sprint 73 and later Epic 7 work.
+
+### Actions
+
+1. Re-read the validated Sprint 72 chain from:
+   - Day 6 ownership convergence batch
+   - Day 9 compressed-path ownership batch
+   - Day 11 public contract batch
+   - Day 12 proof alignment
+   - Day 13 full validation sweep
+2. Write one closeout artifact summarizing what Sprint 72 actually fixed in:
+   - direct-workflow ownership
+   - compressed-path ownership
+   - public contract follow-through
+   - proof/reference alignment
+   - validated close state
+3. Rank the strongest carry-forward queue for Sprint 73 and later Epic 7 work.
+4. Recheck whether `docs/planning/EPIC_7/PROJECT_PLAN.md` needs any Sprint 72
+   correction.
+5. Confirm the final branch state and validation footprint for handoff.
+
+### Findings
+
+#### 1. Sprint 72 now closes as one bounded first-phase product-model package
+
+The sprint no longer reads as a loose mix of header edits and family-local CSC
+cleanup. It closes as one coherent first-phase product-model convergence
+package across the two strongest live seams:
+
+- direct-workflow matrix-shell ownership
+- Cholesky CSC publish-back ownership
+
+That is the right Sprint 72 scope for Epic 7 Phase 1:
+
+- clarify what the mutable `SparseMatrix` shell owns
+- clarify what repeated-run analysis/factor surfaces own
+- clarify how the strongest compressed Cholesky lane publishes one-shot
+  compatibility back into the matrix shell
+
+#### 2. The direct-workflow ownership boundary is now materially cleaner
+
+The Day 6 landing fixed the strongest matrix-shell contradiction:
+
+- copied factored `SparseMatrix` shells are now explicitly short-lived
+  compatibility shells rather than vague long-lived factor owners
+- `sparse_reset_perms()` now recovers a plain matrix shell and drops stale
+  one-shot reordered/factored solve compatibility
+- the repeated-run analysis/factor lifecycle now reads more clearly as the
+  long-lived reuse owner
+
+That means the first product-model seam is no longer blurred by stale solve
+readiness surviving after permutation reset.
+
+#### 3. The compressed Cholesky publish-back seam is also cleaner now
+
+The Day 9 landing fixed the strongest remaining compressed-path ownership
+contradiction:
+
+- `chol_csc_writeback_to_sparse(...)` now reads as a bounded publish-back
+  pipeline
+- CSC-factor materialization, caller-shell transplant, and factor/reorder
+  publication are separated more cleanly
+- the family-local regression now proves that the writeback shell is factored,
+  solve-ready, carries the explicit reorder payload, keeps identity internal
+  row/column permutation shells, and solves the SPD system correctly
+
+That closes the strongest first-phase Cholesky CSC ownership seam without
+widening into LDL^T, LU CSR, or broader backend-policy work.
+
+#### 4. Public contract and proof ownership stayed aligned with the code
+
+Sprint 72 also landed the right bounded follow-through:
+
+- `include/sparse_matrix.h`
+  - now states directly that copied factored shells keep one-shot solve
+    compatibility only until later matrix-shell mutation or
+    `sparse_reset_perms()`
+- `include/sparse_cholesky.h`
+  - now states directly that the CSC lane still publishes the same solve-ready
+    compatibility shell without changing long-lived factor ownership away from
+    `sparse_analysis.h`
+- `docs/maintainer_guide.md`
+  - now names the maintained proof owners for:
+    - the matrix-shell reset boundary
+    - the Cholesky CSC publish-back boundary
+
+The broader README/tutorial/example surfaces did not need to move, which keeps
+the Sprint 72 batch bounded instead of reopening public-surface cleanup.
+
+#### 5. The validated close state is strong and explicit
+
+Sprint 72 closes from the Day 13 validated baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 334.55 sec`
+
+Focused follow-ons also stayed clean:
+
+- `test_sparse_matrix` -> `56 / 56`
+- `test_integration` -> `48 / 48`
+- `test_chol_csc` -> `146 / 146`
+- `example_analysis` residual = `4.44e-16`
+- `example_basic_solve` residual = `0.00e+00`
+- `bench_refactor_csc nos4` retained `speedup_refactor = 1.69`
+- `bench_chol_csc nos4` retained coherent backend/residual rows
+- install/package regressions remained `11 / 11` and `13 / 13`
+
+### Validation
+
+This was a docs-only Day 14 closeout pass, so I did not rerun validation after
+the Day 13 validated baseline.
+
+The closeout closes from the already-recorded validated state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+### Day 14 Exit State
+
+Sprint 72 Day 14 closes with:
+
+1. one coherent first-phase product-model convergence package
+2. one explicit validated baseline carried forward from Day 13
+3. one ranked Sprint 73 carry-forward queue
+4. one explicit confirmation that `docs/planning/EPIC_7/PROJECT_PLAN.md`
+   does not need a Sprint 72 correction
+5. one clean branch-state handoff into Sprint 73

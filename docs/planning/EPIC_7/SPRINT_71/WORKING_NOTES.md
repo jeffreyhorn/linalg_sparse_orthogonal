@@ -1183,3 +1183,104 @@ That gives Day 9 one exact job:
 
 - land the bounded `include/sparse_cholesky.h` narrative cleanup batch without
   widening into support, implementation, or proof surfaces
+
+## Day 9 - Public Header Narrative Cleanup Batch
+
+### Goal
+
+Land the bounded Sprint 71 header cleanup on `include/sparse_cholesky.h`
+without weakening local contract truth or widening into support surfaces.
+
+### Actions
+
+1. Edited `include/sparse_cholesky.h` to reduce the densest removable
+   chronology and cross-surface spill.
+2. Kept the local Cholesky reference contract explicit around:
+   - one-shot usage and repeated-run handoff
+   - backend selector semantics
+   - `used_csc_path` telemetry
+   - progress/cancellation caveats
+   - backend-contract error semantics
+3. Did not edit any support surface:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+4. Ran the bounded code-day validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Findings
+
+#### 1. The header now reads more directly as a local API reference
+
+The landed header cleanup compressed:
+
+- Sprint-number chronology around backend dispatch
+- ABI-history detail beyond the caller-facing compatibility point
+- benchmark-history references
+- broader maintainer-policy spill inside callback commentary
+
+The header now reads more narrowly as:
+
+- one-shot Cholesky entry-point reference
+- repeated-run handoff to `sparse_analysis.h`
+- backend and telemetry reference
+- local mutation, cancellation, and error semantics
+
+#### 2. The local reference truth stayed intact
+
+The landed batch preserved:
+
+- Cholesky as a one-shot public direct entry point
+- `SPARSE_CHOL_BACKEND_AUTO`, `LINKED_LIST`, and `CSC` meanings
+- `used_csc_path` as chosen-path telemetry
+- invalid reorder/backend rejection before mutation
+- reordered temporary-working-copy publication semantics
+- local progress/cancellation caveats
+- `SPARSE_ERR_BACKEND_CONTRACT` as a narrow CSC supernodal backend-contract
+  error
+
+#### 3. No support-surface follow-through was needed
+
+The landed header wording did not force edits to:
+
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+That confirms the Day 8 design held:
+
+- the strongest remaining contradiction was local to the header
+- not to the support-surface ownership split
+
+#### 4. The bounded code-day validation gate passed
+
+Because `include/sparse_cholesky.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Day 9 touched-surface raw `wc -l` count after the landing:
+
+- `include/sparse_cholesky.h` = `216`
+
+## Day 9 Exit State
+
+Sprint 71 Day 9 closes with the strongest remaining header/reference
+contradiction materially cleaner:
+
+1. `include/sparse_cholesky.h` now reads more like a local API reference
+2. support surfaces remained untouched
+3. local backend, cancellation, and error semantics stayed intact
+4. the bounded code-day validation gate passed
+
+That gives Day 10 one exact job:
+
+- audit the landed header batch and rerank whether any support-only
+  follow-through is still justified from the live post-Day-9 state

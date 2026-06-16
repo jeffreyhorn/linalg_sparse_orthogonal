@@ -309,3 +309,194 @@ Sprint 73 Day 2 closes with:
 2. one stable reviewed CMake parity anchor
 3. one truthful live proof-surface map
 4. one exact rerun set for the strongest likely Sprint 73 configuration lanes
+
+## Day 3 - Residual Env-Var Inventory Audit
+
+### Goal
+
+Re-rank the remaining configuration surfaces by live ownership cost instead of
+by historical familiarity, so Sprint 73 can work from one concrete
+contradiction map rather than one generic env-var-cleanup story.
+
+### Actions
+
+1. Re-read the strongest residual configuration seams directly in:
+   - `src/sparse_graph.c`
+   - `src/sparse_graph_refine.c`
+   - `src/sparse_reorder_nd.c`
+   - `src/sparse_reorder_amd_qg.c`
+   - `src/sparse_analysis.c`
+   - `src/sparse_svd.c`
+2. Re-read the strongest proof owners that currently pin those controls:
+   - `tests/test_graph.c`
+   - `tests/test_reorder_nd.c`
+3. Classify the remaining burdens into:
+   - public process-global surprise
+   - duplicated typed/default/env precedence
+   - developer-only switches leaking into the public story
+   - compatibility controls whose behavior is now better owned internally
+4. Rank the strongest contradiction centers by:
+   - caller confusion cost
+   - implementation ownership blur
+   - likely bounded Sprint 73 payoff
+5. Write the Day 3 audit artifact.
+
+### Findings
+
+#### 1. The broad Sprint 73 configuration problem is now reduced to one ranked
+live contradiction map
+
+The strongest remaining control-surface problem is not “too many env vars” in
+the abstract.
+
+It is one ranked ownership map:
+
+- strongest first target:
+  - graph/FM strategy and pass-count policy
+- strongest second target:
+  - ND compatibility/default-policy overrides
+- strongest third target:
+  - developer-only debug/profile surfaces
+- strongest later target:
+  - residual SVD-routing and advanced compatibility controls
+
+That is the useful Day 3 narrowing: Sprint 73 should not start by trying to
+touch every residual `getenv(...)` call. It should start where the same
+control story is still split across the most public, highest-cost graph and
+reorder lanes.
+
+#### 2. Graph/FM strategy and pass-count policy is the strongest first target
+
+The strongest first contradiction center is the graph/FM lane split between:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+Why this is first:
+
+- `src/sparse_graph.c` still owns a dense public-facing control surface:
+  - `SPARSE_FM_FINEST_STRATEGY`
+  - `SPARSE_FM_ENSEMBLE_STRATEGIES`
+  - `SPARSE_FM_FINEST_PASSES`
+  - `SPARSE_FM_INTERMEDIATE_PASSES`
+  - `SPARSE_FM_ENSEMBLE_DEBUG`
+  - `SPARSE_FM_THICK_RESTART_DEBUG`
+- `src/sparse_graph_refine.c` still owns the FM-local schedule, perturbation,
+  and debug parsing:
+  - `SPARSE_FM_ANNEALING_SCHEDULE`
+  - `SPARSE_FM_THICK_RESTART_PERTURB`
+  - `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+  - `SPARSE_FM_ANNEALING_DEBUG`
+  - `SPARSE_FM_GAIN_NOISE_DEBUG`
+- the current model still makes advanced FM behavior depend on process-global
+  parsing at the orchestration shell plus more process-global parsing inside
+  the refinement subsystem
+- `tests/test_graph.c` is already the strongest permanent proof owner for this
+  lane, which makes the proof cost acceptable for a bounded first landing
+
+This is the best first Sprint 73 target because it combines the largest raw
+residual control surface with the clearest bounded payoff: shrink the
+process-global public story and move more of the FM behavior into a clearer
+typed or internal-policy contract.
+
+#### 3. ND compatibility/default-policy overrides are the strongest second
+target
+
+The second contradiction center is the ND lane split between:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+
+Why this is second instead of first:
+
+- Sprint 61 and Sprint 67 already improved the typed-precedence story here
+- `sparse_reorder_nd_default_policy()` now centralizes more of the default
+  policy surface than it used to
+- but the lane still carries a dense compatibility parser bundle in
+  `src/sparse_reorder_nd.c`:
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+- `src/sparse_analysis.c` still has residual compatibility parsing for:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - `SPARSE_ND_SUPERNODAL_POSTORDER`
+- `tests/test_reorder_nd.c` already carries the strongest precedence and
+  override proof cost for this lane
+
+This is still a real Sprint 73 target, but it reads more like the strongest
+second landing than the strongest first one because the graph/FM lane still
+has the denser process-global spill and the weaker ownership center.
+
+#### 4. Developer-only debug/profile surfaces are real, but better treated as
+the second batch than the first
+
+The strongest developer-only spill surfaces are:
+
+- `SPARSE_ND_PROFILE` in `src/sparse_reorder_nd.c`
+- `SPARSE_QG_PROFILE` in `src/sparse_reorder_amd_qg.c`
+- FM debug flags in `src/sparse_graph.c` and `src/sparse_graph_refine.c`
+- `SPARSE_HCC_DEBUG` in `src/sparse_graph_coarsen.c`
+
+These are real contradictions because they leak operational or developer-only
+control into permanent code paths and documentation pressure.
+
+But they are weaker first targets than graph/FM policy or ND compatibility
+because:
+
+- the public correctness/behavior contract depends on them less
+- they look more like rationalization and narrowing work than like the most
+  valuable first ownership convergence
+- they are good candidates for a second Sprint 73 batch once the main
+  graph/FM or ND policy center is cleaned up
+
+#### 5. Residual SVD-routing and advanced compatibility controls are valid but
+lower-priority
+
+The remaining advanced compatibility surface in:
+
+- `src/sparse_svd.c`
+  - `SPARSE_SVD_LOWRANK_OUTER`
+
+is real, but it is a weaker Day 3 target because:
+
+- it is narrower
+- it carries lower public confusion cost than the graph/FM and ND lanes
+- its proof and ownership surface is more isolated than the graph/reorder
+  policy story
+
+That makes it a later Sprint 73 or post-Sprint-73 queue item, not the best
+first modernization center.
+
+### Validation
+
+This was a docs-only Day 3 audit pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the audit in direct rereads of the live parser and policy seams in:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_analysis.c`
+- `src/sparse_svd.c`
+
+and in the strongest proof owners:
+
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+### Day 3 Exit State
+
+Sprint 73 Day 3 closes with:
+
+1. one ranked residual-control contradiction map
+2. one strongest first target fixed to graph/FM policy convergence
+3. one strongest second target fixed to ND compatibility/default-policy
+   overrides
+4. one bounded later queue for debug/profile and SVD-routing cleanup

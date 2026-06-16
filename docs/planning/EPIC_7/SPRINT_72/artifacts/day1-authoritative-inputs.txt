@@ -1,0 +1,19 @@
+# Sprint 72 Day 1: Authoritative Inputs
+
+Date: 2026-06-16
+Branch: `sprint-72`
+
+Authoritative inputs used for the Sprint 72 Day 1 baseline:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` (Sprint 72 section)
+- `docs/planning/EPIC_7/SPRINT_72/PLAN.md`
+- `docs/planning/EPIC_7/SPRINT_71/RETROSPECTIVE.md`
+- `docs/planning/EPIC_7/SPRINT_71/artifacts/day14-closeout-and-handoff.md`
+- live reviewed baseline wrapper shape from `make -n quality-review-full`
+- live reviewed CMake parity anchor from
+  `ctest -N --test-dir build/quality-review-cmake`
+- live Day 1 raw `wc -l` hotspot measurements across:
+  - public/product surfaces
+  - product-model / numeric-path seams
+  - direct-workflow public-boundary support
+  - strongest proof/adoption surfaces

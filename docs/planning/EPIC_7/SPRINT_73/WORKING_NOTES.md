@@ -929,3 +929,138 @@ Sprint 73 Day 6 closes with:
    option surface
 4. a fully validated first Sprint 73 implementation landing from
    `make quality-review-full`
+
+## Day 7: Post-Landing Audit & Rerank
+
+### Objectives
+
+Reassess the residual configuration queue after the Day 6 FM/graph policy
+landing and choose the strongest exact Day 8 target from the live post-landing
+state.
+
+### Audit Results
+
+#### 1. The Day 6 landing closed the strongest graph/FM ownership contradiction
+
+The Day 6 batch removed the main first-lane contradiction:
+
+- `src/sparse_graph.c` is now the one compatibility-parser owner for the FM
+  strategy/pass/schedule lane
+- `src/sparse_graph_refine.c` now reads lowered runtime state instead of
+  independently re-parsing that control surface
+
+So a second same-family FM batch is no longer the highest-value next move.
+
+The remaining FM-local follow-through is now weaker:
+
+- residual env parsing in `src/sparse_graph.c` is concentrated instead of split
+- retained FM debug flags are now runtime details rather than cross-file parser
+  duplication
+- the strongest contradiction is no longer "two places interpreting the same FM
+  story"
+
+#### 2. The strongest remaining contradiction has shifted to developer-only/profile spill
+
+The strongest live residual-control seam is now the developer-only/profile
+lane across:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+
+Why this lane now ranks first:
+
+- `src/sparse_graph_coarsen.c` still mixes real strategy/default routing with
+  developer-only `SPARSE_HCC_DEBUG` and residual compatibility override reads
+- `src/sparse_reorder_nd.c` still owns `SPARSE_ND_PROFILE` activation as a
+  direct process-global check rather than a narrower internal runtime/policy
+  seam
+- `src/sparse_reorder_amd_qg.c` still does the same for
+  `SPARSE_QG_PROFILE`
+- this means the post-Day-6 queue is no longer mostly about FM policy
+  ownership, but about instrumentation and developer-only controls still
+  living as ad hoc process-global reads in multiple graph/reorder families
+
+This is now a better second Sprint 73 lane than:
+
+- another FM/graph batch in `src/sparse_graph.c` / `src/sparse_graph_refine.c`
+- the later `SPARSE_SVD_LOWRANK_OUTER` routing seam in `src/sparse_svd.c`
+
+#### 3. The lower-priority lanes are now explicit
+
+FM/graph follow-through is now support/deferred context:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+Residual compatibility or later configuration lanes remain real, but lower
+priority:
+
+- `src/sparse_svd.c`
+- `src/sparse_analysis.c`
+- `src/sparse_graph_separator.c`
+
+Why they rank lower now:
+
+- `src/sparse_svd.c` is still only one narrow advisory control
+- the separator-lift compatibility surface is real, but it is not currently as
+  cross-family or process-global as the debug/profile lane
+- `src/sparse_analysis.c` remains an important authority surface, but the
+  strongest immediate contradiction is not there after Day 6
+
+### Day 8 Target Fence
+
+Required next design center:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+
+Support only if the Day 8 design truly forces it:
+
+- `src/sparse_graph_internal.h`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+- `docs/maintainer_guide.md`
+
+Explicit deferred set for the next batch:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_analysis.c`
+- `include/sparse_analysis.h`
+- `src/sparse_svd.c`
+- `src/sparse_graph_separator.c`
+- README/tutorial/example/benchmark surfaces
+- capability/type/platform/workflow files
+
+### Validation
+
+This was a docs-only Day 7 audit pass, so I did not rerun:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+I grounded the rerank in rereads of:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_svd.c`
+- the Day 6 artifact and validation result
+
+### Day 7 Exit State
+
+Sprint 73 Day 7 closes with:
+
+1. the Day 6 FM lane explicitly demoted from "next batch center" to
+   support/deferred context
+2. the developer-only/profile lane promoted to the strongest remaining
+   contradiction
+3. one exact Day 8 target fence around coarsening and ND/profile seams
+4. a post-Day-6 queue that is explicit instead of assumed

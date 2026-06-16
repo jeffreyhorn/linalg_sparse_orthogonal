@@ -1516,3 +1516,127 @@ That gives Day 12 one exact job:
 - validate the cleaned public/reference/support package against the Sprint 71
   truthfulness fence and decide whether any last bounded follow-through is
   still justified
+
+## Day 12 - Maintainer Guide Re-centering & Truth-Surface Review
+
+### Goal
+
+Recheck the touched Sprint 71 public/reference/support surfaces against the
+maintainer-guide authority split and confirm whether any last bounded
+policy-authority follow-through is still justified before closeout.
+
+### Actions
+
+1. Re-read the Day 12 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the touched Sprint 71 truth surfaces against one another:
+   - `README.md`
+   - `INSTALL.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `include/sparse_cholesky.h`
+3. Re-read the maintainer-guide ownership and policy sections that govern:
+   - documentation ownership
+   - direct-family interpretation
+   - maintained proof ownership
+   - threshold-free benchmark reporting
+   - platform-confidence interpretation
+4. Ran targeted terminology scans across those surfaces for:
+   - example versus benchmark versus test authority
+   - static-first and CMake-first install/platform wording
+   - threshold-free benchmark-report interpretation
+   - policy spill back into user-facing docs
+5. Fixed the Day 13-14 closeout queue explicitly from the post-Day-11 state.
+
+### Findings
+
+#### 1. No bounded maintainer-guide recentering edit is actually required
+
+The Day 12 reread confirms that the touched Sprint 71 surfaces now point back
+to the maintainer guide cleanly instead of competing with it.
+
+Specifically:
+
+- `README.md` now stays at the compact front-door level
+- `INSTALL.md` now stays at the operator/install-contract level
+- `docs/tutorial.md`, `examples/README.md`, and `benchmarks/README.md` now
+  read as support surfaces rather than partial policy authorities
+- `include/sparse_cholesky.h` now keeps local API truth without dragging broad
+  policy commentary back into the header
+
+Interpretation:
+
+- the strongest Day 12 result is a bounded no-op on
+  `docs/maintainer_guide.md`
+- policy authority is clearer because the user-facing surfaces moved, not
+  because the policy surface needed another batch
+
+#### 2. No unresolved contradiction remains across the cleaned Sprint 71 truth surfaces
+
+The Day 12 cross-surface reread confirms there is no remaining contradiction
+across:
+
+- public product story
+- install/release story
+- examples versus benchmarks versus tests ownership
+- threshold-free benchmark-report interpretation
+- Sprint 70 truthfulness fence
+
+The current package now reads coherently as:
+
+- `README.md`
+  - compact front door
+- `INSTALL.md`
+  - operator/install-contract surface
+- `docs/tutorial.md`
+  - step-by-step teaching flow
+- `examples/README.md`
+  - adoption/workflow teaching
+- `benchmarks/README.md`
+  - retained workflow/performance proof
+- `docs/maintainer_guide.md`
+  - policy authority
+
+#### 3. The maintained policy readings still hold exactly
+
+The Day 12 review confirms the following stable readings are still explicit:
+
+- examples do not replace regression/oracle/property owners
+- benchmarks do not replace test-owned guarantees
+- `make bench-canonical-report` remains threshold-free artifact reporting
+- the maintained release shape remains static-first
+- Windows still reads as the reviewed CMake-first consumer story rather than a
+  reviewed install-validation lane
+
+Interpretation:
+
+- Sprint 71 did not accidentally widen product, benchmark, or platform claims
+- the package still sits cleanly inside the Sprint 70 architecture contract
+
+#### 4. The exact Day 13-14 closeout queue is now fixed
+
+Day 13 should cover:
+
+- Sprint 71 package coherence review
+- final carry-forward and deferred queue confirmation
+- recheck of the Sprint 71 section in `docs/planning/EPIC_7/PROJECT_PLAN.md`
+
+Day 14 should cover:
+
+- Sprint 71 closeout and handoff artifact
+- explicit validated/clean close state for the sprint package
+
+## Day 12 Exit State
+
+Sprint 71 Day 12 closes with one stable truth-surface review:
+
+1. no bounded maintainer-guide recentering edit is required
+2. no unresolved contradiction remains across the cleaned Sprint 71
+   public/reference/support package
+3. the Sprint 70 truthfulness fence still holds exactly
+4. the Day 13-14 closeout queue is explicit
+
+That gives Day 13 one exact job:
+
+- review the full Sprint 71 package as one coherent cleanup bundle and confirm
+  the final carry-forward queue before closeout

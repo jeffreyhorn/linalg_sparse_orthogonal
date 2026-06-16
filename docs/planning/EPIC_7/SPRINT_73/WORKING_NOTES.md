@@ -635,3 +635,163 @@ Sprint 73 Day 4 closes with:
 2. one fixed support-only map for proof and maintained-surface follow-through
 3. one explicit deferred map for ND, debug/profile, and SVD-routing cleanup
 4. one clear starting point for Day 5 implementation design
+
+## Day 5 - Typed/Internal Policy Design
+
+### Goal
+
+Define the bounded implementation contract for the first Sprint 73
+configuration-modernization landing before code edits begin.
+
+### Actions
+
+1. Re-read the Sprint 70 configuration target and non-goal fences against the
+   Day 4 first-batch surfaces.
+2. Decide the ownership split for the strongest remaining graph/FM controls:
+   - public typed options
+   - internal typed policy
+   - compatibility-only env overrides
+   - debug-only or narrowed developer-only behavior
+3. Fix the precedence rules the first batch must preserve.
+4. Freeze the exact first-batch non-touch set.
+5. Write the Day 5 design artifact.
+
+### Findings
+
+#### 1. The first Sprint 73 batch should converge FM controls into one internal
+policy owner, not widen the public option surface yet
+
+The strongest useful Day 5 design decision is now explicit:
+
+- the first Sprint 73 batch should not add a new public typed FM option
+  surface
+- it should converge the graph/FM lane behind one clearer internal policy
+  owner
+
+Why this is the right first move:
+
+- the strongest current pain is split process-global parsing across
+  `src/sparse_graph.c` and `src/sparse_graph_refine.c`
+- the public maintained contract does not yet need a broad new FM option model
+  to reduce that ownership blur
+- adding new public typed controls now would widen the compatibility and
+  documentation burden before the internal ownership center is cleaner
+
+So the Day 6 batch should be an internal typed-policy convergence, not a
+public API expansion.
+
+#### 2. The first-batch ownership split is now fixed
+
+Public typed options in the first batch:
+
+- none required
+
+Internal typed policy owner in the first batch:
+
+- one graph/FM policy object should own:
+  - finest FM strategy
+  - ensemble member list
+  - finest-level pass count
+  - intermediate-level pass count
+  - annealing schedule choice
+  - thick-restart perturbation choice
+  - gain-noise schedule choice
+  - debug flags only as internal/runtime fields if still needed
+
+Compatibility-only env overrides in the first batch:
+
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_ANNEALING_SCHEDULE`
+- `SPARSE_FM_THICK_RESTART_PERTURB`
+- `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+
+Narrowed developer-only or debug-only behavior in the first batch:
+
+- `SPARSE_FM_ENSEMBLE_DEBUG`
+- `SPARSE_FM_THICK_RESTART_DEBUG`
+- `SPARSE_FM_ANNEALING_DEBUG`
+- `SPARSE_FM_GAIN_NOISE_DEBUG`
+
+The key ownership rule is:
+
+- compatibility env vars may still exist for back-compat
+- but they should be parsed once at the orchestration boundary and lowered
+  into one internal FM policy/runtime contract
+- the refinement subsystem should stop behaving like a second independent
+  public configuration parser
+
+#### 3. The preserved precedence rules are now explicit
+
+The first batch must preserve:
+
+- if no FM compatibility env var is set, the existing default behavior stays
+  bit-compatible
+- recognized compatibility env vars still select the same effective FM
+  strategies, pass counts, and schedule/perturbation choices as shipped today
+- unrecognized or malformed compatibility env inputs still fall back to the
+  current safe defaults rather than widening failure semantics
+- developer-only debug flags do not become part of a broader public typed
+  contract
+- the batch must reduce split ownership, not silently broaden supported
+  caller-visible controls
+
+This is the most important Day 5 fence: preserve current caller-visible
+compatibility while shrinking the number of places that independently interpret
+the same FM control story.
+
+#### 4. The first-batch touch and non-touch sets are now fixed
+
+Required first implementation center:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+Support only if the implementation truly forces it:
+
+- `src/sparse_graph_internal.h`
+- `tests/test_graph.c`
+- `tests/test_graph_fm_buckets.c`
+- `tests/test_integration.c`
+
+Explicit non-touch set:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+- `tests/test_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_svd.c`
+- `include/sparse_analysis.h`
+- `docs/maintainer_guide.md`
+- broader README/tutorial/example/benchmark surfaces
+- capability/type surfaces
+- packaging/platform/workflow files
+
+That keeps the first code batch bounded to FM ownership convergence rather
+than letting it widen into the ND second batch or the debug/profile later
+batch.
+
+### Validation
+
+This was a docs-only Day 5 design pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the design in rereads of:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_internal.h`
+- the Sprint 70 configuration fence
+- the Sprint 73 Day 4 modernization boundary
+
+### Day 5 Exit State
+
+Sprint 73 Day 5 closes with:
+
+1. one explicit internal-policy-first design for the FM lane
+2. one preserved compatibility-precedence checklist
+3. one exact first-batch touch set
+4. one explicit non-touch set before Day 6 implementation begins

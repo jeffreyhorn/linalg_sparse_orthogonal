@@ -3,7 +3,7 @@
 
 /**
  * @file sparse_matrix.h
- * @brief Public API for the orthogonal linked-list sparse matrix.
+ * @brief Public API for the orthogonal linked-list sparse matrix shell.
  *
  * The SparseMatrix type stores non-zero elements in a cross-linked structure:
  * each non-zero node is linked into both a row list (sorted by column) and a
@@ -13,6 +13,11 @@
  * Memory is managed by a slab pool allocator with a free-list for node reuse.
  * Tuning constants (slab size, drop tolerance) can be overridden at compile
  * time with @c -DSPARSE_NODES_PER_SLAB=N and @c -DSPARSE_DROP_TOL=val.
+ *
+ * This type remains the library's mutable sparse construction and one-shot
+ * direct-workflow compatibility shell. The explicit repeated-run direct path
+ * with reusable symbolic and factor/workspace state lives in
+ * `sparse_analysis.h`.
  */
 
 #include "sparse_types.h"
@@ -121,6 +126,10 @@ void sparse_free(SparseMatrix *mat);
  *
  * Copies all non-zero elements, permutation arrays, and allocates a fresh
  * pool. The copy is independent — modifying one does not affect the other.
+ * Any current one-shot factor/permutation compatibility state on the source
+ * matrix is copied too, so copying a factored matrix preserves its matrix-shell
+ * solve contract. To preserve only the original coefficients, copy the
+ * unfactored source matrix before entering a one-shot factorization lane.
  *
  * @param mat  The matrix to copy (must not be NULL).
  * @return A new SparseMatrix with identical contents, or NULL on failure.
@@ -326,9 +335,13 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
  *
  * Solve functions (sparse_lu_solve, sparse_cholesky_solve, etc.) check an
  * internal flag and return SPARSE_ERR_BADARG on unfactored matrices.  This
- * function sets that flag for matrices whose L/U factors were constructed
- * externally (e.g., imported from CSR) rather than via the library's own
- * factorization routines.
+ * function sets that flag for matrices whose one-shot matrix-shell factors
+ * were constructed externally (for example, imported from CSR) rather than
+ * via the library's own factorization routines.
+ *
+ * This is a compatibility hook for matrix-shell solve entry points. It is not
+ * the long-lived repeated-run ownership path; reusable direct factors and
+ * symbolic analysis belong in `sparse_analysis.h`.
  *
  * Also computes and caches ||A||_inf so that solve-path singularity
  * detection works correctly.
@@ -573,7 +586,14 @@ const idx_t *sparse_inv_col_perm(const SparseMatrix *mat);
 /**
  * @brief Reset all permutation arrays to identity.
  *
- * Useful for reusing a matrix after factorization has permuted it.
+ * Useful for recovering a plain matrix shell after a one-shot factorization or
+ * reorder has permuted it.
+ *
+ * If the matrix currently carries one-shot reordered/factored compatibility
+ * state, resetting the permutation shell drops that compatibility so later
+ * solve calls reject the matrix until it is factorized again. This keeps
+ * `SparseMatrix` focused on matrix-shell ownership instead of preserving a
+ * stale solve handle after the caller has rewritten its coordinate mapping.
  *
  * @param mat  The matrix.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.

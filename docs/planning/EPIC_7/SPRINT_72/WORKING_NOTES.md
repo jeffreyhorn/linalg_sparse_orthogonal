@@ -696,3 +696,146 @@ Sprint 72 Day 5 closes with one explicit implementation contract:
    mechanics, not deep compressed-path redesign
 4. the non-touch set and compatibility fence are fixed before code edits begin
 5. Day 6 can now land the first ownership cleanup against an explicit design
+
+## Day 6 - Ownership Convergence Batch 1
+
+### Goal
+
+Land the first bounded Sprint 72 implementation batch so the public
+direct-workflow seam reads more coherently and the matrix shell no longer keeps
+stale one-shot solve compatibility after permutation state is reset.
+
+### Actions
+
+1. Re-read the Day 5 implementation contract against the touched first-batch
+   surfaces.
+2. Tighten the ownership split wording across the first public headers:
+   - `include/sparse_matrix.h`
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+3. Inspect `src/sparse_matrix.c` for the smallest matrix-shell state transition
+   that still contradicts the Day 5 design.
+4. Land one bounded behavior fix plus one focused regression on the live
+   direct-workflow seam.
+5. Run the full Day 6 validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+
+### Findings
+
+#### 1. The public ownership split is now explicit instead of implied
+
+The first header batch now states the intended product-model reading directly:
+
+- `SparseMatrix` remains the mutable sparse construction and one-shot
+  direct-workflow compatibility shell
+- `sparse_analysis.h` now reads more directly as the clearer long-lived owner
+  of reusable symbolic and factor/workspace state
+- the one-shot LU / Cholesky / LDL^T headers now point back to the repeated-run
+  lifecycle as the clearer reuse owner instead of reading like the only solver
+  center of gravity
+
+This keeps the existing public surface intact, but it reduces the old ambiguity
+that made the copied matrix shell read like the long-term direct-solver product
+identity.
+
+#### 2. `sparse_reset_perms()` carried the strongest live state contradiction in the first batch
+
+The strongest bounded mechanics issue in the first Sprint 72 landing turned out
+to be the matrix-shell reset path.
+
+Before the Day 6 batch:
+
+- a copied matrix that had already gone through one-shot LU factorization could
+  retain solve-ready compatibility state
+- `sparse_reset_perms()` rewrote row and column permutation arrays back to
+  identity
+- but the function did not clearly drop the stale one-shot reordered/factored
+  compatibility that depended on the old permutation shell
+
+That left the matrix shell in an ownership state that contradicted the Day 5
+design: the outward matrix permutation shell looked plain again, while the
+solve path could still read like the old permuted factor shell was valid.
+
+#### 3. The landed behavior fix now treats permutation reset as recovery of a plain matrix shell
+
+The Day 6 implementation batch fixes that contradiction in `src/sparse_matrix.c`:
+
+- `sparse_reset_perms()` now detects when a matrix carries either:
+  - a stored reorder permutation, or
+  - non-identity row / column permutation shells
+- after restoring the visible matrix permutation shell to identity, it now
+  clears the reorder permutation compatibility state
+- when the matrix had one-shot factored/reordered compatibility tied to the old
+  permutation shell, it now clears that factor compatibility too
+
+Interpretation:
+
+- resetting the permutation shell now means recovering a plain matrix shell
+- callers can still refactor or reuse the repeated-run analysis/factor lane
+- but they no longer keep a stale one-shot solve contract after destroying the
+  shell that contract depended on
+
+#### 4. The new regression proves the bounded ownership rule directly
+
+The first implementation batch adds a focused integration regression in
+`tests/test_integration.c` that proves:
+
+- a copied matrix can still factor and solve through the one-shot LU lane
+- the factored shell initially carries a non-identity row permutation
+- after `sparse_reset_perms()`:
+  - row and column permutation shells return to identity
+  - the old one-shot LU solve compatibility is rejected with
+    `SPARSE_ERR_BADARG`
+
+That is the right Day 6 proof shape because it tests the live public seam
+instead of just the internal helper mechanics.
+
+#### 5. The first code batch stayed inside the Day 5 fence
+
+The landed Day 6 batch touched only:
+
+- the planned public ownership headers
+- `src/sparse_matrix.c`
+- one focused proof surface in `tests/test_integration.c`
+
+It did not widen into:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+- capability surfaces
+- packaging/platform/docs truth surfaces
+- giant proof-surface redesign
+
+### Validation
+
+The full Day 6 gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity stayed `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `test_reorder_nd` remained the dominant reviewed long-tail test at
+  `229.99 sec`
+- `Total Test time (real) = 324.07 sec`
+
+### Day 6 Exit State
+
+Sprint 72 Day 6 closes with:
+
+1. one landed public ownership wording batch
+2. one bounded matrix-shell state fix in `sparse_reset_perms()`
+3. one focused integration regression proving stale permuted one-shot LU shells
+   are invalidated after permutation reset
+4. one full reviewed validation pass with exact parity preserved

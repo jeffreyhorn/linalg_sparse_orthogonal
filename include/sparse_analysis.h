@@ -10,12 +10,13 @@
  * sparsity pattern without redoing ordering and symbolic work — critical
  * for nonlinear solvers, time-stepping codes, and optimization loops.
  *
- * This is the library's explicit public repeated-run direct-solver path:
- * zero/init `sparse_analysis_t` and `sparse_factors_t`, analyze once, factor
- * and solve, refactor with new numeric values on the same sparsity pattern,
- * then free both objects explicitly. The one-shot LU, Cholesky, and LDL^T
- * family APIs remain first-class peer entry points for one-off or lower-
- * context solves.
+ * This is the library's explicit public repeated-run direct-solver path and
+ * the clearer long-lived owner of reusable symbolic and factor/workspace
+ * state: zero/init `sparse_analysis_t` and `sparse_factors_t`, analyze once,
+ * factor and solve, refactor with new numeric values on the same sparsity
+ * pattern, then free both objects explicitly. The one-shot LU, Cholesky, and
+ * LDL^T family APIs remain first-class peer entry points for one-off or
+ * lower-context matrix-shell solves.
  *
  * @note For LU, the one-time symbolic analysis can be substantially more
  * expensive than the subsequent numeric refactorizations may suggest. In

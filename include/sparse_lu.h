@@ -30,7 +30,8 @@
  *
  * For stable-pattern repeated runs, prefer the shared direct lifecycle path
  * in `sparse_analysis.h` (`sparse_analyze` → `sparse_factor_numeric` →
- * `sparse_factor_solve` → `sparse_refactor_numeric`). The LU APIs in this
+ * `sparse_factor_solve` → `sparse_refactor_numeric`), which is the clearer
+ * owner of reusable symbolic and factor/workspace state. The LU APIs in this
  * header remain first-class one-shot peer entry points and the simple/default
  * path for copied-matrix solves.
  */

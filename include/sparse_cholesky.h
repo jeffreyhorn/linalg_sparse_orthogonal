@@ -9,11 +9,13 @@
  * triangular. Exploits symmetry: only the lower triangle is stored after
  * factorization. No pivoting is needed for SPD matrices.
  *
- * This header remains the one-shot Cholesky surface: callers typically copy
- * the matrix, factor it in place, solve, and optionally refine. For stable-
- * pattern repeated runs, prefer the shared direct lifecycle path in
- * `sparse_analysis.h` (`sparse_analyze` → `sparse_factor_numeric` →
- * `sparse_factor_solve` → `sparse_refactor_numeric`).
+ * This header remains the one-shot Cholesky matrix-shell surface: callers
+ * typically copy the matrix, factor it in place, solve, and optionally
+ * refine. For stable-pattern repeated runs, prefer the shared direct
+ * lifecycle path in `sparse_analysis.h` (`sparse_analyze` →
+ * `sparse_factor_numeric` → `sparse_factor_solve` →
+ * `sparse_refactor_numeric`), which is the clearer owner of reusable
+ * symbolic and factor/workspace state.
  *
  * **Usage pattern:**
  * @code

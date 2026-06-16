@@ -294,3 +294,165 @@ Sprint 74 Day 2 closes with:
 2. one stable reviewed CMake parity anchor
 3. one truthful live proof-surface map
 4. one exact rerun set for the strongest likely Sprint 74 capability lanes
+
+## Day 3 - Capability Ceiling Audit
+
+### Goal
+
+Re-rank the current capability ceilings against the live tree so Sprint 74
+starts from one concrete contradiction map rather than one generic
+"64-bit + scalar genericity + more algorithms" wishlist.
+
+### Actions
+
+1. Re-read the strongest current capability surfaces directly in:
+   - `include/sparse_types.h`
+   - `README.md`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+   - `include/sparse_svd.h`
+   - `include/sparse_analysis.h`
+2. Re-read the strongest implementation seams that actually carry those
+   ceilings:
+   - `src/sparse_types.c`
+   - `src/sparse_matrix.c`
+   - `src/sparse_iterative.c`
+   - `src/sparse_eigs.c`
+   - `src/sparse_svd.c`
+3. Re-read the Epic 7 review baseline so the Day 3 ranking reflects the
+   broader state-of-the-art gap, not only the latest Sprint 74 hotspot sizes.
+4. Separate the remaining burdens into:
+   - public product caveats
+   - implementation-local assumptions
+   - compatibility/package implications
+5. Rank the strongest contradiction centers by:
+   - user-value ceiling
+   - cross-repo implementation cost
+   - proof and migration burden
+
+### Findings
+
+#### 1. The strongest capability ranking remains stable
+
+The live tree still supports the same capability order Sprint 70 identified:
+
+- strongest first target:
+  - 32-bit index width
+- strongest second target:
+  - real-only scalar support
+- strongest later target:
+  - symmetric-only sparse eigensolver breadth
+
+That ranking is not stale planning inertia. The current public headers,
+README caveats, and implementation seams still line up behind that exact
+order.
+
+#### 2. The width ceiling is still the strongest first modernization center
+
+The first capability ceiling remains the global `idx_t` model:
+
+- `typedef int32_t idx_t;`
+- `IDX_MAX = INT32_MAX`
+- README still documents the practical dimension/nnz cap and the "change the
+  typedef and recompile" migration story
+
+Why it remains first:
+
+- it is the broadest current product ceiling
+- it affects dimensions, nnz, permutations, and many workspace and allocation
+  calculations across the whole repo
+- it is still easier to isolate into one bounded typedef/overflow/build
+  contract than scalar-type generalization
+
+The strongest Day 3 clarification is now explicit:
+
+- the real first modernization center is not "make everything 64-bit now"
+- it is "make the 32-bit ceiling non-permanent through one real bounded
+  width-modernization seam"
+
+#### 3. The scalar ceiling is still second, but the live pressure center is
+clearer now
+
+The second capability ceiling is still the repo-wide real-only `double`
+contract.
+
+That pressure shows up directly in the live public and implementation seams:
+
+- iterative callback signatures in `include/sparse_iterative.h` still expose
+  `const double *` and `double *`
+- eigensolver outputs and kernels in `include/sparse_eigs.h` and
+  `src/sparse_eigs.c` remain `double`-typed throughout
+- SVD options, results, and dense internal accumulators in
+  `include/sparse_svd.h` and `src/sparse_svd.c` remain real-only
+
+The useful narrowing is that the strongest scalar-preparation center is not
+the entire library at once. It is the public callback/result and dense-kernel
+surfaces where the real-only contract is most explicit and most reused.
+
+Why it remains second instead of first:
+
+- it is broader and more invasive than width modernization
+- it touches nearly every public numerical contract simultaneously
+- the proof, packaging, and migration burden is therefore still higher
+
+#### 4. The eigensolver-family ceiling is still real, but it remains later
+
+The current public eigensolver story is still explicitly symmetric:
+
+- `sparse_eigs_sym(...)`
+- symmetric-only backend documentation
+- repeated-run handle semantics tied to symmetric eigensolves
+
+This remains a real state-of-the-art positioning limit, but it still ranks
+third because:
+
+- it is narrower than the global width and scalar ceilings
+- it affects one major algorithm family instead of the entire product model
+- the current symmetric eigensolver lane is already comparatively credible
+
+That makes it a real later Sprint 74 / Epic 7 concern, not the right first
+bounded modernization lane.
+
+#### 5. The public-caveat vs implementation-assumption split is now explicit
+
+Public product caveats:
+
+- 32-bit matrix dimensions and nnz
+- real-only double-precision numerics
+- symmetric-only sparse eigensolver contract
+
+Implementation-local assumptions:
+
+- pervasive `idx_t` use in dimensions, permutations, and workspace sizing
+- pervasive `double`-typed callbacks, vectors, result arrays, and dense
+  kernels in iterative/eigs/SVD lanes
+- eigensolver naming and result contracts specialized to symmetric problems
+
+Compatibility/package implications:
+
+- index-width widening is a public typedef and downstream rebuild event
+- scalar-surface widening is a larger API/ABI/product-line event
+- eigensolver-family widening expands the public supported capability promise
+  without solving the broader width or scalar ceilings
+
+This distinction matters because Sprint 74 should not treat width, scalar
+breadth, and algorithm-family expansion as if they were one interchangeable
+capability batch.
+
+### Validation
+
+This was a docs-only Day 3 audit pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the audit in direct rereads of the current public capability
+surfaces, the strongest implementation seams, and the Epic 7 review baseline.
+
+### Day 3 Exit State
+
+Sprint 74 Day 3 closes with:
+
+1. one ranked live capability contradiction map
+2. one narrower first-lane reading of the width-modernization problem
+3. one clearer scalar-preparation center for later design work
+4. one explicit separation between public caveats, implementation assumptions,
+   and compatibility/package events

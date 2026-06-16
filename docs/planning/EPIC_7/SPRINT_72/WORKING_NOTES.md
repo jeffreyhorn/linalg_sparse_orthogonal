@@ -980,3 +980,135 @@ Sprint 72 Day 7 closes with:
 4. the exact Day 8 design target fixed to `src/sparse_chol_csc.c` with
    `tests/test_chol_csc.c` and `tests/test_integration.c` as the likely proof
    homes
+
+## Day 8 - Compressed-Path Ownership Design
+
+### Goal
+
+Define the bounded second Sprint 72 implementation batch around the strongest
+remaining Cholesky CSC publish-back seam so Day 9 can reduce compressed-path
+ownership blur without widening into a broader backend redesign.
+
+### Actions
+
+1. Re-read the Day 7 rerank against the live Cholesky CSC publish-back code in
+   `src/sparse_chol_csc.c`.
+2. Re-read the current caller-facing Cholesky publish-back wording in
+   `include/sparse_cholesky.h`.
+3. Re-check the existing proof homes:
+   - `tests/test_chol_csc.c`
+   - `tests/test_integration.c`
+4. Decide what exact ownership split the second batch should make clearer:
+   - CSC factor materialization
+   - matrix-shell transplant/publication
+   - factor-state and reorder-state publication
+5. Fix the exact Day 9 touched-file fence and the preserved compatibility
+   checklist in writing.
+
+### Findings
+
+#### 1. The strongest remaining blur is inside `chol_csc_writeback_to_sparse(...)`, not in CSC numeric elimination itself
+
+The Day 8 review confirms that the strongest remaining ownership contradiction
+is not the CSC numeric kernel broadly. It is the publish-back seam in
+`chol_csc_writeback_to_sparse(...)`.
+
+That helper is still carrying multiple responsibilities at once:
+
+- validate that the caller matrix shell is in original state
+- copy the external permutation publication payload
+- materialize a temporary linked-list shell from the CSC factor
+- transplant the temporary shell storage into the caller matrix
+- publish factor and reorder compatibility state back onto the caller shell
+
+This is exactly the kind of mixed ownership bundle Sprint 72 is supposed to
+separate more clearly.
+
+#### 2. The best second batch is a publication-phase separation, not a backend-selection redesign
+
+The right Day 9 landing is now explicit:
+
+- keep the current public one-shot Cholesky semantics
+- keep CSC dispatch and `used_csc_path` semantics unchanged
+- keep the temporary reordered working-copy contract unchanged
+- reduce ownership blur inside the publish-back path by separating:
+  - CSC-to-temporary-shell materialization
+  - caller-shell transplant
+  - factor/reorder compatibility publication
+
+Interpretation:
+
+- the second batch should make the compressed factor own its own materialized
+  temporary shell before any caller-shell mutation is committed
+- the caller shell should then receive one bounded publication step instead of
+  one large mixed helper body
+
+#### 3. The exact touched-file fence is now fixed
+
+Required second-batch design center:
+
+- `src/sparse_chol_csc.c`
+
+Likely proof homes:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+
+Support only if the exact code batch truly changes caller-facing wording:
+
+- `include/sparse_cholesky.h`
+
+Explicitly out of scope for the Day 9 batch:
+
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+- `src/sparse_matrix.c`
+- `include/sparse_matrix.h`
+- capability/type surfaces
+- packaging/platform/docs truth surfaces
+- broad benchmark or example spill
+
+#### 4. The best proof shape is already implied by the live tests
+
+The existing proof map suggests the right Day 9 validation targets:
+
+- `tests/test_chol_csc.c` should remain the family-local owner for:
+  - writeback preconditions
+  - CSC versus linked-list path equivalence
+  - writeback round-trip behavior
+- `tests/test_integration.c` should remain the cross-surface owner for:
+  - one-shot Cholesky path versus explicit repeated-run analysis path parity
+  - public `used_csc_path` and dispatch-side behavior
+
+That means Day 9 should prefer focused regression additions or tightening in
+those existing homes rather than introducing new proof surfaces.
+
+#### 5. The preserved compatibility checklist is now explicit
+
+The Day 9 batch must preserve:
+
+- one-shot Cholesky factorization still publishing a solve-ready matrix shell
+  on success
+- reordered one-shot attempts publishing only after successful factorization
+- `used_csc_path` reporting semantics
+- linked-list and CSC solve-result parity
+- the Sprint 72 Day 6 matrix-shell reset rule
+
+It must explicitly not widen into:
+
+- new family-local factor types
+- public API redesign
+- backend-threshold or dispatch-policy changes
+- broad compressed-path cleanup across every family
+
+### Day 8 Exit State
+
+Sprint 72 Day 8 closes with:
+
+1. one exact second implementation design centered on the Cholesky CSC
+   publish-back seam
+2. one fixed touched-file fence for Day 9
+3. one proof-home map anchored to `tests/test_chol_csc.c` and
+   `tests/test_integration.c`
+4. one preserved compatibility checklist that keeps the batch bounded to
+   publication ownership cleanup

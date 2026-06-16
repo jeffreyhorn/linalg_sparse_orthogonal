@@ -153,3 +153,144 @@ Sprint 74 Day 1 closes with:
 2. one preserved Sprint 70 non-goal fence
 3. one live reviewed baseline anchor
 4. one ranked live capability hotspot map
+
+## Day 2 - Validation Baseline and Truth-Surface Recheck
+
+### Goal
+
+Reconfirm the Sprint 74 implementation-day validation contract and fix the
+highest-signal rerun set before any capability-modernization batch lands.
+
+### Actions
+
+1. Reconfirm the strongest local reviewed baseline wording:
+   - `make quality-review-full`
+   - reviewed CMake parity anchor
+2. Reconfirm the Sprint 74 authority split:
+   - `*.c` / `*.h` landing days require `make format`, `make lint`, and
+     `make test`
+   - substantial architecture or capability-boundary batches default to
+     `make quality-review-full`
+   - docs-only audit/design/review days use targeted sanity checks only
+3. Recheck the live proof surfaces Sprint 74 is most likely to stress:
+   - matrix and integration proof owners
+   - iterative and eigensolver proof owners
+   - representative examples
+   - maintained capability benchmark/reporting surfaces
+   - install/package proof scripts
+4. Refresh the targeted rerun set most likely to matter in Sprint 74.
+5. Record the authoritative validation split in the working notes.
+
+### Findings
+
+#### 1. The strongest reviewed baseline remains unchanged
+
+Sprint 74 still inherits the same strongest local reviewed baseline:
+
+- `make quality-review-full`
+
+The reviewed CMake parity anchor remains exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+That keeps the sprint aligned with the Sprint 70 truthfulness fence before any
+index-width or scalar-surface boundary work lands.
+
+#### 2. The Sprint 74 authority split is now explicit before code work
+
+The Day 2 recheck fixes the same three-part validation split Sprint 72 and
+Sprint 73 used:
+
+- bounded `*.c` / `*.h` landing days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- substantial architecture or capability-boundary batches:
+  - `make quality-review-full`
+- docs-only audit/design/review days:
+  - targeted sanity checks only
+
+That is the right split for Sprint 74 because the likely work crosses public
+typedef, overflow, ownership, callback-signature, and compatibility
+boundaries rather than one tiny helper seam.
+
+#### 3. The live proof-surface split is now fixed for Sprint 74
+
+The Day 2 recheck shows this live local split:
+
+- the reviewed CMake tree currently owns the key proof-owner tests,
+  representative examples, and maintained capability benchmark binaries most
+  relevant to Sprint 74:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+- maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- the root `build/` tree is not currently carrying the usual maintained
+  capability benchmark binaries:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+
+That truth matters: Sprint 74 should anchor its rerun set to the live reviewed
+CMake tree plus the maintained proof scripts, rather than assuming the root
+benchmark binaries are materialized right now.
+
+#### 4. The high-signal Sprint 74 rerun set is now explicit
+
+The strongest likely rerun set for Sprint 74 is:
+
+- matrix and direct-workflow proof owners:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+- scalar/callback and algorithm-breadth proof owners:
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_eigs`
+- representative adoption surfaces:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained capability benchmark/reporting surfaces currently materialized in
+  the reviewed tree:
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+- maintained install/package proof scripts:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+This is the right Day 2 fix: the rerun contract is now tied to the live
+capability-risk surface and the current local binary split, not to a stale
+assumption about which maintained benchmark binaries happen to exist in the
+root build tree.
+
+### Validation
+
+This was a docs-only Day 2 pass, so I did not run `make format`, `make lint`,
+or `make test`.
+
+I did recheck the reviewed baseline and proof-surface split with:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+- direct existence checks on the reviewed CMake proof/test/example/benchmark
+  binaries
+- direct existence checks on the root `build/` benchmark binaries
+- direct existence checks on the install/package regression scripts
+
+### Day 2 Exit State
+
+Sprint 74 Day 2 closes with:
+
+1. one explicit implementation-day validation split
+2. one stable reviewed CMake parity anchor
+3. one truthful live proof-surface map
+4. one exact rerun set for the strongest likely Sprint 74 capability lanes

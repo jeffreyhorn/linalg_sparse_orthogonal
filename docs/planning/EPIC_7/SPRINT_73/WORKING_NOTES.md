@@ -500,3 +500,138 @@ Sprint 73 Day 3 closes with:
 3. one strongest second target fixed to ND compatibility/default-policy
    overrides
 4. one bounded later queue for debug/profile and SVD-routing cleanup
+
+## Day 4 - First Modernization Boundary
+
+### Goal
+
+Refine the Day 3 residual-control ranking and freeze the first bounded Sprint
+73 modernization fence before implementation design begins.
+
+### Actions
+
+1. Re-rank the Day 3 contradiction centers against:
+   - public process-global surprise
+   - implementation leverage
+   - compatibility risk
+   - likely bounded cleanup payoff
+2. Separate:
+   - first-batch landing surfaces
+   - support surfaces that move only if the first batch forces it
+   - later or explicitly deferred configuration surfaces
+3. Fix the strongest first Sprint 73 fence around the best first
+   modernization lane.
+4. Record the strongest non-goals for the first landing.
+5. Write the Day 4 boundary artifact.
+
+### Findings
+
+#### 1. The strongest first Sprint 73 fence is graph/FM policy convergence, not
+the ND compatibility lane and not the debug/profile lane
+
+The Day 4 rerank confirms the best first bounded lane is:
+
+- graph/FM strategy and pass-count policy convergence
+
+That lane has the strongest combination of:
+
+- public process-global surprise
+- implementation ownership blur
+- bounded cleanup payoff
+- acceptable first-pass compatibility risk
+
+The ND compatibility/default-policy lane remains real, but it is not the best
+first landing because:
+
+- Sprint 61 and Sprint 67 already improved typed-precedence there
+- its current contradiction is denser in compatibility follow-through than in
+  the broad public process-global story
+- it reads more like the strongest second batch than the strongest first batch
+
+The debug/profile lane also remains real, but it is weaker first work because
+it carries less public behavior cost and reads more like rationalization than
+like the highest-value first ownership convergence.
+
+#### 2. The first-batch landing surfaces are now explicit
+
+Required first landing:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+Likely support only if the first landing forces it:
+
+- `src/sparse_graph_internal.h`
+- `tests/test_graph.c`
+- `tests/test_graph_fm_buckets.c`
+- `tests/test_integration.c`
+- `include/sparse_analysis.h`
+- `docs/maintainer_guide.md`
+
+Deferred or explicitly later:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+- `tests/test_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_svd.c`
+- broader public/doc surfaces
+- capability/type work
+- packaging/platform/workflow surfaces
+
+#### 3. The first-batch contract is narrower than a generic graph-family cleanup
+
+The Day 4 boundary treats the graph/FM lane as:
+
+- a residual control-surface convergence problem
+- not a broad graph partitioner redesign
+
+So the first batch can touch only what clarifies:
+
+- FM strategy ownership
+- FM pass-count ownership
+- FM schedule and perturbation ownership
+- the line between typed/internal policy and compatibility-only process-global
+  overrides
+
+It should not widen into:
+
+- general graph algorithm redesign
+- ND/coarsening default-policy redesign
+- broad debug/profile cleanup everywhere at once
+- proof-owner churn beyond the strongest immediate FM lane
+
+#### 4. The strongest non-goal fence is now explicit
+
+Sprint 73 Day 4 fixes the first-lane non-goals:
+
+- no repo-wide removal of every env var
+- no premature public option-surface widening across all advanced controls
+- no broad graph/reorder redesign without a ranked center
+- no debug/profile rationalization wave as the first move
+- no capability, backend, or platform work hidden inside configuration cleanup
+
+### Validation
+
+This was a docs-only Day 4 boundary pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded it in the Day 3 ranked contradiction map plus direct rereads of:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+
+### Day 4 Exit State
+
+Sprint 73 Day 4 closes with:
+
+1. one explicit first modernization boundary around graph/FM policy
+   convergence
+2. one fixed support-only map for proof and maintained-surface follow-through
+3. one explicit deferred map for ND, debug/profile, and SVD-routing cleanup
+4. one clear starting point for Day 5 implementation design

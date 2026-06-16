@@ -1,0 +1,57 @@
+Sprint 70 Day 1 authoritative inputs
+====================================
+
+Date: 2026-06-15
+Branch: sprint-70
+
+docs/planning/EPIC_7/PROJECT_PLAN.md
+docs/planning/EPIC_7/SPRINT_70/PLAN.md
+docs/planning/EPIC_6/EPIC_6_RETROSPECTIVE.md
+docs/planning/EPIC_7/reviews/review-codex-2026-06-15.md
+docs/planning/EPIC_7/reviews/todo-codex-2026-06-15.md
+README.md
+docs/maintainer_guide.md
+INSTALL.md
+include/sparse_types.h
+include/sparse_matrix.h
+include/sparse_analysis.h
+include/sparse_cholesky.h
+include/sparse_iterative.h
+include/sparse_eigs.h
+src/sparse_matrix.c
+src/sparse_chol_csc.c
+src/sparse_ldlt_csc.c
+src/sparse_lu_csr.c
+src/sparse_qr.c
+src/sparse_iterative.c
+src/sparse_eigs.c
+src/sparse_graph.c
+src/sparse_reorder_nd.c
+src/sparse_graph_coarsen.c
+src/sparse_graph_refine.c
+src/sparse_reorder_amd_qg.c
+src/sparse_svd.c
+tests/test_integration.c
+tests/test_chol_csc.c
+tests/test_ldlt_csc.c
+tests/test_reorder_nd.c
+tests/test_graph.c
+tests/test_iterative.c
+tests/test_eigs.c
+tests/test_qr.c
+tests/test_svd.c
+tests/test_fuzz.c
+benchmarks/bench_refactor_csc.c
+benchmarks/bench_chol_csc.c
+benchmarks/bench_iterative_reuse.c
+benchmarks/bench_eigs_reuse.c
+CMakeLists.txt
+.github/workflows/ci.yml
+.github/workflows/macos-ci.yml
+.github/workflows/windows-ci.yml
+make -n quality-review-full
+make quality-review-cmake-compile
+ctest -N --test-dir build/quality-review-cmake
+wc -l README.md docs/maintainer_guide.md INSTALL.md include/sparse_matrix.h include/sparse_analysis.h include/sparse_cholesky.h include/sparse_iterative.h include/sparse_eigs.h src/sparse_matrix.c src/sparse_chol_csc.c src/sparse_ldlt_csc.c src/sparse_lu_csr.c src/sparse_qr.c src/sparse_iterative.c src/sparse_eigs.c src/sparse_graph.c src/sparse_reorder_nd.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_reorder_amd_qg.c tests/test_integration.c tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_reorder_nd.c tests/test_graph.c tests/test_iterative.c tests/test_eigs.c tests/test_qr.c tests/test_svd.c tests/test_fuzz.c benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c docs/planning/EPIC_7/PROJECT_PLAN.md docs/planning/EPIC_7/reviews/review-codex-2026-06-15.md
+rg -n "int32_t|real-only|complex|state of the art|state-of-the-art|BUILD_SHARED_LIBS|STATIC|Windows|macOS|quality-review-full|bench-canonical-report" README.md INSTALL.md docs/maintainer_guide.md CMakeLists.txt .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml include/sparse_types.h include/sparse_matrix.h include/sparse_analysis.h include/sparse_eigs.h
+rg -n "SPARSE_[A-Z0-9_]+" src/sparse_analysis.c src/sparse_reorder_nd.c src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_reorder_amd_qg.c src/sparse_svd.c src/sparse_svd_partial.c include/sparse_analysis.h include/sparse_svd.h

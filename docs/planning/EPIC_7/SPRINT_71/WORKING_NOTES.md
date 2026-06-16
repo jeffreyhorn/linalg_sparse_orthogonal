@@ -1413,3 +1413,106 @@ That gives Day 11 one exact job:
 
 - land the bounded tutorial/examples/benchmarks reconciliation batch without
   widening into maintainer policy, headers, implementation, or proof surfaces
+
+## Day 11 - Tutorial / Example / Benchmark Reconciliation Batch
+
+### Goal
+
+Land the bounded Sprint 71 support cleanup on the tutorial, examples, and
+benchmark surfaces without widening into maintainer policy, headers,
+implementation, or proof surfaces.
+
+### Actions
+
+1. Edited:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+2. Tightened the repeated-run direct-lifecycle handoff across those surfaces.
+3. Preserved the support split:
+   - tutorial = step-by-step teaching flow
+   - examples = adoption and workflow teaching
+   - benchmarks = retained workflow/performance proof
+   - tests = regression/oracle/property guarantees
+4. Did not edit:
+   - `docs/maintainer_guide.md`
+   - `README.md`
+   - `INSTALL.md`
+   - public headers
+   - implementation files
+   - proof-owner tests
+   - workflow files
+
+### Findings
+
+#### 1. The tutorial now carries the repeated-run teaching flow more compactly
+
+The landed tutorial cleanup tightened:
+
+- example handoff
+- benchmark handoff
+- test-ownership reminder
+
+The tutorial still keeps the intended role:
+
+- it is the step-by-step teaching flow
+- not the primary owner of broader proof or policy interpretation
+
+#### 2. `examples/README.md` and `benchmarks/README.md` now mirror that support split more directly
+
+The landed example/benchmark cleanup tightened:
+
+- the example-side adoption reading for `example_analysis`
+- the benchmark-side proof reading for `bench_refactor` /
+  `bench_refactor_csc`
+- the handoff back to test-owned regression/oracle/property guarantees
+
+The support surfaces now read more consistently with the cleaned README and
+Cholesky header:
+
+- examples remain adoption-side
+- benchmarks remain proof-side
+- tests remain guarantee-side
+
+#### 3. No maintainer-guide follow-through was needed
+
+The landed wording did not force edits to `docs/maintainer_guide.md`.
+
+That confirms the Day 10 design held:
+
+- the remaining drift was support-side wording alignment
+- not a policy-authority contradiction
+
+#### 4. The Day 11 batch stayed inside the support-only fence
+
+The batch did not widen into:
+
+- `README.md`
+- `INSTALL.md`
+- `include/sparse_cholesky.h`
+- other public headers
+- implementation files
+- proof-owner tests
+- platform/install workflow files
+
+Day 11 touched-surface raw `wc -l` counts after the landing:
+
+- `docs/tutorial.md` = `473`
+- `examples/README.md` = `166`
+- `benchmarks/README.md` = `370`
+
+## Day 11 Exit State
+
+Sprint 71 Day 11 closes with the bounded support reconciliation landed:
+
+1. the tutorial carries the teaching-flow handoff more compactly
+2. the examples and benchmarks surfaces mirror the intended adoption/proof
+   split more directly
+3. no maintainer-guide follow-through was needed
+4. the batch stayed inside the support-only fence
+
+That gives Day 12 one exact job:
+
+- validate the cleaned public/reference/support package against the Sprint 71
+  truthfulness fence and decide whether any last bounded follow-through is
+  still justified

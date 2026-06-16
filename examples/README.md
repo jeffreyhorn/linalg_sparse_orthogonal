@@ -69,16 +69,16 @@ Demonstrate the explicit repeated-run direct lifecycle:
   `sparse_factor_solve(...)`
 - refactor / solve many through `sparse_refactor_numeric(...)`
 
-This is the strongest shipped example for stable-pattern repeated direct
-solves. It complements the smaller one-shot examples rather than replacing
-them.
+This is the strongest shipped adoption example for stable-pattern repeated
+direct solves. It complements the smaller one-shot examples rather than
+replacing them.
 
 Use this path when reuse is the point. Keep the smaller LU/Cholesky/LDL^T
 examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
-Treat it as the main adoption example for the repeated-run direct path, not as
-the owner of the larger regression/oracle/property story. Specifically:
+It is still an example-side surface, not the owner of the larger
+regression/oracle/property story. Specifically:
 
 - failed refactor preservation and staged public one-shot vs repeated-run
   parity stay intentionally owned by `tests/test_integration.c`
@@ -86,7 +86,7 @@ the owner of the larger regression/oracle/property story. Specifically:
   `tests/test_fuzz.c`
 
 For retained workflow/performance proof after you adopt that lifecycle, move to
-the benchmark surfaces rather than expecting the examples to double as timing
+the benchmark surfaces rather than expecting examples to double as timing
 harnesses:
 
 - `bench_refactor` / `bench_refactor_csc` for repeated-run direct reuse

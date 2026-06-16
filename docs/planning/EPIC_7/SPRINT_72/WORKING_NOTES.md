@@ -1252,3 +1252,148 @@ Sprint 72 Day 9 closes with:
    published and solve-ready
 3. one preserved one-shot Cholesky compatibility contract
 4. one full reviewed validation pass with exact parity preserved
+
+## Day 10 - Public Contract and Example Adoption Design
+
+### Goal
+
+Define the exact public-header, doc, and example follow-through that the Day 6
+and Day 9 ownership work actually requires, while explicitly keeping already
+coherent surfaces out of scope.
+
+### Actions
+
+1. Re-read the Day 6 and Day 9 implementation landings against the current
+   public-facing contract surfaces:
+   - `include/sparse_matrix.h`
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/example_analysis.c`
+   - `examples/example_basic_solve.c`
+2. Separate:
+   - wording or example follow-through that is now genuinely required
+   - surfaces that already match the landed ownership split and should not
+     move
+3. Check the public contract specifically against the two landed behaviors:
+   - Day 6 permutation reset invalidates stale one-shot solve compatibility
+   - Day 9 Cholesky CSC writeback publishes a solve-ready compatibility shell
+4. Fix the exact Day 11 follow-through fence and preserved truthfulness
+   checklist in writing.
+5. Keep Sprint 70 truthfulness and Sprint 71 cleanup gains intact by avoiding
+   generic documentation spill.
+
+### Findings
+
+#### 1. The strongest public contract follow-through is still header-local, not front-door or tutorial-heavy
+
+The Day 6 and Day 9 implementation landings changed real ownership mechanics,
+but the broad public story did not move enough to require another README-first
+or tutorial-first cleanup pass.
+
+The strongest live contract surfaces remain:
+
+- `include/sparse_matrix.h`
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+
+Interpretation:
+
+- the public ownership split is now primarily carried by the headers
+- Sprint 71 already removed the strongest front-door and install-surface drift
+- Day 10 therefore should not reopen those broader product surfaces unless a
+  new contradiction actually appears
+
+#### 2. The Day 6 and Day 9 public-facing story is already mostly coherent in README, tutorial, and shipped examples
+
+The reread against `README.md`, `docs/tutorial.md`, and the two strongest
+shipped direct-workflow examples shows that the current public adoption story
+already matches the landed implementation direction:
+
+- one-shot direct APIs remain first-class entry points
+- callers should still use a fresh matrix or a fresh `sparse_copy()` when the
+  original coefficient view must be preserved
+- the explicit repeated-run direct lifecycle remains the clearer owner of
+  reusable symbolic and factor/workspace state
+- `example_basic_solve.c` still demonstrates the one-shot copy-then-factor
+  discipline directly
+- `example_analysis.c` still demonstrates the explicit same-pattern repeated-
+  run lane directly
+- `docs/tutorial.md` already keeps the one-shot-versus-repeated-run adoption
+  split readable
+
+That means the strongest likely Day 11 move is smaller than the original plan
+pressure suggested.
+
+#### 3. The only meaningful Day 11 follow-through center is the bounded direct-workflow contract wording, not example or README churn
+
+The two landed behavior clarifications that could still justify follow-through
+are narrow:
+
+- the matrix shell recovers to a plain matrix after `sparse_reset_perms()`
+  instead of keeping stale one-shot reordered/factored solve compatibility
+- Cholesky CSC writeback is an internal compatibility-shell publication path,
+  not a shift in long-lived factor ownership away from the explicit repeated-
+  run direct lifecycle
+
+Those are both header-local ownership clarifications first.
+
+Day 11 therefore should treat these surfaces as the only likely required
+follow-through center:
+
+- `include/sparse_matrix.h`
+- `include/sparse_cholesky.h`
+
+Support only if the exact wording truly proves necessary after the final
+edit pass:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+
+Support-first but likely non-moving:
+
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_ldlt.h`
+
+#### 4. The preserved truthfulness checklist is now explicit
+
+Any Day 11 follow-through must preserve:
+
+- `SparseMatrix` as the mutable construction and one-shot compatibility shell
+- the explicit repeated-run direct lifecycle as the clearer long-lived owner
+  of reusable symbolic and factor/workspace state
+- one-shot direct APIs as first-class peer entry points rather than deprecated
+  shims
+- the copy-first discipline for one-shot factorization when callers still need
+  the original coefficient view later
+- Cholesky CSC writeback as an internal publish-back path that still returns a
+  standard solve-ready matrix shell
+
+It must explicitly avoid:
+
+- reopening Sprint 71 front-door cleanup
+- generic tutorial or example rewrites
+- capability/platform/install spill
+- new claims about long-lived factor ownership beyond what the shipped APIs
+  actually guarantee
+
+### Day 10 Exit State
+
+Sprint 72 Day 10 closes with:
+
+1. one explicit Day 11 follow-through fence centered on bounded
+   direct-workflow contract wording
+2. one clear separation between actually-required contract follow-through and
+   already-coherent README/tutorial/example surfaces
+3. one preserved truthfulness checklist that keeps the sprint out of generic
+   documentation spill
+4. one narrowed next step that lets Day 11 land only if the header-local
+   wording still needs adjustment

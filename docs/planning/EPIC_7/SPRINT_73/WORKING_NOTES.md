@@ -1456,3 +1456,77 @@ header contradiction:
    untouched unless the Day 11 wording forces a narrow consistency edit
 3. `src/sparse_reorder_amd_qg.c` remains explicitly deferred support context,
    not a Day 11 follow-through center
+
+## Sprint 73 Day 11: Follow-Through Batch
+
+Date: 2026-06-16
+Branch: `sprint-73`
+
+### Goal
+
+Align the maintained policy wording with the landed Day 6 and Day 9
+configuration contract without widening into broader public-header or support
+surface churn.
+
+### Landed Batch
+
+I updated:
+
+- `docs/maintainer_guide.md`
+
+I did not need to update:
+
+- `include/sparse_analysis.h`
+
+### What Changed
+
+The maintainer guide now states the narrowed residual-control split directly.
+
+It no longer treats the entire FM family as one undifferentiated deferred env
+bucket. Instead it now separates:
+
+- compatibility-first FM policy overrides that are still legacy/env-facing but
+  now lower through one internal typed owner
+- developer-only FM debug flags that remain intentionally internal
+- the already-deferred debug/profile lane:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+
+The landed policy wording also now says directly that:
+
+- recognized FM compatibility env vars parse once at the graph orchestration
+  boundary
+- the refinement subsystem is no longer a second independent FM parser
+- that narrower internal ownership still does not create a public typed FM
+  option family
+
+### Preserved Fence
+
+The Day 10 truthfulness fence stayed intact:
+
+- no new public typed FM option family
+- no new public typed debug/profile option family
+- no widened platform or reviewed-validation claims
+- no `SPARSE_QG_PROFILE` follow-through widening
+- no public-header churn where the existing wording already stayed accurate
+
+### Touched Surfaces
+
+Docs:
+
+- `docs/maintainer_guide.md`
+
+Raw `wc -l` counts after the landing:
+
+- `docs/maintainer_guide.md` = `601`
+- `include/sparse_analysis.h` = `499`
+
+### Sanity Outcome
+
+The batch stayed inside the Day 10 touch fence:
+
+1. `docs/maintainer_guide.md` now matches the landed FM/debug/profile
+   ownership split
+2. `include/sparse_analysis.h` remained support-only and did not need edits
+3. `src/sparse_reorder_amd_qg.c` stayed explicitly deferred support context

@@ -82,6 +82,11 @@ exact architecture and non-goal fence around those six lanes.
 
 The highest-value current Day 1 hotspots are:
 
+- all counts below are raw Day 1 `wc -l` newline counts captured from the live
+  tree
+- editor or GitHub line numbers may read one higher when they count displayed
+  lines rather than trailing newlines
+
 - maintained public product and policy surfaces:
   - `README.md` = `1034`
   - `docs/maintainer_guide.md` = `578`

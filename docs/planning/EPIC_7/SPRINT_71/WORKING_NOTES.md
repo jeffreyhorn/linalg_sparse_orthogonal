@@ -1045,3 +1045,141 @@ That gives Day 8 one exact job:
 
 - design the bounded public-header narrative cleanup contract for
   `include/sparse_cholesky.h`
+
+## Day 8 - Public Header Narrative Cleanup Design
+
+### Goal
+
+Define the exact Sprint 71 cleanup contract for `include/sparse_cholesky.h`
+before any header edits land, keeping the batch bounded to API-local truth and
+avoiding another support-surface spill wave.
+
+### Actions
+
+1. Re-read the Day 8 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read `include/sparse_cholesky.h` against:
+   - the Sprint 70 architecture contract
+   - the Day 7 rerank
+   - the Day 6 public-surface landing
+3. Re-read the strongest support surfaces that could move only if the header
+   batch forces them:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+4. Rechecked the current hotspot sizes for the header and support surfaces.
+5. Fixed the exact preserved-reference-truth checklist, support-only
+   follow-through map, and Day 9 non-touch set in writing.
+
+### Findings
+
+#### 1. The header batch should keep only API-local Cholesky truth in `include/sparse_cholesky.h`
+
+The Day 8 reread confirms that the header should keep:
+
+- one-shot Cholesky usage and mutation truth
+- repeated-run lifecycle handoff to `sparse_analysis.h`
+- backend selector semantics
+- `used_csc_path` semantics
+- cancel/progress caveats that are truly local to the API contract
+- public error-code and factorization/solve contract semantics
+
+Interpretation:
+
+- the header should remain a strong local reference surface
+- but it should stop trying to be a partial sprint-history archive,
+  benchmark-governance note, and broader maintainer-policy explainer at once
+
+#### 2. The densest removable spill is chronology and ownership commentary, not the core contract
+
+The strongest removable density in `include/sparse_cholesky.h` is:
+
+- Sprint-number chronology
+- ABI-history detail beyond the user-facing compatibility point
+- benchmark-reference spill
+- maintainer-policy references that exceed local API truth
+
+The strongest non-removable density is:
+
+- backend auto/forced-path meaning
+- no-reorder versus reordered mutation/cancellation caveats
+- CSC backend-contract error meaning
+- repeated-run handoff to the shared direct lifecycle
+
+Interpretation:
+
+- the Day 9 batch should compress the historical and cross-surface commentary
+- not shrink away contract-local caveats that callers actually need
+
+#### 3. No support surface needs to move with the header batch by default
+
+The Day 8 reread confirms:
+
+- `docs/tutorial.md` already owns the teaching-flow layer
+- `examples/README.md` already owns adoption/example-side handoff
+- `benchmarks/README.md` already owns workflow/performance proof reading
+- `docs/maintainer_guide.md` already owns deeper policy and deferred reading
+
+Interpretation:
+
+- the header batch should not force support-surface edits by default
+- support follow-through should happen only if the landed header wording would
+  otherwise create a contradiction
+
+#### 4. The preserved reference-truth checklist for Day 9 is now explicit
+
+The header cleanup must preserve:
+
+- Cholesky as a one-shot public direct entry point
+- the repeated-run handoff to `sparse_analysis.h`
+- `SPARSE_CHOL_BACKEND_AUTO`, `LINKED_LIST`, and `CSC` semantics
+- `used_csc_path` as chosen-path telemetry
+- invalid reorder/backend rejection before mutation
+- reordered temporary-working-copy publication semantics
+- local cancellation/progress caveats
+- `SPARSE_ERR_BACKEND_CONTRACT` as a narrow CSC supernodal backend-contract
+  error, not a generic user-tuning failure mode
+
+It must not preserve in the same density:
+
+- long Sprint-number chronology
+- benchmark-history narration
+- broader ownership commentary better held by examples/benchmarks/maintainer
+  docs
+
+#### 5. The exact Day 9 non-touch set is now fixed
+
+The Day 9 batch should not touch:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- other public headers
+- implementation `src/` files
+- permanent proof-owner test files
+- platform/install workflow files
+
+Interpretation:
+
+- Day 9 now has a real bounded header batch
+- not a broad documentation-reconciliation license
+
+## Day 8 Exit State
+
+Sprint 71 Day 8 closes with one exact header-cleanup design:
+
+1. `include/sparse_cholesky.h` should keep API-local truth only
+2. chronology, benchmark-reference spill, and broader policy commentary should
+   be compressed or removed where they exceed that local role
+3. support surfaces stay non-moving unless the landed header wording forces
+   follow-through
+4. the preserved-reference-truth checklist and Day 9 non-touch set are
+   explicit
+
+That gives Day 9 one exact job:
+
+- land the bounded `include/sparse_cholesky.h` narrative cleanup batch without
+  widening into support, implementation, or proof surfaces

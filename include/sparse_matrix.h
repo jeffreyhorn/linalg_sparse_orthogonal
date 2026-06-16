@@ -128,8 +128,9 @@ void sparse_free(SparseMatrix *mat);
  * pool. The copy is independent — modifying one does not affect the other.
  * Any current one-shot factor/permutation compatibility state on the source
  * matrix is copied too, so copying a factored matrix preserves its matrix-shell
- * solve contract. To preserve only the original coefficients, copy the
- * unfactored source matrix before entering a one-shot factorization lane.
+ * solve contract until later matrix-shell mutation or `sparse_reset_perms()`
+ * drops that compatibility. To preserve only the original coefficients, copy
+ * the unfactored source matrix before entering a one-shot factorization lane.
  *
  * @param mat  The matrix to copy (must not be NULL).
  * @return A new SparseMatrix with identical contents, or NULL on failure.

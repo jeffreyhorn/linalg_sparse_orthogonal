@@ -169,7 +169,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * Reordered one-shot attempts may factor a temporary reordered working copy
  * and publish that payload back to `mat` only after success, so cancelled or
  * failed reordered attempts leave the caller-owned matrix in its original
- * coordinate space.
+ * coordinate space. On the CSC lane that publish-back step returns the same
+ * solve-ready `SparseMatrix` compatibility shell the linked-list path
+ * produces; it does not change long-lived factor ownership away from the
+ * explicit repeated-run direct lifecycle in `sparse_analysis.h`.
  * On the CSC supernodal lane, `SPARSE_ERR_BACKEND_CONTRACT` means the caller
  * request was otherwise valid, but the selected internal dense-kernel
  * descriptor or a required callback could not be resolved.

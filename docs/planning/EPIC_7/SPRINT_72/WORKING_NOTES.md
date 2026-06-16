@@ -1397,3 +1397,120 @@ Sprint 72 Day 10 closes with:
    documentation spill
 4. one narrowed next step that lets Day 11 land only if the header-local
    wording still needs adjustment
+
+## Day 11 - Public Contract and Example Adoption Batch
+
+### Goal
+
+Land only the exact public-facing follow-through still required by the Day 6
+and Day 9 ownership work, and prove that the broader README/tutorial/example
+surface does not need to move.
+
+### Actions
+
+1. Re-read the Day 10 follow-through fence against the two narrowed contract
+   surfaces:
+   - `include/sparse_matrix.h`
+   - `include/sparse_cholesky.h`
+2. Tighten wording only where the landed implementation batches still left the
+   ownership rule implicit:
+   - copied factored matrix-shell compatibility after `sparse_copy()`
+   - Cholesky CSC publish-back as an internal solve-ready compatibility-shell
+     return rather than a shift in long-lived factor ownership
+3. Reconfirm that the support surfaces remain coherent and therefore should
+   not move:
+   - `README.md`
+   - `docs/tutorial.md`
+   - `examples/example_analysis.c`
+   - `examples/example_basic_solve.c`
+4. Run the required Day 11 gate for touched public headers:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Record the exact touched-surface result and validation notes.
+
+### Findings
+
+#### 1. The Day 11 follow-through stayed exactly header-local
+
+The bounded Day 11 batch landed exactly where Day 10 said the remaining public
+contract drift still lived:
+
+- `include/sparse_matrix.h`
+- `include/sparse_cholesky.h`
+
+No broader surface had to move.
+
+That is the right Sprint 72 outcome because the Day 6 and Day 9 implementation
+changes were ownership clarifications inside the matrix shell and the Cholesky
+CSC publish-back seam, not a new front-door or tutorial story.
+
+#### 2. `SparseMatrix` copy semantics now state the Day 6 reset rule directly
+
+The Day 11 header wording now makes one important Day 6 rule explicit in
+`include/sparse_matrix.h`:
+
+- copying a factored matrix still preserves the one-shot matrix-shell solve
+  contract
+- that compatibility is only a matrix-shell contract and is dropped again once
+  later matrix-shell mutation or `sparse_reset_perms()` rewrites the shell
+
+That is the right bounded clarification because it keeps the one-shot copy
+discipline truthful without implying that copied matrix shells are long-lived
+factor owners.
+
+#### 3. Cholesky CSC publish-back now states the Day 9 ownership rule directly
+
+The Day 11 wording in `include/sparse_cholesky.h` now states the exact Day 9
+public contract more directly:
+
+- the CSC lane still returns the same solve-ready `SparseMatrix`
+  compatibility shell that the linked-list path returns
+- the CSC publish-back step does not transfer long-lived factor ownership away
+  from the explicit repeated-run direct lifecycle in `sparse_analysis.h`
+
+This is the smallest useful clarification of the Day 9 batch because it makes
+the transparent CSC lane read as an internal compatibility-shell publication
+path rather than a second long-lived public factor owner.
+
+#### 4. The README/tutorial/example surfaces remained coherent and did not move
+
+The Day 11 reread confirms that these support surfaces already match the
+landed ownership story and therefore did not need edits:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+
+That preserved the Day 10 non-goal fence:
+
+- no generic docs spill
+- no example churn without a real contradiction
+- no reopened Sprint 71 public-surface cleanup
+
+### Validation
+
+The required Day 11 gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Touched-surface raw `wc -l` counts:
+
+- `include/sparse_matrix.h` = `604`
+- `include/sparse_cholesky.h` = `220`
+
+### Day 11 Exit State
+
+Sprint 72 Day 11 closes with:
+
+1. one bounded public-header follow-through batch
+2. one explicit restatement of the Day 6 matrix-shell reset rule in
+   `include/sparse_matrix.h`
+3. one explicit restatement of the Day 9 Cholesky CSC publish-back ownership
+   rule in `include/sparse_cholesky.h`
+4. one confirmed non-move of the broader README/tutorial/example adoption
+   surfaces
+5. one clean Day 11 validation pass

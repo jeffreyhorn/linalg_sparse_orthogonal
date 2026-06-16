@@ -904,3 +904,144 @@ That gives Day 7 one exact job:
 
 - audit the landed front-door/install batch and rerank the remaining support
   and reference cleanup queue from the live post-landing state
+
+## Day 7 - Post-Landing Audit & Header/Support Rerank
+
+### Goal
+
+Audit the live post-Day-6 state and fix the exact next Sprint 71 cleanup
+center from what still actually reads poorly rather than from the pre-landing
+backlog.
+
+### Actions
+
+1. Re-read the Day 7 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the post-Day-6 public surfaces against the Day 5 design
+   assumptions:
+   - `README.md`
+   - `INSTALL.md`
+3. Re-read the strongest deferred reference candidate:
+   - `include/sparse_cholesky.h`
+4. Re-read the current support surfaces to rerank what remains:
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+5. Ran targeted terminology scans across those remaining surfaces for:
+   - sprint-history spill
+   - repeated-run lifecycle repetition
+   - benchmark/test/example ownership drift
+   - install/platform truth drift
+
+### Findings
+
+#### 1. The Day 6 landing closed the strongest public contradiction
+
+The post-Day-6 reread confirms that:
+
+- `README.md` now reads more directly as the compact front door
+- `INSTALL.md` now reads more directly as the install/operator surface
+- no second `README.md` / `INSTALL.md` cleanup batch is the highest-value next
+  move
+
+Interpretation:
+
+- the first landing solved the strongest public contradiction
+- Sprint 71 should not force a fake second public-docs batch just because the
+  first one landed cleanly
+
+#### 2. `include/sparse_cholesky.h` is now the strongest remaining cleanup center
+
+The header reread confirms that `include/sparse_cholesky.h` still carries the
+densest remaining mix of:
+
+- one-shot versus repeated-run ownership explanation
+- transparent CSC-dispatch narrative
+- ABI-history spill
+- benchmark and contract-reference spill
+- cancellation and backend-contract interpretation
+
+Interpretation:
+
+- this is now the strongest real next cleanup center
+- it is stronger than any remaining support-surface contradiction
+- the next batch should be bounded header narrative cleanup, not another
+  support-surface pass first
+
+#### 3. `docs/tutorial.md` remains the strongest support-only follow-through surface
+
+The tutorial still carries repeated direct-lifecycle guidance and ownership
+handoff text, but it now reads more like a support follow-through surface than
+like the next main contradiction center.
+
+Interpretation:
+
+- it remains the strongest support-only surface
+- but it should move only if the header cleanup later forces follow-through
+
+#### 4. `benchmarks/README.md` and `examples/README.md` remain support-only, not next-batch centers
+
+The support reread confirms:
+
+- `benchmarks/README.md` still carries the densest benchmark-governance
+  explanation
+- `examples/README.md` still carries the main example-side adoption handoff
+
+But both remain weaker than the header seam because:
+
+- their current ownership split is already coherent
+- their remaining density is mostly support detail, not the next highest-value
+  contradiction
+
+#### 5. `docs/maintainer_guide.md` remains the right policy authority and should stay support-only
+
+The maintainer guide still reads like the correct home for:
+
+- deeper policy explanation
+- deferred-queue reading
+- broader direct-family and benchmark-governance interpretation
+
+Interpretation:
+
+- it should remain support-only
+- the Day 6 landing did not create a contradiction that forces a recentering
+  pass there
+
+#### 6. The next-batch map is now explicit from the post-landing state
+
+The live post-Day-6 rerank is now:
+
+- required next batch:
+  - `include/sparse_cholesky.h`
+- support only if later cleanup forces it:
+  - `docs/tutorial.md`
+  - `benchmarks/README.md`
+  - `examples/README.md`
+  - `docs/maintainer_guide.md`
+- still explicitly deferred:
+  - other public headers
+  - implementation files
+  - permanent proof-owner tests
+  - platform/install workflow files
+
+Interpretation:
+
+- Day 8 should design a bounded `include/sparse_cholesky.h` cleanup batch
+- not widen into a generic support-doc reconciliation sprint
+
+## Day 7 Exit State
+
+Sprint 71 Day 7 closes with one exact post-landing rerank:
+
+1. the Day 6 front-door/install batch closed the strongest public
+   contradiction
+2. `include/sparse_cholesky.h` is now the strongest remaining cleanup center
+3. `docs/tutorial.md` is the strongest support-only follow-through surface
+4. `benchmarks/README.md`, `examples/README.md`, and
+   `docs/maintainer_guide.md` remain support-only rather than next-batch
+   centers
+
+That gives Day 8 one exact job:
+
+- design the bounded public-header narrative cleanup contract for
+  `include/sparse_cholesky.h`

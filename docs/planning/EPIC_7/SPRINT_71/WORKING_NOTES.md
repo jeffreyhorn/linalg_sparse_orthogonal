@@ -1768,3 +1768,120 @@ That gives Day 14 one exact job:
 
 - close Sprint 71 from a coherent reviewed planning state and rank the
   strongest carry-forward queue for Sprint 72
+
+## Day 14 - Sprint 71 Closeout & Handoff
+
+### Goal
+
+Close Sprint 71 with one explicit cleaned public/reference package and a
+ranked carry-forward queue for Sprint 72 and later Epic 7 work.
+
+### Actions
+
+1. Re-read the Day 14 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the Day 13 handoff queue and the full Sprint 71 artifact chain.
+3. Summarized the cleaned Sprint 71 package across:
+   - public docs
+   - install surface
+   - header/reference cleanup
+   - support-surface reconciliation
+   - truth-surface review
+4. Ranked the strongest carry-forward items for Sprint 72 and beyond against
+   the Sprint 70 architecture contract and the cleaned Sprint 71 public
+   package.
+5. Rechecked the Sprint 71 section of `docs/planning/EPIC_7/PROJECT_PLAN.md`
+   and the final branch/documentation footprint.
+
+### Findings
+
+#### 1. Sprint 71 now closes as one coherent public/reference cleanup package
+
+The Sprint 71 package now hands off one cleaned permanent-surface bundle
+across:
+
+- front-door public cleanup in `README.md`
+- install/operator cleanup in `INSTALL.md`
+- public-header narrative cleanup in `include/sparse_cholesky.h`
+- support-surface reconciliation across `docs/tutorial.md`,
+  `examples/README.md`, and `benchmarks/README.md`
+- explicit truth-surface review against `docs/maintainer_guide.md`
+
+Interpretation:
+
+- Sprint 71 closes as a durable de-chronologization/result-quality sprint
+  rather than as a loose wording pass
+- the public and reference surfaces now read more like mature product and API
+  surfaces and less like sprint-delivery history
+
+#### 2. The preserved authority and truthfulness fence stayed intact
+
+Sprint 71 preserved the intended audience split and truthfulness contract:
+
+- `README.md`
+  - compact front door
+- `INSTALL.md`
+  - operator/install-contract surface
+- `docs/tutorial.md`
+  - step-by-step teaching flow
+- `examples/README.md`
+  - adoption/workflow teaching
+- `benchmarks/README.md`
+  - retained workflow/performance proof
+- `docs/maintainer_guide.md`
+  - policy authority
+- `include/sparse_cholesky.h`
+  - API-local call-site truth
+
+Stable readings preserved:
+
+- examples do not replace regression/oracle/property owners
+- benchmarks do not replace test-owned guarantees
+- `make bench-canonical-report` remains threshold-free artifact reporting
+- the maintained release shape remains static-first
+- Windows remains the reviewed CMake-first consumer story rather than a
+  reviewed install-validation lane
+
+#### 3. The ranked Sprint 72 carry-forward queue is now explicit
+
+The strongest next queue after Sprint 71 is:
+
+1. Sprint 72 product-model convergence from the public direct-workflow seam
+   rather than from another public-doc cleanup wave
+2. configuration modernization only where remaining env-var/default-policy
+   seams still carry real ownership cost
+3. capability modernization led by index width, with scalar breadth second and
+   unsymmetric eigensolver expansion later
+4. benchmark-governed backend/performance maturity without widening product or
+   platform claims
+5. later permanent-surface cleanup only where future implementation work moves
+   ownership again
+
+Interpretation:
+
+- Sprint 71 successfully clears public/reference drag out of the way for the
+  stronger Sprint 72 implementation-facing queue
+- the cleanup work does not need another immediate follow-through sprint
+
+#### 4. `PROJECT_PLAN.md` does not need a Sprint 71 correction
+
+The final Day 14 recheck confirms that the Sprint 71 section of
+`docs/planning/EPIC_7/PROJECT_PLAN.md` still matches the live package and does
+not require correction.
+
+#### 5. Final branch and documentation footprint are clean
+
+The Sprint 71 branch closes from a docs-only reviewed planning state:
+
+- full Day 1-14 artifact chain present
+- working notes current through closeout
+- no unresolved documentation contradiction surfaced in the final reread
+
+## Day 14 Exit State
+
+Sprint 71 Day 14 closes with one explicit handoff state:
+
+1. Sprint 71 leaves a cleaner public/reference package
+2. the authority and truthfulness fence stays intact
+3. the Sprint 72 carry-forward queue is ranked explicitly
+4. `PROJECT_PLAN.md` does not need a Sprint 71 correction
+5. the branch closes from a clean docs-only state

@@ -1,0 +1,23 @@
+# Sprint 73 Day 1: Authoritative Inputs
+
+Date: 2026-06-16
+Branch: `sprint-73`
+
+Authoritative inputs used for the Sprint 73 Day 1 baseline:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` (Sprint 73 section)
+- `docs/planning/EPIC_7/SPRINT_73/PLAN.md`
+- `docs/planning/EPIC_7/SPRINT_72/RETROSPECTIVE.md`
+- `docs/planning/EPIC_7/SPRINT_72/artifacts/day14-closeout-and-handoff.md`
+- live reviewed baseline wrapper shape from `make -n quality-review-full`
+- live reviewed CMake parity anchor from:
+  - `make quality-review-cmake-compile`
+  - `ctest -N --test-dir build/quality-review-cmake`
+- live residual configuration map from targeted `rg` over:
+  - graph/FM strategy and pass-count controls
+  - ND/coarsening and reorder/profile controls
+  - residual compatibility and advanced-routing controls
+- live Day 1 raw `wc -l` hotspot measurements across:
+  - maintained public/policy surfaces
+  - configuration-modernization implementation seams
+  - strongest proof and reporting surfaces

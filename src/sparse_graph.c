@@ -141,30 +141,6 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 
-typedef enum {
-    FINEST_FM_BASELINE = 0,
-    FINEST_FM_FIFO = 1,
-    FINEST_FM_ANNEALING = 2,
-    FINEST_FM_THICK_RESTART = 3,
-    /* Sprint 28 Day 4 — multi-strategy FM ensemble: run K
-     * sub-strategies in parallel per finest-level call (default
-     * baseline + fifo + annealing per `SPARSE_FM_ENSEMBLE_STRATEGIES`)
-     * and pick the lowest-cut result. */
-    FINEST_FM_ENSEMBLE = 4,
-} finest_fm_strategy_t;
-
-typedef struct {
-    int finest_passes;
-    int intermediate_passes;
-    finest_fm_strategy_t finest_strategy;
-    fm_anneal_schedule_t anneal_schedule_choice;
-    fm_thick_restart_perturb_t thick_restart_perturb_choice;
-    fm_gain_noise_schedule_t gain_noise_schedule_choice;
-    int ensemble_strategy_list[4];
-    int ensemble_strategy_count;
-    int ensemble_debug;
-} graph_uncoarsen_options_t;
-
 static int graph_parse_env_int_range(const char *name, int default_value, int min_value,
                                      int max_value) {
     const char *env = getenv(name);
@@ -176,6 +152,41 @@ static int graph_parse_env_int_range(const char *name, int default_value, int mi
     if (env != endp && *endp == '\0' && v >= min_value && v <= max_value)
         return (int)v;
     return default_value;
+}
+
+static fm_anneal_schedule_t graph_parse_anneal_schedule_compat_override(void) {
+    const char *env = getenv("SPARSE_FM_ANNEALING_SCHEDULE");
+    if (!env)
+        return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
+    if (strcmp(env, "linear") == 0)
+        return FM_ANNEAL_SCHEDULE_LINEAR;
+    if (strcmp(env, "cosine") == 0)
+        return FM_ANNEAL_SCHEDULE_COSINE;
+    return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
+}
+
+static fm_thick_restart_perturb_t graph_parse_thick_restart_perturb_compat_override(void) {
+    const char *env = getenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    if (!env)
+        return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+    if (strcmp(env, "boundary_shuffle") == 0)
+        return FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE;
+    if (strcmp(env, "gauss_noise") == 0)
+        return FM_THICK_RESTART_PERTURB_GAUSS_NOISE;
+    if (strcmp(env, "gain_noise_formal") == 0)
+        return FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
+    return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+}
+
+static fm_gain_noise_schedule_t graph_parse_gain_noise_schedule_compat_override(void) {
+    const char *env = getenv("SPARSE_FM_GAIN_NOISE_SCHEDULE");
+    if (!env)
+        return FM_GAIN_NOISE_SCHEDULE_LINEAR;
+    if (strcmp(env, "exponential") == 0)
+        return FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL;
+    if (strcmp(env, "cosine") == 0)
+        return FM_GAIN_NOISE_SCHEDULE_COSINE;
+    return FM_GAIN_NOISE_SCHEDULE_LINEAR;
 }
 
 static finest_fm_strategy_t graph_parse_finest_strategy(void) {
@@ -262,26 +273,33 @@ static int graph_parse_ensemble_strategy_list(int out[4]) {
 
 static int graph_env_flag_enabled(const char *name) { return getenv(name) != NULL; }
 
-static graph_uncoarsen_options_t graph_uncoarsen_options_from_env(void) {
-    graph_uncoarsen_options_t opts = {
+static sparse_graph_fm_policy_t graph_fm_policy_from_compat_env(void) {
+    sparse_graph_fm_policy_t policy = {
         .finest_passes = graph_parse_env_int_range("SPARSE_FM_FINEST_PASSES", 3, 1, 16),
         .intermediate_passes = graph_parse_env_int_range("SPARSE_FM_INTERMEDIATE_PASSES", 1, 1, 10),
         .finest_strategy = graph_parse_finest_strategy(),
-        .anneal_schedule_choice = sparse_graph_parse_fm_anneal_schedule(),
-        .thick_restart_perturb_choice = sparse_graph_parse_fm_thick_restart_perturb(),
-        .gain_noise_schedule_choice = sparse_graph_parse_fm_gain_noise_schedule(),
+        .anneal_schedule_choice = graph_parse_anneal_schedule_compat_override(),
+        .thick_restart_perturb_choice = graph_parse_thick_restart_perturb_compat_override(),
+        .gain_noise_schedule_choice = graph_parse_gain_noise_schedule_compat_override(),
         .ensemble_strategy_list = {0, 0, 0, 0},
         .ensemble_strategy_count = 0,
         .ensemble_debug = 0,
+        .anneal_debug = 0,
+        .gain_noise_debug = 0,
+        .thick_restart_debug = 0,
     };
 
-    if (opts.finest_strategy == FINEST_FM_ENSEMBLE) {
-        opts.ensemble_strategy_count =
-            graph_parse_ensemble_strategy_list(opts.ensemble_strategy_list);
-        opts.ensemble_debug = graph_env_flag_enabled("SPARSE_FM_ENSEMBLE_DEBUG");
+    if (policy.finest_strategy == FINEST_FM_ENSEMBLE) {
+        policy.ensemble_strategy_count =
+            graph_parse_ensemble_strategy_list(policy.ensemble_strategy_list);
+        policy.ensemble_debug = graph_env_flag_enabled("SPARSE_FM_ENSEMBLE_DEBUG");
     }
 
-    return opts;
+    policy.anneal_debug = graph_env_flag_enabled("SPARSE_FM_ANNEALING_DEBUG");
+    policy.gain_noise_debug = graph_env_flag_enabled("SPARSE_FM_GAIN_NOISE_DEBUG");
+    policy.thick_restart_debug = graph_env_flag_enabled("SPARSE_FM_THICK_RESTART_DEBUG");
+
+    return policy;
 }
 
 static int graph_uncoarsen_level_passes(int level, int finest_passes, int intermediate_passes) {
@@ -293,27 +311,27 @@ static int graph_uncoarsen_level_passes(int level, int finest_passes, int interm
 }
 
 static sparse_graph_fm_runtime_t
-graph_uncoarsen_runtime_for_level(const sparse_graph_fm_runtime_t *prev_runtime, int level,
-                                  finest_fm_strategy_t finest_strategy, int passes,
-                                  fm_anneal_schedule_t anneal_schedule_choice,
-                                  fm_thick_restart_perturb_t thick_restart_perturb_choice,
-                                  fm_gain_noise_schedule_t gain_noise_schedule_choice) {
+graph_uncoarsen_runtime_for_level(const sparse_graph_fm_runtime_t *prev_runtime,
+                                  const sparse_graph_fm_policy_t *policy, int level, int passes) {
     sparse_graph_fm_runtime_t runtime = *prev_runtime;
     if (level != 0)
         return runtime;
 
-    if (finest_strategy == FINEST_FM_FIFO)
+    if (policy->finest_strategy == FINEST_FM_FIFO)
         runtime.pop_use_tail = 1;
-    if (finest_strategy == FINEST_FM_ANNEALING) {
+    if (policy->finest_strategy == FINEST_FM_ANNEALING) {
         runtime.use_annealing = 1;
-        runtime.anneal_schedule = anneal_schedule_choice;
+        runtime.anneal_schedule = policy->anneal_schedule_choice;
         runtime.anneal_total_passes = passes;
+        runtime.anneal_debug = policy->anneal_debug;
     }
-    if (finest_strategy == FINEST_FM_THICK_RESTART) {
+    if (policy->finest_strategy == FINEST_FM_THICK_RESTART) {
         runtime.use_thick_restart = 1;
-        runtime.thick_restart_perturb = thick_restart_perturb_choice;
+        runtime.thick_restart_perturb = policy->thick_restart_perturb_choice;
         runtime.anneal_total_passes = passes;
-        runtime.gain_noise_schedule = gain_noise_schedule_choice;
+        runtime.gain_noise_schedule = policy->gain_noise_schedule_choice;
+        runtime.gain_noise_debug = policy->gain_noise_debug;
+        runtime.thick_restart_debug = policy->thick_restart_debug;
     }
     return runtime;
 }
@@ -350,7 +368,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     if (coarsest_n > 0)
         memcpy(cur, coarsest_part, (size_t)coarsest_n * sizeof(idx_t));
 
-    graph_uncoarsen_options_t opts = graph_uncoarsen_options_from_env();
+    sparse_graph_fm_policy_t policy = graph_fm_policy_from_compat_env();
 
     /* Sprint 23 Day 11: 3-pass FM at the finest level.  Sprint 22 ran
      * a single FM pass per uncoarsening level; Day 11's exploration
@@ -466,12 +484,11 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
          * captured the cost-effective sweet spot until Sprint 23
          * Day 11's multi-pass exploration. */
         int passes =
-            graph_uncoarsen_level_passes(level, opts.finest_passes, opts.intermediate_passes);
+            graph_uncoarsen_level_passes(level, policy.finest_passes, policy.intermediate_passes);
         sparse_graph_fm_runtime_t prev_runtime = {0};
         sparse_graph_fm_runtime_get(&prev_runtime);
-        sparse_graph_fm_runtime_t runtime = graph_uncoarsen_runtime_for_level(
-            &prev_runtime, level, opts.finest_strategy, passes, opts.anneal_schedule_choice,
-            opts.thick_restart_perturb_choice, opts.gain_noise_schedule_choice);
+        sparse_graph_fm_runtime_t runtime =
+            graph_uncoarsen_runtime_for_level(&prev_runtime, &policy, level, passes);
         sparse_graph_fm_runtime_set(&runtime);
         /* Sprint 27 Day 11: thick-restart anchor allocation.  Tracks
          * the global-best partition + cut across all passes at the
@@ -513,7 +530,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         idx_t *ensemble_working = NULL;
         idx_t *ensemble_best = NULL;
         const int ens_active =
-            (level == 0 && opts.finest_strategy == FINEST_FM_ENSEMBLE && dst_graph->n >= 1);
+            (level == 0 && policy.finest_strategy == FINEST_FM_ENSEMBLE && dst_graph->n >= 1);
         if (ens_active) {
             ensemble_start = malloc((size_t)dst_graph->n * sizeof(idx_t));
             ensemble_working = malloc((size_t)dst_graph->n * sizeof(idx_t));
@@ -566,8 +583,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 memcpy(ensemble_start, next, (size_t)dst_graph->n * sizeof(idx_t));
                 idx_t best_cut = 0;
                 int best_strat_idx = 0;
-                for (int s = 0; s < opts.ensemble_strategy_count; s++) {
-                    int strat = opts.ensemble_strategy_list[s];
+                for (int s = 0; s < policy.ensemble_strategy_count; s++) {
+                    int strat = policy.ensemble_strategy_list[s];
                     /* Reset to defaults (cleared between strategies). */
                     sparse_graph_fm_runtime_t strategy_runtime = prev_runtime;
                     strategy_runtime.pop_use_tail = 0;
@@ -575,9 +592,12 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                     strategy_runtime.use_thick_restart = 0;
                     strategy_runtime.anneal_pass_idx = p;
                     strategy_runtime.anneal_total_passes = passes;
-                    strategy_runtime.anneal_schedule = opts.anneal_schedule_choice;
-                    strategy_runtime.thick_restart_perturb = opts.thick_restart_perturb_choice;
-                    strategy_runtime.gain_noise_schedule = opts.gain_noise_schedule_choice;
+                    strategy_runtime.anneal_schedule = policy.anneal_schedule_choice;
+                    strategy_runtime.thick_restart_perturb = policy.thick_restart_perturb_choice;
+                    strategy_runtime.gain_noise_schedule = policy.gain_noise_schedule_choice;
+                    strategy_runtime.anneal_debug = policy.anneal_debug;
+                    strategy_runtime.gain_noise_debug = policy.gain_noise_debug;
+                    strategy_runtime.thick_restart_debug = policy.thick_restart_debug;
                     /* Set strategy-specific overrides.  `baseline`
                      * keeps the defaults; `thick_restart` is skipped
                      * by the parser so doesn't appear here. */
@@ -608,7 +628,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                         memcpy(ensemble_best, ensemble_working,
                                (size_t)dst_graph->n * sizeof(idx_t));
                     }
-                    if (opts.ensemble_debug) {
+                    if (policy.ensemble_debug) {
                         /* `best_so_far` reflects the state at the moment
                          * this strategy ran — multiple per-pass rows can
                          * report best_so_far=1 if a later strategy beats
@@ -659,7 +679,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
          * a worse cut than an earlier pass). */
         if (tr_active && tr_anchor_part) {
             memcpy(next, tr_anchor_part, (size_t)dst_graph->n * sizeof(idx_t));
-            if (graph_env_flag_enabled("SPARSE_FM_THICK_RESTART_DEBUG")) {
+            if (runtime.thick_restart_debug) {
                 fprintf(stderr,
                         "fm-thick-restart-debug n=%d passes=%d perturb=%d "
                         "best_cut=%d\n",

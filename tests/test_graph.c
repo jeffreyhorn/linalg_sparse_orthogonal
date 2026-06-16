@@ -1290,6 +1290,30 @@ static void test_fm_intermediate_passes_smoke(void) {
     sparse_free(A);
 }
 
+static void test_hcc_debug_override_precedence(void) {
+    tf_unsetenv("SPARSE_HCC_DEBUG");
+    ASSERT_FALSE(sparse_graph_hcc_debug_current());
+
+    if (tf_setenv("SPARSE_HCC_DEBUG", "1") != 0) {
+        printf("    skipped (setenv SPARSE_HCC_DEBUG failed)\n");
+        return;
+    }
+    ASSERT_TRUE(sparse_graph_hcc_debug_current());
+
+    sparse_graph_hcc_debug_override_begin(0);
+    ASSERT_FALSE(sparse_graph_hcc_debug_current());
+    sparse_graph_hcc_debug_override_end();
+    ASSERT_TRUE(sparse_graph_hcc_debug_current());
+
+    tf_unsetenv("SPARSE_HCC_DEBUG");
+    ASSERT_FALSE(sparse_graph_hcc_debug_current());
+
+    sparse_graph_hcc_debug_override_begin(1);
+    ASSERT_TRUE(sparse_graph_hcc_debug_current());
+    sparse_graph_hcc_debug_override_end();
+    ASSERT_FALSE(sparse_graph_hcc_debug_current());
+}
+
 /* Sprint 26 Day 7: SPARSE_FM_FINEST_STRATEGY=fifo differs-from-
  * baseline contract pin.  Day 6 stubbed this on the 10×10 grid
  * (which is too small to exercise FIFO's tie-break sensitivity —
@@ -2847,6 +2871,7 @@ int main(void) {
      * SPARSE_FM_INTERMEDIATE_PASSES (multi-pass FM at intermediate
      * uncoarsening levels). */
     RUN_TEST(test_fm_intermediate_passes_smoke);
+    RUN_TEST(test_hcc_debug_override_precedence);
     /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing
      * stub; Day 7 tightens to differs-from-baseline assertion. */
     RUN_TEST(test_finest_fm_strategy_fifo_smoke);

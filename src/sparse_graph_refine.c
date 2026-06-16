@@ -31,43 +31,11 @@ static _Thread_local fm_thick_restart_perturb_t fm_thick_restart_perturb =
     FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
 static _Thread_local fm_gain_noise_schedule_t fm_gain_noise_schedule =
     FM_GAIN_NOISE_SCHEDULE_LINEAR;
+static _Thread_local int fm_anneal_debug = 0;
+static _Thread_local int fm_gain_noise_debug = 0;
+static _Thread_local int fm_thick_restart_debug = 0;
 static _Thread_local int fm_anneal_pass_idx = 0;
 static _Thread_local int fm_anneal_total_passes = 1;
-
-fm_anneal_schedule_t sparse_graph_parse_fm_anneal_schedule(void) {
-    const char *env = getenv("SPARSE_FM_ANNEALING_SCHEDULE");
-    if (!env)
-        return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
-    if (strcmp(env, "linear") == 0)
-        return FM_ANNEAL_SCHEDULE_LINEAR;
-    if (strcmp(env, "cosine") == 0)
-        return FM_ANNEAL_SCHEDULE_COSINE;
-    return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
-}
-
-fm_thick_restart_perturb_t sparse_graph_parse_fm_thick_restart_perturb(void) {
-    const char *env = getenv("SPARSE_FM_THICK_RESTART_PERTURB");
-    if (!env)
-        return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
-    if (strcmp(env, "boundary_shuffle") == 0)
-        return FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE;
-    if (strcmp(env, "gauss_noise") == 0)
-        return FM_THICK_RESTART_PERTURB_GAUSS_NOISE;
-    if (strcmp(env, "gain_noise_formal") == 0)
-        return FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
-    return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
-}
-
-fm_gain_noise_schedule_t sparse_graph_parse_fm_gain_noise_schedule(void) {
-    const char *env = getenv("SPARSE_FM_GAIN_NOISE_SCHEDULE");
-    if (!env)
-        return FM_GAIN_NOISE_SCHEDULE_LINEAR;
-    if (strcmp(env, "exponential") == 0)
-        return FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL;
-    if (strcmp(env, "cosine") == 0)
-        return FM_GAIN_NOISE_SCHEDULE_COSINE;
-    return FM_GAIN_NOISE_SCHEDULE_LINEAR;
-}
 
 void sparse_graph_fm_runtime_get(sparse_graph_fm_runtime_t *out) {
     if (!out)
@@ -80,6 +48,9 @@ void sparse_graph_fm_runtime_get(sparse_graph_fm_runtime_t *out) {
     out->use_thick_restart = fm_use_thick_restart;
     out->thick_restart_perturb = fm_thick_restart_perturb;
     out->gain_noise_schedule = fm_gain_noise_schedule;
+    out->anneal_debug = fm_anneal_debug;
+    out->gain_noise_debug = fm_gain_noise_debug;
+    out->thick_restart_debug = fm_thick_restart_debug;
 }
 
 void sparse_graph_fm_runtime_set(const sparse_graph_fm_runtime_t *state) {
@@ -93,6 +64,9 @@ void sparse_graph_fm_runtime_set(const sparse_graph_fm_runtime_t *state) {
     fm_use_thick_restart = state->use_thick_restart;
     fm_thick_restart_perturb = state->thick_restart_perturb;
     fm_gain_noise_schedule = state->gain_noise_schedule;
+    fm_anneal_debug = state->anneal_debug;
+    fm_gain_noise_debug = state->gain_noise_debug;
+    fm_thick_restart_debug = state->thick_restart_debug;
 }
 
 void sparse_graph_thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
@@ -304,7 +278,7 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         fm_pop_use_tail ? fm_bucket_pop_max_tail : fm_bucket_pop_max;
 
     const int use_annealing = fm_use_annealing;
-    const int anneal_debug = use_annealing && getenv("SPARSE_FM_ANNEALING_DEBUG") != NULL;
+    const int anneal_debug = use_annealing && fm_anneal_debug;
     double anneal_T = 0.0;
     uint32_t anneal_rng = 0;
     idx_t anneal_worsening_accepted = 0;
@@ -313,8 +287,7 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     const int use_gain_noise_formal =
         fm_use_thick_restart &&
         fm_thick_restart_perturb == FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
-    const int gain_noise_debug =
-        use_gain_noise_formal && getenv("SPARSE_FM_GAIN_NOISE_DEBUG") != NULL;
+    const int gain_noise_debug = use_gain_noise_formal && fm_gain_noise_debug;
     double gain_sigma_k = 0.0;
     uint32_t gain_noise_rng = 0;
 

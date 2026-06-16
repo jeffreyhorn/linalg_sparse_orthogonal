@@ -239,20 +239,56 @@ Current residual deferred configuration queue:
   - `SPARSE_ND_SUPERNODAL_POSTORDER`
 - internal/default-policy-only analysis-time control:
   - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
-- explicitly deferred debug/profile surfaces:
+- compatibility-first FM policy overrides lowered through one internal owner:
+  - `SPARSE_FM_FINEST_STRATEGY`
+  - `SPARSE_FM_ENSEMBLE_STRATEGIES`
+  - `SPARSE_FM_FINEST_PASSES`
+  - `SPARSE_FM_INTERMEDIATE_PASSES`
+  - `SPARSE_FM_ANNEALING_SCHEDULE`
+  - `SPARSE_FM_THICK_RESTART_PERTURB`
+  - `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+- explicitly deferred developer-only debug/profile surfaces:
   - `SPARSE_ND_PROFILE`
   - `SPARSE_QG_PROFILE`
   - `SPARSE_HCC_DEBUG`
-- explicitly deferred FM-family surfaces:
-  - all `SPARSE_FM_*`
+  - `SPARSE_FM_ENSEMBLE_DEBUG`
+  - `SPARSE_FM_THICK_RESTART_DEBUG`
+  - `SPARSE_FM_ANNEALING_DEBUG`
+  - `SPARSE_FM_GAIN_NOISE_DEBUG`
 
 Interpretation:
 
 - do not silently promote deferred env vars into the public API
+- recognized FM compatibility env vars now parse once at the graph
+  orchestration boundary and lower into one internal typed FM
+  policy/runtime contract
+- the refinement subsystem is no longer a second independent FM parser
+- that narrowed internal ownership does not by itself create a public typed FM
+  option family
 - do not imply that the remaining env-var queue is gone; it is now smaller and
   intentionally bounded
 - when future sprints move another control, update the typed path, the
   precedence wording, and this residual queue together
+
+Current maintained proof ownership after Sprint 73 Day 12:
+
+- `tests/test_graph.c` owns the graph/FM compatibility and internal-precedence
+  proof surface for:
+  - FM-family compatibility env behavior
+  - `SPARSE_HCC_DEBUG` internal override precedence
+- `tests/test_reorder_nd.c` owns the ND typed/default/env and internal-
+  precedence proof surface for:
+  - typed analysis ND controls overriding compatibility env vars
+  - internal/default-policy ND fallback behavior
+  - `SPARSE_ND_PROFILE` internal override precedence
+- `src/sparse_reorder_amd_qg.c` and `SPARSE_QG_PROFILE` remain explicitly
+  deferred support-only context:
+  - no new proof owner should be implied for that lane until a later sprint
+    actually changes its maintained contract
+- examples and benchmarks stay non-owner support surfaces on this lane:
+  - `examples/example_analysis.c` remains adoption/teaching context
+  - `bench_reorder` and `bench_amd_qg` remain benchmark/reporting context
+  - they do not replace the focused proof owners above
 
 ## Documentation Ownership Rules
 

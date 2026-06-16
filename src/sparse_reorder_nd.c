@@ -80,6 +80,8 @@ static _Thread_local long long nd_prof_graph_build_ns = 0;
 static _Thread_local idx_t nd_prof_partition_calls = 0;
 static _Thread_local idx_t nd_prof_leaf_amd_calls = 0;
 static _Thread_local idx_t nd_prof_emit_natural_calls = 0;
+static _Thread_local int nd_prof_override_active = 0;
+static _Thread_local int nd_prof_override = 0;
 
 /* Sprint 26 Day 4: per-recursion-depth partition profiling.  Sprint 25
  * Day 11's instrumentation accumulated cumulative partition time across
@@ -99,6 +101,22 @@ static _Thread_local idx_t nd_prof_emit_natural_calls = 0;
 static _Thread_local long long nd_prof_partition_ns_per_depth[MAX_ND_DEPTH] = {0};
 static _Thread_local idx_t nd_prof_partition_calls_per_depth[MAX_ND_DEPTH] = {0};
 static _Thread_local int nd_prof_depth_overflow_warned = 0;
+
+int sparse_reorder_nd_profile_current(void) {
+    if (nd_prof_override_active)
+        return nd_prof_override;
+    return getenv("SPARSE_ND_PROFILE") != NULL;
+}
+
+void sparse_reorder_nd_profile_override_begin(int enabled) {
+    nd_prof_override = enabled != 0;
+    nd_prof_override_active = 1;
+}
+
+void sparse_reorder_nd_profile_override_end(void) {
+    nd_prof_override_active = 0;
+    nd_prof_override = 0;
+}
 
 /* Monotonic-clock timestamp helper.  Returns nanoseconds since an
  * unspecified epoch.  POSIX `clock_gettime(CLOCK_MONOTONIC, ...)` on
@@ -634,7 +652,7 @@ sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
      * `_Thread_local` per the file-top declaration, so concurrent
      * calls on different matrices race only on the env-var read,
      * not on the accumulator state). */
-    nd_prof_enabled = (getenv("SPARSE_ND_PROFILE") != NULL);
+    nd_prof_enabled = sparse_reorder_nd_profile_current();
     long long prof_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     if (nd_prof_enabled) {
         nd_prof_partition_ns = 0;

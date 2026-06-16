@@ -350,3 +350,161 @@ That gives Day 3 one exact job:
 
 - re-rank the strongest remaining chronology and policy-density seams across
   the live public doc surfaces before cleanup design begins
+
+## Day 3 - Public-Surface History Audit I
+
+### Goal
+
+Reduce Sprint 71's broad public/reference cleanup concern to a ranked live
+contradiction map across the current user-facing docs before the sprint fixes
+its first landing boundary.
+
+### Actions
+
+1. Re-read the Day 3 scope in `docs/planning/EPIC_7/SPRINT_71/PLAN.md`.
+2. Re-read the current public-facing Sprint 71 audit targets:
+   - `README.md`
+   - `INSTALL.md`
+   - `docs/tutorial.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+3. Re-read `docs/maintainer_guide.md` as the support-first policy authority
+   rather than as a first cleanup center.
+4. Ran targeted terminology scans across those surfaces for:
+   - sprint-history spill
+   - workflow ownership
+   - benchmark/test/example authority
+   - static-first packaging and platform wording
+5. Rechecked the raw Day 1 `wc -l` hotspot counts for the current public and
+   support surfaces.
+
+### Findings
+
+#### 1. `README.md` is still the strongest first public contradiction center
+
+The Day 3 reread confirms that `README.md` carries the densest remaining mix
+of:
+
+- top-level product story
+- workflow-choice guidance
+- examples versus benchmarks versus tests ownership
+- benchmark-reporting interpretation
+- platform-confidence summary
+- install/package summary
+- capability and limitation framing
+
+Interpretation:
+
+- `README.md` is not weak because it is missing material
+- it is the strongest first cleanup target because it still carries too many
+  product, workflow, proof, and platform responsibilities in one front-door
+  surface
+
+#### 2. `INSTALL.md` is the strongest second target because operator guidance and contract interpretation are still tightly layered together
+
+`INSTALL.md` is smaller than `README.md`, but it still carries a dense mix of:
+
+- operator install steps
+- maintained static-first package-shape wording
+- reviewed versus supplemental platform-lane interpretation
+- local install/package proof ownership
+- packaging-consumer guidance
+
+Interpretation:
+
+- `INSTALL.md` is the strongest second target because it still reads partly
+  like a product contract explainer and partly like an operator runbook
+- that mix is real and valuable, but it should be tightened rather than left
+  as layered sprint-history accumulation
+
+#### 3. `docs/tutorial.md` remains the strongest third target, but as a teaching-flow cleanup rather than a front-door contradiction center
+
+The tutorial still carries some repeated framing around:
+
+- repeated-run direct lifecycle guidance
+- handoff to `example_analysis`
+- handoff to retained benchmark surfaces
+- clarification that tests own regression, oracle, and property guarantees
+
+Interpretation:
+
+- `docs/tutorial.md` is still important
+- but it is not the best first cleanup center because its main burden is
+  repeated ownership framing inside a teaching document rather than a broad
+  front-door contradiction
+
+#### 4. `benchmarks/README.md` is the strongest support-surface contradiction center
+
+Among the support surfaces, `benchmarks/README.md` still carries the densest
+mix of:
+
+- benchmark-governance interpretation
+- canonical-report framing
+- benchmark versus test ownership clarification
+- retained benchmark-lane history
+
+Interpretation:
+
+- it is the strongest support-surface contradiction center
+- but it should still stay behind the first public landing because the
+  front-door and install surfaces are higher-leverage user-facing cleanup
+  centers
+
+#### 5. `examples/README.md` is lower-risk support context, not a first cleanup center
+
+The examples surface already reads more narrowly as:
+
+- adoption and workflow-teaching guidance
+- explicit non-ownership of regression/oracle/property guarantees
+- benchmark handoff after workflow adoption
+
+Interpretation:
+
+- `examples/README.md` still matters for later reconciliation
+- but it is weaker than `benchmarks/README.md` as a contradiction center and
+  should stay support-only unless the first landing forces it to move
+
+#### 6. `docs/maintainer_guide.md` remains support-first because it is already the right policy authority
+
+The maintainer guide still carries deep rationale, deferred-queue reading, and
+platform/package/proof interpretation, but that is intentional policy-density
+rather than accidental front-door clutter.
+
+Interpretation:
+
+- `docs/maintainer_guide.md` should remain the main policy home
+- Sprint 71 should simplify public surfaces by recentering them around this
+  authority, not by making the maintainer guide the first cleanup center
+
+#### 7. The Day 3 ranking is now explicit enough to drive the Day 4 boundary
+
+The current live contradiction ranking is:
+
+1. `README.md`
+2. `INSTALL.md`
+3. `docs/tutorial.md`
+4. `benchmarks/README.md`
+5. `examples/README.md`
+6. `docs/maintainer_guide.md` as support-first policy authority
+
+Interpretation:
+
+- the broad Sprint 71 cleanup problem is now reduced to a real file ranking
+- Day 4 should freeze the first landing boundary around the top user-facing
+  centers, with support surfaces moving only if that landing truly forces them
+
+## Day 3 Exit State
+
+Sprint 71 Day 3 closes with one concrete public-surface contradiction map:
+
+1. `README.md` is the strongest first cleanup center
+2. `INSTALL.md` is the strongest second cleanup center
+3. `docs/tutorial.md` is a real later teaching-flow cleanup target
+4. `benchmarks/README.md` is the strongest support-surface contradiction
+   center
+5. `examples/README.md` and `docs/maintainer_guide.md` remain support-first
+   rather than first-batch centers
+
+That gives Day 4 one exact job:
+
+- refine this ranking into a first public/reference cleanup fence for Sprint 71

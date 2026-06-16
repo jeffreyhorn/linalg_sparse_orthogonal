@@ -1064,3 +1064,144 @@ Sprint 73 Day 7 closes with:
    contradiction
 3. one exact Day 8 target fence around coarsening and ND/profile seams
 4. a post-Day-6 queue that is explicit instead of assumed
+
+## Day 8: Debug/Profile Rationalization Design
+
+### Objectives
+
+Define the bounded second Sprint 73 implementation batch around the strongest
+remaining developer-only/profile spill, without widening into a broad
+compatibility or public-API redesign.
+
+### Design Results
+
+#### 1. The second batch center is now narrower than the Day 7 fence
+
+After the Day 7 rerank and the live reread of the remaining seams, the best
+second implementation center is now:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+
+Likely support only if the batch truly needs a shared internal runtime seam:
+
+- `src/sparse_graph_internal.h`
+- `src/sparse_reorder_amd_qg.c`
+
+The most important Day 8 narrowing is:
+
+- `src/sparse_reorder_amd_qg.c` is still part of the same general profile
+  story, but it now reads more like support-only follow-through than the core
+  second batch center
+- the strongest immediate contradiction is the graph/ND lane where real
+  routing/default policy and developer-only profile/debug activation are still
+  most visibly mixed
+
+#### 2. The exact second-batch ownership goal is now fixed
+
+The Day 9 batch should:
+
+- keep compatibility controls that still represent real maintained policy:
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- narrow the developer-only/profile spill so those controls stop reading like
+  peer public configuration surfaces
+- move profile/debug activation into a clearer internal runtime or
+  entry-boundary ownership model
+
+The strongest exact second-batch targets are:
+
+- `SPARSE_HCC_DEBUG` in `src/sparse_graph_coarsen.c`
+- `SPARSE_ND_PROFILE` in `src/sparse_reorder_nd.c`
+
+Likely support-only target:
+
+- `SPARSE_QG_PROFILE` in `src/sparse_reorder_amd_qg.c`
+
+The key Day 8 design rule is:
+
+- Day 9 should reduce process-global instrumentation sprawl
+- it should not reopen the already-landed FM policy batch
+- it should not broaden typed public options or claim broader stability for
+  developer-only controls than the repo actually maintains
+
+#### 3. The preserved compatibility checklist is now explicit
+
+The second batch must preserve:
+
+- current algorithm-routing defaults when no relevant compatibility env is set
+- current recognized behavior for:
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- current opt-in behavior for developer-only instrumentation when it is
+  enabled
+- the existing narrow meaning of profile/debug surfaces as developer/bench or
+  diagnostics aids, not production-facing policy promises
+
+The second batch should avoid:
+
+- turning debug/profile flags into new public typed analysis options
+- mixing graph/FM policy follow-through back into the design
+- widening into SVD-routing, separator-lift, or public docs/header cleanup
+
+#### 4. Public/support follow-through remains bounded
+
+No public header should move by default in the second batch:
+
+- `include/sparse_analysis.h`
+- `include/sparse_reorder.h`
+
+No public-facing docs should move by default:
+
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Support only if the Day 9 implementation truly forces it:
+
+- `src/sparse_graph_internal.h`
+- `src/sparse_reorder_amd_qg.c`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+- `tests/test_integration.c`
+- `docs/maintainer_guide.md`
+
+Explicit non-touch set:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_analysis.c`
+- `include/sparse_analysis.h`
+- `src/sparse_svd.c`
+- `src/sparse_graph_separator.c`
+- public README/tutorial/example/benchmark surfaces
+- capability/type/platform/workflow files
+
+### Validation
+
+This was a docs-only Day 8 design pass, so I did not rerun:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+I grounded the design in rereads of:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_graph_internal.h`
+- the Day 7 rerank
+
+### Day 8 Exit State
+
+Sprint 73 Day 8 closes with:
+
+1. one exact second-batch center around `SPARSE_HCC_DEBUG` and
+   `SPARSE_ND_PROFILE`
+2. one likely support-only follow-through map for `SPARSE_QG_PROFILE`
+3. one preserved compatibility checklist for real maintained ND/coarsening
+   controls
+4. one explicit non-touch set before Day 9 implementation begins

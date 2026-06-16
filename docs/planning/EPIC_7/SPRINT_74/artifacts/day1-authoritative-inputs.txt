@@ -1,0 +1,31 @@
+# Sprint 74 Day 1: Authoritative Inputs
+
+Date: 2026-06-16
+Branch: `sprint-74`
+
+Authoritative inputs used for the Sprint 74 Day 1 baseline:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` (Sprint 74 section)
+- `docs/planning/EPIC_7/SPRINT_74/PLAN.md`
+- `docs/planning/EPIC_7/SPRINT_70/artifacts/day6-capability-modernization-fence.md`
+- `docs/planning/EPIC_7/SPRINT_72/RETROSPECTIVE.md`
+- `docs/planning/EPIC_7/SPRINT_73/artifacts/day14-closeout-and-handoff.md`
+- live reviewed baseline wrapper shape from `make -n quality-review-full`
+- live reviewed CMake parity anchor from:
+  - `make quality-review-cmake-compile`
+  - `ctest -N --test-dir build/quality-review-cmake`
+- live capability contract map from targeted reads and `rg` over:
+  - `include/sparse_types.h`
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `src/sparse_types.c`
+  - `src/sparse_matrix.c`
+  - `src/sparse_iterative.c`
+  - `src/sparse_eigs.c`
+  - `src/sparse_svd.c`
+- live Day 1 raw `wc -l` hotspot measurements across:
+  - maintained public and policy surfaces
+  - capability-modernization implementation seams
+  - strongest proof and adoption/reporting surfaces

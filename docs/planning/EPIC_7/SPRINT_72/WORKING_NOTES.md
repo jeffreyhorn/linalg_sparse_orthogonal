@@ -445,3 +445,132 @@ Sprint 72 Day 3 closes with one explicit current-state hotspot map:
    are both now explicit
 5. Day 4 can now rerank those seams into the first true Sprint 72 convergence
    boundary instead of starting from a generic matrix-model slogan
+
+## Day 4 - Product-Model Surface Audit II & First Landing Boundary
+
+### Goal
+
+Refine the Day 3 ranking and freeze the first bounded Sprint 72 convergence
+fence before implementation design begins.
+
+### Actions
+
+1. Re-read the Day 4 scope in `docs/planning/EPIC_7/SPRINT_72/PLAN.md`.
+2. Re-rank the Day 3 seams against:
+   - public direct-workflow pain
+   - implementation leverage
+   - compatibility risk
+   - bounded Sprint 72 payoff
+3. Separate:
+   - first-batch landing surfaces
+   - support surfaces that move only if the first batch forces them
+   - later or explicitly deferred product-model surfaces
+4. Re-test the strongest possible first fences:
+   - direct one-shot workflow
+   - repeated-run lifecycle handoff
+   - compressed-path publication/writeback seam
+   - deeper factor/workspace ownership seam
+5. Fix the first Sprint 72 boundary and non-goal fence in writing.
+
+### Findings
+
+#### 1. The strongest first Sprint 72 fence is the public direct-workflow seam, not the deeper compressed writeback seam
+
+The Day 4 rerank confirms the best first bounded lane is:
+
+- direct one-shot workflow centered on `SparseMatrix`
+- plus the repeated-run lifecycle handoff that already exists beside it
+
+That lane has the strongest mix of:
+
+- caller confusion cost
+- public contract leverage
+- bounded implementation payoff
+- acceptable compatibility risk for a first convergence pass
+
+By contrast, the compressed-path publication/writeback seam is real but is not
+the right first landing because it quickly widens into family-specific
+internals across:
+
+- CSC Cholesky
+- CSC LDL^T
+- CSR LU
+
+Interpretation:
+
+- Sprint 72 should first make the public direct-workflow ownership boundary
+  read more coherently
+- it should not start by opening the deepest compressed publication machinery
+
+#### 2. The generic matrix-state seam remains in-scope support context, but not a broad standalone rewrite target
+
+The mixed logical/physical/permuted-state contract is still the strongest
+second contradiction.
+
+But the rerank shows it should be treated as:
+
+- support context for the first direct-workflow landing
+- not a separate repo-wide matrix-model rewrite target
+
+This means the first batch can touch the matrix-state shell only where it
+clarifies:
+
+- one-shot direct-workflow ownership
+- repeated-run handoff boundaries
+- factor-state expectations visible to callers
+
+It should not widen into:
+
+- generic arithmetic redesign
+- public permutation-accessor redesign
+- broad logical-versus-physical API cleanup detached from the direct workflow
+
+#### 3. The first-batch landing surfaces are now explicit
+
+Required first landing:
+
+- `include/sparse_matrix.h`
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `src/sparse_matrix.c`
+
+Likely support only if the first landing forces it:
+
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+- `tests/test_integration.c`
+- `tests/test_sparse_matrix.c`
+
+Deferred or explicitly later surfaces:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_lu_csr.c`
+- family-local proof-owner giant tests beyond support follow-through
+- public capability or packaging/platform surfaces
+
+#### 4. The strongest non-goal fence is now explicit
+
+Sprint 72 Day 4 fixes the first-lane non-goals:
+
+- no repo-wide `SparseMatrix` rewrite
+- no capability or type widening hidden inside ownership cleanup
+- no broad family-by-family redesign without a ranked center
+- no compressed-path publication overhaul as the first move
+- no factor/workspace abstraction campaign detached from the direct workflow
+
+### Day 4 Exit State
+
+Sprint 72 Day 4 closes with one explicit first convergence boundary:
+
+1. the first landing centers on the public direct one-shot workflow and the
+   repeated-run lifecycle handoff
+2. `SparseMatrix` state mixing is in-scope support context, not a separate
+   rewrite program
+3. compressed-path publication/writeback work is explicitly deferred unless
+   the first lane forces it
+4. the first landing surfaces and support-only surfaces are fixed
+5. Day 5 can now design a bounded implementation contract instead of debating
+   where Sprint 72 should start

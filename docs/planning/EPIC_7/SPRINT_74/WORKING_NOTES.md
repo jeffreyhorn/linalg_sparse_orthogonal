@@ -456,3 +456,131 @@ Sprint 74 Day 3 closes with:
 3. one clearer scalar-preparation center for later design work
 4. one explicit separation between public caveats, implementation assumptions,
    and compatibility/package events
+
+## Day 4 - First Capability Boundary
+
+### Goal
+
+Refine the Day 3 capability ranking and freeze the first bounded Sprint 74
+modernization fence before implementation design begins.
+
+### Actions
+
+1. Re-read the Day 3 capability ranking and the Sprint 70 capability fence.
+2. Reconfirm which surfaces actually own the width contract today:
+   - public typedef and width caveat surfaces
+   - highest-value mutable matrix shell and size-checking seams
+   - proof-owner tests most sensitive to width and overflow boundaries
+3. Separate the first bounded index-width lane from:
+   - later scalar-surface preparation
+   - later algorithm-family breadth work
+   - docs/package follow-through that should remain support-only
+4. Fix the required first landing surfaces, likely support surfaces, and
+   explicit deferral set in writing.
+
+### Findings
+
+#### 1. The strongest first Sprint 74 fence is the width contract, not the
+broader scalar or algorithm-family ceiling
+
+The Day 4 rerank confirms the best first bounded lane is:
+
+- index-width modernization centered on the public `idx_t` contract and the
+  highest-value matrix/product shell size boundary
+
+That lane has the strongest combination of:
+
+- broad user-facing capability payoff
+- bounded first-pass implementation scope
+- real compatibility-path value
+- acceptable first-pass proof and migration risk
+
+The scalar and eigensolver-family ceilings remain real, but they are not the
+right first landing because they widen more quickly into public API families,
+result structs, callbacks, and broader proof cost.
+
+#### 2. The scalar-preparation seam is support context for later work, not the
+first landing
+
+The real-only `double` ceiling remains the strongest second contradiction.
+
+But the rerank shows it should be treated as:
+
+- the strongest second batch
+- not the first landing
+
+because:
+
+- the width contract is narrower and easier to make real end-to-end first
+- scalar-surface work widens immediately into iterative, eigensolver, and SVD
+  public contracts
+- the migration and proof burden is much larger than the first width lane
+
+That means the Day 4 fence should keep the scalar-preparation center explicit
+but deferred:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `include/sparse_svd.h`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_svd.c`
+
+#### 3. The first-batch landing surfaces are now explicit
+
+Required first landing:
+
+- `include/sparse_types.h`
+- `src/sparse_types.c`
+- `include/sparse_matrix.h`
+- `src/sparse_matrix.c`
+
+Likely support only if the first landing forces it:
+
+- `tests/test_sparse_matrix.c`
+- `tests/test_integration.c`
+- `README.md`
+- `docs/maintainer_guide.md`
+- `INSTALL.md`
+
+Deferred or explicitly later:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `include/sparse_svd.h`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_svd.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- examples and benchmark binaries beyond support-only wording follow-through
+- package/install workflow changes beyond truthful width-contract wording
+
+#### 4. The strongest non-goal fence is now explicit
+
+Sprint 74 Day 4 fixes the first-lane non-goals:
+
+- no repo-wide `int64_t` conversion in one batch
+- no scalar-type genericity campaign hidden inside width cleanup
+- no fake complex-readiness or broader precision-product claims
+- no unsymmetric eigensolver expansion as part of the first lane
+- no widened packaging/platform/install claims beyond the actual landed width
+  seam
+
+### Validation
+
+This was a docs-only Day 4 boundary pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded it in the Day 3 ranked contradiction map, the Sprint 70 capability
+fence, and direct rereads of the current width and scalar public contracts.
+
+### Day 4 Exit State
+
+Sprint 74 Day 4 closes with:
+
+1. one explicit first modernization boundary around the width contract
+2. one fixed support-only map for proof and maintained-surface follow-through
+3. one explicit deferred map for scalar-surface and later algorithm-family
+   work
+4. one clear starting point for Day 5 implementation design

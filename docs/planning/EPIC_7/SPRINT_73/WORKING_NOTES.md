@@ -795,3 +795,137 @@ Sprint 73 Day 5 closes with:
 2. one preserved compatibility-precedence checklist
 3. one exact first-batch touch set
 4. one explicit non-touch set before Day 6 implementation begins
+
+## Day 6: FM/Graph Policy Integration Batch 1
+
+### Objectives
+
+Land the first bounded Sprint 73 implementation batch by converging the
+graph/FM compatibility env surface behind one internal policy owner, while
+preserving current defaults and back-compat behavior.
+
+### Work Completed
+
+#### 1. The graph/FM lane now resolves one internal policy object at the orchestration boundary
+
+Landed implementation in:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_internal.h`
+
+The main Day 6 ownership change is:
+
+- `src/sparse_graph.c` now parses the FM compatibility env surface once into
+  `sparse_graph_fm_policy_t`
+- that policy owns:
+  - finest FM strategy
+  - ensemble strategy list
+  - finest/intermediate pass counts
+  - annealing schedule choice
+  - thick-restart perturbation choice
+  - gain-noise schedule choice
+  - retained debug/runtime flags
+- `src/sparse_graph_refine.c` no longer behaves like a second independent
+  parser for the annealing / thick-restart / gain-noise control lane
+
+This preserves the Day 5 contract:
+
+- no new public typed FM option surface
+- compatibility envs remain supported
+- orchestration owns parsing
+- refinement consumes lowered runtime state
+
+#### 2. The runtime seam is now narrower and more truthful
+
+The runtime handoff now works like this:
+
+- `graph_fm_policy_from_compat_env(...)` resolves the full FM compatibility
+  story once
+- `graph_uncoarsen_runtime_for_level(...)` lowers that policy into the
+  finest-level runtime state only when the uncoarsening level actually needs
+  it
+- `sparse_graph_fm_runtime_set(...)` transfers the resolved runtime into the
+  refinement subsystem
+- `graph_refine_fm(...)` now reads the already-resolved runtime flags instead
+  of calling `getenv(...)` for annealing and gain-noise debug behavior
+
+The most important boundary improvement is:
+
+- the refinement subsystem is no longer deciding schedule / perturbation /
+  debug behavior from process-global state on its own
+
+#### 3. The batch stayed inside the Day 5 fence
+
+Touched implementation surfaces:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_internal.h`
+
+Untouched deferred surfaces:
+
+- `src/sparse_reorder_nd.c`
+- `src/sparse_analysis.c`
+- `tests/test_reorder_nd.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_svd.c`
+- `include/sparse_analysis.h`
+- `docs/maintainer_guide.md`
+
+No support-surface widening was required:
+
+- `tests/test_graph.c`
+- `tests/test_graph_fm_buckets.c`
+- `tests/test_integration.c`
+
+Existing proof already covered the preserved compatibility behavior well
+enough for this ownership-convergence batch, so the landing stayed focused on
+the configuration seam itself.
+
+#### 4. One Day 6 implementation correction was required during validation
+
+The first cut stored the finest-FM strategy in the new policy object as
+`int`.
+
+That compiled in the normal build, but the strict `make lint` path rejects the
+implicit signedness conversion under `-Werror -Wsign-conversion`.
+
+The landed correction was:
+
+- move `finest_fm_strategy_t` into `src/sparse_graph_internal.h`
+- make `sparse_graph_fm_policy_t.finest_strategy` use that enum type directly
+
+That keeps the new internal ownership seam genuinely typed instead of fixing
+the warning with an explicit cast.
+
+### Validation
+
+Because `*.c` and `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 337.63 sec`
+
+### Day 6 Exit State
+
+Sprint 73 Day 6 closes with:
+
+1. one internal FM policy object as the graph/FM compatibility ownership center
+2. one refinement runtime seam that consumes lowered state instead of
+   re-parsing process-global controls
+3. preserved default and compatibility env behavior without widening the public
+   option surface
+4. a fully validated first Sprint 73 implementation landing from
+   `make quality-review-full`

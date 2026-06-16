@@ -431,6 +431,42 @@ typedef enum {
 } fm_gain_noise_schedule_t;
 
 /**
+ * @brief Finest-level FM strategy selector resolved at the graph
+ *        orchestration boundary.
+ */
+typedef enum {
+    FINEST_FM_BASELINE = 0,
+    FINEST_FM_FIFO = 1,
+    FINEST_FM_ANNEALING = 2,
+    FINEST_FM_THICK_RESTART = 3,
+    FINEST_FM_ENSEMBLE = 4,
+} finest_fm_strategy_t;
+
+/**
+ * @brief Internal graph/FM policy resolved at the orchestration boundary.
+ *
+ * Sprint 73 Day 6 narrows residual FM configuration ownership by resolving
+ * compatibility env vars once in `src/sparse_graph.c`, then lowering the
+ * chosen settings into this internal policy object for uncoarsening/runtime
+ * setup. Public typed options are intentionally deferred; this policy remains
+ * internal-only.
+ */
+typedef struct {
+    int finest_passes;
+    int intermediate_passes;
+    finest_fm_strategy_t finest_strategy;
+    fm_anneal_schedule_t anneal_schedule_choice;
+    fm_thick_restart_perturb_t thick_restart_perturb_choice;
+    fm_gain_noise_schedule_t gain_noise_schedule_choice;
+    int ensemble_strategy_list[4];
+    int ensemble_strategy_count;
+    int ensemble_debug;
+    int anneal_debug;
+    int gain_noise_debug;
+    int thick_restart_debug;
+} sparse_graph_fm_policy_t;
+
+/**
  * @brief Snapshot of FM thread-local runtime controls.
  *
  * `graph_uncoarsen(...)` uses this internal seam to set up
@@ -446,6 +482,9 @@ typedef struct {
     int use_thick_restart;
     fm_thick_restart_perturb_t thick_restart_perturb;
     fm_gain_noise_schedule_t gain_noise_schedule;
+    int anneal_debug;
+    int gain_noise_debug;
+    int thick_restart_debug;
 } sparse_graph_fm_runtime_t;
 
 /**
@@ -594,23 +633,6 @@ sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out);
  * and `graph_uncoarsen(...)`.
  */
 idx_t sparse_graph_compute_cut_weight(const sparse_graph_t *G, const idx_t *part);
-
-/**
- * @brief Parse the current annealing FM schedule from the environment.
- */
-fm_anneal_schedule_t sparse_graph_parse_fm_anneal_schedule(void);
-
-/**
- * @brief Parse the current thick-restart FM perturbation mode from the
- *        environment.
- */
-fm_thick_restart_perturb_t sparse_graph_parse_fm_thick_restart_perturb(void);
-
-/**
- * @brief Parse the current formal gain-noise schedule from the
- *        environment.
- */
-fm_gain_noise_schedule_t sparse_graph_parse_fm_gain_noise_schedule(void);
 
 /**
  * @brief Apply the thick-restart perturbation policy to a partition.

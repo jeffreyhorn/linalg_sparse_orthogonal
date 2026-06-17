@@ -67,6 +67,21 @@ This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
 remains the reviewed CMake workflow.
 
+Read that contract in three bounded layers:
+
+- installed package shape:
+  - static library
+  - public headers
+  - `pkg-config` metadata
+  - exported CMake package files
+- downstream consumer story:
+  - `pkg-config` and `find_package(Sparse)` both describe that same installed
+    static archive surface
+- proof story:
+  - local Unix-side install scripts prove the Make and CMake install/export
+    paths directly
+  - reviewed platform claims remain narrower than those local scripts
+
 ### Installed files
 
 | Path | Contents |
@@ -74,6 +89,7 @@ remains the reviewed CMake workflow.
 | `$(PREFIX)/lib/libsparse_lu_ortho.a` | Static library |
 | `$(PREFIX)/include/sparse/*.h` | Public headers (14 files) |
 | `$(PREFIX)/lib/pkgconfig/sparse.pc` | pkg-config descriptor |
+| `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | Exported CMake package metadata |
 
 ### Using via pkg-config
 
@@ -230,8 +246,19 @@ maintained static-first install/export contract:
 - `tests/test_cmake_install.sh` covers CMake install/export plus
   `find_package(Sparse)`
 
-They complement, rather than replace, the narrower reviewed platform lanes:
+They complement, rather than replace, the narrower reviewed platform lanes.
+Use the split below when reading install confidence:
 
-- Linux remains the strongest reviewed source of truth
-- macOS carries supplemental Make install/`pkg-config` verification
-- Windows remains the reviewed CMake subset and CMake-first consumer path
+- local direct proof:
+  - the two scripts above exercise the Unix-side Make and CMake install paths
+    end to end
+- reviewed platform confidence:
+  - Linux remains the strongest reviewed source of truth
+  - macOS carries supplemental Make install/`pkg-config` verification
+  - Windows remains the reviewed CMake subset and CMake-first consumer path
+
+Do not widen that reading into a broader reviewed install-validation claim:
+
+- macOS does not claim full reviewed install/export parity
+- Windows does not claim a separate reviewed install-validation lane beyond the
+  CMake-first consumer story

@@ -319,3 +319,59 @@ Define the bounded implementation contract for the first Sprint 77 release/insta
 - Sprint 77 now has one explicit packaging/productization implementation contract.
 - The Day 6 batch center is fixed to `INSTALL.md`, with support-only follow-through bounded in advance.
 - Compatibility and non-goal fences are fixed before edits begin.
+
+## Day 6 - Packaging/Productization Batch
+
+### Goal
+Land the highest-value bounded release/install productization cleanup inside `INSTALL.md`, making the static-first package contract, downstream consumer story, and local-versus-reviewed proof split easier to read without widening any product or platform claim.
+
+### Actions
+- Re-read the Day 5 design artifact against the current `INSTALL.md` wording.
+- Landed the bounded productization cleanup in `INSTALL.md` only.
+- Tightened the operator-facing contract around:
+  - installed package shape
+  - downstream consumer story
+  - local install-proof scripts
+  - narrower reviewed platform confidence
+- Rechecked the touched surface with a docs-only sanity pass:
+  - diff review
+  - terminology/alignment reread
+  - touched-surface `wc -l`
+  - branch-state verification
+
+### Findings
+- The Day 6 result stayed inside the Day 5 fence:
+  - `INSTALL.md` now states the package contract as three bounded layers:
+    - installed package shape
+    - downstream consumer story
+    - proof story
+  - the installed-files table now names the exported `SparseConfig*.cmake`
+    package metadata directly
+  - the install-validation section now separates:
+    - local direct proof from the Unix-side scripts
+    - narrower reviewed platform confidence
+    - explicit non-claims about broader reviewed install-validation parity
+- No support-only follow-through was actually needed:
+  - `docs/maintainer_guide.md`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `README.md`
+- The preserved truthfulness fence stayed intact:
+  - static-first release shape stayed unchanged
+  - `pkg-config` and `find_package(Sparse)` still read as two views of the same installed static archive surface
+  - Linux still reads as the strongest reviewed truth
+  - macOS still reads as narrower reviewed plus supplemental install proof
+  - Windows still reads as the reviewed CMake subset and CMake-first consumer lane
+
+### Validation
+- Ran the Sprint 77 docs-only sanity set:
+  - diff review
+  - terminology/alignment reread
+  - touched-surface `wc -l`
+  - branch-state verification
+
+### Day 6 Exit State
+- Sprint 77 now has one landed bounded packaging/productization batch.
+- The operator-facing install/export contract reads more directly as one static-first product surface.
+- Day 7 can now rerank the remaining package/platform seams from the landed state.

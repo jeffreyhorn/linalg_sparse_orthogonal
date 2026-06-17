@@ -1901,3 +1901,121 @@ Sprint 75 Day 13 closes with:
    and public CSC runtime truth
 3. one retained benchmark row proving `csc_supernodal_panel_solver = batched_panel`
 4. one preserved install/package proof state for Day 14 closeout
+
+## Day 14 - Closeout and Handoff
+
+Date: 2026-06-17
+Branch: `sprint-75`
+
+### Goal
+
+Close Sprint 75 from the Day 13 validated baseline with one explicit
+second-phase backend/performance package and a ranked carry-forward queue for
+Sprint 76 and beyond.
+
+### Closeout State
+
+Sprint 75 now hands off one coherent backend/performance package across:
+
+- hotspot re-audit and first backend fence
+- dense-kernel / CSC supernodal integration batch
+- public callback/runtime follow-through
+- benchmark proof refresh
+- proof-owner alignment
+- validated Day 13 close state
+
+The landed package is now explicit:
+
+- `src/sparse_dense.c` now owns one clearer dense-kernel descriptor contract
+  for the shipped self-contained build, including the batched `solve_panel`
+  seam
+- `src/sparse_chol_csc_supernodal.c` now consumes that batched panel-solve
+  callback directly instead of row-by-row single-RHS looping on the touched
+  supernodal path
+- `src/sparse_cholesky.c` and `include/sparse_cholesky.h` now expose one
+  bounded wrapper-owned CSC runtime phase:
+  - `cholesky_factor_csc`
+  - `4` orchestration checkpoints
+  - cancel-before-writeback preservation of the original caller matrix shell
+- `benchmarks/bench_chol_csc.c` now makes the new kernel seam directly
+  measurable through:
+  - `csc_supernodal_panel_solver`
+  - current retained value: `batched_panel`
+- proof ownership is now cleaner and narrower:
+  - `tests/test_chol_csc.c` owns family-local dense-kernel correctness and
+    missing-callback backend-contract failure
+  - `tests/test_integration.c` owns the public CSC callback/cancel runtime
+    truth
+  - `bench_chol_csc` owns path/backend/panel-solver measurability, not public
+    runtime semantics
+
+### Preserved Fence
+
+Sprint 75 preserved the intended Epic 7 backend/performance boundary:
+
+- no broad backend abstraction-layer rewrite
+- no fake optional-external-backend maturity story
+- no shared-library or plugin-style backend claim
+- no benchmark timing thresholds reinterpreted as portable pass/fail proof
+- no widened reviewed-platform or install-validation claim beyond maintained
+  evidence
+
+### Validated Close State
+
+Sprint 75 closes from the Day 13 validated baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- reviewed CMake parity `53`
+- Makefile/CMake parity `53 vs 53`
+- reviewed CMake `ctest` `53 / 53`
+- `Total Test time (real) = 346.76 sec`
+
+Representative retained anchors:
+
+- `test_chol_csc`:
+  - `test_chol_dense_solve_panel_2x2_two_rhs`
+  - `test_supernodal_dense_backend_default_contract`
+  - `test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error`
+- `test_integration`:
+  - `test_progress_cb_cholesky_csc_emits`
+  - `test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix`
+- `example_analysis`: residual `4.44e-16`
+- `example_basic_solve`: residual `0.00e+00`
+- `bench_refactor_csc nos4`: `speedup_refactor = 1.11`
+- `bench_chol_csc nos4`:
+  - `csc_supernodal_dense_kernel = builtin`
+  - `csc_supernodal_panel_solver = batched_panel`
+  - `speedup_csc = 0.48`
+  - `speedup_csc_sn = 0.81`
+- install/package regressions: installed `pkg-config` version `2.2.0`
+
+### Ranked Carry-Forward Queue
+
+1. benchmark governance and longitudinal reporting, starting from the newly
+   strengthened measurable backend surface rather than from generic timing
+   commentary
+2. eigensolver backend/runtime parity as the strongest remaining backend-aware
+   second lane after the CSC supernodal Cholesky landing
+3. QR and SVD backend-aware follow-through only where a bounded proof-backed
+   seam justifies movement
+4. later packaging, ABI, or platform convergence only where maintained
+   evidence supports a stronger claim
+
+### Project Plan Recheck
+
+`docs/planning/EPIC_7/PROJECT_PLAN.md` does not need a Sprint 75 correction.
+The landed work still matches the sprint contract.
+
+### Day 14 Exit State
+
+Sprint 75 closes with:
+
+1. one real second backend-aware landing on the shipped CSC supernodal
+   Cholesky lane
+2. one truthful public callback/cancel runtime contract for the widened CSC
+   path
+3. one measurable benchmark proof field for the new panel-solver seam
+4. one validated handoff package for Sprint 76

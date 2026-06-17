@@ -621,3 +621,62 @@ Confirm whether the landed Day 6 and Day 9 package/platform state actually force
 - Sprint 77 does not need a maintainer-guide or front-door follow-through batch.
 - The landed package/workflow/platform contract already reconciles cleanly across the main support surfaces.
 - Day 12 can move directly to proof-owner alignment and final validation-queue fixing.
+
+## Day 12 - Regression Coverage & Proof Alignment
+
+### Goal
+Confirm that the touched Sprint 77 release/install/platform proofs already sit in the right owners after the Day 6 and Day 9 landings, and fix the exact Day 13 validation queue in writing.
+
+### Actions
+- Re-read the touched Sprint 77 proof owners:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - reviewed CMake proof-owner tests and representative examples
+  - landed workflow surfaces:
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+- Re-read the package/platform policy section in `docs/maintainer_guide.md`.
+- Rechecked the strongest current proof-owner split against the landed contract:
+  - local install/package proof
+  - reviewed CMake proof
+  - workflow-level platform-reading proof
+- Fixed the exact Day 13 validation queue in writing.
+
+### Findings
+- No new focused regression code is actually needed.
+- The touched Sprint 77 proof already sits in the right owners:
+  - `tests/test_install.sh` owns the local Make install/uninstall plus `pkg-config` proof
+  - `tests/test_cmake_install.sh` owns the local CMake install/export plus `find_package(Sparse)` proof
+  - reviewed CMake parity and representative executable proof remain owned by:
+    - `make quality-review-full`
+    - `ctest -N --test-dir build/quality-review-cmake`
+    - representative reviewed tests and examples in `build/quality-review-cmake`
+  - `.github/workflows/macos-ci.yml` now owns the explicit macOS supplemental install-confidence reading
+  - `.github/workflows/windows-ci.yml` now owns the explicit Windows reviewed CMake consumer-scope reading
+- The real Day 12 output is therefore the final validation queue, not new proof code.
+- The exact Day 13 validation queue is now fixed around:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - representative reviewed executable proof:
+    - `./build/quality-review-cmake/test_integration`
+    - `./build/quality-review-cmake/test_chol_csc`
+    - `./build/quality-review-cmake/test_qr`
+    - `./build/quality-review-cmake/test_svd`
+    - `./build/quality-review-cmake/test_eigs`
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+
+### Validation
+- Re-read the landed Sprint 77 package/workflow surfaces against the current proof-owner map.
+- Reconfirmed that the maintainer-policy surface already matches the proof-owner split.
+- Fixed the final Day 13 queue explicitly from the landed state.
+
+### Day 12 Exit State
+- Sprint 77 does not need new regression code for the touched release/install/platform package.
+- The proof-owner map already matches the landed contract.
+- The final Day 13 validation queue is explicit before the full sweep.

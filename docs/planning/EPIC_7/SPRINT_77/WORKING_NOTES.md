@@ -70,3 +70,80 @@ Establish a precise Sprint 77 packaging, ABI, install, and cross-platform qualit
 - Sprint 77 no longer starts from a generic “packaging cleanup” prompt.
 - The maintained install/package/platform owners, truthfulness fence, and strongest likely touch surfaces are fixed in writing.
 - The branch is clean after the Day 1 baseline commit.
+
+## Day 2 - Validation Baseline
+
+### Goal
+Reconfirm the Sprint 77 implementation-day validation contract and the live proof-surface split across reviewed CMake proof owners, canonical package/report commands, install/package scripts, and platform-truth workflow surfaces.
+
+### Actions
+- Re-read the Sprint 77 Day 2 plan expectations in `docs/planning/EPIC_7/SPRINT_77/PLAN.md`.
+- Reconfirmed the reviewed CMake parity anchor with `ctest -N --test-dir build/quality-review-cmake`.
+- Rechecked the strongest reviewed proof-owner tests, examples, and benchmark binaries in `build/quality-review-cmake`.
+- Rechecked the canonical report-generation workflow entry point with `make -n bench-canonical-report`.
+- Reconfirmed the maintained root `build/` canonical benchmark emitters consumed by that report path:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+- Reconfirmed the maintained install/package proof scripts:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- Rechecked the strongest workflow-facing packaging and platform commands in:
+  - `Makefile`
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 77 inherits the same strongest local reviewed baseline:
+  - `make quality-review-full`
+- Reviewed CMake parity remains the main truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The Sprint 77 authority split is now fixed explicitly:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial packaging, platform, workflow, or export batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- The reviewed CMake tree currently owns the key Sprint 77 proof surfaces:
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- The canonical report-generation workflow remains source and command owned rather than reviewed-binary owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+- The root `build/` tree is currently carrying the canonical maintained benchmark emitters consumed by that report path:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+- Maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest workflow-facing package/platform command owners remain explicit:
+  - `make quality-review-full`
+  - `make quality-review-cmake-compile`
+  - `make quality-review-cmake`
+  - `make install`
+  - `make uninstall`
+  - `make bench-canonical-report`
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake`.
+- Rechecked the reviewed proof-owner test/example/benchmark binary set in `build/quality-review-cmake`.
+- Rechecked the canonical report-generation command surface with `make -n bench-canonical-report`.
+- Reconfirmed the maintained root `build/` canonical benchmark emitters.
+- Reconfirmed the maintained install/package proof scripts exist and remain callable.
+
+### Day 2 Exit State
+- Sprint 77 now has one explicit implementation-day validation contract.
+- The live proof split across reviewed binaries, root canonical benchmark emitters, and install/package scripts is fixed in writing.
+- The strongest likely Sprint 77 rerun set is explicit before release-surface and platform-gap audit work begins.

@@ -422,3 +422,52 @@ Re-audit the release and platform surface after the Day 6 landing so Sprint 77 t
 - Sprint 77 does not need a second install-guide batch.
 - The strongest remaining seam is explicitly reranked to Windows/macOS proof asymmetry.
 - Day 8 can now start from a current-state proof-design center rather than the original packaging backlog.
+
+## Day 8 - Windows/macOS Proof Design
+
+### Goal
+Define the bounded platform-confidence follow-through batch now justified by the Day 7 rerank, with one exact macOS/Windows proof seam and one explicit fence against widening the reviewed platform claim.
+
+### Actions
+- Re-read the Day 7 rerank artifact.
+- Re-read the live macOS and Windows workflow surfaces:
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Re-read the package/platform policy section in `docs/maintainer_guide.md`.
+- Re-ranked the remaining proof-asymmetry concerns against:
+  - downstream reading risk
+  - proof leverage
+  - compatibility risk
+  - bounded Day 9 payoff
+- Fixed the exact Day 9 touch set and preserved truthfulness checklist in writing.
+
+### Findings
+- Sprint 77 now has one explicit second implementation fence:
+  - required Day 9 center:
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+  - strongest support only if the batch truly forces it:
+    - `docs/maintainer_guide.md`
+  - lower-value support only:
+    - `README.md`
+    - `CMakeLists.txt`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+- The useful Day 8 clarification is now fixed:
+  - the best Day 9 move is not to invent a new reviewed install-validation lane
+  - it is to make the existing macOS supplemental install path and Windows reviewed CMake-only consumer path read more explicitly and symmetrically in the workflow layer itself
+  - the strongest bounded payoff is therefore workflow-level proof clarification, not broad new platform coverage
+- The preserved truthfulness fence is explicit too:
+  - no broader reviewed-platform claim than current evidence supports
+  - no fake Windows Makefile parity claim
+  - no disguised shared-library maturity claim
+  - no promotion of local Unix-side install scripts into reviewed macOS or Windows parity
+
+### Validation
+- Re-read the live workflow files against the Day 7 rerank and maintained packaging/platform policy.
+- Rechecked that the Day 9 center stays bounded to proof-reading clarity rather than CI expansion or product-claim widening.
+
+### Day 8 Exit State
+- Sprint 77 now has one explicit platform-proof design center.
+- The Day 9 touch set is fixed to the macOS and Windows workflow surfaces, with maintainer-policy follow-through only if needed.
+- The platform-claim fence is fixed before landing work begins.

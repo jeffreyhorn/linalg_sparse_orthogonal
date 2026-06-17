@@ -753,3 +753,67 @@ baseline before Sprint 77 closeout.
 - Sprint 77 now has one explicit validated proof, install, and reviewed-platform
   baseline.
 - Day 14 can close from that state without reopening the validation queue.
+
+## Day 14 - Closeout & Handoff
+
+### Goal
+Close Sprint 77 from the Day 13 validated baseline and fix the exact
+release/install/platform handoff state for Sprint 78 and later Epic 7 work.
+
+### Actions
+- Re-read the landed Sprint 77 package:
+  - release/install rerank
+  - Day 6 install/productization cleanup
+  - Day 9 macOS and Windows workflow proof clarification
+  - Day 12 proof-owner alignment
+  - Day 13 validated baseline
+- Rechecked the live Sprint 77 outcome against
+  `docs/planning/EPIC_7/PROJECT_PLAN.md`.
+- Fixed the closeout state, preserved fence, and ranked carry-forward queue in
+  writing.
+
+### Findings
+- Sprint 77 now closes with one coherent packaging, install, and cross-platform
+  quality package across:
+  - release-surface re-audit and first packaging/platform fence
+  - operator-facing install/export contract cleanup
+  - macOS supplemental and Windows reviewed workflow-proof clarification
+  - proof-owner alignment
+  - Day 13 validated proof and install baseline
+- The preserved fence stayed intact:
+  - static-first package and export truth remains explicit
+  - no widened reviewed install-validation parity claim was introduced
+  - no fake Windows Makefile parity claim was introduced
+  - no fake shared-library or dynamic-ABI maturity claim was introduced
+  - no broader platform-confidence claim was introduced beyond maintained
+    reviewed and supplemental evidence
+- Sprint 77 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - reviewed CMake parity `53`
+  - Makefile/CMake parity `53 vs 53`
+  - reviewed CMake `ctest` `53 / 53`
+  - `Total Test time (real) = 384.11 sec`
+- The ranked carry-forward queue is now fixed in writing:
+  1. exported package metadata and install-proof follow-through only where a
+     bounded mechanics seam truly moves
+  2. broader reviewed platform parity only where maintained evidence actually
+     widens beyond the current Linux/macOS/Windows split
+  3. later ABI or shared-library convergence only where product surface and
+     proof support a stronger claim
+  4. later backend, capability, or permanent-surface cleanup only after the
+     higher-value packaging/platform seams move
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` does not need a Sprint 77 correction.
+
+### Validation
+- Reconfirmed Sprint 77 closeout against the Day 13 validated baseline.
+- Reconfirmed that the live project-plan section does not require a Sprint 77
+  correction.
+
+### Day 14 Exit State
+- Sprint 77 now hands off one explicit release/install/platform close package
+  from the validated Day 13 baseline.
+- Later Epic 7 work inherits a bounded, evidence-based packaging and
+  cross-platform truthfulness contract rather than reopening Sprint 77 drift.

@@ -13,7 +13,7 @@
  * @code
  *   SparseMatrix *A = sparse_create(n, n);
  *   // ... populate A with SPD entries ...
- *   sparse_scalar_t *b = ..., *x = calloc(n, sizeof(sparse_scalar_t));
+ *   sparse_scalar_t *b = ..., *x = calloc((size_t)n, sizeof(sparse_scalar_t));
  *   sparse_iter_opts_t opts = {
  *       .max_iter = 1000,
  *       .tol = 1e-10,

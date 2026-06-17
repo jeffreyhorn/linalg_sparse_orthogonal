@@ -2418,8 +2418,9 @@ typedef struct {
 static sparse_err_t scalar_diag_matvec(const void *ctx, idx_t n, const sparse_scalar_t *x,
                                        sparse_scalar_t *y) {
     const scalar_diag_op_t *op = (const scalar_diag_op_t *)ctx;
-    (void)n;
-    for (idx_t i = 0; i < op->n; i++)
+    if (op->n != n)
+        return SPARSE_ERR_BADARG;
+    for (idx_t i = 0; i < n; i++)
         y[i] = op->diag[i] * x[i];
     return SPARSE_OK;
 }

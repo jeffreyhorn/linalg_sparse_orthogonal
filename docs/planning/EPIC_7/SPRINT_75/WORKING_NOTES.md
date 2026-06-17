@@ -1377,3 +1377,151 @@ Sprint 75 Day 9 closes with:
 2. one bounded design for CSC orchestration-level callback/cancel parity
 3. one exact Day 10 touch set and support-only list
 4. one explicit preserved parity checklist
+
+## Day 10 - Callback / Runtime Follow-Through Batch
+
+### Goal
+
+Land the bounded CSC orchestration-level callback/runtime follow-through from
+Day 9 without widening into fake per-column CSC parity or support-surface
+cleanup that the implementation did not force.
+
+### Actions
+
+1. Update the public Cholesky header so the linked-list and CSC runtime
+   contracts read truthfully at their actual granularity.
+2. Add bounded CSC orchestration checkpoints in the public Cholesky wrapper:
+   - before analysis
+   - before CSC conversion/factor materialization
+   - before supernodal factorization
+   - before publish-back into the caller matrix
+3. Preserve linked-list callback semantics unchanged.
+4. Prove the landed CSC runtime contract in the public-path integration owner:
+   - successful CSC progress emission
+   - cancellation before writeback preserves the caller-owned matrix shell
+5. Validate the batch with both the local required path and the strongest
+   reviewed baseline.
+
+### Findings
+
+#### 1. The landed runtime widening stayed in the real public owner
+
+The Day 10 batch landed only in:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_cholesky.c`
+- `tests/test_integration.c`
+
+This stayed inside the Day 9 fence and kept the public runtime ownership where
+it already truthfully belongs:
+
+- the header documents the caller-facing contract
+- the wrapper owns backend selection, cancellation, and `used_csc_path`
+- integration owns the public-path proof
+
+No support-only surface actually had to move:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `tests/test_chol_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `docs/maintainer_guide.md`
+
+#### 2. Linked-list semantics stayed unchanged while CSC gained bounded phase-level parity
+
+The linked-list backend still emits:
+
+- `phase = "cholesky_factor"`
+- one callback per column-elimination step
+
+The CSC lane now emits a separate truthful phase-level contract:
+
+- `phase = "cholesky_factor_csc"`
+- `total = 4`
+- bounded wrapper-owned orchestration checkpoints rather than fake per-column
+  parity
+
+That is the right landed boundary because it improves runtime observability
+without overclaiming kernel-level CSC progress granularity the backend does not
+actually prove.
+
+#### 3. CSC cancellation now has one explicit public checkpoint fence before publish-back
+
+The landed CSC callback checkpoints sit before publish-back commits the
+reordered factored shell into the caller-owned matrix.
+
+That means the Day 10 batch now truthfully guarantees:
+
+- CSC cancellation can happen through the public callback path
+- cancellation before the pre-writeback checkpoint leaves the caller matrix in
+  the original coordinate space
+- no partial publish-back is claimed
+- `SPARSE_ERR_CANCELLED` remains distinct from
+  `SPARSE_ERR_BACKEND_CONTRACT`
+
+This is narrower and more truthful than implying mid-supernode rollback.
+
+#### 4. The public proof now covers both CSC emission and CSC cancel-before-writeback
+
+The public-path proof expansion in `tests/test_integration.c` now covers:
+
+- successful CSC callback emission through the wrapper-owned phase
+  `cholesky_factor_csc`
+- the exact `4`-checkpoint orchestration contract
+- cancellation at the pre-writeback checkpoint
+- preservation of the original matrix shell on that cancellation path
+- retry success after cancellation
+
+That is the right proof owner because the landed contract is public-path
+runtime behavior, not family-local kernel behavior.
+
+#### 5. The support-only surfaces did not need widening
+
+The batch did not need follow-through in:
+
+- `benchmarks/bench_chol_csc.c`
+- `docs/maintainer_guide.md`
+- `tests/test_chol_csc.c`
+
+Reason:
+
+- the runtime contract moved, but the benchmark/reporting and maintainer
+  surfaces did not become untruthful
+- the family-local Cholesky proof already remained correct after the Day 7
+  kernel landing
+- the Day 10 contract is fully carried by the wrapper, header, and public
+  integration proof
+
+### Validation
+
+Because `*.c` and `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 335.03 sec`
+
+The most important Day 10 retained proof was explicit in the public-path owner:
+
+- `test_progress_cb_cholesky_csc_emits`
+- `test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix`
+
+### Day 10 Exit State
+
+Sprint 75 Day 10 closes with:
+
+1. one bounded CSC orchestration-level progress phase in the public Cholesky
+   contract
+2. one explicit CSC cancel-before-writeback fence that preserves the caller
+   matrix shell
+3. one public-path proof expansion in `tests/test_integration.c`
+4. one validated reviewed close without widening into support-only surfaces

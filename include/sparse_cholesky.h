@@ -93,19 +93,25 @@ typedef struct {
     int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
     /** Optional progress / cancellation callback. Invoked at the top of each
      *  column-elimination iteration of the linked-list backend with `phase =
-     *  "cholesky_factor"`, `step = k`, `total = n`.  Return 0 to
-     *  continue; non-zero cancels the factorisation —
-     *  `SPARSE_ERR_CANCELLED` propagates up.  NULL (default)
-     *  disables the callback.  Currently only the linked-list
-     *  backend emits progress; the CSC supernodal backend's
-     *  emissions land in a future sprint.  On the no-reorder
-     *  linked-list path, upper-triangle entries are removed before
-     *  the first emission, so cancel-at-step-0 does not restore a
+     *  "cholesky_factor"`, `step = k`, `total = n`.  On the CSC
+     *  supernodal lane it instead emits a bounded orchestration phase
+     *  `phase = "cholesky_factor_csc"` with `step` checkpoints over:
+     *  analyze, CSC conversion, supernodal factor, and pre-writeback
+     *  publish.  Return 0 to continue; non-zero cancels the
+     *  factorisation — `SPARSE_ERR_CANCELLED` propagates up.  NULL
+     *  (default) disables the callback.  The CSC lane does not claim
+     *  per-column parity with the linked-list path: its callbacks are
+     *  coarse orchestration checkpoints only.  On the no-reorder
+     *  linked-list path, upper-triangle entries are removed before the
+     *  first emission, so cancel-at-step-0 does not restore a
      *  bit-identical pre-call matrix even though the factor is
-     *  rejected as unfactored. Reordered one-shot attempts may still
-     *  preserve the caller-owned matrix because they factor a
-     *  temporary reordered working copy and only publish back on
-     *  success. Trailing field for designated-init back-compat. */
+     *  rejected as unfactored. CSC cancellation occurs before
+     *  writeback publishes the factor shell into `mat`, so the
+     *  caller-owned matrix remains in its original coordinate space on
+     *  that lane. Reordered one-shot attempts may still preserve the
+     *  caller-owned matrix because they factor a temporary reordered
+     *  working copy and only publish back on success. Trailing field
+     *  for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
@@ -187,7 +193,8 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  *         resolve its required internal dense-kernel descriptor or callback.
  * @return SPARSE_ERR_ALLOC if a required allocation fails.
  * @return SPARSE_ERR_CANCELLED if the linked-list backend progress callback
- *         cancels the factorization.
+ *         or a CSC orchestration checkpoint callback cancels the
+ *         factorization.
  *
  * @param mat   The SPD matrix to factor (modified in-place).
  * @param opts  Factorization options.

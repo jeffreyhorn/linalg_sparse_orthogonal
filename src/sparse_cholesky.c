@@ -146,6 +146,22 @@ static double s29_now_s(void) {
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
+static sparse_err_t s75_cholesky_emit_progress(sparse_progress_cb_t progress_cb,
+                                               void *progress_user, const char *phase, idx_t step,
+                                               idx_t total, double phase_start_s) {
+    if (!progress_cb)
+        return SPARSE_OK;
+    sparse_progress_t p = {
+        .phase = phase,
+        .step = step,
+        .total = total,
+        .elapsed_s = s29_now_s() - phase_start_s,
+    };
+    if (progress_cb(&p, progress_user) != 0)
+        return SPARSE_ERR_CANCELLED;
+    return SPARSE_OK;
+}
+
 /* ─── Cholesky factorization ─────────────────────────────────────────── */
 
 /*
@@ -418,6 +434,14 @@ static sparse_err_t s63_cholesky_factor_opts_no_reorder_selected_backend(
     if (!use_csc)
         return sparse_cholesky_factor_inner(mat, opts->progress_cb, opts->progress_user);
 
+    double csc_phase_start_s = opts->progress_cb ? s29_now_s() : 0.0;
+    const idx_t csc_total_steps = 4;
+    sparse_err_t progress_err =
+        s75_cholesky_emit_progress(opts->progress_cb, opts->progress_user, "cholesky_factor_csc", 0,
+                                   csc_total_steps, csc_phase_start_s);
+    if (progress_err != SPARSE_OK)
+        return progress_err;
+
     /* CSC path: analyse, convert with the full symbolic L pattern,
      * factor via the batched supernodal kernel, transplant the result
      * back into `mat`.  After the reorder + transplant above mat lives
@@ -435,6 +459,14 @@ static sparse_err_t s63_cholesky_factor_opts_no_reorder_selected_backend(
     if (err != SPARSE_OK)
         return err;
 
+    progress_err =
+        s75_cholesky_emit_progress(opts->progress_cb, opts->progress_user, "cholesky_factor_csc", 1,
+                                   csc_total_steps, csc_phase_start_s);
+    if (progress_err != SPARSE_OK) {
+        sparse_analysis_free(&an);
+        return progress_err;
+    }
+
     CholCsc *L_csc = NULL;
     err = chol_csc_from_sparse_with_analysis(mat, &an, &L_csc);
     if (err != SPARSE_OK) {
@@ -442,11 +474,29 @@ static sparse_err_t s63_cholesky_factor_opts_no_reorder_selected_backend(
         return err;
     }
 
+    progress_err =
+        s75_cholesky_emit_progress(opts->progress_cb, opts->progress_user, "cholesky_factor_csc", 2,
+                                   csc_total_steps, csc_phase_start_s);
+    if (progress_err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_analysis_free(&an);
+        return progress_err;
+    }
+
     err = chol_csc_eliminate_supernodal(L_csc, SPARSE_CSC_SUPERNODE_MIN_SIZE);
     if (err != SPARSE_OK) {
         chol_csc_free(L_csc);
         sparse_analysis_free(&an);
         return err;
+    }
+
+    progress_err =
+        s75_cholesky_emit_progress(opts->progress_cb, opts->progress_user, "cholesky_factor_csc", 3,
+                                   csc_total_steps, csc_phase_start_s);
+    if (progress_err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_analysis_free(&an);
+        return progress_err;
     }
 
     sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);

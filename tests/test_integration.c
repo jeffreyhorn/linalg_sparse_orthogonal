@@ -444,6 +444,7 @@ typedef struct {
     idx_t n_calls;
     idx_t cancel_after_step; /* return non-zero when step == cancel_after_step; -1 = never */
     idx_t last_step;
+    idx_t last_total;
     const char *last_phase;
     double last_elapsed_s;
 } progress_counter_t;
@@ -452,6 +453,7 @@ static int progress_count_cb(const sparse_progress_t *p, void *user) {
     progress_counter_t *ctx = (progress_counter_t *)user;
     ctx->n_calls++;
     ctx->last_step = p->step;
+    ctx->last_total = p->total;
     ctx->last_phase = p->phase;
     ctx->last_elapsed_s = p->elapsed_s;
     if (ctx->cancel_after_step >= 0 && p->step >= ctx->cancel_after_step)
@@ -774,8 +776,7 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* Emit: count all callbacks, force linked-list backend so the
-     * Day-6 emission path runs (CSC supernodal backend's emissions
-     * are deferred). */
+     * per-column scalar emission path runs. */
     progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_NONE,
@@ -813,6 +814,37 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
     for (idx_t i = 0; i < n; i++)
         b_cancel[i] = 1.0;
     ASSERT_EQ(sparse_cholesky_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+static void test_progress_cb_cholesky_csc_emits(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    double b[100];
+    double x[100];
+    int used_csc = 0;
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_OK);
+    ASSERT_EQ(used_csc, 1);
+    ASSERT_EQ(ctx.n_calls, 4);
+    ASSERT_EQ(ctx.last_step, 3);
+    ASSERT_EQ(ctx.last_total, 4);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "cholesky_factor_csc") == 0);
+    ASSERT_TRUE(ctx.last_elapsed_s >= 0.0);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
+
     sparse_free(A);
 }
 
@@ -859,6 +891,67 @@ static void test_progress_cb_cholesky_cancel_after_reorder_preserves_original_ma
     sparse_cholesky_opts_t retry_opts = {
         .reorder = SPARSE_REORDER_AMD,
         .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+static void test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A_orig = NULL;
+    double b[100];
+    double x[100];
+    int used_csc = 0;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    progress_counter_t ctx = {.cancel_after_step = 3};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(used_csc, 1);
+    ASSERT_EQ(ctx.n_calls, 4);
+    ASSERT_EQ(ctx.last_step, 3);
+    ASSERT_EQ(ctx.last_total, 4);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "cholesky_factor_csc") == 0);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
+
+    sparse_cholesky_opts_t retry_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = NULL,
+        .progress_cb = NULL,
+        .progress_user = NULL,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_OK);
     ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
@@ -2405,7 +2498,9 @@ int main(void) {
     RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
+    RUN_TEST(test_progress_cb_cholesky_csc_emits);
     RUN_TEST(test_progress_cb_cholesky_cancel_after_reorder_preserves_original_matrix);
+    RUN_TEST(test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix);
     RUN_TEST(
         test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_cholesky_reordered_not_spd_preserves_original_matrix);

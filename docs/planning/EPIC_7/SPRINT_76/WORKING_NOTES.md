@@ -588,3 +588,65 @@ Verify that the current benchmark-local, maintainer-policy, top-level, and workf
 ### Day 11 Exit State
 - Sprint 76 closes the threshold/comparison lane as an explicit bounded no-op recheck.
 - No threshold-policy or workflow wording batch is required before validation and closeout.
+
+## Day 12 - Docs / Proof Alignment
+
+### Goal
+Close the remaining Sprint 76 documentation and proof-reading gap across the public, benchmark-local, and maintainer-policy surfaces, and fix the exact Day 13 validation queue from the current post-Day-11 state.
+
+### Actions
+- Re-read the current landed benchmark-governance package against:
+  - `README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Reconfirmed the current proof ownership and non-goal fence after Days 6 through 11.
+- Rechecked the reviewed CMake parity anchor with `ctest -N --test-dir build/quality-review-cmake`.
+- Fixed the exact Day 13 validation queue in writing around:
+  - standard code-day gate
+  - strongest reviewed baseline
+  - touched canonical benchmark/report surfaces
+  - representative examples
+  - install/package proof scripts
+
+### Findings
+- No new Day 12 docs landing is actually needed.
+- The current live wording already agrees cleanly across:
+  - `README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- The final proof-owner and non-goal reading is now explicit:
+  - canonical benchmark binaries own emitted CSV row semantics and proof fields
+  - `scripts/bench_canonical_report.sh` and `Makefile` own the threshold-free canonical report workflow
+  - `benchmarks/README.md` owns the benchmark-local schema and role explanation
+  - `docs/maintainer_guide.md` owns the authoritative canonical/runtime/exploratory classification
+  - `README.md` stays the compact top-level summary, not the detailed schema owner
+  - no new threshold machinery or widened benchmark claim is required
+- The exact Day 13 validation queue is now fixed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Validation
+- Re-read the current README, benchmark README, and maintainer guide wording together.
+- Reconfirmed the reviewed parity anchor at `53`.
+- Rechecked branch state before closing the Day 12 pass.
+
+### Day 12 Exit State
+- Sprint 76 closes the docs/proof-alignment lane as an explicit bounded no-op.
+- The final Day 13 validation queue is fixed in writing from the current landed benchmark-governance state.

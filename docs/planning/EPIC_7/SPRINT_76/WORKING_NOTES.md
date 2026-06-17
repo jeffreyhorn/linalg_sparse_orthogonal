@@ -650,3 +650,85 @@ Close the remaining Sprint 76 documentation and proof-reading gap across the pub
 ### Day 12 Exit State
 - Sprint 76 closes the docs/proof-alignment lane as an explicit bounded no-op.
 - The final Day 13 validation queue is fixed in writing from the current landed benchmark-governance state.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Validate the full Sprint 76 benchmark-governance package from the landed Day 12 state and retain one explicit proof/report/install close baseline before Day 14 closeout.
+
+### Actions
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reconfirmed the reviewed CMake parity anchor with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused Day 12 follow-on queue across the reviewed CMake binaries, canonical report workflow, and install/package proof scripts:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Findings
+- Day 13 validation was complete:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 346.44 sec`
+- The focused Sprint 76 follow-ons also all passed:
+  - `./build/quality-review-cmake/test_chol_csc` -> `147 / 147`
+  - `./build/quality-review-cmake/test_integration` -> `50 / 50`
+  - `./build/quality-review-cmake/test_eigs` -> `31 / 31`
+  - `./build/quality-review-cmake/test_qr` -> `72 / 72`
+  - `./build/quality-review-cmake/test_svd` -> `97 / 97`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh` -> `11 / 11`
+  - `bash tests/test_cmake_install.sh` -> `13 / 13`
+- Representative retained outputs:
+  - `example_analysis` residual stayed `4.44e-16`
+  - `example_basic_solve` residual stayed `0.00e+00`
+  - `bench_refactor_csc nos4` retained `speedup_refactor = 1.37`, residuals `8.24e-16` / `7.06e-16`
+  - `bench_chol_csc nos4` retained `csc_supernodal_panel_solver = batched_panel`, with residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+  - `bench_iterative_reuse` retained `cg 1.01x`, `gmres 1.01x`, `minres 0.99x`
+  - `bench_eigs_reuse` retained `growm 1.01x`, `thick_restart 1.01x`, `lobpcg 1.01x`, `lambda_max_diff = 0.000e+00`
+  - `make bench-canonical-report` retained the stronger canonical bundle:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+  - both install regressions retained installed `pkg-config` version `2.2.0`
+- One non-blocking Day 13 note is now explicit:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `244.00 sec` out of the `346.44 sec` total, but the full reviewed path completed cleanly and all parity anchors stayed exact
+
+### Validation
+- Confirmed all standard code-day gates passed before writing the close baseline.
+- Reconfirmed the reviewed parity anchor and Makefile/CMake count parity at `53`.
+- Rechecked the focused reviewed proof, examples, benchmark rows, canonical report command, and install/package scripts from the Day 12 queue.
+
+### Day 13 Exit State
+- Sprint 76 now has one explicit validated benchmark-governance close baseline.
+- Day 14 can close from this reviewed proof/report/install state without reopening validation scope.

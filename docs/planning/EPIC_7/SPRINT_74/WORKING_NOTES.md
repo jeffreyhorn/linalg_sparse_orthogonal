@@ -1775,3 +1775,88 @@ Sprint 74 Day 13 closes with:
 2. one retained proof map across width, scalar, examples, benchmarks, and
    install/package follow-ons
 3. one explicit Day 14 closeout starting point grounded in the validated state
+
+## Day 14 - Closeout and Handoff
+
+Date: 2026-06-16
+Branch: `sprint-74`
+
+### Goal
+
+Close Sprint 74 from the Day 13 validated baseline with one explicit first
+capability-modernization package and a ranked carry-forward queue for Sprint
+75 and beyond.
+
+### Closeout State
+
+Sprint 74 now hands off one coherent first-phase capability package across:
+
+- capability audit and rerank
+- bounded index/scalar architecture contract
+- first index-width modernization seam
+- bounded scalar-surface preparation
+- docs/proof follow-through
+- validated Day 13 close state
+
+The landed package is now explicit:
+
+- `include/sparse_types.h` / `src/sparse_types.c` now own one deliberate
+  compile-time width seam through `SPARSE_IDX_BITS`, `SPARSE_PRIDX`,
+  `SPARSE_SCNIDX`, and `sparse_idx_bits()`
+- `src/sparse_alloc_internal.*` is now the clearer checked bridge between
+  `idx_t` counts and `size_t` byte/accounting math
+- `include/sparse_matrix.h` / `src/sparse_matrix.c` now consume that width
+  bridge more consistently on the touched matrix-shell paths
+- `sparse_scalar_t`, `SPARSE_SCALAR_BITS`, and `sparse_scalar_bits()` now give
+  the strongest public dense-scalar callback/result seam one explicit owner
+- `include/sparse_iterative.h` and `include/sparse_eigs.h` now route their
+  public scalar callback/result contracts through that owner instead of raw
+  `double` spellings
+- `README.md` and `docs/maintainer_guide.md` now tell the smaller truthful
+  story about what Sprint 74 actually changed
+
+### Preserved Fence
+
+The bounded Sprint 74 truthfulness fence stayed intact:
+
+- no repo-wide 64-bit conversion claim was made
+- no scalar-type genericity campaign was implied
+- no fake complex-readiness or broader precision-product claim was made
+- no unsymmetric eigensolver expansion was mixed into the first capability lane
+- no broader install/package/platform claim was widened beyond the maintained
+  reviewed and supplemental proof
+
+### Ranked Carry-Forward Queue
+
+The strongest Sprint 75+ carry-forward queue is now explicit:
+
+1. scalar-breadth modernization beyond the landed public seam, starting where
+   the real-only contract is still strongest and most reused
+2. later algorithm-family widening only where the capability contract and proof
+   justify it, rather than as a broad “more algorithms” batch
+3. backend/performance maturity only where benchmark-governed ownership seams
+   justify movement
+4. later permanent-surface cleanup only after the higher-value capability lanes
+   move
+
+### Project Plan Recheck
+
+I rechecked:
+
+- `docs/planning/EPIC_7/PROJECT_PLAN.md`
+
+It does not need a Sprint 74 correction. The landed work still matches the
+Sprint 74 project-plan contract.
+
+### Final Validation Footprint
+
+Sprint 74 closes from the Day 13 validated baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- reviewed CMake parity `53`
+- Makefile/CMake parity `53 vs 53`
+- reviewed CMake `ctest` `53 / 53`
+- `Total Test time (real) = 372.56 sec`

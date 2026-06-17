@@ -491,3 +491,56 @@ Reconcile the benchmark-local and maintainer-policy wording with the landed Day 
 ### Day 9 Exit State
 - The support surfaces now reconcile cleanly with the landed stronger canonical report bundle.
 - The strongest remaining Sprint 76 seam is no longer support-surface drift around the canonical reporting batch.
+
+## Day 10 - Threshold / Comparison Policy Design
+
+### Goal
+Define the narrow threshold and comparison policy Sprint 76 should actually preserve after the Day 6 and Day 9 landings, rather than assuming the sprint still needs a new threshold batch simply because it was originally queued.
+
+### Actions
+- Re-read the current threshold and comparison wording across:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `Makefile`
+- Re-checked the current `bench-fast`, `wall-check`, `bench_reorder`, and `bench_amd_qg` reading against retained reviewer value and variability risk.
+- Re-ranked the remaining policy choices against:
+  - stability
+  - proof value
+  - maintenance cost
+  - risk of portability overclaim
+
+### Findings
+- The strongest Day 10 conclusion is now explicit:
+  - Sprint 76 does not need a new threshold or comparison-policy batch
+  - it needs the already-landed no-threshold and bounded-runtime reading preserved in writing
+- The current retained policy is now fixed explicitly:
+  - `make bench-canonical-report`
+    - threshold-free canonical reporting surface
+    - comparison aid only
+    - not a pass/fail timing gate
+  - `bench-fast`
+    - bounded runtime lane
+    - useful current-branch signal
+    - not canonical maintained proof
+  - `wall-check`
+    - narrow thresholded regression gate with an already-justified machine-class baseline
+    - not a portable performance claim
+  - `bench_reorder` and `bench_amd_qg`
+    - runtime and reporting context only
+    - not silently promotable into canonical maintained truth
+- The stronger policy decision is therefore:
+  - preserve the explicit no-threshold policy on the canonical surface
+  - preserve the existing narrow threshold only where already justified
+  - do not add historical-diff verdict logic, comparison bands, or new timing gates in Sprint 76
+- No bounded Day 11 threshold-policy landing is currently required.
+
+### Validation
+- Re-read the current benchmark-local, maintainer-policy, top-level, and Makefile threshold/comparison wording.
+- Reconfirmed that the current post-Day-9 policy is coherent and already matches the preserved Sprint 76 truthfulness fence.
+- Rechecked branch state before closing the design pass.
+
+### Day 10 Exit State
+- Sprint 76 now has one explicit preserved threshold/comparison policy.
+- The sprint no longer carries an implied “must add a new threshold policy” obligation.
+- Day 11 can close as a bounded recheck instead of forcing an unnecessary policy landing.

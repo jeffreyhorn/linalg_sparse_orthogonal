@@ -1462,3 +1462,109 @@ Sprint 74 Day 10 closes with:
 3. one explicit support-only map for install, touched headers, examples, and
    proof owners
 4. one preserved truthfulness checklist for the post-landing capability story
+
+## Day 11 - Docs / Packaging / Test Alignment Batch
+
+### Goal
+
+Land the smallest maintained-surface follow-through actually required by the
+Day 6 width-contract seam and the Day 9 scalar-surface seam, while preserving
+the Sprint 70 truthfulness fence and the Day 10 non-touch set.
+
+### Actions
+
+1. Update the exact Day 10 required surfaces:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+2. State the landed Sprint 74 capability split directly:
+   - current shipped default width support
+   - bounded compile-time width modernization seam
+   - current shipped real-only scalar support
+   - bounded public scalar preparation seam
+3. Recheck whether support-only surfaces truly needed edits:
+   - `INSTALL.md`
+   - `include/sparse_types.h`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+   - `examples/example_analysis.c`
+   - `examples/example_basic_solve.c`
+4. Re-run the docs-only sanity set:
+   - diff review
+   - terminology/alignment checks
+   - touched-surface `wc -l`
+   - branch-state verification
+
+### Findings
+
+#### 1. `README.md` now states the landed width/scalar split directly
+
+The Known Limitations surface now says plainly that:
+
+- the reviewed build still ships the 32-bit `idx_t` lane by default
+- wider indices now route through the bounded compile-time
+  `SPARSE_IDX_BITS=64` seam
+- downstream callers must rebuild against that same width contract
+- scalar support is still real-only
+- `sparse_scalar_t` is bounded public preparation, not a broader generic or
+  complex-support claim
+
+That is the exact caller-facing follow-through the Day 10 design required.
+
+#### 2. `docs/maintainer_guide.md` now owns the narrower Sprint 74 capability interpretation
+
+The maintainer guide now states directly that:
+
+- Sprint 74 moved bounded width and scalar seams only
+- reviewed builds still default to the 32-bit `idx_t` lane
+- `SPARSE_IDX_BITS` is the compile-time width contract
+- `sparse_scalar_t` is the touched dense-scalar owner on the iterative/eigs
+  seam while shipped scalar support remains real-only
+- broader scalar breadth and later algorithm-family widening remain deferred
+
+It also names the focused proof owners directly:
+
+- `tests/test_sparse_matrix.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+
+#### 3. No support-only surface actually needed follow-through
+
+The Day 10 support-only map held:
+
+- `INSTALL.md` did not need edits because the install/export and
+  reviewed-platform contract did not move
+- the touched headers already remained truthful after the landed code
+- example surfaces did not need wording changes
+
+That means the Day 11 batch stayed bounded to the exact planned touch set.
+
+### Sanity Checks
+
+This was a docs-only batch, so I did not run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+I used the targeted docs-only sanity set instead:
+
+- diff review
+- terminology/alignment checks
+- touched-surface `wc -l`
+- branch-state verification
+
+Touched-surface raw `wc -l` counts:
+
+- `README.md` = `1044`
+- `docs/maintainer_guide.md` = `670`
+
+### Day 11 Exit State
+
+Sprint 74 Day 11 closes with:
+
+1. one bounded caller-facing capability follow-through batch in `README.md`
+2. one bounded policy/proof-owner follow-through batch in
+   `docs/maintainer_guide.md`
+3. one confirmed support-only map for install, touched headers, and examples
+4. one preserved truthfulness fence for the landed Sprint 74 capability story

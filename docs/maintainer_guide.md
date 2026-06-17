@@ -202,6 +202,55 @@ Focused install/package regression ownership:
 - Windows does not currently claim a separate reviewed install-validation lane;
   it keeps the reviewed CMake subset plus the CMake-first consumer story
 
+## Capability Surface Ownership
+
+Sprint 74 moved the highest-value bounded capability seams without widening the
+shipped product claim beyond what the live code and proof now support.
+
+Current maintained interpretation:
+
+- reviewed builds still default to the 32-bit `idx_t` lane
+- wider indices are now a bounded compile-time contract through
+  `SPARSE_IDX_BITS`, not a hand-edited typedef story
+- the strongest touched public dense-scalar seam now routes through
+  `sparse_scalar_t`
+- current shipped scalar support still remains real-only `double`
+- later scalar breadth and later algorithm-family widening remain explicitly
+  deferred
+
+Interpretation:
+
+- caller-facing docs should present the width lane as compile-time-selectable,
+  but should not imply that the whole repo is already broadly 64-bit-modernized
+- caller-facing docs and touched public headers may use `sparse_scalar_t` as
+  the dense-scalar owner on the iterative/eigs seam
+- maintainers should keep the scalar wording explicit: this is bounded public
+  preparation for later widening, not proof of complex support or broad
+  numeric genericity
+- install/export, reviewed-platform, and ABI wording should stay unchanged
+  unless a later sprint actually moves those contracts
+
+Current maintained proof ownership after Sprint 74 Day 9:
+
+- `tests/test_sparse_matrix.c` owns the width-contract proof surface:
+  - `SPARSE_IDX_BITS`
+  - `IDX_MAX`
+  - `sparse_idx_bits()`
+- `tests/test_iterative.c` owns the iterative public scalar seam:
+  - `sparse_scalar_t` matrix-free callback vectors
+  - `sparse_scalar_bits()` on the iterative public contract
+- `tests/test_eigs.c` owns the eigensolver public scalar seam:
+  - `sparse_scalar_t` caller-owned result buffers and option fields
+  - `sparse_scalar_bits()` on the eigensolver public contract
+
+Interpretation:
+
+- examples and docs remain support surfaces on this lane
+- do not imply that touched capability wording replaces the focused proof
+  owners above
+- keep `include/sparse_svd.h` and broader capability widening explicitly
+  deferred until a later sprint actually changes those contracts
+
 ## Configuration Surface Ownership
 
 Epic 6 Phase 1 moved the highest-value analysis/reorder env-var controls onto

@@ -89,7 +89,8 @@ Read that contract in three bounded layers:
 | `$(PREFIX)/lib/libsparse_lu_ortho.a` | Static library |
 | `$(PREFIX)/include/sparse/*.h` | Public headers (14 files) |
 | `$(PREFIX)/lib/pkgconfig/sparse.pc` | pkg-config descriptor |
-| `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | Exported CMake package metadata |
+| `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | Exported CMake package metadata and version file |
+| `$(PREFIX)/lib/cmake/Sparse/SparseTargets.cmake` | Exported CMake target definitions |
 
 ### Using via pkg-config
 

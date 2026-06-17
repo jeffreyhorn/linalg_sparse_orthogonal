@@ -1218,3 +1218,162 @@ Sprint 75 Day 8 closes with:
 2. one rerank that moves the next batch to CSC callback/runtime parity
 3. one bounded support-only list for benchmark, proof, and policy follow-through
 4. one exact Day 9 design center across the Cholesky runtime contract surfaces
+
+## Day 9 - Callback / Runtime Policy Design
+
+### Goal
+
+Define the bounded Cholesky CSC callback/runtime parity batch needed after the
+Day 7 kernel landing without turning it into a fake full runtime-policy
+rewrite.
+
+### Actions
+
+1. Re-read the Day 7 landing and Day 8 rerank against the live Cholesky
+   callback owner in `src/sparse_cholesky.c`.
+2. Re-map ownership for:
+   - progress callback parity
+   - cancellation semantics
+   - `used_csc_path` and backend/runtime observability
+   - support-only benchmark and maintainer follow-through
+3. Decide whether the next batch should add:
+   - full CSC kernel-level emission parity
+   - bounded CSC orchestration-level emission/cancel checkpoints
+   - observability-only docs/header cleanup
+4. Fix the exact Day 10 touch set and non-touch list.
+5. Record the preserved parity checklist.
+
+### Findings
+
+#### 1. The real callback/runtime owner is the public Cholesky wrapper, not the CSC storage file alone
+
+The Day 8 rerank correctly identified the Cholesky CSC runtime seam, but the
+owner split needed one correction after rereading the live code:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_cholesky.c`
+
+are the true first owners of the public callback/runtime contract, because:
+
+- `sparse_cholesky_factor_opts(...)` owns backend selection
+- it publishes `used_csc_path` before later errors
+- it owns reordered-working-copy versus no-reorder input-mutation semantics
+- it already owns the linked-list progress/cancel callback entry point
+
+`src/sparse_chol_csc.c` and `src/sparse_chol_csc_supernodal.c` remain
+important support seams, but they are not the first public contract owner by
+themselves.
+
+#### 2. The truthful next batch is bounded CSC orchestration-level parity, not fake per-column CSC parity
+
+The strongest Day 9 conclusion is:
+
+- do not claim linked-list and CSC callback parity at the same granularity
+
+Why:
+
+- the linked-list lane currently emits one callback per column-elimination
+  iteration
+- the CSC supernodal lane works through analysis, CSC conversion, supernodal
+  factorization, and writeback as a different orchestration shape
+- pretending the CSC lane already has equivalent per-column or per-supernode
+  public progress semantics would overclaim what the current product surface
+  can prove
+
+So the right Day 10 design target is:
+
+- bounded CSC orchestration-level progress/cancel checkpoints
+- truthful phase-level runtime observability
+- no fake claim of exact per-column parity with the linked-list path
+
+#### 3. Cancellation semantics should stay narrower and more truthful on the CSC lane
+
+The preserved cancellation contract should be:
+
+- linked-list path keeps its current top-of-column callback contract unchanged
+- CSC path, if widened, should cancel only at explicit orchestration
+  checkpoints before publish-back commits the factor shell into the caller
+  matrix
+
+That is the right boundary because:
+
+- it preserves the current truthful one-shot reordered-working-copy story
+- it avoids implying mid-supernode rollback that the current backend does not
+  actually implement
+- it keeps `SPARSE_ERR_CANCELLED` meaningful without conflating it with
+  `SPARSE_ERR_BACKEND_CONTRACT`
+
+#### 4. `used_csc_path` and backend observability should remain explicit and unchanged
+
+The Day 10 batch should preserve:
+
+- `used_csc_path` publication after backend selection and before later error
+  exit
+- `SPARSE_ERR_BACKEND_CONTRACT` as a narrow internal-backend helper/callback
+  failure
+- the maintained benchmark-side path identity fields in
+  `bench_chol_csc.c` as support-only proof, not as the primary callback owner
+
+That means the next batch should tighten the runtime story around the already
+real Cholesky wrapper truth instead of redefining the backend observability
+contract.
+
+#### 5. The exact Day 10 touch set is now fixed
+
+Required Day 10 touch set:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_cholesky.c`
+- `tests/test_integration.c`
+
+Likely support only if the implementation truly forces them:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `tests/test_chol_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `docs/maintainer_guide.md`
+
+Explicit non-touch set:
+
+- `src/sparse_dense.c`
+- `src/sparse_eigs.c`
+- `include/sparse_eigs.h`
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+- `README.md`
+- broader platform/install/release workflow surfaces
+
+That keeps Day 10 bounded to one real public callback/runtime follow-through
+center.
+
+#### 6. The preserved parity checklist is now explicit
+
+Day 10 must preserve:
+
+- linked-list backend callback semantics unchanged
+- CSC `used_csc_path` reporting unchanged
+- reordered CSC one-shot failure/cancel paths leave the caller matrix in the
+  original coordinate space until successful publish-back
+- no claim of mid-kernel or per-column CSC callback parity unless the code
+  really lands and proves it
+- no reinterpretation of benchmark proof as runtime-policy proof
+
+### Validation
+
+This was a docs-only Day 9 design pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the design in the Day 7 landed state, the Day 8 rerank, the live
+public Cholesky wrapper/runtime owner in `src/sparse_cholesky.c`, the current
+header truth in `include/sparse_cholesky.h`, the maintained integration proof
+owner, and the benchmark/maintainer support surfaces.
+
+### Day 9 Exit State
+
+Sprint 75 Day 9 closes with:
+
+1. one corrected runtime owner split centered on the public Cholesky wrapper
+2. one bounded design for CSC orchestration-level callback/cancel parity
+3. one exact Day 10 touch set and support-only list
+4. one explicit preserved parity checklist

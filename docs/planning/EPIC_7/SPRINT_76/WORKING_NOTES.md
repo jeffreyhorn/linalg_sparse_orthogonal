@@ -301,3 +301,59 @@ Define the bounded implementation contract for Sprint 76's first canonical repor
 ### Day 5 Exit State
 - Sprint 76 now has one exact Day 6 implementation contract for canonical reporting.
 - The next batch can improve cross-run and cross-branch artifact comparability without drifting into threshold policy or benchmark-driver churn.
+
+## Day 6 - Canonical Reporting Batch
+
+### Goal
+Land the first bounded canonical reporting batch on the maintained report workflow without widening the canonical benchmark surface or introducing timing-threshold policy.
+
+### Actions
+- Updated `scripts/bench_canonical_report.sh` to emit bounded cross-run metadata in addition to the existing canonical CSV bundle.
+- Updated `Makefile` to add the bounded `BENCH_CANONICAL_REPORT_LABEL` workflow override seam while preserving the same public command:
+  - `make bench-canonical-report`
+- Ran a smoke bundle with:
+  - `make bench-canonical-report BENCH_CANONICAL_REPORT_DIR=build/bench-reports/canonical-day6-smoke BENCH_CANONICAL_REPORT_LABEL=day6-smoke`
+- Re-read the generated:
+  - `manifest.txt`
+  - `index.tsv`
+
+### Findings
+- The Day 6 result stayed inside the Day 5 fence:
+  - the same four canonical maintained benchmark emitters still define the report bundle
+  - one CSV per canonical emitter remains the numeric artifact surface
+  - the report command remains threshold-free
+- `scripts/bench_canonical_report.sh` now owns a stronger but still lightweight bundle contract:
+  - generated timestamp
+  - report label
+  - git commit
+  - git branch
+  - exact command mapping
+  - explicit artifact inventory
+  - one structured `index.tsv` row per canonical emitted artifact
+- `Makefile` now owns the bounded label override seam:
+  - `BENCH_CANONICAL_REPORT_LABEL`
+- The first batch did not widen into:
+  - benchmark-driver edits
+  - runtime or exploratory benchmark capture
+  - timing thresholds
+  - machine-specific verdict logic
+  - support-surface doc churn
+
+### Validation
+- Ran:
+  - `make bench-canonical-report BENCH_CANONICAL_REPORT_DIR=build/bench-reports/canonical-day6-smoke BENCH_CANONICAL_REPORT_LABEL=day6-smoke`
+- Verified the generated smoke bundle includes:
+  - `bench_refactor_csc.csv`
+  - `bench_chol_csc.csv`
+  - `bench_iterative_reuse.csv`
+  - `bench_eigs_reuse.csv`
+  - `index.tsv`
+  - `manifest.txt`
+- Verified the smoke manifest reports:
+  - `report_label=day6-smoke`
+  - `git_commit=<current sprint-76 commit at run time>`
+  - `git_branch=sprint-76`
+
+### Day 6 Exit State
+- Sprint 76 now has one stronger canonical report bundle with bounded longitudinal metadata.
+- The first landing improved artifact comparability without reopening threshold policy or benchmark-driver schema ownership.

@@ -299,3 +299,190 @@ Sprint 75 Day 2 closes with:
 2. one fixed live proof-surface split across reviewed tests, examples,
    benchmarks, and install scripts
 3. one high-signal Sprint 75 rerun set for later backend landings
+
+## Day 3 - Backend Hotspot Re-audit
+
+### Goal
+
+Reduce Sprint 75's broad backend/performance question to one ranked live seam
+map, so the sprint starts from the strongest bounded second landing rather
+than from a generic "more backend architecture" pressure.
+
+### Actions
+
+1. Re-read the strongest current backend/performance authority surfaces:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+   - `benchmarks/README.md`
+2. Re-read the strongest likely backend and runtime seams:
+   - `src/sparse_dense.c`
+   - `src/sparse_chol_csc_supernodal.c`
+   - `src/sparse_chol_csc.c`
+   - `include/sparse_eigs.h`
+   - `src/sparse_eigs.c`
+   - `include/sparse_qr.h`
+   - `src/sparse_qr.c`
+   - `include/sparse_svd.h`
+   - `src/sparse_svd.c`
+3. Recheck the maintained benchmark and proof surfaces most relevant to the
+   live backend story:
+   - `benchmarks/bench_chol_csc.c`
+   - `benchmarks/bench_eigs_reuse.c`
+   - `benchmarks/bench_svd.c`
+   - `tests/test_chol_csc.c`
+   - `tests/test_eigs.c`
+   - `tests/test_qr.c`
+   - `tests/test_svd.c`
+4. Re-rank the strongest current contradiction centers by actual user value,
+   proof cost, and implementation leverage.
+5. Record the fixed Day 3 seam map for the Day 4 landing-boundary pass.
+
+### Findings
+
+#### 1. The strongest current backend seam is still the CSC supernodal dense-kernel lane
+
+The densest real backend-aware implementation seam is still concentrated in:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `tests/test_chol_csc.c`
+
+This remains the strongest first center because it already has all of the
+pieces a bounded backend-aware architecture lane needs:
+
+- one concrete dense-kernel owner
+- one shipped runtime descriptor (`builtin`) rather than a hypothetical plugin
+  layer
+- one maintained benchmark-side proof surface
+- one large family-local regression owner
+- one explicit maintained truthfulness contract in the docs
+
+That makes the Cholesky CSC supernodal path the strongest current
+implementation-leverage center, not merely the largest file cluster.
+
+#### 2. The strongest second seam is eigensolver backend/runtime parity
+
+The second-ranked backend/performance seam is now the symmetric eigensolver
+lane across:
+
+- `include/sparse_eigs.h`
+- `src/sparse_eigs.c`
+- `tests/test_eigs.c`
+- `benchmarks/bench_eigs_reuse.c`
+
+The key Day 3 clarification is that this lane already owns a real backend
+selector and shared orchestration surface, not just future-looking comments.
+That makes it the strongest second backend lane.
+
+What keeps it second rather than first is that the bounded dense-kernel story
+is still stronger and more coherent in CSC Cholesky:
+
+- the Cholesky lane already exposes dense-kernel descriptor identity and
+  benchmark proof directly
+- the eigs lane is more of a runtime/callback parity seam than a dense-kernel
+  or backend-descriptor seam
+- `include/sparse_eigs.h` still carries explicit backend-family asymmetry in
+  progress and cancellation behavior, especially around the grow-m path versus
+  the other eigensolver families
+
+So Sprint 75 should treat eigs as the strongest second landing, not as the
+first one.
+
+#### 3. QR and SVD remain real hotspots, but they are later lanes rather than the first landing
+
+The Day 3 reread of:
+
+- `include/sparse_qr.h`
+- `src/sparse_qr.c`
+- `include/sparse_svd.h`
+- `src/sparse_svd.c`
+- `benchmarks/bench_svd.c`
+- `tests/test_qr.c`
+- `tests/test_svd.c`
+
+shows that QR and SVD still matter, but not as the first backend-architecture
+batch center.
+
+The strongest reasons are:
+
+- neither public header currently exposes a backend selector or backend-aware
+  product contract comparable to the eigs lane
+- `bench_svd.c` still reads as exploratory/profiling support rather than the
+  most canonical maintained benchmark-proof owner
+- the QR and SVD implementation seams are still more algorithmic and
+  workspace-oriented than backend-descriptor-oriented
+
+That means QR and SVD should remain later Sprint 75 targets unless the Day 4
+boundary pass shows that the strongest bounded second landing is actually
+callback/runtime parity rather than another kernel-owned lane.
+
+#### 4. The strongest cross-cutting secondary seam is callback/runtime truth, not benchmark governance
+
+The Day 3 reread also fixes one useful separation:
+
+- the strongest cross-cutting secondary seam is callback/runtime parity
+- it is not a broad benchmark-governance rewrite
+
+This is clearest in:
+
+- `include/sparse_eigs.h`
+- `src/sparse_eigs.c`
+- `include/sparse_qr.h`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+The benchmark/report surfaces are already reasonably well bounded:
+
+- `bench_chol_csc` is the maintained backend-side proof surface for the first
+  dense-kernel-aware Cholesky lane
+- `bench_eigs_reuse` is already fairly structured and retained
+- `bench_svd` is weaker, but that is more a later proof-surface issue than the
+  main architecture center
+
+By contrast, callback and runtime truth still have enough family-local
+asymmetry that any backend-aware Sprint 75 landing must preserve them
+carefully rather than smoothing them into one generic story.
+
+#### 5. The Sprint 75 contradiction map is now ranked explicitly
+
+The Day 3 backend/performance rerank is now:
+
+- strongest first target:
+  - CSC supernodal Cholesky dense-kernel/runtime ownership
+- strongest second target:
+  - eigensolver backend/runtime parity
+- strongest later target:
+  - QR and SVD backend-aware follow-through
+- strongest cross-cutting support seam:
+  - callback/runtime truth across maintained families
+- support-only, not first-batch centers:
+  - broad benchmark governance rewrite
+  - broad public-surface rewrite
+  - fake pluggable-backend or shared-library maturity work
+
+This is the right narrowing for Day 3: Sprint 75 should begin from the most
+coherent shipped backend-aware lane and only widen where the benchmark proof,
+callback truth, and family-local regression surfaces already justify it.
+
+### Validation
+
+This was a docs-only Day 3 audit pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the rerank in direct rereads of the current backend/performance
+authority surfaces, the dense-kernel owner, the CSC supernodal Cholesky lane,
+the eigs public/runtime seam, the QR and SVD public/implementation seams, and
+the maintained benchmark and regression owners that currently define the live
+backend truth surface.
+
+### Day 3 Exit State
+
+Sprint 75 Day 3 closes with:
+
+1. one explicit ranked backend/performance contradiction map
+2. one fixed strongest first lane in CSC supernodal Cholesky
+3. one fixed strongest second lane in eigensolver backend/runtime parity
+4. one explicit separation between real architecture pressure and later
+   benchmark or public-surface follow-through

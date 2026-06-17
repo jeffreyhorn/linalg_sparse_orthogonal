@@ -220,10 +220,46 @@ sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double 
     return SPARSE_OK;
 }
 
+sparse_err_t chol_dense_solve_panel(const double *L, idx_t n, idx_t lda, double *panel, idx_t ldb,
+                                    idx_t panel_rows) {
+    if (!L)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n || panel_rows < 0)
+        return SPARSE_ERR_BADARG;
+    if (n == 0 || panel_rows == 0)
+        return SPARSE_OK;
+    if (!panel)
+        return SPARSE_ERR_NULL;
+    if (ldb < panel_rows)
+        return SPARSE_ERR_BADARG;
+
+    /* Solve all panel rows against the same L in place. Each panel column j
+     * stores the j-th solve-dimension entry for every panel row, so forward
+     * substitution can update the whole column strip before moving on. */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < i; j++) {
+            double l_ij = L[i + j * lda];
+            if (l_ij == 0.0)
+                continue;
+            for (idx_t r = 0; r < panel_rows; r++)
+                panel[r + i * ldb] -= l_ij * panel[r + j * ldb];
+        }
+        double l_ii = L[i + i * lda];
+        if (l_ii == 0.0)
+            return SPARSE_ERR_SINGULAR;
+        double inv_l_ii = 1.0 / l_ii;
+        for (idx_t r = 0; r < panel_rows; r++)
+            panel[r + i * ldb] *= inv_l_ii;
+    }
+
+    return SPARSE_OK;
+}
+
 static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
     .name = "builtin",
     .factor = chol_dense_factor,
     .solve_lower = chol_dense_solve_lower,
+    .solve_panel = chol_dense_solve_panel,
 };
 
 static const chol_dense_kernels_t *s64_test_override_dense_kernels = NULL;

@@ -203,14 +203,21 @@ first Sprint 64 backend-aware Cholesky CSC lane:
   - `csc_scalar_path`
   - `csc_supernodal_path`
   - `csc_supernodal_dense_kernel`
+  - `csc_supernodal_panel_solver`
 - the path columns stay intentionally stable at:
   - `scalar`
   - `supernodal`
 - `csc_supernodal_dense_kernel` identifies the active dense-kernel descriptor
   behind the supernodal lane; on the current default build it reports
   `builtin`
+- `csc_supernodal_panel_solver` identifies whether the supernodal lane has
+  the batched panel-solve callback required by the Sprint 75 Day 7 kernel
+  landing; on the current default build it reports `batched_panel`
 - this keeps the Sprint 64 benchmark refresh bounded to path measurability and
   truthfulness, not broad benchmark-governance churn
+- the Sprint 75 Day 10 public callback/runtime semantics remain test-owned in
+  `tests/test_integration.c`; this benchmark stays a measurement surface, not
+  the owner of progress/cancel truth
 - it is not the owner of the Sprint 68 staged public-path oracle/parity lane
   or the bounded seeded lifecycle property lane; those remain test-owned in
   `tests/test_integration.c` and `tests/test_fuzz.c`

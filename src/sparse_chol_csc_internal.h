@@ -665,6 +665,29 @@ sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol);
 sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b);
 
 /**
+ * Batched forward substitution on a dense lower-triangular factor.
+ *
+ * Solves `panel_rows` right-hand sides against the same lower-triangular
+ * factor `L`, using the panel layout the CSC supernodal Cholesky lane already
+ * materializes: `panel[r + j * ldb]` stores panel row `r` and solve-dimension
+ * entry `j`.
+ *
+ * Equivalently, if `P` is the `panel_rows × n` mathematical panel with rows
+ * laid out column-major-by-solve-dimension in `panel`, this computes
+ * `P <- P * L^{-T}` in place.
+ *
+ * @param L           Factored lower-triangular matrix (column-major).
+ * @param n           Factor dimension.
+ * @param lda         Leading dimension of L.
+ * @param panel       Panel storage, overwritten in place.
+ * @param ldb         Leading dimension of panel (must be >= panel_rows).
+ * @param panel_rows  Number of panel rows / batched right-hand sides.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_SINGULAR.
+ */
+sparse_err_t chol_dense_solve_panel(const double *L, idx_t n, idx_t lda, double *panel, idx_t ldb,
+                                    idx_t panel_rows);
+
+/**
  * Internal dense-kernel descriptor for the Cholesky CSC supernodal lane.
  *
  * Sprint 64 Day 8 introduces the first bounded backend-aware abstraction
@@ -677,6 +700,8 @@ typedef struct {
     const char *name;
     sparse_err_t (*factor)(double *A, idx_t n, idx_t lda, double tol);
     sparse_err_t (*solve_lower)(const double *L, idx_t n, idx_t lda, double *b);
+    sparse_err_t (*solve_panel)(const double *L, idx_t n, idx_t lda, double *panel, idx_t ldb,
+                                idx_t panel_rows);
 } chol_dense_kernels_t;
 
 /**
@@ -763,7 +788,7 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size);
  *
  * The batched supernodal path (Days 7-8) replaces per-column cdiv loops
  * with one `chol_dense_factor` call on the supernode's diagonal block
- * plus one `chol_dense_solve_lower` pass per panel column.  Both dense
+ * plus one dense panel solve on the below-supernode slab.  Both dense
  * kernels operate on a column-major buffer, which has to be scattered
  * from packed CSC storage on the way in and gathered back on the way
  * out.  Day 6 ships only the extract/writeback plumbing — with round-
@@ -885,8 +910,8 @@ sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_s
  * After a successful return, `dense[0..s_size-1, 0..s_size-1]` holds
  * the Cholesky factor L of the external-cmod'd diagonal block, and
  * `dense[s_size..panel_height-1, 0..s_size-1]` holds the external-
- * cmod'd panel values (still pre-triangular-solve; Day 8 runs
- * `chol_dense_solve_lower` on this panel).
+ * cmod'd panel values (still pre-triangular-solve; Day 8 runs the dense
+ * panel-solve kernel on this slab).
  */
 
 /**
@@ -933,7 +958,8 @@ sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start
  * Equivalently, for each panel row i, solve
  *   L_diag * x = rect[i, :]^T
  * in place (forward substitution) to obtain x = L_panel[i, :]^T.
- * This is exactly `chol_dense_solve_lower` applied row-by-row.
+ * The current backend-aware dense-kernel contract treats that as one batched
+ * panel solve rather than a repeated single-RHS helper loop.
  */
 
 /**
@@ -955,8 +981,7 @@ sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start
  *                   (no panel — the routine returns SPARSE_OK
  *                   immediately).
  * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG,
- *         SPARSE_ERR_ALLOC (scratch vector for the row-by-row solve),
- *         SPARSE_ERR_SINGULAR (propagated from `chol_dense_solve_lower`
+ *         SPARSE_ERR_SINGULAR (propagated from the dense panel-solve kernel
  *         if L_diag has a zero diagonal — should not happen after a
  *         successful `chol_dense_factor`).
  */

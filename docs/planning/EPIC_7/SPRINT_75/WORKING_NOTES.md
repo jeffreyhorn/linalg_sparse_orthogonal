@@ -1654,3 +1654,146 @@ Sprint 75 Day 11 closes with:
 3. one validated live `bench_chol_csc` row showing `batched_panel`
 4. one bounded benchmark refresh without widening into governance or runtime
    code churn
+
+## Day 12 - Regression & Fallback Proof Alignment
+
+### Goal
+
+Confirm that the landed Sprint 75 backend-aware seams already have the right
+focused proof owners, add only the minimum regression or fallback follow-through
+if a real gap remains, and fix the exact Day 13 validation queue from the
+post-Day-11 state.
+
+### Actions
+
+1. Re-read the touched proof and measurement owners:
+   - `tests/test_chol_csc.c`
+   - `tests/test_integration.c`
+   - `benchmarks/bench_chol_csc.c`
+2. Re-read the touched runtime and benchmark follow-through surfaces:
+   - `include/sparse_cholesky.h`
+   - `src/sparse_cholesky.c`
+   - `src/sparse_dense.c`
+   - `src/sparse_chol_csc_supernodal.c`
+   - `README.md`
+   - `benchmarks/README.md`
+   - `docs/maintainer_guide.md`
+3. Decide whether any proof gap still remains for:
+   - dense-kernel panel-solve correctness
+   - missing-callback fallback and backend-contract failure
+   - public CSC progress/cancel runtime truth
+   - benchmark measurability of the landed panel-solver seam
+4. Fix the exact Day 13 validation queue in writing around the touched proof
+   owners, representative examples, maintained benchmark surfaces, and
+   install/package scripts.
+
+### Findings
+
+#### 1. No new regression code is actually needed
+
+The landed Sprint 75 seams already sit in the right focused proof owners:
+
+- `tests/test_chol_csc.c` owns the family-local dense-kernel and fallback lane
+  through:
+  - `test_chol_dense_solve_panel_2x2_two_rhs`
+  - `test_supernodal_dense_backend_default_contract`
+  - `test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error`
+- `tests/test_integration.c` owns the public CSC runtime lane through:
+  - `test_progress_cb_cholesky_csc_emits`
+  - `test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix`
+- `benchmarks/bench_chol_csc.c` owns the benchmark-side measurability lane
+  through:
+  - `csc_supernodal_dense_kernel`
+  - `csc_supernodal_panel_solver`
+  - retained residual and timing proof for linked-list vs CSC paths
+
+That already covers the real Sprint 75 safety boundary:
+
+- the dense-kernel descriptor exposes the required panel-solve capability
+- missing `solve_panel` still fails through the narrow
+  `SPARSE_ERR_BACKEND_CONTRACT` path
+- the public CSC wrapper emits the bounded `cholesky_factor_csc` phase
+- cancellation before writeback preserves the original caller matrix shell
+- the benchmark surface makes the Day 7 batched panel-solve seam directly
+  reviewable
+
+Adding broader or duplicated regression on Day 12 would weaken ownership
+clarity rather than improve it.
+
+#### 2. The maintained wording is already aligned after Day 11
+
+The Day 11 benchmark/docs batch already keeps the ownership split truthful:
+
+- `README.md` remains the caller-facing benchmark/runtime summary
+- `benchmarks/README.md` remains the benchmark-side interpretation surface
+- `docs/maintainer_guide.md` remains the policy and proof-owner authority
+
+No extra header, benchmark, or maintainer wording is required on Day 12:
+
+- public callback/cancel truth is already stated as test-owned
+- benchmark-side panel-solver measurability is already stated as benchmark-owned
+- family-local dense-kernel fallback truth is already stated as
+  `tests/test_chol_csc.c`-owned
+
+#### 3. The real Day 12 output is the explicit Day 13 validation queue
+
+The exact Day 13 validation queue is now fixed around the touched Sprint 75
+surfaces:
+
+- standard code-day gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+- strongest reviewed baseline:
+  - `make quality-review-full`
+- reviewed proof-owner follow-ons:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_integration`
+- representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained benchmark/reporting follow-ons:
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- maintained install/package proof:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Build / Reference Alignment
+
+The sustained Sprint 75 ownership split is now explicit:
+
+- `tests/test_chol_csc.c` is the family-local dense-kernel and
+  backend-contract proof owner
+- `tests/test_integration.c` is the public callback/cancel runtime proof owner
+- `benchmarks/bench_chol_csc.c` is the benchmark-side path/backend/panel-solver
+  measurement owner
+- examples remain adoption/context surfaces
+- install scripts remain install/package proof surfaces
+
+### Sanity Checks
+
+This was a docs-only alignment pass, so I did not run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+I used the targeted docs-only sanity set instead:
+
+- diff review
+- proof-owner reread
+- validation-queue recheck
+- branch-state verification
+
+### Day 12 Exit State
+
+Sprint 75 Day 12 closes with:
+
+1. one explicit proof-owner map for dense-kernel fallback, public runtime, and
+   benchmark measurability
+2. one confirmed conclusion that no new regression code was justified
+3. one fixed Day 13 validation queue from the post-Day-11 state
+4. one preserved ownership split across tests, benchmarks, examples, and
+   install/package proof

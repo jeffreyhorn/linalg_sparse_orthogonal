@@ -732,3 +732,56 @@ Validate the full Sprint 76 benchmark-governance package from the landed Day 12 
 ### Day 13 Exit State
 - Sprint 76 now has one explicit validated benchmark-governance close baseline.
 - Day 14 can close from this reviewed proof/report/install state without reopening validation scope.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 76 from the Day 13 validated baseline and fix the exact benchmark-governance handoff state for Sprint 77 and later Epic 7 work.
+
+### Actions
+- Re-read the Sprint 76 Day 13 validation artifact.
+- Re-read the Sprint 76 section of `docs/planning/EPIC_7/PROJECT_PLAN.md`.
+- Rechecked the landed Sprint 76 package against the preserved truthfulness fence:
+  - threshold-free canonical reporting
+  - bounded runtime and threshold lanes
+  - benchmark-local and maintainer-policy authority split
+  - no widened benchmark or platform claim detached from maintained evidence
+- Fixed the closeout state, preserved non-goals, and ranked carry-forward queue in writing.
+
+### Findings
+- Sprint 76 now closes with one coherent benchmark-governance package across:
+  - benchmark-governance re-audit and first reporting boundary
+  - canonical report workflow and longitudinal metadata strengthening
+  - support-surface reconciliation in `benchmarks/README.md` and `docs/maintainer_guide.md`
+  - preserved threshold/comparison policy without a forced new threshold batch
+  - Day 13 validated proof, report, and install baseline
+- The preserved fence stayed intact:
+  - `make bench-canonical-report` remains threshold-free canonical reporting
+  - `bench-fast` remains the bounded runtime lane, not canonical maintained proof
+  - `wall-check` remains the narrow thresholded regression gate with its already-justified machine-class baseline
+  - `bench_reorder` and `bench_amd_qg` remain runtime and reporting context only
+  - no portable pass/fail timing gate was added to the canonical surface
+  - no widened benchmark, backend, or platform claim was introduced beyond maintained evidence
+- The ranked carry-forward queue is now fixed in writing:
+  1. eigensolver backend/runtime parity as the strongest remaining backend-aware second lane after Sprint 75
+  2. QR and SVD backend-aware follow-through only where a bounded proof-backed seam justifies movement
+  3. later packaging, ABI, or platform convergence only where maintained evidence supports a stronger claim
+  4. later permanent-surface cleanup only after the higher-value backend and capability lanes move
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` does not need a Sprint 76 correction.
+
+### Validation
+- Re-read the Day 13 validated baseline instead of reopening validation.
+- Reconfirmed that Sprint 76 closes from the Day 13 reviewed state:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - reviewed CMake parity `53`
+  - Makefile/CMake parity `53 vs 53`
+  - reviewed CMake `ctest` `53 / 53`
+  - `Total Test time (real) = 346.44 sec`
+- Rechecked branch state before closing the sprint.
+
+### Day 14 Exit State
+- Sprint 76 now hands off one explicit benchmark-governance close package from a validated Day 13 baseline.
+- Sprint 77 and later work now inherit a bounded, evidence-based benchmark/reporting contract rather than reopening Sprint 76 taxonomy or threshold drift.

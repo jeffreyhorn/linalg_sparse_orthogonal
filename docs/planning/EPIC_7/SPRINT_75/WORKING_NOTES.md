@@ -1797,3 +1797,107 @@ Sprint 75 Day 12 closes with:
 3. one fixed Day 13 validation queue from the post-Day-11 state
 4. one preserved ownership split across tests, benchmarks, examples, and
    install/package proof
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+
+Validate the landed Sprint 75 branch from the strongest reviewed baseline and
+the exact Day 12 follow-on queue so Day 14 can close from a real validated
+backend/performance package.
+
+### Actions
+
+1. Run the standard code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+2. Run the strongest reviewed baseline:
+   - `make quality-review-full`
+3. Recheck the reviewed CMake parity anchors:
+   - `ctest -N --test-dir build/quality-review-cmake`
+   - Makefile/CMake test-count parity
+   - full reviewed CMake `ctest`
+4. Run the exact Day 12 proof-owner and adoption/reporting follow-ons:
+   - `./build/quality-review-cmake/test_chol_csc`
+   - `./build/quality-review-cmake/test_integration`
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+5. Rematerialize the local Makefile example and benchmark binaries with:
+   - `make examples-build`
+   - `make bench-build`
+
+### Validation
+
+All required Day 13 validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 346.76 sec`
+
+#### Focused follow-ons
+
+The touched Sprint 75 follow-ons also all passed:
+
+- `./build/quality-review-cmake/test_chol_csc` -> `147 / 147`
+- `./build/quality-review-cmake/test_integration` -> `50 / 50`
+- `make examples-build`
+- `make bench-build`
+- `./build/example_analysis`
+- `./build/example_basic_solve`
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `bash tests/test_install.sh` -> `11 / 11`
+- `bash tests/test_cmake_install.sh` -> `13 / 13`
+
+#### Representative retained outputs
+
+- `test_chol_csc` retained the landed Sprint 75 family-local proof:
+  - `test_chol_dense_solve_panel_2x2_two_rhs`
+  - `test_supernodal_dense_backend_default_contract`
+  - `test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error`
+- `test_integration` retained the landed public runtime proof:
+  - `test_progress_cb_cholesky_csc_emits`
+  - `test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix`
+- `example_analysis` solve residual stayed `4.44e-16`
+- `example_basic_solve` residual stayed `0.00e+00`
+- `bench_refactor_csc nos4` retained `speedup_refactor = 1.11`, residuals
+  `8.24e-16` / `7.06e-16`
+- `bench_chol_csc nos4` retained:
+  - `csc_scalar_path = scalar`
+  - `csc_supernodal_path = supernodal`
+  - `csc_supernodal_dense_kernel = builtin`
+  - `csc_supernodal_panel_solver = batched_panel`
+  - `speedup_csc = 0.48`
+  - `speedup_csc_sn = 0.81`
+  - residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+- both install regressions retained installed `pkg-config` version `2.2.0`
+
+### Non-Blocking Note
+
+Reviewed CMake `test_reorder_nd` still dominated runtime at `234.86 sec` out
+of the `346.76 sec` total, but the full reviewed path completed cleanly and
+all parity anchors stayed exact.
+
+### Day 13 Exit State
+
+Sprint 75 Day 13 closes with:
+
+1. one fully validated backend/performance package from the strongest reviewed
+   baseline
+2. one confirmed proof-owner rerun across family-local dense-kernel fallback
+   and public CSC runtime truth
+3. one retained benchmark row proving `csc_supernodal_panel_solver = batched_panel`
+4. one preserved install/package proof state for Day 14 closeout

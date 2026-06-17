@@ -518,3 +518,61 @@ Land the bounded macOS/Windows workflow-level proof clarification batch so the e
 - Sprint 77 now has one landed bounded platform-confidence batch.
 - The macOS and Windows workflow surfaces read more explicitly as the narrower proof lanes they actually are.
 - Day 10 can now decide whether any support-surface follow-through is truly needed from the landed state.
+
+## Day 10 - Workflow & Contract Reconciliation Design
+
+### Goal
+Define the bounded workflow/docs/policy reconciliation batch from the landed Day 6 and Day 9 state, and decide whether any maintained command or contract surface actually needs follow-through.
+
+### Actions
+- Re-read the Day 6 and Day 9 landed surfaces:
+  - `INSTALL.md`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Re-read the current support surfaces most likely to drift:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- Re-ranked the remaining follow-through pressure against:
+  - truthfulness drift
+  - maintained command ambiguity
+  - policy mismatch
+  - bounded Day 11 payoff
+- Fixed the exact Day 11 touch set and preserved reviewed-versus-supplemental split in writing.
+
+### Findings
+- Sprint 77 now has one explicit Day 11 follow-through contract:
+  - required next surface:
+    - `docs/maintainer_guide.md`
+  - support only if wording truly forces it:
+    - `README.md`
+    - `CMakeLists.txt`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+- The useful Day 10 clarification is now explicit:
+  - the strongest remaining question is not the install guide or workflow layer anymore
+  - it is whether the authoritative maintainer-policy surface should now say the workflow-level proof split more directly after the Day 9 landing
+  - `README.md` remains support-only because its compact package/platform summary already matches the landed state closely enough
+  - `CMakeLists.txt` and the local install-proof scripts remain support-only because Day 9 did not change package mechanics or proof ownership
+- The preserved reviewed-versus-supplemental split is explicit too:
+  - reviewed lanes:
+    - Linux strongest reviewed truth
+    - macOS reviewed Apple Clang lane
+    - Windows reviewed CMake consumer subset
+  - supplemental proof:
+    - macOS Make install/`pkg-config` confidence path
+    - Homebrew GCC second-compiler path
+  - local install/package regression proof:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+
+### Validation
+- Re-read the Day 6 and Day 9 landed surfaces against the current support surfaces.
+- Rechecked that the strongest remaining follow-through pressure is policy-layer clarification rather than another install-guide or workflow batch.
+
+### Day 10 Exit State
+- Sprint 77 now has one explicit workflow/contract follow-through design.
+- The Day 11 touch set is narrowed to maintainer-policy first, with the other support surfaces staying conditional.
+- The reviewed-versus-supplemental split is fixed before any support-surface edits land.

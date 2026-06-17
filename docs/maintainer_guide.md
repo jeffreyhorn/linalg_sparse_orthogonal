@@ -582,7 +582,15 @@ Current threshold-free reporting surface:
 - `make bench-canonical-report`
   - writes one CSV per canonical maintained benchmark under:
     - `build/bench-reports/canonical/`
-  - writes `manifest.txt` with the exact fixture/command mapping
+  - accepts `BENCH_CANONICAL_REPORT_LABEL=<label>` as the bounded comparison
+    label override
+  - writes `manifest.txt` with:
+    - exact fixture/command mapping
+    - explicit artifact inventory
+    - generated timestamp
+    - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
+    - git commit / branch when locally available
+  - writes `index.tsv` with one structured row per emitted canonical artifact
   - is acceptable for local before/after comparison or CI artifact capture
   - is intentionally not a timing threshold gate
   - should stay limited to the canonical maintained surface unless a later

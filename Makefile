@@ -296,6 +296,7 @@ BENCH_CANONICAL_REPORT_BINS = $(BUILDDIR)/bench_refactor_csc \
                               $(BUILDDIR)/bench_iterative_reuse \
                               $(BUILDDIR)/bench_eigs_reuse
 BENCH_CANONICAL_REPORT_DIR = $(BUILDDIR)/bench-reports/canonical
+BENCH_CANONICAL_REPORT_LABEL ?=
 .PHONY: bench-fast
 bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@for b in $(BENCH_FAST_BINS); do \
@@ -312,7 +313,8 @@ bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 # without turning it into a noisy timing gate.
 .PHONY: bench-canonical-report
 bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
-	@scripts/bench_canonical_report.sh "$(BENCH_CANONICAL_REPORT_DIR)" \
+	@BENCH_CANONICAL_REPORT_LABEL="$(BENCH_CANONICAL_REPORT_LABEL)" \
+		scripts/bench_canonical_report.sh "$(BENCH_CANONICAL_REPORT_DIR)" \
 		"$(BUILDDIR)/bench_refactor_csc" \
 		"$(BUILDDIR)/bench_chol_csc" \
 		"$(BUILDDIR)/bench_iterative_reuse" \

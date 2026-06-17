@@ -131,16 +131,32 @@ For threshold-free local or CI-friendly reporting on the maintained canonical
 surface, use:
 
 - `make bench-canonical-report`
+- optionally set `BENCH_CANONICAL_REPORT_LABEL=<label>` on that command to
+  attach a bounded comparison label to the bundle metadata
 
 That target writes one CSV per canonical maintained benchmark under:
 
 - `build/bench-reports/canonical/`
 
-plus a `manifest.txt` describing the exact commands used. This is intentionally
-not a pass/fail timing gate:
+plus a bounded bundle-level metadata surface:
+
+- `manifest.txt`
+  - exact command mapping
+  - explicit artifact inventory
+  - generated timestamp
+  - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
+  - git commit / branch when locally available
+- `index.tsv`
+  - one structured row per emitted canonical artifact
+  - keeps the same bounded canonical surface identity and command mapping in a
+    machine-readable comparison form
+
+This is intentionally not a pass/fail timing gate:
 
 - compare the emitted CSV rows across branches or runs
 - treat it as artifact-friendly reporting, not portable performance proof
+- use the bundle metadata to make before/after or cross-branch snapshots
+  easier to line up without widening the benchmark claim surface
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline

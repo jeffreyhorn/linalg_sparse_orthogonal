@@ -147,3 +147,69 @@ Reconfirm the Sprint 77 implementation-day validation contract and the live proo
 - Sprint 77 now has one explicit implementation-day validation contract.
 - The live proof split across reviewed binaries, root canonical benchmark emitters, and install/package scripts is fixed in writing.
 - The strongest likely Sprint 77 rerun set is explicit before release-surface and platform-gap audit work begins.
+
+## Day 3 - Release-Surface Re-audit
+
+### Goal
+Re-rank the live release, install, export, and platform-quality surface by downstream value, maintenance cost, and truthfulness risk so Sprint 77 starts from the strongest bounded contradiction center rather than from a generic packaging wishlist.
+
+### Actions
+- Re-read the Sprint 77 Day 3 plan expectations in `docs/planning/EPIC_7/SPRINT_77/PLAN.md`.
+- Re-read the operator-facing install and platform contract in `INSTALL.md`.
+- Re-read the compact top-level package/platform summary in `README.md`.
+- Re-read the authoritative package, ABI, and reviewed-platform policy section in `docs/maintainer_guide.md`.
+- Re-read the current exported-package and install metadata surface in `CMakeLists.txt`.
+- Re-read the live macOS and Windows CI contract surfaces in:
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Rechecked the strongest install/export/platform terminology seams with targeted `rg`.
+
+### Findings
+- Sprint 77's broad release/install/platform pressure is now reduced to one ranked contradiction map instead of one generic "packaging convergence" bucket:
+  - strongest first target:
+    - operator-facing install/export contract and release-shape reading
+  - strongest second target:
+    - authoritative reviewed-platform and packaging-policy surface
+  - strongest third target:
+    - exported-package metadata and local install-proof ownership seam
+  - strongest support-surface contradiction:
+    - compact front-door package/platform summary
+  - strongest adjacent but not first-batch lane:
+    - reviewed-platform asymmetry across macOS supplemental install proof and Windows CMake-only consumer proof
+- The strongest first contradiction center is not the CI workflow YAML by itself.
+- It is the operator-facing contract spread across:
+  - `INSTALL.md`
+  - the shipped static-first install/export story
+  - the local install-proof scripts it points to
+- That lane ranks first because it is where downstream readers most directly interpret:
+  - what gets installed
+  - what `pkg-config` and `find_package(Sparse)` actually promise
+  - whether the package story is mature, staged, or narrower than it first sounds
+  - which platform claims are real versus merely locally demonstrable
+- `docs/maintainer_guide.md` is the strongest second target because it already owns the authoritative truthfulness reading for:
+  - static-first packaging
+  - bounded ABI/version interpretation
+  - Linux as strongest reviewed truth
+  - macOS as narrower reviewed plus supplemental install verification
+  - Windows as reviewed CMake subset and consumer lane only
+- `CMakeLists.txt` plus the local install-proof scripts form the strongest third lane because they are where the productized package surface becomes concrete:
+  - installed static archive
+  - installed headers
+  - exported `Sparse::sparse_lu_ortho`
+  - generated `SparseConfig*.cmake`
+  - generated `sparse.pc`
+- `README.md` is a real support-surface contradiction center, but weaker than the install guide and maintainer guide because it is already intentionally compact and does not own the full package/platform contract.
+- The live platform asymmetry is important, but not the best first landing because the strongest Sprint 77 problem is not "add more CI lanes first." It is:
+  - keep the package story small and truthful
+  - make reviewed versus supplemental proof easier to read
+  - avoid letting narrower local install proof read like broader reviewed cross-platform parity
+
+### Validation
+- Re-read `INSTALL.md`, `README.md`, `docs/maintainer_guide.md`, `CMakeLists.txt`, `.github/workflows/macos-ci.yml`, and `.github/workflows/windows-ci.yml`.
+- Rechecked the install/export/platform terminology seams with targeted `rg`.
+- Reconfirmed that the reviewed baseline and Day 2 truth-surface split remain unchanged by the Day 3 rerank.
+
+### Day 3 Exit State
+- Sprint 77 now has one explicit release/platform contradiction ranking instead of a generic packaging backlog.
+- The strongest first landing candidate is fixed to the install/export contract lane.
+- Day 4 can now freeze a real first packaging/platform boundary from the live release surface.

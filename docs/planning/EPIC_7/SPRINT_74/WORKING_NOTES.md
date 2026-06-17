@@ -1308,3 +1308,157 @@ Sprint 74 Day 9 closes with:
    owner
 3. one focused proof pair confirming the touched public scalar contracts
 4. one fully validated capability-boundary landing inside the Sprint 74 fence
+
+## Day 10 - Docs / Packaging / Test Alignment Design
+
+### Goal
+
+Decide the smallest maintained-surface follow-through actually required by the
+landed Day 6 width-contract batch and Day 9 scalar-surface batch, without
+widening Sprint 74 into a generic docs or packaging cleanup pass.
+
+### Actions
+
+1. Re-read the Day 6 and Day 9 artifacts plus the current Sprint 74 plan for
+   the follow-through lane.
+2. Re-audit the strongest maintained public and policy surfaces against the
+   landed capability contract:
+   - `README.md`
+   - `INSTALL.md`
+   - `docs/maintainer_guide.md`
+3. Re-check the now-touched public capability headers and support surfaces:
+   - `include/sparse_types.h`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+   - `examples/example_analysis.c`
+   - `examples/example_basic_solve.c`
+4. Separate required capability wording follow-through from optional churn
+   around install, examples, or support headers.
+5. Fix the exact Day 11 touch set and preserved truthfulness checklist in
+   writing.
+
+### Findings
+
+#### 1. The strongest required follow-through is public capability wording, not install/package cleanup
+
+The Day 6 and Day 9 landings moved the capability contract in two exact ways:
+
+- width selection is now a named compile-time contract, not an implicit
+  hand-edited typedef
+- the strongest public real-only scalar seam now routes through
+  `sparse_scalar_t` instead of repeated raw `double` spelling
+
+That means the strongest required maintained-surface follow-through is in the
+public capability wording, not in the install/package story.
+
+#### 2. `README.md` is the strongest maintained public follow-through surface
+
+`README.md` still carries the strongest caller-facing capability summary in the
+Known Limitations section.
+
+The live contradiction is narrow and exact:
+
+- the current 32-bit note still tells callers to manually change the typedef in
+  `sparse_types.h`
+- the current scalar note still states only the old real-only `double` reading,
+  without acknowledging the new public scalar owner
+
+That makes `README.md` a required Day 11 surface.
+
+#### 3. `docs/maintainer_guide.md` is the strongest policy follow-through surface
+
+The maintainer guide is now the right place to state the bounded Sprint 74
+capability interpretation directly:
+
+- current reviewed builds still ship the 32-bit `idx_t` lane by default
+- the landed width modernization seam is compile-time-selectable and bounded
+- the landed scalar modernization seam is public-contract preparation only,
+  not broad numeric genericity
+- later scalar breadth and later algorithm-family widening remain deferred
+
+That makes `docs/maintainer_guide.md` the second required Day 11 surface.
+
+#### 4. `INSTALL.md` and the touched public headers do not need Day 11 edits
+
+The install/package surface did not materially move:
+
+- no reviewed-platform claim changed
+- no install/export contract changed
+- no ABI/product claim widened
+
+The touched public headers already read truthfully after the Day 6 and Day 9
+landings:
+
+- `include/sparse_types.h` now states the compile-time width contract and the
+  bounded scalar owner directly
+- `include/sparse_iterative.h` and `include/sparse_eigs.h` already express the
+  touched scalar seam through `sparse_scalar_t`
+
+That means these are support-only surfaces for Day 11:
+
+- `INSTALL.md`
+- `include/sparse_types.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+
+#### 5. The proof-owner lane is not the Day 11 center
+
+The touched proof owners are already clear from the landed code:
+
+- `tests/test_sparse_matrix.c` owns the width-contract proof
+- `tests/test_iterative.c` owns the iterative public scalar seam
+- `tests/test_eigs.c` owns the eigs public scalar seam
+
+That proof-owner interpretation may need explicit alignment on Day 12, but it
+does not force a Day 11 wording batch by itself.
+
+### Day 11 Touch Set
+
+Required Day 11 surfaces:
+
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Support only if wording truly forces it:
+
+- `INSTALL.md`
+- `include/sparse_types.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `examples/example_analysis.c`
+- `examples/example_basic_solve.c`
+
+Explicit non-touch set:
+
+- implementation `src/` files
+- proof-owner test files
+- benchmark binaries and benchmark docs
+- platform/install workflow files
+- broader solver-family headers such as `include/sparse_svd.h`
+
+### Preserved Truthfulness Checklist
+
+Day 11 must preserve:
+
+- current shipped default width remains the reviewed 32-bit `idx_t` lane
+- the new width seam is compile-time-selectable, not a broad repo-wide 64-bit
+  completion claim
+- current shipped scalar support remains real-only
+- `sparse_scalar_t` is a bounded public preparation seam, not a claim of
+  complex support or broad scalar genericity
+- no reviewed-platform, install/export, or ABI claim widens
+- touched proof stays owned by the focused test surfaces, not by docs/examples
+
+### Day 10 Exit State
+
+Sprint 74 Day 10 closes with:
+
+1. one exact maintained-surface follow-through center fixed to capability
+   wording rather than install/package cleanup
+2. one bounded Day 11 touch set fixed to `README.md` plus
+   `docs/maintainer_guide.md`
+3. one explicit support-only map for install, touched headers, examples, and
+   proof owners
+4. one preserved truthfulness checklist for the post-landing capability story

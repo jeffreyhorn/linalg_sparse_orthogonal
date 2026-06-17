@@ -486,3 +486,153 @@ Sprint 75 Day 3 closes with:
 3. one fixed strongest second lane in eigensolver backend/runtime parity
 4. one explicit separation between real architecture pressure and later
    benchmark or public-surface follow-through
+
+## Day 4 - First Backend Boundary
+
+### Goal
+
+Freeze one exact first Sprint 75 backend/policy fence so the next design pass
+starts from a bounded implementation lane rather than a generic performance
+architecture backlog.
+
+### Actions
+
+1. Re-rank the Day 3 hotspots against:
+   - runtime leverage
+   - proof cost
+   - compatibility risk
+   - bounded Sprint 75 payoff
+2. Separate the likely Sprint 75 surfaces into:
+   - first-batch landing surfaces
+   - support surfaces that move only if the first batch forces them
+   - later or explicitly deferred backend work
+3. Recheck the strongest live first-lane proof and observability surfaces:
+   - `include/sparse_cholesky.h`
+   - `src/sparse_dense.c`
+   - `src/sparse_chol_csc_supernodal.c`
+   - `src/sparse_chol_csc.c`
+   - `benchmarks/bench_chol_csc.c`
+   - `tests/test_chol_csc.c`
+4. Reconfirm the strongest deferred second lane:
+   - `include/sparse_eigs.h`
+   - `src/sparse_eigs.c`
+   - `benchmarks/bench_eigs_reuse.c`
+   - `tests/test_eigs.c`
+5. Fix the Day 4 boundary and non-goal fence in writing.
+
+### Findings
+
+#### 1. The first Sprint 75 landing should stay on the shipped CSC supernodal Cholesky lane
+
+The strongest first landing remains the bounded CSC supernodal Cholesky
+dense-kernel/runtime lane.
+
+Required first-batch implementation center:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc.c`
+
+This is still the right first boundary because it combines:
+
+- the clearest current backend-owner seam
+- the strongest runtime leverage
+- the most compact existing benchmark-side proof surface
+- one already-maintained family-local regression owner
+- the lowest risk of widening the product claim beyond the shipped
+  self-contained default build
+
+#### 2. The strongest support surfaces are bounded, not assumed
+
+The first batch does not need to assume a broad support-wave.
+
+Support only if the first batch truly forces it:
+
+- `include/sparse_cholesky.h`
+- `benchmarks/bench_chol_csc.c`
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+- `docs/maintainer_guide.md`
+
+This is the useful Day 4 narrowing:
+
+- header wording should move only if the first batch changes local callback,
+  dense-kernel-descriptor, or publish-back truth
+- benchmark proof should move only if the first batch changes what must be
+  made measurable
+- regression owners should move only if the first batch changes correctness or
+  fallback behavior enough to require new proof
+- maintainer-policy wording should move only if the batch genuinely changes
+  the bounded backend contract
+
+#### 3. Eigs is fixed as the strongest second lane, not the first batch center
+
+The eigensolver backend/runtime seam is now explicitly deferred behind the
+first batch:
+
+- `include/sparse_eigs.h`
+- `src/sparse_eigs.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `tests/test_eigs.c`
+
+That does not make eigs unimportant. It fixes the execution order:
+
+- CSC supernodal Cholesky remains the best first landing
+- eigs remains the best second landing
+- callback/runtime parity should first be tightened where the CSC lane needs
+  it, not reopened repo-wide through the eigs lane before the first batch is
+  shipped
+
+#### 4. QR, SVD, and broad benchmark refresh are now explicit later work
+
+The Day 4 deferred set is now explicit:
+
+- `include/sparse_qr.h`
+- `src/sparse_qr.c`
+- `tests/test_qr.c`
+- `include/sparse_svd.h`
+- `src/sparse_svd.c`
+- `tests/test_svd.c`
+- `benchmarks/bench_svd.c`
+- broad `README.md` and `benchmarks/README.md` cleanup
+
+The useful separation is:
+
+- QR and SVD are later backend/performance lanes
+- broad benchmark-proof refresh is later follow-through
+- broad public-surface cleanup is later follow-through
+
+None of those should widen the first Sprint 75 implementation fence.
+
+#### 5. The non-goal fence is now fixed explicitly
+
+The Day 4 non-goal fence is:
+
+- no broad backend abstraction-layer rewrite
+- no fake optional-backend or shared-library maturity claim
+- no benchmark-threshold portability story
+- no repo-wide callback/cancellation uniformity claim
+- no broad governance or docs-cleanup spill before the first kernel lane lands
+
+This keeps Sprint 75 aligned with the Sprint 70 truthfulness contract and the
+Sprint 64 self-contained default-build reading.
+
+### Validation
+
+This was a docs-only Day 4 boundary pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the boundary in the Day 3 rerank plus direct rereads of the live
+CSC supernodal Cholesky runtime, proof, benchmark, and header surfaces, and
+the strongest deferred eigs lane that now sits behind the first batch.
+
+### Day 4 Exit State
+
+Sprint 75 Day 4 closes with:
+
+1. one explicit first Sprint 75 backend landing fence
+2. one bounded support-only map for proof, benchmark, header, and policy
+   surfaces
+3. one fixed deferred second lane in eigensolver backend/runtime parity
+4. one explicit non-goal fence against broad backend or benchmark-governance
+   widening

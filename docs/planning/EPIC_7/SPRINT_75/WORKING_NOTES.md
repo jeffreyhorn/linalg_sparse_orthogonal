@@ -936,3 +936,146 @@ Sprint 75 Day 6 closes with:
 2. one fixed benchmark and regression/fallback proof-owner map
 3. one support-only follow-through list for header and policy surfaces
 4. one explicit Day 8 post-landing audit rubric
+
+## Day 7 - Kernel Integration Batch 2
+
+### Goal
+
+Land the first real backend-aware kernel follow-through inside the bounded CSC
+supernodal Cholesky lane without widening into eigs, QR, SVD, or broad
+docs/benchmark churn.
+
+### Actions
+
+1. Re-read the dense-kernel descriptor, the supernodal panel-elimination path,
+   and the CSC orchestration seam against the Day 6 proof map.
+2. Replace the repeated single-RHS supernodal panel solve loop with one dense
+   batched panel-solve callback in the internal kernel descriptor.
+3. Extend family-local proof in `tests/test_chol_csc.c` around:
+   - the builtin dense-kernel descriptor contract
+   - direct batched panel-solve correctness
+   - missing-callback backend-contract failure
+4. Run the full required validation set for a substantial backend code batch.
+5. Record the landed kernel-owner seam and the untouched support surfaces.
+
+### Findings
+
+#### 1. The dense-kernel descriptor now owns one explicit batched panel-solve seam
+
+The landed Day 7 kernel extension is:
+
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_dense.c`
+
+The dense-kernel descriptor now owns a real multi-RHS panel-solve callback:
+
+- `chol_dense_solve_panel(...)`
+- `chol_dense_kernels_t.solve_panel`
+
+That is the right owner split because it keeps the shipped builtin dense
+implementation in the dense-kernel seam itself instead of leaving supernodal
+code to synthesize batching from repeated lower-solve calls.
+
+#### 2. The supernodal CSC lane now consumes the batched panel-solve seam directly
+
+The landed supernodal consumer change is:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+`chol_csc_supernode_eliminate_panel(...)` now reads as one bounded publish-free
+backend step:
+
+- require `kernels->solve_panel`
+- reject a missing callback with `SPARSE_ERR_BACKEND_CONTRACT`
+- dispatch one dense batched panel solve over the whole below-diagonal panel
+
+This closed the strongest local backend-owner contradiction from the Day 3-6
+audit:
+
+- dense batching no longer hides in a repeated single-RHS loop in the
+  supernodal consumer
+- the narrow backend-contract failure now points at the actual missing required
+  dense callback
+
+#### 3. Family-local proof now covers the new panel-solve and fallback contract
+
+The first proof owner stayed exactly where the Day 6 map said it should:
+
+- `tests/test_chol_csc.c`
+
+The landed proof additions are:
+
+- direct correctness coverage for a 2x2 lower-triangular batched two-RHS panel
+  solve
+- explicit default dense-kernel descriptor coverage for `solve_panel`
+- explicit backend-contract coverage when `solve_panel` is missing
+
+That means the new backend-aware seam is proven locally without widening into
+`tests/test_integration.c`, because the outer caller-facing public-path
+contract did not actually change.
+
+#### 4. Support-only follow-through was not forced
+
+The Day 6 support-only surfaces stayed untouched:
+
+- `include/sparse_cholesky.h`
+- `benchmarks/bench_chol_csc.c`
+- `tests/test_integration.c`
+- `docs/maintainer_guide.md`
+
+That is the correct bounded result because the Day 7 landing changed:
+
+- internal dense-kernel descriptor truth
+- supernodal panel-consumption mechanics
+- family-local fallback proof
+
+It did not change:
+
+- the public Cholesky header contract
+- benchmark-visible path identity wording
+- the outer integration/public lifecycle contract
+- the maintainer policy split
+
+#### 5. The reviewed validation anchors stayed exact after the backend batch
+
+This was a substantial backend code batch, so I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 334.93 sec`
+
+### Validation
+
+Full required validation for the Day 7 backend batch passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The family-local proof owner retained the new focused passes:
+
+- `test_chol_dense_solve_panel_2x2_two_rhs`
+- `test_supernodal_dense_backend_default_contract`
+- `test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error`
+
+### Day 7 Exit State
+
+Sprint 75 Day 7 closes with:
+
+1. one explicit dense-kernel batched panel-solve callback seam
+2. one supernodal CSC consumer path that uses that seam directly
+3. one local backend-contract failure boundary aligned to the actual required
+   callback
+4. one family-local proof expansion in `tests/test_chol_csc.c`
+5. one validated reviewed close without widening into support-only surfaces

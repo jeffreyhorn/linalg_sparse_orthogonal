@@ -90,8 +90,7 @@ sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t 
  *   2. chol_csc_supernode_eliminate_diag     (external cmod + dense
  *                                             Cholesky on the top
  *                                             s_size × s_size slab)
- *   3. chol_csc_supernode_eliminate_panel    (chol_dense_solve_lower
- *                                             row-by-row on the panel)
+ *   3. chol_csc_supernode_eliminate_panel    (batched dense panel solve)
  *   4. chol_csc_supernode_writeback          (dense buffer → CSC)
  *
  * After writeback, columns [s_start, s_start + s_size) hold the
@@ -435,32 +434,10 @@ sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_si
     if (lda_panel < panel_rows)
         return SPARSE_ERR_BADARG;
 
-    if ((size_t)s_size > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-    double *row_buf = malloc((size_t)s_size * sizeof(double));
-    if (!row_buf)
-        return SPARSE_ERR_ALLOC;
-
     const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
-    if (!kernels || !kernels->solve_lower) {
-        free(row_buf);
+    if (!kernels || !kernels->solve_panel)
         return SPARSE_ERR_BACKEND_CONTRACT;
-    }
-
-    for (idx_t i = 0; i < panel_rows; i++) {
-        for (idx_t j = 0; j < s_size; j++)
-            row_buf[j] = panel[i + j * lda_panel];
-        sparse_err_t err = kernels->solve_lower(L_diag, s_size, lda_diag, row_buf);
-        if (err != SPARSE_OK) {
-            free(row_buf);
-            return err;
-        }
-        for (idx_t j = 0; j < s_size; j++)
-            panel[i + j * lda_panel] = row_buf[j];
-    }
-
-    free(row_buf);
-    return SPARSE_OK;
+    return kernels->solve_panel(L_diag, s_size, lda_diag, panel, lda_panel, panel_rows);
 }
 
 sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,

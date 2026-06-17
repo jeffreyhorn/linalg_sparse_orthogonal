@@ -2578,6 +2578,21 @@ static void test_chol_dense_solve_lower_3x3(void) {
     ASSERT_NEAR(b[2], 3.0, 1e-12);
 }
 
+static void test_chol_dense_solve_panel_2x2_two_rhs(void) {
+    double L[4] = {2.0, 1.0, 0.0, 3.0};
+    double panel[4] = {
+        2.0,
+        6.0,
+        7.0,
+        15.0,
+    };
+    REQUIRE_OK(chol_dense_solve_panel(L, 2, 2, panel, 2, 2));
+    ASSERT_NEAR(panel[0], 1.0, 1e-12);
+    ASSERT_NEAR(panel[1], 3.0, 1e-12);
+    ASSERT_NEAR(panel[2], 2.0, 1e-12);
+    ASSERT_NEAR(panel[3], 4.0, 1e-12);
+}
+
 static void test_supernodal_dense_backend_default_contract(void) {
     const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
     ASSERT_NOT_NULL(kernels);
@@ -2586,7 +2601,8 @@ static void test_supernodal_dense_backend_default_contract(void) {
     ASSERT_NOT_NULL(kernels->name);
     ASSERT_NOT_NULL(kernels->factor);
     ASSERT_NOT_NULL(kernels->solve_lower);
-    if (!kernels->name || !kernels->factor || !kernels->solve_lower)
+    ASSERT_NOT_NULL(kernels->solve_panel);
+    if (!kernels->name || !kernels->factor || !kernels->solve_lower || !kernels->solve_panel)
         return;
 
     double A[4] = {4.0, 2.0, 2.0, 5.0};
@@ -2599,6 +2615,13 @@ static void test_supernodal_dense_backend_default_contract(void) {
     REQUIRE_OK(kernels->solve_lower(A, 2, 2, b));
     ASSERT_NEAR(b[0], 1.0, 1e-12);
     ASSERT_NEAR(b[1], 2.0, 1e-12);
+
+    double panel[4] = {2.0, 6.0, 5.0, 11.0};
+    REQUIRE_OK(kernels->solve_panel(A, 2, 2, panel, 2, 2));
+    ASSERT_NEAR(panel[0], 1.0, 1e-12);
+    ASSERT_NEAR(panel[1], 3.0, 1e-12);
+    ASSERT_NEAR(panel[2], 2.0, 1e-12);
+    ASSERT_NEAR(panel[3], 4.0, 1e-12);
 }
 
 /* ─── Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) ─── */
@@ -3910,6 +3933,7 @@ static void test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contr
         .name = "missing-factor",
         .factor = NULL,
         .solve_lower = chol_dense_solve_lower,
+        .solve_panel = chol_dense_solve_panel,
     };
 
     chol_csc_supernodal_set_dense_kernels_override_for_test(&missing_factor);
@@ -3921,16 +3945,17 @@ static void test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contr
     sparse_free(A);
 }
 
-static void test_supernode_eliminate_panel_missing_solve_kernel_is_backend_contract_error(void) {
+static void test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error(void) {
     double L_diag[4] = {2.0, 1.0, 0.0, 2.0};
     double panel[2] = {2.0, 5.0};
-    static const chol_dense_kernels_t missing_solve_lower = {
-        .name = "missing-solve-lower",
+    static const chol_dense_kernels_t missing_solve_panel = {
+        .name = "missing-solve-panel",
         .factor = chol_dense_factor,
-        .solve_lower = NULL,
+        .solve_lower = chol_dense_solve_lower,
+        .solve_panel = NULL,
     };
 
-    chol_csc_supernodal_set_dense_kernels_override_for_test(&missing_solve_lower);
+    chol_csc_supernodal_set_dense_kernels_override_for_test(&missing_solve_panel);
     ASSERT_ERR(chol_csc_supernode_eliminate_panel(L_diag, 2, 2, panel, 1, 1),
                SPARSE_ERR_BACKEND_CONTRACT);
     chol_csc_supernodal_clear_dense_kernels_override_for_test();
@@ -4595,6 +4620,7 @@ int main(void) {
     RUN_TEST(test_chol_dense_factor_not_spd);
     RUN_TEST(test_chol_dense_solve_null);
     RUN_TEST(test_chol_dense_solve_lower_3x3);
+    RUN_TEST(test_chol_dense_solve_panel_2x2_two_rhs);
     RUN_TEST(test_supernodal_dense_backend_default_contract);
 
     /* Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) */
@@ -4632,7 +4658,7 @@ int main(void) {
     RUN_TEST(
         test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error);
     RUN_TEST(test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error);
-    RUN_TEST(test_supernode_eliminate_panel_missing_solve_kernel_is_backend_contract_error);
+    RUN_TEST(test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error);
 
     /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */
     RUN_TEST(test_supernodal_parametrised_cross_check);

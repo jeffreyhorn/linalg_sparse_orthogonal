@@ -1,0 +1,42 @@
+Sprint 77 Day 1 - Authoritative Inputs
+Date: 2026-06-17
+Branch: sprint-77
+
+Planning and sprint inputs
+- docs/planning/EPIC_7/PROJECT_PLAN.md (Sprint 77: Packaging, ABI & Cross-Platform Quality Convergence Phase 2)
+- docs/planning/EPIC_7/SPRINT_77/PLAN.md
+- docs/planning/EPIC_7/SPRINT_76/artifacts/day14-closeout-and-handoff.md
+
+Reviewed baseline inputs
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Maintained packaging, install, and platform surfaces reread directly
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- Makefile
+- CMakeLists.txt
+- cmake/SparseConfig.cmake.in
+- tests/test_install.sh
+- tests/test_cmake_install.sh
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+
+Targeted live terminology scans
+- rg -n "install\\(|pkg-config|find_package\\(Sparse|SparseConfig|quality-review-cmake|quality-review-full|windows|macOS|Apple Clang|CMake-first consumer|install-validation|bench-canonical-report" README.md INSTALL.md docs/maintainer_guide.md Makefile CMakeLists.txt tests/test_install.sh tests/test_cmake_install.sh .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml cmake/SparseConfig.cmake.in
+
+Live raw wc -l hotspot measurements
+- README.md = 1045
+- INSTALL.md = 237
+- docs/maintainer_guide.md = 685
+- Makefile = 899
+- CMakeLists.txt = 413
+- tests/test_install.sh = 172
+- tests/test_cmake_install.sh = 146
+- .github/workflows/ci.yml = 223
+- .github/workflows/macos-ci.yml = 113
+- .github/workflows/windows-ci.yml = 61
+- cmake/SparseConfig.cmake.in = 5

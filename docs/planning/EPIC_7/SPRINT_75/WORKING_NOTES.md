@@ -1079,3 +1079,142 @@ Sprint 75 Day 7 closes with:
    callback
 4. one family-local proof expansion in `tests/test_chol_csc.c`
 5. one validated reviewed close without widening into support-only surfaces
+
+## Day 8 - Post-Landing Audit & Rerank
+
+### Goal
+
+Re-rank the remaining Sprint 75 queue after the Day 7 kernel landing and fix
+the exact Day 9 design center instead of assuming a second generic backend
+batch.
+
+### Actions
+
+1. Audit the Day 7 landing against the Day 3 hotspot ranking and Day 6 audit
+   rubric.
+2. Re-read the live Cholesky runtime/observability contract across:
+   - `include/sparse_cholesky.h`
+   - `src/sparse_chol_csc.c`
+   - `src/sparse_chol_csc_supernodal.c`
+3. Re-read the maintained benchmark and maintainer-policy surfaces to
+   distinguish real next-batch seams from support-only drift.
+4. Fix the exact Day 9 design center and support-only follow-through list.
+5. Record what no longer needs to move in Sprint 75.
+
+### Findings
+
+#### 1. Day 7 closed the strongest dense-kernel/backend-owner seam
+
+The Day 7 landing no longer leaves the strongest backend contradiction in:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `tests/test_chol_csc.c`
+
+The batched panel-solve seam is now explicit and locally proven:
+
+- the dense-kernel descriptor owns the callback
+- the supernodal consumer uses that callback directly
+- the backend-contract failure boundary points at the actual missing required
+  callback
+
+That means a second same-family dense-kernel integration batch is no longer
+the highest-value next move.
+
+#### 2. The strongest remaining seam is now CSC callback/runtime parity
+
+The strongest remaining contradiction is now the Cholesky CSC
+callback/runtime truth seam across:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+
+The useful Day 8 clarification is:
+
+- the public header still says only the linked-list backend emits progress
+- the CSC one-shot dispatch and publish-back lane already owns `used_csc_path`
+  and the bounded `SPARSE_ERR_BACKEND_CONTRACT` truth
+- after the Day 7 kernel landing, the next high-value question is not another
+  dense-kernel callback, but whether CSC runtime observability and
+  progress/cancellation semantics should move toward bounded parity
+
+That makes callback/runtime parity the strongest real next batch center.
+
+#### 3. Benchmark proof refresh is real support drift, but not the next batch center
+
+One real support drift now exists in:
+
+- `benchmarks/bench_chol_csc.c`
+
+Its maintained benchmark comment still describes the older row-by-row panel
+solve reading even though Day 7 landed a batched panel-solve seam.
+
+That matters, but it remains weaker than the runtime seam because:
+
+- it is benchmark-surface commentary, not the backend-owner code path
+- it does not block truthful family-local proof or reviewed validation
+- it can move as support-only follow-through once the runtime batch is fixed
+
+So benchmark proof refresh is no longer the strongest remaining contradiction.
+
+#### 4. Residual support-surface drift stayed bounded
+
+The maintained support surfaces remain coherent enough to stay out of the next
+design center:
+
+- `docs/maintainer_guide.md`
+- `tests/test_integration.c`
+
+Why they are support-only rather than the next batch center:
+
+- `docs/maintainer_guide.md` still states the local backend/performance truth
+  correctly at the policy layer
+- `tests/test_integration.c` already owns linked-list Cholesky progress/cancel
+  coverage and should only move if the CSC public-path runtime contract itself
+  widens
+- the Day 7 landing did not force a public lifecycle change
+
+#### 5. The exact Day 9 design center is now fixed
+
+Required Day 9 design center:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+
+Likely support only if the Day 9 design truly forces them:
+
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `docs/maintainer_guide.md`
+
+Explicitly not the next batch center:
+
+- eigensolver backend/runtime parity
+- QR backend-aware follow-through
+- SVD backend-aware follow-through
+- another dense-kernel descriptor expansion in `src/sparse_dense.c`
+
+That fixes the next batch to one real follow-through center instead of
+assuming a second generic backend code wave.
+
+### Validation
+
+This was a docs-only Day 8 audit pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the rerank in the Day 7 landed state plus direct rereads of the
+Cholesky public runtime contract, CSC dispatch/orchestration seam, supernodal
+consumer seam, maintained benchmark proof surface, integration proof owner,
+and maintainer-policy truth surface.
+
+### Day 8 Exit State
+
+Sprint 75 Day 8 closes with:
+
+1. one explicit confirmation that Day 7 closed the strongest dense-kernel seam
+2. one rerank that moves the next batch to CSC callback/runtime parity
+3. one bounded support-only list for benchmark, proof, and policy follow-through
+4. one exact Day 9 design center across the Cholesky runtime contract surfaces

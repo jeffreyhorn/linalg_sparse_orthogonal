@@ -1568,3 +1568,110 @@ Sprint 74 Day 11 closes with:
    `docs/maintainer_guide.md`
 3. one confirmed support-only map for install, touched headers, and examples
 4. one preserved truthfulness fence for the landed Sprint 74 capability story
+
+## Day 12 - Regression Coverage & Safety Alignment
+
+### Goal
+
+Confirm that the landed Sprint 74 width and scalar seams already have the
+right focused proof owners, add only the minimum regression follow-through if a
+real gap remains, and fix the exact Day 13 validation queue from the
+post-Day-11 state.
+
+### Actions
+
+1. Re-read the touched proof owners and their sustained contract points:
+   - `tests/test_sparse_matrix.c`
+   - `tests/test_iterative.c`
+   - `tests/test_eigs.c`
+   - `include/sparse_types.h`
+   - `include/sparse_iterative.h`
+   - `include/sparse_eigs.h`
+2. Re-read the maintained public/policy follow-through surfaces from Day 11:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+3. Decide whether any regression gap still remains for:
+   - width-contract safety
+   - touched scalar compatibility boundaries
+   - narrowed capability-claim truthfulness
+4. Fix the exact Day 13 validation queue in writing around the touched proof
+   owners, representative examples, maintained capability benchmarks, and
+   install/package scripts.
+
+### Findings
+
+#### 1. No new regression code is actually needed
+
+The touched capability seams already sit in the right focused proof owners:
+
+- `tests/test_sparse_matrix.c` owns the width-contract lane through:
+  - `SPARSE_IDX_BITS`
+  - `IDX_MAX`
+  - `sparse_idx_bits()`
+- `tests/test_iterative.c` owns the iterative public scalar seam through:
+  - `sparse_scalar_t` matrix-free callback vectors
+  - `sparse_scalar_bits()` on the public iterative contract
+- `tests/test_eigs.c` owns the eigensolver public scalar seam through:
+  - `sparse_scalar_t` caller-owned result buffers and option fields
+  - `sparse_scalar_bits()` on the public eigs contract
+
+Those are exactly the narrow proof owners Sprint 74 needed. Adding broader or
+duplicated regression would weaken ownership clarity rather than improve it.
+
+#### 2. The maintained proof-owner wording is already aligned after Day 11
+
+The Day 11 maintainer-guide batch already names the touched Sprint 74 proof
+owners directly and keeps the narrower capability interpretation explicit.
+
+That means no extra policy or header wording is required on Day 12:
+
+- `README.md` remains the caller-facing capability summary
+- `docs/maintainer_guide.md` remains the policy and proof-owner authority
+- touched public headers already express the width/scalar seams truthfully
+
+#### 3. The real Day 12 output is the explicit Day 13 validation queue
+
+The exact Day 13 validation queue is now fixed around the touched Sprint 74
+surfaces:
+
+- standard code-day gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+- strongest reviewed baseline:
+  - `make quality-review-full`
+- reviewed proof-owner follow-ons:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/test_integration`
+- representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained capability benchmark/reporting surfaces:
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_iterative_reuse`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+- maintained install/package proof:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Build / Reference Alignment
+
+The sustained Sprint 74 build/reference ownership is now explicit:
+
+- `tests/test_sparse_matrix.c` is the maintained width-contract proof owner
+- `tests/test_iterative.c` is the maintained iterative public scalar-seam owner
+- `tests/test_eigs.c` is the maintained eigensolver public scalar-seam owner
+- examples remain adoption/context surfaces, not proof owners
+- benchmark binaries remain capability/reporting context, not truth owners for
+  the width/scalar contract
+
+### Day 12 Exit State
+
+Sprint 74 Day 12 closes with:
+
+1. one confirmed focused proof-owner map for the landed width and scalar seams
+2. no redundant regression expansion added where no real gap remained
+3. one explicit Day 13 validation queue for the touched capability package

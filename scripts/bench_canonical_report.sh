@@ -50,6 +50,8 @@ if [ -z "$git_commit" ]; then
 fi
 if [ -z "$git_branch" ]; then
     git_branch="unknown"
+elif [ "$git_branch" = "HEAD" ]; then
+    git_branch="detached"
 fi
 
 cat > "$index_tsv" <<EOF

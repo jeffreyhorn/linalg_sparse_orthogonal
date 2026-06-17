@@ -131,6 +131,8 @@ For threshold-free local or CI-friendly reporting on the maintained canonical
 surface, use:
 
 - `make bench-canonical-report`
+- optionally set `BENCH_CANONICAL_REPORT_LABEL=<label>` on that command to
+  attach a bounded comparison label to the bundle metadata
 
 That target writes one CSV per canonical maintained benchmark under:
 
@@ -142,7 +144,7 @@ plus a bounded bundle-level metadata surface:
   - exact command mapping
   - explicit artifact inventory
   - generated timestamp
-  - bounded report label
+  - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
   - git commit / branch when locally available
 - `index.tsv`
   - one structured row per emitted canonical artifact

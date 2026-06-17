@@ -375,3 +375,50 @@ Land the highest-value bounded release/install productization cleanup inside `IN
 - Sprint 77 now has one landed bounded packaging/productization batch.
 - The operator-facing install/export contract reads more directly as one static-first product surface.
 - Day 7 can now rerank the remaining package/platform seams from the landed state.
+
+## Day 7 - Post-Landing Audit
+
+### Goal
+Re-audit the release and platform surface after the Day 6 landing so Sprint 77 targets the strongest remaining bounded seam rather than repeating the install-guide cleanup.
+
+### Actions
+- Re-read the Day 6 landed `INSTALL.md` surface.
+- Re-read the maintained package/platform policy section in `docs/maintainer_guide.md`.
+- Re-read the compact front-door package summary in `README.md`.
+- Re-ranked the remaining Sprint 77 contradictions against:
+  - downstream friction removed
+  - proof gaps still visible
+  - support-surface drift
+  - bounded follow-through value
+- Fixed the exact Day 8 design center in writing.
+
+### Findings
+- The Day 6 landing closed the strongest first package contradiction:
+  - `INSTALL.md` no longer reads like the strongest remaining Sprint 77 seam
+  - a second operator-facing install-guide batch is not the highest-value next move
+- The strongest remaining seam has now shifted to platform-proof asymmetry and how it is interpreted across:
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- The strongest support-only follow-through from that lane is now:
+  - `docs/maintainer_guide.md`
+- Lower-value support-only follow-through remains:
+  - `README.md`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- The useful Day 7 clarification is now explicit:
+  - the next batch should focus on narrowing the highest-value macOS/Windows proof-reading gap, not on further install-guide compression
+  - the strongest remaining risk is not the static-first package contract itself
+  - it is how readers reconcile:
+    - macOS supplemental Make install verification
+    - Windows reviewed CMake-only consumer proof
+    - the absence of a broader reviewed install-validation parity claim
+
+### Validation
+- Re-read the landed `INSTALL.md`, `docs/maintainer_guide.md`, and `README.md` surfaces from the Day 6 state.
+- Rechecked that the first-batch productization cleanup removed the strongest operator-facing contradiction without forcing support-surface drift.
+
+### Day 7 Exit State
+- Sprint 77 does not need a second install-guide batch.
+- The strongest remaining seam is explicitly reranked to Windows/macOS proof asymmetry.
+- Day 8 can now start from a current-state proof-design center rather than the original packaging backlog.

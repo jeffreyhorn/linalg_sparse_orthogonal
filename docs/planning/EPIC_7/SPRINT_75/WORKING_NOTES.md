@@ -798,3 +798,141 @@ Sprint 75 Day 5 closes with:
 2. one fixed fallback/default-build and observability reading
 3. one preserved compatibility checklist for the first backend-aware landing
 4. one exact non-touch set before code work begins
+
+## Day 6 - Design Freeze & Proof Map
+
+### Goal
+
+Finalize the exact code/proof ownership split for the first Sprint 75 landing
+before backend edits begin, so Day 7 can land without reopening design scope.
+
+### Actions
+
+1. Re-read the Day 5 design against the strongest live proof-owner tests and
+   benchmark/runtime surfaces.
+2. Map the first backend batch to:
+   - implementation owners
+   - callback/runtime follow-through owners
+   - benchmark proof owners
+   - regression/fallback proof owners
+3. Confirm which headers and docs stay support-only for the first landing.
+4. Fix the exact Day 7 implementation fence and the Day 8 post-landing audit
+   criteria.
+5. Record the finalized ownership and proof map.
+
+### Findings
+
+#### 1. The Day 7 implementation fence is now fixed explicitly
+
+The exact Day 7 implementation center is:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc.c`
+
+This remains the right code batch because those three files align directly with
+the Day 5 ownership split:
+
+- dense-kernel descriptor and shipped default implementation
+- supernodal batch-time consumption and narrow backend-contract failure
+  boundary
+- CSC-lane orchestration and compatibility-shell publication
+
+That means the Day 7 batch should not need to widen into a second solver
+family or into broad benchmark/doc churn just to make its contract real.
+
+#### 2. The first regression/fallback proof owners are now fixed
+
+The strongest first regression/fallback proof owner is:
+
+- `tests/test_chol_csc.c`
+
+Likely support proof only if the Day 7 batch truly changes a caller-facing
+public-path guarantee:
+
+- `tests/test_integration.c`
+
+The useful Day 6 clarification is:
+
+- family-local backend/fallback correctness belongs in `tests/test_chol_csc.c`
+- public-path lifecycle or publish-back contract proof belongs in
+  `tests/test_integration.c` only if the Day 7 landing really changes that
+  outer guarantee
+- the Day 7 batch should prefer extending the family-local owner first, not
+  scattering proof across multiple test binaries without a real contract need
+
+#### 3. The benchmark proof owner is fixed and bounded
+
+The benchmark proof owner for the first landing is:
+
+- `benchmarks/bench_chol_csc.c`
+
+That ownership is narrow:
+
+- it owns benchmark-visible path identity
+- it owns benchmark-visible dense-kernel descriptor identity
+- it owns like-for-like timing proof across linked-list, CSC scalar, and CSC
+  supernodal paths
+
+It does not own:
+
+- broad regression or oracle guarantees
+- platform/performance threshold policy
+- a generalized backend-governance rewrite
+
+So if Day 7 changes what must be measurable, the first benchmark follow-through
+belongs here and nowhere broader.
+
+#### 4. Callback/runtime and policy follow-through stay support-only unless forced
+
+The support-only follow-through list for the first landing is now fixed:
+
+- `include/sparse_cholesky.h`
+- `docs/maintainer_guide.md`
+
+The runtime/observability interpretation is:
+
+- `include/sparse_cholesky.h` moves only if the Day 7 batch changes local
+  public truth around dense-kernel descriptors, `used_csc_path`, or
+  callback/runtime interpretation
+- `docs/maintainer_guide.md` moves only if the bounded backend contract itself
+  becomes clearer in a way the policy surface should capture
+
+That keeps the docs and header lane support-only instead of turning them into
+default participants in the Day 7 implementation batch.
+
+#### 5. The Day 8 audit criteria are now explicit
+
+After the Day 7 landing, the Day 8 audit should rerank the remaining Sprint 75
+queue against these exact questions:
+
+- did the Day 7 batch close the strongest dense-kernel/backend-owner seam
+- is the strongest remaining contradiction now:
+  - callback/runtime parity
+  - benchmark proof refresh
+  - residual support-surface drift
+- did any support-only surface actually need to move
+- does the eigs lane remain the strongest second landing, or did the Day 7
+  batch change that ordering
+
+That gives the post-landing audit a concrete success rubric instead of a vague
+“what feels left” pass.
+
+### Validation
+
+This was a docs-only Day 6 proof-map pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the proof map in the Day 5 design plus direct rereads of the local
+Cholesky header/runtime surfaces, the maintained benchmark-side proof surface,
+the strongest family-local regression owner, the likely public-path support
+owner, and the maintainer-policy truth surface.
+
+### Day 6 Exit State
+
+Sprint 75 Day 6 closes with:
+
+1. one exact Day 7 implementation fence
+2. one fixed benchmark and regression/fallback proof-owner map
+3. one support-only follow-through list for header and policy surfaces
+4. one explicit Day 8 post-landing audit rubric

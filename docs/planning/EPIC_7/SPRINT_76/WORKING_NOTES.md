@@ -544,3 +544,47 @@ Define the narrow threshold and comparison policy Sprint 76 should actually pres
 - Sprint 76 now has one explicit preserved threshold/comparison policy.
 - The sprint no longer carries an implied “must add a new threshold policy” obligation.
 - Day 11 can close as a bounded recheck instead of forcing an unnecessary policy landing.
+
+## Day 11 - Threshold / Comparison Recheck
+
+### Goal
+Verify that the current benchmark-local, maintainer-policy, top-level, and workflow wording still agrees with the retained Day 10 policy without forcing an unnecessary new threshold batch.
+
+### Actions
+- Re-read the Day 10 threshold/comparison policy artifact.
+- Re-read the current threshold and comparison wording in:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `Makefile`
+- Rechecked the current `bench-fast`, `wall-check`, and `bench-canonical-report` reading against the retained policy.
+
+### Findings
+- No bounded Day 11 landing is actually needed.
+- The current live wording still reconciles cleanly:
+  - `make bench-canonical-report`
+    - threshold-free canonical reporting surface
+    - comparison aid only
+    - not a pass/fail timing gate
+  - `bench-fast`
+    - bounded runtime lane
+    - useful current-branch signal
+    - not canonical maintained proof
+  - `wall-check`
+    - narrow thresholded regression gate
+    - already justified by its machine-class baseline
+    - not a portable performance claim
+  - `bench_reorder` and `bench_amd_qg`
+    - remain runtime and reporting context only
+- The stronger Day 10 conclusion still holds:
+  - no new threshold machinery is required for Sprint 76
+  - preserving the current bounded split is better than forcing a new policy batch
+
+### Validation
+- Re-read the Day 10 artifact plus the current benchmark-local, maintainer-policy, top-level, and workflow wording.
+- Reconfirmed that the current post-Day-9 and Day-10 state already matches the preserved Sprint 76 truthfulness fence.
+- Rechecked branch state before closing the recheck pass.
+
+### Day 11 Exit State
+- Sprint 76 closes the threshold/comparison lane as an explicit bounded no-op recheck.
+- No threshold-policy or workflow wording batch is required before validation and closeout.

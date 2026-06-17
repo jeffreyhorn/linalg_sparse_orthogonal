@@ -1,0 +1,42 @@
+Sprint 76 Day 1 - Authoritative Inputs
+Date: 2026-06-17
+Branch: sprint-76
+
+Planning and sprint inputs
+- docs/planning/EPIC_7/PROJECT_PLAN.md (Sprint 76: Benchmark Governance, Profiling & Longitudinal Reporting)
+- docs/planning/EPIC_7/SPRINT_76/PLAN.md
+- docs/planning/EPIC_7/SPRINT_75/artifacts/day14-closeout-and-handoff.md
+
+Reviewed baseline inputs
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Maintained benchmark-governance and reporting surfaces reread directly
+- README.md
+- benchmarks/README.md
+- docs/maintainer_guide.md
+- Makefile
+- scripts/bench_canonical_report.sh
+- benchmarks/bench_refactor_csc.c
+- benchmarks/bench_chol_csc.c
+- benchmarks/bench_iterative_reuse.c
+- benchmarks/bench_eigs_reuse.c
+- benchmarks/bench_reorder.c
+- benchmarks/bench_amd_qg.c
+
+Targeted live terminology scans
+- rg -n "bench-canonical-report|canonical report|wall-check|bench-fast|csc_supernodal_panel_solver|threshold|timing gate|benchmark" README.md benchmarks/README.md docs/maintainer_guide.md Makefile scripts/bench_canonical_report.sh benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c benchmarks/bench_reorder.c benchmarks/bench_amd_qg.c
+
+Live raw wc -l hotspot measurements
+- README.md = 1045
+- benchmarks/README.md = 377
+- docs/maintainer_guide.md = 677
+- Makefile = 897
+- scripts/bench_canonical_report.sh = 56
+- benchmarks/bench_refactor_csc.c = 611
+- benchmarks/bench_chol_csc.c = 423
+- benchmarks/bench_iterative_reuse.c = 395
+- benchmarks/bench_eigs_reuse.c = 278
+- benchmarks/bench_reorder.c = 321
+- benchmarks/bench_amd_qg.c = 332

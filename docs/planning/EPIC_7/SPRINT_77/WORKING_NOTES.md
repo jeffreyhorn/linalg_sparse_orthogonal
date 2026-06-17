@@ -213,3 +213,50 @@ Re-rank the live release, install, export, and platform-quality surface by downs
 - Sprint 77 now has one explicit release/platform contradiction ranking instead of a generic packaging backlog.
 - The strongest first landing candidate is fixed to the install/export contract lane.
 - Day 4 can now freeze a real first packaging/platform boundary from the live release surface.
+
+## Day 4 - Platform Gap Boundary
+
+### Goal
+Freeze the first Sprint 77 packaging/platform fence so the next design pass starts from one bounded release/install productization lane rather than from a mixed install, workflow, CI, and platform-proof backlog.
+
+### Actions
+- Re-read the Sprint 77 Day 3 rerank artifact.
+- Re-read the Sprint 77 section of `docs/planning/EPIC_7/PROJECT_PLAN.md`.
+- Re-ranked the Day 3 contradiction centers against:
+  - downstream leverage
+  - review clarity
+  - compatibility risk
+  - bounded cleanup payoff
+- Separated required first-batch surfaces from support-only and explicitly deferred surfaces.
+- Fixed the first-batch non-goal fence in writing.
+
+### Findings
+- Sprint 77 now has one explicit first landing boundary:
+  - required first landing:
+    - `INSTALL.md`
+  - support only if the first landing forces it:
+    - `docs/maintainer_guide.md`
+    - `CMakeLists.txt`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `README.md`
+  - explicitly deferred:
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - broader CI/workflow contract surfaces
+    - broad ABI/version claim widening
+    - shared-library or dynamic-ABI marketing
+- The strongest Day 4 clarification is now fixed:
+  - the first Sprint 77 lane is release/install productization clarity, not workflow or CI-lane expansion first
+  - maintainer-policy follow-through remains the strongest second seam, not the first edit center
+  - export metadata and local install-proof owners remain bounded support context unless the first productization batch truly forces them to move
+  - platform asymmetry remains real, but it is explicitly second-batch pressure rather than the first move
+
+### Validation
+- Re-read the Day 3 rerank against the Sprint 77 plan and preserved Sprint 70/Sprint 76 truthfulness fence.
+- Rechecked that the first-batch fence stays inside the maintained static-first contract and does not widen reviewed platform claims.
+
+### Day 4 Exit State
+- Sprint 77 now has one explicit first packaging/platform boundary instead of a generic release backlog.
+- Lower-value or higher-risk workflow and platform-proof work is clearly separated from the first lane.
+- Day 5 can now define one bounded packaging/productization implementation contract.

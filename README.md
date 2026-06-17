@@ -603,11 +603,12 @@ for tests; `used_csc_path` reports which branch ran.  Smaller
 matrices may see a slight slowdown from CSC conversion cost and are
 left on the linked-list path.  The maintained benchmark proof surface
 `bench_chol_csc` now also reports `csc_scalar_path`,
-`csc_supernodal_path`, and `csc_supernodal_dense_kernel`; on the
+`csc_supernodal_path`, `csc_supernodal_dense_kernel`, and
+`csc_supernodal_panel_solver`; on the
 default build those identify the current Sprint 64 backend-aware
-supernodal lane as `scalar`, `supernodal`, and `builtin`
-respectively.  If that internal dense-kernel descriptor or one of its
-required callbacks cannot be resolved on the supernodal lane, the
+supernodal lane as `scalar`, `supernodal`, `builtin`, and
+`batched_panel` respectively.  If that internal dense-kernel descriptor or one
+of its required callbacks cannot be resolved on the supernodal lane, the
 public error taxonomy now reports `SPARSE_ERR_BACKEND_CONTRACT`
 instead of collapsing that impossible internal seam into
 `SPARSE_ERR_BADARG`.

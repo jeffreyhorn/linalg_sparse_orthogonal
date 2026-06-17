@@ -478,7 +478,8 @@ Current platform-confidence interpretation after Sprint 68 Day 11:
 Current deferred direct-usability queue:
 
 - no-reorder linked-list Cholesky bit-identical cancellation restoration
-- CSC progress-callback parity for Cholesky / LDL^T
+- broader CSC progress-callback parity beyond the landed bounded Cholesky
+  orchestration checkpoints, plus any later LDL^T callback follow-through
 - any broader LDL^T / QR wording follow-through only if a new contradiction
   appears
 - broader direct-family docs/examples simplification outside the bounded Sprint
@@ -499,10 +500,15 @@ Current stable interpretation after Sprint 64 Day 12:
   - CSC scalar timing
   - CSC supernodal timing
   - active dense-kernel descriptor identity
+  - active supernodal panel-solve capability identity
 - the benchmark path fields should stay read as bounded proof signals:
   - `csc_scalar_path = scalar`
   - `csc_supernodal_path = supernodal`
   - `csc_supernodal_dense_kernel = builtin` on the default build
+  - `csc_supernodal_panel_solver = batched_panel` on the default build
+- the Sprint 75 Day 10 callback / cancel semantics remain test-owned in
+  `tests/test_integration.c`; do not reinterpret `bench_chol_csc` as the
+  owner of public progress/cancel truth
 - `SPARSE_ERR_BACKEND_CONTRACT` is a real public error code, but its meaning is
   intentionally narrow:
   - the caller contract was valid
@@ -564,6 +570,7 @@ Canonical output ownership:
   - `csc_scalar_path`
   - `csc_supernodal_path`
   - `csc_supernodal_dense_kernel`
+  - `csc_supernodal_panel_solver`
 - iterative/eigensolver canonical surfaces keep their repeated-run proof fields:
   - one-shot timing
   - reuse timing

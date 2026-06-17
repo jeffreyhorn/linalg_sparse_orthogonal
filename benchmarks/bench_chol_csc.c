@@ -6,11 +6,12 @@
  *   2. CSC scalar     (chol_csc_factor + chol_csc_solve_perm)
  *   3. CSC supernodal (chol_csc_eliminate_supernodal + chol_csc_solve_perm)
  *
- * Since Sprint 18 Day 8 the supernodal path runs the fully batched
- * kernel on detected fundamental supernodes:
- *   Day 6 extract / writeback      — CSC ↔ dense column-major buffer
- *   Day 7 eliminate_diag           — external cmod + chol_dense_factor
- *   Day 8 eliminate_panel          — row-by-row chol_dense_solve_lower
+ * Since Sprint 18 Day 8 the supernodal path runs the batched kernel
+ * on detected fundamental supernodes:
+ *   Day 6 extract / writeback       — CSC ↔ dense column-major buffer
+ *   Day 7 eliminate_diag            — external cmod + chol_dense_factor
+ *   Sprint 75 Day 7 eliminate_panel — batched solve_panel callback over the
+ *                                      dense panel rows
  * For columns not inside any detected supernode the scalar
  * scatter/cmod/cdiv/gather loop runs instead.  Prior to Day 8 the
  * `factor_csc_sn` / `speedup_csc_sn` columns reflected detection
@@ -26,10 +27,15 @@
  * Output is CSV on stdout: one header row, one row per matrix with
  *   benchmark, category, matrix, scenario, n, nnz,
  *   csc_scalar_path, csc_supernodal_path,
- *   csc_supernodal_dense_kernel, factor_ll, factor_csc, factor_csc_sn,
- *   solve_ll,  solve_csc,  solve_csc_sn,
+ *   csc_supernodal_dense_kernel, csc_supernodal_panel_solver,
+ *   factor_ll, factor_csc, factor_csc_sn, solve_ll, solve_csc,
+ *   solve_csc_sn,
  *   speedup_csc, speedup_csc_sn, res_ll, res_csc, res_csc_sn
  * Times are in milliseconds (averaged across --repeat runs).
+ *
+ * This benchmark remains the measurement/proof surface for backend path
+ * identity and timing only. The public progress/cancel runtime contract is
+ * still owned by `tests/test_integration.c` rather than this benchmark.
  *
  * Usage:
  *   ./bench_chol_csc                                # default matrix list
@@ -172,6 +178,13 @@ static const char *active_supernodal_dense_kernel_name(void) {
     return kernels->name;
 }
 
+static const char *active_supernodal_panel_solver_name(void) {
+    const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
+    if (!kernels || !kernels->solve_panel)
+        return "missing";
+    return "batched_panel";
+}
+
 /* ─── Matrix runner ─────────────────────────────────────────────── */
 
 /* Core runner: takes an already-constructed A and a display label,
@@ -207,10 +220,12 @@ static int bench_matrix_impl(const char *label, SparseMatrix *A, int repeat) {
     const char *scalar_path = "scalar";
     const char *supernodal_path = "supernodal";
     const char *supernodal_dense_kernel = active_supernodal_dense_kernel_name();
+    const char *supernodal_panel_solver = active_supernodal_panel_solver_name();
 
     /* CSV row */
     printf("bench_chol_csc,proof,%s,chol_backend_compare,%d,%d,", label, (int)n, (int)nnz);
-    printf("%s,%s,%s,", scalar_path, supernodal_path, supernodal_dense_kernel);
+    printf("%s,%s,%s,%s,", scalar_path, supernodal_path, supernodal_dense_kernel,
+           supernodal_panel_solver);
     printf("%.3f,%.3f,%.3f,", rl.factor_ms, rc.factor_ms, rs.factor_ms);
     printf("%.3f,%.3f,%.3f,", rl.solve_ms, rc.solve_ms, rs.solve_ms);
     printf("%.2f,%.2f,", sp_csc, sp_sn);
@@ -388,6 +403,7 @@ int main(int argc, char **argv) {
 
     printf("benchmark,category,matrix,scenario,n,nnz,"
            "csc_scalar_path,csc_supernodal_path,csc_supernodal_dense_kernel,"
+           "csc_supernodal_panel_solver,"
            "factor_ll_ms,factor_csc_ms,factor_csc_sn_ms,"
            "solve_ll_ms,solve_csc_ms,solve_csc_sn_ms,"
            "speedup_csc,speedup_csc_sn,"

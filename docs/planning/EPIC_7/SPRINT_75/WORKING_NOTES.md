@@ -1525,3 +1525,132 @@ Sprint 75 Day 10 closes with:
    matrix shell
 3. one public-path proof expansion in `tests/test_integration.c`
 4. one validated reviewed close without widening into support-only surfaces
+
+## Day 11 - Benchmark Proof Refresh
+
+### Goal
+
+Refresh the maintained benchmark-side proof surface so the Day 7 backend
+landing is measurable in one more exact way, while keeping the Day 10 public
+runtime semantics clearly test-owned rather than benchmark-owned.
+
+### Actions
+
+1. Audit the live `bench_chol_csc` surface against the Day 7 kernel landing
+   and Day 10 runtime follow-through.
+2. Confirm whether the benchmark already proved:
+   - path identity
+   - dense-kernel descriptor identity
+   - the newly landed batched panel-solve seam
+3. Add only the reporting needed to make the missing Day 7 proof measurable.
+4. Tighten the benchmark and policy/docs reading so Day 10 runtime semantics
+   remain explicitly test-owned.
+5. Validate the touched benchmark code with the required code gate and one
+   live benchmark row.
+
+### Findings
+
+#### 1. The real benchmark gap was the panel-solve seam, not timing governance
+
+Before Day 11, `bench_chol_csc` already proved:
+
+- linked-list vs CSC scalar vs CSC supernodal timing
+- `csc_scalar_path`
+- `csc_supernodal_path`
+- `csc_supernodal_dense_kernel`
+
+But it did not yet make the Day 7 kernel landing directly measurable:
+
+- whether the supernodal lane actually had the batched `solve_panel`
+  capability the new kernel path consumes
+
+That was the highest-value missing proof field. It was narrower than any
+benchmark-governance redesign and more useful than another broad timing
+commentary pass.
+
+#### 2. The landed benchmark field stayed bounded to backend measurability
+
+The Day 11 benchmark batch landed one new stable CSV field in
+`benchmarks/bench_chol_csc.c`:
+
+- `csc_supernodal_panel_solver`
+
+Its current truthful reading is:
+
+- `batched_panel` when the active dense-kernel descriptor exposes the required
+  `solve_panel` callback
+- `missing` otherwise
+
+That makes the Day 7 kernel landing reviewable from the benchmark surface
+without widening into broader runtime or policy claims.
+
+#### 3. The runtime ownership split is now explicit across the benchmark docs
+
+The support docs now keep one cleaner ownership boundary:
+
+- `bench_chol_csc` owns path and backend measurability
+- `tests/test_integration.c` owns the Sprint 75 Day 10 public callback/cancel
+  runtime truth
+
+That follow-through landed in:
+
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- `README.md`
+
+The useful Day 11 clarification is explicit now:
+
+- benchmarks remain measurement/proof surfaces
+- tests remain the owner of public progress/cancel semantics
+- the new benchmark field does not turn runtime behavior into a benchmark-owned
+  contract
+
+#### 4. No broader benchmark or maintainer churn was needed
+
+The Day 11 batch did not need:
+
+- new timing thresholds
+- benchmark-canonical governance changes
+- `make bench-canonical-report` widening
+- new integration or family-local regression tests
+- any callback/runtime code changes
+
+The only real benchmark-side change was the new stable field plus the bounded
+doc alignment needed to interpret it correctly.
+
+### Validation
+
+Because `benchmarks/bench_chol_csc.c` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+I also ran one live benchmark proof row:
+
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained output:
+
+- header now includes `csc_supernodal_panel_solver`
+- `bench_chol_csc,proof,nos4.mtx,...,builtin,batched_panel,...`
+- retained residuals stayed in the `1e-16` lane:
+  - `res_ll = 7.06e-16`
+  - `res_csc = 5.89e-16`
+  - `res_csc_sn = 5.89e-16`
+
+I did not rerun `make quality-review-full` on Day 11. This batch touched only
+one benchmark driver plus bounded docs, passed the required code gate, and
+Day 13 remains the planned full reviewed validation sweep.
+
+### Day 11 Exit State
+
+Sprint 75 Day 11 closes with:
+
+1. one new stable benchmark proof field for the supernodal panel-solve seam
+2. one explicit benchmark-vs-test ownership split for Sprint 75 runtime truth
+3. one validated live `bench_chol_csc` row showing `batched_panel`
+4. one bounded benchmark refresh without widening into governance or runtime
+   code churn

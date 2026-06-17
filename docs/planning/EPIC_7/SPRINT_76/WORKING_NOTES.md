@@ -357,3 +357,44 @@ Land the first bounded canonical reporting batch on the maintained report workfl
 ### Day 6 Exit State
 - Sprint 76 now has one stronger canonical report bundle with bounded longitudinal metadata.
 - The first landing improved artifact comparability without reopening threshold policy or benchmark-driver schema ownership.
+
+## Day 7 - Post-Landing Audit
+
+### Goal
+Re-audit the benchmark-governance surface after the Day 6 canonical reporting landing so the next batch targets the strongest remaining contradiction instead of reworking the same workflow seam.
+
+### Actions
+- Re-read the Day 6 canonical reporting batch artifact.
+- Re-read the current benchmark-local interpretation in `benchmarks/README.md`.
+- Re-read the current maintainer-policy interpretation in `docs/maintainer_guide.md`.
+- Re-read the compact top-level benchmark summary in `README.md`.
+- Rechecked the live report-bundle metadata terms (`index.tsv`, `report_label`, `git_commit`, `git_branch`) across the touched and support surfaces.
+
+### Findings
+- The Day 6 landing closed the strongest pure reporting-workflow contradiction:
+  - `scripts/bench_canonical_report.sh` no longer reads like the strongest remaining Sprint 76 seam
+  - `Makefile` no longer reads like the strongest remaining Sprint 76 seam
+  - a second workflow-only script/Makefile batch is not the highest-value next move
+- The strongest remaining seam has now shifted to support-surface drift around the landed stronger bundle contract:
+  - required next batch:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - support only if wording truly forces it:
+    - `README.md`
+- That rerank is explicit now:
+  - `benchmarks/README.md` is the strongest next target because it is the main user-facing benchmark-governance interpretation surface and still describes the older manifest-only bundle
+  - `docs/maintainer_guide.md` is the strongest second target because it owns the authoritative policy reading and still describes the older report-bundle shape
+  - `README.md` remains support-only because its compact top-level summary is still broadly truthful even without naming the new structured bundle metadata
+- The strongest still-deferred lane remains:
+  - threshold-policy work around `bench-fast`, `wall-check`, `bench_reorder`, and `bench_amd_qg`
+  - that remains real Sprint 76 pressure, but it is no longer the next batch center while the support surfaces still lag the landed Day 6 contract
+
+### Validation
+- Re-read `benchmarks/README.md`, `docs/maintainer_guide.md`, and `README.md` against the landed Day 6 workflow.
+- Rechecked the current metadata terms across the touched and support surfaces.
+- Reconfirmed that the reviewed baseline and Day 2 truth-surface split remain unchanged.
+
+### Day 7 Exit State
+- Sprint 76 no longer needs another workflow-only reporting batch.
+- The strongest remaining seam is now fixed to support-surface reconciliation around the landed canonical report bundle.
+- Day 8 can design a bounded documentation/policy follow-through batch from a current-state rerank instead of from the original backlog.

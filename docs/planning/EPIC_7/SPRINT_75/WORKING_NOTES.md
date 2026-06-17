@@ -636,3 +636,165 @@ Sprint 75 Day 4 closes with:
 3. one fixed deferred second lane in eigensolver backend/runtime parity
 4. one explicit non-goal fence against broad backend or benchmark-governance
    widening
+
+## Day 5 - Backend / Policy Design
+
+### Goal
+
+Define the bounded implementation contract for the first Sprint 75
+backend-aware landing before code edits begin, so the batch lands as backend
+ownership clarity rather than as generic refactoring.
+
+### Actions
+
+1. Re-read the Sprint 70 performance target and non-goal fence against the
+   exact Day 4 first-batch surfaces.
+2. Re-read the local Cholesky backend surfaces that define the first batch:
+   - `include/sparse_cholesky.h`
+   - `src/sparse_dense.c`
+   - `src/sparse_chol_csc_supernodal.c`
+   - `src/sparse_chol_csc.c`
+   - `benchmarks/bench_chol_csc.c`
+3. Decide the ownership split for:
+   - touched solver/kernel owner
+   - runtime/backend observability owner
+   - fallback and self-contained default-build owner
+4. Fix the guarantees the first batch must preserve.
+5. Record the exact first-batch non-touch set and support-only map.
+
+### Findings
+
+#### 1. The first Sprint 75 batch should be dense-kernel-owner-first
+
+The strongest Day 5 clarification is that the first batch should be
+dense-kernel-owner-first, not benchmark-first and not callback-first.
+
+Required implementation center:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc.c`
+
+The design reading is:
+
+- `src/sparse_dense.c` owns the concrete dense-kernel descriptor and the
+  self-contained default implementation
+- `src/sparse_chol_csc_supernodal.c` owns supernodal batch-time consumption of
+  that descriptor and the local backend-contract failure boundary
+- `src/sparse_chol_csc.c` owns CSC-lane orchestration, dispatch into the
+  supernodal path, and compatibility-shell publication back to the caller
+
+That split is narrower and cleaner than treating all three files as one
+undifferentiated hotspot cluster.
+
+#### 2. Runtime and observability ownership should stay local to the Cholesky lane
+
+The touched runtime/backend observability owner for the first batch is still
+the Cholesky-local surface, not a repo-wide callback policy pass.
+
+Runtime/backend observability owner in the first batch:
+
+- `src/sparse_chol_csc.c`
+
+Support only if wording truly moves:
+
+- `include/sparse_cholesky.h`
+- `benchmarks/bench_chol_csc.c`
+
+The useful Day 5 conclusion is:
+
+- `used_csc_path` publication remains a Cholesky-local runtime truth surface
+- dense-kernel descriptor identity remains a Cholesky-local benchmark truth
+  surface
+- any callback or cancellation follow-through should stay local to what the
+  first kernel batch actually changes, rather than reopening the broader eigs
+  or QR callback story early
+
+#### 3. Fallback and default-build ownership should stay in the dense-kernel seam itself
+
+The fallback and self-contained default-build owner for the first batch should
+remain the dense-kernel seam itself, not a wider packaging or plugin surface.
+
+Fallback/default-build owner in the first batch:
+
+- `src/sparse_dense.c`
+- `src/sparse_chol_csc_supernodal.c`
+
+This preserves the current truthful reading:
+
+- the default shipped dense-kernel descriptor remains `builtin`
+- test overrides remain proof-only and local
+- `SPARSE_ERR_BACKEND_CONTRACT` remains a narrow public error for unresolved
+  required internal dense-kernel callbacks or descriptors
+- the batch must not turn that local seam into a fake optional-backend
+  maturity story
+
+#### 4. The first-batch guarantees are now fixed explicitly
+
+The first Sprint 75 batch must preserve:
+
+- the self-contained default build remains the main product path
+- the default shipped dense-kernel descriptor remains explicit and measurable
+- linked-list, CSC scalar, and CSC supernodal truth stay like-for-like on the
+  maintained benchmark surface
+- touched runtime/backend observability becomes clearer, not broader
+- benchmark surfaces remain reporting/proof surfaces, not timing gates
+- the one-shot Cholesky compatibility shell and publish-back story remain
+  truthful and bounded
+
+This is the right compatibility checklist because it keeps Sprint 75 inside
+the Sprint 64 and Sprint 70 truthfulness fence while still allowing a real
+backend-aware second landing.
+
+#### 5. The exact non-touch set is now fixed
+
+The Day 5 non-touch set is:
+
+- eigensolver backend/runtime lane:
+  - `include/sparse_eigs.h`
+  - `src/sparse_eigs.c`
+  - `benchmarks/bench_eigs_reuse.c`
+  - `tests/test_eigs.c`
+- QR lane:
+  - `include/sparse_qr.h`
+  - `src/sparse_qr.c`
+  - `tests/test_qr.c`
+- SVD lane:
+  - `include/sparse_svd.h`
+  - `src/sparse_svd.c`
+  - `tests/test_svd.c`
+  - `benchmarks/bench_svd.c`
+- broad docs/governance/platform spill:
+  - `README.md`
+  - `benchmarks/README.md`
+  - `INSTALL.md`
+  - packaging or reviewed-platform workflow files
+- capability-surface reopening:
+  - width/scalar modernization surfaces from Sprint 74
+
+Support-only if the batch truly forces them:
+
+- `include/sparse_cholesky.h`
+- `benchmarks/bench_chol_csc.c`
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+- `docs/maintainer_guide.md`
+
+### Validation
+
+This was a docs-only Day 5 design pass, so I did not run `make format`,
+`make lint`, `make test`, or `make quality-review-full`.
+
+I grounded the design in the Day 4 boundary plus direct rereads of the local
+Cholesky backend header, dense-kernel owner, supernodal batch owner,
+publish-back/runtime owner, and maintained benchmark-side proof surface.
+
+### Day 5 Exit State
+
+Sprint 75 Day 5 closes with:
+
+1. one explicit first-batch ownership split across dense-kernel, supernodal,
+   and CSC-lane owners
+2. one fixed fallback/default-build and observability reading
+3. one preserved compatibility checklist for the first backend-aware landing
+4. one exact non-touch set before code work begins

@@ -576,3 +576,48 @@ Define the bounded workflow/docs/policy reconciliation batch from the landed Day
 - Sprint 77 now has one explicit workflow/contract follow-through design.
 - The Day 11 touch set is narrowed to maintainer-policy first, with the other support surfaces staying conditional.
 - The reviewed-versus-supplemental split is fixed before any support-surface edits land.
+
+## Day 11 - Workflow & Contract Reconciliation Batch
+
+### Goal
+Confirm whether the landed Day 6 and Day 9 package/platform state actually forces any support-surface follow-through, and avoid reopening maintainer or front-door docs if they already reconcile cleanly.
+
+### Actions
+- Re-read the Day 10 design artifact.
+- Re-read the landed package/platform surfaces:
+  - `INSTALL.md`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Re-read the strongest support surfaces:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- Rechecked the support surfaces against the landed Day 6 and Day 9 truth:
+  - static-first package shape
+  - reviewed-versus-supplemental platform reading
+  - local install-proof ownership
+  - bounded non-claims around reviewed install-validation parity
+
+### Findings
+- No bounded Day 11 follow-through batch is actually needed.
+- `docs/maintainer_guide.md` already says the strongest current workflow-level truth directly enough:
+  - Linux remains strongest reviewed truth
+  - macOS remains narrower with supplemental install validation
+  - Windows remains the reviewed CMake subset and install-consumer lane
+- `README.md` already remains coherent with the landed state:
+  - compact package summary still matches the static-first contract
+  - macOS still reads as narrower supplemental install proof
+  - Windows still reads as the reviewed CMake-first consumer story
+- `CMakeLists.txt`, `tests/test_install.sh`, and `tests/test_cmake_install.sh` remain correctly aligned because Day 9 changed workflow reading only, not package mechanics or proof ownership
+- The stronger Day 11 result is therefore an explicit no-op note, not a forced doc edit
+
+### Validation
+- Re-read the Day 6 and Day 9 landed surfaces against the Day 10 support set.
+- Reconfirmed that the current support surfaces already reconcile cleanly with the landed Sprint 77 contract.
+
+### Day 11 Exit State
+- Sprint 77 does not need a maintainer-guide or front-door follow-through batch.
+- The landed package/workflow/platform contract already reconciles cleanly across the main support surfaces.
+- Day 12 can move directly to proof-owner alignment and final validation-queue fixing.

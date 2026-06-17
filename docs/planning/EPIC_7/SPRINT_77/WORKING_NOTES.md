@@ -471,3 +471,50 @@ Define the bounded platform-confidence follow-through batch now justified by the
 - Sprint 77 now has one explicit platform-proof design center.
 - The Day 9 touch set is fixed to the macOS and Windows workflow surfaces, with maintainer-policy follow-through only if needed.
 - The platform-claim fence is fixed before landing work begins.
+
+## Day 9 - Platform Proof Follow-Through Batch
+
+### Goal
+Land the bounded macOS/Windows workflow-level proof clarification batch so the existing platform asymmetry reads more explicitly without widening the reviewed platform claim.
+
+### Actions
+- Re-read the Day 8 design artifact against the live workflow wording.
+- Landed the bounded proof clarification only in:
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Tightened the workflow-layer reading around:
+  - macOS supplemental install-path confidence versus reviewed parity
+  - Windows reviewed CMake-first consumer proof versus broader install-validation or Makefile parity
+- Rechecked the touched surfaces with a docs-only sanity pass:
+  - diff review
+  - terminology/alignment reread
+  - branch-state verification
+
+### Findings
+- The Day 9 result stayed inside the Day 8 fence:
+  - `macos-ci.yml` now states more explicitly that the install/`pkg-config` job is confidence-building supplemental package verification, not reviewed macOS install/export parity
+  - the macOS supplemental job and step names now read more directly as package-path and consumer-confidence proof
+  - `windows-ci.yml` now states more explicitly that the reviewed lane is CMake-first consumer proof only
+  - the Windows job and `ctest -N` inspection step now read more directly as reviewed consumer-scope proof, and the log output now restates the non-claim about Makefile parity and separate reviewed install validation
+- No support-only follow-through was actually needed:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- The preserved truthfulness fence stayed intact:
+  - no broader reviewed-platform claim was introduced
+  - no fake Windows Makefile parity claim was introduced
+  - no new reviewed Windows or macOS install-validation lane was implied
+  - no shared-library, ABI, or product-claim widening was introduced
+
+### Validation
+- Ran the Sprint 77 docs-only sanity set:
+  - diff review
+  - terminology/alignment reread
+  - branch-state verification
+
+### Day 9 Exit State
+- Sprint 77 now has one landed bounded platform-confidence batch.
+- The macOS and Windows workflow surfaces read more explicitly as the narrower proof lanes they actually are.
+- Day 10 can now decide whether any support-surface follow-through is truly needed from the landed state.

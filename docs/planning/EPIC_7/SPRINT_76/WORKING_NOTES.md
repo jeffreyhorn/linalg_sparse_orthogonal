@@ -243,3 +243,61 @@ Freeze the first Sprint 76 reporting/governance fence so the next design pass st
 ### Day 4 Exit State
 - Sprint 76 now has one exact first reporting/governance landing boundary.
 - The next design pass can stay inside the canonical report workflow/schema lane without drifting into threshold, docs, or exploratory benchmark sprawl.
+
+## Day 5 - Reporting Design
+
+### Goal
+Define the bounded implementation contract for Sprint 76's first canonical reporting landing before any code or workflow edits begin.
+
+### Actions
+- Re-read the Day 4 governance boundary artifact.
+- Re-read the current canonical report generator in `scripts/bench_canonical_report.sh`.
+- Re-read the current `bench-canonical-report` command wiring in `Makefile`.
+- Re-read the compact benchmark-local and maintainer-policy interpretation around the current report surface.
+- Fixed the exact ownership split, preserved guarantees, and non-touch set for the first implementation batch.
+
+### Findings
+- Sprint 76 now has one explicit first implementation contract:
+  - required implementation center:
+    - `scripts/bench_canonical_report.sh`
+    - `Makefile`
+  - support only if the first batch truly forces it:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The reporting ownership split is now fixed:
+  - `scripts/bench_canonical_report.sh` should own:
+    - report-directory layout
+    - stable report-bundle metadata
+    - manifest and index-style cross-run comparison metadata
+    - exact canonical benchmark command capture
+  - `Makefile` should own:
+    - the public `make bench-canonical-report` entry point
+    - the default report output location
+    - any bounded override seam for report destination or label input
+- The first batch should strengthen the canonical report surface without changing what is canonical:
+  - keep the same four canonical maintained benchmark emitters
+  - keep one CSV per emitter
+  - preserve the threshold-free reading
+  - add only cheap, truthful metadata that improves longitudinal comparison
+- The safe first-batch metadata lane is now explicit:
+  - generated timestamp
+  - git commit or branch identity when available
+  - exact command mapping
+  - stable report-surface identity
+  - explicit artifact inventory
+  - optional bounded user-supplied comparison label
+- The unsafe first-batch lane is explicit too:
+  - no new pass/fail timing thresholds
+  - no machine-specific performance verdicts
+  - no widening into runtime or exploratory benchmark capture
+  - no rewriting canonical benchmark row schemas inside the benchmark drivers
+
+### Validation
+- Re-read the Day 4 boundary and the current report command/script surfaces.
+- Reconfirmed that the design stays inside the preserved Sprint 65, Sprint 70, and Sprint 75 truthfulness fence.
+- Rechecked branch state before closing the design pass.
+
+### Day 5 Exit State
+- Sprint 76 now has one exact Day 6 implementation contract for canonical reporting.
+- The next batch can improve cross-run and cross-branch artifact comparability without drifting into threshold policy or benchmark-driver churn.

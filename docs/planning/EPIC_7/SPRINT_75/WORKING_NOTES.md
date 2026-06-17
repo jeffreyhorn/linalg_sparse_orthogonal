@@ -159,3 +159,143 @@ Sprint 75 Day 1 closes with:
 2. one preserved Sprint 70 / Sprint 64 non-goal fence
 3. one live reviewed baseline anchor
 4. one ranked live backend/performance hotspot map
+
+## Day 2 - Validation Baseline and Truth-Surface Recheck
+
+### Goal
+
+Reconfirm the Sprint 75 implementation-day validation contract and fix the
+highest-signal rerun set before any backend-aware batch lands.
+
+### Actions
+
+1. Reconfirm the strongest local reviewed baseline wording:
+   - `make quality-review-full`
+   - reviewed CMake parity anchor
+2. Reconfirm the Sprint 75 authority split:
+   - `*.c` / `*.h` landing days require `make format`, `make lint`, and
+     `make test`
+   - substantial backend or architecture batches default to
+     `make quality-review-full`
+   - docs-only audit/design/review days use targeted sanity checks only
+3. Recheck the live proof surfaces Sprint 75 is most likely to stress:
+   - backend-aware solver proof owners
+   - callback and cancellation parity tests
+   - representative examples
+   - maintained benchmark/reporting surfaces
+   - install/package proof scripts
+4. Refresh the targeted rerun set most likely to matter in Sprint 75.
+5. Record the authoritative validation split in the working notes.
+
+### Findings
+
+#### 1. The strongest reviewed baseline remains unchanged
+
+Sprint 75 still inherits the same strongest local reviewed baseline:
+
+- `make quality-review-full`
+
+The reviewed CMake parity anchor remains exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+That keeps the sprint aligned with the Sprint 70 and Sprint 64 truthfulness
+fence before any backend-aware hotspot work lands.
+
+#### 2. The Sprint 75 authority split is now explicit before code work
+
+The Day 2 recheck fixes the same three-part validation split Sprint 72-74
+used:
+
+- bounded `*.c` / `*.h` landing days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- substantial backend or architecture batches:
+  - `make quality-review-full`
+- docs-only audit/design/review days:
+  - targeted sanity checks only
+
+That is the right split for Sprint 75 because the likely work crosses backend
+selection, dense-kernel behavior, runtime/callback parity, and canonical
+benchmark proof boundaries rather than one tiny helper seam.
+
+#### 3. The live proof-surface split is now fixed for Sprint 75
+
+The Day 2 recheck shows this live local split:
+
+- the reviewed CMake tree currently owns the key backend-aware solver tests,
+  representative examples, and maintained benchmark binaries most relevant to
+  Sprint 75:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+  - `./build/quality-review-cmake/bench_svd`
+- maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+That truth matters: Sprint 75 should anchor its rerun set to the live
+reviewed CMake tree plus the maintained proof scripts, rather than assuming a
+different benchmark split than the current local build actually carries.
+
+#### 4. The high-signal Sprint 75 rerun set is now explicit
+
+The strongest likely rerun set for Sprint 75 is:
+
+- backend-aware solver proof owners:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_eigs`
+- representative adoption surfaces:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- maintained benchmark/reporting surfaces:
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_eigs_reuse`
+  - `./build/quality-review-cmake/bench_svd`
+- maintained install/package proof:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+#### 5. The preserved truth-surface reading is now fixed before backend work
+
+Sprint 75 Day 2 also fixes the maintained truth-surface interpretation before
+implementation begins:
+
+- `make quality-review-full` remains the strongest local reviewed baseline
+- touched benchmark binaries remain proof/reporting context, not portable
+  pass/fail timing gates
+- install/package regressions remain real maintained proof surfaces, but they
+  do not by themselves widen the reviewed platform contract
+- callback/runtime follow-through must preserve the existing family-local
+  cancellation truth rather than collapsing it into a generic backend claim
+
+### Validation
+
+This was a docs-only Day 2 pass, so I did not run `make format`, `make lint`,
+or `make test`.
+
+I did recheck the reviewed baseline wording, rerun the reviewed CMake parity
+anchor, confirm the live Sprint 75 proof/test/example/benchmark binaries in
+`build/quality-review-cmake`, confirm the maintained install/package proof
+scripts, and re-read the current `make -n quality-review-full` wrapper shape.
+
+### Day 2 Exit State
+
+Sprint 75 Day 2 closes with:
+
+1. one explicit implementation-day validation contract
+2. one fixed live proof-surface split across reviewed tests, examples,
+   benchmarks, and install scripts
+3. one high-signal Sprint 75 rerun set for later backend landings

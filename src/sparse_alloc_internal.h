@@ -29,6 +29,8 @@ static inline int sparse_count_bytes_overflow(size_t count, size_t elem_size, si
 }
 
 static inline int sparse_idx_to_size_checked(idx_t value, size_t *out) {
+    if (!out)
+        return 1;
     if (value < 0)
         return 1;
     if ((uintmax_t)value > SIZE_MAX)
@@ -45,7 +47,9 @@ static inline int sparse_idx_count_bytes_overflow(idx_t count, size_t elem_size,
 }
 
 static inline int sparse_size_to_idx_checked(size_t value, idx_t *out) {
-    if (value > (size_t)IDX_MAX)
+    if (!out)
+        return 1;
+    if ((uintmax_t)value > (uintmax_t)IDX_MAX)
         return 1;
     *out = (idx_t)value;
     return 0;

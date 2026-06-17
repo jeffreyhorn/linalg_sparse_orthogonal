@@ -13,7 +13,7 @@
  * @code
  *   SparseMatrix *A = sparse_create(n, n);
  *   // ... populate A with SPD entries ...
- *   double *b = ..., *x = calloc(n, sizeof(double));
+ *   sparse_scalar_t *b = ..., *x = calloc((size_t)n, sizeof(sparse_scalar_t));
  *   sparse_iter_opts_t opts = {
  *       .max_iter = 1000,
  *       .tol = 1e-10,
@@ -78,9 +78,9 @@
  * and passed to the user callback if one is provided.
  */
 typedef struct {
-    idx_t iteration;      /**< Current iteration number (0-based) */
-    double residual_norm; /**< Current relative residual norm ||r||/||b|| */
-    const char *solver;   /**< Solver name ("CG", "GMRES", "MINRES", "BiCGSTAB") */
+    idx_t iteration;               /**< Current iteration number (0-based) */
+    sparse_scalar_t residual_norm; /**< Current relative residual norm ||r||/||b|| */
+    const char *solver;            /**< Solver name ("CG", "GMRES", "MINRES", "BiCGSTAB") */
 } sparse_iter_progress_t;
 
 /**
@@ -103,21 +103,22 @@ typedef void (*sparse_iter_callback_fn)(const sparse_iter_progress_t *progress, 
  */
 typedef struct {
     idx_t max_iter; /**< Maximum number of CG iterations (default: 1000) */
-    double tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
-    int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
-    idx_t stagnation_window;          /**< Stagnation detection window size. If > 0, the solver
-                                           tracks the last N residual norms and declares stagnation
-                                           if max/min in the window differ by less than 1%.
-                                           0 = disabled (default). Typical value: 10-20. */
-    double *residual_history;         /**< Caller-allocated array for per-iteration residual norms.
-                                           If non-NULL, the solver stores ||r_k||/||b|| at index k.
-                                           NULL = no recording (default). */
-    idx_t residual_history_len;       /**< Capacity of the residual_history array. The solver
-                                           writes at most this many entries. */
-    sparse_iter_callback_fn callback; /**< Verbose callback. If non-NULL, called each iteration
-                                           instead of fprintf(stderr). NULL = use default verbose
-                                           behavior (default). */
-    void *callback_ctx;               /**< Context pointer passed to callback. */
+    sparse_scalar_t
+        tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
+    int verbose; /**< If nonzero, print iteration log to stderr (default: 0) */
+    idx_t stagnation_window;           /**< Stagnation detection window size. If > 0, the solver
+                                            tracks the last N residual norms and declares stagnation
+                                            if max/min in the window differ by less than 1%.
+                                            0 = disabled (default). Typical value: 10-20. */
+    sparse_scalar_t *residual_history; /**< Caller-allocated array for per-iteration residual norms.
+                                            If non-NULL, the solver stores ||r_k||/||b|| at index k.
+                                            NULL = no recording (default). */
+    idx_t residual_history_len;        /**< Capacity of the residual_history array. The solver
+                                            writes at most this many entries. */
+    sparse_iter_callback_fn callback;  /**< Verbose callback. If non-NULL, called each iteration
+                                            instead of fprintf(stderr). NULL = use default verbose
+                                            behavior (default). */
+    void *callback_ctx;                /**< Context pointer passed to callback. */
     /** Optional progress / cancellation callback. Invoked at the top of
      *  each solver iteration with
      *  `phase = "cg" / "minres" / "bicgstab"` (matching the solver
@@ -148,14 +149,14 @@ typedef enum {
  * max_iter = 1000, restart = 30, tol = 1e-10, verbose = 0, precond_side = LEFT.
  */
 typedef struct {
-    idx_t max_iter; /**< Maximum total number of GMRES iterations (default: 1000) */
-    idx_t restart;  /**< Restart parameter k for GMRES(k) (default: 30) */
-    double tol;     /**< Convergence tolerance on relative residual (default: 1e-10) */
-    int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
+    idx_t max_iter;      /**< Maximum total number of GMRES iterations (default: 1000) */
+    idx_t restart;       /**< Restart parameter k for GMRES(k) (default: 30) */
+    sparse_scalar_t tol; /**< Convergence tolerance on relative residual (default: 1e-10) */
+    int verbose;         /**< If nonzero, print iteration log to stderr (default: 0) */
     sparse_precond_side_t precond_side; /**< Left or right preconditioning (default: LEFT) */
     idx_t stagnation_window;            /**< Stagnation detection window size (across restarts).
                                              0 = disabled (default). See sparse_iter_opts_t. */
-    double *residual_history;           /**< See sparse_iter_opts_t::residual_history. */
+    sparse_scalar_t *residual_history;  /**< See sparse_iter_opts_t::residual_history. */
     idx_t residual_history_len;         /**< See sparse_iter_opts_t::residual_history_len. */
     sparse_iter_callback_fn callback;   /**< See sparse_iter_opts_t::callback. */
     void *callback_ctx;                 /**< See sparse_iter_opts_t::callback_ctx. */
@@ -175,20 +176,20 @@ typedef struct {
  * Pass NULL if result information is not needed.
  */
 typedef struct {
-    idx_t iterations;             /**< Number of iterations performed */
-    double residual_norm;         /**< Final true relative residual norm ||b - A*x|| / ||b|| */
-    int converged;                /**< Nonzero if solver converged within tolerance */
-    int stagnated;                /**< Nonzero if stagnation was detected (residual stopped
-                                       decreasing over the stagnation window). Only set when
-                                       stagnation_window > 0 in opts. */
-    idx_t residual_history_count; /**< Number of entries written to residual_history.
-                                       0 if residual_history was NULL. */
-    int breakdown;                /**< Nonzero if a solver breakdown was detected.
-                                       For CG: p^T*A*p = 0 or r^T*z = 0.
-                                       For GMRES: lucky breakdown (Krylov subspace
-                                       contains exact solution — converged=1 in this case).
-                                       For MINRES: Lanczos breakdown (beta = 0).
-                                       For BiCGSTAB: rho=0, omega=0, or r_hat^T*v=0. */
+    idx_t iterations;              /**< Number of iterations performed */
+    sparse_scalar_t residual_norm; /**< Final true relative residual norm ||b - A*x|| / ||b|| */
+    int converged;                 /**< Nonzero if solver converged within tolerance */
+    int stagnated;                 /**< Nonzero if stagnation was detected (residual stopped
+                                        decreasing over the stagnation window). Only set when
+                                        stagnation_window > 0 in opts. */
+    idx_t residual_history_count;  /**< Number of entries written to residual_history.
+                                        0 if residual_history was NULL. */
+    int breakdown;                 /**< Nonzero if a solver breakdown was detected.
+                                        For CG: p^T*A*p = 0 or r^T*z = 0.
+                                        For GMRES: lucky breakdown (Krylov subspace
+                                        contains exact solution — converged=1 in this case).
+                                        For MINRES: Lanczos breakdown (beta = 0).
+                                        For BiCGSTAB: rho=0, omega=0, or r_hat^T*v=0. */
 } sparse_iter_result_t;
 
 /**
@@ -204,7 +205,8 @@ typedef struct {
  * @param z     Output vector (preconditioned residual).
  * @return SPARSE_OK on success, or an error code on failure.
  */
-typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const double *r, double *z);
+typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse_scalar_t *r,
+                                          sparse_scalar_t *z);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Explicit repeated-run lifecycle handles
@@ -335,7 +337,7 @@ sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
+sparse_err_t sparse_solve_cg(const SparseMatrix *A, const sparse_scalar_t *b, sparse_scalar_t *x,
                              const sparse_iter_opts_t *opts, sparse_precond_fn precond,
                              const void *precond_ctx, sparse_iter_result_t *result);
 
@@ -358,9 +360,10 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
  * @return Same error contract as sparse_solve_cg(), plus SPARSE_ERR_NULL when
  *         handle is NULL.
  */
-sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const double *b, double *x,
-                                         const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                         const void *precond_ctx, sparse_iter_result_t *result,
+sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const sparse_scalar_t *b,
+                                         sparse_scalar_t *x, const sparse_iter_opts_t *opts,
+                                         sparse_precond_fn precond, const void *precond_ctx,
+                                         sparse_iter_result_t *result,
                                          sparse_iter_handle_t *handle);
 
 /**
@@ -392,7 +395,7 @@ sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const double *b,
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *x,
+sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const sparse_scalar_t *b, sparse_scalar_t *x,
                                 const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
                                 const void *precond_ctx, sparse_iter_result_t *result);
 
@@ -417,8 +420,8 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
  * @return Same error contract as sparse_solve_gmres(), plus SPARSE_ERR_NULL
  *         when handle is NULL.
  */
-sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const double *b, double *x,
-                                            const sparse_gmres_opts_t *opts,
+sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const sparse_scalar_t *b,
+                                            sparse_scalar_t *x, const sparse_gmres_opts_t *opts,
                                             sparse_precond_fn precond, const void *precond_ctx,
                                             sparse_iter_result_t *result,
                                             sparse_iter_handle_t *handle);
@@ -447,9 +450,10 @@ sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const double 
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
  * @return Other error codes may be propagated from the preconditioner callback.
  */
-sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
-                                   const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                   const void *precond_ctx, sparse_iter_result_t *result);
+sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const sparse_scalar_t *B, idx_t nrhs,
+                                   sparse_scalar_t *X, const sparse_iter_opts_t *opts,
+                                   sparse_precond_fn precond, const void *precond_ctx,
+                                   sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*X = B for multiple RHS using per-column GMRES.
@@ -477,9 +481,10 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
  *         hard error occurred). Hard errors from individual column solves
  *         (e.g., SPARSE_ERR_ALLOC) take priority over NOT_CONVERGED.
  */
-sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
-                                      const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
-                                      const void *precond_ctx, sparse_iter_result_t *result);
+sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const sparse_scalar_t *B, idx_t nrhs,
+                                      sparse_scalar_t *X, const sparse_gmres_opts_t *opts,
+                                      sparse_precond_fn precond, const void *precond_ctx,
+                                      sparse_iter_result_t *result);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * MINRES — Minimum Residual method for symmetric systems
@@ -528,9 +533,10 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
-                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                 const void *precond_ctx, sparse_iter_result_t *result);
+sparse_err_t sparse_solve_minres(const SparseMatrix *A, const sparse_scalar_t *b,
+                                 sparse_scalar_t *x, const sparse_iter_opts_t *opts,
+                                 sparse_precond_fn precond, const void *precond_ctx,
+                                 sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*x = b using MINRES with an explicit reusable handle.
@@ -552,8 +558,8 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
  * @return Same error contract as sparse_solve_minres(), plus SPARSE_ERR_NULL
  *         when handle is NULL.
  */
-sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const double *b, double *x,
-                                             const sparse_iter_opts_t *opts,
+sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const sparse_scalar_t *b,
+                                             sparse_scalar_t *x, const sparse_iter_opts_t *opts,
                                              sparse_precond_fn precond, const void *precond_ctx,
                                              sparse_iter_result_t *result,
                                              sparse_iter_handle_t *handle);
@@ -585,8 +591,8 @@ sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const double
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
  */
-sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
-                                       double *X, const sparse_iter_opts_t *opts,
+sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const sparse_scalar_t *B, idx_t nrhs,
+                                       sparse_scalar_t *X, const sparse_iter_opts_t *opts,
                                        sparse_precond_fn precond, const void *precond_ctx,
                                        sparse_iter_result_t *result);
 
@@ -632,9 +638,10 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, double *x,
-                                   const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                   const void *precond_ctx, sparse_iter_result_t *result);
+sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const sparse_scalar_t *b,
+                                   sparse_scalar_t *x, const sparse_iter_opts_t *opts,
+                                   sparse_precond_fn precond, const void *precond_ctx,
+                                   sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*X = B for multiple RHS using per-column BiCGSTAB.
@@ -659,10 +666,10 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
  * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
  * @return Other error codes may be propagated from the preconditioner callback.
  */
-sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
-                                         double *X, const sparse_iter_opts_t *opts,
-                                         sparse_precond_fn precond, const void *precond_ctx,
-                                         sparse_iter_result_t *result);
+sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const sparse_scalar_t *B,
+                                         idx_t nrhs, sparse_scalar_t *X,
+                                         const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                         const void *precond_ctx, sparse_iter_result_t *result);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Matrix-free iterative solvers
@@ -681,7 +688,8 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B,
  * @param y    Output vector of length n (overwritten with A*x).
  * @return SPARSE_OK on success, or an error code on failure.
  */
-typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const double *x, double *y);
+typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const sparse_scalar_t *x,
+                                         sparse_scalar_t *y);
 
 /**
  * @brief Solve A*x = b using matrix-free Conjugate Gradient.
@@ -705,9 +713,9 @@ typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const double 
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
-                                const double *b, double *x, const sparse_iter_opts_t *opts,
-                                sparse_precond_fn precond, const void *precond_ctx,
-                                sparse_iter_result_t *result);
+                                const sparse_scalar_t *b, sparse_scalar_t *x,
+                                const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                const void *precond_ctx, sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*x = b using matrix-free restarted GMRES(k).
@@ -731,9 +739,9 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
-                                   const double *b, double *x, const sparse_gmres_opts_t *opts,
-                                   sparse_precond_fn precond, const void *precond_ctx,
-                                   sparse_iter_result_t *result);
+                                   const sparse_scalar_t *b, sparse_scalar_t *x,
+                                   const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
+                                   const void *precond_ctx, sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*x = b using matrix-free BiCGSTAB.
@@ -758,8 +766,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
-                                      const double *b, double *x, const sparse_iter_opts_t *opts,
-                                      sparse_precond_fn precond, const void *precond_ctx,
-                                      sparse_iter_result_t *result);
+                                      const sparse_scalar_t *b, sparse_scalar_t *x,
+                                      const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                      const void *precond_ctx, sparse_iter_result_t *result);
 
 #endif /* SPARSE_ITERATIVE_H */

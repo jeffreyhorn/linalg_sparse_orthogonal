@@ -20,8 +20,9 @@
  *   idx_t n = sparse_rows(A);
  *   idx_t k = 5;            // want 5 eigenpairs
  *
- *   double *vals = malloc((size_t)k * sizeof(double));
- *   double *vecs = malloc((size_t)k * (size_t)n * sizeof(double));  // column-major
+ *   sparse_scalar_t *vals = malloc((size_t)k * sizeof(sparse_scalar_t));
+ *   sparse_scalar_t *vecs =
+ *       malloc((size_t)k * (size_t)n * sizeof(sparse_scalar_t));  // column-major
  *   sparse_eigs_t result = {
  *       .eigenvalues = vals,
  *       .eigenvectors = vecs,
@@ -72,7 +73,7 @@
  *     original-A residual must recompute `||A v - lambda v||`
  *     themselves from `result.eigenvectors`.
  *
- * **Design notes.** The result struct uses caller-owned buffers for
+ * **Design notes.** The result struct uses caller-owned scalar buffers for
  * the eigenvalue and eigenvector arrays — consistent with the
  * iterative-solver convention in `sparse_iterative.h`
  * (`residual_history` is caller-allocated).  The library writes
@@ -235,7 +236,7 @@ typedef struct {
     sparse_eigs_which_t which;
     /** Shift point for `SPARSE_EIGS_NEAREST_SIGMA`; ignored
      *  otherwise.  Default: 0.0. */
-    double sigma;
+    sparse_scalar_t sigma;
     /** Cap on the Lanczos subspace size (`m`) per Lanczos run.
      *  Also caps the growth across grow-m retries (`m` never
      *  exceeds this value on any run), but does not bound the
@@ -252,7 +253,7 @@ typedef struct {
      *  it does not include an explicit `||A||_inf` factor.  0
      *  selects the library default `1e-10`.  Negative values are
      *  rejected with SPARSE_ERR_BADARG. */
-    double tol;
+    sparse_scalar_t tol;
     /** Full-reorthogonalization flag.  Nonzero reorthogonalizes each
      *  new Lanczos vector against every prior Lanczos vector,
      *  maintaining `V^T V ≈ I` under finite precision.  Zero
@@ -433,13 +434,13 @@ typedef struct {
      *  converged eigenvalues into indices [0, n_converged),
      *  ordered as `which` selects (LARGEST → descending,
      *  SMALLEST → ascending, NEAREST_SIGMA → ascending |lambda − sigma|). */
-    double *eigenvalues;
+    sparse_scalar_t *eigenvalues;
     /** Caller-owned buffer of length `>= n * k` (column-major).
      *  Ignored when `opts->compute_vectors == 0`; must be non-NULL
      *  when compute_vectors is set.  The library writes normalized
      *  eigenvectors into columns [0, n_converged); each column
      *  corresponds to the eigenvalue at the same index. */
-    double *eigenvectors;
+    sparse_scalar_t *eigenvectors;
     /** Output: the `k` passed to `sparse_eigs_sym()`.  Written on
      *  return so the result struct is self-describing. */
     idx_t n_requested;
@@ -451,7 +452,7 @@ typedef struct {
     /** Output: maximum relative Ritz residual across the converged
      *  pairs.  Always <= `opts->tol` when the call returns
      *  SPARSE_OK. */
-    double residual_norm;
+    sparse_scalar_t residual_norm;
     /** Output: for shift-invert mode (`which == NEAREST_SIGMA`),
      *  set to 1 when the internal `sparse_ldlt_factor_opts` call
      *  selected the CSC supernodal backend and 0 when it routed to
@@ -477,8 +478,8 @@ typedef struct {
      *     `bs` (covers `X + W + P + AX + scratch` in the
      *     Rayleigh-Ritz step).
      *  Reported in basis-column units (a count of length-n
-     *  vectors) — multiply by `n * sizeof(double)` to get bytes,
-     *  i.e. `peak_basis_size * n * sizeof(double)`. */
+     *  vectors) — multiply by `n * sizeof(sparse_scalar_t)` to get
+     *  bytes, i.e. `peak_basis_size * n * sizeof(sparse_scalar_t)`. */
     idx_t peak_basis_size;
     /** Output: which backend the library actually dispatched to.
      *  Mirrors `sparse_ldlt_t::used_csc_path` in spirit — when

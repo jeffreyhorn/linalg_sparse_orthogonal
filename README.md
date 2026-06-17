@@ -726,10 +726,17 @@ The library is safe for concurrent use under the following contract:
 
 ## Known Limitations
 
-- **32-bit indices.** `idx_t` is `int32_t`, limiting matrix dimensions and nonzero counts to ~2.1 billion. To support larger matrices, change the typedef in `sparse_types.h` to `int64_t` and recompile.
+- **Default reviewed width remains 32-bit.** The shipped reviewed build uses
+  `SPARSE_IDX_BITS=32`, so `idx_t` still limits matrix dimensions and nonzero
+  counts to ~2.1 billion. Wider indices are now a bounded compile-time seam
+  through `SPARSE_IDX_BITS=64`; downstream callers must rebuild against that
+  same width contract.
 - **In-place factorization.** `sparse_lu_factor` and `sparse_cholesky_factor` overwrite the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
 - **Factored-state validation.** Solve functions check an internal `factored` flag and return `SPARSE_ERR_BADARG` if the matrix has not been factored. Modifying a factored matrix (insert/remove) clears the flag. For externally-constructed factors (e.g., imported from CSR), call `sparse_mark_factored()` before solving.
-- **No complex or integer matrices.** Only real (double-precision) values are supported.
+- **Scalar support is still real-only.** The current dense-scalar public seam
+  is named `sparse_scalar_t`, but the shipped contract still binds it to real
+  double precision only. This is bounded preparation for later widening, not a
+  claim of complex or broad generic-scalar support today.
 
 ## Testing
 

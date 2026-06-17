@@ -1,4 +1,5 @@
 #include "sparse_matrix.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 
 #include <errno.h>
@@ -91,6 +92,57 @@ static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat)
     return 0;
 }
 
+static void sparse_matrix_free_shell_buffers(SparseMatrix *mat) {
+    if (!mat)
+        return;
+    free(mat->row_headers);
+    free(mat->col_headers);
+    free(mat->row_perm);
+    free(mat->inv_row_perm);
+    free(mat->col_perm);
+    free(mat->inv_col_perm);
+    mat->row_headers = NULL;
+    mat->col_headers = NULL;
+    mat->row_perm = NULL;
+    mat->inv_row_perm = NULL;
+    mat->col_perm = NULL;
+    mat->inv_col_perm = NULL;
+}
+
+static sparse_err_t sparse_matrix_alloc_shell_buffers(SparseMatrix *mat, idx_t rows, idx_t cols) {
+    if (!mat)
+        return SPARSE_ERR_NULL;
+    if (sparse_calloc_idx_array(rows, sizeof(Node *), (void **)&mat->row_headers) != SPARSE_OK ||
+        sparse_calloc_idx_array(cols, sizeof(Node *), (void **)&mat->col_headers) != SPARSE_OK ||
+        sparse_malloc_idx_array(rows, sizeof(idx_t), (void **)&mat->row_perm) != SPARSE_OK ||
+        sparse_malloc_idx_array(rows, sizeof(idx_t), (void **)&mat->inv_row_perm) != SPARSE_OK ||
+        sparse_malloc_idx_array(cols, sizeof(idx_t), (void **)&mat->col_perm) != SPARSE_OK ||
+        sparse_malloc_idx_array(cols, sizeof(idx_t), (void **)&mat->inv_col_perm) != SPARSE_OK) {
+        sparse_matrix_free_shell_buffers(mat);
+        return SPARSE_ERR_ALLOC;
+    }
+    return SPARSE_OK;
+}
+
+static int sparse_memory_usage_add(size_t *total, size_t addend) {
+    size_t next = 0;
+    if (sparse_size_add_overflow(*total, addend, &next)) {
+        *total = SIZE_MAX;
+        return 1;
+    }
+    *total = next;
+    return 0;
+}
+
+static int sparse_memory_usage_add_idx_bytes(size_t *total, idx_t count, size_t elem_size) {
+    size_t bytes = 0;
+    if (sparse_idx_count_bytes_overflow(count, elem_size, &bytes)) {
+        *total = SIZE_MAX;
+        return 1;
+    }
+    return sparse_memory_usage_add(total, bytes);
+}
+
 /* ─── Lifecycle ──────────────────────────────────────────────────────── */
 
 SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
@@ -109,34 +161,21 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
     mat->factored = 0;
     mat->factor_state = NULL;
     mat->reorder_perm = NULL;
+    mat->row_headers = NULL;
+    mat->col_headers = NULL;
+    mat->row_perm = NULL;
+    mat->inv_row_perm = NULL;
+    mat->col_perm = NULL;
+    mat->inv_col_perm = NULL;
 
-    mat->row_headers = calloc((size_t)rows, sizeof(Node *));
-    mat->col_headers = calloc((size_t)cols, sizeof(Node *));
-    mat->row_perm = malloc((size_t)rows * sizeof(idx_t));
-    mat->inv_row_perm = malloc((size_t)rows * sizeof(idx_t));
-    mat->col_perm = malloc((size_t)cols * sizeof(idx_t));
-    mat->inv_col_perm = malloc((size_t)cols * sizeof(idx_t));
-
-    if (!mat->row_headers || !mat->col_headers || !mat->row_perm || !mat->inv_row_perm ||
-        !mat->col_perm || !mat->inv_col_perm) {
-        free(mat->row_headers);
-        free(mat->col_headers);
-        free(mat->row_perm);
-        free(mat->inv_row_perm);
-        free(mat->col_perm);
-        free(mat->inv_col_perm);
+    if (sparse_matrix_alloc_shell_buffers(mat, rows, cols) != SPARSE_OK) {
         free(mat);
         return NULL;
     }
 
 #ifdef SPARSE_MUTEX
     if (pthread_mutex_init(&mat->mtx, NULL) != 0) {
-        free(mat->row_headers);
-        free(mat->col_headers);
-        free(mat->row_perm);
-        free(mat->inv_row_perm);
-        free(mat->col_perm);
-        free(mat->inv_col_perm);
+        sparse_matrix_free_shell_buffers(mat);
         free(mat);
         return NULL;
     }
@@ -163,12 +202,7 @@ void sparse_free(SparseMatrix *mat) {
     if (!mat)
         return;
     pool_free_all(&mat->pool);
-    free(mat->row_headers);
-    free(mat->col_headers);
-    free(mat->row_perm);
-    free(mat->inv_row_perm);
-    free(mat->col_perm);
-    free(mat->inv_col_perm);
+    sparse_matrix_free_shell_buffers(mat);
     free(mat->factor_state);
     free(mat->reorder_perm);
 #ifdef SPARSE_MUTEX
@@ -178,6 +212,8 @@ void sparse_free(SparseMatrix *mat) {
 }
 
 SparseMatrix *sparse_copy(const SparseMatrix *mat) {
+    size_t row_perm_bytes = 0;
+    size_t col_perm_bytes = 0;
     if (!mat)
         return NULL;
 
@@ -186,10 +222,15 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
         return NULL;
 
     /* Copy permutation arrays */
-    memcpy(copy->row_perm, mat->row_perm, (size_t)mat->rows * sizeof(idx_t));
-    memcpy(copy->inv_row_perm, mat->inv_row_perm, (size_t)mat->rows * sizeof(idx_t));
-    memcpy(copy->col_perm, mat->col_perm, (size_t)mat->cols * sizeof(idx_t));
-    memcpy(copy->inv_col_perm, mat->inv_col_perm, (size_t)mat->cols * sizeof(idx_t));
+    if (sparse_idx_count_bytes_overflow(mat->rows, sizeof(idx_t), &row_perm_bytes) ||
+        sparse_idx_count_bytes_overflow(mat->cols, sizeof(idx_t), &col_perm_bytes)) {
+        sparse_free(copy);
+        return NULL;
+    }
+    memcpy(copy->row_perm, mat->row_perm, row_perm_bytes);
+    memcpy(copy->inv_row_perm, mat->inv_row_perm, row_perm_bytes);
+    memcpy(copy->col_perm, mat->col_perm, col_perm_bytes);
+    memcpy(copy->inv_col_perm, mat->inv_col_perm, col_perm_bytes);
 
     /* Copy all nodes by walking each row */
     for (idx_t i = 0; i < mat->rows; i++) {
@@ -214,12 +255,12 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
 
     /* Copy reorder permutation if present */
     if (mat->reorder_perm) {
-        copy->reorder_perm = malloc((size_t)mat->rows * sizeof(idx_t));
-        if (!copy->reorder_perm) {
+        if (sparse_malloc_idx_array(mat->rows, sizeof(idx_t), (void **)&copy->reorder_perm) !=
+            SPARSE_OK) {
             sparse_free(copy);
             return NULL;
         }
-        memcpy(copy->reorder_perm, mat->reorder_perm, (size_t)mat->rows * sizeof(idx_t));
+        memcpy(copy->reorder_perm, mat->reorder_perm, row_perm_bytes);
     }
 
     return copy;
@@ -402,13 +443,16 @@ idx_t sparse_nnz(const SparseMatrix *mat) { return mat ? mat->nnz : 0; }
 size_t sparse_memory_usage(const SparseMatrix *mat) {
     if (!mat)
         return 0;
-    size_t reorder_size = mat->reorder_perm ? (size_t)mat->rows * sizeof(idx_t) : 0;
-    return sizeof(SparseMatrix) + (size_t)mat->rows * sizeof(Node *) /* row_headers */
-           + (size_t)mat->cols * sizeof(Node *)                      /* col_headers */
-           + (size_t)mat->rows * 2 * sizeof(idx_t)                   /* row perms */
-           + (size_t)mat->cols * 2 * sizeof(idx_t)                   /* col perms */
-           + reorder_size                                            /* reorder_perm */
-           + (size_t)mat->pool.num_slabs * sizeof(NodeSlab);
+    size_t total = sizeof(SparseMatrix);
+    if (sparse_memory_usage_add_idx_bytes(&total, mat->rows, sizeof(Node *)) ||
+        sparse_memory_usage_add_idx_bytes(&total, mat->cols, sizeof(Node *)) ||
+        sparse_memory_usage_add_idx_bytes(&total, mat->rows, 2 * sizeof(idx_t)) ||
+        sparse_memory_usage_add_idx_bytes(&total, mat->cols, 2 * sizeof(idx_t)) ||
+        (mat->reorder_perm &&
+         sparse_memory_usage_add_idx_bytes(&total, mat->rows, sizeof(idx_t))) ||
+        sparse_memory_usage_add_idx_bytes(&total, mat->pool.num_slabs, sizeof(NodeSlab)))
+        return SIZE_MAX;
+    return total;
 }
 
 /* ─── Symmetry check ─────────────────────────────────────────────────── */
@@ -714,10 +758,12 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         return SPARSE_ERR_ALLOC;
 
     /* Dense accumulator for one row of C, with compact touched-index list */
-    double *acc = calloc((size_t)nc, sizeof(double));
-    int *nz_flag = calloc((size_t)nc, sizeof(int));
-    idx_t *touched = malloc((size_t)nc * sizeof(idx_t));
-    if (!acc || !nz_flag || !touched) {
+    double *acc = NULL;
+    int *nz_flag = NULL;
+    idx_t *touched = NULL;
+    if (sparse_calloc_idx_array(nc, sizeof(double), (void **)&acc) != SPARSE_OK ||
+        sparse_calloc_idx_array(nc, sizeof(int), (void **)&nz_flag) != SPARSE_OK ||
+        sparse_malloc_idx_array(nc, sizeof(idx_t), (void **)&touched) != SPARSE_OK) {
         free(acc);
         free(nz_flag);
         free(touched);
@@ -873,14 +919,16 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {
     }
 
     fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
-    fprintf(fp, "%" PRId32 " %" PRId32 " %" PRId32 "\n", mat->rows, mat->cols, mat->nnz);
+    fprintf(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %" SPARSE_PRIDX "\n", mat->rows, mat->cols,
+            mat->nnz);
 
     for (idx_t log_i = 0; log_i < mat->rows; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
-            fprintf(fp, "%" PRId32 " %" PRId32 " %.15g\n", log_i + 1, log_j + 1, node->value);
+            fprintf(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %.15g\n", log_i + 1, log_j + 1,
+                    node->value);
             node = node->right;
         }
     }
@@ -931,7 +979,8 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
     }
 
     idx_t m, n, nnz_file;
-    if (sscanf(line, "%" PRId32 " %" PRId32 " %" PRId32, &m, &n, &nnz_file) != 3) {
+    if (sscanf(line, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &m, &n, &nnz_file) !=
+        3) {
         fclose(fp);
         return SPARSE_ERR_PARSE;
     }
@@ -946,7 +995,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
         idx_t i, j;
         double v = 1.0; /* default for pattern matrices */
         if (is_pattern) {
-            if (fscanf(fp, "%" PRId32 " %" PRId32, &i, &j) != 2) {
+            if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &i, &j) != 2) {
                 sparse_err_t ioerr =
                     ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
                 sparse_free(mat);
@@ -954,7 +1003,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
                 return ioerr;
             }
         } else {
-            if (fscanf(fp, "%" PRId32 " %" PRId32 " %lf", &i, &j, &v) != 3) {
+            if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX " %lf", &i, &j, &v) != 3) {
                 sparse_err_t ioerr =
                     ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
                 sparse_free(mat);
@@ -1001,7 +1050,8 @@ sparse_err_t sparse_print_dense(const SparseMatrix *mat, FILE *stream) {
 
     if (mat->rows > 50 || mat->cols > 50) {
         fprintf(stream,
-                "[WARNING: matrix is %" PRId32 "x%" PRId32 ", dense print may be very large]\n",
+                "[WARNING: matrix is %" SPARSE_PRIDX "x%" SPARSE_PRIDX
+                ", dense print may be very large]\n",
                 mat->rows, mat->cols);
     }
 
@@ -1024,7 +1074,8 @@ sparse_err_t sparse_print_entries(const SparseMatrix *mat, FILE *stream) {
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
-            fprintf(stream, "  (%" PRId32 ", %" PRId32 ") = %.15g\n", log_i, log_j, node->value);
+            fprintf(stream, "  (%" SPARSE_PRIDX ", %" SPARSE_PRIDX ") = %.15g\n", log_i, log_j,
+                    node->value);
             node = node->right;
         }
     }
@@ -1037,7 +1088,8 @@ sparse_err_t sparse_print_info(const SparseMatrix *mat, FILE *stream) {
         return SPARSE_ERR_NULL;
 
     fprintf(stream,
-            "SparseMatrix: %" PRId32 " x %" PRId32 ", nnz = %" PRId32 ", memory ~ %zu bytes\n",
+            "SparseMatrix: %" SPARSE_PRIDX " x %" SPARSE_PRIDX ", nnz = %" SPARSE_PRIDX
+            ", memory ~ %zu bytes\n",
             mat->rows, mat->cols, mat->nnz, sparse_memory_usage(mat));
 
     return SPARSE_OK;

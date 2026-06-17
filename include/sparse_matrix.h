@@ -14,6 +14,11 @@
  * Tuning constants (slab size, drop tolerance) can be overridden at compile
  * time with @c -DSPARSE_NODES_PER_SLAB=N and @c -DSPARSE_DROP_TOL=val.
  *
+ * The matrix shell follows the compile-time width contract in
+ * `sparse_types.h`: build the library and downstream callers with the same
+ * `SPARSE_IDX_BITS` setting and use @c idx_t for persisted or exchanged
+ * dimensions, indices, and nnz counts.
+ *
  * This type remains the library's mutable sparse construction and one-shot
  * direct-workflow compatibility shell. The explicit repeated-run direct path
  * with reusable symbolic and factor/workspace state lives in
@@ -294,7 +299,8 @@ idx_t sparse_nnz(const SparseMatrix *mat);
  *
  * Includes the struct, header arrays, permutation arrays, and all pool slabs.
  * This is a lower bound — actual usage may be slightly higher due to malloc
- * overhead and alignment.
+ * overhead and alignment. If the estimate would overflow @c size_t, the
+ * function returns @c SIZE_MAX.
  *
  * @param mat  The matrix (returns 0 if NULL).
  * @return Estimated memory usage in bytes.

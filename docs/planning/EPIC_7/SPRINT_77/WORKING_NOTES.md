@@ -260,3 +260,62 @@ Freeze the first Sprint 77 packaging/platform fence so the next design pass star
 - Sprint 77 now has one explicit first packaging/platform boundary instead of a generic release backlog.
 - Lower-value or higher-risk workflow and platform-proof work is clearly separated from the first lane.
 - Day 5 can now define one bounded packaging/productization implementation contract.
+
+## Day 5 - Packaging/Productization Design
+
+### Goal
+Define the bounded implementation contract for the first Sprint 77 release/install improvement batch before edits begin, with one explicit owner for package-facing clarity and one explicit non-touch fence around unsupported platform or ABI widening.
+
+### Actions
+- Re-read the Sprint 77 Day 4 boundary artifact.
+- Re-read the current operator-facing install/export contract in `INSTALL.md`.
+- Re-read the authoritative package/platform policy section in `docs/maintainer_guide.md`.
+- Re-read the concrete exported-package and install metadata surface in `CMakeLists.txt`.
+- Re-ranked the first-batch surfaces against:
+  - downstream leverage
+  - compatibility risk
+  - support-surface dependency
+  - proof cost
+- Fixed the exact ownership split and preserved-compatibility checklist in writing.
+
+### Findings
+- Sprint 77 now has one explicit first implementation contract:
+  - required implementation center:
+    - `INSTALL.md`
+  - support only if the first batch truly forces it:
+    - `docs/maintainer_guide.md`
+    - `CMakeLists.txt`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `README.md`
+- The Day 5 ownership split is now fixed:
+  - product-facing install and consumer-guidance owner:
+    - `INSTALL.md`
+  - authoritative policy and truthfulness owner:
+    - `docs/maintainer_guide.md`
+  - concrete export and metadata owner:
+    - `CMakeLists.txt`
+  - local install-proof owners:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+  - compact front-door summary:
+    - `README.md`
+- The useful Day 5 clarification is now fixed:
+  - the first batch should improve release/install clarity first, not package mechanics first
+  - it should make the static-first surface, downstream consumer story, and reviewed-versus-supplemental proof split easier to read in one operator-facing place
+  - it should move support surfaces only if the Day 6 wording would otherwise leave the contract internally inconsistent
+- The preserved compatibility fence is explicit too:
+  - preserve the static-first release shape
+  - preserve the current `pkg-config` and `find_package(Sparse)` consumer story
+  - preserve the current bounded ABI/version reading
+  - preserve Linux as strongest reviewed truth, macOS as narrower reviewed plus supplemental install proof, and Windows as reviewed CMake subset and consumer lane
+  - do not widen into shared-library, dynamic-ABI, or broader reviewed install-validation claims
+
+### Validation
+- Re-read the Day 4 boundary against the current install guide, maintainer policy, and export metadata surfaces.
+- Rechecked that the first-batch design stays bounded to release/install/productization clarity rather than metadata churn or CI expansion.
+
+### Day 5 Exit State
+- Sprint 77 now has one explicit packaging/productization implementation contract.
+- The Day 6 batch center is fixed to `INSTALL.md`, with support-only follow-through bounded in advance.
+- Compatibility and non-goal fences are fixed before edits begin.

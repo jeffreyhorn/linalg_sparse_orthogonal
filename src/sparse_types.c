@@ -9,6 +9,8 @@ int sparse_errno(void) { return last_errno; }
 
 size_t sparse_idx_bits(void) { return (size_t)SPARSE_IDX_BITS; }
 
+size_t sparse_scalar_bits(void) { return (size_t)SPARSE_SCALAR_BITS; }
+
 const char *sparse_strerror(sparse_err_t err) {
     switch (err) {
     case SPARSE_OK:

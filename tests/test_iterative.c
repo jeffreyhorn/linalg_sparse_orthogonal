@@ -2410,6 +2410,20 @@ static sparse_err_t diag_matvec(const void *ctx, idx_t n, const double *x, doubl
     return SPARSE_OK;
 }
 
+typedef struct {
+    idx_t n;
+    sparse_scalar_t *diag;
+} scalar_diag_op_t;
+
+static sparse_err_t scalar_diag_matvec(const void *ctx, idx_t n, const sparse_scalar_t *x,
+                                       sparse_scalar_t *y) {
+    const scalar_diag_op_t *op = (const scalar_diag_op_t *)ctx;
+    (void)n;
+    for (idx_t i = 0; i < op->n; i++)
+        y[i] = op->diag[i] * x[i];
+    return SPARSE_OK;
+}
+
 static void test_cg_mf_diagonal(void) {
     idx_t n = 10;
     double diag_vals[10];
@@ -2427,6 +2441,29 @@ static void test_cg_mf_diagonal(void) {
     sparse_iter_result_t res = {0};
     ASSERT_ERR(sparse_solve_cg_mf(diag_matvec, &op, n, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
     ASSERT_TRUE(res.converged);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 2.0, 1e-12);
+}
+
+static void test_iterative_public_scalar_alias(void) {
+    idx_t n = 4;
+    sparse_scalar_t diag_vals[4] = {4.0, 5.0, 6.0, 7.0};
+    scalar_diag_op_t op = {.n = n, .diag = diag_vals};
+
+    sparse_scalar_t b[4];
+    sparse_scalar_t x[4] = {0.0, 0.0, 0.0, 0.0};
+    for (idx_t i = 0; i < n; i++)
+        b[i] = diag_vals[i] * 2.0;
+
+    sparse_iter_opts_t opts = {.max_iter = 40, .tol = 1e-14, .verbose = 0};
+    sparse_iter_result_t res = {0};
+
+    ASSERT_EQ(sparse_scalar_bits(), sizeof(sparse_scalar_t) * CHAR_BIT);
+    ASSERT_ERR(sparse_solve_cg_mf(scalar_diag_matvec, &op, n, b, x, &opts, NULL, NULL, &res),
+               SPARSE_OK);
+    ASSERT_TRUE(res.converged);
+    ASSERT_NEAR(res.residual_norm, 0.0, 1e-12);
 
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], 2.0, 1e-12);
@@ -2787,6 +2824,7 @@ int main(void) {
     /* Matrix-free CG (Sprint 8 Day 2) */
     RUN_TEST(test_cg_mf_basic);
     RUN_TEST(test_cg_mf_diagonal);
+    RUN_TEST(test_iterative_public_scalar_alias);
     RUN_TEST(test_cg_mf_null);
     RUN_TEST(test_cg_mf_nos4);
 

@@ -165,6 +165,43 @@ static void test_diagonal_eigenvectors_satisfy_equation(void) {
     sparse_free(A);
 }
 
+static void test_eigs_public_scalar_alias(void) {
+    idx_t n = 6;
+    sparse_scalar_t diag[6];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (sparse_scalar_t)(i + 1);
+
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 2;
+    sparse_scalar_t vals[2] = {0.0, 0.0};
+    sparse_scalar_t *vecs = calloc((size_t)n * (size_t)k, sizeof(sparse_scalar_t));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t result = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+    };
+
+    ASSERT_EQ(sparse_scalar_bits(), sizeof(sparse_scalar_t) * CHAR_BIT);
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_NEAR(vals[0], 6.0, 1e-12);
+    ASSERT_NEAR(vals[1], 5.0, 1e-12);
+    ASSERT_TRUE(result.residual_norm <= 1e-12);
+
+    free(vecs);
+    sparse_free(A);
+}
+
 /* ─────────────────────────────────────────────────────────────────────
  * Test 4: symmetry-rejection precondition — PLAN Day 11 smoke #4
  *
@@ -1484,6 +1521,7 @@ int main(void) {
     RUN_TEST(test_diagonal_k3_largest);
     RUN_TEST(test_diagonal_k3_smallest);
     RUN_TEST(test_diagonal_eigenvectors_satisfy_equation);
+    RUN_TEST(test_eigs_public_scalar_alias);
     RUN_TEST(test_non_symmetric_rejected);
     RUN_TEST(test_tridiag_spd_matches_dense);
     RUN_TEST(test_bad_args);

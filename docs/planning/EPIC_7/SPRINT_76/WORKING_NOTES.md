@@ -190,3 +190,56 @@ Re-rank the live benchmark-governance surface by actual reporting value, proof l
 - Sprint 76 now has one explicit governance contradiction ranking instead of a generic benchmark-reporting backlog.
 - The strongest first landing candidate is fixed to the canonical reporting workflow/schema lane.
 - Day 4 can now freeze a real first governance boundary from the live benchmark/reporting contract.
+
+## Day 4 - First Governance Boundary
+
+### Goal
+Freeze the first Sprint 76 reporting/governance fence so the next design pass starts from one bounded longitudinal-reporting lane rather than from a mixed docs, threshold, and exploratory benchmark backlog.
+
+### Actions
+- Re-read the Sprint 76 Day 3 rerank artifact.
+- Re-read the Sprint 76 section of `docs/planning/EPIC_7/PROJECT_PLAN.md`.
+- Re-ranked the Day 3 contradiction centers against:
+  - reporting leverage
+  - compatibility risk
+  - proof clarity
+  - bounded Sprint 76 payoff
+- Separated required first-batch surfaces from support-only and explicitly deferred surfaces.
+- Fixed the first-batch non-goal fence in writing.
+
+### Findings
+- Sprint 76 now has one explicit first governance boundary:
+  - required first landing:
+    - `scripts/bench_canonical_report.sh`
+    - `Makefile`
+  - support only if the first landing forces it:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - explicitly deferred:
+    - canonical benchmark driver sources
+    - reviewed proof-owner tests and examples
+    - runtime-threshold surfaces:
+      - `bench-fast`
+      - `wall-check`
+      - `bench_reorder`
+      - `bench_amd_qg`
+- The strongest Day 4 clarification is now fixed:
+  - the first Sprint 76 lane is canonical report workflow and schema, not benchmark-driver churn first
+  - benchmark-local interpretation remains the strongest support seam, not the first batch center
+  - maintainer-policy wording remains authoritative support, not the first landing center
+  - threshold-policy work is still real, but it is explicitly second-batch pressure rather than the first move
+- The first-batch non-goal fence is explicit now:
+  - no widening of the canonical maintained benchmark surface
+  - no new timing-threshold gate disguised as longitudinal reporting
+  - no broad benchmark-driver rewrite
+  - no widened product/platform/backend claim detached from maintained evidence
+
+### Validation
+- Re-read the Day 3 rerank and the Sprint 76 project-plan section.
+- Reconfirmed that the Day 4 fence stays inside the preserved Sprint 65, Sprint 70, and Sprint 75 truthfulness contract.
+- Rechecked branch state before closing the boundary pass.
+
+### Day 4 Exit State
+- Sprint 76 now has one exact first reporting/governance landing boundary.
+- The next design pass can stay inside the canonical report workflow/schema lane without drifting into threshold, docs, or exploratory benchmark sprawl.

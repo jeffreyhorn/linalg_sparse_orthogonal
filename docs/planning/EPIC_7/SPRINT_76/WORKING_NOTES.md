@@ -398,3 +398,52 @@ Re-audit the benchmark-governance surface after the Day 6 canonical reporting la
 - Sprint 76 no longer needs another workflow-only reporting batch.
 - The strongest remaining seam is now fixed to support-surface reconciliation around the landed canonical report bundle.
 - Day 8 can design a bounded documentation/policy follow-through batch from a current-state rerank instead of from the original backlog.
+
+## Day 8 - Support-Surface Design
+
+### Goal
+Define the bounded documentation and policy follow-through contract for the landed Day 6 canonical report bundle before any support-surface edits begin.
+
+### Actions
+- Re-read the Day 7 rerank artifact.
+- Re-read the current canonical-report wording in:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Reconfirmed the compact top-level benchmark summary in `README.md`.
+- Fixed the exact Day 9 touch set, preserved wording guarantees, and non-touch fence for the support-surface batch.
+
+### Findings
+- Sprint 76 now has one exact support-surface reconciliation batch:
+  - required Day 9 batch:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - support only if wording truly forces it:
+    - `README.md`
+- The useful Day 8 clarification is now explicit:
+  - `benchmarks/README.md` should become the clearer benchmark-local explanation of the stronger canonical bundle:
+    - one CSV per canonical maintained benchmark still remains true
+    - `manifest.txt` still remains true
+    - `index.tsv` and bounded bundle metadata now need to be named directly
+  - `docs/maintainer_guide.md` should move with it because it owns the authoritative policy reading of the canonical report surface
+  - `README.md` remains support-only because the top-level statement that the report writes one bounded snapshot of the maintained canonical surface is still broadly accurate
+- The Day 9 preservation fence is fixed now:
+  - preserve:
+    - threshold-free interpretation
+    - the same four canonical maintained benchmark emitters
+    - benchmark binaries as owners of emitted CSV row semantics
+    - runtime and exploratory lanes staying outside the canonical report bundle
+  - non-touch:
+    - `scripts/bench_canonical_report.sh`
+    - `Makefile`
+    - canonical benchmark driver sources
+    - threshold-policy work around `bench-fast`, `wall-check`, `bench_reorder`, and `bench_amd_qg`
+    - reviewed proof-owner tests and examples
+
+### Validation
+- Re-read the Day 7 rerank plus the current benchmark-local and maintainer-policy wording.
+- Reconfirmed that the support-surface batch can stay bounded without reopening workflow, threshold, or benchmark-driver work.
+- Rechecked branch state before closing the design pass.
+
+### Day 8 Exit State
+- Sprint 76 now has one exact Day 9 support-surface reconciliation contract.
+- The next batch can reconcile the benchmark-local and maintainer-policy wording with the landed stronger bundle without widening the sprint into threshold or workflow churn.

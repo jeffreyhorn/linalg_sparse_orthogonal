@@ -447,3 +447,47 @@ Define the bounded documentation and policy follow-through contract for the land
 ### Day 8 Exit State
 - Sprint 76 now has one exact Day 9 support-surface reconciliation contract.
 - The next batch can reconcile the benchmark-local and maintainer-policy wording with the landed stronger bundle without widening the sprint into threshold or workflow churn.
+
+## Day 9 - Support-Surface Reconciliation Batch
+
+### Goal
+Reconcile the benchmark-local and maintainer-policy wording with the landed Day 6 canonical report bundle without reopening workflow, threshold, or benchmark-driver work.
+
+### Actions
+- Updated `benchmarks/README.md` to describe the stronger canonical report bundle directly.
+- Updated `docs/maintainer_guide.md` to reflect the same landed bundle shape at the authoritative policy layer.
+- Rechecked whether `README.md` needed compact top-level follow-through; it did not.
+- Ran the targeted docs-only sanity set:
+  - diff review
+  - terminology/alignment reread across the touched support surfaces
+  - touched-surface `wc -l`
+  - branch-state verification
+
+### Findings
+- The Day 9 result stayed inside the Day 8 fence:
+  - `benchmarks/README.md` now names:
+    - `manifest.txt`
+    - `index.tsv`
+    - explicit artifact inventory
+    - generated timestamp
+    - bounded report-label support
+    - bounded git metadata support
+  - `docs/maintainer_guide.md` now names the same landed bundle shape at the policy layer
+- The preserved governance split stayed intact:
+  - one CSV per canonical maintained benchmark remains the numeric artifact surface
+  - benchmark binaries still own emitted CSV row semantics
+  - `make bench-canonical-report` still reads as threshold-free artifact reporting
+  - runtime and exploratory lanes still stay outside the canonical report bundle
+- No README follow-through was needed:
+  - the compact top-level statement still accurately describes the report as one bounded snapshot of the maintained canonical surface
+
+### Validation
+- Ran the Sprint 76 docs-only sanity set:
+  - diff review
+  - terminology/alignment reread
+  - touched-surface `wc -l`
+  - branch-state recheck
+
+### Day 9 Exit State
+- The support surfaces now reconcile cleanly with the landed stronger canonical report bundle.
+- The strongest remaining Sprint 76 seam is no longer support-surface drift around the canonical reporting batch.

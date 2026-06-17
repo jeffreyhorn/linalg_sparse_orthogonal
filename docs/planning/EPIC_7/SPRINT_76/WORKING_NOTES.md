@@ -133,3 +133,60 @@ Reconfirm the Sprint 76 implementation-day validation contract and the live proo
 - Sprint 76 now has one explicit implementation-day validation contract.
 - The live proof split across reviewed binaries, canonical-report workflow ownership, and install/package scripts is fixed in writing.
 - The strongest likely Sprint 76 rerun set is explicit before governance and reporting design work begins.
+
+## Day 3 - Governance Re-audit
+
+### Goal
+Re-rank the live benchmark-governance surface by actual reporting value, proof leverage, and maintenance clarity so Sprint 76 starts from the strongest contradiction center rather than from a generic “benchmark reporting overhaul” idea.
+
+### Actions
+- Re-read the Sprint 76 Day 3 plan expectations in `docs/planning/EPIC_7/SPRINT_76/PLAN.md`.
+- Re-read the benchmark-local governance and schema surface in `benchmarks/README.md`.
+- Re-read the compact front-door benchmark/reporting summary in `README.md`.
+- Re-read the authoritative benchmark-governance policy section in `docs/maintainer_guide.md`.
+- Re-read the current canonical report generator in `scripts/bench_canonical_report.sh`.
+- Re-read the current `bench-canonical-report`, `bench-fast`, and `wall-check` command ownership in `Makefile`.
+- Rechecked the strongest benchmark-governance/reporting terminology seams with targeted `rg`.
+
+### Findings
+- Sprint 76's broad benchmark-governance pressure is now reduced to one ranked contradiction map instead of one generic “benchmark modernization” bucket:
+  - strongest first target:
+    - canonical reporting workflow and longitudinal-comparison schema
+  - strongest second target:
+    - benchmark-local role and interpretation surface
+  - strongest third target:
+    - authoritative threshold and category policy surface
+  - strongest support-surface contradiction:
+    - compact front-door benchmark summary
+  - strongest adjacent but not first-batch lane:
+    - regression-sensitive runtime surfaces around `bench-fast`, `wall-check`, `bench_reorder`, and `bench_amd_qg`
+- The strongest first contradiction center is not the canonical benchmark binaries themselves.
+- It is the reporting/orchestration layer across:
+  - `scripts/bench_canonical_report.sh`
+  - `Makefile`
+  - the canonical maintained emitters the script drives
+- That lane ranks first because:
+  - the maintained canonical benchmark surface is already explicit
+  - the report script is intentionally threshold-free and cheap
+  - but longitudinal comparison still depends on a very small manifest and manually interpreted CSV bundles
+  - so the strongest remaining Sprint 76 leverage is schema, metadata, and workflow governance rather than new timing surfaces
+- `benchmarks/README.md` is the strongest second target because it currently carries the densest user-facing ownership split across:
+  - canonical maintained proof
+  - regression-sensitive runtime lane
+  - exploratory comparison lane
+  - `bench-fast`
+  - `wall-check`
+  - `bench-canonical-report`
+- `docs/maintainer_guide.md` is the strongest third target because it already owns the authoritative category and threshold policy, but still reads as policy-first support rather than the best first landing center by itself.
+- `README.md` is a real support-surface contradiction center, but weaker than the benchmark-local and maintainer-policy surfaces because it already stays compact and intentionally does not own the full governance contract.
+- The current regression-sensitive runtime lane remains important, but it is not the best first landing because the strongest immediate problem is role and report comparability clarity, not widening or tightening threshold gates.
+
+### Validation
+- Re-read `benchmarks/README.md`, `README.md`, `docs/maintainer_guide.md`, `scripts/bench_canonical_report.sh`, and the relevant `Makefile` sections.
+- Rechecked the benchmark-governance/reporting terminology seams with targeted `rg`.
+- Reconfirmed that the reviewed baseline and Day 2 truth-surface split remain unchanged by the Day 3 rerank.
+
+### Day 3 Exit State
+- Sprint 76 now has one explicit governance contradiction ranking instead of a generic benchmark-reporting backlog.
+- The strongest first landing candidate is fixed to the canonical reporting workflow/schema lane.
+- Day 4 can now freeze a real first governance boundary from the live benchmark/reporting contract.

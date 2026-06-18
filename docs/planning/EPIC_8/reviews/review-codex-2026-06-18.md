@@ -54,7 +54,8 @@ Sprint 80 Days 1-7 did not change the review verdict, but they did tighten the
 contract this review should be read against:
 
 - the strongest local reviewed baseline remains `make quality-review-full`
-- reviewed CMake parity remains explicit at `ctest -N --test-dir build/quality-review-cmake = 53`
+- reviewed CMake parity remains explicit:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
 - the first maintained external correctness target is now fixed to a bounded
   CHOLMOD-class SPD Cholesky comparison lane
 - BLAS/LAPACK-class references are fixed as performance-reference support, not

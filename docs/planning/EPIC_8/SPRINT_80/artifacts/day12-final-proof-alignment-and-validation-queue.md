@@ -9,7 +9,7 @@ Fix the exact proof-owner map and authoritative Day 13 validation queue for the
 
 The strongest reviewed parity anchor remains explicit:
 
-- `ctest -N --test-dir build/quality-review-cmake = 53`
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
 
 The highest-signal reviewed proof-owner binaries most relevant to Sprint 80 are
 present and stable:

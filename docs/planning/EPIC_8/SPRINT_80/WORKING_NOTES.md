@@ -431,3 +431,78 @@ pressure to one ranked maintained-vs-advisory candidate map.
   calibration as the strongest performance-reference support lane.
 - Day 5 can now freeze the external-oracle contract from a real candidate set
   instead of from generic ecosystem aspirations.
+
+## Day 5 - External Oracle Contract
+
+### Goal
+Freeze the bounded Epic 8 external-oracle contract from the ranked Day 4
+candidate set so later sprints know which comparison lanes are maintained,
+which are advisory, and which are explicitly outside the first contract.
+
+### Actions
+- Re-read the Sprint 80 Day 5 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Day 4 candidate audit and the Stage 1 external-reference section
+  in `docs/planning/EPIC_8/reviews/todo-codex-2026-06-18.md`.
+- Rechecked the Day 3 contradiction ranking so the contract stayed subordinate
+  to the Epic 8 execution order:
+  - product/storage first
+  - dense/backend second
+  - capability third
+  - external differential/oracle fourth
+- Separated the candidate set into:
+  - maintained correctness references
+  - maintained performance-reference support
+  - advisory comparison context
+  - explicitly non-maintained / non-contract surfaces
+- Fixed the preserved external-comparison non-goal fence so the contract does
+  not widen into dependency sprawl or fake portability claims.
+
+### Findings
+- The first maintained Epic 8 external-oracle contract is now fixed explicitly:
+  - maintained correctness reference lane:
+    - bounded SuiteSparse-family direct-solver comparison centered first on the
+      CHOLMOD-class SPD Cholesky lane
+  - maintained performance-reference support lane:
+    - BLAS/LAPACK-class dense-kernel calibration for backend-aware performance
+      work
+- The contract intentionally does **not** promote those two lanes to the same
+  kind of proof:
+  - CHOLMOD-class comparison is the strongest first maintained correctness
+    candidate
+  - BLAS/LAPACK-class comparison is performance-reference support, not broad
+    product correctness proof
+- The strongest second-tier but not first-contract maintained candidate is now
+  explicit:
+  - a narrower unsymmetric/direct external comparison may become valid later,
+    but it is not part of the first maintained Sprint 80 contract
+- The strongest advisory comparison context is now explicit:
+  - METIS-class graph/reordering comparison remains useful advisory context
+  - it is not part of the first maintained external-oracle contract
+- The strongest explicitly non-contract candidates are also fixed:
+  - broad external sparse solver families such as SuperLU, MUMPS, PARDISO, or
+    wide comparison-layer ecosystems remain exploratory only
+- The preserved external-comparison non-goal fence is now fixed directly:
+  - no mandatory heavyweight external stack for normal builds
+  - no fake cross-platform proof parity from locally convenient dependencies
+  - no “compare to everything” benchmark theater
+  - no broad correctness claim inflation from performance-reference lanes
+  - no broad dependency matrix that outruns the maintained CI/package surface
+- The strongest Day 5 clarification is now explicit:
+  - Epic 8 should begin with one bounded maintained direct-solver correctness
+    comparison lane and one bounded dense-kernel calibration lane
+  - broader ecosystem comparison belongs later, and only if earlier structural
+    ceilings move successfully
+
+### Validation
+- Re-read the Day 4 ranked candidate audit directly.
+- Re-read the Epic 8 todo's external-reference stage directly.
+- Reconciled the contract against the Day 3 execution order and the preserved
+  non-goal fence.
+
+### Day 5 Exit State
+- Epic 8 now has one explicit external-oracle contract instead of one generic
+  ecosystem-comparison aspiration.
+- Maintained, advisory, and non-contract external lanes are fixed in writing.
+- Later Sprint 80 work can now build the benchmark/performance contract and the
+  risk fence against one stable comparison reading.

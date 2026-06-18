@@ -4382,11 +4382,11 @@ static void test_dispatch_forced_override_both_paths_agree(void) {
     sparse_free(L_cs);
 }
 
-/* Sprint 18 Day 12 — larger SuiteSparse fixtures should:
+/* Larger SuiteSparse fixtures should:
  *   (a) take the CSC dispatch path (n >= SPARSE_CSC_THRESHOLD), and
  *   (b) produce a residual ||A·x - b|| / ||b|| below the 1e-10 SPD
  *       spot-check threshold.
- * Before Day 12's fix to pre-populate sym_L's full pattern in
+ * Before the full sym_L pre-population fix in
  * `chol_csc_from_sparse_with_analysis`, these residuals blew up to
  * ~1e-1 on bcsstk14 / s3rmt3m3 / Kuu because the supernodal extract
  * missed fill-in rows.  Keep these tests SPD-only; bcsstk14 is a
@@ -4449,7 +4449,7 @@ static void test_dispatch_legacy_opts_still_work(void) {
     idx_t n = 20;
     SparseMatrix *A = day11_build_spd(n, 0.1, 0xdeadbeefu);
 
-    /* Pre-Sprint-18 caller style: only set `reorder`.  Zero-init for
+    /* Legacy caller style: only set `reorder`.  Zero-init for
      * the new fields means AUTO + no used_csc_path reporting. */
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_AMD,
@@ -4489,12 +4489,106 @@ static void test_dispatch_csc_reports_selected_path_before_reorder_error(void) {
     sparse_free(A);
 }
 
+static void run_supernode_detection_tests(void) {
+    RUN_TEST(test_detect_supernodes_null_args);
+    RUN_TEST(test_detect_supernodes_diagonal);
+    RUN_TEST(test_detect_supernodes_dense);
+    RUN_TEST(test_detect_supernodes_block_diagonal);
+    RUN_TEST(test_detect_supernodes_tridiagonal);
+    RUN_TEST(test_detect_supernodes_reverse_arrowhead);
+    RUN_TEST(test_detect_supernodes_suitesparse_report);
+}
+
+static void run_supernodal_postorder_tests(void) {
+    RUN_TEST(test_supernodal_postorder_residual_unchanged);
+    RUN_TEST(test_supernodal_postorder_no_supernode_count_regression);
+}
+
+static void run_supernodal_dense_tests(void) {
+    RUN_TEST(test_chol_dense_factor_null);
+    RUN_TEST(test_chol_dense_factor_1x1);
+    RUN_TEST(test_chol_dense_factor_2x2);
+    RUN_TEST(test_chol_dense_factor_4x4);
+    RUN_TEST(test_chol_dense_factor_not_spd);
+    RUN_TEST(test_chol_dense_solve_null);
+    RUN_TEST(test_chol_dense_solve_lower_3x3);
+    RUN_TEST(test_chol_dense_solve_panel_2x2_two_rhs);
+    RUN_TEST(test_supernodal_dense_backend_default_contract);
+
+    /* ldlt_dense_factor (BK on column-major) cross-checks */
+    RUN_TEST(test_ldlt_dense_factor_arg_checks);
+    RUN_TEST(test_ldlt_dense_factor_4x4_indefinite);
+    RUN_TEST(test_ldlt_dense_factor_2x2_forced);
+    RUN_TEST(test_ldlt_dense_factor_6x6_mixed_pivots);
+    RUN_TEST(test_eliminate_supernodal_dense);
+    RUN_TEST(test_eliminate_supernodal_block_diagonal);
+    RUN_TEST(test_eliminate_supernodal_bcsstk04_amd);
+    RUN_TEST(test_chol_csc_kuu_scalar_no_regression);
+    RUN_TEST(test_eliminate_supernodal_null);
+}
+
+static void run_supernode_extract_writeback_tests(void) {
+    RUN_TEST(test_supernode_extract_writeback_dense);
+    RUN_TEST(test_supernode_extract_writeback_block_diagonal);
+    RUN_TEST(test_supernode_extract_writeback_with_below_panel);
+    RUN_TEST(test_supernode_extract_lda_padding);
+    RUN_TEST(test_supernode_extract_error_paths);
+}
+
+static void run_supernode_diag_factor_tests(void) {
+    RUN_TEST(test_supernode_eliminate_diag_dense_8x8);
+    RUN_TEST(test_supernode_eliminate_diag_with_external_cmod);
+    RUN_TEST(test_supernode_eliminate_diag_block_diagonal);
+    RUN_TEST(test_supernode_eliminate_diag_not_spd);
+    RUN_TEST(test_supernode_eliminate_diag_error_paths);
+}
+
+static void run_supernode_panel_tests(void) {
+    RUN_TEST(test_eliminate_supernodal_dense_10x10_residual);
+    RUN_TEST(test_eliminate_supernodal_size1_matches_scalar);
+    RUN_TEST(test_eliminate_supernodal_random_spd_sweep);
+    RUN_TEST(test_eliminate_supernodal_bcsstk04_residual);
+    RUN_TEST(test_eliminate_supernodal_rejects_nonpositive_stored_diagonal);
+    RUN_TEST(test_supernode_eliminate_panel_error_paths);
+    RUN_TEST(
+        test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error);
+    RUN_TEST(test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error);
+    RUN_TEST(test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error);
+}
+
+static void run_supernodal_parametrised_tests(void) {
+    RUN_TEST(test_supernodal_parametrised_cross_check);
+    RUN_TEST(test_supernodal_boundary_singleton_plus_large);
+}
+
+static void run_writeback_tests(void) {
+    RUN_TEST(test_writeback_roundtrip_dense5_noreorder);
+    RUN_TEST(test_writeback_roundtrip_tridiag_noreorder);
+    RUN_TEST(test_writeback_roundtrip_nos4_amd);
+    RUN_TEST(test_writeback_roundtrip_bcsstk04_amd);
+    RUN_TEST(test_writeback_rejects_already_factored);
+    RUN_TEST(test_writeback_rejects_nonidentity_row_perm);
+    RUN_TEST(test_writeback_rejects_null);
+    RUN_TEST(test_writeback_rejects_shape_mismatch);
+    RUN_TEST(test_writeback_publishes_solve_ready_factored_shell);
+}
+
+static void run_dispatch_tests(void) {
+    RUN_TEST(test_dispatch_auto_small_uses_linked_list);
+    RUN_TEST(test_dispatch_auto_large_uses_csc_and_solves);
+    RUN_TEST(test_dispatch_forced_override_both_paths_agree);
+    RUN_TEST(test_dispatch_legacy_opts_still_work);
+    RUN_TEST(test_dispatch_invalid_backend_rejected);
+    RUN_TEST(test_dispatch_csc_reports_selected_path_before_reorder_error);
+    RUN_TEST(test_dispatch_day12_bcsstk14_residual);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("chol_csc (Sprint 17 Days 1-11 + Sprint 18 Days 6-11)");
+    TEST_SUITE_BEGIN("chol_csc");
 
     /* Day 1 — alloc / free / grow */
     RUN_TEST(test_chol_csc_alloc_null_out);
@@ -4599,92 +4693,32 @@ int main(void) {
     RUN_TEST(test_factor_detects_negative_diagonal);
     RUN_TEST(test_solve_detects_tiny_diagonal);
 
-    /* Day 10 — supernode detection */
-    RUN_TEST(test_detect_supernodes_null_args);
-    RUN_TEST(test_detect_supernodes_diagonal);
-    RUN_TEST(test_detect_supernodes_dense);
-    RUN_TEST(test_detect_supernodes_block_diagonal);
-    RUN_TEST(test_detect_supernodes_tridiagonal);
-    RUN_TEST(test_detect_supernodes_reverse_arrowhead);
-    RUN_TEST(test_detect_supernodes_suitesparse_report);
+    /* Supernode detection */
+    run_supernode_detection_tests();
 
-    /* Sprint 28 Day 8 — supernodal-etree reordering corpus safety */
-    RUN_TEST(test_supernodal_postorder_residual_unchanged);
-    RUN_TEST(test_supernodal_postorder_no_supernode_count_regression);
+    /* Supernodal etree-postorder corpus safety */
+    run_supernodal_postorder_tests();
 
-    /* Day 11 — dense primitives + supernode-aware elimination */
-    RUN_TEST(test_chol_dense_factor_null);
-    RUN_TEST(test_chol_dense_factor_1x1);
-    RUN_TEST(test_chol_dense_factor_2x2);
-    RUN_TEST(test_chol_dense_factor_4x4);
-    RUN_TEST(test_chol_dense_factor_not_spd);
-    RUN_TEST(test_chol_dense_solve_null);
-    RUN_TEST(test_chol_dense_solve_lower_3x3);
-    RUN_TEST(test_chol_dense_solve_panel_2x2_two_rhs);
-    RUN_TEST(test_supernodal_dense_backend_default_contract);
+    /* Dense primitives + supernode-aware elimination */
+    run_supernodal_dense_tests();
 
-    /* Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) */
-    RUN_TEST(test_ldlt_dense_factor_arg_checks);
-    RUN_TEST(test_ldlt_dense_factor_4x4_indefinite);
-    RUN_TEST(test_ldlt_dense_factor_2x2_forced);
-    RUN_TEST(test_ldlt_dense_factor_6x6_mixed_pivots);
-    RUN_TEST(test_eliminate_supernodal_dense);
-    RUN_TEST(test_eliminate_supernodal_block_diagonal);
-    RUN_TEST(test_eliminate_supernodal_bcsstk04_amd);
-    RUN_TEST(test_chol_csc_kuu_scalar_no_regression);
-    RUN_TEST(test_eliminate_supernodal_null);
+    /* Supernode extract / writeback plumbing */
+    run_supernode_extract_writeback_tests();
 
-    /* Sprint 18 Day 6 — supernode extract / writeback plumbing */
-    RUN_TEST(test_supernode_extract_writeback_dense);
-    RUN_TEST(test_supernode_extract_writeback_block_diagonal);
-    RUN_TEST(test_supernode_extract_writeback_with_below_panel);
-    RUN_TEST(test_supernode_extract_lda_padding);
-    RUN_TEST(test_supernode_extract_error_paths);
+    /* Supernode diagonal-block factor */
+    run_supernode_diag_factor_tests();
 
-    /* Sprint 18 Day 7 — supernode diagonal-block factor */
-    RUN_TEST(test_supernode_eliminate_diag_dense_8x8);
-    RUN_TEST(test_supernode_eliminate_diag_with_external_cmod);
-    RUN_TEST(test_supernode_eliminate_diag_block_diagonal);
-    RUN_TEST(test_supernode_eliminate_diag_not_spd);
-    RUN_TEST(test_supernode_eliminate_diag_error_paths);
+    /* Panel solve + full batched path integration */
+    run_supernode_panel_tests();
 
-    /* Sprint 18 Day 8 — panel solve + full batched path integration */
-    RUN_TEST(test_eliminate_supernodal_dense_10x10_residual);
-    RUN_TEST(test_eliminate_supernodal_size1_matches_scalar);
-    RUN_TEST(test_eliminate_supernodal_random_spd_sweep);
-    RUN_TEST(test_eliminate_supernodal_bcsstk04_residual);
-    RUN_TEST(test_eliminate_supernodal_rejects_nonpositive_stored_diagonal);
-    RUN_TEST(test_supernode_eliminate_panel_error_paths);
-    RUN_TEST(
-        test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error);
-    RUN_TEST(test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error);
-    RUN_TEST(test_supernode_eliminate_panel_missing_solve_panel_is_backend_contract_error);
+    /* Parametrised scalar↔batched cross-check + boundary */
+    run_supernodal_parametrised_tests();
 
-    /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */
-    RUN_TEST(test_supernodal_parametrised_cross_check);
-    RUN_TEST(test_supernodal_boundary_singleton_plus_large);
+    /* CSC → linked-list writeback */
+    run_writeback_tests();
 
-    /* Sprint 18 Day 10 — CSC → linked-list writeback */
-    RUN_TEST(test_writeback_roundtrip_dense5_noreorder);
-    RUN_TEST(test_writeback_roundtrip_tridiag_noreorder);
-    RUN_TEST(test_writeback_roundtrip_nos4_amd);
-    RUN_TEST(test_writeback_roundtrip_bcsstk04_amd);
-    RUN_TEST(test_writeback_rejects_already_factored);
-    RUN_TEST(test_writeback_rejects_nonidentity_row_perm);
-    RUN_TEST(test_writeback_rejects_null);
-    RUN_TEST(test_writeback_rejects_shape_mismatch);
-    RUN_TEST(test_writeback_publishes_solve_ready_factored_shell);
-
-    /* Sprint 18 Day 11 — transparent dispatch in sparse_cholesky_factor_opts */
-    RUN_TEST(test_dispatch_auto_small_uses_linked_list);
-    RUN_TEST(test_dispatch_auto_large_uses_csc_and_solves);
-    RUN_TEST(test_dispatch_forced_override_both_paths_agree);
-    RUN_TEST(test_dispatch_legacy_opts_still_work);
-    RUN_TEST(test_dispatch_invalid_backend_rejected);
-    RUN_TEST(test_dispatch_csc_reports_selected_path_before_reorder_error);
-
-    /* Sprint 18 Day 12 — larger SuiteSparse fixture residual spot-check */
-    RUN_TEST(test_dispatch_day12_bcsstk14_residual);
+    /* Transparent dispatch in sparse_cholesky_factor_opts */
+    run_dispatch_tests();
 
     TEST_SUITE_END();
 }

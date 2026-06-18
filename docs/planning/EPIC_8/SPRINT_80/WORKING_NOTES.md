@@ -822,3 +822,74 @@ non-goals.
   tightened to match the landed Sprint 80 contract package.
 - Day 10 can now recheck the 10-sprint project plan against one stable review
   and todo pair.
+
+## Day 10 - Project-Plan Contract Recheck
+
+### Goal
+Reconcile the 10-sprint Epic 8 project plan against the landed Sprint 80
+baseline and contract package so later implementation sprints do not inherit an
+ordering or dependency mistake.
+
+### Actions
+- Re-read the Sprint 80 Day 10 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read `docs/planning/EPIC_8/PROJECT_PLAN.md` against the landed Sprint 80
+  Day 2-9 package:
+  - validation baseline
+  - competitive gap inventory
+  - external-oracle contract
+  - benchmark/performance contract
+  - non-goal and risk fence
+  - review refinement
+  - todo refinement
+- Rechecked the major sprint ordering and dependency chain across Sprints 80-89
+  for contradictions around:
+  - storage/workflow sequencing
+  - backend timing
+  - capability timing
+  - assurance timing
+  - package/platform timing
+  - final comparison scope
+- Re-scanned the later-sprint wording for any assumptions that now overreached
+  the Sprint 80 claim fence.
+
+### Findings
+- No `PROJECT_PLAN.md` edit is actually needed.
+- The current 10-sprint Epic 8 plan still matches the landed Sprint 80
+  findings:
+  - Sprint 80 freezes the baseline and contracts first
+  - Sprint 81 still correctly opens implementation with the
+    storage/workflow ceiling
+  - Sprint 82 still correctly follows with the dense/backend ceiling
+  - Sprint 83 still correctly treats capability expansion as downstream of the
+    first structural and backend moves
+  - Sprint 84 still correctly keeps assurance expansion bounded by the
+    external-oracle contract
+  - Sprint 85 and Sprint 86 still correctly place maintainability and runtime
+    work after the earlier product/backend/assurance moves
+  - Sprint 87 still correctly treats packaging/platform work as a later
+    convergence lane, not an opening implementation center
+  - Sprint 88 still correctly keeps usability simplification late, after the
+    product/package truth is clearer
+  - Sprint 89 still correctly treats final comparison as bounded
+    evidence-based calibration rather than a pre-earned claim
+- The strongest Day 10 clarification is now explicit:
+  - Sprint 80 refined how the Epic 8 plan should be read
+  - it did not reveal an ordering flaw or dependency contradiction that
+    requires rewriting the plan itself
+
+### Validation
+- Re-read `docs/planning/EPIC_8/PROJECT_PLAN.md` directly against the Sprint
+  80 review/todo/contract package.
+- Rechecked that no sprint now depends on fake platform parity, assumed shared
+  backend maturity, broad external dependency sprawl, or whole-library rewrite
+  pressure.
+- Rechecked that the time-bounded 10-sprint ordering still tracks the current
+  ranked contradiction map.
+
+### Day 10 Exit State
+- The Epic 8 project plan still stands without revision.
+- Sprint 80 has now fixed the interpretation contract around the plan as well
+  as around the review and todo.
+- Day 11 can proceed to the support-surface truth sweep without any project
+  plan correction.

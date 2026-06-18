@@ -1057,3 +1057,76 @@ install/package follow-ons.
   - reviewed CMake `test_reorder_nd` still dominated runtime at `315.52 sec`
     out of `451.58 sec`, but the full reviewed path completed cleanly and all
     maintained parity anchors stayed exact.
+
+## Day 14 - Epic 7 Closeout and Handoff
+
+### Goal
+Close Sprint 79 and Epic 7 from the validated Day 13 baseline, leave behind one
+truthful end-of-epic reading, and fix the ranked post-Epic-7 queue explicitly
+instead of leaving one implied backlog.
+
+### Actions
+- Re-read the Sprint 79 closeout expectations in:
+  - `docs/planning/EPIC_7/SPRINT_79/PLAN.md`
+  - the Sprint 79 section of `docs/planning/EPIC_7/PROJECT_PLAN.md`
+- Re-read the Day 13 validated baseline and retained-output record.
+- Summarized the final Epic 7 package across:
+  - assurance rerank
+  - landed public oracle/property expansion
+  - final cross-surface integration reconciliation
+  - validated close baseline
+  - residual summary/no-op closeout decisions
+- Fixed the post-Epic-7 carry-forward queue in ranked order.
+- Rechecked whether `PROJECT_PLAN.md` needed a Sprint 79 corrective closeout
+  note after the integrated final state.
+
+### Findings
+- Sprint 79 now closes as one coherent final Epic 7 assurance and truthfulness
+  package across:
+  - assurance-gap rerank
+  - bounded public LDL^T lifecycle oracle/property expansion
+  - bounded support-surface reconciliation
+  - explicit no-op confirmation on the project-plan summary lane
+  - Day 13 validated baseline including the install-path dependency fix
+- The preserved closeout fence stayed intact:
+  - no broad late-cycle subsystem work
+  - no widened product/platform claim beyond maintained evidence
+  - no benchmark-threshold or portability claim inflation
+  - no retrospective or summary language that erases the residual queue
+- The ranked post-Epic-7 carry-forward queue is now fixed explicitly:
+  1. residual direct-family lifecycle/callback parity beyond the bounded
+     Sprint 79 LDL^T oracle/property lane
+  2. platform-confidence-limited property expansion only where maintained proof
+     justifies it
+  3. later family-local oracle/differential broadening only where bounded
+     closeout-style evidence exists
+  4. broader post-Epic-7 maintenance/performance work from the inherited
+     ranked backlogs in the finished Sprint 71-78 packages
+- `PROJECT_PLAN.md` does not need a Sprint 79 correction:
+  - the Sprint 79 item split, estimates, and closeout framing still read
+    truthfully against the integrated tree and the validated baseline
+- Sprint 79 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 451.58 sec`
+
+### Validation
+- This was a docs-only closeout pass, so I did not rerun validation after the
+  Day 13 baseline.
+- The closeout sanity pass covered:
+  - Sprint 79 plan reread against the final tree
+  - `PROJECT_PLAN.md` closeout reread
+  - validated-baseline recheck from Day 13 artifacts
+  - branch-state verification
+
+### Day 14 Exit State
+- Epic 7 now closes from one explicit validated baseline plus one explicit
+  residual queue.
+- The final handoff is bounded, truthful, and does not depend on implied
+  context from earlier sprint notes.
+- Sprint 79 is ready for retrospective generation from a stable closeout state.

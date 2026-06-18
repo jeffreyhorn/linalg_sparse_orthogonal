@@ -683,3 +683,71 @@ Define one bounded proof-architecture batch for the strongest remaining permanen
 - The Day 10 giant-test batch is explicitly bounded before edits begin.
 - `tests/test_chol_csc.c` is fixed as the required center, with `tests/test_chol_csc_supernodal_helpers.h` as the only likely support seam.
 - Sprint 78 can now land one real proof-architecture cleanup without reopening the whole proof surface.
+
+## Day 10 - Giant-Test Architecture Batch
+
+### Goal
+Land one bounded proof-architecture cleanup inside the strongest remaining giant-test surface so the Cholesky CSC family-local proof stays behavior-identical but becomes easier to review and maintain.
+
+### Actions
+- Re-read the Day 9 design fence and the local supernodal/writeback/dispatch registration seam in:
+  - `tests/test_chol_csc.c`
+- Grouped the densest family-local proof blocks behind local runner functions inside `tests/test_chol_csc.c`:
+  - supernode detection
+  - supernodal postorder
+  - dense and supernodal elimination
+  - extract/writeback plumbing
+  - diagonal-block factor
+  - panel solve and backend-contract checks
+  - parametrised cross-checks
+  - writeback
+  - dispatch
+- Kept the batch family-local:
+  - no shared harness changes
+  - no support-surface widening
+  - no public API movement
+- Ran the full Day 10 code-batch validation contract:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- Sprint 78 Day 10 landed exactly inside the Day 9 fence:
+  - `tests/test_chol_csc.c` is the only touched proof owner
+  - `tests/test_chol_csc_supernodal_helpers.h` did not need edits
+  - no other giant tests or policy/docs surfaces moved
+- The main maintainability gain is now explicit:
+  - `main()` no longer carries the full supernodal/writeback/dispatch chronology inline
+  - the strongest mixed proof-role cluster now reads as named local sections instead of one uninterrupted registration wall
+  - the file keeps the same proof ownership and execution order, but the giant-test architecture is clearer
+- The landed runner seams are family-local, not framework-global:
+  - `run_supernode_detection_tests()`
+  - `run_supernodal_postorder_tests()`
+  - `run_supernodal_dense_tests()`
+  - `run_supernode_extract_writeback_tests()`
+  - `run_supernode_diag_factor_tests()`
+  - `run_supernode_panel_tests()`
+  - `run_supernodal_parametrised_tests()`
+  - `run_writeback_tests()`
+  - `run_dispatch_tests()`
+- The preserved proof fence stayed intact:
+  - no test logic or expected behavior changed
+  - no proof-owner spill into `tests/test_ldlt_csc.c`, `tests/test_qr.c`, `tests/test_integration.c`, or `tests/test_reorder_nd.c`
+  - no shared-harness churn in `tests/test_framework.h`
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 330.90 sec`
+
+### Day 10 Exit State
+- The strongest remaining giant-test architecture seam has one real bounded cleanup landed.
+- `tests/test_chol_csc.c` remains the Cholesky CSC family-local proof owner, but its densest permanent review block is now materially easier to scan.
+- Sprint 78 can now rerank the next remaining giant-test and chronology pressure from the post-Day-10 state.

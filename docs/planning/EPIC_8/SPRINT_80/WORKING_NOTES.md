@@ -589,3 +589,100 @@ not widen into fake timing gates or broader product claims.
   governance every time.
 - The canonical reporting surface, runtime lane, and narrow threshold gate are
   fixed in writing before the later risk-fence work begins.
+
+## Day 7 - Non-goal and Risk Fence
+
+### Goal
+Fix the strongest Epic 8 non-goals and execution risks in writing so later
+implementation sprints can work against one stable claim fence instead of
+reopening what the epic is allowed to promise.
+
+### Actions
+- Re-read the Sprint 80 Day 7 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Day 3 competitive gap inventory, Day 5 external-oracle
+  contract, and Day 6 benchmark contract so the fence stayed anchored to the
+  live contradiction order and the maintained comparison/governance split.
+- Re-read the strongest current support and policy surfaces directly:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - `benchmarks/README.md`
+  - `CMakeLists.txt`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Re-ranked the main Epic 8 execution risks surfaced by Days 1-6:
+  - over-broad architecture churn
+  - fake state-of-the-art claim inflation
+  - external dependency sprawl
+  - platform-claim inflation
+  - benchmark-governance drift
+- Separated the live claim space into:
+  - approved Epic 8 target claims
+  - explicitly deferred claims
+  - explicitly prohibited marketing-style interpretations
+
+### Findings
+- Epic 8 now has one explicit approved-claim set:
+  - it may try to move from a linked-list-first public product toward a more
+    compressed-first workflow without erasing the bounded mutable shell
+  - it may raise the dense/backend ceiling while keeping the builtin fallback
+  - it may narrow selected capability ceilings through bounded, proof-backed
+    widening
+  - it may add one bounded maintained external differential lane and stronger
+    benchmark measurability without turning canonical reporting into a timing
+    gate
+  - it may improve maintainability and package/platform confidence without
+    overstating current reviewed parity
+- The strongest deferred claims are now fixed explicitly:
+  - broad external sparse-solver comparison
+  - unsymmetric direct external-oracle work
+  - broad graph/reordering comparison beyond advisory context
+  - broad scalar-family or complex-support claims
+  - broad platform/install parity claims
+  - shared-library or dynamic-ABI maturity claims
+  - portable benchmark-threshold claims
+  - whole-repo storage-model replacement in one batch
+- The strongest prohibited interpretations are now fixed directly:
+  - Epic 8 is not a generic rewrite of the whole library
+  - Epic 8 is not automatic state-of-the-art parity with mature sparse
+    packages
+  - Epic 8 does not prove broad backend maturity before real acceleration
+    lands
+  - Epic 8 does not prove broad cross-platform install/export parity before
+    maintained reviewed evidence exists
+  - Epic 8 does not prove shared-library or dynamic-ABI maturity while the
+    package surface remains static-first
+  - Epic 8 does not convert canonical benchmark reports into pass/fail timing
+    gates
+- The strongest current execution risks are now ranked with mitigation
+  ordering:
+  - first:
+    - over-broad architecture churn
+  - second:
+    - fake state-of-the-art claim inflation
+  - third:
+    - external dependency sprawl
+  - fourth:
+    - platform-claim inflation
+  - fifth:
+    - benchmark-governance drift
+- The strongest Day 7 clarification is now explicit:
+  - Epic 8 should spend implementation budget against the structural ceilings
+    first
+  - later package/platform, benchmark, and comparison improvements must stay
+    inside one already-fixed truthfulness fence rather than widening the
+    product claim surface opportunistically
+
+### Validation
+- Re-read the Day 3, Day 5, and Day 6 Sprint 80 artifacts directly.
+- Re-read the strongest current support/policy/workflow/package surfaces
+  directly.
+- Reconciled the Day 7 fence against the Epic 8 review verdict and the
+  gap-closure todo ordering.
+
+### Day 7 Exit State
+- Sprint 80 now has one explicit Epic 8 non-goal and risk fence.
+- Approved, deferred, and prohibited claims are separated in writing.
+- Later Sprint 80 review/todo refinement can build against one stable
+  execution fence instead of reopening the target state.

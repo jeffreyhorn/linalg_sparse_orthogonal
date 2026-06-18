@@ -813,3 +813,63 @@ Remove stale sprint-history and chronology debt from the Day 6 and Day 10 touche
 - The Day 6 and Day 10 permanent files now read with less historical noise and the same technical meaning.
 - Sprint 78 has one bounded chronology/comment cleanup landed without reopening source structure, giant-test architecture, or support-surface policy.
 - The branch remains ready for the next Sprint 78 rerank or closeout step from a freshly validated baseline.
+
+## Day 12 - Docs & Proof-Ownership Alignment
+
+### Goal
+Reconcile the touched Sprint 78 source and proof-owner landings with the strongest support and policy surfaces, and fix the final Day 13 validation queue explicitly before the close validation sweep.
+
+### Actions
+- Re-read the touched Sprint 78 landed surfaces:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `tests/test_chol_csc.c`
+- Re-read the strongest support and policy surfaces most likely to drift:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Rechecked whether any focused regression expansion was actually needed after the Day 6, Day 10, and Day 11 landings.
+- Fixed the exact Day 13 validation queue in writing around:
+  - the standard code-day validation gates
+  - the reviewed parity anchor
+  - the touched source/proof owners
+  - representative reviewed examples
+
+### Findings
+- No bounded support-surface edit was actually needed:
+  - `docs/maintainer_guide.md` already reads truthfully against the landed Sprint 78 package
+  - `README.md` already stays support-only and does not contradict the refined ownership split
+- No new focused regression code was needed either:
+  - `tests/test_ldlt_csc.c` already remains the focused family-local LDL^T CSC proof owner for the Day 6 implementation lane
+  - `tests/test_chol_csc.c` already remains the focused family-local Cholesky CSC giant-test owner for the Day 10 and Day 11 proof lane
+  - `tests/test_integration.c` remains the broader public lifecycle/parity owner rather than a Sprint 78 family-local maintainability owner
+- The useful Day 12 result is therefore a bounded no-op note plus one explicit final validation queue.
+
+### Day 13 Validation Queue
+- Standard validation gates:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Touched source/proof owners:
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_integration`
+- Representative reviewed examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+
+### Validation
+- This was a docs-only alignment day, so no code-day validation rerun was required.
+- Targeted sanity work completed:
+  - support-surface reread
+  - ownership-map recheck
+  - Day 13 queue fix in writing
+  - branch-state verification
+
+### Day 12 Exit State
+- The Sprint 78 maintainability package now has an explicit no-op support-alignment note instead of implied drift.
+- The final Day 13 validation queue is fixed before the close validation sweep.
+- No ownership ambiguity remains around the landed Sprint 78 source, proof, and chronology cleanup package.

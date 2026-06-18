@@ -943,3 +943,66 @@ Validate the full Sprint 78 maintainability package from the Day 12 aligned stat
 - Sprint 78 now has one explicit validated close baseline.
 - The touched source and proof owners all re-confirmed cleanly after the full reviewed sweep.
 - The branch is ready for Day 14 closeout from a fresh validated state.
+
+## Day 14 - Closeout & Handoff
+
+### Goal
+Close Sprint 78 from the Day 13 validated baseline, fix the preserved maintainability contract in writing, and hand off a ranked Sprint 79 queue instead of a mixed residual hotspot backlog.
+
+### Actions
+- Re-read the Sprint 78 project-plan section and the Day 13 validated baseline.
+- Re-summarized the landed Sprint 78 package across:
+  - source hotspot rerank
+  - bounded LDL^T CSC source decomposition
+  - giant-test rerank
+  - bounded Cholesky CSC giant-test architecture cleanup
+  - chronology/comment cleanup
+  - docs/proof-ownership alignment
+  - Day 13 validation
+- Re-stated the preserved Sprint 78 truthfulness and non-goal fence.
+- Ranked the carry-forward queue from the live Day 3 and Day 8 reranks instead of from broad intuition.
+- Rechecked the Sprint 78 project-plan section for any correction need.
+
+### Findings
+- Sprint 78 now closes as one coherent maintainability package across:
+  - refreshed source-hotspot audit centered on real mixed-role review pressure
+  - one bounded LDL^T CSC implementation ownership cleanup
+  - refreshed giant-test audit centered on proof-role density and chronology burden
+  - one bounded Cholesky CSC giant-test architecture cleanup
+  - one bounded chronology/comment cleanup on the touched permanent files
+  - one explicit no-op docs/proof-ownership alignment pass
+  - one fresh validated Day 13 close baseline
+- The preserved maintainability and non-goal fence stayed intact:
+  - no broad subsystem redesign
+  - no public API or header cleanup widening
+  - no shared test-framework redesign
+  - no broad proof-taxonomy rewrite across all giant tests
+  - no content-erasure cleanup disguised as chronology scrubbing
+- The ranked carry-forward queue is now fixed explicitly:
+  1. `src/sparse_iterative.c` as the strongest remaining large-source hotspot
+  2. `tests/test_ldlt_csc.c` as the strongest remaining coherent-but-still-large family-local giant test
+  3. `src/sparse_chol_csc.c` as the next large-source follow-through if source pressure is revisited before broader test pressure
+  4. `tests/test_qr.c` as the next giant-test architecture lane after the LDL^T and Cholesky direct-family owners
+  5. later mixed backlog only after those higher-value source/proof hotspots move:
+     - `src/sparse_lu_csr.c`
+     - `tests/test_integration.c`
+     - `tests/test_reorder_nd.c`
+     - lower-ranked chronology and comment follow-through elsewhere
+- `docs/planning/EPIC_7/PROJECT_PLAN.md` does not need a Sprint 78 correction.
+
+### Validation
+- This was a docs-only closeout day, so no additional validation rerun was needed.
+- Sprint 78 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 310.71 sec`
+
+### Day 14 Exit State
+- Sprint 78 ends from one explicit validated close baseline.
+- The maintained source/proof ownership contract is fixed in writing.
+- Sprint 79 now inherits a ranked maintainability queue instead of a mixed large-source and giant-test backlog.

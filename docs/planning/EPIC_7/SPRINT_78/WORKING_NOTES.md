@@ -460,3 +460,77 @@ Land one bounded LDL^T CSC implementation ownership cleanup that reduces mixed-r
 - The first Sprint 78 source decomposition batch is landed.
 - The highest-value LDL^T CSC mixed-role seam is now split into bounded local helper clusters instead of one large body.
 - The sprint remains inside the preserved non-goal fence before the later giant-test architecture lane begins.
+
+## Day 7 - Post-Landing Audit & Rerank
+
+### Goal
+Re-audit the permanent hotspot surface after the Day 6 LDL^T CSC landing so Sprint 78 targets the strongest remaining bounded seam instead of repeating the first source batch.
+
+### Actions
+- Re-read the landed Day 6 source batch surfaces:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+- Rechecked the live post-landing hotspot map with raw size still in view:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_iterative.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_lu_csr.c`
+  - `src/sparse_qr.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_reorder_nd.c`
+- Re-read the strongest current giant-test candidates for mixed proof-role density and chronology burden:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+- Rechecked the Day 7 plan question against the landed state:
+  - source follow-through
+  - giant-test architecture
+  - chronology/comment cleanup
+  - docs/proof-ownership drift
+
+### Findings
+- The Day 6 landing closed the strongest first implementation contradiction:
+  - `src/sparse_ldlt_csc.c` no longer reads like the strongest remaining Sprint 78 seam
+  - a second same-family LDL^T CSC source batch is not the highest-value next move
+- The useful Day 7 rerank is now explicit:
+  - the strongest remaining seam has shifted to giant-test architecture rather than to another source decomposition slice
+- The strongest current permanent proof-hotspot center is now:
+  - `tests/test_chol_csc.c`
+- The strongest support-tier giant-test follow-through is now:
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_reorder_nd.c`
+- The strongest current source hotspots remain real context, but they no longer outrank the giant-test lane:
+  - `src/sparse_iterative.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_lu_csr.c`
+- The rerank shifted because the Day 6 batch removed the densest implementation-only ambiguity:
+  - writeback ownership is clearer
+  - wrapper/fallback ownership is clearer
+  - the LDL^T CSC internal contract now reads more directly as one bounded owner with local helper clusters
+- That leaves the larger permanent review burden in the proof surface, especially where one file still carries too many durable roles at once:
+  - working-format and conversion proof
+  - elimination and solve proof
+  - supernodal helper and backend-contract proof
+  - writeback and dispatch proof
+  - large corpus and residual regressions
+- `tests/test_ldlt_csc.c` is still large, but it now reads more like a coherent family-local proof owner than the strongest mixed-role hotspot.
+- `tests/test_qr.c` is large, but it reads more like one algorithm-family proof surface than the strongest architecture problem.
+- `tests/test_integration.c` remains important because it owns public parity and lifecycle truth, but it is smaller and more bounded than the Cholesky CSC giant-test seam.
+- `tests/test_reorder_nd.c` remains a runtime-heavy proof owner, but its strongest pressure is runtime cost and breadth, not the same giant mixed-role architecture burden.
+
+### Validation
+- Re-read the Day 6 landed source artifact and live touched source surfaces.
+- Rechecked the current raw `wc -l` hotspot map after the Day 6 landing.
+- Re-read the strongest giant-test candidates for proof-role mix and chronology density.
+- Confirmed this is a docs-only audit day, so no code-day validation rerun was required.
+
+### Day 7 Exit State
+- Sprint 78 does not need another immediate LDL^T CSC source batch.
+- The strongest remaining seam is now explicitly reranked to giant-test architecture.
+- Day 8 now starts from an exact giant-test audit center led by `tests/test_chol_csc.c` instead of from the original mixed source backlog.

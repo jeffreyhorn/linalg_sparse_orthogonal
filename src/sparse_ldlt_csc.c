@@ -531,6 +531,83 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out,
 
 /* ─── Writeback CSC factor → public sparse_ldlt_t ─────────────────────── */
 
+static sparse_err_t ldlt_csc_writeback_build_public_l(const LdltCsc *F, SparseMatrix **L_out) {
+    if (!F || !L_out)
+        return SPARSE_ERR_NULL;
+    *L_out = NULL;
+
+    if (F->n == 0)
+        return SPARSE_OK;
+
+    SparseMatrix *L_sparse = sparse_create(F->n, F->n);
+    if (!L_sparse)
+        return SPARSE_ERR_ALLOC;
+
+    const CholCsc *L = F->L;
+    for (idx_t j = 0; j < F->n; j++) {
+        idx_t cstart = L->col_ptr[j];
+        idx_t cend = L->col_ptr[j + 1];
+        if (cstart == cend)
+            continue;
+        double abs_l_jj = (L->row_idx[cstart] == j) ? fabs(L->values[cstart]) : 0.0;
+        double threshold = SPARSE_DROP_TOL * abs_l_jj;
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t i = L->row_idx[p];
+            double v = L->values[p];
+            if (v == 0.0)
+                continue;
+            if (i != j && fabs(v) < threshold)
+                continue;
+            sparse_err_t err = sparse_insert(L_sparse, i, j, v);
+            if (err != SPARSE_OK) {
+                sparse_free(L_sparse);
+                return err;
+            }
+        }
+    }
+
+    *L_out = L_sparse;
+    return SPARSE_OK;
+}
+
+static sparse_err_t ldlt_csc_writeback_copy_public_aux(const LdltCsc *F, double tol,
+                                                       SparseMatrix *L_out,
+                                                       sparse_ldlt_t *ldlt_out) {
+    if (!F || !ldlt_out)
+        return SPARSE_ERR_NULL;
+
+    size_t alloc_n = F->n > 0 ? (size_t)F->n : 1;
+    double *D = calloc(alloc_n, sizeof(double));
+    double *D_off = calloc(alloc_n, sizeof(double));
+    int *ps = calloc(alloc_n, sizeof(int));
+    idx_t *perm = calloc(alloc_n, sizeof(idx_t));
+    if (!D || !D_off || !ps || !perm) {
+        free(D);
+        free(D_off);
+        free(ps);
+        free(perm);
+        sparse_free(L_out);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t i = 0; i < F->n; i++) {
+        D[i] = F->D[i];
+        D_off[i] = F->D_offdiag[i];
+        ps[i] = (int)F->pivot_size[i];
+        perm[i] = F->perm[i];
+    }
+
+    ldlt_out->L = L_out;
+    ldlt_out->D = D;
+    ldlt_out->D_offdiag = D_off;
+    ldlt_out->pivot_size = ps;
+    ldlt_out->perm = perm;
+    ldlt_out->n = F->n;
+    ldlt_out->factor_norm = F->factor_norm;
+    ldlt_out->tol = tol;
+    return SPARSE_OK;
+}
+
 /* Sprint 20 Day 5: transplant a factored LdltCsc into the
  * `sparse_ldlt_t` shape the public API documents.  Mirrors
  * `chol_csc_writeback_to_sparse` on the Cholesky side except that
@@ -544,8 +621,6 @@ sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldl
         return SPARSE_ERR_NULL;
     if (F->n < 0)
         return SPARSE_ERR_BADARG;
-
-    idx_t n = F->n;
 
     /* Build the L SparseMatrix column-by-column, mirroring
      * `chol_csc_writeback_to_sparse`'s filter: skip exact zeros
@@ -564,68 +639,14 @@ sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldl
      * guard on the below-diagonal threshold keeps the unit diagonal
      * from being accidentally filtered by the drop_tol test. */
     SparseMatrix *L_out = NULL;
-    if (n > 0) {
-        L_out = sparse_create(n, n);
-        if (!L_out)
-            return SPARSE_ERR_ALLOC;
-        const CholCsc *L = F->L;
-        for (idx_t j = 0; j < n; j++) {
-            idx_t cstart = L->col_ptr[j];
-            idx_t cend = L->col_ptr[j + 1];
-            if (cstart == cend)
-                continue;
-            double abs_l_jj = (L->row_idx[cstart] == j) ? fabs(L->values[cstart]) : 0.0;
-            double threshold = SPARSE_DROP_TOL * abs_l_jj;
-            for (idx_t p = cstart; p < cend; p++) {
-                idx_t i = L->row_idx[p];
-                double v = L->values[p];
-                if (v == 0.0)
-                    continue;
-                if (i != j && fabs(v) < threshold)
-                    continue;
-                sparse_err_t ierr = sparse_insert(L_out, i, j, v);
-                if (ierr != SPARSE_OK) {
-                    sparse_free(L_out);
-                    return ierr;
-                }
-            }
-        }
-    }
+    sparse_err_t err = ldlt_csc_writeback_build_public_l(F, &L_out);
+    if (err != SPARSE_OK)
+        return err;
 
     /* Allocate and copy the auxiliary arrays.  Use alloc_n = max(1, n)
      * so n == 0 is still a valid writeback producing non-NULL
      * pointers (matches ldlt_csc_from_sparse's convention). */
-    size_t alloc_n = n > 0 ? (size_t)n : 1;
-    double *D = calloc(alloc_n, sizeof(double));
-    double *D_off = calloc(alloc_n, sizeof(double));
-    int *ps = calloc(alloc_n, sizeof(int));
-    idx_t *perm = calloc(alloc_n, sizeof(idx_t));
-    if (!D || !D_off || !ps || !perm) {
-        free(D);
-        free(D_off);
-        free(ps);
-        free(perm);
-        sparse_free(L_out);
-        return SPARSE_ERR_ALLOC;
-    }
-    for (idx_t i = 0; i < n; i++) {
-        D[i] = F->D[i];
-        D_off[i] = F->D_offdiag[i];
-        /* pivot_size values are always 1 or 2 (validated during
-         * factor), so narrowing idx_t → int is lossless. */
-        ps[i] = (int)F->pivot_size[i];
-        perm[i] = F->perm[i];
-    }
-
-    ldlt_out->L = L_out;
-    ldlt_out->D = D;
-    ldlt_out->D_offdiag = D_off;
-    ldlt_out->pivot_size = ps;
-    ldlt_out->perm = perm;
-    ldlt_out->n = n;
-    ldlt_out->factor_norm = F->factor_norm;
-    ldlt_out->tol = tol;
-    return SPARSE_OK;
+    return ldlt_csc_writeback_copy_public_aux(F, tol, L_out, ldlt_out);
 }
 
 /* ─── Invariant checker ─────────────────────────────────────────────── */
@@ -720,6 +741,104 @@ static sparse_err_t csc_to_full_symmetric_matrix(const CholCsc *csc, SparseMatri
     return SPARSE_OK;
 }
 
+static sparse_err_t ldlt_csc_wrapper_validate_input(const LdltCsc *F, idx_t *l_nnz_out) {
+    if (!F || !l_nnz_out)
+        return SPARSE_ERR_NULL;
+    *l_nnz_out = 0;
+
+    idx_t n = F->n;
+    if (!F->L || !F->D || !F->D_offdiag || !F->pivot_size || !F->perm)
+        return SPARSE_ERR_NULL;
+    if (F->L->n != n || !F->L->col_ptr)
+        return SPARSE_ERR_BADARG;
+    if (F->L->col_ptr[0] != 0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t l_nnz = F->L->col_ptr[n];
+    if (l_nnz < 0)
+        return SPARSE_ERR_BADARG;
+    for (idx_t j = 0; j < n; j++) {
+        idx_t col_start = F->L->col_ptr[j];
+        idx_t col_end = F->L->col_ptr[j + 1];
+        if (col_start < 0 || col_end < 0 || col_start > col_end || col_start > l_nnz ||
+            col_end > l_nnz)
+            return SPARSE_ERR_BADARG;
+    }
+    if (l_nnz > 0 && (!F->L->row_idx || !F->L->values))
+        return SPARSE_ERR_NULL;
+    for (idx_t p = 0; p < l_nnz; p++) {
+        if (F->L->row_idx[p] < 0 || F->L->row_idx[p] >= n)
+            return SPARSE_ERR_BADARG;
+    }
+
+    if ((size_t)n > SIZE_MAX / sizeof(unsigned char))
+        return SPARSE_ERR_ALLOC;
+    unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
+    if (!seen)
+        return SPARSE_ERR_ALLOC;
+    for (idx_t j = 0; j < n; j++) {
+        idx_t pj = F->perm[j];
+        if (pj < 0 || pj >= n || seen[pj]) {
+            free(seen);
+            return SPARSE_ERR_BADARG;
+        }
+        seen[pj] = 1;
+    }
+    free(seen);
+
+    *l_nnz_out = l_nnz;
+    return SPARSE_OK;
+}
+
+static sparse_err_t ldlt_csc_wrapper_copy_input_perm(const LdltCsc *F, idx_t **perm_in_out) {
+    if (!F || !perm_in_out)
+        return SPARSE_ERR_NULL;
+    *perm_in_out = NULL;
+
+    idx_t n = F->n;
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
+    size_t perm_bytes = (size_t)n * sizeof(idx_t);
+    idx_t *perm_in = malloc(perm_bytes);
+    if (!perm_in)
+        return SPARSE_ERR_ALLOC;
+    memcpy(perm_in, F->perm, perm_bytes);
+    *perm_in_out = perm_in;
+    return SPARSE_OK;
+}
+
+static void ldlt_csc_wrapper_publish_factor_payload(LdltCsc *F, const sparse_ldlt_t *ll,
+                                                    const idx_t *perm_in) {
+    for (idx_t k = 0; k < F->n; k++) {
+        F->D[k] = ll->D[k];
+        F->D_offdiag[k] = ll->D_offdiag[k];
+        F->pivot_size[k] = (idx_t)ll->pivot_size[k];
+    }
+
+    if (ll->perm) {
+        for (idx_t k = 0; k < F->n; k++)
+            F->perm[k] = perm_in[ll->perm[k]];
+    } else {
+        for (idx_t k = 0; k < F->n; k++)
+            F->perm[k] = perm_in[k];
+    }
+
+    F->factor_norm = ll->factor_norm;
+}
+
+static sparse_err_t ldlt_csc_wrapper_rebuild_csc_factor(LdltCsc *F, const sparse_ldlt_t *ll) {
+    if (!F || !ll)
+        return SPARSE_ERR_NULL;
+
+    CholCsc *new_L = NULL;
+    sparse_err_t err = chol_csc_from_sparse(ll->L, NULL, 1.0, &new_L);
+    if (err != SPARSE_OK)
+        return err;
+    chol_csc_free(F->L);
+    F->L = new_L;
+    return SPARSE_OK;
+}
+
 sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F) {
     if (!F)
         return SPARSE_ERR_NULL;
@@ -738,66 +857,24 @@ sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F) {
      * partially-initialised inputs but drop the diagonal-first
      * requirement and the sorted/distinct-row-index requirement that
      * full validate imposes. */
-    if (!F->L || !F->D || !F->D_offdiag || !F->pivot_size || !F->perm)
-        return SPARSE_ERR_NULL;
-    if (F->L->n != n || !F->L->col_ptr)
-        return SPARSE_ERR_BADARG;
-    if (F->L->col_ptr[0] != 0)
-        return SPARSE_ERR_BADARG;
-    idx_t l_nnz = F->L->col_ptr[n];
-    if (l_nnz < 0)
-        return SPARSE_ERR_BADARG;
-    /* Validate every col_ptr entry against [0, l_nnz] before any reads of
-     * row_idx/values.  Checking monotonicity alone is not enough — a
-     * corrupted col_ptr[j] could be negative or exceed l_nnz while still
-     * satisfying col_ptr[j] <= col_ptr[j+1], which would let later loops
-     * read past the row_idx/values buffers. */
-    for (idx_t j = 0; j < n; j++) {
-        idx_t col_start = F->L->col_ptr[j];
-        idx_t col_end = F->L->col_ptr[j + 1];
-        if (col_start < 0 || col_end < 0 || col_start > col_end || col_start > l_nnz ||
-            col_end > l_nnz)
-            return SPARSE_ERR_BADARG;
-    }
-    if (l_nnz > 0 && (!F->L->row_idx || !F->L->values))
-        return SPARSE_ERR_NULL;
-    for (idx_t p = 0; p < l_nnz; p++) {
-        if (F->L->row_idx[p] < 0 || F->L->row_idx[p] >= n)
-            return SPARSE_ERR_BADARG;
-    }
-    /* Confirm perm is a real permutation so we can memcpy into perm_in
-     * without risk of a stray index later in the factor path. */
-    if ((size_t)n > SIZE_MAX / sizeof(unsigned char))
-        return SPARSE_ERR_ALLOC;
-    unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
-    if (!seen)
-        return SPARSE_ERR_ALLOC;
-    for (idx_t j = 0; j < n; j++) {
-        idx_t pj = F->perm[j];
-        if (pj < 0 || pj >= n || seen[pj]) {
-            free(seen);
-            return SPARSE_ERR_BADARG;
-        }
-        seen[pj] = 1;
-    }
-    free(seen);
+    idx_t l_nnz = 0;
+    sparse_err_t err = ldlt_csc_wrapper_validate_input(F, &l_nnz);
+    if (err != SPARSE_OK)
+        return err;
 
     /* Save the pre-elimination perm (fill-reducing) so we can compose it
      * with the Bunch-Kaufman perm chosen during factorization.  Guard
      * `n * sizeof(idx_t)` against size_t overflow on 32-bit platforms
      * (or absurdly large n) before computing the byte count. */
-    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
-        return SPARSE_ERR_ALLOC;
-    size_t perm_bytes = (size_t)n * sizeof(idx_t);
-    idx_t *perm_in = malloc(perm_bytes);
-    if (!perm_in)
-        return SPARSE_ERR_ALLOC;
-    memcpy(perm_in, F->perm, perm_bytes);
+    idx_t *perm_in = NULL;
+    err = ldlt_csc_wrapper_copy_input_perm(F, &perm_in);
+    if (err != SPARSE_OK)
+        return err;
 
     /* Expand F->L's stored lower triangle to a full symmetric matrix so
      * the linked-list factor's symmetry check passes. */
     SparseMatrix *A_work = NULL;
-    sparse_err_t err = csc_to_full_symmetric_matrix(F->L, &A_work);
+    err = csc_to_full_symmetric_matrix(F->L, &A_work);
     if (err != SPARSE_OK) {
         free(perm_in);
         return err;
@@ -812,29 +889,7 @@ sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F) {
         return err;
     }
 
-    /* Copy D / D_offdiag / pivot_size verbatim.  pivot_size widens from
-     * the linked-list's int to our idx_t — values are 1 or 2 so the
-     * conversion is lossless. */
-    for (idx_t k = 0; k < n; k++) {
-        F->D[k] = ll.D[k];
-        F->D_offdiag[k] = ll.D_offdiag[k];
-        F->pivot_size[k] = (idx_t)ll.pivot_size[k];
-    }
-
-    /* Compose the permutation: the factorization-order index k in the
-     * CSC corresponds to index perm_in[ll.perm[k]] in the user's
-     * original coordinate system. */
-    if (ll.perm) {
-        for (idx_t k = 0; k < n; k++)
-            F->perm[k] = perm_in[ll.perm[k]];
-    } else {
-        for (idx_t k = 0; k < n; k++)
-            F->perm[k] = perm_in[k];
-    }
-
-    /* Mirror ll.factor_norm into F->factor_norm — same quantity
-     * (||A||_inf), just copied for consistency with `sparse_ldlt_t`. */
-    F->factor_norm = ll.factor_norm;
+    ldlt_csc_wrapper_publish_factor_payload(F, &ll, perm_in);
 
     /* `sparse_ldlt_factor` initialises ll.L with a full identity
      * diagonal (`sparse_insert(L, i, i, 1.0)` for every i) before the
@@ -846,15 +901,12 @@ sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F) {
      * is already complete — no further fill-in will be introduced — so
      * allocate the CSC at exact capacity (fill_factor = 1.0) to avoid
      * a spurious 2x over-allocation on large factors. */
-    CholCsc *new_L = NULL;
-    err = chol_csc_from_sparse(ll.L, NULL, 1.0, &new_L);
+    err = ldlt_csc_wrapper_rebuild_csc_factor(F, &ll);
     if (err != SPARSE_OK) {
         sparse_ldlt_free(&ll);
         free(perm_in);
         return err;
     }
-    chol_csc_free(F->L);
-    F->L = new_L;
 
     sparse_ldlt_free(&ll);
     free(perm_in);

@@ -393,3 +393,70 @@ Define one explicit bounded implementation contract for the first Sprint 78 sour
 - The first Sprint 78 source batch is explicitly designed before edits begin.
 - The landing is bounded to LDL^T CSC implementation ownership cleanup.
 - Compatibility, validation, and non-goal fences are fixed in writing before Day 6 code changes.
+
+## Day 6 - Source Decomposition Batch
+
+### Goal
+Land one bounded LDL^T CSC implementation ownership cleanup that reduces mixed-role review pressure inside `src/sparse_ldlt_csc.c` without widening into broader subsystem or proof-tax work.
+
+### Actions
+- Re-read the Day 5 implementation contract before editing:
+  - stay inside `src/sparse_ldlt_csc.c` and `src/sparse_ldlt_csc_internal.h`
+  - treat proof surfaces as support-only unless the cleanup forced them to move
+- Rechecked build ownership so the batch would not widen into build-graph churn:
+  - `Makefile`
+  - `CMakeLists.txt`
+- Decomposed the strongest mixed-role writeback cluster in `src/sparse_ldlt_csc.c` into explicit local helpers:
+  - public `SparseMatrix` materialization
+  - auxiliary-array copy into `sparse_ldlt_t`
+- Decomposed the strongest mixed-role wrapper/orchestration cluster in `src/sparse_ldlt_csc.c` into explicit local helpers:
+  - wrapper preflight validation
+  - input-permutation copy
+  - factor payload publication
+  - CSC-factor rebuild
+- Tightened the internal header comments in `src/sparse_ldlt_csc_internal.h` so the extracted ownership split is stated where the private contract is documented.
+- Kept all support-only surfaces untouched:
+  - `src/sparse_ldlt_csc_supernodal.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 78 now has one landed first source batch inside the Day 5 fence:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+- The writeback path no longer reads as one monolithic mixed-role body:
+  - `ldlt_csc_writeback_build_public_l(...)` now owns public `L` shell materialization
+  - `ldlt_csc_writeback_copy_public_aux(...)` now owns auxiliary-array publication into `sparse_ldlt_t`
+- The linked-list fallback wrapper no longer reads as one giant orchestration-plus-payload block:
+  - `ldlt_csc_wrapper_validate_input(...)` now owns the local preflight invariants
+  - `ldlt_csc_wrapper_copy_input_perm(...)` now owns preserved fill-reducing permutation capture
+  - `ldlt_csc_wrapper_publish_factor_payload(...)` now owns D / pivot / perm publication back into `LdltCsc`
+  - `ldlt_csc_wrapper_rebuild_csc_factor(...)` now owns the rebuilt CSC-factor transplant
+- The batch stayed intentionally local:
+  - no public API change
+  - no proof-owner taxonomy change
+  - no supernodal helper-file churn
+  - no giant-test cleanup spill
+- The useful Day 6 maintainability payoff is now explicit:
+  - the strongest mixed scalar/native plus compatibility/writeback seam is smaller and easier to review
+  - the internal contract now states more clearly which pieces remain one public/private entry point versus private helper-cluster detail
+
+### Validation
+- Because `*.c` and `*.h` changed, ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- All passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 317.04 sec`
+
+### Day 6 Exit State
+- The first Sprint 78 source decomposition batch is landed.
+- The highest-value LDL^T CSC mixed-role seam is now split into bounded local helper clusters instead of one large body.
+- The sprint remains inside the preserved non-goal fence before the later giant-test architecture lane begins.

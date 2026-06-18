@@ -291,6 +291,12 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
  * result back into the standard `sparse_ldlt_t` result the
  * public API documents.
  *
+ * The implementation in `src/sparse_ldlt_csc.c` keeps the public
+ * entry point here, but the Sprint 78 maintainability split now
+ * treats the SparseMatrix materialization and auxiliary-array copy as
+ * private helper-cluster detail rather than as one monolithic
+ * writeback body.
+ *
  * Populates `ldlt_out->L` as a fresh `SparseMatrix` holding the
  * lower-triangle L values (exact zeros from sym_L pre-allocation
  * and below-drop-tolerance fill are filtered out, matching the
@@ -419,6 +425,10 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
  *     to a full symmetric `SparseMatrix`, calls `sparse_ldlt_factor`,
  *     and unpacks the result.  Correct by construction; slow because
  *     the factor body runs through the linked-list kernel.
+ *     `src/sparse_ldlt_csc.c` now keeps this as one public wrapper
+ *     entry point with private preflight / permutation-copy /
+ *     publish-back helper clusters, so the fallback contract stays
+ *     explicit without one giant mixed-role function body.
  *
  *   - **Native** (Sprint 18).  Column-by-column Bunch-Kaufman directly
  *     on packed CSC storage.  Target: bit-identical output vs wrapper

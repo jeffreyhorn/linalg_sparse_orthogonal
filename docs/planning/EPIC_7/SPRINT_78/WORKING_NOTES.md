@@ -873,3 +873,73 @@ Reconcile the touched Sprint 78 source and proof-owner landings with the stronge
 - The Sprint 78 maintainability package now has an explicit no-op support-alignment note instead of implied drift.
 - The final Day 13 validation queue is fixed before the close validation sweep.
 - No ownership ambiguity remains around the landed Sprint 78 source, proof, and chronology cleanup package.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Validate the full Sprint 78 maintainability package from the Day 12 aligned state, confirm the reviewed parity anchors, and retain the highest-signal follow-on outputs from the touched source and proof owners.
+
+### Actions
+- Ran the full standard code-day validation gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Ran the strongest reviewed baseline:
+  - `make quality-review-full`
+- Reconfirmed the reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused Day 12 follow-on queue:
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+
+### Findings
+- Day 13 validation completed cleanly:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 310.71 sec`
+- The focused Sprint 78 follow-ons also all passed:
+  - `test_ldlt_csc` -> `96 / 96`
+  - `test_chol_csc` -> `147 / 147`
+  - `test_ldlt` -> `84 / 84`
+  - `test_integration` -> `50 / 50`
+  - `example_analysis`
+  - `example_basic_solve`
+
+### Representative Retained Outputs
+- `test_ldlt_csc` retained:
+  - `tridiag indefinite n=10: rel_res = 0.000e+00`
+  - `arrow 6x6 indefinite (AMD): rel_res = 9.869e-17`
+- `test_chol_csc` retained:
+  - `tests/data/suitesparse/bcsstk14.mtx: n=1806, rel_residual=1.080e-15`
+  - `test_writeback_publishes_solve_ready_factored_shell`
+- `test_ldlt` retained:
+  - `KKT 500x500: relres=4.465e-17, nnz(L)=1298`
+  - `test_ldlt_backend_csc_forced_factors`
+- `test_integration` retained:
+  - `test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix`
+  - `test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure`
+  - `test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd`
+- `example_analysis` retained:
+  - solve residual `4.44e-16`
+  - repeated-run refactor average `0.000494 s`
+- `example_basic_solve` retained:
+  - residual `0.00e+00`
+
+### Non-Blocking Runtime Note
+- Reviewed CMake `test_reorder_nd` remained the dominant runtime at `218.14 sec` out of the `310.71 sec` total.
+- The full reviewed path still completed cleanly, so this remains a retained runtime note rather than a Sprint 78 blocker.
+
+### Day 13 Exit State
+- Sprint 78 now has one explicit validated close baseline.
+- The touched source and proof owners all re-confirmed cleanly after the full reviewed sweep.
+- The branch is ready for Day 14 closeout from a fresh validated state.

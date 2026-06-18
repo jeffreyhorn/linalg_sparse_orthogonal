@@ -1,0 +1,48 @@
+Sprint 78 Day 1 - Authoritative Inputs
+Date: 2026-06-17
+Branch: sprint-78
+
+Planning and sprint inputs
+- docs/planning/EPIC_7/PROJECT_PLAN.md (Sprint 78: Large-Source Maintainability Phase 4 & Giant-Test Architecture)
+- docs/planning/EPIC_7/SPRINT_78/PLAN.md
+- docs/planning/EPIC_7/SPRINT_70/artifacts/day8-support-surface-fence.md
+- docs/planning/EPIC_7/SPRINT_70/artifacts/day12-epic7-architecture-contract.md
+- docs/planning/EPIC_7/SPRINT_77/artifacts/day14-closeout-and-handoff.md
+
+Reviewed baseline inputs
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Maintained support and policy surfaces reread directly
+- docs/maintainer_guide.md
+- README.md
+
+Live raw wc -l hotspot measurements: implementation sources
+- src/sparse_ldlt_csc.c = 2130
+- src/sparse_iterative.c = 1985
+- src/sparse_lu_csr.c = 1665
+- src/sparse_chol_csc.c = 1564
+- src/sparse_qr.c = 1563
+- src/sparse_ldlt.c = 1535
+- src/sparse_eigs.c = 1534
+- src/sparse_svd.c = 1319
+- src/sparse_matrix.c = 1125
+- src/sparse_lu.c = 1042
+- src/sparse_eigs_thick_restart.c = 915
+
+Live raw wc -l hotspot measurements: permanent proof-owner tests
+- tests/test_chol_csc.c = 4690
+- tests/test_ldlt_csc.c = 3680
+- tests/test_qr.c = 3197
+- tests/test_etree.c = 2962
+- tests/test_graph.c = 2925
+- tests/test_iterative.c = 2841
+- tests/test_ldlt.c = 2798
+- tests/test_svd.c = 2766
+- tests/test_integration.c = 2543
+- tests/test_reorder_nd.c = 2287
+- tests/test_ilu.c = 1974
+
+Targeted live terminology scans
+- rg -n "Sprint 78|hotspot|giant-test|chronology|proof owner|proof-owner|test_reorder_nd|test_chol_csc|ownership" docs/planning/EPIC_7/PROJECT_PLAN.md docs/planning/EPIC_7/SPRINT_70/artifacts/day8-support-surface-fence.md docs/planning/EPIC_7/SPRINT_70/artifacts/day12-epic7-architecture-contract.md docs/planning/EPIC_7/SPRINT_77/artifacts/day14-closeout-and-handoff.md docs/maintainer_guide.md README.md

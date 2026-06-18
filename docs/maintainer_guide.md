@@ -429,6 +429,9 @@ Current direct-family interpretation after Sprint 63:
   state on refactor failure
 - the large-`n` CSC-backed Cholesky lane now follows that same old-factor-
   preservation rule on both same-pattern non-SPD failure and obvious nnz drift
+- the public repeated-run LDL^T lifecycle now also has explicit same-pattern
+  parity coverage on the large indefinite KKT lane, including a bounded
+  large-`n` CSC-backed property follow-through
 - reordered LU and reordered Cholesky one-shot attempts can preserve the
   caller-owned matrix because they factor a temporary reordered working copy
   and publish back only on success
@@ -438,7 +441,7 @@ Current direct-family interpretation after Sprint 63:
 - LDL^T keeps the cleanest cancellation story because factor state is owned
   separately from the input matrix
 
-Current maintained proof ownership after Sprint 72 Day 12:
+Current maintained proof ownership after Sprint 79 Day 6:
 
 - `tests/test_reorder_nd.c` owns the shared ND compatibility/default-policy
   convergence proof surface
@@ -450,17 +453,27 @@ Current maintained proof ownership after Sprint 72 Day 12:
     published reorder permutation payload
 - `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
   Cholesky parity and failure-preservation contract
+- `tests/test_integration.c` also owns the public repeated-run LDL^T lifecycle
+  oracle surface:
+  - same-pattern indefinite KKT reuse remains aligned with the one-shot LDL^T
+    lane
+  - the large-`n` same-pattern LDL^T path above the CSC threshold remains
+    aligned with the one-shot CSC-backed LDL^T lane
 - `tests/test_integration.c` also owns the matrix-shell reset boundary:
   - `sparse_reset_perms()` invalidates stale reordered one-shot solve
     compatibility and recovers a plain matrix shell
 - `tests/test_fuzz.c` owns the bounded seeded generative follow-through for the
-  large-`n` CSC-backed Cholesky lifecycle parity lane
+  large-`n` CSC-backed lifecycle parity lanes:
+  - Cholesky repeated-run lifecycle parity
+  - LDL^T repeated-run lifecycle parity
 - example surfaces stay example-side:
   - `examples/example_analysis.c` teaches the repeated-run lifecycle
   - it does not replace the regression owners above
 - benchmark surfaces stay benchmark-side:
   - `bench_refactor` / `bench_refactor_csc` prove retained repeated-run direct
     workflow/performance behavior
+  - `bench_refactor_csc --indefinite-kkt` is the bounded benchmark-side LDL^T
+    repeated-run throughput/proof surface
   - `bench_chol_csc` proves the maintained backend/path measurement surface
   - they do not replace the family-local, public oracle, or property ownership
     above
@@ -469,7 +482,7 @@ Current platform-confidence interpretation after Sprint 68 Day 11:
 
 - Linux and macOS still exercise the full `test_fuzz` binary in their direct
   `make test` / reviewed local paths, so the bounded seeded generative
-  lifecycle property is part of those proof surfaces
+  lifecycle property lanes are part of those proof surfaces
 - Windows still excludes `test_fuzz` from the reviewed CMake subset, so that
   property lane must not be implied as reviewed Windows evidence
 - this is a narrow confidence-boundary note only; it does not reopen the

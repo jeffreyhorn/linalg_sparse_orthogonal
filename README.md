@@ -581,9 +581,12 @@ That repeated-run CSC story stays intentionally simple on the Cholesky side:
 - the public one-shot vs explicit repeated-run parity/error-path contract stays
   owned by:
   - `tests/test_integration.c`
+  - including the large-`n` same-pattern LDL^T lifecycle oracle that now
+    mirrors the one-shot CSC-backed LDL^T lane
 - the bounded seeded generative follow-through for the same large-`n`
   CSC-backed lifecycle lane stays owned by:
   - `tests/test_fuzz.c`
+  - including the large-`n` LDL^T CSC lifecycle property lane
 - examples and benchmark surfaces stay intentionally outside that regression
   ownership split:
   - `example_analysis` teaches the repeated-run workflow
@@ -687,6 +690,8 @@ So the current compact public interpretation is:
   - benchmark-local source of truth lives in `benchmarks/README.md`
   - default `bench_refactor_csc` mode covers SPD / Cholesky
   - `--indefinite-kkt` covers LDL^T on the bounded same-pattern KKT workload
+  - benchmark proof stays distinct from the test-owned LDL^T oracle/property
+    lanes in `tests/test_integration.c` and `tests/test_fuzz.c`
 
 End-of-sprint snapshot in `docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`
 covers all three benchmarks (`bench_chol_csc`, `bench_ldlt_csc`, and

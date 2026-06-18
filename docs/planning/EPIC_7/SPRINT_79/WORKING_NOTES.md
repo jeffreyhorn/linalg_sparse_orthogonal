@@ -782,3 +782,66 @@ Define the final Epic 7 summary/residual package from the integrated Day 9 tree 
 - The final Epic 7 summary/residual package is explicitly designed before edits begin.
 - The summary non-goal fence is fixed in writing.
 - Day 11 can now land one bounded summary/residual batch from the integrated current-state tree.
+
+## Day 11 - Epic 7 Summary and Residual Batch
+
+### Goal
+Confirm whether the integrated Sprint 79 tree actually forces a bounded
+`PROJECT_PLAN.md` closeout note, and avoid reopening the Epic 7 project-plan
+surface if the current section already reads truthfully against the landed
+assurance, integration, validation, and residual queue shape.
+
+### Actions
+- Re-read the Sprint 79 Day 10 design artifact in
+  `docs/planning/EPIC_7/SPRINT_79/artifacts/day10-epic7-summary-and-residual-design.md`.
+- Re-read the live Sprint 79 project-plan section in
+  `docs/planning/EPIC_7/PROJECT_PLAN.md`.
+- Re-read the integrated Day 9 and Day 10 sprint state in:
+  - `docs/planning/EPIC_7/SPRINT_79/artifacts/day9-cross-surface-integration-batch.md`
+  - `docs/planning/EPIC_7/SPRINT_79/artifacts/day10-epic7-summary-and-residual-design.md`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Re-checked the strongest recent explicit no-op follow-through precedent in:
+  - `docs/planning/EPIC_7/SPRINT_77/artifacts/day11-workflow-contract-reconciliation-batch.md`
+- Confirmed whether the Epic 7 project-plan section now needs a factual
+  correction or whether the stronger Day 11 result is an explicit no-op note.
+
+### Findings
+- No bounded Day 11 `PROJECT_PLAN.md` batch is actually needed.
+- The live Sprint 79 project-plan section already matches the integrated tree
+  closely enough:
+  - the goal still reads truthfully against the current end-of-Epic-7 closeout
+    lane
+  - the item split still matches the actual bounded Sprint 79 sequence:
+    - assurance-gap audit
+    - differential / oracle batch
+    - cross-surface integration sweep
+    - full validation sweep
+    - Epic 7 summary and residual finalization
+    - retrospective and handoff
+    - closeout buffer
+  - the deliverables still read as truthful closeout targets rather than stale
+    or contradicted promises
+- The strongest Day 10 conditional surface therefore remains support-only:
+  - `docs/planning/EPIC_7/PROJECT_PLAN.md` does not need a corrective closeout
+    note before Sprint 79 Day 13 or Day 14
+- The stronger Day 11 result is an explicit no-op note, not a forced plan edit.
+- Forcing a `PROJECT_PLAN.md` rewrite here would add churn without improving:
+  - residual-queue truthfulness
+  - validated-baseline accuracy
+  - post-Epic-7 handoff clarity
+
+### Validation
+- This was a docs-only batch, so I did not run `make format`, `make lint`,
+  `make test`, or `make quality-review-full`.
+- The docs-only sanity pass covered:
+  - project-plan reread against the integrated Sprint 79 tree
+  - closeout-shape recheck against recent explicit no-op precedent
+  - branch-state verification
+
+### Day 11 Exit State
+- Sprint 79 does not need a Day 11 `PROJECT_PLAN.md` correction.
+- The final Epic 7 summary/residual lane remains bounded and truthful without
+  reopening the project-plan surface.
+- Sprint 79 can move directly into the Day 12 proof-alignment and final
+  validation-queue lane from a coherent integrated tree.

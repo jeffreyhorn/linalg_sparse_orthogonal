@@ -159,3 +159,95 @@ Reconfirm the Sprint 78 implementation-day validation contract and the live proo
 - Sprint 78 now has one explicit implementation-day validation contract.
 - The live proof split across giant-test owners, public-oracle owners, and representative examples is fixed in writing.
 - The highest-signal rerun set is explicit before source-hotspot and giant-test audit work begins.
+
+## Day 3 - Source Hotspot Re-audit
+
+### Goal
+Re-rank the largest remaining implementation sources by real review pain, mixed ownership density, chronology burden, and bounded extraction value so Sprint 78 starts from one explicit current contradiction map instead of a generic “largest files first” list.
+
+### Actions
+- Re-read the Sprint 78 Day 3 plan expectations in `docs/planning/EPIC_7/SPRINT_78/PLAN.md`.
+- Rechecked the live raw `wc -l` implementation hotspot map across `src/*.c`.
+- Re-read the file-level ownership and section structure of the strongest likely Sprint 78 implementation hotspots:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_iterative.c`
+  - `src/sparse_lu_csr.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_ldlt.c`
+  - `src/sparse_eigs.c`
+  - `src/sparse_svd.c`
+  - `src/sparse_matrix.c`
+- Rechecked section-structure and helper density with targeted `rg` over those files.
+- Re-read the preserved Sprint 70 architecture fence for large-source cleanup:
+  - spend cleanup budget only on the highest-value residual hotspots
+  - do not widen into broad subsystem redesign
+
+### Findings
+- Sprint 78's broad large-source problem is now reduced to one ranked contradiction map instead of one generic “big files are bad” bucket:
+  - strongest first target:
+    - `src/sparse_ldlt_csc.c`
+  - strongest second target:
+    - `src/sparse_iterative.c`
+  - strongest third target:
+    - `src/sparse_chol_csc.c`
+  - strongest fourth target:
+    - `src/sparse_lu_csr.c`
+  - strong but lower-value or higher-risk later targets:
+    - `src/sparse_qr.c`
+    - `src/sparse_ldlt.c`
+    - `src/sparse_eigs.c`
+    - `src/sparse_svd.c`
+    - `src/sparse_matrix.c`
+- `src/sparse_ldlt_csc.c` is the strongest current contradiction center because it still combines too many durable roles in one permanent review surface:
+  - CSC lifecycle and validation helpers
+  - linked-list compatibility conversion and writeback
+  - row-adjacency support
+  - scalar elimination and solve
+  - top-level orchestration for the batched supernodal LDL^T path
+- That makes `src/sparse_ldlt_csc.c` the best first target by Sprint 78 rules:
+  - highest mixed-ownership density
+  - strongest extraction potential without reopening public API design
+  - strong chronology burden from multiple sprint-era sections still living in one file
+  - bounded proof risk because the family-local proofs already exist rather than needing a new proof family
+- `src/sparse_iterative.c` is the strongest second target because it is very large and spans many solver families, but it is already more segmented than the LDL^T CSC lane:
+  - handle/workspace lifecycle
+  - shared stagnation and residual helpers
+  - CG / GMRES / MINRES / BiCGSTAB
+  - block and matrix-free variants
+- The useful Day 3 distinction is that `src/sparse_iterative.c` is large and dense, but it already reads more like a big coherent family surface than a mixed compatibility/backend/orchestration bottleneck.
+- `src/sparse_chol_csc.c` remains a real hotspot because it still owns:
+  - conversion
+  - scalar elimination
+  - solve
+  - factor/writeback publication
+  - backend dispatch and compatibility shims
+- But it ranks behind `src/sparse_ldlt_csc.c` because Sprint 72 and Sprint 75 already reduced some of its strongest ownership ambiguity, and its paired supernodal file has already absorbed more backend-local detail.
+- `src/sparse_lu_csr.c` remains large and multi-section, but it reads more family-local and mechanically segmented:
+  - conversion
+  - structural validation
+  - scalar and block elimination
+  - solves
+  - dense-block utilities
+- The lower-ranked large sources are not equally urgent:
+  - `src/sparse_qr.c` is large, but it reads more like one algorithm-family surface than the strongest mixed-ownership seam
+  - `src/sparse_ldlt.c` is history-heavy, but the stronger residual maintainability pain has moved to the CSC-backed LDL^T lane
+  - `src/sparse_eigs.c` is large, but its explicit backend/workspace split and extracted thick-restart file reduce first-batch payoff
+  - `src/sparse_svd.c` still carries real chronology debt, but it is narrower and lower-value than the direct-factor and iterative hotspots
+  - `src/sparse_matrix.c` is permanent and large, but Sprint 72 and Sprint 74 already reduced its strongest ownership contradiction, and reopening it now would carry higher compatibility risk than the stronger family-local hotspots
+- The strongest current large-source contradiction classes are now explicit:
+  - mixed orchestration plus numeric/detail ownership in one file
+  - helper density without one obvious extracted seam
+  - chronology/comment spill from multiple sprint-era landings
+  - compatibility/writeback mechanics living beside core numeric kernels
+
+### Validation
+- Rechecked the live `wc -l` source hotspot map.
+- Re-read the file headers and first section structures of the strongest likely implementation hotspots.
+- Rechecked section boundaries and helper density with targeted `rg`.
+- Reconfirmed the Sprint 70 architecture fence still requires bounded, payoff-driven cleanup rather than a broad breakup pass.
+
+### Day 3 Exit State
+- Sprint 78 now has one explicit implementation-hotspot ranking instead of a generic large-source backlog.
+- `src/sparse_ldlt_csc.c` is fixed as the strongest first implementation hotspot.
+- Day 4 can now freeze a real first source boundary from the current maintainability map.

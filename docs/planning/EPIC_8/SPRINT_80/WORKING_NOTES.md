@@ -1044,3 +1044,106 @@ measured rerun set.
 - Sprint 80 now has one explicit final proof-owner map.
 - The Day 13 validation queue is fixed in writing.
 - Day 13 can execute from one stable rerun set without ambiguity.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Execute the full Sprint 80 validation queue and retain one explicit measured
+baseline for the Epic 8 review-and-contract package.
+
+### Actions
+- Ran the full local code-day validation baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reconfirmed reviewed CMake parity directly:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the highest-signal reviewed proof-owner binaries and representative
+  examples before the install/export scripts reset the root build tree:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_eigs`
+- Re-ran the representative examples and retained their established residual
+  anchors.
+- Re-ran the maintained canonical reporting command:
+  - `make bench-canonical-report`
+- Re-ran the maintained install/export proof:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Findings
+- The full validation queue completed cleanly from the final rerun state:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 642.39 sec`
+- The focused Sprint 80 follow-ons all passed:
+  - `test_chol_csc` -> `147 / 147`
+  - `test_ldlt_csc` -> `96 / 96`
+  - `test_ldlt` -> `84 / 84`
+  - `test_iterative` -> `80 / 80`
+  - `test_qr` -> `72 / 72`
+  - `test_integration` -> `51 / 51`
+  - `test_reorder_nd` -> `35 / 35`
+  - `test_fuzz` -> `26 / 26`
+  - `test_eigs` -> `31 / 31`
+  - `tests/test_install.sh` -> `11 / 11`
+  - `tests/test_cmake_install.sh` -> `13 / 13`
+- The maintained canonical report bundle also passed on the final rerun and
+  wrote:
+  - `bench_refactor_csc.csv`
+  - `bench_chol_csc.csv`
+  - `bench_iterative_reuse.csv`
+  - `bench_eigs_reuse.csv`
+  - `index.tsv`
+  - `manifest.txt`
+- Representative retained outputs stayed clean:
+  - `test_fuzz` retained `large-n LDLT CSC lifecycle property: 3/3 passed`
+  - `test_chol_csc` retained `tests/data/suitesparse/bcsstk14.mtx: n=1806, rel_residual=1.080e-15`
+  - `test_reorder_nd` retained `Pres_Poisson ND/AMD = 0.923`
+  - `test_reorder_nd` retained `bcsstk14 ND/AMD = 1.124`
+  - `example_analysis` residual stayed `4.44e-16`
+  - `example_basic_solve` residual stayed `0.00e+00`
+  - canonical `bench_refactor_csc nos4` retained `speedup_refactor = 1.71`
+  - canonical `bench_chol_csc nos4` retained
+    `csc_supernodal_panel_solver = batched_panel`
+  - canonical `bench_iterative_reuse` retained `cg 1.00x`, `gmres 1.05x`,
+    `minres 1.06x`
+  - canonical `bench_eigs_reuse` retained `growm 1.00x`,
+    `thick_restart 1.07x`, `lobpcg 1.01x`
+  - installed `pkg-config` version remained `2.2.0`
+- One transient note is recorded explicitly:
+  - the first standalone `make bench-canonical-report` rerun hit a
+    non-reproducing missing-output error at the `bench_eigs_reuse.csv` write
+    step
+  - an immediate clean rerun from the same tree succeeded without source
+    edits, so the final Day 13 close state is the successful rerun rather than
+    the transient intermediate failure
+- One non-blocking runtime note also remains explicit:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `486.38 sec`
+    out of the `642.39 sec` total
+
+### Validation
+- Completed the full Day 13 validation queue.
+- Reconfirmed the reviewed parity anchor and Makefile/CMake parity.
+- Reconfirmed the focused proof-owner reruns, canonical report bundle, and
+  install/export proof scripts.
+
+### Day 13 Exit State
+- Sprint 80 now has one explicit full-validation baseline for the Epic 8
+  baseline-and-contract package.
+- The review, todo, and project-plan surfaces remain supported by a fresh
+  measured rerun set.
+- Day 14 can close from this validated baseline.

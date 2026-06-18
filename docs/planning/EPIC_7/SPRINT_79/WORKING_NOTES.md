@@ -514,3 +514,69 @@ Land the first bounded Sprint 79 assurance batch by strengthening the public rep
 - The first Sprint 79 assurance batch is landed.
 - The public repeated-run LDL^T lifecycle now has both a bounded oracle test and a bounded seeded large-`n` property test.
 - Sprint 79 can now rerank the next final-assurance seam from a stronger public lifecycle baseline.
+
+## Day 7 - Post-Landing Audit
+
+### Goal
+Re-rank the remaining Sprint 79 closeout pressure after the Day 6 assurance landing so the sprint moves into the strongest current integration seam instead of widening the proof batch or drifting early into summary work.
+
+### Actions
+- Re-read the Sprint 79 Day 7 plan expectations in `docs/planning/EPIC_7/SPRINT_79/PLAN.md`.
+- Re-read the landed Day 6 batch in:
+  - `docs/planning/EPIC_7/SPRINT_79/artifacts/day6-differential-oracle-batch.md`
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+- Re-read the strongest current support and policy interpretation surfaces against the landed Day 6 state:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_cholesky.h`
+- Re-checked the residual deferred assurance queue and platform-confidence reading in `docs/maintainer_guide.md`.
+- Re-ranked the remaining closeout seams across:
+  - residual proof drift
+  - support-surface truthfulness
+  - cross-surface integration
+  - early summary/residual package pressure
+
+### Findings
+- The Day 6 landing closed the strongest first-assurance contradiction:
+  - the public repeated-run LDL^T lifecycle no longer lacks a bounded public oracle
+  - the bounded seeded large-`n` property lane no longer stops at Cholesky-only lifecycle parity
+  - a second immediate public/property test batch is not the highest-value next move
+- The strongest remaining closeout seam has now shifted to support-surface truthfulness and cross-surface integration:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_cholesky.h`
+- The strongest current contradiction is not that the new Day 6 tests are missing.
+  It is that the authoritative support/policy reading still carries a mostly pre-Day-6 assurance map:
+  - the maintained proof-ownership section still names the Cholesky lifecycle/property owners directly
+  - it does not yet name the new LDL^T repeated-run lifecycle oracle and bounded seeded property owners with the same directness
+  - the residual deferred queue and platform-confidence notes still need to be reread in the integrated post-Day-6 tree rather than treated as automatically current
+- That means the best next Sprint 79 move is now the cross-surface integration audit, not another proof-owner test batch by default.
+- The strongest support-only context is now explicit:
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+- The weaker lanes are now explicit too:
+  - another family-local oracle/property expansion pass
+  - benchmark/reporting surfaces
+  - install/export proof scripts
+  - workflow YAML surfaces
+  - Epic 7 summary/residual package work before the integrated support reading is rechecked
+
+### Validation
+- Re-read the Day 6 assurance landing and its retained outputs against the current support and policy surfaces.
+- Rechecked the residual deferred queue and the Windows fuzz-confidence note in `docs/maintainer_guide.md`.
+- Reconfirmed that the strongest current contradiction is support-surface and authority drift, not another missing public proof.
+
+### Day 7 Exit State
+- Sprint 79 no longer needs another immediate Day 6-style oracle/property batch.
+- The strongest remaining seam is now explicitly reranked to cross-surface integration led by the support/policy reading.
+- Day 8 should start from an exact integration-audit center around:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_cholesky.h`

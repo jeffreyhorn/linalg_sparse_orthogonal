@@ -959,3 +959,88 @@ not drift into unnecessary docs churn.
 - Sprint 80 now has an explicit no-op truth-sweep record.
 - The main support surfaces remain truthful without edits.
 - Day 12 can move on to final proof-owner alignment and the validation queue.
+
+## Day 12 - Final Proof Alignment and Validation Queue
+
+### Goal
+Fix the exact proof-owner map and authoritative Day 13 validation queue for the
+Sprint 80 baseline-and-contract package so the sprint closes from one explicit
+measured rerun set.
+
+### Actions
+- Re-read the Sprint 80 Day 12 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Reconfirmed the reviewed CMake parity anchor directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the highest-signal reviewed proof-owner binaries and
+  representative examples most relevant to Sprint 80:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Reconfirmed the command-owned canonical reporting lane and the maintained
+  root `build/` emitters:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+- Reconfirmed the maintained install/export proof owners:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Findings
+- The strongest reviewed parity anchor remains explicit:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The strongest Sprint 80 proof split is still fixed cleanly:
+  - reviewed CMake tests and representative examples own executable
+    regression/lifecycle truth
+  - canonical benchmark reporting remains command- and script-owned
+  - install/export proof remains script-owned
+- No extra focused regression or support-surface follow-through is required
+  before Day 13.
+- The authoritative Day 13 validation queue is now fixed explicitly around:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest Day 12 clarification is now explicit:
+  - Sprint 80’s close validation should not rely only on the inherited Epic 7
+    baseline
+  - it should rerun the refreshed reviewed, benchmark/report, and install
+    proof surfaces directly
+
+### Validation
+- Re-ran `ctest -N --test-dir build/quality-review-cmake`.
+- Rechecked the strongest reviewed proof-owner binaries and representative
+  examples.
+- Rechecked the canonical report command surface, root `build/` benchmark
+  emitters, and the maintained install/export proof scripts.
+
+### Day 12 Exit State
+- Sprint 80 now has one explicit final proof-owner map.
+- The Day 13 validation queue is fixed in writing.
+- Day 13 can execute from one stable rerun set without ambiguity.

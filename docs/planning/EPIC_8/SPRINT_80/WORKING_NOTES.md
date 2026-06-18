@@ -753,3 +753,72 @@ post-Epic-7 review pass.
 - Its baseline, comparison, benchmark, and non-goal reading are now tightened
   to match the landed Sprint 80 contract package.
 - Day 9 can refine the closure-sequence todo against one stable review surface.
+
+## Day 9 - Todo and Closure Sequence Refinement
+
+### Goal
+Tighten the Epic 8 gap-closure todo so it now reads from the refreshed Sprint
+80 baseline and contract package without quietly reopening any of the Day 7
+non-goals.
+
+### Actions
+- Re-read the Sprint 80 Day 9 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Epic 8 todo against the landed Sprint 80 Day 3-8 findings:
+  - competitive gap inventory
+  - external-oracle candidate audit
+  - external-oracle contract
+  - benchmark/performance contract
+  - non-goal and risk fence
+  - review refinement
+- Re-scanned the todo for wording that still read too broad around:
+  - external comparison
+  - benchmark/governance interpretation
+  - cross-platform proof growth
+  - shared-library or packaging assumptions
+  - final comparison/calibration scope
+- Tightened only the sections that materially benefited from the new Sprint 80
+  contract package instead of resequencing the whole todo.
+
+### Findings
+- The Epic 8 todo still closes the major review findings in the right order:
+  - baseline and contract first
+  - storage/workflow ceiling second
+  - dense/backend ceiling third
+  - capability breadth fourth
+  - assurance expansion fifth
+  - maintainability cleanup sixth
+  - runtime concentration seventh
+  - packaging/platform convergence eighth
+  - usability simplification ninth
+  - final comparison and closeout tenth
+- The todo now reads from the external-oracle contract more directly:
+  - bounded CHOLMOD-class SPD direct-solver comparison first
+  - BLAS/LAPACK-class references as performance-reference support
+- The todo now reads from the benchmark contract more directly:
+  - canonical reporting remains threshold-free
+  - benchmark measurability work must not silently reopen portable timing-gate
+    interpretations
+- The todo now reads from the non-goal fence more directly:
+  - cross-platform proof growth stays bounded and evidence-led
+  - shared-library work remains optional and proof-backed rather than assumed
+  - final external comparison remains bounded rather than “compare against
+    everything” theater
+- The strongest Day 9 clarification is now explicit:
+  - Sprint 80 did not change the major Epic 8 execution order
+  - it removed a few remaining broad readings that could have reopened
+    policy-contradicting work later
+
+### Validation
+- Re-read the Epic 8 todo directly against the Day 3-8 Sprint 80 artifact set.
+- Rechecked that the closure sequence still matches the current Epic 8 review
+  verdict and sprint ordering.
+- Rechecked that no todo section now quietly reopens disallowed benchmark,
+  platform, package, or comparison claims.
+
+### Day 9 Exit State
+- The Epic 8 todo still stands as the closure-sequence owner for the review.
+- Its external, benchmark, platform, and final-comparison wording are now
+  tightened to match the landed Sprint 80 contract package.
+- Day 10 can now recheck the 10-sprint project plan against one stable review
+  and todo pair.

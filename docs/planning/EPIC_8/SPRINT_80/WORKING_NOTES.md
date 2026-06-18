@@ -1147,3 +1147,71 @@ baseline for the Epic 8 review-and-contract package.
 - The review, todo, and project-plan surfaces remain supported by a fresh
   measured rerun set.
 - Day 14 can close from this validated baseline.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 80 from the validated Day 13 baseline and leave one explicit
+handoff queue for Sprint 81 and the later Epic 8 implementation sprints.
+
+### Actions
+- Re-read the Sprint 80 project-plan section and the Sprint 80 Day 14 plan
+  expectations in `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the landed Sprint 80 artifacts, working-notes findings, and the Day
+  13 validation baseline.
+- Rechecked `docs/planning/EPIC_8/PROJECT_PLAN.md` against the final Sprint 80
+  package to confirm whether any project-plan correction was required.
+- Wrote the Day 14 closeout/handoff artifact and finalized the closeout state
+  in working notes.
+
+### Findings
+- Sprint 80 now closes as one coherent Epic 8 baseline-and-contract package
+  across:
+  - refreshed reviewed and install/export baseline
+  - ranked live competitive gap inventory
+  - bounded external-oracle contract
+  - bounded benchmark/performance contract
+  - explicit non-goal and risk fence
+  - review/todo/project-plan reconciliation
+  - validated Day 13 close baseline
+- The preserved fence stayed intact:
+  - no implementation sprint started early under ambiguous storage or backend
+    assumptions
+  - no fake state-of-the-art, platform-parity, or shared-library maturity
+    claim was introduced
+  - no canonical benchmark reporting surface was turned into a timing gate
+  - no broad external dependency matrix was smuggled into the maintained
+    contract
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 80 correction:
+  - Sprint 81 still starts with the linked-list-first product/storage ceiling
+  - Sprint 82 still remains the dense/backend ceiling lane
+  - Sprint 83 and later still keep the same bounded order for capability,
+    assurance, maintainability, runtime, package/platform, usability, and
+    final comparison work
+- The ranked handoff queue is now fixed explicitly:
+  1. Sprint 81: compressed-first product/storage modernization
+  2. Sprint 82: bounded optional dense-backend acceleration
+  3. Sprint 83: capability-breadth widening on the highest-value seams
+  4. later Epic 8 lanes only after those stronger first contradictions move
+
+### Validation
+- No new code or docs correction was required beyond the closeout record.
+- Sprint 80 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 642.39 sec`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh` = `11 / 11`
+  - `bash tests/test_cmake_install.sh` = `13 / 13`
+
+### Day 14 Exit State
+- Sprint 80 now hands off one truthful starting contract for Epic 8
+  implementation work.
+- Sprint 81 can begin without reopening the baseline, oracle, benchmark, or
+  non-goal interpretation package.
+- The branch closes cleanly from the Day 13 validated state.

@@ -47,8 +47,8 @@ void ldlt_csc_free(LdltCsc *m) {
     free(m->D_offdiag);
     free(m->pivot_size);
     free(m->perm);
-    /* Sprint 19 Day 8: release per-row adjacency lists.  Each entry in
-     * `row_adj` is NULL until a column gets appended to that row.
+    /* Release per-row adjacency lists.  Each entry in `row_adj` is
+     * NULL until a column gets appended to that row.
      * `m->row_adj` is alloc'd with length `max(m->n, 1)` by
      * `ldlt_csc_alloc`, so iterating `[0, m->n)` on a non-NULL
      * `m->row_adj` is always in bounds — clang-analyzer can't see
@@ -98,7 +98,7 @@ sparse_err_t ldlt_csc_alloc(idx_t n, idx_t initial_nnz, LdltCsc **out) {
     m->D_offdiag = calloc(alloc_n, sizeof(double));
     m->pivot_size = calloc(alloc_n, sizeof(idx_t));
     m->perm = calloc(alloc_n, sizeof(idx_t));
-    /* Sprint 19 Day 8: row-adjacency index starts with all rows empty.
+    /* Row-adjacency index starts with all rows empty.
      * Per-row arrays allocated lazily by `ldlt_csc_row_adj_append` on
      * first append to each row.  `calloc` zeros all three so every
      * row_adj[r] slot is NULL and every count/cap is 0 until written. */
@@ -112,7 +112,7 @@ sparse_err_t ldlt_csc_alloc(idx_t n, idx_t initial_nnz, LdltCsc **out) {
     }
 
     /* Defaults: every step is a 1x1 pivot; perm is the identity.  Both
-     * are overwritten during elimination in Day 8. */
+     * are overwritten during elimination. */
     for (idx_t i = 0; i < n; i++) {
         m->pivot_size[i] = 1;
         m->perm[i] = i;
@@ -122,7 +122,7 @@ sparse_err_t ldlt_csc_alloc(idx_t n, idx_t initial_nnz, LdltCsc **out) {
     return SPARSE_OK;
 }
 
-/* ─── Row-adjacency append (Sprint 19 Day 8) ─────────────────────── */
+/* ─── Row-adjacency append ───────────────────────────────────────── */
 
 sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col) {
     if (!F)
@@ -155,7 +155,7 @@ sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col) {
     return SPARSE_OK;
 }
 
-/* ─── 2×2-aware supernode detection (Sprint 19 Day 10) ─────────────── */
+/* ─── 2×2-aware supernode detection ──────────────────────────────── */
 
 /* Return 1 iff columns `prev` and `prev + 1` belong to the same
  * fundamental supernode of `L` (Liu-Ng-Peyton three-condition check,
@@ -608,8 +608,8 @@ static sparse_err_t ldlt_csc_writeback_copy_public_aux(const LdltCsc *F, double 
     return SPARSE_OK;
 }
 
-/* Sprint 20 Day 5: transplant a factored LdltCsc into the
- * `sparse_ldlt_t` shape the public API documents.  Mirrors
+/* Transplant a factored LdltCsc into the `sparse_ldlt_t` shape the
+ * public API documents.  Mirrors
  * `chol_csc_writeback_to_sparse` on the Cholesky side except that
  * the output is a separately-allocated result struct (not an
  * overwrite of the input matrix) — matching the LDL^T API's
@@ -700,7 +700,7 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Day 8: Bunch-Kaufman elimination via the linked-list kernel
+ * Linked-list Bunch-Kaufman elimination path
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Expand the lower-triangle CSC into a full symmetric SparseMatrix —

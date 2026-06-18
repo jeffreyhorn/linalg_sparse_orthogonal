@@ -751,3 +751,65 @@ Land one bounded proof-architecture cleanup inside the strongest remaining giant
 - The strongest remaining giant-test architecture seam has one real bounded cleanup landed.
 - `tests/test_chol_csc.c` remains the Cholesky CSC family-local proof owner, but its densest permanent review block is now materially easier to scan.
 - Sprint 78 can now rerank the next remaining giant-test and chronology pressure from the post-Day-10 state.
+
+## Day 11 - Chronology & Comment Cleanup
+
+### Goal
+Remove stale sprint-history and chronology debt from the Day 6 and Day 10 touched permanent files while preserving the durable technical explanation that still helps future review and maintenance.
+
+### Actions
+- Re-read the Day 6 implementation center and the Day 10 giant-test center:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `tests/test_chol_csc.c`
+- Removed stale sprint/day chronology from the touched helper, writeback, and proof-cluster commentary:
+  - converted sprint-numbered helper comments into durable ownership and behavior comments
+  - converted sprint-numbered test-section labels into technical family-local section labels
+  - dropped the sprint-history suite banner from the Cholesky CSC test owner
+- Preserved the durable explanation that still matters:
+  - helper and writeback ownership rationale in the LDL^T CSC implementation
+  - algorithm-path and publication explanation in the internal header
+  - family-local proof-cluster meaning in the Cholesky CSC giant test
+- Ran the full Day 11 code-batch validation contract:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- Sprint 78 Day 11 stayed inside the chronology-cleanup fence:
+  - touched files:
+    - `src/sparse_ldlt_csc.c`
+    - `src/sparse_ldlt_csc_internal.h`
+    - `tests/test_chol_csc.c`
+  - untouched support surfaces:
+    - `src/sparse_ldlt_csc_supernodal.c`
+    - `tests/test_ldlt_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_integration.c`
+    - `docs/maintainer_guide.md`
+- The cleanup removed stale sprint-history debt without weakening durable explanation:
+  - writeback and helper comments now describe the actual technical boundary instead of the sprint chronology that created it
+  - the giant-test proof clusters now read as technical sections instead of sprint-era registration history
+  - the `test_chol_csc` suite identity now reads as a stable family-local owner instead of a historical sprint bundle
+- No behavior or ownership contract changed:
+  - no implementation logic changed
+  - no test behavior changed
+  - no proof-owner widening occurred
+  - no public API or support-surface follow-through was needed
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 331.25 sec`
+
+### Day 11 Exit State
+- The Day 6 and Day 10 permanent files now read with less historical noise and the same technical meaning.
+- Sprint 78 has one bounded chronology/comment cleanup landed without reopening source structure, giant-test architecture, or support-surface policy.
+- The branch remains ready for the next Sprint 78 rerank or closeout step from a freshly validated baseline.

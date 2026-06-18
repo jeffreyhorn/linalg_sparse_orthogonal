@@ -61,7 +61,7 @@ typedef struct {
     idx_t *perm;        /**< Composed symmetric perm (length n), perm[new] = old. */
     double factor_norm; /**< ||A||_inf cached at conversion time. */
 
-    /* Sprint 19 Day 8: row-adjacency index for the factored prefix.
+    /* Row-adjacency index for the factored prefix.
      *
      * `ldlt_csc_cmod_unified`'s Phase A (src/sparse_ldlt_csc.c) used to
      * iterate `kp = 0..step_k-1` and binary-search every prior column
@@ -74,7 +74,7 @@ typedef struct {
      * `row_adj[r]` is a dynamically-grown array of the prior column
      * indices `kp < r` where `L(r, kp)` was stored during elimination.
      * Populated by `ldlt_csc_row_adj_append` as each column finishes
-     * its writeback; Phase A (Day 9) then iterates this list instead
+     * its writeback; Phase A then iterates this list instead
      * of `[0, step_k)`.
      *
      * Option A (per-row dynamic array) chosen over Option B (global
@@ -271,9 +271,8 @@ sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
  * (identity permutations on the returned matrix).  Apply `perm_out` to
  * un-permute back into the user's coordinate system.
  *
- * This helper exists mostly for round-trip tests; once Day 8 runs the
- * full Bunch-Kaufman kernel, a separate path will be needed to write
- * back into a `sparse_ldlt_t` for interop with the existing public API.
+ * This helper exists mostly for round-trip tests.  Public API writeback
+ * to `sparse_ldlt_t` flows through `ldlt_csc_writeback_to_ldlt`.
  *
  * @param ldlt         Input LdltCsc (not modified).
  * @param perm_out     Optional symmetric permutation (same convention as
@@ -286,16 +285,14 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
 /**
  * Write an LdltCsc's factored state into a caller-allocated public
  * `sparse_ldlt_t`.  Mirrors `chol_csc_writeback_to_sparse` for the
- * LDL^T side: the Sprint 20 Day 5 transparent dispatch in
- * `sparse_ldlt_factor_opts` uses this to transplant the CSC-factored
+ * LDL^T side: `sparse_ldlt_factor_opts` uses this to transplant the CSC-factored
  * result back into the standard `sparse_ldlt_t` result the
  * public API documents.
  *
  * The implementation in `src/sparse_ldlt_csc.c` keeps the public
- * entry point here, but the Sprint 78 maintainability split now
- * treats the SparseMatrix materialization and auxiliary-array copy as
- * private helper-cluster detail rather than as one monolithic
- * writeback body.
+ * entry point here, but treats SparseMatrix materialization and
+ * auxiliary-array copy as private helper-cluster detail rather than
+ * as one monolithic writeback body.
  *
  * Populates `ldlt_out->L` as a fresh `SparseMatrix` holding the
  * lower-triangle L values (exact zeros from sym_L pre-allocation
@@ -657,13 +654,13 @@ sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j);
 sparse_err_t ldlt_csc_solve(const LdltCsc *F, const double *b, double *x);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Sprint 19 Day 12: batched supernodal LDL^T — extract / writeback
+ * Batched supernodal LDL^T — extract / writeback
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Plumbing that moves an LDL^T supernode's diagonal block + panel
  * between packed CSC (`F->L`) and a dense column-major buffer.
  * Mirrors `chol_csc_supernode_extract` / `chol_csc_supernode_writeback`
- * (Sprint 18 Days 6 / 10) but with two LDL^T-specific deltas:
+ * but with two LDL^T-specific deltas:
  *
  *   1. The diagonal of `F->L` carries the unit 1.0 (LDL^T factor is
  *      unit lower triangular).  Writeback's per-column drop threshold
@@ -679,8 +676,8 @@ sparse_err_t ldlt_csc_solve(const LdltCsc *F, const double *b, double *x);
  *      outputs into the LdltCsc: `D_block[j] → F->D[s_start + j]`,
  *      `D_offdiag_block[j] → F->D_offdiag[s_start + j]`,
  *      `pivot_size_block[j] → F->pivot_size[s_start + j]`.  These
- *      arrays are produced by `ldlt_dense_factor` in Day 13's
- *      `eliminate_diag` step; the writeback contract just requires the
+ *      arrays are produced by `ldlt_dense_factor` in the diagonal-block
+ *      factor step; the writeback contract just requires the
  *      caller to pass them through verbatim.
  */
 
@@ -752,8 +749,8 @@ sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_siz
                                           const idx_t *pivot_size_block, double drop_tol);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Sprint 19 Day 13: batched supernodal LDL^T — eliminate_diag /
- *                   eliminate_panel / eliminate_supernodal
+ * Batched supernodal LDL^T — eliminate_diag / eliminate_panel /
+ * eliminate_supernodal
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Three helpers complete the batched supernodal flow:
@@ -776,8 +773,7 @@ sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_siz
  *   `ldlt_csc_eliminate_supernodal`       — top-level entry point that
  *     interleaves the batched path (extract / eliminate_diag /
  *     eliminate_panel / writeback) with the scalar fallback for
- *     non-supernodal columns.  Mirror of `chol_csc_eliminate_supernodal`
- *     (Sprint 18 Day 10).
+ *     non-supernodal columns.  Mirror of `chol_csc_eliminate_supernodal`.
  *
  * **Pivot-stability assumption.**  `ldlt_dense_factor` performs its
  * own Bunch-Kaufman pivot selection on the extracted diagonal block

@@ -4382,11 +4382,11 @@ static void test_dispatch_forced_override_both_paths_agree(void) {
     sparse_free(L_cs);
 }
 
-/* Sprint 18 Day 12 — larger SuiteSparse fixtures should:
+/* Larger SuiteSparse fixtures should:
  *   (a) take the CSC dispatch path (n >= SPARSE_CSC_THRESHOLD), and
  *   (b) produce a residual ||A·x - b|| / ||b|| below the 1e-10 SPD
  *       spot-check threshold.
- * Before Day 12's fix to pre-populate sym_L's full pattern in
+ * Before the full sym_L pre-population fix in
  * `chol_csc_from_sparse_with_analysis`, these residuals blew up to
  * ~1e-1 on bcsstk14 / s3rmt3m3 / Kuu because the supernodal extract
  * missed fill-in rows.  Keep these tests SPD-only; bcsstk14 is a
@@ -4449,7 +4449,7 @@ static void test_dispatch_legacy_opts_still_work(void) {
     idx_t n = 20;
     SparseMatrix *A = day11_build_spd(n, 0.1, 0xdeadbeefu);
 
-    /* Pre-Sprint-18 caller style: only set `reorder`.  Zero-init for
+    /* Legacy caller style: only set `reorder`.  Zero-init for
      * the new fields means AUTO + no used_csc_path reporting. */
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_AMD,
@@ -4515,7 +4515,7 @@ static void run_supernodal_dense_tests(void) {
     RUN_TEST(test_chol_dense_solve_panel_2x2_two_rhs);
     RUN_TEST(test_supernodal_dense_backend_default_contract);
 
-    /* Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) */
+    /* ldlt_dense_factor (BK on column-major) cross-checks */
     RUN_TEST(test_ldlt_dense_factor_arg_checks);
     RUN_TEST(test_ldlt_dense_factor_4x4_indefinite);
     RUN_TEST(test_ldlt_dense_factor_2x2_forced);
@@ -4588,7 +4588,7 @@ static void run_dispatch_tests(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("chol_csc (Sprint 17 Days 1-11 + Sprint 18 Days 6-11)");
+    TEST_SUITE_BEGIN("chol_csc");
 
     /* Day 1 — alloc / free / grow */
     RUN_TEST(test_chol_csc_alloc_null_out);
@@ -4693,31 +4693,31 @@ int main(void) {
     RUN_TEST(test_factor_detects_negative_diagonal);
     RUN_TEST(test_solve_detects_tiny_diagonal);
 
-    /* Day 10 — supernode detection */
+    /* Supernode detection */
     run_supernode_detection_tests();
 
-    /* Sprint 28 Day 8 — supernodal-etree reordering corpus safety */
+    /* Supernodal etree-postorder corpus safety */
     run_supernodal_postorder_tests();
 
-    /* Day 11 — dense primitives + supernode-aware elimination */
+    /* Dense primitives + supernode-aware elimination */
     run_supernodal_dense_tests();
 
-    /* Sprint 18 Day 6 — supernode extract / writeback plumbing */
+    /* Supernode extract / writeback plumbing */
     run_supernode_extract_writeback_tests();
 
-    /* Sprint 18 Day 7 — supernode diagonal-block factor */
+    /* Supernode diagonal-block factor */
     run_supernode_diag_factor_tests();
 
-    /* Sprint 18 Day 8 — panel solve + full batched path integration */
+    /* Panel solve + full batched path integration */
     run_supernode_panel_tests();
 
-    /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */
+    /* Parametrised scalar↔batched cross-check + boundary */
     run_supernodal_parametrised_tests();
 
-    /* Sprint 18 Day 10 — CSC → linked-list writeback */
+    /* CSC → linked-list writeback */
     run_writeback_tests();
 
-    /* Sprint 18 Day 11 — transparent dispatch in sparse_cholesky_factor_opts */
+    /* Transparent dispatch in sparse_cholesky_factor_opts */
     run_dispatch_tests();
 
     TEST_SUITE_END();

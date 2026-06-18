@@ -251,3 +251,76 @@ Re-rank the largest remaining implementation sources by real review pain, mixed 
 - Sprint 78 now has one explicit implementation-hotspot ranking instead of a generic large-source backlog.
 - `src/sparse_ldlt_csc.c` is fixed as the strongest first implementation hotspot.
 - Day 4 can now freeze a real first source boundary from the current maintainability map.
+
+## Day 4 - Source Boundary Freeze
+
+### Goal
+Refine the Day 3 source ranking into one explicit first Sprint 78 implementation fence so the next design pass starts from a bounded LDL^T CSC ownership lane rather than a mixed large-source and giant-test backlog.
+
+### Actions
+- Re-read the Sprint 78 Day 4 plan expectations in `docs/planning/EPIC_7/SPRINT_78/PLAN.md`.
+- Re-read the Day 3 source-hotspot audit and reranked it against:
+  - review payoff
+  - extraction clarity
+  - compatibility risk
+  - bounded Sprint 78 value
+- Re-read `src/sparse_ldlt_csc_internal.h` to confirm the current internal contract split between:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+- Re-read the current file header in `src/sparse_ldlt_csc_supernodal.c` to check whether that extracted cluster already has the right ownership shape.
+- Rechecked the strongest likely proof-owner and public-oracle support surfaces:
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 78 now has one explicit first implementation fence instead of a generic large-source backlog:
+  - required first landing:
+    - `src/sparse_ldlt_csc.c`
+    - `src/sparse_ldlt_csc_internal.h`
+  - support only if the first landing forces it:
+    - `src/sparse_ldlt_csc_supernodal.c`
+    - `tests/test_ldlt_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_integration.c`
+    - `docs/maintainer_guide.md`
+  - explicitly deferred:
+    - `src/sparse_iterative.c`
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_lu_csr.c`
+    - giant-test architecture work
+    - public-header or API-surface cleanup
+- The strongest first Sprint 78 fence is now fixed as an implementation decomposition and helper-ownership lane, not chronology cleanup first and not a broader direct-solver family rewrite.
+- `src/sparse_ldlt_csc_internal.h` belongs in the first landing because the strongest likely cleanup value is not merely moving lines out of `src/sparse_ldlt_csc.c`.
+- It is clarifying which helpers and contracts are genuinely local to:
+  - scalar/native LDL^T CSC ownership
+  - shared CSC LDL^T internal contract
+  - already-extracted supernodal helper ownership
+- `src/sparse_ldlt_csc_supernodal.c` stays support-only because its header and file-level ownership already read comparatively well:
+  - extracted dense-panel path
+  - extract/writeback
+  - diagonal-block factor/update
+  - panel solve
+  - driver-local row-map helper
+- That makes it the wrong place to start unless the Day 6 landing truly needs internal contract follow-through there.
+- The strongest likely proof owner is `tests/test_ldlt_csc.c`, but it stays support-only for the first boundary because the first batch target is implementation maintainability, not proof taxonomy yet.
+- `tests/test_ldlt.c` and `tests/test_integration.c` remain lower-weight support surfaces because the first batch should not change the public LDL^T contract.
+- `docs/maintainer_guide.md` remains support-only because no proof-ownership or documentation-placement contradiction has been forced yet.
+- The strongest non-goal fence is now explicit:
+  - no broad LDL^T algorithm rewrite
+  - no public API redesign
+  - no helper explosion without ownership gain
+  - no giant-test cleanup pulled into the first implementation batch
+  - no unrelated backend, capability, benchmark, packaging, or platform work
+
+### Validation
+- Re-read the Day 3 source-hotspot ranking.
+- Re-read the LDL^T CSC internal and supernodal companion ownership surfaces.
+- Rechecked the strongest likely proof-owner and policy support files for whether they truly belong in the first batch.
+- Reconfirmed the Sprint 70 and Sprint 78 non-goal fence still requires bounded cleanup with clear payoff.
+
+### Day 4 Exit State
+- The first Sprint 78 implementation fence is explicit before design begins.
+- The required first landing is fixed to the LDL^T CSC implementation and internal contract lane.
+- Lower-value or higher-risk source and proof work is now clearly separated from the first batch.

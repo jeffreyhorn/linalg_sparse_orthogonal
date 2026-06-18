@@ -354,3 +354,85 @@ Refine the Day 3 assurance ranking into one exact first landing fence so Sprint 
 - Sprint 79 now has one explicit first final-assurance fence.
 - The first landing, support-only surfaces, and deferred lanes are fixed in writing before design begins.
 - Day 5 can now define one bounded implementation/proof contract instead of another generic assurance expansion.
+
+## Day 5 - Assurance Design
+
+### Goal
+Define the bounded implementation/proof contract for the first Sprint 79 assurance landing so Day 6 can improve one real lifecycle/property seam without widening into broader family-local oracle churn, support-surface edits, or workflow work.
+
+### Actions
+- Re-read the Sprint 79 Day 5 plan expectations in `docs/planning/EPIC_7/SPRINT_79/PLAN.md`.
+- Re-read the Day 4 boundary in `docs/planning/EPIC_7/SPRINT_79/artifacts/day4-first-assurance-boundary.md`.
+- Re-read the strongest current public callback/cancel and lifecycle ownership split in:
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+  - `docs/maintainer_guide.md`
+- Rechecked the strongest likely support proof and interpretation surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `README.md`
+- Fixed the exact ownership split, preserved guarantees, and non-touch set for the first batch.
+
+### Findings
+- Sprint 79 now has one explicit first implementation contract:
+  - required implementation center:
+    - `tests/test_integration.c`
+    - `tests/test_fuzz.c`
+  - support only if the first batch truly forces it:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+- The Day 5 ownership split is now fixed:
+  - primary public oracle owner:
+    - `tests/test_integration.c`
+  - bounded seeded property owner:
+    - `tests/test_fuzz.c`
+  - family-local support proof owners only if a public/property seam truly needs them:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+  - public/support interpretation owners only if wording truly moves:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+- The strongest Day 6 batch goal is now fixed:
+  - strengthen the public callback/cancel and repeated-run lifecycle assurance surface
+  - prefer one bounded public-oracle improvement first in `tests/test_integration.c`
+  - add bounded seeded generative/property follow-through in `tests/test_fuzz.c` only where it increases assurance without widening the contract
+- The preserved guarantees are now explicit:
+  - preserve current public callback/cancel behavior
+  - preserve the current family/path-local caveat reading
+  - preserve current reviewed validation scope, including the Windows fuzz exclusion truth
+  - preserve current benchmark/reporting, install/export, and workflow ownership splits
+  - preserve current runtime-bounded interpretation of the fuzz/property lane
+- The useful Day 5 clarification is now explicit:
+  - the first batch should not try to “fix every deferred direct-usability item”
+  - it should instead land one proof improvement that narrows the residual queue with the highest public assurance payoff
+  - the best shape is a public oracle first, with property follow-through only where it makes that oracle harder to regress
+- The exact first-batch non-touch set is now fixed:
+  - unrelated solver-family proof owners:
+    - `tests/test_qr.c`
+    - `tests/test_reorder_nd.c`
+  - benchmark/reporting surfaces
+  - install/export proof scripts
+  - workflow YAML surfaces
+  - broader docs churn
+  - unrelated implementation or API work
+
+### Validation
+- Re-read the Day 4 first-assurance fence against the first-batch files.
+- Reconfirmed the strongest public oracle and bounded property owners in `tests/test_integration.c` and `tests/test_fuzz.c`.
+- Reconfirmed the family-local, support-surface, and platform-confidence fences against the current maintained policy wording.
+
+### Day 5 Exit State
+- Sprint 79 now has one explicit first implementation/proof contract.
+- The ownership split, preserved guarantees, and non-touch set are fixed in writing before edits begin.
+- Day 6 can now land one bounded lifecycle/property assurance improvement from a precise design.

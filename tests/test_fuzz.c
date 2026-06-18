@@ -8,6 +8,7 @@
 
 #include "sparse_analysis.h"
 #include "sparse_cholesky.h"
+#include "sparse_ldlt.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
@@ -286,6 +287,45 @@ static SparseMatrix *random_spd(idx_t n, unsigned seed) {
         sparse_insert(A, i, i, cur + (double)n);
     }
     return A;
+}
+
+static SparseMatrix *build_large_kkt(idx_t n_top, idx_t n_bot) {
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+static void perturb_large_kkt_values_in_place(SparseMatrix *A, idx_t n_top, idx_t n_bot,
+                                              unsigned seed) {
+    for (idx_t i = 0; i < n_top; i++) {
+        double diag = 6.0 + 0.05 * (double)((int)((seed + 7u * (unsigned)i) % 11u) - 5);
+        ASSERT_EQ(sparse_set(A, i, i, diag), SPARSE_OK);
+        if (i > 0) {
+            double offdiag = -1.0 - 0.02 * (double)((int)((seed + 5u * (unsigned)i) % 7u) - 3);
+            ASSERT_EQ(sparse_set(A, i, i - 1, offdiag), SPARSE_OK);
+            ASSERT_EQ(sparse_set(A, i - 1, i, offdiag), SPARSE_OK);
+        }
+    }
+
+    for (idx_t j = 0; j < n_bot; j++) {
+        double coupling = 1.0 + 0.03 * (double)((int)((seed + 3u * (unsigned)j) % 9u) - 4);
+        ASSERT_EQ(sparse_set(A, n_top + j, j, coupling), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A, j, n_top + j, coupling), SPARSE_OK);
+    }
 }
 
 static void property_assert_vec_near(const double *a, const double *b, idx_t n, double tol) {
@@ -604,6 +644,157 @@ static void test_property_large_n_cholesky_public_lifecycle_same_pattern_csc(voi
     ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
 }
 
+static void test_property_large_n_ldlt_public_lifecycle_same_pattern_csc(void) {
+    static const unsigned seeds[] = {809u, 1451u, 2029u};
+    const idx_t n_top = (idx_t)(SPARSE_CSC_THRESHOLD + 12);
+    const idx_t n_bot = 8;
+    const idx_t n = n_top + n_bot;
+    const double tol = 1e-9;
+    int pass_count = 0;
+
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    for (size_t case_idx = 0; case_idx < sizeof(seeds) / sizeof(seeds[0]); case_idx++) {
+        SparseMatrix *A_base = build_large_kkt(n_top, n_bot);
+        SparseMatrix *A_ref1 = NULL;
+        SparseMatrix *A_ref2 = NULL;
+        SparseMatrix *A_one0 = NULL;
+        SparseMatrix *A_one1 = NULL;
+        SparseMatrix *A_one2 = NULL;
+        sparse_analysis_t analysis = {0};
+        sparse_factors_t factors = {0};
+        sparse_ldlt_t ldlt0 = {0};
+        sparse_ldlt_t ldlt1 = {0};
+        sparse_ldlt_t ldlt2 = {0};
+        double *x_exact = NULL;
+        double *b0 = NULL;
+        double *b1 = NULL;
+        double *b2 = NULL;
+        double *x_public0 = NULL;
+        double *x_public1 = NULL;
+        double *x_public2 = NULL;
+        double *x_one0 = NULL;
+        double *x_one1 = NULL;
+        double *x_one2 = NULL;
+        int used_csc_path0 = 0;
+        int used_csc_path1 = 0;
+        int used_csc_path2 = 0;
+
+        REQUIRE_OK(A_base ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        A_ref1 = sparse_copy(A_base);
+        A_ref2 = sparse_copy(A_base);
+        A_one0 = sparse_copy(A_base);
+        A_one1 = sparse_copy(A_base);
+        A_one2 = sparse_copy(A_base);
+        REQUIRE_OK(A_ref1 && A_ref2 && A_one0 && A_one1 && A_one2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        perturb_large_kkt_values_in_place(A_ref1, n_top, n_bot, seeds[case_idx]);
+        perturb_large_kkt_values_in_place(A_ref2, n_top, n_bot, seeds[case_idx] + 97u);
+        perturb_large_kkt_values_in_place(A_one1, n_top, n_bot, seeds[case_idx]);
+        perturb_large_kkt_values_in_place(A_one2, n_top, n_bot, seeds[case_idx] + 97u);
+
+        sparse_analysis_opts_t analysis_opts = {
+            .factor_type = SPARSE_FACTOR_LDLT,
+            .reorder = SPARSE_REORDER_AMD,
+        };
+        sparse_ldlt_opts_t ldlt_opts0 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = SPARSE_LDLT_BACKEND_AUTO,
+            .used_csc_path = &used_csc_path0,
+        };
+        sparse_ldlt_opts_t ldlt_opts1 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = SPARSE_LDLT_BACKEND_AUTO,
+            .used_csc_path = &used_csc_path1,
+        };
+        sparse_ldlt_opts_t ldlt_opts2 = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = SPARSE_LDLT_BACKEND_AUTO,
+            .used_csc_path = &used_csc_path2,
+        };
+
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts, &analysis));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis, &factors));
+
+        x_exact = malloc((size_t)n * sizeof(double));
+        b0 = malloc((size_t)n * sizeof(double));
+        b1 = malloc((size_t)n * sizeof(double));
+        b2 = malloc((size_t)n * sizeof(double));
+        x_public0 = malloc((size_t)n * sizeof(double));
+        x_public1 = malloc((size_t)n * sizeof(double));
+        x_public2 = malloc((size_t)n * sizeof(double));
+        x_one0 = malloc((size_t)n * sizeof(double));
+        x_one1 = malloc((size_t)n * sizeof(double));
+        x_one2 = malloc((size_t)n * sizeof(double));
+        REQUIRE_OK(x_exact && b0 && b1 && b2 && x_public0 && x_public1 && x_public2 && x_one0 &&
+                           x_one1 && x_one2
+                       ? SPARSE_OK
+                       : SPARSE_ERR_ALLOC);
+
+        for (idx_t i = 0; i < n; i++)
+            x_exact[i] = 1.0 + 0.005 * (double)i;
+
+        sparse_matvec(A_base, x_exact, b0);
+        sparse_matvec(A_ref1, x_exact, b1);
+        sparse_matvec(A_ref2, x_exact, b2);
+
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b0, x_public0));
+        REQUIRE_OK(sparse_ldlt_factor_opts(A_one0, &ldlt_opts0, &ldlt0));
+        ASSERT_EQ(used_csc_path0, 1);
+        REQUIRE_OK(sparse_ldlt_solve(&ldlt0, b0, x_one0));
+        property_assert_vec_near(x_public0, x_exact, n, tol);
+        property_assert_vec_near(x_one0, x_exact, n, tol);
+        property_assert_vec_near(x_public0, x_one0, n, tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref1, &analysis, &factors));
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x_public1));
+        REQUIRE_OK(sparse_ldlt_factor_opts(A_one1, &ldlt_opts1, &ldlt1));
+        ASSERT_EQ(used_csc_path1, 1);
+        REQUIRE_OK(sparse_ldlt_solve(&ldlt1, b1, x_one1));
+        property_assert_vec_near(x_public1, x_exact, n, tol);
+        property_assert_vec_near(x_one1, x_exact, n, tol);
+        property_assert_vec_near(x_public1, x_one1, n, tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref2, &analysis, &factors));
+        REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x_public2));
+        REQUIRE_OK(sparse_ldlt_factor_opts(A_one2, &ldlt_opts2, &ldlt2));
+        ASSERT_EQ(used_csc_path2, 1);
+        REQUIRE_OK(sparse_ldlt_solve(&ldlt2, b2, x_one2));
+        property_assert_vec_near(x_public2, x_exact, n, tol);
+        property_assert_vec_near(x_one2, x_exact, n, tol);
+        property_assert_vec_near(x_public2, x_one2, n, tol);
+
+        pass_count++;
+
+        free(x_exact);
+        free(b0);
+        free(b1);
+        free(b2);
+        free(x_public0);
+        free(x_public1);
+        free(x_public2);
+        free(x_one0);
+        free(x_one1);
+        free(x_one2);
+        sparse_ldlt_free(&ldlt0);
+        sparse_ldlt_free(&ldlt1);
+        sparse_ldlt_free(&ldlt2);
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        sparse_free(A_base);
+        sparse_free(A_ref1);
+        sparse_free(A_ref2);
+        sparse_free(A_one0);
+        sparse_free(A_one1);
+        sparse_free(A_one2);
+    }
+
+    printf("    large-n LDLT CSC lifecycle property: %d/%zu passed\n", pass_count,
+           sizeof(seeds) / sizeof(seeds[0]));
+    ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -645,6 +836,7 @@ int main(void) {
     RUN_TEST(test_property_qr);
     RUN_TEST(test_property_svd);
     RUN_TEST(test_property_large_n_cholesky_public_lifecycle_same_pattern_csc);
+    RUN_TEST(test_property_large_n_ldlt_public_lifecycle_same_pattern_csc);
 
     fuzz_cleanup_tmp();
     TEST_SUITE_END();

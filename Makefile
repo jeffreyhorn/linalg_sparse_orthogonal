@@ -177,7 +177,7 @@ $(BUILDDIR):
 		include/sparse_version.h.in > $(GENERATED_VERSION)
 
 # Library objects
-$(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c $(GENERATED_VERSION) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
 
 # Static library.  `ar rcs $@ $(LIB_OBJS)` instead of `$@ $^` because

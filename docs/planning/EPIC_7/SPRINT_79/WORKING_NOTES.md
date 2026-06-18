@@ -199,3 +199,93 @@ Reconfirm the Sprint 79 implementation-day validation contract and the live proo
 - Sprint 79 now has one explicit implementation-day validation contract.
 - The live proof split across reviewed tests, examples, canonical report workflow, and install/export proof owners is fixed in writing.
 - The highest-signal rerun set is explicit before the assurance-gap audit begins.
+
+## Day 3 - Assurance Gap Re-audit
+
+### Goal
+Re-rank the remaining highest-value oracle, property, lifecycle, and platform-confidence gaps after the main Epic 7 implementation work so Sprint 79 starts from one explicit closeout contradiction map instead of a generic “final assurance” bucket.
+
+### Actions
+- Re-read the Sprint 79 Day 3 plan expectations in `docs/planning/EPIC_7/SPRINT_79/PLAN.md`.
+- Re-read the strongest current residual-assurance sections in `docs/maintainer_guide.md`:
+  - direct-usability queue
+  - platform-confidence interpretation
+  - benchmark-governance ownership
+  - packaging/platform residual dispositions
+- Rechecked the strongest current support-surface wording across:
+  - `README.md`
+  - `INSTALL.md`
+  - `benchmarks/README.md`
+  - `docs/tutorial.md`
+  - `examples/README.md`
+- Rechecked high-signal residual, deferred, and truth-boundary wording with targeted `rg` across:
+  - proof-owner tests
+  - support surfaces
+  - workflow surfaces
+- Re-read the strongest likely proof owners for residual lifecycle/property/oracle value:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+  - `tests/test_iterative.c`
+  - `tests/test_qr.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_fuzz.c`
+
+### Findings
+- Sprint 79's broad final-assurance problem is now reduced to one ranked contradiction map instead of one generic closeout bucket:
+  - strongest first target:
+    - direct-family lifecycle/property assurance
+  - strongest second target:
+    - platform-confidence-limited property coverage
+  - strongest third target:
+    - family-local differential/oracle follow-through
+  - strongest later target:
+    - support-surface overclaim sweep
+- The strongest current contradiction center is not benchmark reporting, packaging, or another broad documentation pass.
+- It is the bounded residual direct-usability queue already named in policy:
+  - no-reorder linked-list Cholesky bit-identical cancellation restoration
+  - broader CSC progress-callback parity beyond the landed bounded Cholesky orchestration checkpoints
+  - any later LDL^T callback follow-through
+- That makes direct-family lifecycle/property assurance the best first Sprint 79 target by closeout rules:
+  - highest user-facing correctness value still left in the explicit residual queue
+  - bounded enough to land without reopening broad subsystem design
+  - strongest proof payoff because it sits at the line between public callback/cancel truth and family-local implementation caveats
+  - strongest final-integration leverage because the same seam touches public docs, policy wording, and durable regression ownership
+- The strongest likely proof owners for that first lane are already clear:
+  - `tests/test_integration.c` as the public lifecycle/callback/cancel oracle owner
+  - `tests/test_fuzz.c` as the bounded seeded generative/property follow-through owner
+  - family-local support only if the first lane truly forces it:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+- Platform-confidence-limited property coverage is the strongest second target because:
+  - Windows still excludes `test_fuzz` from the reviewed CMake subset
+  - Linux and macOS still exercise that property lane directly
+  - the support surfaces already state that boundary truthfully, so this is a real confidence limit but a weaker first landing than the direct lifecycle/property seam itself
+- Family-local differential/oracle follow-through is the strongest third target:
+  - QR, LDL^T, LDL^T CSC, and ND already carry strong residual- and oracle-heavy proof
+  - those lanes still have value for later assurance expansion
+  - but they currently read more like coherent large proof owners than the strongest unresolved contradiction center
+- Support-surface overclaim is the weakest current assurance lane:
+  - the current maintained docs already say the strongest caveats directly
+  - callback/path-local limitations, benchmark truth, install/export proof, and Windows fuzz exclusion are all already explicit
+  - that means Sprint 79 should not start from another wording-first pass unless the later integration sweep reveals a real contradiction
+- Where the current proof package is already coherent:
+  - repeated-run direct workflow and benchmark/reporting ownership
+  - install/export proof split
+  - benchmark-governance and threshold-free reporting
+  - width/scalar/platform truth fences
+- The strongest Day 3 clarification is now explicit:
+  - Sprint 79 is not primarily missing broad residual-norm tests.
+  - It is primarily missing the best final bounded expansion of lifecycle/property assurance on the direct-family callback/cancel seam.
+
+### Validation
+- Reconfirmed the residual direct-usability and platform-confidence queues from `docs/maintainer_guide.md`.
+- Rechecked the strongest current support-surface caveat wording in `README.md`, `INSTALL.md`, `benchmarks/README.md`, `docs/tutorial.md`, and `examples/README.md`.
+- Rechecked residual/deferred terminology across the likely proof owners, workflows, and support surfaces with targeted `rg`.
+
+### Day 3 Exit State
+- Sprint 79 no longer carries a generic “final assurance” prompt.
+- The remaining assurance problem is reduced to a ranked lifecycle/property/oracle/platform-confidence map.
+- Day 4 can now freeze a first final-assurance fence from a real current-state ranking.

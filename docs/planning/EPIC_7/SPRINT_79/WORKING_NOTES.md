@@ -936,3 +936,124 @@ needed before the final sweep.
 - No ownership ambiguity remains around the Sprint 79 closeout proof surface.
 - Sprint 79 will start Day 13 from a named measured queue instead of an implied
   closeout surface.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full Sprint 79 validation queue from the integrated closeout tree, keep
+the maintained parity anchors exact, and confirm that the final assurance
+package survives the representative proof, benchmark/reporting, and
+install/package follow-ons.
+
+### Actions
+- Ran the full code-day gates:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-ran the explicit reviewed proof-owner and representative example follow-ons:
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_fuzz`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the maintained benchmark/reporting and install/package proof surfaces:
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- Investigated the only real validation failure uncovered during the first
+  follow-on pass:
+  - `tests/test_install.sh` failed after `make clean` because `make install`
+    could compile library objects before generating
+    `build/include/sparse_version.h`
+  - confirmed the root cause in `Makefile`
+  - fixed the library object dependency so objects now depend on
+    `$(GENERATED_VERSION)` directly
+- Re-ran the full validation queue from the fixed state and kept the follow-ons
+  serialized where needed so `make clean` from install proof could not race the
+  canonical reporting bundle.
+
+### Findings
+- Sprint 79 Day 13 validation is complete and clean after one real Makefile
+  dependency fix.
+- The surfaced issue was not in the landed Sprint 79 oracle/property work; it
+  was in the install path dependency graph:
+  - the library object rule needed an explicit dependency on the generated
+    version header
+  - without that dependency, a clean install build could try to compile
+    translation units that include `sparse_version.h` before the generated
+    header existed
+- The final validated baseline is now explicit:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 451.58 sec`
+- The focused Sprint 79 proof-owner and example follow-ons all passed:
+  - `test_integration` = `51 / 51`
+  - `test_fuzz` = `26 / 26`
+  - `test_chol_csc` = `147 / 147`
+  - `test_ldlt` = `84 / 84`
+  - `test_ldlt_csc` = `96 / 96`
+  - `example_analysis` retained residual `4.44e-16`
+  - `example_basic_solve` retained residual `0.00e+00`
+- The representative retained proof outputs stayed exact or within the expected
+  closeout lane:
+  - `test_fuzz` retained:
+    - `large-n LDLT CSC lifecycle property: 3/3 passed`
+  - `test_chol_csc` retained:
+    - `tests/data/suitesparse/bcsstk14.mtx: n=1806, rel_residual=1.080e-15`
+  - `test_ldlt` retained:
+    - `KKT 500x500: relres=4.465e-17, nnz(L)=1298`
+    - `bcsstk04 LDL^T vs Cholesky: max|diff| = 1.427e-14`
+  - `test_ldlt_csc` retained:
+    - `tridiag indefinite n=10: rel_res = 0.000e+00`
+    - `arrow 6x6 indefinite (AMD): rel_res = 9.869e-17`
+- The maintained benchmark/reporting lane passed:
+  - `make bench-canonical-report` succeeded
+  - generated bundle:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+  - representative retained rows:
+    - `bench_refactor_csc nos4`: `speedup_refactor = 1.01`,
+      residuals `8.24e-16` / `7.06e-16`
+    - `bench_chol_csc nos4`: `csc_supernodal_panel_solver = batched_panel`,
+      residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+    - `bench_iterative_reuse gmres-unsym-220`: speedup `1.07`
+    - `bench_iterative_reuse minres-kkt-42`: speedup `1.24`
+    - `bench_eigs_reuse thick-bcsstk14-k5`: speedup `0.95`
+    - `bench_eigs_reuse lobpcg-diag40-k3`: speedup `1.04`
+- The maintained install/package proof also passed from the fixed state:
+  - `tests/test_install.sh` = `11 / 11`
+  - `tests/test_cmake_install.sh` = `13 / 13`
+  - both retained installed `pkg-config` version `2.2.0`
+
+### Validation
+- Full code-day validation and post-fix reruns were completed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - targeted reviewed proof-owner re-runs
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Day 13 Exit State
+- Sprint 79 now has a real Day 13 validated baseline rather than a partially
+  successful sweep hiding an install-path dependency bug.
+- The final assurance package remains intact after public oracle, seeded
+  property, benchmark/reporting, and install/export proof follow-through.
+- One non-blocking runtime note is now explicit for closeout:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `315.52 sec`
+    out of `451.58 sec`, but the full reviewed path completed cleanly and all
+    maintained parity anchors stayed exact.

@@ -686,3 +686,70 @@ reopening what the epic is allowed to promise.
 - Approved, deferred, and prohibited claims are separated in writing.
 - Later Sprint 80 review/todo refinement can build against one stable
   execution fence instead of reopening the target state.
+
+## Day 8 - Review Package Refinement
+
+### Goal
+Strengthen the top-level Epic 8 review so it now reads from the refreshed
+Sprint 80 baseline and contract surfaces rather than only from the opening
+post-Epic-7 review pass.
+
+### Actions
+- Re-read the Sprint 80 Day 8 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Epic 8 review against the landed Sprint 80 Day 2-7 artifacts:
+  - validation baseline
+  - competitive gap inventory
+  - external-oracle candidate audit
+  - external-oracle contract
+  - benchmark/performance contract
+  - non-goal and risk fence
+- Re-scanned the review for sections that still needed stronger grounding in:
+  - the refreshed reviewed baseline
+  - the bounded external-oracle contract
+  - the benchmark/performance reading
+  - the explicit Epic 8 claim fence
+- Tightened only the sections that materially benefited from the new Sprint 80
+  contract package instead of rewriting the whole review.
+
+### Findings
+- The Epic 8 review still remains the authoritative finding set for the epic:
+  - strong engineering rigor
+  - not yet state of the art
+  - storage/product ceiling first
+  - dense/backend ceiling second
+  - capability ceiling third
+- The review now reads from the refreshed Sprint 80 baseline more directly:
+  - `make quality-review-full` remains the strongest local reviewed baseline
+  - reviewed CMake parity remains explicit at `53`
+- The review now reads from the external-oracle contract more directly:
+  - bounded CHOLMOD-class SPD Cholesky comparison is the first maintained
+    external correctness target
+  - BLAS/LAPACK-class references remain performance-reference support, not a
+    broad maintained correctness contract
+- The review now reads from the benchmark/performance contract more directly:
+  - canonical reporting remains threshold-free
+  - `bench-fast` remains the bounded runtime lane
+  - `wall-check` remains the narrow thresholded regression gate
+- The review now reads from the non-goal fence more directly:
+  - Epic 8 is not a generic whole-library rewrite
+  - Epic 8 is not allowed to imply fake platform parity, shared-library
+    maturity, or broad capability genericity before those surfaces really move
+- The strongest Day 8 clarification is now explicit:
+  - Sprint 80 did not change the Epic 8 verdict
+  - it made the review’s execution fence and interpretation contract more
+    explicit
+
+### Validation
+- Re-read the Epic 8 review directly against the Day 2-7 Sprint 80 artifact
+  set.
+- Rechecked that the review findings still support the current Epic 8 sprint
+  ordering.
+- Rechecked that no review section now contradicts the external-oracle,
+  benchmark, or non-goal contracts fixed earlier in Sprint 80.
+
+### Day 8 Exit State
+- The Epic 8 review still stands as the authoritative finding set.
+- Its baseline, comparison, benchmark, and non-goal reading are now tightened
+  to match the landed Sprint 80 contract package.
+- Day 9 can refine the closure-sequence todo against one stable review surface.

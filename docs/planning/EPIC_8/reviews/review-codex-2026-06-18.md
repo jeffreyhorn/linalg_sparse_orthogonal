@@ -48,6 +48,27 @@ My bottom-line assessment is:
 - **usability for new adopters:** medium-low
 - **state-of-the-art competitiveness:** not yet
 
+## Sprint 80 Alignment Update
+
+Sprint 80 Days 1-7 did not change the review verdict, but they did tighten the
+contract this review should be read against:
+
+- the strongest local reviewed baseline remains `make quality-review-full`
+- reviewed CMake parity remains explicit at `ctest -N --test-dir build/quality-review-cmake = 53`
+- the first maintained external correctness target is now fixed to a bounded
+  CHOLMOD-class SPD Cholesky comparison lane
+- BLAS/LAPACK-class references are fixed as performance-reference support, not
+  as a broad maintained correctness contract
+- the maintained benchmark face remains intentionally compact and the canonical
+  report remains threshold-free
+- Epic 8 is now explicitly fenced against fake platform parity, shared-library
+  maturity, broad capability-genericity, or “rewrite the whole library”
+  interpretations
+
+That means the findings below should be read as a ranked contradiction map with
+an explicit claim fence, not as an invitation to widen Epic 8 into every
+possible modernization lane at once.
+
 ## Repository Snapshot
 
 ### Highest-signal implementation hotspots
@@ -296,6 +317,9 @@ against mature external sparse backends or reference solvers.
 **Gap**
 
 The project has strong internal proof, but limited external numerical proof.
+Sprint 80 now narrows the first maintained external target to a bounded
+CHOLMOD-class SPD direct-solver lane, which is the right first corrective
+move, but that proof is not landed yet.
 
 ### 8. Medium: benchmark governance is disciplined, but performance governance is still intentionally weak
 
@@ -324,6 +348,11 @@ That leaves the project in an awkward middle state:
 
 The project can explain performance honestly, but it cannot yet enforce or
 market state-of-the-art performance strongly.
+Sprint 80 now fixes the intended reading more explicitly: canonical reporting
+remains threshold-free, `bench-fast` remains the bounded runtime lane, and
+`wall-check` remains the narrow thresholded regression gate. That is a strong
+truthfulness model, but it still leaves performance competitiveness less
+automated than a top-tier production library.
 
 ### 9. Medium: the documentation set is strong but overloaded for adoption
 
@@ -446,6 +475,13 @@ The project is best described as:
 > a highly disciplined, well-tested, feature-rich sparse linear algebra library
 > with a strong validation culture and honest product boundaries, but not yet a
 > top-tier sparse compute platform.
+
+Sprint 80's current fence sharpens that description further:
+
+- Epic 8 is allowed to close real storage, backend, capability, assurance, and
+  maintainability ceilings
+- Epic 8 is not allowed to market those lanes as already complete before the
+  corresponding proof and product surfaces actually move
 
 ## Recommended Priority Order
 

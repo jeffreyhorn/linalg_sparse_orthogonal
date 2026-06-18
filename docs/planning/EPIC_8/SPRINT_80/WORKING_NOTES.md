@@ -328,3 +328,106 @@ can choose bounded contracts rather than restating the whole review package.
   external-oracle and performance-contract design work.
 - The first implementation center is fixed to the product/storage ceiling
   unless a later Sprint 80 audit finds a higher-value contradiction.
+
+## Day 4 - External Oracle Candidate Audit
+
+### Goal
+Identify the strongest realistic external correctness and performance reference
+classes for Epic 8 and reduce the broad “compare against the ecosystem”
+pressure to one ranked maintained-vs-advisory candidate map.
+
+### Actions
+- Re-read the Sprint 80 Day 4 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Day 3 contradiction ranking so the candidate audit stayed
+  subordinate to the first Epic 8 execution order.
+- Re-scanned the live tree for existing references to external corpora or
+  libraries across:
+  - `README.md`
+  - `INSTALL.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `include/`
+  - `src/`
+  - `tests/`
+  - `benchmarks/`
+  - `CMakeLists.txt`
+  - `Makefile`
+  - `.github/workflows/`
+- Reconfirmed that the tree already uses real SuiteSparse fixture data heavily
+  but does not currently maintain external solver-library linkage or CI-backed
+  comparison proof.
+- Rechecked the shipped fixture inventory in `tests/data/` and
+  `tests/data/suitesparse/` so the external-oracle conversation stayed grounded
+  in the actual corpus already available locally.
+
+### Findings
+- The live tree already has strong corpus realism but not strong maintained
+  external solver-oracle proof:
+  - SuiteSparse matrices are used widely across tests, examples, and
+    benchmarks
+  - the tree does not currently maintain CHOLMOD, UMFPACK, SuperLU, MUMPS,
+    MKL, OpenBLAS, or LAPACK linkage as a reviewed proof surface
+- That means the strongest Day 4 distinction is now explicit:
+  - matrix corpus realism is already present
+  - external numerical-oracle realism is the missing piece
+- The strongest realistic external candidate classes are now ranked as follows:
+  - strongest maintained correctness candidate:
+    - SuiteSparse-family direct references, especially CHOLMOD-class SPD
+      Cholesky comparison and a narrower unsymmetric/direct counterpart where
+      packaging burden stays tolerable
+  - strongest maintained performance-reference candidate:
+    - BLAS/LAPACK-class dense-kernel references for bounded backend
+      calibration, not for broad product proof
+  - strongest advisory but likely not first maintained candidate:
+    - METIS-class nested-dissection / graph-quality comparison
+  - strongest exploratory-only candidates:
+    - broad external sparse solver families such as SuperLU, MUMPS, PARDISO,
+      or wider Eigen-style comparison layers
+- Candidate suitability now reads as:
+  - CHOLMOD-class SPD differential proof:
+    - high correctness value
+    - good alignment to the library's strongest CSC Cholesky lane
+    - moderate packaging burden
+    - realistic first maintained candidate if kept bounded
+  - bounded SuiteSparse-family unsymmetric/direct comparison:
+    - meaningful value
+    - higher packaging and API-shape burden than SPD Cholesky
+    - likely second maintained candidate, not the first
+  - BLAS/LAPACK dense-kernel calibration:
+    - high performance-reference value
+    - useful for backend calibration
+    - should be read as advisory/performance support rather than product-wide
+      correctness proof
+  - METIS-style graph/reordering comparison:
+    - real algorithmic interest
+    - weaker first-sprint payoff than direct-solver and dense-kernel
+      references
+    - better as advisory or later support context
+  - wide external solver matrix:
+    - too much dependency and platform burden for the first maintained Epic 8
+      contract
+- The strongest Day 4 clarification is now explicit:
+  - Epic 8 should not try to compare against every major sparse package
+  - it should begin with one bounded maintained direct-solver correctness lane
+    and one bounded dense-kernel performance-reference lane
+  - broader ecosystem comparison belongs in advisory or later-stage context,
+    not in the first maintained contract
+
+### Validation
+- Re-scanned the live tree for external-library and external-corpus references.
+- Rechecked the shipped `tests/data/suitesparse/` fixture inventory directly.
+- Reconciled the candidate ranking against the Day 3 contradiction order so the
+  external-oracle lane remained fourth in the epic ordering rather than
+  accidentally becoming first.
+
+### Day 4 Exit State
+- The external-oracle conversation is now reduced to one ranked maintained vs
+  advisory candidate map.
+- The first realistic maintained candidate reads as bounded SuiteSparse-family
+  direct-solver correctness comparison, with BLAS/LAPACK-class dense-kernel
+  calibration as the strongest performance-reference support lane.
+- Day 5 can now freeze the external-oracle contract from a real candidate set
+  instead of from generic ecosystem aspirations.

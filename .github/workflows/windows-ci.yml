@@ -6,8 +6,9 @@ name: Windows CI
 # tests remain explicit in job output. In particular, `test_fuzz` is still
 # outside the reviewed Windows subset, so Sprint 68's bounded lifecycle
 # property/fuzz lane is not claimed as reviewed Windows evidence. This lane
-# backs the reviewed CMake-first consumer story; it is not a separate reviewed
-# install-validation lane.
+# should be read as reviewed CMake-first consumer proof only; it is not a
+# separate reviewed install-validation lane and does not imply Windows
+# Makefile parity.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -18,7 +19,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Windows enforced reviewed CMake subset (MSVC)
+    name: Windows enforced reviewed CMake consumer subset (MSVC)
     # This reviewed lane depends on the VS 2022 generator being present.
     # `windows-latest` no longer guarantees that, so pin the runner to the
     # image that actually carries the reviewed MSVC/CMake surface.
@@ -40,7 +41,7 @@ jobs:
         run: cmake --build build --config Release
         shell: pwsh
 
-      - name: Inspect enforced Windows reviewed CTest surface (ctest -N)
+      - name: Inspect enforced Windows reviewed consumer CTest surface (ctest -N)
         run: |
           $ctestOutput = ctest --test-dir build -C Release -N
           $ctestOutput
@@ -54,6 +55,7 @@ jobs:
             throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
           }
           Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz (including Sprint 68's bounded lifecycle property lane)"
+          Write-Host "Windows reviewed scope remains CMake-first consumer proof only: no reviewed Makefile parity and no separate reviewed install-validation lane."
         shell: pwsh
 
       - name: Run enforced reviewed CMake execution path (ctest)

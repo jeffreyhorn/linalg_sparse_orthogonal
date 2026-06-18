@@ -2,10 +2,12 @@ name: macOS CI
 
 # macOS enforces the Apple Clang reviewed path plus platform-specific
 # checks (`wall-check`, `sanitize`). The Homebrew GCC leg remains
-# supplemental second-compiler coverage, the Make install/`pkg-config`
-# check below remains supplemental static-first package verification, and
-# dead-code remains staged on macOS. See README.md
-# "Cross-Platform CI Contract" for the full model.
+# supplemental second-compiler coverage. The Make install/`pkg-config`
+# job below is also supplemental: it strengthens confidence in the
+# maintained static-first package story, but it does not claim reviewed
+# install/export parity and does not widen macOS beyond the narrower
+# reviewed Apple Clang lane. See README.md "Cross-Platform CI Contract"
+# for the full model.
 
 on:
   push:
@@ -88,21 +90,23 @@ jobs:
 
   # Verify the maintained static-first Make install/`pkg-config` path on
   # macOS. Lives in a separate supplemental job because it installs to a temp
-  # prefix and runs verification commands; this is narrower than the Unix-side
-  # local regression scripts and does not claim full install/export parity.
+  # prefix and runs verification commands. This job is confidence-building
+  # support for the package story, not a reviewed macOS install/export parity
+  # lane and not a substitute for the broader Unix-side local regression
+  # scripts.
   install-and-pkgconfig:
-    name: macOS supplemental static-first install and pkg-config path
+    name: macOS supplemental static-first install and pkg-config confidence path
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run supplemental install-path build
+      - name: Run supplemental package-path build
         run: make
 
-      - name: Run supplemental install to /tmp prefix
+      - name: Run supplemental Make install to /tmp prefix
         run: make install PREFIX=/tmp/sparse-prefix
 
-      - name: Run supplemental pkg-config verification
+      - name: Run supplemental pkg-config consumer verification
         run: |
           export PKG_CONFIG_PATH=/tmp/sparse-prefix/lib/pkgconfig
           pkg-config --modversion sparse

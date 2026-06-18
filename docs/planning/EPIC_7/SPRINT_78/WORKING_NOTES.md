@@ -534,3 +534,81 @@ Re-audit the permanent hotspot surface after the Day 6 LDL^T CSC landing so Spri
 - Sprint 78 does not need another immediate LDL^T CSC source batch.
 - The strongest remaining seam is now explicitly reranked to giant-test architecture.
 - Day 8 now starts from an exact giant-test audit center led by `tests/test_chol_csc.c` instead of from the original mixed source backlog.
+
+## Day 8 - Giant-Test Re-audit
+
+### Goal
+Re-rank the largest remaining permanent proof-owner files by mixed proof-role density, chronology burden, and bounded architecture payoff so Day 9 can start from one exact giant-test target.
+
+### Actions
+- Re-read the Day 8 plan expectations and the Day 7 rerank artifact.
+- Rechecked the live raw hotspot map for the strongest remaining permanent proof surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_reorder_nd.c`
+- Re-read the structural section map inside the strongest giant tests:
+  - chronology blocks
+  - test-family segmentation
+  - helper density
+  - `main()` registration shape
+- Reclassified the remaining giant-test contradictions against:
+  - mixed lifecycle/property/regression roles
+  - inline helper density
+  - chronology/comment spill
+  - weak proof taxonomy boundaries
+
+### Findings
+- Sprint 78's broad giant-test problem is now reduced to one ranked contradiction map instead of one generic “largest test files first” bucket.
+- The strongest current giant-test ranking is now:
+  - first:
+    - `tests/test_chol_csc.c`
+  - second:
+    - `tests/test_ldlt_csc.c`
+  - third:
+    - `tests/test_qr.c`
+  - fourth:
+    - `tests/test_integration.c`
+  - later / lower-value or different-shape pressure:
+    - `tests/test_reorder_nd.c`
+- `tests/test_chol_csc.c` is the strongest current contradiction center because it still combines too many durable proof roles in one permanent surface:
+  - CSC working-format allocation and conversion proof
+  - symbolic and validation proof
+  - scalar elimination and solve proof
+  - supernode detection and postorder proof
+  - dense helper / backend-contract / panel-solve proof
+  - writeback, dispatch, and large-corpus residual proof
+- That makes it the best Day 9 architecture target:
+  - highest mixed proof-role density
+  - strongest chronology/comment pressure
+  - strongest bounded helper/taxonomy payoff without reopening public API or unrelated implementation work
+- `tests/test_ldlt_csc.c` remains very large, but it now reads more like a coherent family-local proof owner:
+  - working format
+  - supernode and row-adjacency support
+  - `_with_analysis` path
+  - native/wrapper cross-checks
+  - solve and inertia proof
+- `tests/test_qr.c` is also large, but it reads more like one algorithm-family proof surface with clearer chronological segmentation than the Cholesky CSC giant-test seam.
+- `tests/test_integration.c` remains the public lifecycle and parity truth owner, but its architecture problem is weaker because its role is already more clearly cross-feature and public-contract focused.
+- `tests/test_reorder_nd.c` remains a major permanent review cost, but it is a different shape of hotspot:
+  - runtime-heavy
+  - policy/history dense
+  - broad environment and typed-option coverage
+  - weaker as the first giant-test architecture split for Sprint 78
+- The strongest giant-test contradiction classes are now explicit:
+  - mixed lifecycle/property/regression roles inside one file
+  - helper density without one obvious local support seam
+  - chronology/comment spill from many sprint-era additions
+  - proof-owner taxonomy that is still mechanically correct but harder to review than necessary
+
+### Validation
+- Re-read the Day 7 rerank from the landed Day 6 source state.
+- Rechecked raw `wc -l` counts on the strongest remaining proof-owner files.
+- Re-read the section and registration structure inside the strongest giant-test candidates.
+- Confirmed this is a docs-only audit day, so no code-day validation rerun was required.
+
+### Day 8 Exit State
+- The broad giant-test problem is reduced to a concrete seam ranking.
+- `tests/test_chol_csc.c` is fixed as the strongest Day 9 architecture target.
+- Day 9 can now proceed from one explicit giant-test design center rather than a generic large-test backlog.

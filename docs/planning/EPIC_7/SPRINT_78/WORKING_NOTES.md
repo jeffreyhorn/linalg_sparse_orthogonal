@@ -612,3 +612,74 @@ Re-rank the largest remaining permanent proof-owner files by mixed proof-role de
 - The broad giant-test problem is reduced to a concrete seam ranking.
 - `tests/test_chol_csc.c` is fixed as the strongest Day 9 architecture target.
 - Day 9 can now proceed from one explicit giant-test design center rather than a generic large-test backlog.
+
+## Day 9 - Giant-Test Architecture Design
+
+### Goal
+Define one bounded proof-architecture batch for the strongest remaining permanent giant-test surface so Day 10 lands a real review-surface cleanup instead of a broad taxonomy rewrite.
+
+### Actions
+- Re-read the Day 8 giant-test rerank and the Day 9 plan expectations.
+- Re-read the strongest design-center file:
+  - `tests/test_chol_csc.c`
+- Re-read the nearest family-local helper/harness support seams:
+  - `tests/test_chol_csc_supernodal_helpers.h`
+  - `tests/test_framework.h`
+- Rechecked the support-tier proof context that should remain support-only unless the batch truly forces it:
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_reorder_nd.c`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 78 now has one explicit giant-test architecture contract:
+  - required Day 10 center:
+    - `tests/test_chol_csc.c`
+  - family-local helper support only if the batch truly forces it:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+  - proof-owner or policy support only if truly forced:
+    - `tests/test_ldlt_csc.c`
+    - `tests/test_qr.c`
+    - `tests/test_integration.c`
+    - `tests/test_reorder_nd.c`
+    - `docs/maintainer_guide.md`
+- The useful Day 9 clarification is now explicit:
+  - the best Day 10 move is not to split the entire Cholesky CSC proof surface into many files
+  - it is to reduce the strongest mixed proof-role review pressure inside `tests/test_chol_csc.c`
+  - the strongest bounded payoff is therefore:
+    - tighter local helper ownership
+    - clearer internal test-block boundaries
+    - less mixed registration/comment chronology in one giant owner
+- The strongest likely Day 10 seam is now fixed as the family-local supernodal/writeback/dispatch proof cluster inside `tests/test_chol_csc.c`, because that is where:
+  - family-local helper density is highest
+  - backend-contract proof is mixed with broader lifecycle proof
+  - section-local helper and registration pressure is strongest
+- `tests/test_chol_csc_supernodal_helpers.h` is the right support-only companion because it is already a narrow family-local helper seam rather than a shared global harness.
+- `tests/test_framework.h` is explicitly not a Day 10 center because widening the shared test harness would turn a family-local maintainability batch into broader test-infrastructure churn.
+- The preserved Day 10 proof checklist is now fixed:
+  - preserve current behavior coverage
+  - preserve the current proof-owner reading:
+    - `tests/test_chol_csc.c` remains the Cholesky CSC family-local owner
+  - preserve current platform-sensitive proof interpretation
+  - preserve the Day 2 validation contract:
+    - touched `*.c` / `*.h` / test-code batch runs `make format`, `make lint`, `make test`
+    - substantial maintainability batch also runs `make quality-review-full`
+- The exact non-touch set is now explicit:
+  - no unrelated source files
+  - no unrelated giant tests by default
+  - no broad proof-taxonomy rewrite across all solver families
+  - no workflow, platform, benchmark, or packaging claims
+  - no shared harness redesign
+  - no public API or header changes
+
+### Validation
+- Re-read the Day 8 giant-test rerank.
+- Re-read the main giant-test design center and the family-local helper seam beside it.
+- Rechecked the support-tier proof and policy surfaces to keep them support-only by default.
+- Confirmed this is a docs-only design day, so no code-day validation rerun was required.
+
+### Day 9 Exit State
+- The Day 10 giant-test batch is explicitly bounded before edits begin.
+- `tests/test_chol_csc.c` is fixed as the required center, with `tests/test_chol_csc_supernodal_helpers.h` as the only likely support seam.
+- Sprint 78 can now land one real proof-architecture cleanup without reopening the whole proof surface.

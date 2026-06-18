@@ -436,3 +436,81 @@ Define the bounded implementation/proof contract for the first Sprint 79 assuran
 - Sprint 79 now has one explicit first implementation/proof contract.
 - The ownership split, preserved guarantees, and non-touch set are fixed in writing before edits begin.
 - Day 6 can now land one bounded lifecycle/property assurance improvement from a precise design.
+
+## Day 6 - Differential / Oracle Batch
+
+### Goal
+Land the first bounded Sprint 79 assurance batch by strengthening the public repeated-run lifecycle oracle and the bounded seeded property lane without widening into family-local proof churn, support-surface edits, or implementation/API work.
+
+### Actions
+- Added one new public lifecycle parity oracle to `tests/test_integration.c`:
+  - `test_public_lifecycle_refactor_same_pattern_matches_one_shot_ldlt`
+- Added one bounded seeded large-`n` property lane to `tests/test_fuzz.c`:
+  - `test_property_large_n_ldlt_public_lifecycle_same_pattern_csc`
+- Added the local KKT-style indefinite matrix helpers needed to express the new property cleanly in `tests/test_fuzz.c`:
+  - `build_large_kkt(...)`
+  - `perturb_large_kkt_values_in_place(...)`
+- Kept the batch inside the Day 5 fence:
+  - no family-local direct-solver proof-owner edits
+  - no support-surface wording edits
+  - no benchmark, install/export, workflow, or API churn
+- Ran the full required validation gate because `*.c` changed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- Sprint 79 now has one landed first assurance batch in the required implementation center:
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+- The new public oracle in `tests/test_integration.c` proves that the explicit repeated-run LDL^T lifecycle stays aligned with the one-shot CSC-backed LDL^T lane across same-pattern refactors on a large indefinite KKT family.
+- The new bounded seeded property in `tests/test_fuzz.c` extends that same assurance shape into a generative large-`n` lane:
+  - seeds:
+    - `809u`
+    - `1451u`
+    - `2029u`
+  - matrix shape:
+    - `n_top = SPARSE_CSC_THRESHOLD + 12`
+    - `n_bot = 8`
+  - proof focus:
+    - repeated-run public lifecycle parity
+    - same-pattern refactor stability
+    - one-shot CSC path agreement
+- The landed batch preserves the Day 5 guarantees:
+  - current public callback/cancel behavior remains unchanged
+  - current family/path-local caveat reading remains unchanged
+  - current Windows fuzz exclusion truth remains unchanged
+  - benchmark/reporting, install/export, and workflow ownership splits remain unchanged
+- The support-only surfaces stayed untouched:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 344.29 sec`
+- The new assurance surfaces passed directly in the maintained reviewed path:
+  - `test_integration` = `51 / 51`
+  - `test_fuzz` = `26 / 26`
+  - retained new proofs:
+    - `test_public_lifecycle_refactor_same_pattern_matches_one_shot_ldlt`
+    - `test_property_large_n_ldlt_public_lifecycle_same_pattern_csc`
+  - retained property output:
+    - `large-n LDLT CSC lifecycle property: 3/3 passed`
+
+### Day 6 Exit State
+- The first Sprint 79 assurance batch is landed.
+- The public repeated-run LDL^T lifecycle now has both a bounded oracle test and a bounded seeded large-`n` property test.
+- Sprint 79 can now rerank the next final-assurance seam from a stronger public lifecycle baseline.

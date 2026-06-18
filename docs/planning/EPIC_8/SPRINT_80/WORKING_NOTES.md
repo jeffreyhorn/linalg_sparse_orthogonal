@@ -506,3 +506,86 @@ which are advisory, and which are explicitly outside the first contract.
 - Maintained, advisory, and non-contract external lanes are fixed in writing.
 - Later Sprint 80 work can now build the benchmark/performance contract and the
   risk fence against one stable comparison reading.
+
+## Day 6 - Performance and Benchmark Contract
+
+### Goal
+Freeze the benchmark and performance-governance interpretation Epic 8 backend
+and runtime work must preserve so later comparison or acceleration work does
+not widen into fake timing gates or broader product claims.
+
+### Actions
+- Re-read the Sprint 80 Day 6 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the Day 5 external-oracle contract so the benchmark contract stayed
+  aligned with the maintained vs advisory comparison split.
+- Re-read the strongest benchmark-governance surfaces directly:
+  - `benchmarks/README.md`
+  - `README.md`
+  - `Makefile`
+  - `scripts/bench_canonical_report.sh`
+- Rechecked the current maintained benchmark taxonomy and command surface:
+  - canonical maintained benchmark face
+  - threshold-free canonical reporting bundle
+  - bounded runtime lane
+  - narrow thresholded regression gate
+  - exploratory/context-only benchmark lanes
+- Reconciled the benchmark-reading contract against the Day 3 contradiction
+  order so performance governance stayed a supporting contract rather than the
+  first execution center.
+
+### Findings
+- The benchmark/performance contract Epic 8 must preserve is now fixed
+  explicitly:
+  - canonical maintained benchmark face:
+    - `bench_refactor_csc`
+    - `bench_chol_csc`
+    - `bench_iterative_reuse`
+    - `bench_eigs_reuse`
+  - threshold-free canonical reporting surface:
+    - `make bench-canonical-report`
+    - `scripts/bench_canonical_report.sh`
+  - bounded runtime lane:
+    - `bench-fast`
+  - narrow thresholded regression gate:
+    - `wall-check`
+  - exploratory/context-only lanes:
+    - broader bench surfaces outside the compact maintained face
+- The strongest current benchmark-governance reading is now explicit:
+  - canonical report bundles are artifact-friendly longitudinal snapshots
+  - they are intentionally not pass/fail timing gates
+  - benchmark binaries own row semantics and path measurability
+  - tests remain the owners of regression/oracle/property truth
+- The Day 5 external-comparison contract composes with the benchmark contract
+  as follows:
+  - maintained CHOLMOD-class correctness comparison belongs in test or
+    differential-proof surfaces first, not in canonical benchmark pass/fail
+    interpretation
+  - BLAS/LAPACK-class dense-kernel calibration belongs as backend-aware
+    performance-reference support and may widen benchmark fields or advisory
+    comparison output, but it does not change the threshold-free reading of the
+    canonical bundle
+- The strongest preserved benchmark non-goal fence is now fixed:
+  - no portable timing verdicts from single-run benchmark numbers
+  - no historical-diff pass/fail gate hidden inside canonical reporting
+  - no broad benchmark-surface widening before the structural ceilings move
+  - no confusion between benchmark proof and test-owned correctness proof
+- The strongest Day 6 clarification is now explicit:
+  - Epic 8 backend and runtime work may strengthen benchmark measurability
+  - it must do so without turning the canonical benchmark/report surface into a
+    noisy timing gate or broader product-claim surface
+
+### Validation
+- Re-read `benchmarks/README.md`, `README.md`, `Makefile`, and
+  `scripts/bench_canonical_report.sh` directly.
+- Reconciled the benchmark contract against the Day 5 external-oracle
+  contract.
+- Rechecked that the current command surfaces still present canonical reporting
+  as threshold-free and `bench-fast` / `wall-check` as distinct bounded lanes.
+
+### Day 6 Exit State
+- Epic 8 now has one explicit benchmark/performance contract.
+- Backend-aware comparison work can now move later without reopening benchmark
+  governance every time.
+- The canonical reporting surface, runtime lane, and narrow threshold gate are
+  fixed in writing before the later risk-fence work begins.

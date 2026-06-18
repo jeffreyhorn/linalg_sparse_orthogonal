@@ -205,3 +205,126 @@ owners before any Epic 8 baseline or contract batch lands.
   reporting, and script-owned install/export proof is fixed in writing.
 - The highest-signal rerun set is explicit before the competitive gap inventory
   and external-oracle design work begins.
+
+## Day 3 - Competitive Gap Inventory
+
+### Goal
+Reduce Epic 8's broad “state-of-the-art gap” problem to one ranked live
+contradiction map grounded in the current tree so later Sprint 80 design work
+can choose bounded contracts rather than restating the whole review package.
+
+### Actions
+- Re-read the Epic 8 review in
+  `docs/planning/EPIC_8/reviews/review-codex-2026-06-18.md`.
+- Re-read the Epic 8 closure sequence in
+  `docs/planning/EPIC_8/reviews/todo-codex-2026-06-18.md`.
+- Re-read the Sprint 80 Day 1 and Day 2 working-notes baseline.
+- Rechecked the strongest current hotspot and product surfaces through the live
+  tree and refreshed raw `wc -l` measurements for the main first-tier
+  candidates:
+  - `src/sparse_matrix.c`
+  - `src/sparse_dense.c`
+  - `src/sparse_iterative.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+  - `README.md`
+  - `benchmarks/README.md`
+  - `CMakeLists.txt`
+  - `Makefile`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_reorder_nd.c`
+  - `.github/workflows/windows-ci.yml`
+  - `.github/workflows/macos-ci.yml`
+- Reconciled the live hotspot map against the Epic 7 residual journal and the
+  Epic 8 review findings so previously deferred seams were not inherited
+  blindly.
+
+### Findings
+- Epic 8's broad improvement problem is now reduced to one ranked live
+  contradiction map instead of one generic modernization bucket:
+  - strongest first target:
+    - linked-list-first product/storage ceiling
+  - strongest second target:
+    - builtin dense/backend performance ceiling
+  - strongest third target:
+    - bounded capability surface
+  - strongest fourth target:
+    - external differential/numerical-assurance ceiling
+  - strongest fifth target:
+    - maintainability concentration in large source and giant-test hotspots
+  - strongest sixth target:
+    - reviewed runtime concentration around reordering/ND proof
+  - strongest seventh target:
+    - static-first and asymmetric package/platform maturity
+  - strongest support-only but real target:
+    - front-door usability and policy density
+- The strongest current contradiction center is still the public/core
+  storage-workflow model, not package wording or one more hotspot split:
+  - `README.md` still opens by identifying the library as an orthogonal
+    linked-list sparse matrix library
+  - `include/sparse_matrix.h` still keeps the mutable linked-list shell as the
+    public conceptual center
+  - `src/sparse_matrix.c` still centers mutation around pointer-heavy row/col
+    walk and slab-node allocation
+- The dense/backend lane remains the strongest second contradiction rather than
+  the first:
+  - `src/sparse_dense.c` is still the clearest hard performance ceiling
+  - the backend-aware architecture from Epic 7 is real, but it still terminates
+    in a builtin scalar dense-kernel surface
+  - that means the repo now has backend-aware seams without backend maturity
+- The capability surface remains the strongest third contradiction rather than
+  a support-only concern:
+  - `include/sparse_types.h` still fixes the public scalar contract to
+    real-only and the index-width story to compile-time selection
+  - the eigensolver and iterative breadth remains intentionally narrower than a
+    best-in-class scientific sparse stack
+- External differential proof is stronger than it was before Epic 7, but it is
+  still the strongest assurance-side contradiction:
+  - the repo has strong internal proof ownership
+  - it still lacks a maintained external numerical-oracle lane strong enough to
+    support a serious competitive claim
+- The strongest maintainability concentration is real but now clearly reads as
+  the fifth target rather than the first:
+  - `src/sparse_iterative.c` = `1985`
+  - `src/sparse_chol_csc.c` = `1564`
+  - `src/sparse_qr.c` = `1563`
+  - `tests/test_chol_csc.c` = `4724`
+  - `tests/test_ldlt_csc.c` = `3680`
+  - `tests/test_qr.c` = `3197`
+  - `tests/test_integration.c` = `2689`
+- The reviewed runtime concentration remains explicit but lower-order than the
+  product, backend, capability, and oracle ceilings:
+  - `tests/test_reorder_nd.c` = `2287`
+  - the long-pole problem is operationally real, but it is not the first Epic
+    8 execution center
+- Package/platform asymmetry remains real but is still later than the four
+  structural ceiling lanes above it:
+  - `CMakeLists.txt` still keeps the maintained package surface static-only
+  - Windows and macOS workflow evidence remain intentionally asymmetric
+- The strongest Day 3 clarification is now explicit:
+  - Sprint 81 should begin with the product/storage ceiling, not with a broad
+    package or docs campaign
+  - the dense/backend lane should stay second, not be collapsed into the first
+    storage batch
+  - capability expansion should stay third, after the first two structural
+    ceilings move
+  - maintainability, reviewed runtime, and platform/package convergence remain
+    important, but they are not the first contradiction center
+
+### Validation
+- Re-read the Epic 8 review and gap-closure todo directly.
+- Reconciled the Day 3 ranking against the Sprint 80 Day 1 and Day 2 baseline.
+- Refreshed the live raw `wc -l` hotspot map for the main first-tier source,
+  proof, package, and workflow candidates.
+
+### Day 3 Exit State
+- Epic 8 no longer reads as one generic “modernize everything” queue.
+- The live contradiction ranking is explicit enough to drive the later
+  external-oracle and performance-contract design work.
+- The first implementation center is fixed to the product/storage ceiling
+  unless a later Sprint 80 audit finds a higher-value contradiction.

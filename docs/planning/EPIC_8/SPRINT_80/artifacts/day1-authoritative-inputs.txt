@@ -1,0 +1,36 @@
+Sprint 80 Day 1 - Authoritative Inputs
+Date: 2026-06-18
+Branch: sprint-80
+
+Planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md (Sprint 80: Epic 8 Baseline, Competitive Target & External Oracle Contract)
+- docs/planning/EPIC_8/SPRINT_80/PLAN.md
+- docs/planning/EPIC_7/EPIC_7_RETROSPECTIVE.md
+- docs/planning/EPIC_7/SPRINT_79/artifacts/day14-closeout-and-handoff.md
+
+Epic 8 review-package inputs
+- docs/planning/EPIC_8/reviews/review-codex-2026-06-18.md
+- docs/planning/EPIC_8/reviews/todo-codex-2026-06-18.md
+
+Reviewed baseline inputs
+- make -n quality-review-full
+- ctest -N --test-dir build/quality-review-cmake
+
+Live raw wc -l hotspot measurements: support, policy, and product-story surfaces
+- README.md = 1050
+- INSTALL.md = 265
+- docs/maintainer_guide.md = 698
+- benchmarks/README.md = 393
+- Makefile = 899
+- CMakeLists.txt = 413
+- scripts/bench_canonical_report.sh = 101
+- tests/test_install.sh = 172
+- tests/test_cmake_install.sh = 146
+- .github/workflows/ci.yml = 223
+- .github/workflows/macos-ci.yml = 117
+- .github/workflows/windows-ci.yml = 63
+
+Live raw wc -l hotspot measurements: review-package surfaces
+- docs/planning/EPIC_8/reviews/review-codex-2026-06-18.md = 464
+- docs/planning/EPIC_8/reviews/todo-codex-2026-06-18.md = 339
+- docs/planning/EPIC_8/PROJECT_PLAN.md = 351

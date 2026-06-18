@@ -324,3 +324,72 @@ Refine the Day 3 source ranking into one explicit first Sprint 78 implementation
 - The first Sprint 78 implementation fence is explicit before design begins.
 - The required first landing is fixed to the LDL^T CSC implementation and internal contract lane.
 - Lower-value or higher-risk source and proof work is now clearly separated from the first batch.
+
+## Day 5 - Source Decomposition Design
+
+### Goal
+Define one explicit bounded implementation contract for the first Sprint 78 source decomposition batch so Day 6 lands a real LDL^T CSC ownership cleanup rather than a mechanical file split.
+
+### Actions
+- Re-read the Sprint 78 Day 5 plan expectations in `docs/planning/EPIC_7/SPRINT_78/PLAN.md`.
+- Re-read the Day 4 source boundary against the first-batch files:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+- Re-read the current ownership split across:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `src/sparse_ldlt_csc_supernodal.c`
+- Re-read the strongest current writeback, validation, wrapper, and supernodal-helper clusters inside `src/sparse_ldlt_csc.c`.
+- Rechecked the strongest likely proof-sensitive support surfaces:
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+
+### Findings
+- Sprint 78 now has one explicit first implementation contract:
+  - the first batch should stay inside the LDL^T CSC implementation and internal-contract lane
+  - it should clarify ownership, not widen the subsystem
+  - it should prefer bounded helper extraction or regrouping around one obvious seam rather than a broad multi-file breakup
+- The strongest Day 6 ownership split is now fixed:
+  - orchestration owner:
+    - `src/sparse_ldlt_csc.c`
+  - helper/internal contract owner:
+    - `src/sparse_ldlt_csc_internal.h`
+    - one extracted helper cluster if the cleanup truly needs it
+  - already-extracted supernodal dense-panel owner:
+    - `src/sparse_ldlt_csc_supernodal.c`
+  - proof-sensitive boundary owner:
+    - `tests/test_ldlt_csc.c` only if a local helper extraction changes family-local test touchpoints
+- The best Day 6 seam is not the supernodal helper file.
+- It is the mixed scalar/native plus compatibility/writeback cluster still living in `src/sparse_ldlt_csc.c`, especially around:
+  - conversion paths
+  - writeback/public transplant path
+  - validation and wrapper/orchestration glue
+  - native-kernel helper cluster and row-adjacency support
+- The preserved Day 6 compatibility checklist is now explicit:
+  - preserve current public LDL^T behavior and error surface
+  - preserve current family-local scalar/native versus batched-supernodal execution behavior
+  - preserve current proof ownership:
+    - no new proof owner implied by implementation cleanup alone
+  - preserve local helper visibility and current call sequencing where behavior depends on it
+  - preserve the current reviewed validation path and rerun set fixed on Day 2
+- The exact first-batch non-touch set is also fixed:
+  - no unrelated giant-test cleanup
+  - no public-header or API-surface edits
+  - no broader chronology scrub outside the touched implementation seam
+  - no iterative, Cholesky CSC, LU CSR, eigensolver, benchmark, packaging, or platform work
+  - no wider taxonomy cleanup across other direct-solver families
+- The strongest practical design conclusion is that Day 6 should aim for a bounded implementation ownership cleanup of the LDL^T CSC local seam, not a maximal split:
+  - enough extraction or regrouping to reduce mixed-role review pressure
+  - not so much movement that the batch becomes a subsystem rewrite or a proof-tax multiplier
+
+### Validation
+- Re-read the Day 4 first-source boundary.
+- Re-read the strongest first-batch implementation and internal-contract surfaces.
+- Rechecked the likely proof-sensitive support files to keep them support-only by default.
+- Reconfirmed the Day 2 validation contract and Sprint 78 non-goal fence remain unchanged.
+
+### Day 5 Exit State
+- The first Sprint 78 source batch is explicitly designed before edits begin.
+- The landing is bounded to LDL^T CSC implementation ownership cleanup.
+- Compatibility, validation, and non-goal fences are fixed in writing before Day 6 code changes.

@@ -289,3 +289,68 @@ Re-rank the remaining highest-value oracle, property, lifecycle, and platform-co
 - Sprint 79 no longer carries a generic “final assurance” prompt.
 - The remaining assurance problem is reduced to a ranked lifecycle/property/oracle/platform-confidence map.
 - Day 4 can now freeze a first final-assurance fence from a real current-state ranking.
+
+## Day 4 - Assurance Boundary Freeze
+
+### Goal
+Refine the Day 3 assurance ranking into one exact first landing fence so Sprint 79 spends its final implementation budget on the strongest lifecycle/property seam without reopening broader documentation, benchmark, packaging, or platform campaigns.
+
+### Actions
+- Re-read the Sprint 79 Day 4 plan expectations in `docs/planning/EPIC_7/SPRINT_79/PLAN.md`.
+- Re-read the Day 3 ranked contradiction map in `docs/planning/EPIC_7/SPRINT_79/artifacts/day3-assurance-gap-reaudit.md`.
+- Re-read the strongest current residual direct-usability and platform-confidence queues in `docs/maintainer_guide.md`.
+- Re-ranked the Day 3 seams against:
+  - closeout payoff
+  - proof clarity
+  - runtime cost
+  - bounded landing value
+- Separated the likely first-batch landing surfaces, support-only surfaces, and later/deferred closeout lanes.
+
+### Findings
+- Sprint 79 now has one explicit first final-assurance fence instead of a generic numerical-assurance backlog:
+  - required first landing:
+    - `tests/test_integration.c`
+    - `tests/test_fuzz.c`
+  - support only if the first landing forces it:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+  - explicitly deferred:
+    - `tests/test_qr.c`
+    - `tests/test_reorder_nd.c`
+    - benchmark/reporting surfaces
+    - install/export proof scripts
+    - workflow YAML surfaces
+- The strongest first Sprint 79 lane is now fixed as:
+  - public lifecycle/property assurance
+- The useful Day 4 clarification is explicit:
+  - the first batch should target the public callback/cancel and repeated-run lifecycle truth seam
+  - it should use `tests/test_integration.c` as the public oracle owner and `tests/test_fuzz.c` as the bounded seeded property owner
+  - it should move family-local direct-solver tests only if the public/property landing cannot be expressed cleanly without them
+- Platform-confidence-limited property coverage remains the strongest second lane, not the first landing:
+  - Windows fuzz exclusion is a real confidence boundary
+  - but it is not the best first batch center because the current docs already describe it truthfully
+- Family-local differential/oracle follow-through remains explicitly later than the first batch:
+  - `tests/test_qr.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_reorder_nd.c`
+- The strongest non-goal fence is now explicit:
+  - no broad proof campaign across all solver families
+  - no new benchmark, package, or workflow mechanics
+  - no public-surface rewrite unless the first landing forces narrower wording follow-through
+  - no summary or retrospective work before the first proof gap is bounded
+
+### Validation
+- Re-ranked the Day 3 assurance seams against closeout value, proof clarity, runtime cost, and bounded landing value.
+- Reconfirmed the residual direct-usability and platform-confidence queues from `docs/maintainer_guide.md`.
+- Reconfirmed the likely first-batch proof-owner roles against the current public, family-local, and property ownership split.
+
+### Day 4 Exit State
+- Sprint 79 now has one explicit first final-assurance fence.
+- The first landing, support-only surfaces, and deferred lanes are fixed in writing before design begins.
+- Day 5 can now define one bounded implementation/proof contract instead of another generic assurance expansion.

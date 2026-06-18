@@ -1,0 +1,62 @@
+Sprint 79 Day 1 - Authoritative Inputs
+Date: 2026-06-18
+Branch: sprint-79
+
+Planning and sprint inputs
+- docs/planning/EPIC_7/PROJECT_PLAN.md (Sprint 79: Numerical Assurance Expansion, Final Integration & Epic 7 Closeout)
+- docs/planning/EPIC_7/SPRINT_79/PLAN.md
+- docs/planning/EPIC_7/SPRINT_78/artifacts/day14-closeout-and-handoff.md
+
+Reviewed baseline inputs
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Maintained support and policy surfaces reread directly
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- benchmarks/README.md
+- docs/tutorial.md
+- examples/README.md
+
+Public contract surfaces reread directly
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- include/sparse_iterative.h
+- include/sparse_eigs.h
+
+Live raw wc -l hotspot measurements: proof-owner and assurance surfaces
+- tests/test_chol_csc.c = 4724
+- tests/test_ldlt_csc.c = 3680
+- tests/test_qr.c = 3197
+- tests/test_iterative.c = 2841
+- tests/test_ldlt.c = 2798
+- tests/test_integration.c = 2543
+- tests/test_reorder_nd.c = 2287
+- tests/test_fuzz.c = 651
+
+Live raw wc -l hotspot measurements: support and final-truth surfaces
+- README.md = 1045
+- INSTALL.md = 265
+- docs/maintainer_guide.md = 685
+- benchmarks/README.md = 393
+- docs/tutorial.md = 473
+- examples/README.md = 166
+- include/sparse_iterative.h = 773
+- include/sparse_eigs.h = 651
+- include/sparse_ldlt.h = 335
+- include/sparse_cholesky.h = 227
+
+Live raw wc -l hotspot measurements: workflow, install, and reporting proof surfaces
+- tests/test_install.sh = 172
+- tests/test_cmake_install.sh = 146
+- scripts/bench_canonical_report.sh = 101
+- Makefile = 899
+- CMakeLists.txt = 413
+- .github/workflows/ci.yml = 223
+- .github/workflows/macos-ci.yml = 117
+- .github/workflows/windows-ci.yml = 63
+
+Targeted live terminology scans
+- rg -n "oracle|property|progress|cancel|repeated-run|lifecycle|writeback|bench-canonical-report|install|find_package|pkg-config|Sprint 29|Sprint 79" README.md INSTALL.md docs/maintainer_guide.md benchmarks/README.md docs/tutorial.md examples/README.md include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_iterative.h include/sparse_eigs.h tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_ldlt.c tests/test_integration.c tests/test_iterative.c tests/test_qr.c tests/test_reorder_nd.c tests/test_fuzz.c tests/test_install.sh tests/test_cmake_install.sh scripts/bench_canonical_report.sh Makefile CMakeLists.txt .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml

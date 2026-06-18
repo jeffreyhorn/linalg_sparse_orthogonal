@@ -580,3 +580,77 @@ Re-rank the remaining Sprint 79 closeout pressure after the Day 6 assurance land
   - `README.md`
   - `include/sparse_ldlt.h`
   - `include/sparse_cholesky.h`
+
+## Day 8 - Cross-Surface Integration Audit
+
+### Goal
+Re-read the integrated post-Day-6 support and policy surfaces so the remaining Sprint 79 support problem is reduced to one bounded contradiction map instead of a generic “final docs sweep.”
+
+### Actions
+- Re-read the Sprint 79 Day 8 plan expectations in `docs/planning/EPIC_7/SPRINT_79/PLAN.md`.
+- Re-read the Day 7 rerank in `docs/planning/EPIC_7/SPRINT_79/artifacts/day7-post-landing-audit-and-rerank.md`.
+- Re-read the strongest integrated support and authority surfaces:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_cholesky.h`
+- Rechecked the strongest support-only context to confirm whether proof gaps remained real or whether the issue was now support-surface interpretation drift:
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+- Rechecked nearby support surfaces to see whether Day 9 would truly need to widen beyond the main authority pair:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+
+### Findings
+- Sprint 79’s broad integration problem is now reduced to one ranked support-surface contradiction map.
+- The strongest current contradiction is:
+  - `docs/maintainer_guide.md`
+  - specifically the direct-family proof-ownership and deferred-assurance reading after Sprint 72 Day 12
+- Why this is the strongest contradiction:
+  - it is still the authoritative policy surface for direct-family lifecycle, proof ownership, platform-confidence interpretation, and deferred direct-usability reading
+  - it still names the Cholesky lifecycle/property owners directly
+  - it does not yet name the new Day 6 LDL^T repeated-run lifecycle oracle and bounded seeded large-`n` property owners with the same directness
+  - it therefore still reads as if the large-`n` lifecycle assurance story stops at the earlier Cholesky-heavy state
+- The strongest second contradiction is now:
+  - `README.md`
+  - specifically the repeated-run CSC proof split around the Cholesky/LDL^T compact interpretation
+- Why `README.md` ranks second:
+  - it already says the broad callback/cancel and repeated-run lifecycle story truthfully
+  - it already names the bounded LDL^T repeated-run benchmark proof through `bench_refactor_csc --indefinite-kkt`
+  - but its proof-owner split still reads more like “benchmark proof plus Cholesky-owned oracle/property context” than the integrated post-Day-6 state
+- The headers now read as support-only rather than required next-batch centers:
+  - `include/sparse_ldlt.h` already states the owned-factor vs shared repeated-run lifecycle split truthfully
+  - `include/sparse_cholesky.h` already states the one-shot vs repeated-run split truthfully and keeps the family-local callback caveats accurate
+  - neither header currently misstates the new Day 6 proof ownership enough to justify a required Day 9 edit
+- The weaker support surfaces are now explicit:
+  - `docs/tutorial.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+- Why they rank lower:
+  - `docs/tutorial.md` already keeps regression/oracle/property ownership with the maintained test surfaces
+  - `examples/README.md` already keeps example-side workflow teaching separate from oracle/property ownership
+  - `benchmarks/README.md` already names the benchmark-vs-test ownership boundary for the repeated-run direct lane clearly enough
+- The exact Day 9 support-surface fence is now explicit:
+  - required:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - support only if wording truly forces it:
+    - `include/sparse_ldlt.h`
+    - `include/sparse_cholesky.h`
+    - `docs/tutorial.md`
+    - `examples/README.md`
+    - `benchmarks/README.md`
+
+### Validation
+- Re-read the Day 6 proof package against the current support and authority surfaces.
+- Reconfirmed that the strongest remaining contradiction is support-surface interpretation drift, not another missing proof.
+- Reconfirmed that the headers and nearby support docs remain broadly truthful enough to stay support-only unless the Day 9 wording forces narrower follow-through.
+
+### Day 8 Exit State
+- Sprint 79’s integration problem is now reduced to one exact contradiction map led by the maintainer guide and README.
+- The required Day 9 reconciliation batch is fixed explicitly to those two surfaces.
+- The direct-solver headers and nearby support docs are now bounded support-only context rather than assumed touches.

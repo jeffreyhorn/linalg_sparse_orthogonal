@@ -893,3 +893,69 @@ ordering or dependency mistake.
   as around the review and todo.
 - Day 11 can proceed to the support-surface truth sweep without any project
   plan correction.
+
+## Day 11 - Support-Surface Truth Sweep
+
+### Goal
+Check whether the main support and policy surfaces already read truthfully
+against the landed Sprint 80 baseline and contract package so the sprint does
+not drift into unnecessary docs churn.
+
+### Actions
+- Re-read the Sprint 80 Day 11 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_80/PLAN.md`.
+- Re-read the highest-signal support and policy surfaces against the landed
+  Sprint 80 Day 2-10 package:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - `benchmarks/README.md`
+  - `.github/workflows/windows-ci.yml`
+  - `.github/workflows/macos-ci.yml`
+- Rechecked whether any contradiction had appeared around:
+  - linked-list-first product wording
+  - static-first packaging wording
+  - reviewed-platform asymmetry wording
+  - canonical benchmark/report interpretation
+  - future shared-library or capability-genericity overclaim risk
+- Captured the touched-surface raw `wc -l` map for the rechecked support set.
+
+### Findings
+- No bounded support-surface correction is actually needed.
+- The current support surfaces already reconcile cleanly with the Sprint 80
+  contract package:
+  - `README.md` still keeps the product, benchmark, and platform claims
+    bounded
+  - `INSTALL.md` still keeps the static-first install/export contract and the
+    narrower reviewed-platform confidence split explicit
+  - `docs/maintainer_guide.md` still remains the authoritative packaging,
+    benchmark, and platform policy owner
+  - `benchmarks/README.md` still keeps canonical reporting threshold-free and
+    separated from timing-gate claims
+  - `.github/workflows/windows-ci.yml` still keeps Windows as the reviewed
+    CMake-consumer subset only
+  - `.github/workflows/macos-ci.yml` still keeps macOS install verification as
+    supplemental confidence rather than reviewed install/export parity
+- The strongest Day 11 clarification is now explicit:
+  - Sprint 80 changed the interpretation contract around these surfaces
+  - it did not create a new contradiction that justifies support-surface churn
+- Final touched-surface counts from the recheck are:
+  - `README.md` = `1050`
+  - `INSTALL.md` = `265`
+  - `docs/maintainer_guide.md` = `698`
+  - `benchmarks/README.md` = `393`
+  - `.github/workflows/windows-ci.yml` = `63`
+  - `.github/workflows/macos-ci.yml` = `117`
+
+### Validation
+- Re-read the main support and workflow surfaces directly.
+- Rechecked that those surfaces still match the Day 5 external-oracle
+  contract, Day 6 benchmark contract, Day 7 non-goal fence, and Day 10 plan
+  interpretation.
+- Reconfirmed that no support surface now widens the claim fence beyond the
+  maintained proof.
+
+### Day 11 Exit State
+- Sprint 80 now has an explicit no-op truth-sweep record.
+- The main support surfaces remain truthful without edits.
+- Day 12 can move on to final proof-owner alignment and the validation queue.

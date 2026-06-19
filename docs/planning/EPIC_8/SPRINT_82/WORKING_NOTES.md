@@ -566,3 +566,76 @@ path and keeping proof local to the family-level Cholesky surface.
   selection is now proof-backed and bounded.
 - The next rerank can now judge whether the strongest remaining seam is LDL^T
   parity, benchmark measurability, or support-surface follow-through.
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the strongest remaining backend contradiction after the Day 6 Cholesky
+dense-kernel landing so Sprint 82 moves next on the best solver-adoption seam
+instead of drifting into benchmark or docs follow-through.
+
+### Actions
+- Re-read the Sprint 82 Day 7 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the Day 6 landing record and the Day 5 dense-kernel ABI/runtime
+  contract.
+- Re-read the widened dense-kernel owner in `src/sparse_dense.c`, especially:
+  - builtin-vs-accelerate runtime selection
+  - test override precedence
+  - bounded Darwin-only optional runtime path
+- Re-read the current Cholesky supernodal consumer lane to confirm what Day 6
+  actually closed.
+- Re-read the strongest likely next consumer and proof/measurement surfaces:
+  - `src/sparse_ldlt.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+  - `tests/test_ldlt.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `include/sparse_ldlt.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- The Day 6 landing closed the strongest first backend contradiction:
+  - `src/sparse_dense.c` no longer reads like an unexercised optional-backend
+    seam
+  - the Cholesky CSC supernodal lane no longer reads like the strongest
+    remaining backend-adoption gap
+  - a second immediate Cholesky-only backend batch is not the highest-value
+    next move
+- The strongest remaining seam has now shifted to solver adoption
+  follow-through centered on LDL^T backend/runtime parity:
+  - `src/sparse_ldlt.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+- The strongest support-only proof and measurement follow-through is now:
+  - `tests/test_ldlt.c`
+  - `benchmarks/bench_refactor_csc.c`
+- The strongest support-only wording surfaces, only if the next batch truly
+  forces them, are now:
+  - `include/sparse_ldlt.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Benchmark and docs pressure is real, but it is weaker than the LDL^T
+  backend-adoption seam:
+  - `benchmarks/bench_refactor_csc.c` already owns the retained repeated-run
+    throughput/proof surface
+  - package/runtime wording would only be stale if the next solver-side batch
+    widens the public reading
+- The preserved non-goal fence still holds:
+  - no QR/SVD widening yet
+  - no package/platform convergence reopening
+  - no broad shared-library or platform-parity claim
+  - no benchmark-gate conversion
+  - no whole-library backend framework rewrite
+
+### Validation
+- Re-read the Day 6 landing against the Day 5 backend contract and Day 4
+  boundary.
+- Rechecked the strongest next solver-adoption and support-only surfaces
+  directly in the live tree.
+- Fixed the Day 8 design center in writing before more implementation begins.
+
+### Day 7 Exit State
+- Sprint 82's next contradiction center is explicit after the first backend
+  landing.
+- Day 8 can now design one bounded LDL^T backend/runtime follow-through batch.
+- Support drift is separated from the real remaining backend work.

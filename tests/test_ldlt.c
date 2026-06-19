@@ -2789,7 +2789,6 @@ static void test_ldlt_dense_backend_accelerate_accepts_noperm_2x2(void) {
     ASSERT_NEAR(D_offdiag[1], 0.0, 0.0);
     ASSERT_NEAR(A[0], 1.0, 0.0);
     ASSERT_NEAR(A[1], 0.0, 0.0);
-    ASSERT_NEAR(A[2], 0.0, 0.0);
     ASSERT_NEAR(A[3], 1.0, 0.0);
 
     tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");

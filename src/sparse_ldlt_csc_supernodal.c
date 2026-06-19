@@ -305,8 +305,8 @@ sparse_err_t ldlt_csc_supernode_eliminate_diag(const LdltCsc *F, idx_t s_start, 
             dense[j + i * lda] = dense[i + j * lda];
     }
 
-    sparse_err_t err = ldlt_dense_factor(dense, D_block, D_offdiag_block, pivot_size_block, s_size,
-                                         lda, tol, NULL);
+    sparse_err_t err = ldlt_dense_factor_selected(dense, D_block, D_offdiag_block, pivot_size_block,
+                                                  s_size, lda, tol, NULL);
     if (err != SPARSE_OK)
         return err;
 

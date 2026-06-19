@@ -714,3 +714,79 @@ without reopening broad backend-framework churn.
   backend design.
 - Support-only proof, benchmark, and wording surfaces are explicitly separated
   from the required implementation center.
+
+## Day 9 - Solver Adoption Follow-Through Batch
+
+### Goal
+Land one bounded LDL^T backend/runtime follow-through batch so the optional
+dense-backend seam widens beyond the Cholesky CSC lane without reopening broad
+backend-framework churn or widening the public contract unnecessarily.
+
+### Actions
+- Landed a bounded runtime-selected LDL^T dense-factor seam in:
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_chol_csc_internal.h`
+- Switched the LDL^T CSC supernodal consumer to the selected seam in:
+  - `src/sparse_ldlt_csc_supernodal.c`
+- Added family-local proof for builtin and accelerate env-selection plus
+  solver-visible forced-CSC correctness in:
+  - `tests/test_ldlt.c`
+- Ran the full implementation-day validation stack:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- The bounded Day 9 backend-adoption batch landed in:
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_chol_csc_internal.h`
+  - `src/sparse_ldlt_csc_supernodal.c`
+  - `tests/test_ldlt.c`
+- The main implementation result is now explicit:
+  - the shipped builtin LDL^T dense block factor remains the default path
+  - the dense-factor owner now recognizes one bounded runtime selection knob:
+    - `SPARSE_LDLT_DENSE_BACKEND=accelerate`
+  - on Darwin only, that knob can activate an optional Accelerate-backed LDL^T
+    dense-factor path for the LDL^T CSC supernodal lane
+  - the widened seam stays fallback-safe:
+    - unavailable optional runtime path falls back to builtin
+    - optional backend pivot/layout mismatch returns
+      `SPARSE_ERR_PIVOT_REJECTED`
+    - the LDL^T CSC lane therefore preserves the existing scalar-prepass /
+      supernodal fallback story
+- The Day 8 design estimated `src/sparse_ldlt.c` as part of the required Day 9
+  center, but the landed implementation stayed narrower than that estimate:
+  - no public LDL^T wrapper dispatch change was actually needed
+  - the widened runtime selector could be inserted below the public dispatch
+    layer
+  - the batch therefore stayed bounded to the dense-factor owner, the LDL^T
+    CSC supernodal consumer, and the family-local proof owner
+- The preserved Day 9 fence held:
+  - no QR or SVD widening
+  - no package/platform convergence reopening
+  - no shared-library maturity or fake platform-parity claim
+  - no benchmark threshold/gate conversion
+  - no benchmark or docs spill beyond the sprint record and proof
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 448.79 sec`
+- Focused proof stayed clean inside the broader pass:
+  - `test_ldlt` passed the new builtin env-selection contract
+  - `test_ldlt` passed the new accelerate env-selection contract
+  - the public forced-CSC LDL^T solve proof preserved residual correctness
+
+### Day 9 Exit State
+- Sprint 82 now has one real optional accelerated dense-factor slice on the
+  LDL^T CSC lane.
+- The builtin backend remains the default shipped path.
+- Optional runtime selection is now bounded, proof-backed, and fallback-safe
+  across both high-value direct-family lanes.

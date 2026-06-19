@@ -33,10 +33,15 @@
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __APPLE__
+#include <dlfcn.h>
+#endif
 
 /* ─── Free ───────────────────────────────────────────────────────────── */
 
@@ -1201,6 +1206,219 @@ static void ldlt_dense_sym_swap(double *A, idx_t n, idx_t lda, idx_t a, idx_t b)
     }
 }
 
+static int s64_ldlt_idx_to_blas_int_checked(idx_t value, int *out) {
+    if (!out || value < 0 || value > (idx_t)INT_MAX)
+        return 0;
+    *out = (int)value;
+    return 1;
+}
+
+#ifdef __APPLE__
+typedef void (*s64_accel_dsytrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
+                                    int *ipiv, double *work, const int *lwork, int *info);
+
+static void *s64_ldlt_accel_handle = NULL;
+static s64_accel_dsytrf_fn s64_ldlt_accel_dsytrf = NULL;
+static int s64_ldlt_accel_probe_state = 0;
+
+static int s64_ldlt_accel_probe_dense_factor(void) {
+    if (s64_ldlt_accel_probe_state != 0)
+        return s64_ldlt_accel_probe_state > 0;
+
+    s64_ldlt_accel_probe_state = -1;
+    s64_ldlt_accel_handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
+                                   RTLD_LAZY | RTLD_LOCAL);
+    if (!s64_ldlt_accel_handle)
+        return 0;
+
+    s64_ldlt_accel_dsytrf = (s64_accel_dsytrf_fn)dlsym(s64_ldlt_accel_handle, "dsytrf_");
+    if (!s64_ldlt_accel_dsytrf) {
+        dlclose(s64_ldlt_accel_handle);
+        s64_ldlt_accel_handle = NULL;
+        return 0;
+    }
+
+    s64_ldlt_accel_probe_state = 1;
+    return 1;
+}
+
+static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, double *D_offdiag,
+                                                     idx_t *pivot_size, idx_t n, idx_t lda,
+                                                     double tol, double *elem_growth_out) {
+    if (!A || !D || !D_offdiag || !pivot_size)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (elem_growth_out)
+        *elem_growth_out = 0.0;
+    if (n == 0)
+        return SPARSE_OK;
+    if (!s64_ldlt_accel_probe_dense_factor())
+        return SPARSE_ERR_PIVOT_REJECTED;
+
+    int n_blas = 0;
+    int lda_blas = 0;
+    if (!s64_ldlt_idx_to_blas_int_checked(n, &n_blas) ||
+        !s64_ldlt_idx_to_blas_int_checked(lda, &lda_blas))
+        return SPARSE_ERR_BADARG;
+
+    double ref_norm = 0.0;
+    for (idx_t j = 0; j < n; j++) {
+        double d = fabs(A[j + j * lda]);
+        if (d > ref_norm)
+            ref_norm = d;
+    }
+    double eff_tol = tol > 0.0 ? tol : SPARSE_DROP_TOL;
+    double sing_tol = sparse_rel_tol(ref_norm, eff_tol);
+    double growth_bound = 1.0 / (100.0 * eff_tol);
+    double max_growth = 0.0;
+
+    if ((size_t)n > SIZE_MAX / sizeof(int))
+        return SPARSE_ERR_ALLOC;
+    int *ipiv = malloc((size_t)n * sizeof(int));
+    if (!ipiv)
+        return SPARSE_ERR_ALLOC;
+
+    char uplo = 'L';
+    int lwork = -1;
+    int info = 0;
+    double work_query = 0.0;
+    s64_ldlt_accel_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, &work_query, &lwork, &info);
+    if (info != 0) {
+        free(ipiv);
+        return info < 0 ? SPARSE_ERR_BADARG : SPARSE_ERR_SINGULAR;
+    }
+
+    int lwork_int = (work_query > 1.0 && work_query < (double)INT_MAX) ? (int)work_query : 1;
+    if (lwork_int < 1)
+        lwork_int = 1;
+    if ((size_t)lwork_int > SIZE_MAX / sizeof(double)) {
+        free(ipiv);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *work = malloc((size_t)lwork_int * sizeof(double));
+    if (!work) {
+        free(ipiv);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    s64_ldlt_accel_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, work, &lwork_int, &info);
+    free(work);
+    if (info != 0) {
+        free(ipiv);
+        return info < 0 ? SPARSE_ERR_BADARG : SPARSE_ERR_SINGULAR;
+    }
+
+    sparse_err_t err = SPARSE_OK;
+    idx_t k = 0;
+    while (k < n) {
+        if (ipiv[k] > 0) {
+            if (ipiv[k] != (int)(k + 1)) {
+                err = SPARSE_ERR_PIVOT_REJECTED;
+                goto cleanup;
+            }
+
+            double dk = A[k + k * lda];
+            if (fabs(dk) < sing_tol) {
+                err = SPARSE_ERR_SINGULAR;
+                goto cleanup;
+            }
+            D[k] = dk;
+            D_offdiag[k] = 0.0;
+            pivot_size[k] = 1;
+
+            for (idx_t i = k + 1; i < n; i++) {
+                double l_ik = A[i + k * lda];
+                if (fabs(l_ik) > growth_bound) {
+                    err = SPARSE_ERR_SINGULAR;
+                    goto cleanup;
+                }
+                if (fabs(l_ik) > max_growth)
+                    max_growth = fabs(l_ik);
+                A[k + i * lda] = l_ik;
+            }
+            A[k + k * lda] = 1.0;
+            k += 1;
+            continue;
+        }
+
+        if (k + 1 >= n || ipiv[k + 1] != ipiv[k] || -ipiv[k] != (int)(k + 2)) {
+            err = SPARSE_ERR_PIVOT_REJECTED;
+            goto cleanup;
+        }
+
+        double d11 = A[k + k * lda];
+        double d21 = A[(k + 1) + k * lda];
+        double d22 = A[(k + 1) + (k + 1) * lda];
+        double det = d11 * d22 - d21 * d21;
+        double bscale = fabs(d11) + fabs(d22) + fabs(d21);
+        double det_tol = (bscale > 0.0) ? eff_tol * bscale * bscale : sing_tol * sing_tol;
+        if (fabs(det) < det_tol) {
+            err = SPARSE_ERR_SINGULAR;
+            goto cleanup;
+        }
+
+        D[k] = d11;
+        D[k + 1] = d22;
+        D_offdiag[k] = d21;
+        D_offdiag[k + 1] = 0.0;
+        pivot_size[k] = 2;
+        pivot_size[k + 1] = 2;
+
+        for (idx_t i = k + 2; i < n; i++) {
+            double l_ik = A[i + k * lda];
+            double l_ik1 = A[i + (k + 1) * lda];
+            if (fabs(l_ik) > growth_bound || fabs(l_ik1) > growth_bound) {
+                err = SPARSE_ERR_SINGULAR;
+                goto cleanup;
+            }
+            if (fabs(l_ik) > max_growth)
+                max_growth = fabs(l_ik);
+            if (fabs(l_ik1) > max_growth)
+                max_growth = fabs(l_ik1);
+            A[k + i * lda] = l_ik;
+            A[(k + 1) + i * lda] = l_ik1;
+        }
+
+        A[k + k * lda] = 1.0;
+        A[(k + 1) + k * lda] = 0.0;
+        A[k + (k + 1) * lda] = 0.0;
+        A[(k + 1) + (k + 1) * lda] = 1.0;
+        k += 2;
+    }
+
+    if (elem_growth_out)
+        *elem_growth_out = max_growth;
+
+cleanup:
+    free(ipiv);
+    return err;
+}
+#endif
+
+typedef enum {
+    S64_LDLT_DENSE_BACKEND_BUILTIN = 0,
+    S64_LDLT_DENSE_BACKEND_ACCELERATE = 1,
+} s64_ldlt_dense_backend_t;
+
+static s64_ldlt_dense_backend_t s64_read_ldlt_dense_backend_env(void) {
+    const char *value = getenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (!value)
+        return S64_LDLT_DENSE_BACKEND_BUILTIN;
+    if (strcmp(value, "accelerate") == 0)
+        return S64_LDLT_DENSE_BACKEND_ACCELERATE;
+    return S64_LDLT_DENSE_BACKEND_BUILTIN;
+}
+
+const char *ldlt_dense_factor_backend_name(void) {
+#ifdef __APPLE__
+    if (s64_read_ldlt_dense_backend_env() == S64_LDLT_DENSE_BACKEND_ACCELERATE &&
+        s64_ldlt_accel_probe_dense_factor())
+        return "accelerate";
+#endif
+    return "builtin";
+}
+
 sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *pivot_size, idx_t n,
                                idx_t lda, double tol, double *elem_growth_out) {
     if (!A || !D || !D_offdiag || !pivot_size)
@@ -1427,6 +1645,17 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 cleanup:
     free(pivot_scratch);
     return err;
+}
+
+sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
+                                        idx_t n, idx_t lda, double tol, double *elem_growth_out) {
+#ifdef __APPLE__
+    if (s64_read_ldlt_dense_backend_env() == S64_LDLT_DENSE_BACKEND_ACCELERATE &&
+        s64_ldlt_accel_probe_dense_factor())
+        return s64_accelerate_ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol,
+                                                elem_growth_out);
+#endif
+    return ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol, elem_growth_out);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

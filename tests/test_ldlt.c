@@ -1,3 +1,11 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
+#include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
@@ -2675,6 +2683,88 @@ static void test_ldlt_day5_auto_routes_csc_above_threshold(void) {
     sparse_free(A);
 }
 
+static void test_ldlt_dense_backend_builtin_env_contract(void) {
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (tf_setenv("SPARSE_LDLT_DENSE_BACKEND", "builtin") != 0)
+        SKIP_TEST("SPARSE_LDLT_DENSE_BACKEND could not be set");
+
+    ASSERT_TRUE(strcmp(ldlt_dense_factor_backend_name(), "builtin") == 0);
+
+    double A[] = {
+        4.0, 1.0, 0.5, 1.0, 3.0, 0.25, 0.5, 0.25, 2.0,
+    };
+    double D[3] = {0.0, 0.0, 0.0};
+    double D_offdiag[3] = {0.0, 0.0, 0.0};
+    idx_t pivot_size[3] = {0, 0, 0};
+
+    REQUIRE_OK(ldlt_dense_factor_selected(A, D, D_offdiag, pivot_size, 3, 3, 0.0, NULL));
+    ASSERT_EQ(pivot_size[0], 1);
+    ASSERT_EQ(pivot_size[1], 1);
+    ASSERT_EQ(pivot_size[2], 1);
+    ASSERT_NEAR(A[0], 1.0, 0.0);
+    ASSERT_NEAR(A[4], 1.0, 0.0);
+    ASSERT_NEAR(A[8], 1.0, 0.0);
+    ASSERT_NEAR(D_offdiag[0], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[1], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[2], 0.0, 0.0);
+
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+}
+
+static void test_ldlt_dense_backend_accelerate_env_contract(void) {
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (tf_setenv("SPARSE_LDLT_DENSE_BACKEND", "accelerate") != 0)
+        SKIP_TEST("SPARSE_LDLT_DENSE_BACKEND could not be set");
+
+#ifdef __APPLE__
+    ASSERT_TRUE(strcmp(ldlt_dense_factor_backend_name(), "accelerate") == 0);
+#else
+    ASSERT_TRUE(strcmp(ldlt_dense_factor_backend_name(), "builtin") == 0);
+#endif
+
+    double A[] = {
+        4.0, 1.0, 0.5, 1.0, 3.0, 0.25, 0.5, 0.25, 2.0,
+    };
+    double D[3] = {0.0, 0.0, 0.0};
+    double D_offdiag[3] = {0.0, 0.0, 0.0};
+    idx_t pivot_size[3] = {0, 0, 0};
+
+    REQUIRE_OK(ldlt_dense_factor_selected(A, D, D_offdiag, pivot_size, 3, 3, 0.0, NULL));
+    ASSERT_EQ(pivot_size[0], 1);
+    ASSERT_EQ(pivot_size[1], 1);
+    ASSERT_EQ(pivot_size[2], 1);
+    ASSERT_NEAR(A[0], 1.0, 0.0);
+    ASSERT_NEAR(A[4], 1.0, 0.0);
+    ASSERT_NEAR(A[8], 1.0, 0.0);
+    ASSERT_NEAR(D_offdiag[0], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[1], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[2], 0.0, 0.0);
+
+    SparseMatrix *M = day4_build_indefinite_4x4();
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+    };
+    sparse_ldlt_t ldlt;
+    REQUIRE_OK(sparse_ldlt_factor_opts(M, &opts, &ldlt));
+    ASSERT_EQ(used_csc, 1);
+
+    double b[] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+    double r[4];
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+    sparse_matvec(M, x, r);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-10);
+
+    sparse_ldlt_free(&ldlt);
+    sparse_free(M);
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2789,6 +2879,8 @@ int main(void) {
     RUN_TEST(test_ldlt_day5_cross_backend_kkt_5x5);
     RUN_TEST(test_ldlt_day5_cross_backend_small_dense_indefinite);
     RUN_TEST(test_ldlt_day5_auto_routes_csc_above_threshold);
+    RUN_TEST(test_ldlt_dense_backend_builtin_env_contract);
+    RUN_TEST(test_ldlt_dense_backend_accelerate_env_contract);
 
     /* Free/cleanup */
     RUN_TEST(test_ldlt_free_zeroed);

@@ -407,3 +407,83 @@ instead of reopening prioritization drift.
 - Required and support-only touch surfaces are fixed before Day 5 design work.
 - The first landing is bounded to the Cholesky dense-kernel descriptor and
   supernodal consumer lane.
+
+## Day 5 - Dense-Kernel ABI and Runtime-Selection Design
+
+### Goal
+Define the bounded dense-kernel descriptor and runtime-selection contract Sprint
+82 will actually land so Day 6 can implement one optional accelerated backend
+slice without reopening fallback, ownership, or packaging drift.
+
+### Actions
+- Re-read the Sprint 82 Day 5 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the Day 4 backend boundary and the Day 3 contradiction map.
+- Re-read the current builtin dense-kernel owner in `src/sparse_dense.c`,
+  especially:
+  - `chol_dense_factor`
+  - `chol_dense_solve_lower`
+  - `chol_dense_solve_panel`
+  - the builtin `chol_dense_kernels_t` descriptor
+  - the current test-only override path
+- Re-read the current Cholesky CSC supernodal consumer contract in
+  `src/sparse_chol_csc_supernodal.c`, especially:
+  - descriptor lookup
+  - missing-kernel `SPARSE_ERR_BACKEND_CONTRACT` handling
+  - diag-factor and panel-solve consumption points
+- Re-read the caller-facing one-shot surface in `include/sparse_cholesky.h`
+  and `src/sparse_chol_csc.c` to keep the family-level publication boundary
+  explicit.
+
+### Findings
+- Sprint 82 now has one explicit first implementation contract:
+  - required implementation center:
+    - `src/sparse_dense.c`
+    - `src/sparse_chol_csc_supernodal.c`
+    - `src/sparse_chol_csc.c`
+  - support only if the first batch truly forces it:
+    - `src/sparse_ldlt.c`
+    - `src/sparse_ldlt_csc_supernodal.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_integration.c`
+    - `benchmarks/bench_chol_csc.c`
+    - `benchmarks/bench_refactor_csc.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The Day 5 ownership split is now fixed:
+  - dense-kernel descriptor and builtin-default owner:
+    - `src/sparse_dense.c`
+  - supernodal batch-time consumer and local backend-contract boundary owner:
+    - `src/sparse_chol_csc_supernodal.c`
+  - family-level orchestration and caller-facing publication owner:
+    - `src/sparse_chol_csc.c`
+- The useful Day 5 clarification is explicit now:
+  - the first landing should preserve the builtin self-contained backend as the
+    default product path
+  - it should widen the dense-kernel seam with one bounded optional runtime
+    selection contract rather than a broad backend framework
+  - it should keep backend observability local to the touched Cholesky lane
+    rather than widening into repo-wide runtime policy churn
+  - it should not reopen LDL^T, QR, SVD, package/platform convergence, or
+    broader capability work in the same batch
+- The preserved first-batch fence is explicit too:
+  - self-contained default build remains the main product path
+  - optional acceleration remains bounded and proof-backed
+  - benchmark reporting remains threshold-free
+  - no fake platform/shared-library maturity or generic BLAS-everywhere claim
+
+### Validation
+- Re-read the Day 4 boundary against the current builtin dense-kernel and
+  Cholesky consumer contracts.
+- Reconfirmed the strongest ownership split directly from `src/sparse_dense.c`,
+  `src/sparse_chol_csc_supernodal.c`, and `src/sparse_chol_csc.c`.
+- Fixed the implementation-center and support-only split in writing before Day
+  6 begins.
+
+### Day 5 Exit State
+- Sprint 82 now has one explicit dense-kernel ABI/runtime design contract.
+- Ownership between descriptor, consumer, and caller-facing publication is
+  fixed before implementation begins.
+- Day 6 can land one bounded accelerated backend slice without reopening
+  contract drift.

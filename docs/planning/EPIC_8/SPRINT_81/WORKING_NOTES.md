@@ -811,3 +811,67 @@ Sprint 81 into generic docs churn or another implementation pass.
   header contract, with README and maintainer wording support-only.
 - Day 11 can stay bounded instead of turning into a generic support-surface
   cleanup pass.
+
+## Day 11 - Docs / Examples / Header Alignment Batch
+
+### Goal
+Land the bounded follow-through from Day 10 so the public repeated-run direct
+contract reads truthfully after the Day 9 workflow-convergence batch without
+spreading into a generic README, maintainer, benchmark, or example cleanup.
+
+### Actions
+- Re-read the Sprint 81 Day 11 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the Day 10 design in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day10-proof-and-benchmark-follow-through-design.md`.
+- Update the required public repeated-run header surface in
+  `include/sparse_analysis.h`.
+- Reconfirm whether support-only surfaces truly need movement:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `benchmarks/README.md`
+  - `examples/README.md`
+- Run the required code-day validation set because a public `*.h` surface
+  changed:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+### Findings
+- The bounded Day 11 follow-through batch landed only in:
+  - `include/sparse_analysis.h`
+- The required contract correction is now explicit:
+  - the `sparse_factor_numeric(...)` public header block no longer describes
+    the shared Cholesky repeated-run CSC-aware path as larger-problem-only
+  - it now says directly that the shared Cholesky repeated-run path stays on
+    the analysis-backed CSC-aware route for all problem sizes
+  - it also makes the residual split clearer:
+    - LDL^T remains analysis-backed CSC-aware with its documented
+      pivot-prepass-conditioned fallback
+    - LU remains the direct family that still delegates through the one-shot
+      routine
+- No support-only follow-through was actually needed:
+  - `README.md` already stayed broadly truthful
+  - `docs/maintainer_guide.md` already stayed broadly truthful
+  - `benchmarks/README.md` already stayed aligned with the landed proof and
+    benchmark ownership split
+  - `examples/README.md` already stayed aligned with the landed repeated-run
+    adoption split
+- The Day 10 preserved fence held:
+  - no new proof-code expansion
+  - no benchmark logic changes
+  - no generic docs/examples sweep
+  - no reopening of implementation surfaces
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+
+### Day 11 Exit State
+- Sprint 81's public repeated-run header contract now matches the landed Day 9
+  workflow behavior.
+- The docs/examples/header follow-through batch stayed bounded to one required
+  surface.
+- Day 12 can now focus on final proof alignment instead of support-surface
+  drift.

@@ -367,12 +367,12 @@ typedef struct {
  *
  * Applies the fill-reducing permutation from the analysis (if any) and
  * performs the numeric factorization for the requested family. The shared
- * Cholesky CSC path reuses the provided analysis directly on larger
- * repeated-run problems. The LDL^T CSC path also reuses the caller's
+ * Cholesky repeated-run path now stays on the analysis-backed CSC-aware
+ * route for all problem sizes. The LDL^T CSC path also reuses the caller's
  * analysis when its scalar pivot pre-pass does not introduce extra
  * symmetric swaps beyond the caller's reorder; otherwise it rebuilds the
- * symbolic analysis on the pre-permuted matrix. The remaining paths still
- * delegate through the corresponding one-shot family routines. The
+ * symbolic analysis on the pre-permuted matrix. The LU path still
+ * delegates through the corresponding one-shot family routine. The
  * symbolic structure (etree, column counts, sym_L/sym_U) computed by
  * sparse_analyze() is therefore partly consumed today and remains
  * available for further shared-path reuse work.

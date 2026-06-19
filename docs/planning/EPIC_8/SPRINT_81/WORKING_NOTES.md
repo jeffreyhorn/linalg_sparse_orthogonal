@@ -83,3 +83,105 @@ surfaces rather than another generic implementation start.
   follow-through workstreams are fixed in writing.
 - The strongest likely Sprint 81 touch surfaces are explicit before the
   validation/proof recheck begins.
+
+## Day 2 - Validation and Proof-Surface Recheck
+
+### Goal
+Reconfirm the Sprint 81 implementation-day validation contract and the live
+proof-surface split across reviewed CMake proof owners, representative
+examples, canonical benchmark/report command surfaces, and install/export proof
+owners before any product/storage modernization batch lands.
+
+### Actions
+- Re-read the Sprint 81 Day 2 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Reconfirmed the reviewed CMake parity anchor directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the strongest reviewed proof-owner binaries and representative
+  examples most likely to matter early in Sprint 81:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Rechecked the maintained canonical report command surface with:
+  - `make -n bench-canonical-report`
+- Reconfirmed the root `build/` canonical benchmark emitters consumed by that
+  report path:
+  - `build/bench_refactor_csc`
+  - `build/bench_chol_csc`
+  - `build/bench_iterative_reuse`
+  - `build/bench_eigs_reuse`
+- Reconfirmed the maintained install/package proof owners:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+### Findings
+- Sprint 81 inherits the same strongest local reviewed baseline:
+  - `make quality-review-full`
+- Reviewed CMake parity remains the main truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The Sprint 81 authority split is now fixed explicitly:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial storage/workflow or architecture batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- The reviewed CMake tree currently owns the strongest early-Sprint-81 proof
+  surfaces:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- The canonical benchmark/reporting lane remains command- and script-owned
+  rather than reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest current proof and truth-surface split is now fixed for Sprint
+  81’s first lane:
+  - reviewed CMake proof-owner binaries and representative examples remain the
+    main executable truth surfaces
+  - canonical benchmark reporting remains command/script owned
+  - install/export proof remains script owned
+- The highest-signal Sprint 81 rerun set is now fixed around the likely touched
+  storage/workflow seams:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake`.
+- Rechecked the strongest reviewed proof-owner test/example binaries most
+  likely to matter early in Sprint 81.
+- Rechecked `make -n bench-canonical-report`, the root `build/` canonical
+  emitters it consumes, and the maintained install/export proof scripts.
+
+### Day 2 Exit State
+- Sprint 81 now has one explicit implementation-day validation contract.
+- The live proof split across reviewed binaries, command-owned canonical
+  reporting, and script-owned install/export proof is fixed in writing.
+- The highest-signal rerun set is explicit before the storage/conversion
+  hotspot audit begins.

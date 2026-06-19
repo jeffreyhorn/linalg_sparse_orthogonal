@@ -487,3 +487,82 @@ slice without reopening fallback, ownership, or packaging drift.
   fixed before implementation begins.
 - Day 6 can land one bounded accelerated backend slice without reopening
   contract drift.
+
+## Day 6 - Optional Dense-Backend Integration Batch
+
+### Goal
+Land one bounded optional accelerated dense-backend slice on the Cholesky CSC
+supernodal lane while preserving the builtin backend as the default product
+path and keeping proof local to the family-level Cholesky surface.
+
+### Actions
+- Re-read the Sprint 82 Day 6 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the Day 5 dense-kernel ABI/runtime-selection contract and Day 4
+  first-backend boundary.
+- Re-read the current dense-kernel owner in `src/sparse_dense.c`, especially:
+  - builtin `chol_dense_kernels_t` publication
+  - test-only override precedence
+  - diagonal factor / lower solve / panel solve callbacks
+- Re-read the current Cholesky CSC supernodal consumer in
+  `src/sparse_chol_csc_supernodal.c`, especially:
+  - descriptor lookup
+  - `SPARSE_ERR_BACKEND_CONTRACT` boundaries
+  - panel and diagonal-factor consumption points
+- Re-read family-local proof in `tests/test_chol_csc.c`, especially the
+  default backend contract and missing-callback tests.
+- Verified the host runtime surface for a bounded optional backend on Darwin by
+  probing for Accelerate dense-kernel symbols before landing the runtime
+  selector design.
+- Landed the bounded backend batch in:
+  - `src/sparse_dense.c`
+  - `tests/test_chol_csc.c`
+- Re-ran the required validation gates because `*.c` changed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- Sprint 82 Day 6 landed one bounded optional dense-backend slice across:
+  - `src/sparse_dense.c`
+  - `tests/test_chol_csc.c`
+- The main backend result is now explicit:
+  - the shipped builtin dense backend remains the default path
+  - the Cholesky dense-kernel owner now recognizes one bounded runtime
+    selection knob:
+    - `SPARSE_CHOL_DENSE_BACKEND=accelerate`
+  - on Darwin only, that selector can activate an optional Accelerate-backed
+    dense-kernel descriptor for the Cholesky CSC supernodal lane
+  - if that optional runtime path is unavailable or not requested, the builtin
+    descriptor still publishes the stable default behavior
+- The preserved first-batch fence held:
+  - no mandatory external dependency was added to the default build
+  - no LDL^T, QR, or SVD backend widening occurred
+  - no package/platform claim widened beyond the bounded Darwin runtime seam
+  - no benchmark or docs spill was needed
+- The family-local proof stayed bounded and explicit in `tests/test_chol_csc.c`:
+  - builtin env-selection contract
+  - accelerate env-selection contract
+  - callback completeness under the selected descriptor
+  - small dense correctness checks for the accelerated factor / lower-solve /
+    panel-solve callbacks when the Darwin runtime backend is actually active
+
+### Validation
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 438.98 sec`
+
+### Day 6 Exit State
+- Sprint 82 now has one real optional accelerated dense-kernel slice on the
+  Cholesky CSC supernodal lane.
+- The builtin backend remains the default shipped path, while optional runtime
+  selection is now proof-backed and bounded.
+- The next rerank can now judge whether the strongest remaining seam is LDL^T
+  parity, benchmark measurability, or support-surface follow-through.

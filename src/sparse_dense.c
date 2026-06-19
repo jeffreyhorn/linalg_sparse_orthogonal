@@ -2,10 +2,15 @@
 #include "sparse_alloc_internal.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_matrix_internal.h"
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __APPLE__
+#include <dlfcn.h>
+#endif
 
 dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
     size_t rows_size = 0;
@@ -255,6 +260,179 @@ sparse_err_t chol_dense_solve_panel(const double *L, idx_t n, idx_t lda, double 
     return SPARSE_OK;
 }
 
+static int s64_idx_to_blas_int_checked(idx_t value, int *out) {
+    if (!out)
+        return 1;
+    if (value < 0 || value > (idx_t)INT_MAX)
+        return 1;
+    *out = (int)value;
+    return 0;
+}
+
+#ifdef __APPLE__
+typedef void (*s64_accel_dpotrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
+                                    int *info);
+typedef void (*s64_accel_dtrsv_fn)(const char *uplo, const char *trans, const char *diag,
+                                   const int *n, const double *a, const int *lda, double *x,
+                                   const int *incx);
+typedef void (*s64_accel_dtrsm_fn)(const char *side, const char *uplo, const char *transa,
+                                   const char *diag, const int *m, const int *n,
+                                   const double *alpha, const double *a, const int *lda, double *b,
+                                   const int *ldb);
+
+static void *s64_accel_handle = NULL;
+static s64_accel_dpotrf_fn s64_accel_dpotrf = NULL;
+static s64_accel_dtrsv_fn s64_accel_dtrsv = NULL;
+static s64_accel_dtrsm_fn s64_accel_dtrsm = NULL;
+static int s64_accel_probe_state = 0;
+
+static int s64_accel_probe_dense_kernels(void) {
+    if (s64_accel_probe_state != 0)
+        return s64_accel_probe_state == 1;
+
+    s64_accel_probe_state = -1;
+    s64_accel_handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
+                              RTLD_LAZY | RTLD_LOCAL);
+    if (!s64_accel_handle)
+        return 0;
+
+    s64_accel_dpotrf = (s64_accel_dpotrf_fn)dlsym(s64_accel_handle, "dpotrf_");
+    s64_accel_dtrsv = (s64_accel_dtrsv_fn)dlsym(s64_accel_handle, "dtrsv_");
+    s64_accel_dtrsm = (s64_accel_dtrsm_fn)dlsym(s64_accel_handle, "dtrsm_");
+    if (!s64_accel_dpotrf || !s64_accel_dtrsv || !s64_accel_dtrsm) {
+        dlclose(s64_accel_handle);
+        s64_accel_handle = NULL;
+        s64_accel_dpotrf = NULL;
+        s64_accel_dtrsv = NULL;
+        s64_accel_dtrsm = NULL;
+        return 0;
+    }
+
+    s64_accel_probe_state = 1;
+    return 1;
+}
+
+static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
+    if (!A)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (n == 0)
+        return SPARSE_OK;
+    if (!s64_accel_probe_dense_kernels())
+        return SPARSE_ERR_BACKEND_CONTRACT;
+
+    int n_blas = 0;
+    int lda_blas = 0;
+    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
+        return SPARSE_ERR_ALLOC;
+
+    double ref_norm = 0.0;
+    for (idx_t j = 0; j < n; j++) {
+        double d = fabs(A[j + j * lda]);
+        if (d > ref_norm)
+            ref_norm = d;
+    }
+    double sing_tol = sparse_rel_tol(ref_norm, tol > 0.0 ? tol : SPARSE_DROP_TOL);
+    double diag_tol = sqrt(sing_tol);
+
+    const char uplo = 'L';
+    int info = 0;
+    s64_accel_dpotrf(&uplo, &n_blas, A, &lda_blas, &info);
+    if (info != 0)
+        return SPARSE_ERR_NOT_SPD;
+
+    for (idx_t j = 0; j < n; j++) {
+        if (A[j + j * lda] < diag_tol)
+            return SPARSE_ERR_NOT_SPD;
+    }
+    return SPARSE_OK;
+}
+
+static sparse_err_t s64_accelerate_chol_dense_solve_lower(const double *L, idx_t n, idx_t lda,
+                                                          double *b) {
+    if (!L || !b)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (n == 0)
+        return SPARSE_OK;
+    if (!s64_accel_probe_dense_kernels())
+        return SPARSE_ERR_BACKEND_CONTRACT;
+
+    int n_blas = 0;
+    int lda_blas = 0;
+    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t i = 0; i < n; i++) {
+        if (L[i + i * lda] == 0.0)
+            return SPARSE_ERR_SINGULAR;
+    }
+
+    const char uplo = 'L';
+    const char trans = 'N';
+    const char diag = 'N';
+    const int incx = 1;
+    s64_accel_dtrsv(&uplo, &trans, &diag, &n_blas, L, &lda_blas, b, &incx);
+    return SPARSE_OK;
+}
+
+static sparse_err_t s64_accelerate_chol_dense_solve_panel(const double *L, idx_t n, idx_t lda,
+                                                          double *panel, idx_t ldb,
+                                                          idx_t panel_rows) {
+    if (!L)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n || panel_rows < 0)
+        return SPARSE_ERR_BADARG;
+    if (n == 0 || panel_rows == 0)
+        return SPARSE_OK;
+    if (!panel)
+        return SPARSE_ERR_NULL;
+    if (ldb < panel_rows)
+        return SPARSE_ERR_BADARG;
+    if (!s64_accel_probe_dense_kernels())
+        return SPARSE_ERR_BACKEND_CONTRACT;
+
+    int n_blas = 0;
+    int lda_blas = 0;
+    int panel_rows_blas = 0;
+    int ldb_blas = 0;
+    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas) ||
+        s64_idx_to_blas_int_checked(panel_rows, &panel_rows_blas) ||
+        s64_idx_to_blas_int_checked(ldb, &ldb_blas))
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t i = 0; i < n; i++) {
+        if (L[i + i * lda] == 0.0)
+            return SPARSE_ERR_SINGULAR;
+    }
+
+    const char side = 'R';
+    const char uplo = 'L';
+    const char transa = 'T';
+    const char diag = 'N';
+    const double alpha = 1.0;
+    s64_accel_dtrsm(&side, &uplo, &transa, &diag, &panel_rows_blas, &n_blas, &alpha, L, &lda_blas,
+                    panel, &ldb_blas);
+    return SPARSE_OK;
+}
+#endif
+
+typedef enum {
+    S64_CHOL_DENSE_BACKEND_BUILTIN = 0,
+    S64_CHOL_DENSE_BACKEND_ACCELERATE = 1,
+} s64_chol_dense_backend_t;
+
+static s64_chol_dense_backend_t s64_read_chol_dense_backend_env(void) {
+    const char *value = getenv("SPARSE_CHOL_DENSE_BACKEND");
+    if (!value || value[0] == '\0')
+        return S64_CHOL_DENSE_BACKEND_BUILTIN;
+    if (strcmp(value, "accelerate") == 0)
+        return S64_CHOL_DENSE_BACKEND_ACCELERATE;
+    return S64_CHOL_DENSE_BACKEND_BUILTIN;
+}
+
 static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
     .name = "builtin",
     .factor = chol_dense_factor,
@@ -262,12 +440,26 @@ static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
     .solve_panel = chol_dense_solve_panel,
 };
 
+#ifdef __APPLE__
+static const chol_dense_kernels_t s64_accelerate_chol_dense_kernels = {
+    .name = "accelerate",
+    .factor = s64_accelerate_chol_dense_factor,
+    .solve_lower = s64_accelerate_chol_dense_solve_lower,
+    .solve_panel = s64_accelerate_chol_dense_solve_panel,
+};
+#endif
+
 static const chol_dense_kernels_t *s64_test_override_dense_kernels = NULL;
 static int s64_test_override_dense_kernels_enabled = 0;
 
 const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void) {
     if (s64_test_override_dense_kernels_enabled)
         return s64_test_override_dense_kernels;
+#ifdef __APPLE__
+    if (s64_read_chol_dense_backend_env() == S64_CHOL_DENSE_BACKEND_ACCELERATE &&
+        s64_accel_probe_dense_kernels())
+        return &s64_accelerate_chol_dense_kernels;
+#endif
     return &s64_builtin_chol_dense_kernels;
 }
 

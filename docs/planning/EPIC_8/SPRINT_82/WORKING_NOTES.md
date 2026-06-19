@@ -932,3 +932,96 @@ README churn.
 - No extra proof, benchmark, header, or README churn was actually required.
 - Sprint 82 can move to final proof alignment from a cleaner post-Day-9
   support-surface state.
+
+## Day 12 - Final Proof Alignment and Validation Queue
+
+### Goal
+Fix the final Sprint 82 proof-owner map and the exact Day 13 rerun set so the
+validation sweep runs from one stable measured queue rather than from partial
+implementation memory.
+
+### Actions
+- Re-read the landed implementation, proof, benchmark, and support surfaces:
+  - Day 6 backend landing
+  - Day 9 backend-adoption landing
+  - Day 11 maintainer-policy follow-through
+- Rechecked the reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Reconfirmed whether any extra support-only edits were truly needed in:
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `benchmarks/README.md`
+  - `benchmarks/bench_refactor_csc.c`
+  - install/export proof scripts
+
+### Findings
+- No new proof-code or support-surface edit is required before the full sweep.
+- The final Sprint 82 proof-owner map is now explicit:
+  - reviewed CMake executable regression truth:
+    - `test_chol_csc`
+    - `test_ldlt`
+    - `test_qr`
+    - `test_svd`
+    - `test_integration`
+  - family-local backend/runtime proof owners:
+    - `tests/test_chol_csc.c` for the bounded Cholesky optional dense-backend
+      lane
+    - `tests/test_ldlt.c` for the bounded LDL^T optional dense-factor lane
+  - representative example surfaces:
+    - `example_analysis`
+    - `example_basic_solve`
+  - benchmark-side retained measurability/proof surfaces:
+    - `bench_chol_csc`
+    - `bench_refactor_csc`
+  - canonical report and reporting contract owner:
+    - `make bench-canonical-report`
+    - `scripts/bench_canonical_report.sh`
+  - install/export proof:
+    - explicit no-op for Sprint 82 because package/runtime mechanics did not
+      move
+- The support and proof surfaces already reconcile cleanly:
+  - `docs/maintainer_guide.md` now reflects the widened bounded direct-family
+    backend-aware reading after Day 11
+  - `README.md` already stays broadly truthful
+  - `include/sparse_ldlt.h` already stays truthful because Day 9 widened an
+    internal dense-factor seam, not the public LDL^T backend enum or callback
+    contract
+  - `benchmarks/README.md` and `benchmarks/bench_refactor_csc.c` already stay
+    correctly bounded as benchmark-side measurability owners rather than
+    runtime-selector policy owners
+- The authoritative Day 13 queue is now fixed explicitly around:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+- Install/export proof is explicitly out of scope for the Day 13 rerun set:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - Sprint 82 did not move package, install, export, or runtime-package
+    mechanics
+
+### Validation
+- Re-read the landed code, proof, benchmark, and support surfaces against the
+  Day 12 plan.
+- Rechecked the reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Fixed the final proof-owner map and Day 13 queue in writing before the full
+  sweep.
+
+### Day 12 Exit State
+- No validation ambiguity remains before the full sweep.
+- Proof ownership is explicit across tests, benchmarks, examples, and the
+  canonical reporting surface.
+- Day 13 can execute from one stable queue without dragging in irrelevant
+  install/export proof.

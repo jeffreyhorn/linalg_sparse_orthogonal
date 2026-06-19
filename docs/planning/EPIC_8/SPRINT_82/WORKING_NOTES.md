@@ -639,3 +639,78 @@ instead of drifting into benchmark or docs follow-through.
   landing.
 - Day 8 can now design one bounded LDL^T backend/runtime follow-through batch.
 - Support drift is separated from the real remaining backend work.
+
+## Day 8 - Solver Adoption Follow-Through Design
+
+### Goal
+Fix the exact LDL^T backend/runtime follow-through contract so Day 9 can widen
+the first optional accelerated dense-backend seam beyond the Cholesky lane
+without reopening broad backend-framework churn.
+
+### Actions
+- Re-read the Sprint 82 Day 8 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the Day 7 rerank and the Day 6 backend landing record.
+- Re-read the current LDL^T solver-side adoption surfaces:
+  - `src/sparse_ldlt.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+  - `include/sparse_ldlt.h`
+- Re-read the dense/helper boundaries that constrain the next landing:
+  - `src/sparse_dense.c`
+  - `src/sparse_chol_csc.c` (`ldlt_dense_factor(...)`)
+- Re-read the strongest support-only proof and measurement surfaces:
+  - `tests/test_ldlt.c`
+  - `benchmarks/bench_refactor_csc.c`
+- Re-read the strongest support-only wording surfaces:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 82 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `src/sparse_ldlt.c`
+    - `src/sparse_ldlt_csc_supernodal.c`
+  - strongest support-only code if the implementation truly forces it:
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_dense.c`
+  - strongest support-only proof and measurement follow-through:
+    - `tests/test_ldlt.c`
+    - `benchmarks/bench_refactor_csc.c`
+  - support-only wording only if the batch truly changes the public reading:
+    - `include/sparse_ldlt.h`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The exact next seam is now explicit:
+  - `src/sparse_ldlt.c` owns the public/backend-dispatch side of the LDL^T CSC
+    lane
+  - `src/sparse_ldlt_csc_supernodal.c` owns the supernodal dense-kernel
+    consumption side
+  - the current supernodal LDL^T dense diagonal factor still routes through
+    `ldlt_dense_factor(...)` in `src/sparse_chol_csc.c`, so that file is
+    support-only if Day 9 needs to align the widened backend/runtime seam
+- The useful Day 8 clarification is now fixed:
+  - Day 9 should widen backend/runtime parity through the LDL^T CSC lane, not
+    reopen the Cholesky lane
+  - the batch should preserve the builtin default path and the existing
+    scalar-prepass / supernodal fallback story
+  - benchmark and docs surfaces should move only if the solver-side contract
+    actually changes how the LDL^T lane reads from the outside
+- The preserved Day 9 fence is explicit too:
+  - no QR or SVD widening
+  - no package/platform convergence reopening
+  - no shared-library maturity or fake platform-parity claim
+  - no benchmark threshold/gate conversion
+  - no generic whole-library backend framework rewrite
+
+### Validation
+- Re-read the Day 7 rerank against the live LDL^T dispatch, supernodal, dense,
+  proof, and wording surfaces.
+- Fixed the exact required vs support-only Day 9 touch set in writing before
+  more implementation begins.
+
+### Day 8 Exit State
+- Sprint 82 now has one exact LDL^T backend/runtime follow-through contract.
+- Day 9 can land one bounded solver-side batch without reopening the broader
+  backend design.
+- Support-only proof, benchmark, and wording surfaces are explicitly separated
+  from the required implementation center.

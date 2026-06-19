@@ -790,3 +790,79 @@ backend-framework churn or widening the public contract unnecessarily.
 - The builtin backend remains the default shipped path.
 - Optional runtime selection is now bounded, proof-backed, and fallback-safe
   across both high-value direct-family lanes.
+
+## Day 10 - Benchmark, Differential, and Runtime Alignment Design
+
+### Goal
+Fix the exact proof, benchmark, and runtime-alignment follow-through required
+after the Day 6 and Day 9 backend landings, without widening Sprint 82 into a
+generic docs cleanup pass or another implementation batch.
+
+### Actions
+- Re-read the Day 6 and Day 9 landings plus their retained proof-owner
+  surfaces.
+- Re-read the Day 10 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the strongest likely follow-through surfaces:
+  - `tests/test_ldlt.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `include/sparse_ldlt.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Re-checked whether Day 9 widened:
+  - executable regression proof ownership
+  - benchmark-side reporting/measurability ownership
+  - public runtime/package wording
+
+### Findings
+- Sprint 82 now has one exact Day 11 follow-through contract:
+  - required surface:
+    - `docs/maintainer_guide.md`
+  - strongest support-only wording if the batch truly needs it:
+    - `README.md`
+    - `include/sparse_ldlt.h`
+  - lower-value support-only surfaces that do not currently need movement:
+    - `benchmarks/README.md`
+    - `benchmarks/bench_refactor_csc.c`
+    - `tests/test_ldlt.c`
+- The strongest current contradiction is narrow and explicit:
+  - `docs/maintainer_guide.md` still describes the backend-aware performance
+    surface as if the first backend-aware lane is local only to CSC
+    supernodal Cholesky
+  - it still lists broader LDL^T backend-aware follow-through as deferred
+  - that is now stale after Day 9, because LDL^T also owns a bounded optional
+    dense-factor runtime seam on the CSC supernodal lane
+- The proof and benchmark sides are already in the right owners:
+  - `tests/test_ldlt.c` already owns builtin env-selection proof, accelerate
+    env-selection proof, and solver-visible forced-CSC correctness
+  - `benchmarks/bench_refactor_csc.c` already stays correctly bounded as the
+    repeated-run throughput/proof owner rather than a runtime-selector policy
+    owner
+  - no additional proof-code expansion is required
+  - no benchmark binary or benchmark-output change is required
+- The support-only wording lane is narrower than a generic cleanup pass:
+  - `README.md` already stays broadly truthful
+  - `include/sparse_ldlt.h` already stays truthful because Day 9 widened an
+    internal dense-factor seam, not the public backend enum or callback
+    contract
+  - `benchmarks/README.md` does not need edits because benchmark reporting did
+    not widen
+- The preserved Day 11 fence is explicit:
+  - no more proof-code expansion
+  - no benchmark CSV or reporting churn
+  - no README/tutorial/examples sweep
+  - no package/platform or shared-library claim widening
+  - no reopening of QR or SVD backend work
+
+### Validation
+- Re-read the Day 6 and Day 9 landed code and proof against the strongest
+  likely follow-through surfaces.
+- Fixed the exact Day 11 touch set and non-touch set in writing before more
+  edits begin.
+
+### Day 10 Exit State
+- Sprint 82 now knows the exact Day 11 touch set.
+- The strongest required follow-through is narrowed to the authoritative
+  maintainer-policy reading of the widened backend surface.
+- Day 11 can stay bounded instead of turning into a generic support-surface
+  cleanup pass.

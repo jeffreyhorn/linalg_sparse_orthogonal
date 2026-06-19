@@ -5,6 +5,20 @@ order is deliberate: it starts with architecture and proof surfaces that change
 the ceiling, then moves to capability breadth, maintainability, platform, and
 final integration.
 
+Sprint 80 Days 2-8 tightened how this sequence should be read:
+
+- the strongest reviewed baseline remains `make quality-review-full`
+- the first maintained external correctness lane is bounded to a CHOLMOD-class
+  SPD direct-solver comparison
+- BLAS/LAPACK-class references are performance-reference support, not a broad
+  maintained correctness contract
+- canonical benchmark reporting remains threshold-free
+- the epic is explicitly fenced against fake platform parity, shared-library
+  maturity, broad capability-genericity, or “rewrite the whole library”
+  interpretations
+
+The sequence below now reads against that contract.
+
 ## Stage 1: Freeze the competitive target and measurement model
 
 ### 1. Reconfirm the strongest local baseline
@@ -31,8 +45,8 @@ of a vague aspiration.
 ### 3. Add an external reference-oracle contract
 
 - decide which external stacks to compare against where feasible:
-  - CHOLMOD / SuiteSparse-family direct solvers
-  - LAPACK / BLAS for dense subproblems
+  - CHOLMOD-class / SuiteSparse-family SPD direct-solver references first
+  - LAPACK / BLAS for dense subproblems as performance-reference support
   - optional additional references where practical
 - define which comparisons are:
   - correctness-only
@@ -112,7 +126,8 @@ ceiling on realistic workloads.
 ### 11. Refresh benchmark measurability
 
 - expose backend selection and major kernel path in benchmark output
-- add before/after comparison guidance without creating fake portable timing
+- add before/after comparison guidance without changing the threshold-free
+  reading of the canonical report surface or creating fake portable timing
   gates
 
 **Done when:** backend-aware performance changes become reviewable artifacts.
@@ -188,6 +203,8 @@ core direct solves.
 
 - separate “great local proof” from “reviewed platform proof”
 - expand only where evidence and runtime cost support it
+- keep Linux as the strongest reviewed truth unless later evidence truly
+  broadens that contract
 
 **Done when:** Windows/macOS proof growth is bounded and truthful.
 
@@ -250,6 +267,8 @@ planning artifacts.
 - decide whether the library will stay static-first permanently or support a
   maintained shared-library lane
 - define the ABI promise level explicitly
+- do not assume a shared lane will be added unless proof and packaging support
+  it credibly
 
 **Done when:** `BUILD_SHARED_LIBS` no longer reads like a rejected request
 unless that is still the deliberate long-term decision.
@@ -258,6 +277,8 @@ unless that is still the deliberate long-term decision.
 
 - broaden `find_package(Sparse)` and `pkg-config` consumer coverage
 - validate the installed surface on all maintained platforms where feasible
+- keep reviewed-platform claims narrower than local convenience proof where the
+  workflows remain intentionally asymmetric
 
 **Done when:** downstream consumption is a stronger, more portable story.
 
@@ -309,8 +330,9 @@ unless that is still the deliberate long-term decision.
 ### 33. Benchmark against the chosen reference class
 
 - compare correctness, usability, package shape, and performance against the
-  target competitors chosen in Stage 1
+  bounded target competitors chosen in Stage 1
 - state clearly where the library now matches, exceeds, or still trails
+- do not widen this into “compare against everything” theater
 
 **Done when:** the “state-of-the-art” claim is calibrated by evidence.
 

@@ -914,6 +914,38 @@ static void test_transpose_west0067(void) {
     sparse_free(A);
 }
 
+static void test_load_mm_duplicate_last_write_wins(void) {
+    const char *path = tf_tmp("sparse_matrix_duplicate_last_write_wins.mtx");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    if (!fp)
+        return;
+
+    fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
+    fprintf(fp, "3 3 5\n");
+    fprintf(fp, "1 1 1.0\n");
+    fprintf(fp, "1 1 5.0\n");
+    fprintf(fp, "2 3 2.0\n");
+    fprintf(fp, "2 3 0.0\n");
+    fprintf(fp, "3 2 -4.0\n");
+    ASSERT_TRUE(fclose(fp) == 0);
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_OK);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    ASSERT_EQ(sparse_rows(A), 3);
+    ASSERT_EQ(sparse_cols(A), 3);
+    ASSERT_EQ(sparse_nnz(A), 2);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 5.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 2), 0.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 1), -4.0, 0.0);
+
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 29 Day 10 (Item 7): pin the documented silent-zero contract
  * for the accessor API surface.  See
@@ -1066,6 +1098,7 @@ int main(void) {
     RUN_TEST(test_transpose_null);
     RUN_TEST(test_transpose_nos4);
     RUN_TEST(test_transpose_west0067);
+    RUN_TEST(test_load_mm_duplicate_last_write_wins);
 
     TEST_SUITE_END();
 }

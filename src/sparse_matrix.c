@@ -76,6 +76,120 @@ static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
     return n;
 }
 
+typedef struct {
+    idx_t row;
+    idx_t col;
+    double value;
+    idx_t order;
+} SparseBuildEntry;
+
+static int sparse_build_entry_cmp(const void *lhs, const void *rhs) {
+    const SparseBuildEntry *a = lhs;
+    const SparseBuildEntry *b = rhs;
+    if (a->row < b->row)
+        return -1;
+    if (a->row > b->row)
+        return 1;
+    if (a->col < b->col)
+        return -1;
+    if (a->col > b->col)
+        return 1;
+    if (a->order < b->order)
+        return -1;
+    if (a->order > b->order)
+        return 1;
+    return 0;
+}
+
+static sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols,
+                                                     SparseBuildEntry *entries, idx_t nentries,
+                                                     int entries_sorted, SparseMatrix **mat_out) {
+    Node **row_tails = NULL;
+    Node **col_tails = NULL;
+    SparseMatrix *mat = NULL;
+    sparse_err_t err = SPARSE_OK;
+
+    if (!mat_out)
+        return SPARSE_ERR_NULL;
+    *mat_out = NULL;
+    if (nentries < 0)
+        return SPARSE_ERR_ALLOC;
+    if (!entries && nentries > 0)
+        return SPARSE_ERR_NULL;
+
+    mat = sparse_create(rows, cols);
+    if (!mat)
+        return SPARSE_ERR_ALLOC;
+    if (nentries == 0) {
+        *mat_out = mat;
+        return SPARSE_OK;
+    }
+
+    if (!entries_sorted) {
+        size_t qsort_count = 0;
+        if (sparse_idx_to_size_checked(nentries, &qsort_count)) {
+            sparse_free(mat);
+            return SPARSE_ERR_ALLOC;
+        }
+        qsort(entries, qsort_count, sizeof(*entries), sparse_build_entry_cmp);
+    }
+
+    if (sparse_calloc_idx_array(rows, sizeof(Node *), (void **)&row_tails) != SPARSE_OK ||
+        sparse_calloc_idx_array(cols, sizeof(Node *), (void **)&col_tails) != SPARSE_OK) {
+        err = SPARSE_ERR_ALLOC;
+        goto fail;
+    }
+
+    for (idx_t pos = 0; pos < nentries;) {
+        idx_t row = entries[pos].row;
+        idx_t col = entries[pos].col;
+        double value = entries[pos].value;
+        idx_t next = pos + 1;
+
+        while (next < nentries && entries[next].row == row && entries[next].col == col) {
+            value = entries[next].value;
+            next++;
+        }
+
+        if (row < 0 || row >= rows || col < 0 || col >= cols) {
+            err = SPARSE_ERR_BOUNDS;
+            goto fail;
+        }
+        if (value != 0.0) {
+            Node *node = make_node(mat, row, col, value);
+            if (!node) {
+                err = SPARSE_ERR_ALLOC;
+                goto fail;
+            }
+            if (row_tails[row])
+                row_tails[row]->right = node;
+            else
+                mat->row_headers[row] = node;
+            row_tails[row] = node;
+
+            if (col_tails[col])
+                col_tails[col]->down = node;
+            else
+                mat->col_headers[col] = node;
+            col_tails[col] = node;
+            mat->nnz++;
+        }
+
+        pos = next;
+    }
+
+    free(row_tails);
+    free(col_tails);
+    *mat_out = mat;
+    return SPARSE_OK;
+
+fail:
+    free(row_tails);
+    free(col_tails);
+    sparse_free(mat);
+    return err;
+}
+
 static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat) {
     if (!mat)
         return 0;
@@ -212,14 +326,37 @@ void sparse_free(SparseMatrix *mat) {
 }
 
 SparseMatrix *sparse_copy(const SparseMatrix *mat) {
+    SparseBuildEntry *entries = NULL;
     size_t row_perm_bytes = 0;
     size_t col_perm_bytes = 0;
     if (!mat)
         return NULL;
 
-    SparseMatrix *copy = sparse_create(mat->rows, mat->cols);
-    if (!copy)
+    SparseMatrix *copy = NULL;
+    if (sparse_malloc_idx_array(mat->nnz, sizeof(*entries), (void **)&entries) != SPARSE_OK)
         return NULL;
+
+    idx_t entry_idx = 0;
+    for (idx_t i = 0; i < mat->rows; i++) {
+        Node *src = mat->row_headers[i];
+        while (src) {
+            entries[entry_idx] = (SparseBuildEntry){
+                .row = src->row,
+                .col = src->col,
+                .value = src->value,
+                .order = entry_idx,
+            };
+            entry_idx++;
+            src = src->right;
+        }
+    }
+
+    if (sparse_matrix_build_from_entries(mat->rows, mat->cols, entries, entry_idx,
+                                         /*entries_sorted=*/1, &copy) != SPARSE_OK) {
+        free(entries);
+        return NULL;
+    }
+    free(entries);
 
     /* Copy permutation arrays */
     if (sparse_idx_count_bytes_overflow(mat->rows, sizeof(idx_t), &row_perm_bytes) ||
@@ -231,18 +368,6 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
     memcpy(copy->inv_row_perm, mat->inv_row_perm, row_perm_bytes);
     memcpy(copy->col_perm, mat->col_perm, col_perm_bytes);
     memcpy(copy->inv_col_perm, mat->inv_col_perm, col_perm_bytes);
-
-    /* Copy all nodes by walking each row */
-    for (idx_t i = 0; i < mat->rows; i++) {
-        Node *src = mat->row_headers[i];
-        while (src) {
-            if (sparse_insert(copy, src->row, src->col, src->value) != SPARSE_OK) {
-                sparse_free(copy);
-                return NULL;
-            }
-            src = src->right;
-        }
-    }
 
     /* Preserve cached norm, factor norm, and factored flag from source */
     copy->cached_norm = mat->cached_norm;
@@ -267,25 +392,35 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
 }
 
 SparseMatrix *sparse_transpose(const SparseMatrix *A) {
+    SparseBuildEntry *entries = NULL;
     if (!A)
         return NULL;
 
-    SparseMatrix *T = sparse_create(A->cols, A->rows);
-    if (!T)
+    if (sparse_malloc_idx_array(A->nnz, sizeof(*entries), (void **)&entries) != SPARSE_OK)
         return NULL;
 
-    /* For each nonzero A(i,j) = v, insert T(j,i) = v */
+    idx_t entry_idx = 0;
     for (idx_t i = 0; i < A->rows; i++) {
         Node *nd = A->row_headers[i];
         while (nd) {
-            if (sparse_insert(T, nd->col, nd->row, nd->value) != SPARSE_OK) {
-                sparse_free(T);
-                return NULL;
-            }
+            entries[entry_idx] = (SparseBuildEntry){
+                .row = nd->col,
+                .col = nd->row,
+                .value = nd->value,
+                .order = entry_idx,
+            };
+            entry_idx++;
             nd = nd->right;
         }
     }
 
+    SparseMatrix *T = NULL;
+    if (sparse_matrix_build_from_entries(A->cols, A->rows, entries, entry_idx,
+                                         /*entries_sorted=*/0, &T) != SPARSE_OK) {
+        free(entries);
+        return NULL;
+    }
+    free(entries);
     return T;
 }
 
@@ -942,6 +1077,7 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {
 }
 
 sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
+    SparseBuildEntry *entries = NULL;
     if (!mat_out || !filename)
         return SPARSE_ERR_NULL;
     *mat_out = NULL;
@@ -985,12 +1121,19 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
         return SPARSE_ERR_PARSE;
     }
 
-    SparseMatrix *mat = sparse_create(m, n);
-    if (!mat) {
+    size_t nnz_file_count = 0;
+    size_t triplet_capacity = 0;
+    if (sparse_idx_to_size_checked(nnz_file, &nnz_file_count) ||
+        sparse_size_mul_overflow(nnz_file_count, is_symmetric ? 2U : 1U, &triplet_capacity)) {
+        fclose(fp);
+        return SPARSE_ERR_ALLOC;
+    }
+    if (sparse_malloc_array(triplet_capacity, sizeof(*entries), (void **)&entries) != SPARSE_OK) {
         fclose(fp);
         return SPARSE_ERR_ALLOC;
     }
 
+    size_t entry_count = 0;
     for (idx_t k = 0; k < nnz_file; k++) {
         idx_t i, j;
         double v = 1.0; /* default for pattern matrices */
@@ -998,7 +1141,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
             if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &i, &j) != 2) {
                 sparse_err_t ioerr =
                     ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
-                sparse_free(mat);
+                free(entries);
                 fclose(fp);
                 return ioerr;
             }
@@ -1006,7 +1149,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
             if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX " %lf", &i, &j, &v) != 3) {
                 sparse_err_t ioerr =
                     ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
-                sparse_free(mat);
+                free(entries);
                 fclose(fp);
                 return ioerr;
             }
@@ -1014,29 +1157,56 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
         i--; /* 1-based -> 0-based */
         j--;
         if (i >= 0 && i < m && j >= 0 && j < n) {
-            sparse_err_t err = sparse_insert(mat, i, j, v);
-            if (err != SPARSE_OK) {
-                sparse_free(mat);
+            idx_t order = 0;
+            if (entry_count >= triplet_capacity ||
+                sparse_size_to_idx_checked(entry_count, &order)) {
+                free(entries);
                 fclose(fp);
-                return err;
+                return SPARSE_ERR_ALLOC;
             }
+            entries[entry_count++] = (SparseBuildEntry){
+                .row = i,
+                .col = j,
+                .value = v,
+                .order = order,
+            };
             /* For symmetric matrices, also insert the mirror entry */
             if (is_symmetric && i != j && j < m && i < n) {
-                err = sparse_insert(mat, j, i, v);
-                if (err != SPARSE_OK) {
-                    sparse_free(mat);
+                if (entry_count >= triplet_capacity ||
+                    sparse_size_to_idx_checked(entry_count, &order)) {
+                    free(entries);
                     fclose(fp);
-                    return err;
+                    return SPARSE_ERR_ALLOC;
                 }
+                entries[entry_count++] = (SparseBuildEntry){
+                    .row = j,
+                    .col = i,
+                    .value = v,
+                    .order = order,
+                };
             }
         }
     }
 
     if (fclose(fp) != 0) {
         sparse_set_errno_(errno);
-        sparse_free(mat);
+        free(entries);
         return SPARSE_ERR_IO;
     }
+
+    idx_t entry_count_idx = 0;
+    if (sparse_size_to_idx_checked(entry_count, &entry_count_idx)) {
+        free(entries);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    SparseMatrix *mat = NULL;
+    sparse_err_t build_err = sparse_matrix_build_from_entries(m, n, entries, entry_count_idx,
+                                                              /*entries_sorted=*/0, &mat);
+    free(entries);
+    if (build_err != SPARSE_OK)
+        return build_err;
+
     sparse_set_errno_(0);
     *mat_out = mat;
     return SPARSE_OK;

@@ -20,9 +20,11 @@
  * dimensions, indices, and nnz counts.
  *
  * This type remains the library's mutable sparse construction and one-shot
- * direct-workflow compatibility shell. The explicit repeated-run direct path
- * with reusable symbolic and factor/workspace state lives in
- * `sparse_analysis.h`.
+ * direct-workflow compatibility shell. Internal construction/import and
+ * publication paths may use bounded compressed-first build helpers, but the
+ * public ownership model still stays with this compatibility shell. The
+ * explicit repeated-run direct path with reusable symbolic and factor/workspace
+ * state lives in `sparse_analysis.h`.
  */
 
 #include "sparse_types.h"
@@ -506,6 +508,8 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * Supports coordinate format with real, pattern, or integer value types,
  * and general or symmetric symmetry. Symmetric matrices have their lower
  * triangle mirrored to the upper triangle. Pattern matrices use value 1.0.
+ * The imported coordinates are then bulk-built into the mutable matrix shell
+ * while preserving the existing visible API contract.
  *
  * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
  * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.

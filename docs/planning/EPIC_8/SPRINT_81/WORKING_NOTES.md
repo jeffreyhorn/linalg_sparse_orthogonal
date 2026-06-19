@@ -955,3 +955,73 @@ partial implementation or support-surface state.
 - The exact Day 13 rerun set is fixed before validation starts.
 - Day 13 can execute from one stable measured queue without reopening support
   or implementation drift.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Execute the full Sprint 81 validation queue and retain the closeout baseline
+from the exact proof-owner and benchmark surfaces fixed on Day 12.
+
+### Actions
+- Run the full code-day validation baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Run the strongest reviewed validation baseline:
+  - `make quality-review-full`
+- Re-run the authoritative focused proof-owner binaries:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+- Re-run the representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-run the touched benchmark/reporting follow-on:
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- Reconfirm the reviewed parity anchor directly:
+  - `ctest -N --test-dir build/quality-review-cmake`
+
+### Findings
+- Day 13 validation was complete and clean:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 405.45 sec`
+- The focused Sprint 81 follow-ons also all passed:
+  - `./build/quality-review-cmake/test_sparse_matrix` -> `58 / 58`
+  - `./build/quality-review-cmake/test_integration` -> `53 / 53`
+  - `./build/quality-review-cmake/test_chol_csc` -> `147 / 147`
+  - `./build/quality-review-cmake/test_ldlt` -> `84 / 84`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- Representative retained outputs stayed clean:
+  - `example_analysis` retained residual `4.44e-16`
+  - `example_basic_solve` retained residual `0.00e+00`
+  - `bench_refactor_csc nos4` retained `speedup_refactor = 1.40`
+  - `bench_refactor_csc nos4` retained residuals `8.24e-16` / `7.06e-16`
+  - `test_chol_csc` retained `bcsstk14` residual `1.080e-15`
+- The Day 12 queue fence also held:
+  - install/export proof was not rerun because Sprint 81 did not touch package,
+    install, or export mechanics
+- One non-blocking runtime note is now explicit:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `277.62 sec`
+    out of the `405.45 sec` total, but the full reviewed path completed
+    cleanly and all parity anchors stayed exact
+
+### Validation
+- The full Sprint 81 Day 12 rerun set completed cleanly.
+- The retained reviewed anchors and representative outputs are now fixed in
+  writing for closeout.
+
+### Day 13 Exit State
+- Sprint 81 now has a validated close baseline rather than a partial
+  implementation state.
+- Day 14 can close from measured evidence without reopening proof or support
+  drift.

@@ -96,3 +96,112 @@ surfaces rather than another generic backend start.
   workstreams are fixed in writing.
 - The strongest likely Sprint 82 touch surfaces are explicit before the
   validation/proof recheck begins.
+
+## Day 2 - Validation and Proof-Surface Recheck
+
+### Goal
+Reconfirm the Sprint 82 implementation-day validation contract and the live
+proof-surface split across reviewed CMake proof owners, representative
+examples, canonical benchmark/report command surfaces, and install/export proof
+owners before any dense/backend modernization batch lands.
+
+### Actions
+- Re-read the Sprint 82 Day 2 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Reconfirmed the reviewed CMake parity anchor directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the strongest reviewed proof-owner binaries and representative
+  examples most likely to matter early in Sprint 82:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Rechecked the strongest reviewed benchmark follow-on binaries most likely to
+  matter:
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_svd`
+- Rechecked the maintained canonical report command surface with:
+  - `make -n bench-canonical-report`
+- Reconfirmed the maintained install/package proof owners:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+### Findings
+- Sprint 82 inherits the same strongest local reviewed baseline:
+  - `make quality-review-full`
+- Reviewed CMake parity remains the main truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The Sprint 82 authority split is now fixed explicitly:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial backend, solver-adoption, or package/runtime batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- The reviewed CMake tree currently owns the strongest early-Sprint-82 proof
+  surfaces:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_svd`
+- The canonical benchmark/reporting lane remains command- and script-owned
+  rather than reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest current proof and truth-surface split is now fixed for Sprint
+  82's first lane:
+  - reviewed CMake proof-owner tests and representative examples remain the
+    main executable truth surfaces
+  - reviewed benchmark binaries remain benchmark-side measurability surfaces
+  - canonical benchmark reporting remains command/script owned
+  - install/export proof remains script owned
+- The highest-signal Sprint 82 rerun set is now fixed around the likely touched
+  backend/workflow seams:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_svd`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake`.
+- Rechecked the strongest reviewed proof-owner test/example binaries most
+  likely to matter early in Sprint 82.
+- Rechecked the strongest reviewed benchmark follow-on binaries.
+- Rechecked `make -n bench-canonical-report`, the root `build/` canonical
+  emitters it consumes, and the maintained install/export proof scripts.
+
+### Day 2 Exit State
+- Sprint 82 now has one explicit implementation-day validation contract.
+- The live proof split across reviewed binaries, command-owned canonical
+  reporting, and script-owned install/export proof is fixed in writing.
+- The highest-signal rerun set is explicit before the dense-hotspot audit
+  begins.

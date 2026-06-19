@@ -290,3 +290,79 @@ work can choose one bounded compressed-first seam instead of another generic
   stronger contradiction.
 - The repeated-run direct path is fixed as the strongest likely second seam,
   not the first landing center.
+
+## Day 4 - First Storage Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 81 implementation fence so the coming
+compressed-first landing moves one coherent product/storage seam rather than
+sprawling into repeated-run workflow, direct-family wrapper, or broad support
+surface churn.
+
+### Actions
+- Re-read the Sprint 81 Day 4 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the Day 3 storage/workflow contradiction map in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day3-storage-conversion-hotspot-audit.md`.
+- Rechecked the public matrix-shell owner surfaces:
+  - `include/sparse_matrix.h`
+  - `src/sparse_matrix.c`
+- Rechecked the strongest second-tier repeated-run workflow owner surface:
+  - `src/sparse_analysis.c`
+- Rechecked the strongest likely support-only proof and measurement surfaces:
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_refactor_csc.c`
+- Rechecked compact support-surface context only for possible wording follow-through:
+  - `README.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 81 now has one explicit first implementation fence instead of a
+  generic storage-modernization backlog:
+  - required first landing:
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+  - support only if the first landing truly forces it:
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+    - `benchmarks/bench_refactor_csc.c`
+    - `README.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_analysis.c`
+    - `src/sparse_cholesky.c`
+    - `src/sparse_ldlt.c`
+    - `src/sparse_qr.c`
+    - broad direct-family wrapper cleanup
+    - repeated-run workflow convergence as a first-batch center
+- The strongest Day 4 clarification is now fixed:
+  - the best first Sprint 81 move is the public matrix-shell construction,
+    import, and publication owner
+  - the repeated-run direct path remains the strongest second seam, not the
+    first implementation center
+  - tests and benchmark surfaces are proof/measurement support only unless the
+    first landing truly changes behavior on those seams
+- The preserved first-batch non-goal fence is explicit now:
+  - no broad API redesign
+  - no backend or capability reopening
+  - no generic whole-library workflow rewrite
+  - no hidden escalation into repeated-run architecture cleanup in the first
+    batch
+  - no broad support-surface churn without an implementation-forced reason
+
+### Validation
+- Re-read the first-tier and second-tier storage/workflow owner surfaces
+  directly.
+- Rechecked the strongest proof-owner and benchmark context against the Day 3
+  ranking.
+- Reconfirmed that the public matrix-shell seam remains the highest-value first
+  landing center.
+
+### Day 4 Exit State
+- Sprint 81 now has one explicit first implementation boundary.
+- The first batch is fixed to the public matrix-shell owner surfaces.
+- Day 5 can define one bounded compressed-first implementation contract without
+  reopening the storage/workflow ranking.

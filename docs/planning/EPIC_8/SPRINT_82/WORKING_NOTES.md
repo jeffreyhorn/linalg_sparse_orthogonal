@@ -1025,3 +1025,95 @@ implementation memory.
   canonical reporting surface.
 - Day 13 can execute from one stable queue without dragging in irrelevant
   install/export proof.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full Sprint 82 validation queue fixed on Day 12 and capture the
+retained closeout baseline from measured evidence rather than partial
+implementation state.
+
+### Actions
+- Ran the standard implementation-day gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Rechecked the reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused Day 12 follow-ons:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+- Preserved the Day 12 no-op on install/export proof reruns.
+
+### Findings
+- The full Sprint 82 implementation-day gate passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 611.27 sec`
+- The focused proof-owner follow-ons also all passed:
+  - `./build/quality-review-cmake/test_chol_csc` -> `149 / 149`
+  - `./build/quality-review-cmake/test_ldlt` -> `86 / 86`
+  - `./build/quality-review-cmake/test_qr` -> `72 / 72`
+  - `./build/quality-review-cmake/test_svd` -> `97 / 97`
+  - `./build/quality-review-cmake/test_integration` -> `53 / 53`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+- Representative retained outputs stayed clean:
+  - `test_chol_csc` retained `bcsstk14` residual `1.080e-15`
+  - `test_ldlt` retained:
+    - `KKT 500x500: relres=4.465e-17, nnz(L)=1298`
+    - `nos4 (n=100): nnz(L_ldlt)=805, nnz(LU)=1510, ratio=0.53`
+  - `test_qr` retained:
+    - `nos4 QR solve: rank=100`
+    - `nos4 QR solve: res_norm=0.000e+00, true_res=9.415e-15`
+  - `test_svd` retained:
+    - `outer-product vs dense: ||A_off - A_on||_F / ||A_off||_F = 0.000e+00`
+    - `full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = 9.648e-16`
+  - `example_analysis` retained solve residual `4.44e-16`
+  - `example_basic_solve` retained residual `0.00e+00`
+  - `bench_chol_csc nos4` retained:
+    - `csc_supernodal_dense_kernel = builtin`
+    - `csc_supernodal_panel_solver = batched_panel`
+    - residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+  - `bench_refactor_csc nos4` retained:
+    - `speedup_refactor = 1.39`
+    - residuals `8.24e-16` / `7.06e-16`
+  - `make bench-canonical-report` retained the canonical bundle write:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+- Install/export proof remained correctly out of scope:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - Sprint 82 did not move package, install, export, or runtime-package
+    mechanics
+- One non-blocking runtime note is explicit:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `420.51 sec`
+    out of the `611.27 sec` total
+
+### Day 13 Exit State
+- Sprint 82 now has one measured Day 13 close baseline.
+- The widened backend surface and its retained proof owners passed together.
+- Day 14 can close from validated evidence rather than from intermediate
+  implementation state.

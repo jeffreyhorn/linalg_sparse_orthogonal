@@ -1117,3 +1117,69 @@ implementation state.
 - The widened backend surface and its retained proof owners passed together.
 - Day 14 can close from validated evidence rather than from intermediate
   implementation state.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 82 from the validated Day 13 baseline and leave one explicit
+handoff queue for Sprint 83 and the later Epic 8 implementation sprints.
+
+### Actions
+- Re-read the Sprint 82 close state from the Day 13 validation artifact and
+  the landed Day 6, Day 9, and Day 11 batch artifacts.
+- Rechecked the Sprint 82 section of
+  `docs/planning/EPIC_8/PROJECT_PLAN.md` against the landed branch state.
+- Wrote the Day 14 closeout and handoff artifact:
+  - `docs/planning/EPIC_8/SPRINT_82/artifacts/day14-closeout-and-handoff.md`
+- Fixed the ranked carry-forward queue in writing for the next Epic 8 lanes.
+
+### Findings
+- Sprint 82 now closes as one coherent dense-backend modernization package
+  across:
+  - dense-hotspot rerank
+  - bounded dense-kernel ABI and runtime-selection contract
+  - Day 6 optional Cholesky dense-backend landing
+  - Day 9 bounded LDL^T backend/runtime follow-through
+  - Day 11 maintainer-policy reconciliation
+  - validated Day 13 close baseline
+- The preserved Sprint 82 fence stayed intact:
+  - the builtin self-contained dense backend remains the default product path
+  - optional acceleration remains one bounded Darwin-only runtime seam rather
+    than a mandatory dependency or repo-wide backend framework
+  - no QR or SVD backend widening was reopened inside Sprint 82
+  - no package, install, export, or platform-maturity claim was widened beyond
+    the untouched mechanics
+  - no benchmark-governance drift turned canonical reporting into timing-gate
+    pass/fail logic
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 82
+  correction.
+- The ranked carry-forward queue is now fixed explicitly:
+  1. bounded capability-surface widening on the highest-value solver seams
+  2. stronger external differential and property assurance on the touched
+     direct families
+  3. later QR/SVD dense-workspace and broader backend follow-through only
+     where bounded evidence justifies widening
+  4. later maintainability, runtime, package/platform, and usability work from
+     the remaining Epic 8 queue
+- Sprint 82 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 611.27 sec`
+
+### Validation
+- Re-read the Day 13 validated baseline and the landed backend/proof artifacts.
+- Rechecked the Sprint 82 project-plan section against the branch close state.
+- Confirmed that no Sprint 82 project-plan correction is needed.
+
+### Day 14 Exit State
+- Sprint 82 is closed from one validated backend-aware baseline.
+- The next Epic 8 queue is fixed explicitly with Sprint 83 capability work
+  first and later assurance, backend widening, and support work ranked behind
+  it.
+- The branch close state is documented without inflating backend, package, or
+  platform claims.

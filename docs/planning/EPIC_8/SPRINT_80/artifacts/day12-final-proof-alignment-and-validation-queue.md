@@ -3,7 +3,7 @@
 ## Purpose
 
 Fix the exact proof-owner map and authoritative Day 13 validation queue for the
- Sprint 80 baseline-and-contract package.
+Sprint 80 baseline-and-contract package.
 
 ## Live Anchor Recheck
 

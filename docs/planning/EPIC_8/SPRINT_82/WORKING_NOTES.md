@@ -325,3 +325,85 @@ backend seam instead of another generic performance bucket.
   dense-kernel descriptor/runtime lane before boundary design begins.
 - Lower-value QR/SVD and support-surface spillover work is separated from the
   first lane.
+
+## Day 4 - Backend Candidate Audit and First Boundary Freeze
+
+### Goal
+Turn the Day 3 backend contradiction map into one explicit first
+implementation fence so Day 5 can design a bounded dense-kernel contract
+instead of reopening prioritization drift.
+
+### Actions
+- Re-read the Sprint 82 Day 4 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_82/PLAN.md`.
+- Re-read the Day 3 dense-hotspot audit and the Sprint 82 project-plan item
+  split.
+- Re-checked the strongest first-tier implementation surfaces:
+  - `src/sparse_dense.c`
+  - `src/sparse_chol_csc_supernodal.c`
+  - `src/sparse_chol_csc.c`
+- Re-checked the strongest second-tier and support-only backend surfaces:
+  - `src/sparse_ldlt.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Fixed the preserved first-batch non-goal fence directly against:
+  - mandatory heavyweight dependency creep
+  - fake platform/shared-library maturity claims
+  - benchmark-threshold inflation
+  - broad solver-family rewrite drift
+
+### Findings
+- Sprint 82 now has one explicit first implementation fence instead of a
+  generic dense-backend backlog:
+  - required first landing:
+    - `src/sparse_dense.c`
+    - `src/sparse_chol_csc_supernodal.c`
+    - `src/sparse_chol_csc.c`
+  - support only if the first landing truly forces it:
+    - `src/sparse_ldlt.c`
+    - `src/sparse_ldlt_csc_supernodal.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_integration.c`
+    - `benchmarks/bench_chol_csc.c`
+    - `benchmarks/bench_refactor_csc.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_qr.c`
+    - `src/sparse_svd.c`
+    - `benchmarks/bench_svd.c`
+    - broad package/platform convergence
+    - broad state-of-the-art comparison work
+- The strongest Day 4 clarification is now fixed:
+  - the best first Sprint 82 move is the dense-kernel descriptor and Cholesky
+    CSC supernodal consumer lane
+  - LDL^T backend/runtime parity remains the strongest second seam, not the
+    first implementation center
+  - QR/SVD dense-workspace work remains real, but it is explicitly later than
+    the first backend landing
+  - proof and benchmark surfaces stay support-only unless the first landing
+    truly changes behavior there
+- The preserved first-batch non-goal fence is explicit now:
+  - no mandatory heavyweight optional-backend dependency for the default build
+  - no fake platform parity or shared-library maturity claim
+  - no benchmark timing-gate conversion
+  - no broad direct-family or whole-library backend rewrite
+
+### Validation
+- Re-read the Day 3 ranked backend contradiction map against the Sprint 82
+  project-plan scope.
+- Rechecked the strongest first-tier and support-tier backend surfaces.
+- Confirmed the first-batch non-goal fence in writing before ABI design begins.
+
+### Day 4 Exit State
+- Sprint 82 now has one explicit first backend implementation fence.
+- Required and support-only touch surfaces are fixed before Day 5 design work.
+- The first landing is bounded to the Cholesky dense-kernel descriptor and
+  supernodal consumer lane.

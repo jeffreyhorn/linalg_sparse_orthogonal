@@ -654,3 +654,89 @@ shell pass, broad solver-family rewrite, or support-surface churn.
   benchmark, and wording surfaces support-only unless forced.
 - Day 9 can land one bounded workflow-convergence batch without reopening
   matrix-shell, wrapper, or support-surface drift.
+
+## Day 9 - Workflow Convergence Batch
+
+### Goal
+Land one bounded repeated-run workflow convergence batch so the strongest
+remaining Sprint 81 seam stops treating smaller Cholesky and LDL^T repeated-run
+numeric factoring as a linked-list-first fallback path.
+
+### Actions
+- Re-read the Sprint 81 Day 9 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the Day 8 contract in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day8-workflow-convergence-design.md`.
+- Update the repeated-run factoring owner in `src/sparse_analysis.c`:
+  - keep Cholesky repeated-run numeric factoring on the
+    analysis-backed CSC-aware path for all problem sizes
+  - keep LDL^T repeated-run numeric factoring on the same bounded CSC-aware
+    path for all problem sizes
+  - preserve the symmetric-direct-family repeated-run input guard so failed
+    public refactors do not silently replace old factors
+- Extend the strongest public repeated-run proof owner in
+  `tests/test_integration.c` with focused below-threshold same-pattern
+  convergence tests for Cholesky and LDL^T.
+- Reconcile the strongest benchmark-side support wording in
+  `benchmarks/bench_refactor_csc.c` so it matches the landed shared repeated-run
+  path.
+- Run the required validation set for a substantial `*.c` implementation batch:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-run the reviewed CMake `ctest` surface directly to capture the exact
+  retained timing anchor.
+
+### Findings
+- The bounded Day 9 workflow-convergence batch landed in:
+  - `src/sparse_analysis.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_refactor_csc.c`
+- The main implementation result is now explicit:
+  - repeated-run public Cholesky factoring no longer drops through the
+    smaller-problem linked-list `build_permuted_copy(...)` fallback
+  - repeated-run public LDL^T factoring no longer drops through the same
+    smaller-problem linked-list fallback
+  - the shared repeated-run owner now keeps those lanes on the
+    analysis-backed CSC-aware path for all problem sizes
+- The important Day 9 safeguard was preserved too:
+  - symmetric direct repeated-run inputs still reject non-symmetric matrices
+    before old factors are replaced
+  - that keeps the public failure-preserves-old-factors reading intact for the
+    Cholesky / LDL^T analysis path
+- Focused public proof landed exactly where Day 8 said it should:
+  - `test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc_cholesky`
+  - `test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc_ldlt`
+  - `./build/quality-review-cmake/test_integration` retained `53 / 53`
+- The benchmark surface stayed support-only:
+  - `benchmarks/bench_refactor_csc.c` only needed wording follow-through so the
+    comment no longer describes the old linked-list-side cost structure as the
+    shared repeated-run path
+- The Day 8 preserved fence held:
+  - no LU widening
+  - no `src/sparse_matrix.c` reopening
+  - no wrapper-family cleanup in `src/sparse_cholesky.c`, `src/sparse_ldlt.c`,
+    or `src/sparse_qr.c`
+  - no support-surface churn in headers or docs
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- Reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 424.67 sec`
+- Focused public repeated-run proof also passed:
+  - `./build/quality-review-cmake/test_integration` = `53 / 53`
+
+### Day 9 Exit State
+- Sprint 81 has now closed its strongest remaining repeated-run convergence
+  contradiction.
+- The public matrix-shell and repeated-run direct lanes now read more
+  consistently as a bounded compressed-first modernization path.
+- The next rerank can now judge whether follow-through pressure shifts to proof,
+  benchmark measurability, or residual support-surface drift.

@@ -866,3 +866,69 @@ generic docs cleanup pass or another implementation batch.
   maintainer-policy reading of the widened backend surface.
 - Day 11 can stay bounded instead of turning into a generic support-surface
   cleanup pass.
+
+## Day 11 - Benchmark, Differential, and Runtime Alignment Batch
+
+### Goal
+Land the one authoritative support-surface follow-through actually required by
+the Day 9 backend widening, without forcing extra proof-code, benchmark, or
+README churn.
+
+### Actions
+- Updated the authoritative maintainer-policy surface in:
+  - `docs/maintainer_guide.md`
+- Rechecked whether that wording change forced support-only follow-through in:
+  - `README.md`
+  - `include/sparse_ldlt.h`
+  - `benchmarks/README.md`
+  - `benchmarks/bench_refactor_csc.c`
+  - `tests/test_ldlt.c`
+
+### Findings
+- The bounded Day 11 follow-through landed in:
+  - `docs/maintainer_guide.md`
+- The main result is now explicit:
+  - the maintainer-policy reading no longer treats broader LDL^T
+    backend-aware follow-through as entirely deferred
+  - it now says directly that:
+    - Cholesky CSC still owns the first optional dense-kernel runtime seam
+    - LDL^T CSC now also owns a bounded optional dense-factor runtime seam
+    - both still preserve the builtin self-contained path as the default
+      product route
+  - it now points to the correct family-local LDL^T proof owner:
+    - `tests/test_ldlt.c`
+- No broader batch was actually needed:
+  - `tests/test_ldlt.c` already owned the needed builtin/accelerate
+    env-selection and solver-visible correctness proof
+  - `benchmarks/bench_refactor_csc.c` already stayed correctly bounded as a
+    repeated-run throughput/proof surface rather than a runtime-selector
+    policy owner
+  - `README.md` already stayed broadly truthful
+  - `include/sparse_ldlt.h` already stayed truthful because Day 9 widened an
+    internal dense-factor seam, not the public LDL^T backend enum or callback
+    contract
+- The preserved Day 11 fence held:
+  - no proof-code expansion
+  - no benchmark CSV or reporting churn
+  - no README/tutorial/examples sweep
+  - no package/platform or shared-library claim widening
+  - no QR or SVD backend widening
+
+### Validation
+- This was a docs-only batch, so I did not run:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- I used the docs-only sanity pass instead:
+  - diff review against the Day 10 touch-set contract
+  - terminology/alignment reread across the Day 9 artifact and maintainer
+    policy
+  - branch-state verification
+
+### Day 11 Exit State
+- The widened backend surface is now reconciled at the authoritative
+  maintainer-policy layer.
+- No extra proof, benchmark, header, or README churn was actually required.
+- Sprint 82 can move to final proof alignment from a cleaner post-Day-9
+  support-surface state.

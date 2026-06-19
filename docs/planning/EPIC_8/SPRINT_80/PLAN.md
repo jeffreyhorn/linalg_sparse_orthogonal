@@ -364,7 +364,7 @@ baseline and contract decisions
 
 ---
 
-## Day 10: Sprint-Plan Contract Recheck
+## Day 10: Project-Plan Contract Recheck
 
 **Title:** Plan Recheck  
 **Theme:** Reconcile the 10-sprint Epic 8 plan against the refreshed findings

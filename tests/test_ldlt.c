@@ -2765,6 +2765,36 @@ static void test_ldlt_dense_backend_accelerate_env_contract(void) {
     tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
 }
 
+static void test_ldlt_dense_backend_accelerate_accepts_noperm_2x2(void) {
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (tf_setenv("SPARSE_LDLT_DENSE_BACKEND", "accelerate") != 0)
+        SKIP_TEST("SPARSE_LDLT_DENSE_BACKEND could not be set");
+
+    double A[] = {
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+    };
+    double D[2] = {0.0, 0.0};
+    double D_offdiag[2] = {0.0, 0.0};
+    idx_t pivot_size[2] = {0, 0};
+
+    REQUIRE_OK(ldlt_dense_factor_selected(A, D, D_offdiag, pivot_size, 2, 2, 0.0, NULL));
+    ASSERT_EQ(pivot_size[0], 2);
+    ASSERT_EQ(pivot_size[1], 2);
+    ASSERT_NEAR(D[0], 0.0, 0.0);
+    ASSERT_NEAR(D[1], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[0], 1.0, 0.0);
+    ASSERT_NEAR(D_offdiag[1], 0.0, 0.0);
+    ASSERT_NEAR(A[0], 1.0, 0.0);
+    ASSERT_NEAR(A[1], 0.0, 0.0);
+    ASSERT_NEAR(A[2], 0.0, 0.0);
+    ASSERT_NEAR(A[3], 1.0, 0.0);
+
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2881,6 +2911,7 @@ int main(void) {
     RUN_TEST(test_ldlt_day5_auto_routes_csc_above_threshold);
     RUN_TEST(test_ldlt_dense_backend_builtin_env_contract);
     RUN_TEST(test_ldlt_dense_backend_accelerate_env_contract);
+    RUN_TEST(test_ldlt_dense_backend_accelerate_accepts_noperm_2x2);
 
     /* Free/cleanup */
     RUN_TEST(test_ldlt_free_zeroed);

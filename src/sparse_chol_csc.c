@@ -1213,6 +1213,16 @@ static int s64_ldlt_idx_to_blas_int_checked(idx_t value, int *out) {
     return 1;
 }
 
+static int s64_ldlt_accel_accepts_noperm_2x2_pivot(const int *ipiv, idx_t k, idx_t n) {
+    if (!ipiv || k < 0 || k + 1 >= n || k + 2 > (idx_t)INT_MAX)
+        return 0;
+    /* For lower-storage `dsytrf`, a no-interchange 2x2 block at zero-based
+     * indices `(k, k+1)` is encoded as `ipiv[k] == ipiv[k+1] == -(k+2)`.
+     * Any other negative pattern implies a row/column interchange that this
+     * bounded Accelerate path does not currently reconstruct safely. */
+    return ipiv[k] < 0 && ipiv[k + 1] == ipiv[k] && ipiv[k] == -(int)(k + 2);
+}
+
 #ifdef __APPLE__
 typedef void (*s64_accel_dsytrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
                                     int *ipiv, double *work, const int *lwork, int *info);
@@ -1342,7 +1352,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
             continue;
         }
 
-        if (k + 1 >= n || ipiv[k + 1] != ipiv[k] || -ipiv[k] != (int)(k + 2)) {
+        if (!s64_ldlt_accel_accepts_noperm_2x2_pivot(ipiv, k, n)) {
             err = SPARSE_ERR_PIVOT_REJECTED;
             goto cleanup;
         }

@@ -288,10 +288,10 @@ static int bench_spd_matrix(const char *path, int repeat) {
         }
 
         /* CSC refactor: from_sparse_with_analysis + eliminate_supernodal.
-         * Freed and rebuilt per iteration — same pattern as
-         * sparse_refactor_numeric internally.  Includes the CSC
-         * build + symbolic materialisation, matching the LL side's
-         * build_permuted_copy + factor cost structure. */
+         * Freed and rebuilt per iteration — same pattern as the
+         * current shared repeated-run Cholesky path in
+         * sparse_refactor_numeric.  Includes the CSC build +
+         * symbolic materialisation cost directly. */
         CholCsc *L_csc = NULL;
         double t_csc0 = wall_time();
         sparse_err_t e_csc = chol_csc_from_sparse_with_analysis(A_perturb, &an, &L_csc);

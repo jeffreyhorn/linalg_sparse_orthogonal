@@ -628,6 +628,9 @@ static sparse_err_t sparse_validate_analysis_input_matrix(const SparseMatrix *A,
         return SPARSE_ERR_BADARG;
     if (sparse_nnz(A) != analysis->source_nnz)
         return SPARSE_ERR_BADARG;
+    if ((analysis->type == SPARSE_FACTOR_CHOLESKY || analysis->type == SPARSE_FACTOR_LDLT) &&
+        !sparse_is_symmetric(A, 1e-12))
+        return SPARSE_ERR_NOT_SPD;
     return SPARSE_OK;
 }
 
@@ -649,29 +652,11 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
-        sparse_err_t err = SPARSE_OK;
-        if (n >= SPARSE_CSC_THRESHOLD) {
-            /* Avoid the extra `sparse_analyze(...)` hidden inside the CSC
-             * one-shot wrapper on larger repeated-run Cholesky problems. */
-            err = factor_cholesky_with_analysis_csc(A, analysis, &new_factors);
-        } else {
-            /* Keep the linked-list route unchanged for smaller problems. */
-            SparseMatrix *L = NULL;
-            err = build_permuted_copy(A, analysis->perm, &L);
-            if (err != SPARSE_OK)
-                return err;
-
-            sparse_cholesky_opts_t chol_opts = {
-                .reorder = SPARSE_REORDER_NONE,
-            };
-            err = sparse_cholesky_factor_opts(L, &chol_opts);
-            if (err != SPARSE_OK) {
-                sparse_free(L);
-                return err;
-            }
-
-            sparse_factors_take_matrix_factor(&new_factors, L);
-        }
+        /* Keep the shared repeated-run Cholesky surface on the
+         * analysis-backed CSC-aware path for all problem sizes rather
+         * than dropping small problems back through
+         * build_permuted_copy(...) + one-shot factorization. */
+        sparse_err_t err = factor_cholesky_with_analysis_csc(A, analysis, &new_factors);
         if (err != SPARSE_OK)
             return err;
         break;
@@ -695,40 +680,11 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
     }
 
     case SPARSE_FACTOR_LDLT: {
-        sparse_err_t err = SPARSE_OK;
-        if (n >= SPARSE_CSC_THRESHOLD) {
-            err = factor_ldlt_with_analysis_csc(A, analysis, &new_factors);
-        } else {
-            /* Keep the linked-list route unchanged for smaller problems. */
-            SparseMatrix *B = NULL;
-            err = build_permuted_copy(A, analysis->perm, &B);
-            if (err != SPARSE_OK)
-                return err;
-
-            sparse_ldlt_t ldlt;
-            sparse_ldlt_opts_t ldlt_opts = {
-                .reorder = SPARSE_REORDER_NONE,
-            };
-            err = sparse_ldlt_factor_opts(B, &ldlt_opts, &ldlt);
-            sparse_free(B);
-            if (err != SPARSE_OK)
-                return err;
-
-            if (analysis->perm && ldlt.perm) {
-                idx_t *composed = NULL;
-                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&composed) != SPARSE_OK) {
-                    sparse_ldlt_free(&ldlt);
-                    return SPARSE_ERR_ALLOC;
-                }
-                for (idx_t i = 0; i < n; i++)
-                    composed[i] = analysis->perm[ldlt.perm[i]];
-                free(ldlt.perm);
-                ldlt.perm = composed;
-            }
-
-            sparse_factors_take_ldlt_factor(&new_factors, &ldlt);
-            sparse_ldlt_free(&ldlt);
-        }
+        /* Keep the shared repeated-run LDL^T surface on the resolved
+         * analysis-backed CSC-aware path for all problem sizes rather
+         * than rebuilding a linked-list working copy for smaller
+         * problems. */
+        sparse_err_t err = factor_ldlt_with_analysis_csc(A, analysis, &new_factors);
         if (err != SPARSE_OK)
             return err;
         break;

@@ -1025,3 +1025,75 @@ from the exact proof-owner and benchmark surfaces fixed on Day 12.
   implementation state.
 - Day 14 can close from measured evidence without reopening proof or support
   drift.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 81 from the validated Day 13 baseline, fix the exact
+product/storage handoff reading, and leave one ranked next-step queue for
+Sprint 82 and the later Epic 8 lanes.
+
+### Actions
+- Re-read the Sprint 81 section of `docs/planning/EPIC_8/PROJECT_PLAN.md`
+  against the landed Day 6, Day 9, and Day 11 surfaces.
+- Re-read the Day 13 validated baseline and the retained representative proof
+  outputs.
+- Summarize the exact Sprint 81 package actually landed:
+  - bounded compressed-first construction/import modernization
+  - bounded repeated-run workflow convergence
+  - bounded public header follow-through
+- Recheck whether `docs/planning/EPIC_8/PROJECT_PLAN.md` needs a Sprint 81
+  correction.
+- Write the Day 14 closeout/handoff artifact.
+
+### Findings
+- Sprint 81 now closes as one coherent Epic 8 product/storage modernization
+  package across:
+  - storage/conversion hotspot rerank
+  - bounded compressed-first architecture contract
+  - Day 6 construction/import landing
+  - Day 9 repeated-run workflow convergence landing
+  - Day 11 public header follow-through
+  - validated Day 13 close baseline
+- The preserved fence stayed intact:
+  - no broad public API redesign
+  - no backend, capability, or package/platform work was reopened inside the
+    storage sprint
+  - no LU widening was smuggled into the Day 9 repeated-run convergence batch
+  - no generic docs/examples sweep was forced where the live tree already
+    stayed truthful
+  - no install/export validation claim was widened beyond the untouched Sprint
+    81 mechanics
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 81 correction.
+- The landed Sprint 81 package still supports the intended Epic 8 execution
+  order:
+  1. Sprint 82: bounded optional dense-backend acceleration
+  2. Sprint 83: capability-breadth widening on the highest-value seams
+  3. later Epic 8 assurance, maintainability, runtime, package/platform, and
+     usability lanes only after those stronger next contradictions move
+- The ranked carry-forward queue from Sprint 81 is now fixed explicitly:
+  1. builtin scalar dense/backend performance ceiling
+  2. bounded capability surface on the highest-value solver seams
+  3. later residual direct-workflow and storage follow-through only where
+     bounded evidence justifies more product-model churn
+  4. later assurance, maintainability, runtime, package/platform, and
+     usability work from the remaining Epic 8 queue
+
+### Validation
+- This was a docs-only closeout pass, so no new validation was run.
+- Sprint 81 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 405.45 sec`
+
+### Day 14 Exit State
+- Sprint 81 now closes from one explicit validated storage/workflow baseline.
+- The next Epic 8 contradiction center is fixed to Sprint 82's dense/backend
+  performance ceiling rather than more unbounded Sprint 81 storage churn.
+- Sprint 81 is ready for retrospective generation from a stable closeout
+  state.

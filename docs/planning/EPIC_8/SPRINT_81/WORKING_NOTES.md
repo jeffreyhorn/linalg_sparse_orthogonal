@@ -575,3 +575,82 @@ another same-family matrix-shell batch without evidence.
 - Sprint 81 now has one explicit strongest remaining seam.
 - Day 8 is fixed to the repeated-run workflow convergence design center.
 - The support-only follow-through map is explicit before the next design pass.
+
+## Day 8 - Workflow Convergence Design
+
+### Goal
+Define one bounded repeated-run workflow convergence contract for Sprint 81 so
+the next implementation batch reduces one-shot versus repeated-run ambiguity on
+the highest-value direct-workflow seam without widening into another matrix
+shell pass, broad solver-family rewrite, or support-surface churn.
+
+### Actions
+- Re-read the Sprint 81 Day 8 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the Day 7 rerank in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day7-post-landing-audit-and-rerank.md`.
+- Re-read the strongest remaining repeated-run owner surface in:
+  - `src/sparse_analysis.c`
+  - especially `build_permuted_copy(...)`, `factor_cholesky_with_analysis_csc`,
+    `factor_ldlt_with_analysis_csc`, and `sparse_factor_numeric(...)`
+- Re-read the strongest proof-owner and benchmark follow-through context:
+  - `tests/test_integration.c`
+  - `benchmarks/bench_refactor_csc.c`
+- Re-read likely support-only contract/context surfaces only for forced
+  follow-through:
+  - `include/sparse_analysis.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 81 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `src/sparse_analysis.c`
+  - strongest proof/measurement follow-through only if the implementation
+    truly forces it:
+    - `tests/test_integration.c`
+    - `benchmarks/bench_refactor_csc.c`
+  - support-only wording only if the implementation truly changes the public
+    reading:
+    - `include/sparse_analysis.h`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The exact Day 9 seam is now fixed:
+  - reduce the smaller-problem repeated-run direct ambiguity inside
+    `sparse_factor_numeric(...)`
+  - specifically the Cholesky and LDL^T branches that still fall back through
+    `build_permuted_copy(...)` before factoring
+  - keep the batch centered on working-copy preparation and repeated-run
+    factor publication, not on another public matrix-shell rewrite
+- The strongest useful Day 8 clarification is explicit now:
+  - LU also still uses `build_permuted_copy(...)`, but it is not the best next
+    landing center
+  - widening the batch to LU would turn Sprint 81 Day 9 into a broader
+    solver-family architecture rewrite instead of one bounded repeated-run
+    convergence pass
+  - the highest-value next move is therefore Cholesky plus LDL^T convergence
+    first, because those lanes already have stronger analysis-backed CSC-aware
+    structure and stronger public repeated-run proof/benchmark context
+- The preserved second-batch fence is explicit too:
+  - no reopening of the Day 6 matrix-shell construction/import batch
+  - no broad direct-family wrapper cleanup in `src/sparse_cholesky.c`,
+    `src/sparse_ldlt.c`, or `src/sparse_qr.c`
+  - no generic repeated-run architecture rewrite
+  - no backend, capability, package, or workflow-lane spill
+  - no support-surface churn unless the implementation truly forces it
+
+### Validation
+- Re-read the live repeated-run owner surface in `src/sparse_analysis.c`.
+- Reconfirmed that the small-problem repeated-run Cholesky, LU, and LDL^T
+  branches still go through `build_permuted_copy(...)`, but that Cholesky and
+  LDL^T are the stronger bounded next seam.
+- Rechecked the strongest public repeated-run proof owner in
+  `tests/test_integration.c` and the strongest benchmark-side measurement owner
+  in `benchmarks/bench_refactor_csc.c`.
+
+### Day 8 Exit State
+- Sprint 81 now has one explicit repeated-run workflow convergence contract.
+- The exact Day 9 touch set is fixed to `src/sparse_analysis.c`, with tests,
+  benchmark, and wording surfaces support-only unless forced.
+- Day 9 can land one bounded workflow-convergence batch without reopening
+  matrix-shell, wrapper, or support-surface drift.

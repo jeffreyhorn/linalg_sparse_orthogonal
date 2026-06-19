@@ -366,3 +366,83 @@ surface churn.
 - The first batch is fixed to the public matrix-shell owner surfaces.
 - Day 5 can define one bounded compressed-first implementation contract without
   reopening the storage/workflow ranking.
+
+## Day 5 - Compressed-First Architecture Design
+
+### Goal
+Define the bounded Sprint 81 implementation contract so the first landing
+reduces linked-list-first construction/import tax without widening into the
+repeated-run direct path, broad wrapper cleanup, or general API redesign.
+
+### Actions
+- Re-read the Sprint 81 Day 5 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the fixed Day 4 boundary in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day4-first-storage-boundary.md`.
+- Rechecked the public matrix-shell ownership surface in:
+  - `include/sparse_matrix.h`
+- Rechecked the first implementation-center logic and helper clustering in:
+  - `src/sparse_matrix.c`
+  - `src/sparse_matrix_internal.h`
+- Rechecked the strongest second-tier repeated-run workflow seam in:
+  - `src/sparse_analysis.c`
+- Rechecked the strongest support-only proof and benchmark context:
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_refactor_csc.c`
+
+### Findings
+- Sprint 81 now has one explicit first implementation contract:
+  - required implementation center:
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+  - support only if the first batch truly forces it:
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+    - `benchmarks/bench_refactor_csc.c`
+    - `README.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+- The Day 5 ownership split is now fixed:
+  - compressed-first construction/import owner:
+    - `src/sparse_matrix.c`
+    - specifically the shell lifecycle plus Matrix Market load/build paths
+  - linked-list compatibility shell owner:
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+    - retained as the mutable compatibility shell, not the only permanent
+      product reading
+  - conversion/publication owner:
+    - `src/sparse_matrix.c`
+    - especially copy, transpose, save/export, and shell publication paths
+  - repeated-run workflow reuse owner, but not in the first batch:
+    - `src/sparse_analysis.c`
+- The strongest Day 5 compatibility reading is now explicit:
+  - the first landing should preserve the existing public `SparseMatrix`
+    compatibility shell for callers
+  - it should reduce linked-list-first tax by making construction/import and
+    publication read more like a bounded compressed-first seam internally
+  - it should not promise that repeated-run direct workflows are converged in
+    the same batch
+- The preserved first-batch non-goal fence is explicit too:
+  - no broad public API redesign
+  - no repo-wide compressed-format rewrite
+  - no reopening of direct-family wrapper cleanup
+  - no hidden escalation into `src/sparse_analysis.c`
+  - no forced docs/examples/header churn unless the implementation truly moves
+    the contract
+
+### Validation
+- Re-read the public matrix-shell construction/import/publication surface
+  directly.
+- Rechecked the small-problem repeated-run direct fallback in
+  `sparse_factor_numeric(...)` to confirm it remains the strongest second seam.
+- Reconfirmed that the first landing can stay inside the public matrix-shell
+  owner without reopening the Day 4 boundary.
+
+### Day 5 Exit State
+- Sprint 81 now has one explicit compressed-first implementation contract.
+- Ownership between the matrix-shell first landing and later repeated-run
+  workflow convergence is clear.
+- Day 6 can land one bounded construction/import batch without reopening
+  design questions.

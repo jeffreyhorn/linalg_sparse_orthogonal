@@ -512,3 +512,66 @@ convergence or broader direct-family wrapper cleanup.
 - The public matrix-shell owner is narrower and more deliberate.
 - Day 7 can audit the post-landing rerank without reopening the first-batch
   contract.
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the strongest remaining Sprint 81 product/storage contradiction after
+the Day 6 construction/import landing so the sprint does not blindly repeat
+another same-family matrix-shell batch without evidence.
+
+### Actions
+- Re-read the Sprint 81 Day 7 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_81/PLAN.md`.
+- Re-read the landed Day 6 implementation artifact in
+  `docs/planning/EPIC_8/SPRINT_81/artifacts/day6-construction-import-batch1.md`.
+- Rechecked the strongest remaining repeated-run workflow owner seam in:
+  - `src/sparse_analysis.c`
+- Rechecked the strongest support proof and measurement surfaces for that seam:
+  - `tests/test_integration.c`
+  - `benchmarks/bench_refactor_csc.c`
+- Rechecked the strongest support-only contract/context surfaces:
+  - `include/sparse_analysis.h`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- The Day 6 landing closed the strongest first implementation contradiction:
+  - `include/sparse_matrix.h` and `src/sparse_matrix.c` no longer read like
+    the strongest remaining Sprint 81 seam
+  - a second immediate matrix-shell construction/import batch is not the
+    highest-value next move
+- The strongest remaining seam has now shifted to repeated-run workflow
+  convergence:
+  - required next landing center:
+    - `src/sparse_analysis.c`
+  - strongest support-only proof and benchmark follow-through:
+    - `tests/test_integration.c`
+    - `benchmarks/bench_refactor_csc.c`
+  - support-only contract wording if the next batch truly forces it:
+    - `include/sparse_analysis.h`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The strongest Day 7 clarification is now explicit:
+  - the next contradiction is not public shell construction/import anymore
+  - it is the smaller-problem repeated-run direct path that still falls back
+    through `build_permuted_copy(...)` inside `sparse_factor_numeric(...)`
+  - publication/writeback follow-through and support-surface alignment remain
+    real, but they are weaker than the repeated-run convergence seam
+- Later deferred work stays fixed too:
+  - another broad `src/sparse_matrix.c` cleanup pass
+  - direct-family wrapper cleanup in `src/sparse_cholesky.c`,
+    `src/sparse_ldlt.c`, or `src/sparse_qr.c`
+  - broader docs/examples churn without an implementation-forced reason
+
+### Validation
+- Re-read the landed Day 6 seam against the remaining direct-workflow owner.
+- Reconfirmed that the small-problem repeated-run path still goes through
+  `build_permuted_copy(...)` for Cholesky, LU, and LDL^T numeric factoring.
+- Rechecked the strongest proof-owner and benchmark context for the repeated-run
+  lane.
+
+### Day 7 Exit State
+- Sprint 81 now has one explicit strongest remaining seam.
+- Day 8 is fixed to the repeated-run workflow convergence design center.
+- The support-only follow-through map is explicit before the next design pass.

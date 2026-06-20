@@ -1306,7 +1306,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
     int lda_blas = 0;
     if (!s64_ldlt_idx_to_blas_int_checked(n, &n_blas) ||
         !s64_ldlt_idx_to_blas_int_checked(lda, &lda_blas))
-        return SPARSE_ERR_BADARG;
+        return SPARSE_ERR_PIVOT_REJECTED;
 
     double ref_norm = 0.0;
     for (idx_t j = 0; j < n; j++) {

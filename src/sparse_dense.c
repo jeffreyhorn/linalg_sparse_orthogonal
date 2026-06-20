@@ -263,8 +263,12 @@ sparse_err_t chol_dense_solve_panel(const double *L, idx_t n, idx_t lda, double 
 static int s64_idx_to_blas_int_checked(idx_t value, int *out) {
     if (!out)
         return 1;
-    if (value < 0 || value > (idx_t)INT_MAX)
+    if (value < 0)
         return 1;
+#if SPARSE_IDX_BITS > 32
+    if (value > (idx_t)INT_MAX)
+        return 1;
+#endif
     *out = (int)value;
     return 0;
 }

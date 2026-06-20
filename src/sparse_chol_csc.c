@@ -1207,20 +1207,28 @@ static void ldlt_dense_sym_swap(double *A, idx_t n, idx_t lda, idx_t a, idx_t b)
 }
 
 static int s64_ldlt_idx_to_blas_int_checked(idx_t value, int *out) {
-    if (!out || value < 0 || value > (idx_t)INT_MAX)
+    if (!out || value < 0)
         return 0;
+#if SPARSE_IDX_BITS > 32
+    if (value > (idx_t)INT_MAX)
+        return 0;
+#endif
     *out = (int)value;
     return 1;
 }
 
 static int s64_ldlt_accel_accepts_noperm_2x2_pivot(const int *ipiv, idx_t k, idx_t n) {
-    if (!ipiv || k < 0 || k + 1 >= n || k + 2 > (idx_t)INT_MAX)
+    int pivot_tag = 0;
+
+    if (!ipiv || k < 0 || n < 2 || k >= n - 1)
+        return 0;
+    if (!s64_ldlt_idx_to_blas_int_checked(k + 2, &pivot_tag))
         return 0;
     /* For lower-storage `dsytrf`, a no-interchange 2x2 block at zero-based
      * indices `(k, k+1)` is encoded as `ipiv[k] == ipiv[k+1] == -(k+2)`.
      * Any other negative pattern implies a row/column interchange that this
      * bounded Accelerate path does not currently reconstruct safely. */
-    return ipiv[k] < 0 && ipiv[k + 1] == ipiv[k] && ipiv[k] == -(int)(k + 2);
+    return ipiv[k] < 0 && ipiv[k + 1] == ipiv[k] && ipiv[k] == -pivot_tag;
 }
 
 #ifdef __APPLE__

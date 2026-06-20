@@ -359,6 +359,7 @@ static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t l
     int n_blas = 0;
     int lda_blas = 0;
     if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
+        /* BLAS-int width overflow is an optional-backend contract limit, not OOM. */
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     double ref_norm = 0.0;

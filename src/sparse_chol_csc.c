@@ -35,6 +35,7 @@
 
 #include <limits.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1237,27 +1238,54 @@ typedef void (*s64_accel_dsytrf_fn)(const char *uplo, const int *n, double *a, c
 
 static void *s64_ldlt_accel_handle = NULL;
 static s64_accel_dsytrf_fn s64_ldlt_accel_dsytrf = NULL;
-static int s64_ldlt_accel_probe_state = 0;
+static atomic_int s64_ldlt_accel_probe_state = ATOMIC_VAR_INIT(0);
 
 static int s64_ldlt_accel_probe_dense_factor(void) {
-    if (s64_ldlt_accel_probe_state != 0)
-        return s64_ldlt_accel_probe_state > 0;
+    enum {
+        S64_LDLT_ACCEL_UNINITIALIZED = 0,
+        S64_LDLT_ACCEL_INITIALIZING = 1,
+        S64_LDLT_ACCEL_READY = 2,
+        S64_LDLT_ACCEL_FAILED = 3,
+    };
 
-    s64_ldlt_accel_probe_state = -1;
-    s64_ldlt_accel_handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
-                                   RTLD_LAZY | RTLD_LOCAL);
-    if (!s64_ldlt_accel_handle)
+    int state = atomic_load_explicit(&s64_ldlt_accel_probe_state, memory_order_acquire);
+    if (state == S64_LDLT_ACCEL_READY)
+        return 1;
+    if (state == S64_LDLT_ACCEL_FAILED)
         return 0;
 
-    s64_ldlt_accel_dsytrf = (s64_accel_dsytrf_fn)dlsym(s64_ldlt_accel_handle, "dsytrf_");
-    if (!s64_ldlt_accel_dsytrf) {
-        dlclose(s64_ldlt_accel_handle);
-        s64_ldlt_accel_handle = NULL;
-        return 0;
+    int expected = S64_LDLT_ACCEL_UNINITIALIZED;
+    if (atomic_compare_exchange_strong_explicit(&s64_ldlt_accel_probe_state, &expected,
+                                                S64_LDLT_ACCEL_INITIALIZING, memory_order_acq_rel,
+                                                memory_order_acquire)) {
+        void *handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
+                              RTLD_LAZY | RTLD_LOCAL);
+        s64_accel_dsytrf_fn dsytrf = NULL;
+
+        if (handle)
+            dsytrf = (s64_accel_dsytrf_fn)dlsym(handle, "dsytrf_");
+        if (!handle || !dsytrf) {
+            if (handle)
+                dlclose(handle);
+            s64_ldlt_accel_handle = NULL;
+            s64_ldlt_accel_dsytrf = NULL;
+            atomic_store_explicit(&s64_ldlt_accel_probe_state, S64_LDLT_ACCEL_FAILED,
+                                  memory_order_release);
+            return 0;
+        }
+
+        s64_ldlt_accel_handle = handle;
+        s64_ldlt_accel_dsytrf = dsytrf;
+        atomic_store_explicit(&s64_ldlt_accel_probe_state, S64_LDLT_ACCEL_READY,
+                              memory_order_release);
+        return 1;
     }
 
-    s64_ldlt_accel_probe_state = 1;
-    return 1;
+    do {
+        state = atomic_load_explicit(&s64_ldlt_accel_probe_state, memory_order_acquire);
+    } while (state == S64_LDLT_ACCEL_INITIALIZING);
+
+    return state == S64_LDLT_ACCEL_READY;
 }
 
 static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, double *D_offdiag,

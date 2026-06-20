@@ -4,6 +4,7 @@
 #include "sparse_matrix_internal.h"
 #include <limits.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -288,32 +289,61 @@ static void *s64_accel_handle = NULL;
 static s64_accel_dpotrf_fn s64_accel_dpotrf = NULL;
 static s64_accel_dtrsv_fn s64_accel_dtrsv = NULL;
 static s64_accel_dtrsm_fn s64_accel_dtrsm = NULL;
-static int s64_accel_probe_state = 0;
+static atomic_int s64_accel_probe_state = ATOMIC_VAR_INIT(0);
 
 static int s64_accel_probe_dense_kernels(void) {
-    if (s64_accel_probe_state != 0)
-        return s64_accel_probe_state == 1;
+    enum {
+        S64_ACCEL_UNINITIALIZED = 0,
+        S64_ACCEL_INITIALIZING = 1,
+        S64_ACCEL_READY = 2,
+        S64_ACCEL_FAILED = 3,
+    };
 
-    s64_accel_probe_state = -1;
-    s64_accel_handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
+    int state = atomic_load_explicit(&s64_accel_probe_state, memory_order_acquire);
+    if (state == S64_ACCEL_READY)
+        return 1;
+    if (state == S64_ACCEL_FAILED)
+        return 0;
+
+    int expected = S64_ACCEL_UNINITIALIZED;
+    if (atomic_compare_exchange_strong_explicit(&s64_accel_probe_state, &expected,
+                                                S64_ACCEL_INITIALIZING, memory_order_acq_rel,
+                                                memory_order_acquire)) {
+        void *handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
                               RTLD_LAZY | RTLD_LOCAL);
-    if (!s64_accel_handle)
-        return 0;
+        s64_accel_dpotrf_fn dpotrf = NULL;
+        s64_accel_dtrsv_fn dtrsv = NULL;
+        s64_accel_dtrsm_fn dtrsm = NULL;
 
-    s64_accel_dpotrf = (s64_accel_dpotrf_fn)dlsym(s64_accel_handle, "dpotrf_");
-    s64_accel_dtrsv = (s64_accel_dtrsv_fn)dlsym(s64_accel_handle, "dtrsv_");
-    s64_accel_dtrsm = (s64_accel_dtrsm_fn)dlsym(s64_accel_handle, "dtrsm_");
-    if (!s64_accel_dpotrf || !s64_accel_dtrsv || !s64_accel_dtrsm) {
-        dlclose(s64_accel_handle);
-        s64_accel_handle = NULL;
-        s64_accel_dpotrf = NULL;
-        s64_accel_dtrsv = NULL;
-        s64_accel_dtrsm = NULL;
-        return 0;
+        if (handle) {
+            dpotrf = (s64_accel_dpotrf_fn)dlsym(handle, "dpotrf_");
+            dtrsv = (s64_accel_dtrsv_fn)dlsym(handle, "dtrsv_");
+            dtrsm = (s64_accel_dtrsm_fn)dlsym(handle, "dtrsm_");
+        }
+        if (!handle || !dpotrf || !dtrsv || !dtrsm) {
+            if (handle)
+                dlclose(handle);
+            s64_accel_handle = NULL;
+            s64_accel_dpotrf = NULL;
+            s64_accel_dtrsv = NULL;
+            s64_accel_dtrsm = NULL;
+            atomic_store_explicit(&s64_accel_probe_state, S64_ACCEL_FAILED, memory_order_release);
+            return 0;
+        }
+
+        s64_accel_handle = handle;
+        s64_accel_dpotrf = dpotrf;
+        s64_accel_dtrsv = dtrsv;
+        s64_accel_dtrsm = dtrsm;
+        atomic_store_explicit(&s64_accel_probe_state, S64_ACCEL_READY, memory_order_release);
+        return 1;
     }
 
-    s64_accel_probe_state = 1;
-    return 1;
+    do {
+        state = atomic_load_explicit(&s64_accel_probe_state, memory_order_acquire);
+    } while (state == S64_ACCEL_INITIALIZING);
+
+    return state == S64_ACCEL_READY;
 }
 
 static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {

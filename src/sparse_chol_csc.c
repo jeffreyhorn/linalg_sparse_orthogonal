@@ -1335,9 +1335,11 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
         return info < 0 ? SPARSE_ERR_BADARG : SPARSE_ERR_SINGULAR;
     }
 
-    int lwork_int = (work_query > 1.0 && work_query < (double)INT_MAX) ? (int)work_query : 1;
-    if (lwork_int < 1)
-        lwork_int = 1;
+    if (!(work_query >= 1.0) || work_query > (double)INT_MAX) {
+        free(ipiv);
+        return SPARSE_ERR_PIVOT_REJECTED;
+    }
+    int lwork_int = (int)work_query;
     if ((size_t)lwork_int > SIZE_MAX / sizeof(double)) {
         free(ipiv);
         return SPARSE_ERR_ALLOC;

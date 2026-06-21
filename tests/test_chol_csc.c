@@ -2625,6 +2625,7 @@ static void test_supernodal_dense_backend_default_contract(void) {
 }
 
 static void test_supernodal_dense_backend_builtin_env_contract(void) {
+    tf_unsetenv("SPARSE_CHOL_DENSE_BACKEND");
     if (tf_setenv("SPARSE_CHOL_DENSE_BACKEND", "builtin") != 0)
         SKIP_TEST("setenv SPARSE_CHOL_DENSE_BACKEND=builtin failed");
 
@@ -2641,6 +2642,7 @@ static void test_supernodal_dense_backend_builtin_env_contract(void) {
 }
 
 static void test_supernodal_dense_backend_accelerate_env_contract(void) {
+    tf_unsetenv("SPARSE_CHOL_DENSE_BACKEND");
     if (tf_setenv("SPARSE_CHOL_DENSE_BACKEND", "accelerate") != 0)
         SKIP_TEST("setenv SPARSE_CHOL_DENSE_BACKEND=accelerate failed");
 

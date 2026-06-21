@@ -398,7 +398,7 @@ static sparse_err_t s64_accelerate_chol_dense_solve_lower(const double *L, idx_t
     int n_blas = 0;
     int lda_blas = 0;
     if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
-        return SPARSE_ERR_ALLOC;
+        return SPARSE_ERR_BACKEND_CONTRACT;
 
     for (idx_t i = 0; i < n; i++) {
         if (L[i + i * lda] == 0.0)

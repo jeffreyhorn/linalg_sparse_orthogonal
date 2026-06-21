@@ -263,15 +263,15 @@ sparse_err_t chol_dense_solve_panel(const double *L, idx_t n, idx_t lda, double 
 
 static int s64_idx_to_blas_int_checked(idx_t value, int *out) {
     if (!out)
-        return 1;
+        return 0;
     if (value < 0)
-        return 1;
+        return 0;
 #if SPARSE_IDX_BITS > 32
     if (value > (idx_t)INT_MAX)
-        return 1;
+        return 0;
 #endif
     *out = (int)value;
-    return 0;
+    return 1;
 }
 
 #ifdef __APPLE__
@@ -358,7 +358,7 @@ static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t l
 
     int n_blas = 0;
     int lda_blas = 0;
-    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
+    if (!s64_idx_to_blas_int_checked(n, &n_blas) || !s64_idx_to_blas_int_checked(lda, &lda_blas))
         /* BLAS-int width overflow is an optional-backend contract limit, not OOM. */
         return SPARSE_ERR_BACKEND_CONTRACT;
 
@@ -397,7 +397,7 @@ static sparse_err_t s64_accelerate_chol_dense_solve_lower(const double *L, idx_t
 
     int n_blas = 0;
     int lda_blas = 0;
-    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas))
+    if (!s64_idx_to_blas_int_checked(n, &n_blas) || !s64_idx_to_blas_int_checked(lda, &lda_blas))
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     for (idx_t i = 0; i < n; i++) {
@@ -433,9 +433,9 @@ static sparse_err_t s64_accelerate_chol_dense_solve_panel(const double *L, idx_t
     int lda_blas = 0;
     int panel_rows_blas = 0;
     int ldb_blas = 0;
-    if (s64_idx_to_blas_int_checked(n, &n_blas) || s64_idx_to_blas_int_checked(lda, &lda_blas) ||
-        s64_idx_to_blas_int_checked(panel_rows, &panel_rows_blas) ||
-        s64_idx_to_blas_int_checked(ldb, &ldb_blas))
+    if (!s64_idx_to_blas_int_checked(n, &n_blas) || !s64_idx_to_blas_int_checked(lda, &lda_blas) ||
+        !s64_idx_to_blas_int_checked(panel_rows, &panel_rows_blas) ||
+        !s64_idx_to_blas_int_checked(ldb, &ldb_blas))
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     for (idx_t i = 0; i < n; i++) {

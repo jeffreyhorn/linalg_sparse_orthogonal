@@ -1,0 +1,35 @@
+Sprint 82 Day 1 authoritative inputs
+
+Primary planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md
+- docs/planning/EPIC_8/SPRINT_82/PLAN.md
+- docs/planning/EPIC_8/SPRINT_81/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_8/SPRINT_81/RETROSPECTIVE.md
+
+Baseline and parity commands rechecked
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Live hotspot measurement inputs
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- include/sparse_qr.h
+- include/sparse_svd.h
+- src/sparse_dense.c
+- src/sparse_chol_csc_supernodal.c
+- src/sparse_chol_csc.c
+- src/sparse_ldlt_csc_supernodal.c
+- src/sparse_ldlt.c
+- src/sparse_qr.c
+- src/sparse_svd.c
+- tests/test_chol_csc.c
+- tests/test_ldlt.c
+- tests/test_qr.c
+- tests/test_integration.c
+- benchmarks/bench_chol_csc.c
+- benchmarks/bench_refactor_csc.c
+- benchmarks/bench_svd.c
+- benchmarks/README.md
+- README.md
+- docs/maintainer_guide.md

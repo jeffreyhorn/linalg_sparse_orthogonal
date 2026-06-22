@@ -768,6 +768,33 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
                                idx_t lda, double tol, double *elem_growth_out);
 
 /**
+ * Runtime-selected LDL^T dense block factor.
+ *
+ * Preserves `ldlt_dense_factor(...)` as the shipped builtin implementation
+ * while allowing a bounded optional runtime-selected accelerated backend for
+ * the LDL^T CSC supernodal lane.  The selected backend must preserve the same
+ * postcondition on `A`, `D`, `D_offdiag`, and `pivot_size` as the builtin
+ * helper.  If the optional backend cannot preserve the cached BK block layout,
+ * it returns `SPARSE_ERR_PIVOT_REJECTED` so the caller can fall back to the
+ * resolved scalar-prepass factor rather than publishing a mismatched block
+ * contract.
+ *
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_ALLOC,
+ *         SPARSE_ERR_SINGULAR, or SPARSE_ERR_PIVOT_REJECTED.
+ */
+sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
+                                        idx_t n, idx_t lda, double tol, double *elem_growth_out);
+
+/**
+ * Name of the currently selected LDL^T dense-factor backend.
+ *
+ * Returns `"builtin"` for the shipped default path and `"accelerate"` for the
+ * bounded Darwin-only optional runtime path when that selector is active and
+ * available.
+ */
+const char *ldlt_dense_factor_backend_name(void);
+
+/**
  * Supernode-aware elimination entry point.
  *
  * Detects fundamental supernodes, runs the dense Cholesky + panel solve path

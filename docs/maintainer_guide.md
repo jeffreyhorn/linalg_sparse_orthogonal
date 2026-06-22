@@ -508,12 +508,23 @@ Current stable interpretation after Sprint 64 Day 12:
 - the first backend-aware lane is local to CSC supernodal Cholesky
 - the default shipped dense-kernel descriptor for that lane remains
   `builtin`
+- the bounded direct-family backend-aware surface now extends one layer wider
+  after Sprint 82 Day 9:
+  - Cholesky CSC owns the first optional dense-kernel runtime seam
+  - LDL^T CSC now also owns a bounded optional dense-factor runtime seam
+  - both still preserve the builtin self-contained path as the default product
+    route
 - `bench_chol_csc` is the maintained benchmark-side proof surface for:
   - linked-list baseline timing
   - CSC scalar timing
   - CSC supernodal timing
   - active dense-kernel descriptor identity
   - active supernodal panel-solve capability identity
+- `tests/test_ldlt.c` is the maintained family-local proof surface for the
+  bounded LDL^T backend/runtime follow-through:
+  - builtin env-selection proof
+  - optional Accelerate env-selection proof
+  - solver-visible forced-CSC correctness through the widened selector seam
 - the benchmark path fields should stay read as bounded proof signals:
   - `csc_scalar_path = scalar`
   - `csc_supernodal_path = supernodal`
@@ -531,12 +542,13 @@ Current stable interpretation after Sprint 64 Day 12:
 
 Current deferred backend/performance queue:
 
-- broader LDL^T backend-aware follow-through
 - any later QR / SVD backend layering only if a later sprint justifies it
 - optional build-option or pluggable-kernel widening only if the self-contained
   default build and fallback truthfulness stay explicit
 - broader benchmark-governance consolidation outside the bounded Sprint 64
   proof refresh
+- any later LDL^T widening beyond the bounded Day 9 dense-factor seam only if a
+  later sprint justifies more than the current family-local runtime parity
 
 Interpretation:
 

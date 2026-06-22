@@ -963,3 +963,109 @@ surfaces bounded to what the sprint actually changed.
 - The exact Day 13 queue is fixed in writing with no remaining validation
   ambiguity.
 - No further docs/package follow-through is needed before the full sweep.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the complete Sprint 83 validation queue fixed on Day 12 and capture the
+measured close baseline for the widened shared scalar-owner and bounded QR
+public-header work.
+
+### Actions
+- Ran `make format`.
+- Ran `make lint`.
+- Ran `make test`.
+- Ran `make quality-review-full`.
+- Rechecked the reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Ran the Day 12 focused reviewed proof-owner follow-ons:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_svd tests/data/suitesparse/nos4.mtx`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+
+### Findings
+- The full Sprint 83 implementation-day gate passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 446.47 sec`
+- The Day 12 focused reruns all passed:
+  - `test_sparse_matrix` -> `59 / 59`
+  - `test_qr` -> `73 / 73`
+  - `test_svd` -> `97 / 97`
+  - `test_chol_csc` -> `149 / 149`
+  - `test_ldlt` -> `87 / 87`
+  - `test_integration` -> `53 / 53`
+  - `example_analysis`
+  - `example_basic_solve`
+  - `bench_svd tests/data/suitesparse/nos4.mtx`
+  - `bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+- Representative retained outputs stayed clean:
+  - `test_sparse_matrix` retained the new shared-owner proof:
+    - `test_matrix_public_scalar_alias`
+    - `test_idx_width_contract`
+  - `test_qr` retained the widened QR public-owner proof:
+    - `test_qr_public_scalar_alias`
+    - `nos4 QR solve: rank=100`
+    - `nos4 QR solve: res_norm=0.000e+00, true_res=9.415e-15`
+  - `test_svd` retained deferred-family truthfulness:
+    - `outer-product vs dense: ||A_off - A_on||_F / ||A_off||_F = 0.000e+00`
+    - `full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = 9.648e-16`
+  - `test_chol_csc` retained direct-family stability:
+    - `tests/data/suitesparse/bcsstk14.mtx: n=1806, rel_residual=1.080e-15`
+  - `test_ldlt` retained direct-family stability:
+    - `test_ldlt_dense_backend_accelerate_accepts_noperm_2x2`
+    - `KKT 500x500: relres=4.465e-17, nnz(L)=1298`
+  - `test_integration` retained the repeated-run/public-lifecycle surface:
+    - `53 / 53`
+  - `example_analysis` retained solve residual `4.44e-16`
+  - `example_basic_solve` retained residual `0.00e+00`
+  - `bench_svd nos4` retained:
+    - `Full SVD (σ only): 6.612 ms`
+    - `Partial SVD (k=5, σ): 2.170 ms`
+    - `Partial/Full: 3.0x speedup`
+  - `bench_refactor_csc nos4` retained:
+    - `speedup_refactor = 1.40`
+    - residuals `8.24e-16` / `7.06e-16`
+  - `make bench-canonical-report` retained the canonical bundle write:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+- Install/export proof remained intentionally out of scope for Day 13 because
+  Sprint 83 did not move package, install, export, or runtime-package
+  mechanics.
+- One non-blocking runtime note is explicit in the measured baseline:
+  - reviewed CMake `test_reorder_nd` still dominated runtime at `314.43 sec`
+    out of the `446.47 sec` total
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- `ctest -N --test-dir build/quality-review-cmake` retained `53`.
+- Reviewed CMake `ctest` passed `53 / 53`.
+
+### Day 13 Exit State
+- Sprint 83 now has one measured Day 13 close baseline.
+- The widened shared-owner and bounded QR public-header surfaces passed
+  together with retained deferred-family and direct-family proof.
+- Day 14 can close from validated evidence rather than from intermediate
+  implementation state.

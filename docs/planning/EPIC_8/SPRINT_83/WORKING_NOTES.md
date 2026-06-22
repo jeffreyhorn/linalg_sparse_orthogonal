@@ -880,3 +880,86 @@ scalar owner vocabulary as the Sprint 83 matrix-shell and shared-types lanes.
 - The highest-value remaining algorithm-family public seam now reads
   consistently with the shared Sprint 83 scalar-owner story.
 - SVD and direct-family public follow-through remain explicitly deferred.
+
+## Day 12 - Regression / Docs / Package Alignment
+
+### Goal
+Fix the final Sprint 83 proof-owner and Day 13 validation reading after the
+Day 11 QR header widening, while keeping support-only and package-sensitive
+surfaces bounded to what the sprint actually changed.
+
+### Actions
+- Re-read the landed Sprint 83 shared scalar-owner surfaces:
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+  - `include/sparse_qr.h`
+- Rechecked the strongest direct proof-owner surfaces:
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `tests/test_qr.c`
+- Rechecked deferred family-local proof surfaces to confirm they remain
+  truthful without movement:
+  - `tests/test_svd.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_integration.c`
+- Rechecked representative reviewed examples and benchmark/reporting owners:
+  - `build/quality-review-cmake/example_analysis`
+  - `build/quality-review-cmake/example_basic_solve`
+  - `build/quality-review-cmake/bench_svd`
+  - `build/quality-review-cmake/bench_refactor_csc`
+  - `make bench-canonical-report`
+- Rechecked the reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+
+### Findings
+- No new support-only edit is needed before the full sweep:
+  - `README.md` already remains broadly truthful
+  - `docs/maintainer_guide.md` already reflects the widened proof-owner split
+  - no additional public-header correction is needed outside the landed
+    matrix/types/QR surfaces
+- The final Sprint 83 proof-owner map is now explicit:
+  - `tests/test_sparse_matrix.c` owns the shared matrix-shell scalar seam and
+    shared width contract
+  - `tests/test_iterative.c` owns the iterative public scalar seam
+  - `tests/test_eigs.c` owns the eigensolver public scalar seam
+  - `tests/test_qr.c` owns the bounded QR public scalar seam
+  - `tests/test_svd.c` remains the family-local deferred SVD proof surface,
+    not a Sprint 83 widened-owner proof target
+  - `tests/test_chol_csc.c` and `tests/test_ldlt.c` remain direct-family proof
+    surfaces, not Sprint 83 widened-owner proof targets
+  - `tests/test_integration.c` remains the cross-feature workflow owner for
+    retained public behavior around direct and repeated-run flows
+- The representative executable support map is explicit now:
+  - reviewed CMake regression owners:
+    - `test_sparse_matrix`
+    - `test_qr`
+    - `test_svd`
+    - `test_chol_csc`
+    - `test_ldlt`
+    - `test_integration`
+  - representative examples:
+    - `example_analysis`
+    - `example_basic_solve`
+  - benchmark/reporting owners:
+    - `bench_svd`
+    - `bench_refactor_csc`
+    - `make bench-canonical-report`
+- Install/export proof stays explicitly out of scope for Day 13 because Sprint
+  83 did not move package, install, export, or reviewed runtime-package
+  mechanics.
+
+### Validation
+- Rechecked `ctest -N --test-dir build/quality-review-cmake` and confirmed the
+  live reviewed parity anchor remains `53`.
+- Rechecked the presence of the Day 13 focused reviewed binaries and
+  representative examples/benchmarks.
+- Rechecked the maintained canonical benchmark-report command surface with
+  `make -n bench-canonical-report`.
+
+### Day 12 Exit State
+- Sprint 83 now has one final proof-owner and alignment map.
+- The exact Day 13 queue is fixed in writing with no remaining validation
+  ambiguity.
+- No further docs/package follow-through is needed before the full sweep.

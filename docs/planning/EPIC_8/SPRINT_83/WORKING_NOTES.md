@@ -484,3 +484,73 @@ the shared matrix-shell and public-owner lane.
 - Ownership between shared vocabulary, public matrix exposure, and
   compatibility-preserving implementation is fixed before Day 6 begins.
 - Family-local capability widening remains explicitly outside the first batch.
+
+## Day 6 - Scalar-Surface Expansion Batch
+
+### Goal
+Land the first bounded Sprint 83 capability batch by widening the shared
+matrix-shell public seam to the already-real `sparse_scalar_t` vocabulary
+without widening the shipped scalar contract beyond real-only `double`.
+
+### Actions
+- Updated the shared matrix-shell public contract in:
+  - `include/sparse_matrix.h`
+- Updated the compatibility-preserving implementation owner in:
+  - `src/sparse_matrix.c`
+- Added focused proof for the widened shared scalar seam in:
+  - `tests/test_sparse_matrix.c`
+- Reconciled the authoritative maintainer-policy reading in:
+  - `docs/maintainer_guide.md`
+- Preserved the first-batch fence by not widening:
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `src/sparse_qr.c`
+  - `src/sparse_svd.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_ldlt.c`
+  - `README.md`
+
+### Findings
+- The Day 6 landing stayed inside the Day 5 fence:
+  - the shared matrix-shell helper/public-owner seam now uses
+    `sparse_scalar_t` on its caller-facing dense-scalar paths
+  - the shipped scalar contract remains real-only `double` because
+    `sparse_scalar_t` remains that exact underlying type
+  - no family-local QR, SVD, Cholesky, or LDL^T implementation widening was
+    needed
+- The highest-value shared matrix-shell public seam is now widened across:
+  - insert/get/set helpers
+  - symmetry tolerance input
+  - norm output
+  - matvec / block-matvec vectors
+  - scale and add helpers
+- `src/sparse_matrix.c` remains the compatibility-preserving publication owner:
+  - behavior is unchanged
+  - internal representation remains truthful to the shipped real-only scalar
+    contract
+  - the batch is vocabulary widening on the shared seam, not numeric-generic
+    behavior widening
+- The focused proof owner now covers the landed seam directly:
+  - `tests/test_sparse_matrix.c` now proves the shared matrix-shell public
+    scalar alias through `sparse_scalar_t`, `sparse_scalar_bits()`,
+    `sparse_insert`, `sparse_matvec`, `sparse_norminf`, and `sparse_scale`
+- The strongest required support-only follow-through was bounded:
+  - `docs/maintainer_guide.md` now treats `sparse_scalar_t` as the dense
+    scalar owner on the shared matrix-shell helper seam as well as the already
+    landed iterative/eigs seam
+  - `README.md` did not need movement because its broader capability wording
+    remained truthful after the batch
+
+### Validation
+- Ran `make format`.
+- Ran `make lint`.
+- Ran `make test`.
+
+### Day 6 Exit State
+- Sprint 83 now has one landed shared scalar-surface expansion batch.
+- The highest-value shared matrix-shell seam no longer reads as a raw `double`
+  outlier relative to the already-real `sparse_scalar_t` vocabulary.
+- Family-local capability widening remains explicitly deferred to later sprint
+  days.

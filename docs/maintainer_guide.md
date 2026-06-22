@@ -223,7 +223,8 @@ Interpretation:
 - caller-facing docs should present the width lane as compile-time-selectable,
   but should not imply that the whole repo is already broadly 64-bit-modernized
 - caller-facing docs and touched public headers may use `sparse_scalar_t` as
-  the dense-scalar owner on the iterative/eigs seam
+  the dense-scalar owner on the shared matrix-shell helper seam plus the
+  iterative/eigs seam
 - maintainers should keep the scalar wording explicit: this is bounded public
   preparation for later widening, not proof of complex support or broad
   numeric genericity
@@ -236,6 +237,8 @@ Current maintained proof ownership after Sprint 74 Day 9:
   - `SPARSE_IDX_BITS`
   - `IDX_MAX`
   - `sparse_idx_bits()`
+  - `sparse_scalar_t` on the shared matrix-shell helper seam
+  - `sparse_scalar_bits()` on the shared matrix-shell public contract
 - `tests/test_iterative.c` owns the iterative public scalar seam:
   - `sparse_scalar_t` matrix-free callback vectors
   - `sparse_scalar_bits()` on the iterative public contract

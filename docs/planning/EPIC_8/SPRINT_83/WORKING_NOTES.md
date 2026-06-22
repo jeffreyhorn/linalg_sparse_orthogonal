@@ -209,3 +209,121 @@ before any capability-surface batch lands.
   reporting, and script-owned install/export proof is fixed in writing.
 - The highest-signal rerun set is explicit before the capability re-rank audit
   begins.
+
+## Day 3 - Capability Re-rank Audit
+
+### Goal
+Reduce Sprint 83's broad capability problem to one ranked live contradiction
+map grounded in the current shared type, public matrix, solver-family,
+proof-owner, and support-surface seams so later boundary and architecture work
+can choose one bounded capability lane instead of another generic “more types”
+bucket.
+
+### Actions
+- Re-read the Sprint 83 Day 3 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_83/PLAN.md`.
+- Re-read the strongest prior Epic 8 capability framing in:
+  - `docs/planning/EPIC_8/SPRINT_80/artifacts/day3-live-competitive-gap-inventory.md`
+  - `docs/planning/EPIC_8/SPRINT_82/artifacts/day14-closeout-and-handoff.md`
+- Re-scanned the highest-signal public and family-local capability surfaces:
+  - `include/sparse_types.h`
+  - `include/sparse_matrix.h`
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `src/sparse_matrix.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_svd.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_ldlt.c`
+- Re-scanned the current maintainer/doc interpretation surfaces:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Reconciled the scan against the already-landed bounded public scalar seam in:
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+
+### Findings
+- Sprint 83's broad capability problem is now reduced to one ranked live
+  contradiction map:
+  - strongest first target:
+    - shared public dense-scalar owner expansion on the highest-value matrix
+      shell and one-shot solver seams
+  - strongest second target:
+    - touched-path wider-index and package/ABI maturity on shared public paths
+  - strongest third target:
+    - QR / SVD algorithm-surface widening after the shared scalar/index
+      contract is explicit
+  - strongest fourth target:
+    - true complex-scalar support
+  - strongest fifth target:
+    - broad mixed-precision support
+  - strongest support-only but real target:
+    - proof, docs, and package wording that still reflects the narrower
+      current capability reading
+- `include/sparse_types.h` already carries one bounded public preparation seam:
+  - `sparse_scalar_t` and `SPARSE_SCALAR_BITS` exist
+  - the shipped scalar contract still remains real-only `double`
+  - `SPARSE_IDX_BITS` already makes width a compile-time contract rather than a
+    hand-edited typedef story
+- The strongest first contradiction is not “no scalar seam exists.” It is that
+  the seam is still unevenly owned:
+  - iterative and eigensolver public contracts already route through
+    `sparse_scalar_t`
+  - the highest-value shared and one-shot public seams still expose raw
+    `double` buffers and result fields:
+    - `include/sparse_matrix.h`
+    - `include/sparse_qr.h`
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+  - `src/sparse_matrix.c` still acts as the shared compatibility shell owner
+    beneath many of those public seams, so it remains the strongest first
+    implementation center rather than a later support-only surface
+- The strongest second contradiction is index-width maturity on touched public
+  paths, not index-width absence:
+  - the repo already has compile-time-selected `idx_t`
+  - the reviewed build still defaults to the 32-bit lane
+  - touched public structs, count-sensitive buffers, and package-visible width
+    readings still need stronger consistency if Sprint 83 widens the shared
+    capability contract at all
+- The strongest third contradiction is family-local algorithm breadth on the
+  QR / SVD lane:
+  - `include/sparse_qr.h` and `include/sparse_svd.h` still publish owned
+    factor/result buffers and helper interfaces almost entirely in raw `double`
+  - that makes QR / SVD the strongest bounded algorithm-family widening lane
+    once the shared scalar/index contract is explicit
+  - Cholesky and LDL^T remain real follow-through surfaces, but they read more
+    like support-only one-shot compatibility lanes than the best first
+    algorithm-widening center
+- True complex-scalar support and broad mixed precision remain lower-value
+  first moves:
+  - both would force much broader proof, algorithm, and package claims
+  - both would outrun the current bounded maintainer reading in
+    `docs/maintainer_guide.md`
+  - both remain real later capability lanes, but not the first credible Sprint
+    83 implementation center
+- The strongest Day 3 clarification is now explicit:
+  - the best first Sprint 83 move is not broad complex support
+  - it is one bounded widening of the already-real `sparse_scalar_t` /
+    `idx_t` ownership story across the highest-value shared and one-shot public
+    seams
+  - touched-path wider-index and ABI maturity follows next
+  - QR / SVD capability breadth follows after the shared contract, not before
+
+### Validation
+- Re-read the Sprint 80 and Sprint 82 capability-handoff context directly.
+- Re-scanned the live public/shared headers, implementation owners, and
+  maintainer/doc interpretation surfaces directly.
+- Reconciled the ranked Sprint 83 lane against the already-landed
+  `sparse_scalar_t` public seam in iterative/eigs so the audit reflects the
+  current tree rather than a generic prior-state reading.
+
+### Day 3 Exit State
+- Sprint 83 no longer has a generic “capability modernization” problem.
+- The strongest first implementation center is fixed to shared public
+  scalar/index ownership on the highest-value seams.
+- Wider-index maturity, QR / SVD widening, and later complex/mixed-precision
+  work are now clearly separated by value and risk before the Day 4 boundary
+  freeze begins.

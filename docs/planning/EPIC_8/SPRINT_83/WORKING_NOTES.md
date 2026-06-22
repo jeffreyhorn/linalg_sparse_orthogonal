@@ -327,3 +327,80 @@ bucket.
 - Wider-index maturity, QR / SVD widening, and later complex/mixed-precision
   work are now clearly separated by value and risk before the Day 4 boundary
   freeze begins.
+
+## Day 4 - First Capability Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 83 implementation fence so the next design pass
+can define one real scalar/index contract instead of another broad capability
+rewrite.
+
+### Actions
+- Re-read the Sprint 83 Day 4 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_83/PLAN.md`.
+- Re-read the Day 3 capability rerank against the strongest live public/shared
+  seams.
+- Rechecked the prior bounded-boundary pattern in
+  `docs/planning/EPIC_8/SPRINT_82/artifacts/day4-first-backend-boundary.md`
+  so Sprint 83's fence stays equally explicit.
+- Re-separated:
+  - required first landing surfaces
+  - support-only surfaces that move only if the first landing truly forces
+    them
+  - explicitly deferred implementation lanes and claims
+
+### Findings
+- Sprint 83 now has one explicit first implementation fence:
+  - required first landing:
+    - `include/sparse_types.h`
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+  - support only if the first landing truly forces it:
+    - `include/sparse_qr.h`
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_qr.c`
+    - `tests/test_svd.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_qr.c`
+    - `src/sparse_svd.c`
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_ldlt.c`
+    - broad algorithm-family widening as a first-batch center
+    - true complex-scalar support
+    - broad mixed-precision support
+    - generic package/platform maturity widening
+- The useful Day 4 clarification is now explicit:
+  - the best first Sprint 83 move is the shared public scalar/index owner on
+    the matrix shell and its highest-value compatibility seams
+  - touched-path wider-index and ABI maturity remains the strongest second seam
+  - QR / SVD family-local capability widening remains real, but explicitly
+    later than the first shared contract landing
+  - proof and support surfaces stay support-only unless the first landing truly
+    changes behavior there
+- The preserved first-batch non-goal fence is explicit now:
+  - no repo-wide complex-number promise
+  - no broad mixed-precision framework
+  - no ABI churn detached from touched public seams
+  - no algorithm-family widening before the shared contract is explicit
+  - no benchmark-governance drift
+  - no support-surface churn detached from a real landed capability seam
+
+### Validation
+- Re-read the Day 3 capability rerank directly.
+- Rechecked the current shared/public and solver-family seam split against the
+  Sprint 83 project-plan scope.
+- Rechecked the prior Sprint 82 boundary artifact to keep the Sprint 83 fence
+  equally bounded and explicit.
+
+### Day 4 Exit State
+- Sprint 83 now has one bounded first capability landing center.
+- Day 5 can design one scalar/index architecture contract inside that fence.
+- Lower-value QR/SVD family breadth, later complex/mixed-precision work, and
+  broader support/package spillover are held back until later lanes.

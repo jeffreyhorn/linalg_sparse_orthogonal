@@ -404,3 +404,83 @@ rewrite.
 - Day 5 can design one scalar/index architecture contract inside that fence.
 - Lower-value QR/SVD family breadth, later complex/mixed-precision work, and
   broader support/package spillover are held back until later lanes.
+
+## Day 5 - Scalar / Index Architecture Design
+
+### Goal
+Define the bounded scalar/index contract that Sprint 83 will actually land on
+the shared matrix-shell and public-owner lane.
+
+### Actions
+- Re-read the Sprint 83 Day 5 plan expectations in
+  `docs/planning/EPIC_8/SPRINT_83/PLAN.md`.
+- Re-read the Day 4 boundary against the current shared/public owner seams in:
+  - `include/sparse_types.h`
+  - `include/sparse_matrix.h`
+  - `src/sparse_matrix.c`
+- Rechecked the current bounded maintainer-policy reading in:
+  - `docs/maintainer_guide.md`
+- Rechecked the current public/shared scalar split against:
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+
+### Findings
+- Sprint 83 now has one explicit first implementation contract:
+  - required implementation center:
+    - `include/sparse_types.h`
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+  - support only if the first batch truly forces it:
+    - `include/sparse_qr.h`
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_qr.c`
+    - `tests/test_svd.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The Day 5 ownership split is now fixed:
+  - shared scalar and width vocabulary owner:
+    - `include/sparse_types.h`
+  - public matrix-shell exposure owner:
+    - `include/sparse_matrix.h`
+  - compatibility-preserving implementation and publication owner:
+    - `src/sparse_matrix.c`
+  - family-level adoption follow-through owners, but not in the first batch:
+    - `include/sparse_qr.h`
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+- The useful Day 5 clarification is explicit now:
+  - the first landing should preserve the shipped scalar contract as real-only
+    `double` even while widening ownership onto the shared public seams
+  - it should widen the shared matrix-shell/public-owner reading to use the
+    already-real `sparse_scalar_t` / `idx_t` vocabulary where that can be done
+    without implying broad numeric genericity
+  - it should keep compatibility-preserving internal representation and
+    publication behavior centered in `src/sparse_matrix.c` rather than widening
+    immediately into family-local algorithm code
+  - it should not reopen QR, SVD, Cholesky, LDL^T, true complex support, broad
+    mixed precision, or generic package/platform maturity in the same batch
+- The preserved first-batch fence is explicit:
+  - current callers should keep a truthful real-only reading
+  - width remains a compile-time contract, not a runtime-generic claim
+  - no repo-wide scalar genericity claim
+  - no benchmark, install/export, or package wording drift unless the touched
+    public contract truly forces it
+
+### Validation
+- Re-read the Day 4 boundary directly.
+- Rechecked the current shared vocabulary, matrix-shell owner, and existing
+  iterative/eigs scalar seam directly.
+- Reconciled the Day 5 contract against the current maintainer-policy wording
+  so the design stays inside the shipped capability claim.
+
+### Day 5 Exit State
+- Sprint 83 now has one bounded scalar/index architecture contract.
+- Ownership between shared vocabulary, public matrix exposure, and
+  compatibility-preserving implementation is fixed before Day 6 begins.
+- Family-local capability widening remains explicitly outside the first batch.

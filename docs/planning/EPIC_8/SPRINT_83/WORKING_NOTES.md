@@ -554,3 +554,71 @@ without widening the shipped scalar contract beyond real-only `double`.
   outlier relative to the already-real `sparse_scalar_t` vocabulary.
 - Family-local capability widening remains explicitly deferred to later sprint
   days.
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the strongest remaining Sprint 83 capability contradiction after the
+Day 6 shared matrix-shell scalar-surface landing so Day 8 can design one
+bounded follow-through batch instead of drifting into premature
+algorithm-family widening.
+
+### Actions
+- Re-read the Day 6 landing against the Day 5 scalar/index architecture
+  contract in:
+  - `docs/planning/EPIC_8/SPRINT_83/artifacts/day5-scalar-index-architecture-design.md`
+  - `docs/planning/EPIC_8/SPRINT_83/artifacts/day6-scalar-surface-expansion-batch.md`
+- Rechecked the shared scalar/width vocabulary owner in:
+  - `include/sparse_types.h`
+- Rechecked the landed shared matrix-shell public seam in:
+  - `include/sparse_matrix.h`
+- Rechecked the current authoritative maintainer-policy reading in:
+  - `docs/maintainer_guide.md`
+- Rechecked the broader package-visible capability wording in:
+  - `README.md`
+- Re-scanned the strongest deferred family-local public surfaces:
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+
+### Findings
+- The Day 6 landing closed the strongest first contradiction:
+  - the shared matrix-shell public seam no longer reads as a raw-`double`
+    outlier
+  - a second immediate matrix-shell scalar batch is not the highest-value next
+    move
+- The strongest remaining Sprint 83 seam is now the touched-path index / ABI
+  follow-through lane:
+  - the shared scalar/width vocabulary owner in `include/sparse_types.h`
+    still reads primarily as the iterative/eigs public seam even though Day 6
+    widened the matrix-shell seam
+  - that makes the strongest residual contradiction one shared-vocabulary and
+    package-visible interpretation gap, not a missing second matrix-shell code
+    batch
+- The exact Day 8 design center is now fixed to:
+  - `include/sparse_types.h`
+- The strongest support-only follow-through is now:
+  - `tests/test_sparse_matrix.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- The strongest Day 7 clarification is explicit now:
+  - QR / SVD algorithm-surface widening remains real, but it is later than the
+    touched-path index / ABI follow-through
+  - Cholesky / LDL^T public-family widening remains support-only and still
+    does not justify reopening direct-family implementation work here
+  - package/install/export mechanics still do not have their own Sprint 83
+    landing absent a real touched public-contract move
+
+### Validation
+- Re-read the Day 5 and Day 6 artifacts against the live tree.
+- Rechecked the shared scalar/width vocabulary owner, the landed matrix-shell
+  public seam, the maintained proof-owner split, and the deferred
+  family-local public headers directly.
+
+### Day 7 Exit State
+- Sprint 83's next contradiction center is now explicit after the Day 6
+  landing.
+- Day 8 can stay bounded to the index / ABI follow-through design lane.
+- Algorithm-family widening remains intentionally deferred until after the
+  touched-path shared-vocabulary seam is reconciled.

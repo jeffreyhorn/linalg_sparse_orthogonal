@@ -692,3 +692,60 @@ algorithm-family capability work.
   reopening broader capability work.
 - Algorithm-family widening remains explicitly after the touched-path shared
   header contract is reconciled.
+
+## Day 9 - Index / ABI Follow-Through Batch
+
+### Goal
+Reconcile the shared scalar/width vocabulary owner with the Day 6 landed
+matrix-shell scalar seam so the public contract reads consistently without
+reopening matrix-shell implementation work or broader family-level capability
+surfaces.
+
+### Actions
+- Updated the shared scalar/width vocabulary owner in:
+  - `include/sparse_types.h`
+- Rechecked the strongest direct proof owner on the landed seam:
+  - `tests/test_sparse_matrix.c`
+- Rechecked the strongest support-only wording surfaces:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Preserved the Day 8 non-touch fence by not widening:
+  - `include/sparse_matrix.h`
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `src/sparse_matrix.c`
+
+### Findings
+- The Day 9 landing stayed inside the Day 8 fence:
+  - `include/sparse_types.h` no longer describes `sparse_scalar_t` primarily
+    as the iterative/eigs public scalar seam
+  - it now treats the shared matrix-shell helper seam plus the
+    iterative/eigs public scalar seams as the active public-owner surface
+  - the shipped scalar contract still remains real-only `double`
+- The strongest useful Day 9 clarification is now explicit:
+  - the remaining contradiction after Day 6 was shared-vocabulary reading, not
+    matrix-shell implementation behavior
+  - `SPARSE_SCALAR_BITS` and `sparse_scalar_bits()` now describe the widened
+    shared owner truthfully
+  - no matrix-shell code churn was needed
+- The strongest support-only follow-through was smaller than the design fence:
+  - `tests/test_sparse_matrix.c` already owned the strongest direct proof and
+    did not need movement
+  - `docs/maintainer_guide.md` already matched the post-Day-6 owner split and
+    did not need movement
+  - `README.md` already remained broadly truthful and did not need movement
+
+### Validation
+- Ran `make format`.
+- Ran `make lint`.
+- Ran `make test`.
+- Ran `make quality-review-full`.
+
+### Day 9 Exit State
+- Sprint 83 now has one landed shared-vocabulary reconciliation batch.
+- The shared scalar owner reads consistently across `include/sparse_types.h`
+  and the already-landed matrix-shell helper seam.
+- Algorithm-family widening remains the next later Sprint 83 seam rather than
+  a dependency of this batch.

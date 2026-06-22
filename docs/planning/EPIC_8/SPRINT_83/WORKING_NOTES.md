@@ -749,3 +749,78 @@ surfaces.
   and the already-landed matrix-shell helper seam.
 - Algorithm-family widening remains the next later Sprint 83 seam rather than
   a dependency of this batch.
+
+## Day 10 - Algorithm-Surface Widening Design
+
+### Goal
+Fix the exact family-local capability seam that should move after the Day 6
+matrix-shell scalar widening and the Day 9 shared-vocabulary reconciliation,
+without reopening broader public-family churn or overstating repo-wide numeric
+genericity.
+
+### Actions
+- Re-read the landed Sprint 83 scalar-owner surfaces:
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+- Re-scanned the strongest candidate algorithm-family public seams:
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+- Rechecked the strongest likely proof-owner surfaces for a family-local
+  follow-through:
+  - `tests/test_qr.c`
+  - `tests/test_svd.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+- Rechecked the strongest support-only wording surfaces:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+### Findings
+- Sprint 83 now has one exact Day 11 algorithm-surface contract:
+  - required Day 11 center:
+    - `include/sparse_qr.h`
+  - strongest support-only proof if the header wording truly forces movement:
+    - `tests/test_qr.c`
+  - strongest support-only wording if the contract truly forces movement:
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - lower-value non-touch surfaces for this batch:
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+    - `tests/test_svd.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+- The strongest useful Day 10 clarification is now explicit:
+  - `include/sparse_qr.h` is the highest-value remaining public algorithm
+    seam that still reads directly in raw `double` terms across caller-owned
+    vectors, residuals, and helper outputs
+  - QR is the strongest next family because it is both a direct public solver
+    lane and the clearest shared-algorithm follow-through after the matrix
+    shell owner widening
+  - `include/sparse_svd.h` is real and still narrower than the new shared
+    owner story, but it is lower-value than QR because it is not the first
+    caller-facing solve lane that naturally follows the Day 6 / Day 9 work
+  - Cholesky and LDL^T remain non-touch because Sprint 83’s widened scalar
+    reading still does not require direct-family public rewording yet
+- The preserved Day 11 fence is explicit:
+  - this is a public-header interpretation batch first, not a family-local
+    implementation rewrite in `src/sparse_qr.c`
+  - no SVD or direct-family spill should be implied unless the QR header
+    wording unexpectedly forces broader contract movement
+  - package/install/export mechanics remain outside the batch
+
+### Validation
+- Re-read the live Sprint 83 touched public-owner surfaces against the QR,
+  SVD, and direct-family public headers.
+- Rechecked the strongest proof-owner and support-only wording surfaces that
+  would move only if the Day 11 QR contract truly forced them.
+
+### Day 10 Exit State
+- Sprint 83 now has one exact algorithm-surface widening design contract.
+- Day 11 can land one bounded QR public-header follow-through batch without
+  reopening SVD or direct-family work.
+- Regression/docs/package alignment remains explicitly after the bounded QR
+  follow-through, not inside it.

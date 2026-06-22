@@ -622,3 +622,73 @@ algorithm-family widening.
 - Day 8 can stay bounded to the index / ABI follow-through design lane.
 - Algorithm-family widening remains intentionally deferred until after the
   touched-path shared-vocabulary seam is reconciled.
+
+## Day 8 - Index / ABI Follow-Through Design
+
+### Goal
+Fix the exact shared-vocabulary and touched-path ABI follow-through contract so
+Day 9 can reconcile the post-Day-6 scalar/index reading without reopening
+matrix-shell implementation work or widening prematurely into
+algorithm-family capability work.
+
+### Actions
+- Re-read the Day 7 rerank against the landed shared matrix-shell seam in:
+  - `docs/planning/EPIC_8/SPRINT_83/artifacts/day6-scalar-surface-expansion-batch.md`
+  - `docs/planning/EPIC_8/SPRINT_83/artifacts/day7-post-landing-audit-and-rerank.md`
+- Rechecked the shared scalar/width vocabulary owner in:
+  - `include/sparse_types.h`
+- Rechecked the strongest authoritative support-only wording surfaces:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked the strongest direct proof-owner surface on the landed seam:
+  - `tests/test_sparse_matrix.c`
+- Reconfirmed the strongest deferred non-touch public headers:
+  - `include/sparse_matrix.h`
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+
+### Findings
+- Sprint 83 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `include/sparse_types.h`
+  - strongest support-only proof if the header wording truly forces movement:
+    - `tests/test_sparse_matrix.c`
+  - strongest support-only wording if the contract truly forces movement:
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - lower-value non-touch surfaces for this batch:
+    - `include/sparse_matrix.h`
+    - `include/sparse_qr.h`
+    - `include/sparse_svd.h`
+    - `include/sparse_cholesky.h`
+    - `include/sparse_ldlt.h`
+- The exact residual contradiction is now explicit:
+  - `include/sparse_types.h` still describes `sparse_scalar_t` primarily as
+    the iterative/eigs dense-scalar seam
+  - after Day 6, that shared vocabulary owner is the strongest stale touched
+    public contract because the matrix-shell helper seam now also routes
+    through `sparse_scalar_t`
+  - the strongest needed Day 9 move is therefore shared-vocabulary
+    reconciliation, not new implementation behavior
+- The useful Day 8 clarification is explicit now:
+  - Day 9 can stay bounded to shared public header and support-surface
+    interpretation, not matrix-shell code churn
+  - QR / SVD algorithm-surface widening remains a later seam
+  - Cholesky / LDL^T public-family wording remains non-touch unless Day 9
+    unexpectedly forces broader scalar-owner interpretation movement
+  - package/install/export mechanics remain outside the batch
+
+### Validation
+- Re-read the Day 6 and Day 7 artifacts against the live shared vocabulary
+  owner.
+- Rechecked the strongest proof-owner and support-only wording surfaces that
+  would move only if the Day 9 header contract truly forced them.
+
+### Day 8 Exit State
+- Sprint 83 now has one exact index / ABI follow-through design contract.
+- Day 9 can land one bounded shared-vocabulary reconciliation batch without
+  reopening broader capability work.
+- Algorithm-family widening remains explicitly after the touched-path shared
+  header contract is reconciled.

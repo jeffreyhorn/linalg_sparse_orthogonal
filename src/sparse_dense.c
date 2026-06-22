@@ -374,7 +374,9 @@ static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t l
     const char uplo = 'L';
     int info = 0;
     s64_accel_dpotrf(&uplo, &n_blas, A, &lda_blas, &info);
-    if (info != 0)
+    if (info < 0)
+        return SPARSE_ERR_BACKEND_CONTRACT;
+    if (info > 0)
         return SPARSE_ERR_NOT_SPD;
 
     for (idx_t j = 0; j < n; j++) {

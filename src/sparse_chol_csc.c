@@ -1332,7 +1332,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
     s64_ldlt_accel_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, &work_query, &lwork, &info);
     if (info != 0) {
         free(ipiv);
-        return info < 0 ? SPARSE_ERR_BADARG : SPARSE_ERR_SINGULAR;
+        return info < 0 ? SPARSE_ERR_PIVOT_REJECTED : SPARSE_ERR_SINGULAR;
     }
 
     if (!(work_query >= 1.0) || work_query > (double)INT_MAX) {
@@ -1354,7 +1354,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
     free(work);
     if (info != 0) {
         free(ipiv);
-        return info < 0 ? SPARSE_ERR_BADARG : SPARSE_ERR_SINGULAR;
+        return info < 0 ? SPARSE_ERR_PIVOT_REJECTED : SPARSE_ERR_SINGULAR;
     }
 
     sparse_err_t err = SPARSE_OK;

@@ -824,3 +824,59 @@ genericity.
   reopening SVD or direct-family work.
 - Regression/docs/package alignment remains explicitly after the bounded QR
   follow-through, not inside it.
+
+## Day 11 - Algorithm-Surface Widening Batch
+
+### Goal
+Land the bounded QR public-header follow-through fixed on Day 10 so the
+highest-value remaining algorithm-family public seam uses the same shared
+scalar owner vocabulary as the Sprint 83 matrix-shell and shared-types lanes.
+
+### Actions
+- Updated the required Day 11 public algorithm surface in:
+  - `include/sparse_qr.h`
+- Added focused family-local proof on the widened public seam in:
+  - `tests/test_qr.c`
+- Updated the authoritative proof-owner reading where the new QR proof now
+  matters:
+  - `docs/maintainer_guide.md`
+- Rechecked and preserved the Day 10 non-touch fence:
+  - `include/sparse_svd.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `src/sparse_qr.c`
+  - `tests/test_svd.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `README.md`
+
+### Findings
+- The Day 11 landing stayed inside the Day 10 fence:
+  - `include/sparse_qr.h` no longer exposes the strongest caller-owned QR
+    vectors and dense helper outputs entirely as raw `double`
+  - the QR public seam now routes the highest-value caller-owned buffers and
+    helper outputs through `sparse_scalar_t`
+  - the shipped scalar contract still remains real-only `double`
+- The strongest useful Day 11 clarification is now explicit:
+  - Sprint 83 widened a bounded QR public-owner reading, not QR numeric
+    genericity
+  - tolerances and condition-estimate interpretation remain real-valued
+    diagnostics; Sprint 83 did not widen QR into complex or mixed-precision
+    behavior
+  - no `src/sparse_qr.c` implementation churn was needed because the widened
+    public owner still aliases the shipped real-only `double` lane
+- The strongest support-only follow-through was small and exact:
+  - `tests/test_qr.c` now owns the QR public scalar seam directly
+  - `docs/maintainer_guide.md` now names that proof-owner surface explicitly
+  - `README.md` already remained broadly truthful and did not need movement
+
+### Validation
+- Ran `make format`.
+- Ran `make lint`.
+- Ran `make test`.
+
+### Day 11 Exit State
+- Sprint 83 now has one landed bounded QR public-header widening batch.
+- The highest-value remaining algorithm-family public seam now reads
+  consistently with the shared Sprint 83 scalar-owner story.
+- SVD and direct-family public follow-through remain explicitly deferred.

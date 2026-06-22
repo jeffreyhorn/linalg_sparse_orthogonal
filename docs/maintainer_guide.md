@@ -245,6 +245,9 @@ Current maintained proof ownership after Sprint 74 Day 9:
 - `tests/test_eigs.c` owns the eigensolver public scalar seam:
   - `sparse_scalar_t` caller-owned result buffers and option fields
   - `sparse_scalar_bits()` on the eigensolver public contract
+- `tests/test_qr.c` owns the QR public scalar seam:
+  - `sparse_scalar_t` caller-owned solve buffers
+  - `sparse_scalar_t` QR helper output buffers on the widened public header
 
 Interpretation:
 

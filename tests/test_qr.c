@@ -262,6 +262,37 @@ static void test_qr_null(void) {
     sparse_qr_free(&qr);
 }
 
+static void test_qr_public_scalar_alias(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 3.0);
+
+    sparse_qr_t qr = {0};
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    sparse_scalar_t b[2] = {4.0, 9.0};
+    sparse_scalar_t x[2] = {0.0, 0.0};
+    sparse_scalar_t residual = -1.0;
+    sparse_scalar_t diag[2] = {0.0, 0.0};
+
+    ASSERT_EQ(sparse_scalar_bits(), sizeof(sparse_scalar_t) * CHAR_BIT);
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &residual), SPARSE_OK);
+    ASSERT_ERR(sparse_qr_diag_r(&qr, diag), SPARSE_OK);
+
+    ASSERT_NEAR(x[0], 2.0, 1e-12);
+    ASSERT_NEAR(x[1], 3.0, 1e-12);
+    ASSERT_NEAR(residual, 0.0, 1e-12);
+    ASSERT_TRUE(fabs(diag[0]) > 0.0);
+    ASSERT_TRUE(fabs(diag[1]) > 0.0);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
 static void test_qr_rejects_factored_matrix_reuse(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_NOT_NULL(A);
@@ -3103,6 +3134,7 @@ int main(void) {
     RUN_TEST(test_qr_reconstruction);
     RUN_TEST(test_qr_tall);
     RUN_TEST(test_qr_null);
+    RUN_TEST(test_qr_public_scalar_alias);
     RUN_TEST(test_qr_rejects_factored_matrix_reuse);
     RUN_TEST(test_q_roundtrip);
 

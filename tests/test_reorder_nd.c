@@ -499,16 +499,15 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 27 Day 13: tightened from Sprint 24 Day 7's `nnz_nd ≤
-     * 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.  Sprint 27 Day 2
-     * flipped `SPARSE_ND_COARSENING` default `heavy_edge` → `hcc`
-     * (Kuu-safe degree-CV-fall-through); Day 3 flipped
-     * `nd_base_threshold` 96 → 128.  Cumulative Pres_Poisson default-
-     * path achievement: 0.952× (Sprint 23) → 0.923× (Sprint 27 Day 3),
-     * a -2.9pp improvement.  The new bound's 1.7-percentage-point
-     * safety margin (0.923× + 2pp = 0.943× → round to 0.94×) pins the
-     * Sprint 27 ratio without claiming production headroom that
-     * doesn't exist.
+    /* Sprint 27 Day 13 tightened this Pres_Poisson guard from Sprint 24
+     * Day 7's `nnz_nd ≤ 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.
+     * The current default path still stays inside that bound after
+     * Sprint 86 Day 6's `nd_base_threshold` 128 → 160 runtime flip:
+     * Pres_Poisson moves from 0.923× (Sprint 27 Day 3's HCC + t=128
+     * path) to 0.927× while cutting reorder wall materially on the
+     * current reviewed-runtime hotspot.  The retained 0.94× gate keeps
+     * about 1.3 percentage points of headroom on the current default
+     * ratio while preserving the earlier corpus-quality contract.
      *
      * The PLAN.md ≤ 0.85× literal target REMAINS UNMET after Sprint
      * 27 (5th consecutive sprint).  Sprint 27 Items 4-6 (annealing
@@ -1478,12 +1477,14 @@ static void test_hcc_kuu_safe_corpus_parity(void) {
  */
 static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     SparseMatrix *A = NULL;
-    /* bcsstk04 (n=132): tiny but exhibits 3-scheme differentiation
-     * per Sprint 27 Day 4 sweep (hybrid 3679, balance 4469, degree
-     * 4613 under fixed-K).  Fast for unit tests. */
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    /* Under the Sprint 86 Day 6 default threshold flip to 160,
+     * bcsstk04 becomes a pure leaf-AMD case and no longer exercises
+     * the fixed-K separator-lift policy seam.  bcsstk14 (n=1806) still
+     * crosses the partitioner and differentiates strongly under
+     * fixed-K while remaining fast enough for unit-test use. */
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
         return;
     }
 
@@ -1506,7 +1507,7 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree");
     idx_t nnz_degree = symbolic_cholesky_nnz_nd(A);
 
-    fprintf(stderr, "    bcsstk04 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
+    fprintf(stderr, "    bcsstk14 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
             (int)nnz_hybrid, (int)nnz_balance, (int)nnz_degree);
 
     /* Two pairwise checks are sufficient: if hybrid==balance and balance==degree

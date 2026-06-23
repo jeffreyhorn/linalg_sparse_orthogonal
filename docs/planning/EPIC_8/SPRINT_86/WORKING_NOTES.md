@@ -500,3 +500,134 @@ land on the first ND runtime-reduction lane.
   before Day 6 begins.
 - Proof-surface rebalancing, benchmark evidence, CI alignment, and broader
   support spillover remain explicitly outside the first batch.
+
+## Day 6 - ND Runtime Reduction Batch
+
+### Goal
+Land one bounded ND runtime-reduction batch inside `src/sparse_reorder_nd.c`
+that moves the authoritative reviewed-runtime long pole without widening into
+proof-surface rebalancing or graph-family rewrite.
+
+### Actions
+- Re-read the Day 6 runtime-batch expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 5 runtime-design artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day5-algorithm-proof-runtime-architecture-design.md`.
+- Re-profiled the current ND long pole with focused runtime instrumentation:
+  - `SPARSE_ND_PROFILE=1 ./build/test_reorder_nd`
+- Measured the current policy seam with bounded threshold sweeps using:
+  - `./build/bench_reorder --skip-factor --nd-threshold <n> ...`
+- Tried two leaf-glue-oriented `src/sparse_reorder_nd.c` experiments and
+  discarded both after validation because they did not improve the
+  authoritative reviewed path.
+- Landed the kept ND policy flip by raising
+  `sparse_reorder_nd_base_threshold` from `128` to `160` and aligned the
+  touched local-history comments in:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_nd_internal.h`
+  - `src/sparse_graph.c`
+  - `benchmarks/bench_reorder.c`
+- Applied the only forced proof-owner follow-through in
+  `tests/test_reorder_nd.c`:
+  - retained the Pres_Poisson fill gate with the updated current ratio
+  - switched the fixed-`k` differentiation fixture from `bcsstk04` to
+    `bcsstk14` because `bcsstk04` becomes a pure leaf-AMD case at the new
+    default threshold
+- Revalidated the code-day gates and the authoritative reviewed path.
+
+### Findings
+- Sprint 86's first implementation landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `src/sparse_reorder_nd.c`
+  - directly forced support follow-through actually needed:
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph.c`
+    - `benchmarks/bench_reorder.c`
+    - `tests/test_reorder_nd.c`
+  - not needed in the batch:
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The key Day 6 runtime clarification is now explicit:
+  - the real current long pole is not leaf-AMD glue
+  - `SPARSE_ND_PROFILE=1 ./build/test_reorder_nd` showed the current ND cost
+    is dominated by partition work:
+    - `partition = 23022.473 ms`
+    - `leaf_amd = 155.773 ms`
+    - `subgraph = 55.253 ms`
+    - `total = 23482.393 ms`
+  - the kept win therefore came from the ND orchestration/policy seam
+    instead of deeper leaf-side surgery
+- The bounded threshold re-sweep fixed the kept landing:
+  - headline Pres_Poisson sweep:
+    - `t=128`: `nnz(L)=2462201`, `reorder wall=7371.8 ms`
+    - `t=160`: `nnz(L)=2474435`, `reorder wall=5015.2 ms`
+    - `t=192`: `nnz(L)=2499686`, `reorder wall=4687.5 ms`
+  - retained default:
+    - `128 -> 160`
+  - reason:
+    - `160` materially reduces the current reviewed-runtime hotspot while
+      preserving the current fill-quality proof contract
+    - `192` buys comparatively little extra runtime on Pres_Poisson while
+      pushing fill higher there and was left opt-in
+- The multi-fixture threshold evidence stayed inside current proof tolerances:
+  - `nos4`:
+    - unchanged at `nnz(L)=637`
+  - `bcsstk04`:
+    - `3722 -> 3143`
+    - `135.2 ms -> 2.5 ms`
+  - `Kuu`:
+    - `764664 -> 753755`
+    - `5972.7 ms -> 2964.4 ms`
+  - `bcsstk14`:
+    - `130422 -> 132634`
+    - `464.6 ms -> 377.5 ms`
+  - `s3rmt3m3`:
+    - `487832 -> 484890`
+    - `4896.7 ms -> 3423.9 ms`
+  - `Pres_Poisson`:
+    - `2462201 -> 2474435`
+    - `7371.8 ms -> 5015.2 ms`
+- The only proof-owner follow-through that the kept runtime seam truly forced
+  was inside `tests/test_reorder_nd.c`:
+  - the Pres_Poisson ratio commentary now matches the current default path:
+    - `0.923 -> 0.927`
+  - the fixed-`k` differentiation seam now uses `bcsstk14`, which still
+    crosses the partitioner at the new threshold and differentiates clearly:
+    - `hybrid=284058`
+    - `balance=195336`
+    - `degree=267391`
+- The authoritative reviewed-path win is now explicit relative to the Sprint
+  85 close anchor:
+  - reviewed `test_reorder_nd`:
+    - `283.53 sec -> 138.68 sec`
+  - reviewed CMake total real time:
+    - `404.15 sec -> 234.05 sec`
+  - Makefile/CMake parity remained exact:
+    - `53 vs 53`
+
+### Validation
+- Re-ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reconfirmed reviewed parity:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+- Captured the final authoritative runtime anchors on the kept revision:
+  - reviewed `test_reorder_nd` = `138.68 sec`
+  - reviewed CMake `Total Test time (real)` = `234.05 sec`
+
+### Day 6 Exit State
+- Sprint 86 now has one landed bounded ND runtime-reduction batch.
+- The first real win came from the ND threshold/policy seam rather than a
+  deeper graph rewrite or proof-surface redistribution.
+- The reviewed-runtime long pole moved materially while correctness proof
+  quality and reviewed parity stayed intact.

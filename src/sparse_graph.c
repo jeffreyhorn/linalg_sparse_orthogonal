@@ -71,15 +71,15 @@
  * separator vertices last to the output permutation.  Sprint 22
  * Day 6 implements that recursion.
  *
- * **Small-graph base case.**  Sprint 22 Day 6's recursion stops when
- * a subgraph has n ≤ `sparse_reorder_nd_base_threshold` (default 32
- * from the Day 9 sweep) and emits the subgraph's vertices in
- * natural (subgraph-local) order.  The partitioner itself doesn't
- * impose this threshold — it's an ND-driver decision — but the
- * brute-force bisection at the coarsest level gives the partitioner
- * its own micro-fast-path for n ≤ 20.  The Sprint 22 plan's
- * follow-up of splicing quotient-graph AMD into each leaf is
- * deferred to Sprint 23 (see `docs/planning/EPIC_2/PROJECT_PLAN.md`).
+ * **Small-graph base case.**  Sprint 22 Day 6's recursion originally
+ * stopped when a subgraph had n ≤ `sparse_reorder_nd_base_threshold`
+ * and emitted the subgraph's vertices in natural order; Sprint 23
+ * replaced that leaf path with quotient-graph AMD, and Sprint 86 Day 6
+ * raised the current default threshold to 160 after a reviewed-runtime
+ * re-sweep.  The partitioner itself doesn't impose this threshold —
+ * it's an ND-driver decision — but the brute-force bisection at the
+ * coarsest level gives the partitioner its own micro-fast-path for
+ * n ≤ 20.
  *
  * **Determinism.**  Heavy-edge matching's vertex traversal order is
  * pseudo-randomised with a deterministic seed (mirrors Sprint 21

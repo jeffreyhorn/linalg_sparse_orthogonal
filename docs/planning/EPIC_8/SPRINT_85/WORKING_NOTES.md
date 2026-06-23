@@ -691,3 +691,80 @@ the `src/sparse_chol_csc.c` hotspot.
   dense LDL^T/backend seam out of `src/sparse_chol_csc.c`.
 - Giant-test architecture cleanup remains clearly separated from the next
   source batch.
+
+## Day 9 - Direct-Family Hotspot Batch
+
+### Goal
+Land the bounded mixed-ownership cleanup fixed on Day 8 by moving the dense
+LDL^T/backend seam out of `src/sparse_chol_csc.c` and into the LDL^T CSC owner.
+
+### Actions
+- Re-read the Sprint 85 Day 9 batch expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 8 direct-family design artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day8-direct-family-hotspot-design.md`.
+- Moved the dense LDL^T primitive and bounded backend-selection implementation
+  from `src/sparse_chol_csc.c` into `src/sparse_ldlt_csc.c`:
+  - `ldlt_dense_factor`
+  - `ldlt_dense_factor_selected`
+  - `ldlt_dense_factor_backend_name`
+  - the associated Accelerate probe and backend-selection helpers
+- Moved the internal declarations for that seam from
+  `src/sparse_chol_csc_internal.h` into `src/sparse_ldlt_csc_internal.h`.
+- Reconciled the directly forced proof-owner include follow-through:
+  - added `src/sparse_ldlt_csc_internal.h` to `tests/test_chol_csc.c`
+  - replaced the stray `sparse_chol_csc_internal.h` dependency in
+    `tests/test_ldlt.c` with `sparse_ldlt_csc_internal.h`
+- Preserved the non-goal fence:
+  - no Cholesky CSC elimination rewrite
+  - no family-wide public/API widening
+  - no giant-test registration cleanup
+  - no maintainer-guide or README movement
+- Ran the full required validation gate for a real source-hotspot batch.
+
+### Findings
+- The Day 9 landing stayed inside the Day 8 fence:
+  - required implementation center:
+    - `src/sparse_chol_csc.c`
+  - directly forced support surfaces actually needed:
+    - `src/sparse_ldlt_csc.c`
+    - `src/sparse_ldlt_csc_internal.h`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+  - not needed in the batch:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - giant-test architecture cleanup
+    - adjacent source cleanups in `src/sparse_qr.c` or `src/sparse_ldlt.c`
+- The real contradiction reduced in code was mixed family ownership:
+  - `src/sparse_chol_csc.c` no longer owns the LDL^T dense primitive/backend
+    seam
+  - `src/sparse_ldlt_csc.c` now owns the LDL^T dense primitive/backend seam
+    that its supernodal path and env-contract tests already read as family-local
+- The proof-owner follow-through stayed minimal and bounded:
+  - no test logic rewrite
+  - only internal header include adjustment where the symbol owner moved
+- The strongest Day 9 clarification is explicit:
+  - this was a real direct-family maintainability reduction, not a generic
+    Cholesky refactor
+  - the batch reduced the `src/sparse_chol_csc.c` hotspot by removing a
+    non-Cholesky ownership block rather than redistributing arbitrary helpers
+  - giant-test architecture cleanup remains later Sprint 85 work
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+- Reviewed CMake runtime note:
+  - `test_reorder_nd` remained the long tail at `254.28 sec`
+  - reviewed CMake `Total Test time (real)` = `351.72 sec`
+
+### Day 9 Exit State
+- Sprint 85 now has one landed bounded direct-family source cleanup batch.
+- The Cholesky CSC hotspot no longer owns the LDL^T dense/backend seam.
+- Giant-test architecture cleanup remains the strongest later Sprint 85 seam.

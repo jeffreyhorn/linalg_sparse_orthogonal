@@ -20,6 +20,7 @@
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
 #include "sparse_types.h"

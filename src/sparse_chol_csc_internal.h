@@ -732,69 +732,6 @@ void chol_csc_supernodal_set_dense_kernels_override_for_test(const chol_dense_ke
 void chol_csc_supernodal_clear_dense_kernels_override_for_test(void);
 
 /**
- * Sprint 19 Day 11: Dense LDL^T factor with Bunch-Kaufman pivoting.
- *
- * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for
- * the Sprint 19 Days 12-14 batched supernodal LDL^T path to call per
- * supernode's diagonal block (the same way `chol_dense_factor` serves
- * the Cholesky batched supernodal kernel).
- *
- * Input: `A` is n×n column-major symmetric with BOTH triangles
- * populated so the four-criteria BK scan can read `A[i + r*lda]`
- * directly without symmetry reflection.
- *
- * Output:
- *   - `A` below-diagonal holds unit-L: diagonal set to 1.0, L[k+1, k] = 0
- *     for 2×2 pivots (the coupling lives in `D_offdiag`).  Upper
- *     triangle not preserved.
- *   - `D[k]`: 1×1 pivot scalar, or the (k, k) diagonal of a 2×2 block;
- *     `D[k+1]` for 2×2 holds (k+1, k+1).
- *   - `D_offdiag[k]`: 2×2 block's (k, k+1) off-diagonal; 0 for 1×1.
- *   - `pivot_size[k]`: 1 for 1×1, 2 for both indices of a 2×2 pair.
- *   - `elem_growth_out` (optional, may be NULL): receives the max
- *     |L[i, j]| observed during the factor.
- *
- * @param A              n×n column-major symmetric buffer (both triangles).
- * @param D              Length-n output.
- * @param D_offdiag      Length-n output.
- * @param pivot_size     Length-n output.
- * @param n              Dimension.
- * @param lda            Leading dimension (`lda >= n`).
- * @param tol            Drop / singularity tolerance; <=0 uses SPARSE_DROP_TOL.
- * @param elem_growth_out Optional output for max observed |L|.
- * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_SINGULAR.
- */
-sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *pivot_size, idx_t n,
-                               idx_t lda, double tol, double *elem_growth_out);
-
-/**
- * Runtime-selected LDL^T dense block factor.
- *
- * Preserves `ldlt_dense_factor(...)` as the shipped builtin implementation
- * while allowing a bounded optional runtime-selected accelerated backend for
- * the LDL^T CSC supernodal lane.  The selected backend must preserve the same
- * postcondition on `A`, `D`, `D_offdiag`, and `pivot_size` as the builtin
- * helper.  If the optional backend cannot preserve the cached BK block layout,
- * it returns `SPARSE_ERR_PIVOT_REJECTED` so the caller can fall back to the
- * resolved scalar-prepass factor rather than publishing a mismatched block
- * contract.
- *
- * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_ALLOC,
- *         SPARSE_ERR_SINGULAR, or SPARSE_ERR_PIVOT_REJECTED.
- */
-sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
-                                        idx_t n, idx_t lda, double tol, double *elem_growth_out);
-
-/**
- * Name of the currently selected LDL^T dense-factor backend.
- *
- * Returns `"builtin"` for the shipped default path and `"accelerate"` for the
- * bounded Darwin-only optional runtime path when that selector is active and
- * available.
- */
-const char *ldlt_dense_factor_backend_name(void);
-
-/**
  * Supernode-aware elimination entry point.
  *
  * Detects fundamental supernodes, runs the dense Cholesky + panel solve path

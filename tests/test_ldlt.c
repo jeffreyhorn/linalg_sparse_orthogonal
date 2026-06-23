@@ -5,9 +5,9 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
-#include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"

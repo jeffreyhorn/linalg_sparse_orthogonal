@@ -1,0 +1,31 @@
+Sprint 85 Day 1 authoritative inputs
+
+Primary planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md
+- docs/planning/EPIC_8/SPRINT_85/PLAN.md
+- docs/planning/EPIC_8/SPRINT_84/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_8/SPRINT_84/RETROSPECTIVE.md
+
+Baseline and parity commands rechecked
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Live hotspot measurement inputs
+- include/sparse_types.h
+- include/sparse_matrix.h
+- include/sparse_qr.h
+- include/sparse_svd.h
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- src/sparse_iterative.c
+- src/sparse_chol_csc.c
+- src/sparse_ldlt.c
+- src/sparse_qr.c
+- tests/test_iterative.c
+- tests/test_chol_csc.c
+- tests/test_integration.c
+- tests/test_ldlt.c
+- tests/test_qr.c
+- docs/maintainer_guide.md
+- README.md

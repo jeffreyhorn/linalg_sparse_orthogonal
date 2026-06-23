@@ -231,7 +231,7 @@ Interpretation:
 - install/export, reviewed-platform, and ABI wording should stay unchanged
   unless a later sprint actually moves those contracts
 
-Current maintained proof ownership after Sprint 83:
+Current maintained proof ownership after Sprint 84 Day 6:
 
 - `tests/test_sparse_matrix.c` owns the width-contract proof surface:
   - `SPARSE_IDX_BITS`
@@ -248,12 +248,22 @@ Current maintained proof ownership after Sprint 83:
 - `tests/test_qr.c` owns the QR public scalar seam:
   - `sparse_scalar_t` caller-owned solve buffers
   - `sparse_scalar_t` QR helper output buffers on the widened public header
+- `tests/test_chol_csc.c` owns the bounded direct-family maintained external
+  differential lane:
+  - Cholesky CSC SPD solves checked against an external-process dense reference
+    solve
+  - fixture-backed SuiteSparse SPD coverage on `nos4` and `bcsstk04`
+  - maintained proof stays family-local to the direct-family SPD Cholesky path
 
 Interpretation:
 
 - examples and docs remain support surfaces on this lane
 - do not imply that touched capability wording replaces the focused proof
   owners above
+- do not reinterpret `bench_chol_csc` or examples as oracle owners for this
+  lane
+- do not imply that every solver family now has maintained external
+  differential proof
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
 

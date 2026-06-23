@@ -333,6 +333,32 @@ static void property_assert_vec_near(const double *a, const double *b, idx_t n, 
         ASSERT_NEAR(a[i], b[i], tol);
 }
 
+static void property_assert_rel_residual_small(const SparseMatrix *A, const double *x,
+                                               const double *b, idx_t n, double tol) {
+    double *Ax = malloc((size_t)n * sizeof(double));
+    double numer = 0.0;
+    double denom = 0.0;
+    double resid = 0.0;
+    double rhs_norm = 0.0;
+
+    REQUIRE_OK(Ax ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    memset(Ax, 0, (size_t)n * sizeof(double));
+    sparse_matvec(A, x, Ax);
+
+    for (idx_t i = 0; i < n; i++) {
+        const double diff = b[i] - Ax[i];
+        numer += diff * diff;
+        denom += b[i] * b[i];
+    }
+
+    rhs_norm = sqrt(denom);
+    resid = sqrt(numer) / (rhs_norm > 0.0 ? rhs_norm : 1.0);
+    ASSERT_TRUE(resid <= tol);
+
+    free(Ax);
+}
+
 /* Property: LU factor -> solve -> residual small */
 static void test_property_lu(void) {
     int pass_count = 0;
@@ -795,6 +821,258 @@ static void test_property_large_n_ldlt_public_lifecycle_same_pattern_csc(void) {
     ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
 }
 
+static void test_property_large_n_cholesky_csc_reorder_repeat_solve_agreement(void) {
+    static const unsigned seeds[] = {911u, 1289u, 1877u};
+    const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 12);
+    const double tol = 1e-10;
+    const double residual_tol = 1e-12;
+    int pass_count = 0;
+
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    for (size_t case_idx = 0; case_idx < sizeof(seeds) / sizeof(seeds[0]); case_idx++) {
+        SparseMatrix *A_base = random_spd(n, seeds[case_idx]);
+        SparseMatrix *A_ref = NULL;
+        sparse_analysis_t analysis_none = {0};
+        sparse_analysis_t analysis_amd = {0};
+        sparse_factors_t factors_none = {0};
+        sparse_factors_t factors_amd = {0};
+        double *x_exact = NULL;
+        double *b0 = NULL;
+        double *b1 = NULL;
+        double *x_none0 = NULL;
+        double *x_none0_repeat = NULL;
+        double *x_amd0 = NULL;
+        double *x_amd0_repeat = NULL;
+        double *x_none1 = NULL;
+        double *x_none1_repeat = NULL;
+        double *x_amd1 = NULL;
+        double *x_amd1_repeat = NULL;
+
+        REQUIRE_OK(A_base ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        A_ref = sparse_copy(A_base);
+        REQUIRE_OK(A_ref ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        sparse_analysis_opts_t analysis_opts_none = {
+            .factor_type = SPARSE_FACTOR_CHOLESKY,
+            .reorder = SPARSE_REORDER_NONE,
+        };
+        sparse_analysis_opts_t analysis_opts_amd = {
+            .factor_type = SPARSE_FACTOR_CHOLESKY,
+            .reorder = SPARSE_REORDER_AMD,
+        };
+
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts_none, &analysis_none));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis_none, &factors_none));
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts_amd, &analysis_amd));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis_amd, &factors_amd));
+
+        x_exact = malloc((size_t)n * sizeof(double));
+        b0 = malloc((size_t)n * sizeof(double));
+        b1 = malloc((size_t)n * sizeof(double));
+        x_none0 = malloc((size_t)n * sizeof(double));
+        x_none0_repeat = malloc((size_t)n * sizeof(double));
+        x_amd0 = malloc((size_t)n * sizeof(double));
+        x_amd0_repeat = malloc((size_t)n * sizeof(double));
+        x_none1 = malloc((size_t)n * sizeof(double));
+        x_none1_repeat = malloc((size_t)n * sizeof(double));
+        x_amd1 = malloc((size_t)n * sizeof(double));
+        x_amd1_repeat = malloc((size_t)n * sizeof(double));
+        REQUIRE_OK(x_exact && b0 && b1 && x_none0 && x_none0_repeat && x_amd0 && x_amd0_repeat &&
+                           x_none1 && x_none1_repeat && x_amd1 && x_amd1_repeat
+                       ? SPARSE_OK
+                       : SPARSE_ERR_ALLOC);
+
+        for (idx_t i = 0; i < n; i++) {
+            const double base_diag = sparse_get(A_base, i, i);
+            x_exact[i] = 1.0 + 0.01 * (double)i;
+            ASSERT_EQ(sparse_set(A_ref, i, i, base_diag + 0.25 + 0.005 * (double)i), SPARSE_OK);
+        }
+
+        sparse_matvec(A_base, x_exact, b0);
+        sparse_matvec(A_ref, x_exact, b1);
+
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b0, x_none0));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b0, x_none0_repeat));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b0, x_amd0));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b0, x_amd0_repeat));
+
+        property_assert_vec_near(x_none0, x_exact, n, tol);
+        property_assert_vec_near(x_amd0, x_exact, n, tol);
+        property_assert_vec_near(x_none0, x_none0_repeat, n, tol);
+        property_assert_vec_near(x_amd0, x_amd0_repeat, n, tol);
+        property_assert_vec_near(x_none0, x_amd0, n, tol);
+        property_assert_rel_residual_small(A_base, x_none0, b0, n, residual_tol);
+        property_assert_rel_residual_small(A_base, x_amd0, b0, n, residual_tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref, &analysis_none, &factors_none));
+        REQUIRE_OK(sparse_refactor_numeric(A_ref, &analysis_amd, &factors_amd));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b1, x_none1));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b1, x_none1_repeat));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b1, x_amd1));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b1, x_amd1_repeat));
+
+        property_assert_vec_near(x_none1, x_exact, n, tol);
+        property_assert_vec_near(x_amd1, x_exact, n, tol);
+        property_assert_vec_near(x_none1, x_none1_repeat, n, tol);
+        property_assert_vec_near(x_amd1, x_amd1_repeat, n, tol);
+        property_assert_vec_near(x_none1, x_amd1, n, tol);
+        property_assert_rel_residual_small(A_ref, x_none1, b1, n, residual_tol);
+        property_assert_rel_residual_small(A_ref, x_amd1, b1, n, residual_tol);
+
+        pass_count++;
+
+        free(x_exact);
+        free(b0);
+        free(b1);
+        free(x_none0);
+        free(x_none0_repeat);
+        free(x_amd0);
+        free(x_amd0_repeat);
+        free(x_none1);
+        free(x_none1_repeat);
+        free(x_amd1);
+        free(x_amd1_repeat);
+        sparse_factor_free(&factors_none);
+        sparse_factor_free(&factors_amd);
+        sparse_analysis_free(&analysis_none);
+        sparse_analysis_free(&analysis_amd);
+        sparse_free(A_base);
+        sparse_free(A_ref);
+    }
+
+    printf("    large-n CSC reorder/repeat property: %d/%zu passed\n", pass_count,
+           sizeof(seeds) / sizeof(seeds[0]));
+    ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
+}
+
+static void test_property_large_n_ldlt_csc_reorder_repeat_solve_agreement(void) {
+    static const unsigned seeds[] = {977u, 1543u, 2111u};
+    const idx_t n_top = (idx_t)(SPARSE_CSC_THRESHOLD + 12);
+    const idx_t n_bot = 8;
+    const idx_t n = n_top + n_bot;
+    const double tol = 1e-9;
+    const double residual_tol = 1e-11;
+    int pass_count = 0;
+
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    for (size_t case_idx = 0; case_idx < sizeof(seeds) / sizeof(seeds[0]); case_idx++) {
+        SparseMatrix *A_base = build_large_kkt(n_top, n_bot);
+        SparseMatrix *A_ref = NULL;
+        sparse_analysis_t analysis_none = {0};
+        sparse_analysis_t analysis_amd = {0};
+        sparse_factors_t factors_none = {0};
+        sparse_factors_t factors_amd = {0};
+        double *x_exact = NULL;
+        double *b0 = NULL;
+        double *b1 = NULL;
+        double *x_none0 = NULL;
+        double *x_none0_repeat = NULL;
+        double *x_amd0 = NULL;
+        double *x_amd0_repeat = NULL;
+        double *x_none1 = NULL;
+        double *x_none1_repeat = NULL;
+        double *x_amd1 = NULL;
+        double *x_amd1_repeat = NULL;
+
+        REQUIRE_OK(A_base ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        A_ref = sparse_copy(A_base);
+        REQUIRE_OK(A_ref ? SPARSE_OK : SPARSE_ERR_ALLOC);
+        perturb_large_kkt_values_in_place(A_ref, n_top, n_bot, seeds[case_idx]);
+
+        sparse_analysis_opts_t analysis_opts_none = {
+            .factor_type = SPARSE_FACTOR_LDLT,
+            .reorder = SPARSE_REORDER_NONE,
+        };
+        sparse_analysis_opts_t analysis_opts_amd = {
+            .factor_type = SPARSE_FACTOR_LDLT,
+            .reorder = SPARSE_REORDER_AMD,
+        };
+
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts_none, &analysis_none));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis_none, &factors_none));
+        REQUIRE_OK(sparse_analyze(A_base, &analysis_opts_amd, &analysis_amd));
+        REQUIRE_OK(sparse_factor_numeric(A_base, &analysis_amd, &factors_amd));
+
+        x_exact = malloc((size_t)n * sizeof(double));
+        b0 = malloc((size_t)n * sizeof(double));
+        b1 = malloc((size_t)n * sizeof(double));
+        x_none0 = malloc((size_t)n * sizeof(double));
+        x_none0_repeat = malloc((size_t)n * sizeof(double));
+        x_amd0 = malloc((size_t)n * sizeof(double));
+        x_amd0_repeat = malloc((size_t)n * sizeof(double));
+        x_none1 = malloc((size_t)n * sizeof(double));
+        x_none1_repeat = malloc((size_t)n * sizeof(double));
+        x_amd1 = malloc((size_t)n * sizeof(double));
+        x_amd1_repeat = malloc((size_t)n * sizeof(double));
+        REQUIRE_OK(x_exact && b0 && b1 && x_none0 && x_none0_repeat && x_amd0 && x_amd0_repeat &&
+                           x_none1 && x_none1_repeat && x_amd1 && x_amd1_repeat
+                       ? SPARSE_OK
+                       : SPARSE_ERR_ALLOC);
+
+        for (idx_t i = 0; i < n; i++)
+            x_exact[i] = 1.0 + 0.005 * (double)i;
+
+        sparse_matvec(A_base, x_exact, b0);
+        sparse_matvec(A_ref, x_exact, b1);
+
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b0, x_none0));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b0, x_none0_repeat));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b0, x_amd0));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b0, x_amd0_repeat));
+
+        property_assert_vec_near(x_none0, x_exact, n, tol);
+        property_assert_vec_near(x_amd0, x_exact, n, tol);
+        property_assert_vec_near(x_none0, x_none0_repeat, n, tol);
+        property_assert_vec_near(x_amd0, x_amd0_repeat, n, tol);
+        property_assert_vec_near(x_none0, x_amd0, n, tol);
+        property_assert_rel_residual_small(A_base, x_none0, b0, n, residual_tol);
+        property_assert_rel_residual_small(A_base, x_amd0, b0, n, residual_tol);
+
+        REQUIRE_OK(sparse_refactor_numeric(A_ref, &analysis_none, &factors_none));
+        REQUIRE_OK(sparse_refactor_numeric(A_ref, &analysis_amd, &factors_amd));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b1, x_none1));
+        REQUIRE_OK(sparse_factor_solve(&factors_none, &analysis_none, b1, x_none1_repeat));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b1, x_amd1));
+        REQUIRE_OK(sparse_factor_solve(&factors_amd, &analysis_amd, b1, x_amd1_repeat));
+
+        property_assert_vec_near(x_none1, x_exact, n, tol);
+        property_assert_vec_near(x_amd1, x_exact, n, tol);
+        property_assert_vec_near(x_none1, x_none1_repeat, n, tol);
+        property_assert_vec_near(x_amd1, x_amd1_repeat, n, tol);
+        property_assert_vec_near(x_none1, x_amd1, n, tol);
+        property_assert_rel_residual_small(A_ref, x_none1, b1, n, residual_tol);
+        property_assert_rel_residual_small(A_ref, x_amd1, b1, n, residual_tol);
+
+        pass_count++;
+
+        free(x_exact);
+        free(b0);
+        free(b1);
+        free(x_none0);
+        free(x_none0_repeat);
+        free(x_amd0);
+        free(x_amd0_repeat);
+        free(x_none1);
+        free(x_none1_repeat);
+        free(x_amd1);
+        free(x_amd1_repeat);
+        sparse_factor_free(&factors_none);
+        sparse_factor_free(&factors_amd);
+        sparse_analysis_free(&analysis_none);
+        sparse_analysis_free(&analysis_amd);
+        sparse_free(A_base);
+        sparse_free(A_ref);
+    }
+
+    printf("    large-n LDLT reorder/repeat property: %d/%zu passed\n", pass_count,
+           sizeof(seeds) / sizeof(seeds[0]));
+    ASSERT_EQ(pass_count, (int)(sizeof(seeds) / sizeof(seeds[0])));
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -837,6 +1115,8 @@ int main(void) {
     RUN_TEST(test_property_svd);
     RUN_TEST(test_property_large_n_cholesky_public_lifecycle_same_pattern_csc);
     RUN_TEST(test_property_large_n_ldlt_public_lifecycle_same_pattern_csc);
+    RUN_TEST(test_property_large_n_cholesky_csc_reorder_repeat_solve_agreement);
+    RUN_TEST(test_property_large_n_ldlt_csc_reorder_repeat_solve_agreement);
 
     fuzz_cleanup_tmp();
     TEST_SUITE_END();

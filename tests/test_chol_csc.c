@@ -26,6 +26,7 @@
 #include "test_framework.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,14 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
+
+#ifdef _WIN32
+#define tf_popen _popen
+#define tf_pclose _pclose
+#else
+#define tf_popen popen
+#define tf_pclose pclose
+#endif
 
 /* ═══════════════════════════════════════════════════════════════════════
  * alloc / free smoke tests
@@ -1634,6 +1643,162 @@ static double compute_rel_residual(const SparseMatrix *A, const double *x, const
     }
     free(Ax);
     return max_b > 0.0 ? max_r / max_b : max_r;
+}
+
+static int read_external_dense_reference_solution(const char *matrix_path, double *x_out, idx_t n,
+                                                  char *reason, size_t reason_cap) {
+    if (!matrix_path || !x_out || !reason || reason_cap == 0)
+        return -1;
+
+    char cmd[512];
+    int written = snprintf(cmd, sizeof(cmd),
+                           "python3 tests/chol_external_dense_reference.py \"%s\"", matrix_path);
+    if (written < 0 || (size_t)written >= sizeof(cmd)) {
+        snprintf(reason, reason_cap, "external dense reference command overflow");
+        return -1;
+    }
+
+    FILE *pipe = tf_popen(cmd, "r");
+    if (!pipe) {
+        snprintf(reason, reason_cap, "python3 pipe open failed");
+        return 0;
+    }
+
+    char line[256];
+    if (!fgets(line, sizeof(line), pipe)) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "external dense reference produced no output");
+        return -1;
+    }
+
+    if (strncmp(line, "SKIP ", 5) == 0) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "%s", line + 5);
+        size_t len = strlen(reason);
+        if (len > 0 && reason[len - 1] == '\n')
+            reason[len - 1] = '\0';
+        return 0;
+    }
+    if (strncmp(line, "ERROR ", 6) == 0) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "%s", line + 6);
+        size_t len = strlen(reason);
+        if (len > 0 && reason[len - 1] == '\n')
+            reason[len - 1] = '\0';
+        return -1;
+    }
+
+    idx_t got_n = -1;
+    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "external dense reference returned invalid dimension header");
+        return -1;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        if (!fgets(line, sizeof(line), pipe)) {
+            tf_pclose(pipe);
+            snprintf(reason, reason_cap,
+                     "external dense reference truncated at entry %" SPARSE_PRIDX, i);
+            return -1;
+        }
+        char *end = NULL;
+        x_out[i] = strtod(line, &end);
+        if (end == line) {
+            tf_pclose(pipe);
+            snprintf(reason, reason_cap,
+                     "external dense reference parse failure at entry %" SPARSE_PRIDX, i);
+            return -1;
+        }
+    }
+
+    if (tf_pclose(pipe) != 0) {
+        snprintf(reason, reason_cap, "external dense reference exited non-zero");
+        return -1;
+    }
+    return 1;
+}
+
+static void assert_cholesky_external_dense_reference(const char *matrix_path,
+                                                     sparse_reorder_t reorder,
+                                                     sparse_chol_backend_t backend, double tol) {
+#ifdef _WIN32
+    (void)matrix_path;
+    (void)reorder;
+    (void)backend;
+    (void)tol;
+    SKIP_TEST("external dense reference helper is not enabled on Windows");
+#else
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, matrix_path));
+    idx_t n = sparse_rows(A);
+
+    double *x_true = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = calloc((size_t)n, sizeof(double));
+    double *x_ref = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_true);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(x_ref);
+
+    for (idx_t i = 0; i < n; i++)
+        x_true[i] = (double)(i + 1);
+    sparse_matvec(A, x_true, b);
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    sparse_cholesky_opts_t opts = {
+        .reorder = reorder,
+        .backend = backend,
+    };
+    REQUIRE_OK(sparse_cholesky_factor_opts(L, &opts));
+    REQUIRE_OK(sparse_cholesky_solve(L, b, x));
+
+    char reason[256];
+    int ref_status =
+        read_external_dense_reference_solution(matrix_path, x_ref, n, reason, sizeof(reason));
+    if (ref_status == 0) {
+        free(x_true);
+        free(b);
+        free(x);
+        free(x_ref);
+        sparse_free(L);
+        sparse_free(A);
+        SKIP_TEST(reason);
+    }
+    if (ref_status < 0) {
+        free(x_true);
+        free(b);
+        free(x);
+        free(x_ref);
+        sparse_free(L);
+        sparse_free(A);
+        TF_FAIL_("external dense reference failed: %s", reason);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double diff = fabs(x[i] - x_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+        ASSERT_NEAR(x[i], x_ref[i], tol);
+        ASSERT_NEAR(x[i], x_true[i], tol);
+    }
+
+    double rel = compute_rel_residual(A, x, b);
+    printf("    external dense ref %s: n=%d, max|x-x_ref|=%.3e, rel_residual=%.3e\n", matrix_path,
+           (int)n, max_diff, rel);
+    ASSERT_TRUE(rel < 1e-10);
+
+    free(x_true);
+    free(b);
+    free(x);
+    free(x_ref);
+    sparse_free(L);
+    sparse_free(A);
+#endif
 }
 
 /* ─── Solve: null-arg handling ──────────────────────────────────── */
@@ -4504,6 +4669,16 @@ static void test_dispatch_day12_bcsstk14_residual(void) {
     day12_spd_dispatch_and_residual(SS_DIR "/bcsstk14.mtx");
 }
 
+static void test_external_dense_reference_nos4_csc(void) {
+    assert_cholesky_external_dense_reference(SS_DIR "/nos4.mtx", SPARSE_REORDER_NONE,
+                                             SPARSE_CHOL_BACKEND_CSC, 1e-10);
+}
+
+static void test_external_dense_reference_bcsstk04_amd_csc(void) {
+    assert_cholesky_external_dense_reference(SS_DIR "/bcsstk04.mtx", SPARSE_REORDER_AMD,
+                                             SPARSE_CHOL_BACKEND_CSC, 1e-10);
+}
+
 /* Legacy zero-initialised opts (just { reorder }) must still work —
  * backend default-inits to AUTO and used_csc_path defaults to NULL. */
 static void test_dispatch_legacy_opts_still_work(void) {
@@ -4644,6 +4819,8 @@ static void run_dispatch_tests(void) {
     RUN_TEST(test_dispatch_invalid_backend_rejected);
     RUN_TEST(test_dispatch_csc_reports_selected_path_before_reorder_error);
     RUN_TEST(test_dispatch_day12_bcsstk14_residual);
+    RUN_TEST(test_external_dense_reference_nos4_csc);
+    RUN_TEST(test_external_dense_reference_bcsstk04_amd_csc);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

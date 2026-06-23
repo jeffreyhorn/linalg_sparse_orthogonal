@@ -231,7 +231,7 @@ Interpretation:
 - install/export, reviewed-platform, and ABI wording should stay unchanged
   unless a later sprint actually moves those contracts
 
-Current maintained proof ownership after Sprint 74 Day 9:
+Current maintained proof ownership after Sprint 83:
 
 - `tests/test_sparse_matrix.c` owns the width-contract proof surface:
   - `SPARSE_IDX_BITS`

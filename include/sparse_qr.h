@@ -20,6 +20,7 @@
  *   sparse_qr_factor(A, &qr);
  *
  *   // Least-squares solve: min ||Ax - b||
+ *   sparse_scalar_t *b = ...;
  *   sparse_scalar_t *x = malloc((size_t)n * sizeof(sparse_scalar_t));
  *   sparse_scalar_t residual;
  *   sparse_qr_solve(&qr, b, x, &residual);

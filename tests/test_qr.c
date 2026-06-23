@@ -272,7 +272,12 @@ static void test_qr_public_scalar_alias(void) {
     sparse_insert(A, 1, 1, 3.0);
 
     sparse_qr_t qr = {0};
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_scalar_t b[2] = {4.0, 9.0};
     sparse_scalar_t x[2] = {0.0, 0.0};

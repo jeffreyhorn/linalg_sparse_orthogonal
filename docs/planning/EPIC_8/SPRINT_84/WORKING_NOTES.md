@@ -764,3 +764,81 @@ landing and Day 7 rerank.
   `tests/test_fuzz.c`.
 - Later failure-path numerical proof and later-family assurance adoption remain
   explicitly deferred.
+
+## Day 9 - Seeded Property Expansion Batch
+
+### Goal
+Land the bounded deterministic seeded-property expansion batch on the retained
+large-`n` direct-family lifecycle owner.
+
+### Actions
+- Added one shared retained residual helper in `tests/test_fuzz.c`:
+  - `property_assert_rel_residual_small`
+- Added one bounded large-`n` Cholesky CSC property:
+  - `test_property_large_n_cholesky_csc_reorder_repeat_solve_agreement`
+- Added one bounded large-`n` LDL^T CSC property:
+  - `test_property_large_n_ldlt_csc_reorder_repeat_solve_agreement`
+- Kept the batch strictly inside the Day 8 fence:
+  - no movement in `tests/test_integration.c`
+  - no movement in `tests/test_chol_csc.c`
+  - no movement in `tests/test_ldlt.c`
+  - no movement in `docs/maintainer_guide.md`
+  - no movement in `README.md`
+- Ran the full required validation gate for a proof-surface widening batch.
+- Recorded the batch in working notes and a Day 9 artifact.
+
+### Findings
+- Sprint 84 Day 9 landed one bounded deterministic property-expansion batch:
+  - required implementation center:
+    - `tests/test_fuzz.c`
+  - strongest support-only follow-through that was not needed:
+    - `tests/test_integration.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The new Cholesky property now proves, on retained large-`n` CSC-backed SPD
+  lifecycle flows:
+  - `SPARSE_REORDER_NONE` and `SPARSE_REORDER_AMD` explicit public lifecycle
+    paths agree on the solved vector
+  - repeated solves on the same analyzed/factored state remain numerically
+    invariant
+  - same-pattern refactor followed by repeated solve preserves that agreement
+  - retained relative residuals stay small on both reorder lanes
+- The new LDL^T property now proves the same bounded invariants on retained
+  large-`n` CSC-backed indefinite lifecycle flows:
+  - reorder agreement across `NONE` vs `AMD`
+  - repeated-solve invariance on the same factor state
+  - same-pattern refactor agreement
+  - retained relative residual smallness on both lanes
+- The useful Day 9 clarification is explicit now:
+  - Sprint 84 now has deeper deterministic lifecycle/property coverage on the
+    retained direct-family large-`n` public lifecycle seam
+  - the strongest next seam is no longer basic property depth in
+    `tests/test_fuzz.c`
+  - later failure-path numerical proof remains separate work
+  - iterative/eigs external adoption remains later work
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- Maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+- Representative retained outputs:
+  - `test_fuzz` = `28 / 28`, `20544` assertions
+  - reviewed CMake `test_fuzz` passed in `29.71 sec`
+  - reviewed CMake `Total Test time (real)` = `454.57 sec`
+  - reviewed CMake `test_reorder_nd` remained the dominant runtime anchor at
+    `325.96 sec`
+
+### Day 9 Exit State
+- Sprint 84 now has one landed bounded deterministic seeded-property expansion
+  batch.
+- The retained large-`n` direct-family lifecycle owner now proves reorder
+  agreement, repeated-solve invariance, and residual smallness in addition to
+  the earlier same-pattern public-vs-one-shot alignment.
+- Later failure-path numerical proof remains the next assurance seam.

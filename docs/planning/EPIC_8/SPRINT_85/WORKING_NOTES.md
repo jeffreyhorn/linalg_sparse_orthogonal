@@ -534,3 +534,78 @@ without widening into proof-owner, public-header, or direct-family cleanup.
   boilerplate while preserving the existing proof-owner split.
 - Direct-family hotspot cleanup and giant-test architecture cleanup remain the
   strongest later Sprint 85 seams.
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the remaining Sprint 85 maintainability contradictions after the Day 6
+iterative-source cleanup landing.
+
+### Actions
+- Re-read the Sprint 85 Day 7 rerank expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 6 landed batch artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day6-iterative-source-cleanup-batch.md`.
+- Re-measured the live post-Day-6 hotspot sizes across the strongest remaining
+  implementation and proof-owner surfaces:
+  - `src/sparse_iterative.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_ldlt.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+- Reconciled what contradiction Day 6 actually removed against the preserved
+  Sprint 85 ordering:
+  - first iterative source cleanup landed
+  - strongest next source hotspot still outstanding
+  - giant-test architecture cleanup still real, but not yet stronger than the
+    remaining direct-family source concentration
+- Fixed the exact Day 8 design center and support-only follow-through map in
+  writing.
+
+### Findings
+- The Day 6 landing closed the strongest first maintainability contradiction:
+  - `src/sparse_iterative.c` no longer stands out as the clear first cleanup
+    center
+  - the repo now has one real bounded iterative-source cleanup seam landed
+  - a second immediate iterative-only batch is not the highest-value next move
+- The strongest remaining Sprint 85 seam is now bounded direct-family source
+  cleanup:
+  - `src/sparse_chol_csc.c` = `1841` lines
+  - `src/sparse_iterative.c` = `1854` lines after the Day 6 cleanup
+  - the useful distinction is no longer raw size alone; it is that the
+    iterative first-lane contradiction has already been reduced in code while
+    the direct-family hotspot still has not
+- Giant-test architecture cleanup remains explicitly later than the next
+  source batch:
+  - `tests/test_chol_csc.c` remains the strongest proof-owner concentration
+  - but it is still support-later work unless the next direct-family source
+    cleanup exposes a helper/registration seam that truly forces movement
+- The exact Day 8 design center is now fixed to:
+  - `src/sparse_chol_csc.c`
+- The strongest support-only follow-through is now:
+  - `tests/test_chol_csc.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- The preserved post-Day-6 non-touch map is now explicit:
+  - no second immediate iterative cleanup batch as the next center
+  - no giant-test architecture rewrite before the next source hotspot is
+    designed
+  - no spillover into `src/sparse_qr.c`, `src/sparse_ldlt.c`, or
+    `tests/test_qr.c` as the next center
+  - no benchmark, example, package, or runtime ownership drift
+
+### Validation
+- This was a docs-only rerank day, so no build/test rerun was required.
+- Re-read the Day 6 landed batch and re-measured the live source/test hotspot
+  map from the current tree.
+
+### Day 7 Exit State
+- Sprint 85 now has one explicit post-Day-6 rerank.
+- The second implementation center is fixed to the direct-family source hotspot
+  in `src/sparse_chol_csc.c`.
+- Giant-test architecture cleanup remains real Sprint 85 work, but only after
+  the next direct-family source design is fixed.

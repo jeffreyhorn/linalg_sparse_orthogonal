@@ -631,3 +631,94 @@ proof-surface rebalancing or graph-family rewrite.
   deeper graph rewrite or proof-surface redistribution.
 - The reviewed-runtime long pole moved materially while correctness proof
   quality and reviewed parity stayed intact.
+
+## Day 7 - Post-Landing Runtime Audit and Rerank
+
+### Goal
+Re-rank the remaining Sprint 86 contradiction map after the Day 6 ND
+runtime-reduction landing so the next batch follows the actual remaining
+reviewed-path pressure rather than the original pre-landing ordering.
+
+### Actions
+- Re-read the Day 7 rerank expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 6 landing record from:
+  - `docs/planning/EPIC_8/SPRINT_86/WORKING_NOTES.md`
+  - `docs/planning/EPIC_8/SPRINT_86/artifacts/day6-nd-runtime-reduction-batch.md`
+- Re-read the validated Sprint 85 close runtime anchor and compared it against
+  the Day 6 reviewed close:
+  - Sprint 85 close:
+    - reviewed `test_reorder_nd` = `283.53 sec`
+    - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - post-Day-6 reviewed close:
+    - reviewed `test_reorder_nd` = `138.68 sec`
+    - reviewed CMake `Total Test time (real)` = `234.05 sec`
+- Refreshed the live post-Day-6 hotspot map from direct `wc -l` measurement:
+  - `tests/test_reorder_nd.c` = `2288`
+  - `tests/test_graph.c` = `2925`
+  - `tests/test_reorder.c` = `1082`
+  - `src/sparse_reorder_nd.c` = `771`
+  - `src/sparse_graph.c` = `841`
+  - `src/sparse_graph_coarsen.c` = `659`
+  - `src/sparse_graph_bisect.c` = `528`
+  - `src/sparse_graph_refine.c` = `602`
+  - `src/sparse_graph_separator.c` = `297`
+  - `benchmarks/bench_reorder.c` = `322`
+  - `benchmarks/bench_fillin.c` = `178`
+  - `docs/maintainer_guide.md` = `726`
+  - `README.md` = `1050`
+- Reconciled the post-Day-6 runtime reading against the Sprint 86 queue:
+  - proof-surface rebalancing
+  - benchmark/comparison follow-through
+  - CI/reviewed-path alignment
+
+### Findings
+- The Day 6 landing closed the strongest first Sprint 86 contradiction:
+  - `src/sparse_reorder_nd.c` no longer stands out as the clear next landing
+    center
+  - the repo now has one real bounded ND runtime/scalability seam landed
+  - a second immediate algorithm-first ND batch is not the highest-value next
+    move
+- The strongest remaining Sprint 86 seam is now reviewed-surface
+  concentration:
+  - reviewed `test_reorder_nd` still dominates the reviewed path even after
+    the Day 6 win:
+    - `138.68 sec` out of `234.05 sec`
+    - roughly `59%` of the reviewed CMake total
+  - that remaining pressure now reads more like proof concentration than
+    unresolved ND threshold policy
+- The exact Day 8 design center is now fixed to:
+  - `tests/test_reorder_nd.c`
+- The strongest support-only follow-through is now:
+  - `tests/test_graph.c`
+  - `tests/test_reorder.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- The useful Day 7 clarification is explicit now:
+  - no second immediate ND-policy retuning batch as the next center
+  - no graph-pipeline rewrite before the proof-owner concentration is designed
+  - no early benchmark/comparison batch before the reviewed proof surface is
+    rebalanced
+  - no CI/reviewed-path wording movement before a real reviewed-surface seam
+    lands
+- The remaining ordering is now fixed:
+  - next seam:
+    - proof-surface rebalancing centered on `tests/test_reorder_nd.c`
+  - later seam:
+    - benchmark/comparison follow-through
+  - later seam:
+    - CI/reviewed-path alignment
+  - still deferred unless newly justified:
+    - another algorithmic ND or graph-family runtime landing
+
+### Validation
+- This was a docs-only rerank day, so no build/test rerun was required.
+- The rerank was grounded in direct rereads of the Day 6 landing records, the
+  validated Sprint 85 close baseline, and the live post-Day-6 hotspot map.
+
+### Day 7 Exit State
+- Sprint 86 now has one explicit post-Day-6 rerank.
+- Day 8 can stay bounded to one proof-surface design lane centered on
+  `tests/test_reorder_nd.c`.
+- Benchmark/comparison follow-through and CI/reviewed-path alignment remain
+  clearly separated from the real next implementation move.

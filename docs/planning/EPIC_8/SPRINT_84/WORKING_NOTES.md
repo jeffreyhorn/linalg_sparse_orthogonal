@@ -207,3 +207,129 @@ failure-path assurance seam.
   reporting, and script-owned install/package proof is fixed in writing.
 - The highest-signal rerun set is explicit before the first assurance-priority
   rerank.
+
+## Day 3 - Differential-Proof Audit
+
+### Goal
+Reduce Sprint 84's broad assurance problem to one ranked live contradiction map
+so the sprint can choose one bounded maintained differential lane instead of
+another generic “more tests” bucket.
+
+### Actions
+- Re-read the Sprint 84 differential-audit expectations from
+  `docs/planning/EPIC_8/SPRINT_84/PLAN.md` and the Sprint 84 project-plan
+  section in `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Re-read the bounded Sprint 80 external-oracle contract at
+  `docs/planning/EPIC_8/SPRINT_80/artifacts/day5-external-oracle-contract.md`.
+- Re-read the Sprint 83 close context so the audit stays downstream of the
+  landed capability work rather than reopening it:
+  - `docs/planning/EPIC_8/SPRINT_83/artifacts/day14-closeout-and-handoff.md`
+  - `docs/planning/EPIC_8/SPRINT_83/RETROSPECTIVE.md`
+- Re-scanned the strongest likely assurance owners and cross-check-friendly
+  proof surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `tests/test_integration.c`
+  - `tests/test_fuzz.c`
+- Rechecked the current maintainer reading around proof ownership, oracle
+  boundaries, property ownership, cancellation/lifecycle semantics, and
+  benchmark ownership in `docs/maintainer_guide.md` and `README.md`.
+- Reconciled the live tree against the Sprint 80 oracle fence and the Sprint
+  83 capability closeout before fixing the Day 3 rank order.
+
+### Findings
+- Sprint 84's broad assurance problem is now reduced to one ranked live
+  contradiction map:
+  - strongest first target:
+    - bounded maintained external differential proof on the core direct-family
+      SPD lane centered first on Cholesky CSC
+  - strongest second target:
+    - deterministic seeded property expansion beyond the current bounded
+      lifecycle/property seams
+  - strongest third target:
+    - failure-path numerical proof on the most fragile cancellation,
+      lifecycle-preservation, and residual-accounting seams
+  - strongest fourth target:
+    - iterative and eigensolver external differential follow-through
+  - strongest support-only but real target:
+    - CI/docs/support wording that still reflects the narrower current
+      assurance reading
+- The strongest current contradiction is not the absence of internal proof:
+  - `tests/test_chol_csc.c` already owns large SuiteSparse residual checks,
+    scalar-vs-batched cross-checks, and path-selection proof
+  - `tests/test_ldlt.c` already owns residual, refine, lifecycle, and
+    cross-backend proof
+  - `tests/test_iterative.c` already owns true-residual, SuiteSparse, and
+    direct-solver comparison proof
+  - `tests/test_eigs.c` already owns dense cross-checks, SuiteSparse Ritz
+    residuals, refinement checks, and SVD-side agreement checks
+  - `tests/test_fuzz.c` already owns bounded seeded generative lifecycle
+    property follow-through
+- The contradiction is that the highest-value maintained external differential
+  lane fixed by Sprint 80 still has not landed:
+  - Sprint 80 froze the first maintained external-oracle lane as a
+    CHOLMOD-class SPD Cholesky comparison
+  - the current tree still proves the core direct-family SPD lanes mainly by
+    internal residual, cross-path, and generated-property checks
+  - benchmark and example surfaces remain intentionally non-oracle surfaces
+  - that leaves the strongest first Sprint 84 move explicit:
+    - land one bounded maintained external differential lane on the direct SPD
+      Cholesky family first
+    - treat broader solver-family external comparisons as follow-through only
+      if that first lane lands cleanly
+- The strongest second contradiction is property breadth:
+  - `tests/test_fuzz.c` already covers LU, Cholesky, QR, SVD, and the large-`n`
+    direct lifecycle parity lanes
+  - deterministic property coverage is still narrower than the current public
+    lifecycle and repeated-run assurance surface
+  - this makes seeded-property widening real Sprint 84 work, but it reads as
+    follow-through after the first maintained external differential lane is
+    explicit
+- The strongest third contradiction is fragile failure-path numerical proof:
+  - `tests/test_integration.c` already owns cancellation and lifecycle
+    preservation semantics across direct, QR, iterative, and eigensolver lanes
+  - `tests/test_iterative.c` and `tests/test_eigs.c` already pin several true
+    residual and refinement invariants
+  - the most fragile cancellation/error-path/cross-check guarantees are still
+    bounded and family-local rather than widened into one clearer assurance
+    package
+- The strongest fourth contradiction is iterative/eigs external proof depth:
+  - these lanes already have stronger internal residual and direct-comparison
+    proof than the direct-family external lane has today
+  - Sprint 80's oracle fence does not justify making them the first maintained
+    external comparison center ahead of the bounded direct SPD lane
+- The useful Day 3 clarification is now explicit:
+  - the best first Sprint 84 move is not generic property expansion
+  - it is one bounded maintained external differential landing on the direct
+    SPD Cholesky lane that Sprint 80 already fenced as first
+  - seeded property widening follows next
+  - failure-path numerical proof follows after that where the first lanes
+    expose the real fragility
+  - iterative/eigs external comparisons remain real, but they are explicitly
+    later than the first direct-family lane
+  - CI/docs/support surfaces stay support-only unless implementation truly
+    moves the assurance contract
+- The preserved Sprint 84 non-goal pressure remains explicit:
+  - no repo-wide claim that every solver now has maintained external proof
+  - no benchmark or example drift into correctness ownership
+  - no broad dependency story for untouched families
+  - no reopening Sprint 83's capability-surface owner work
+  - no support-surface churn detached from a real landed proof seam
+
+### Validation
+- Re-read the Sprint 84 plan and project-plan differential-audit scope.
+- Re-read the bounded Sprint 80 external-oracle contract.
+- Re-scanned the strongest direct, iterative, eigensolver, lifecycle, and
+  seeded-property proof-owner surfaces in the live tree.
+- Rechecked the current maintainer and README proof-ownership reading so the
+  rank order stays aligned with the maintained support surfaces.
+
+### Day 3 Exit State
+- Sprint 84 no longer has a generic assurance-expansion backlog.
+- The first implementation center is fixed to one bounded maintained external
+  differential lane on the direct-family SPD Cholesky path.
+- Seeded property widening, failure-path proof, iterative/eigs external
+  follow-through, and support-surface wording are explicitly ordered behind
+  that first lane.

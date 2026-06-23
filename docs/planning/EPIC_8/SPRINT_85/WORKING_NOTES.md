@@ -1003,3 +1003,82 @@ landed cleanup boundaries and fix the final Day 13 validation queue in writing.
 - The final Sprint 85 validation queue is explicit and unambiguous.
 - Day 13 can execute from a fixed touched-surface truth map instead of
   re-deciding Sprint 85 scope.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full Sprint 85 validation queue fixed on Day 12 and capture the
+measured close baseline from actual execution.
+
+### Actions
+- Executed the implementation-day gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Executed the strongest reviewed baseline:
+  - `make quality-review-full`
+- Reconfirmed reviewed CMake parity:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused reviewed proof owners:
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_qr`
+- Re-ran the representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the benchmark/reporting follow-ons:
+  - `./build/quality-review-cmake/bench_svd tests/data/suitesparse/nos4.mtx`
+  - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `make bench-canonical-report`
+
+### Findings
+- The full Day 13 queue passed cleanly:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+- The focused reviewed reruns also all passed:
+  - `test_iterative` = `80 / 80`
+  - `test_chol_csc` = `151 / 151`
+  - `test_integration` = `56 / 56`
+  - `test_ldlt` = `87 / 87`
+  - `test_qr` = `73 / 73`
+- Representative retained outputs stayed clean:
+  - `example_analysis` solve residual = `4.44e-16`
+  - `example_basic_solve` residual = `0.00e+00`
+  - `test_iterative`: `nos4` CG = `92` iterations, relres = `4.830e-11`
+  - `test_chol_csc`: `bcsstk14` residual = `1.080e-15`
+  - `test_integration`: all `56 / 56` passed on the shared public lifecycle
+    owner
+  - `test_ldlt`: `87 / 87` passed with retained KKT / refinement / backend
+    coverage
+  - `test_qr`: `nos4 QR solve` true residual = `9.415e-15`
+- Representative benchmark/reporting outputs stayed clean:
+  - `bench_svd nos4`: `Partial/Full = 3.4x speedup`
+  - `bench_refactor_csc nos4`: `speedup_refactor = 1.45`
+  - `make bench-canonical-report` wrote:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+- Non-blocking runtime note:
+  - reviewed CMake `test_reorder_nd` remained the long tail at `283.53 sec`
+    out of `404.15 sec`
+
+### Validation
+- The full Sprint 85 Day 13 queue completed cleanly from the frozen Day 12
+  validation map.
+
+### Day 13 Exit State
+- Sprint 85 now has a measured validated close baseline.
+- The reviewed anchors stayed exact across the full sweep.
+- Day 14 can close from execution evidence instead of implementation state.

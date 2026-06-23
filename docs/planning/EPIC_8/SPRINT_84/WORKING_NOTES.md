@@ -688,3 +688,79 @@ external differential landing.
 - Sprint 84 now has one explicit post-Day-6 rerank.
 - Day 8 can stay bounded to one deterministic seeded-property design lane.
 - Support drift is separated from the real next assurance move.
+
+## Day 8 - Seeded Property Expansion Design
+
+### Goal
+Define the bounded deterministic property-expansion contract for the
+highest-value retained lifecycle seams after the Day 6 external differential
+landing and Day 7 rerank.
+
+### Actions
+- Re-read the Day 7 rerank and the current property-owner surface in
+  `tests/test_fuzz.c`.
+- Re-scanned the current deterministic property lanes across:
+  - small random LU / Cholesky / QR / SVD properties
+  - large-`n` Cholesky CSC public lifecycle same-pattern properties
+  - large-`n` LDL^T CSC public lifecycle same-pattern properties
+- Re-read the strongest lifecycle-preservation support proofs in:
+  - `tests/test_integration.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+- Separated:
+  - required property-expansion center
+  - support-only direct-family follow-through if the batch truly forces it
+  - lower-value non-touch property ideas
+- Fixed the exact Day 9 implementation contract in writing.
+- Recorded the design in working notes and a Day 8 artifact.
+
+### Findings
+- Sprint 84 now has one explicit second implementation contract:
+  - required Day 9 center:
+    - `tests/test_fuzz.c`
+  - strongest support-only follow-through if the property batch truly forces
+    it:
+    - `tests/test_integration.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+  - strongest support-only wording if the contract truly forces movement:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - lower-value non-touch surfaces:
+    - `tests/test_iterative.c`
+    - `tests/test_eigs.c`
+    - `benchmarks/bench_chol_csc.c`
+    - `benchmarks/bench_refactor_csc.c`
+    - examples and package/install surfaces
+- The highest-value deterministic property lane is now fixed:
+  - repeated-run public lifecycle invariants on the retained large-`n` CSC
+    direct-family flows
+  - reorder / factor / solve agreement properties that stay within the
+    existing public lifecycle surface
+  - residual and invariance properties on touched retained public flows
+- The strongest Day 8 clarification is explicit now:
+  - Day 9 should deepen deterministic lifecycle/property coverage in the
+    existing property owner rather than reopen the Day 6 external differential
+    lane
+  - Day 9 should not widen into cancellation/error-path proof because that is
+    the later Day 10 / Day 11 seam
+  - Day 9 should not widen into iterative/eigs property inflation just because
+    `tests/test_fuzz.c` already contains small QR/SVD random properties
+  - benchmark and example surfaces remain non-oracle surfaces
+  - maintainer and README wording stay support-only unless the landed property
+    batch truly changes the maintained assurance reading
+
+### Validation
+- Re-read the Day 7 rerank and the live `tests/test_fuzz.c` property owner.
+- Rechecked the strongest lifecycle-preservation support proofs in
+  `tests/test_integration.c`, `tests/test_chol_csc.c`, and `tests/test_ldlt.c`
+  so the property batch remains bounded to the right owner.
+- Rechecked maintainer and README proof-ownership wording to keep support
+  movement explicitly optional.
+
+### Day 8 Exit State
+- Sprint 84 now has one exact second implementation contract.
+- Day 9 can stay bounded to deterministic seeded-property expansion in
+  `tests/test_fuzz.c`.
+- Later failure-path numerical proof and later-family assurance adoption remain
+  explicitly deferred.

@@ -722,3 +722,97 @@ reviewed-path pressure rather than the original pre-landing ordering.
   `tests/test_reorder_nd.c`.
 - Benchmark/comparison follow-through and CI/reviewed-path alignment remain
   clearly separated from the real next implementation move.
+
+## Day 8 - Proof-Surface Rebalancing Design
+
+### Goal
+Define the bounded reviewed-surface cleanup Sprint 86 should land next so the
+remaining `test_reorder_nd` runtime concentration can fall without weakening
+the retained ND correctness proof.
+
+### Actions
+- Re-read the Day 8 proof-design expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 7 rerank artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day7-post-landing-audit-and-rerank.md`.
+- Re-scanned the live `tests/test_reorder_nd.c` structure, with emphasis on:
+  - the flat `main()` registration block
+  - repeated `bcsstk14` policy/comparison tests
+  - repeated `Pres_Poisson` policy/comparison tests
+  - later supernodal-postorder family coverage
+- Rechecked the build wiring for the proof owner:
+  - `CMakeLists.txt`
+  - `Makefile`
+- Reconciled the design options against the post-Day-6 runtime reading:
+  - keep the next batch inside the retained proof owner
+  - avoid a build-level test split that would add reviewed test-count churn
+    without necessarily reducing sequential reviewed runtime
+  - prefer one bounded fixture/reuse and runner-group seam that can lower
+    repeated heavy setup work inside the same correctness owner
+
+### Findings
+- Sprint 86 now has one explicit second implementation contract:
+  - required Day 9 center:
+    - `tests/test_reorder_nd.c`
+  - directly forced support-only follow-through if the rebalance truly needs
+    it:
+    - `CMakeLists.txt`
+    - `Makefile`
+  - strongest adjacent proof-owner follow-through only if the batch exposes a
+    real shared-fixture or rerun-contract seam:
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+  - strongest support-only wording if the contract truly changes reviewed
+    rerun guidance:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - lower-value non-touch surfaces:
+    - `src/sparse_reorder_nd.c`
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `benchmarks/bench_reorder.c`
+    - `benchmarks/bench_fillin.c`
+- The exact Day 9 center is now fixed to one in-owner rebalance inside
+  `tests/test_reorder_nd.c`, not a second immediate algorithm batch and not a
+  build-level binary split.
+- The strongest Day 8 proof lane is now explicit:
+  - extract a small number of local runner/helper seams inside
+    `tests/test_reorder_nd.c`
+  - group the repeated heavy `bcsstk14` and `Pres_Poisson` policy families so
+    each family can reuse one fixture load and one bounded comparison context
+    rather than reloading the same large matrix across many standalone tests
+  - keep the retained authoritative ND proof owner in place while reducing
+    repeated heavy setup work and flattening the long registration block
+- The highest-value family split inside the retained owner is now:
+  - core ND permutation / fill / dispatch contracts
+  - ND policy and typed-env override contracts on shared heavy fixtures
+  - supernodal-postorder advisory and corpus-safety contracts
+- The useful Day 8 clarification is explicit now:
+  - Day 9 should not become a build-system test-count expansion by default
+  - Day 9 should not redistribute ND proof ownership into `tests/test_graph.c`
+    or `tests/test_reorder.c`
+  - Day 9 should not reopen `src/sparse_reorder_nd.c` or graph-family code
+  - the correct next move is fixture and runner rebalance inside the same
+    reviewed proof owner
+- The preserved proof-quality fence is now fixed:
+  - no weakening or deletion of the retained large-fixture ND contracts
+  - no benchmark/example drift into correctness ownership
+  - no maintainer/README churn unless the rerun contract truly changes
+  - no CI/reviewed-path alignment folded into the Day 9 batch
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in rereads of the Day 7 rerank, direct inspection
+  of `tests/test_reorder_nd.c`, and a recheck of the current test wiring in
+  `CMakeLists.txt` and `Makefile`.
+
+### Day 8 Exit State
+- Sprint 86 now has one exact second implementation contract.
+- Day 9 can stay bounded to `tests/test_reorder_nd.c` and reduce reviewed
+  runtime concentration through fixture/reuse and runner-group rebalancing
+  inside the retained ND proof owner.
+- Benchmark/comparison follow-through and CI/reviewed-path alignment remain
+  explicitly later.

@@ -601,3 +601,90 @@ direct-family SPD Cholesky lane.
 - Later sprint work can stay focused on reranking seeded-property expansion,
   failure-path numerical proof, and later-family external follow-through
   instead of reopening whether the first external lane exists.
+
+## Day 7 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the strongest remaining assurance seam after the Day 6 direct-family
+external differential landing.
+
+### Actions
+- Re-read the Day 6 implementation batch, proof-owner notes, and the touched
+  support surface in:
+  - `tests/test_chol_csc.c`
+  - `tests/chol_external_dense_reference.py`
+  - `docs/maintainer_guide.md`
+- Re-scanned the strongest retained second-half assurance owners in the live
+  tree:
+  - `tests/test_fuzz.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `README.md`
+- Re-ranked what contradiction actually closed versus what remains strongest
+  across:
+  - more direct-family external differential work
+  - deterministic seeded-property expansion
+  - failure-path numerical proof
+  - CI/support-surface alignment
+- Verified that support-only churn can still be deferred safely after the Day 6
+  landing.
+- Recorded the rerank and exact Day 8 design center in working notes and a Day
+  7 artifact.
+
+### Findings
+- The Day 6 landing closed the strongest first assurance contradiction:
+  - the repo no longer lacks any maintained external differential lane on the
+    highest-value direct-family SPD path
+  - `tests/test_chol_csc.c` now owns a real bounded external-process
+    differential seam on `nos4` and `bcsstk04`
+  - a second immediate direct-family external batch is not the highest-value
+    next move
+- The strongest remaining Sprint 84 seam is now deterministic seeded-property
+  expansion centered on:
+  - `tests/test_fuzz.c`
+- The strongest support-only follow-through is now:
+  - `tests/test_integration.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Current reading:
+  - `tests/test_fuzz.c` already owns the broadest deterministic property
+    generator surface across random SPD, QR, SVD, and large-`n` Cholesky/LDL^T
+    lifecycle properties
+  - `tests/test_integration.c` already owns the strongest public cancellation,
+    failure-path, and lifecycle-preservation invariants, so it stays
+    support-only unless the property batch exposes one local contradiction
+  - `docs/maintainer_guide.md` is already truthful after Day 6's bounded
+    external-lane reconciliation
+  - `README.md` remains broadly truthful and can stay deferred unless the next
+    property batch truly changes the user-visible assurance reading
+- The useful Day 7 clarification is explicit now:
+  - Sprint 84's next contradiction center is no longer "prove that any
+    maintained external differential lane exists"
+  - it is also not "land a second direct-family external comparison just
+    because the first one worked"
+  - the strongest remaining bounded seam is deterministic seeded-property depth
+    on retained lifecycle flows
+  - failure-path numerical proof remains real, but it is explicitly later than
+    the property-expansion design lane
+  - iterative/eigs external adoption remains later work
+  - benchmark and example surfaces still do not become correctness owners
+
+### Validation
+- This was a docs-only rerank day, so no build/test rerun was required.
+- The rerank was grounded in direct rereads of:
+  - `tests/test_chol_csc.c`
+  - `tests/chol_external_dense_reference.py`
+  - `tests/test_fuzz.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+
+### Day 7 Exit State
+- Sprint 84 now has one explicit post-Day-6 rerank.
+- Day 8 can stay bounded to one deterministic seeded-property design lane.
+- Support drift is separated from the real next assurance move.

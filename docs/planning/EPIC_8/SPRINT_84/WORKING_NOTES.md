@@ -104,3 +104,106 @@ seams rather than another generic “add more tests” restart.
   are fixed in writing.
 - The strongest likely Sprint 84 touch surfaces are explicit before the
   validation/proof recheck begins.
+
+## Day 2 - Validation and Proof-Surface Recheck
+
+### Goal
+Refresh the implementation-day validation contract and the live proof-owner
+split before Sprint 84 widens any external differential, seeded-property, or
+failure-path assurance seam.
+
+### Actions
+- Re-read the Day 2 validation-baseline expectations from
+  `docs/planning/EPIC_8/SPRINT_84/PLAN.md`.
+- Re-read the strongest recent validation/proof-surface template from
+  `docs/planning/EPIC_8/SPRINT_83/artifacts/day2-validation-baseline-and-proof-surface-recheck.md`.
+- Reconfirmed reviewed CMake parity directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the presence of the strongest reviewed proof-owner binaries for the
+  early Sprint 84 lanes:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_svd`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/quality-review-cmake/bench_refactor_csc`
+  - `./build/quality-review-cmake/bench_svd`
+- Rechecked the maintained canonical reporting command surface with:
+  - `make -n bench-canonical-report`
+- Rechecked the script-owned support-proof surfaces:
+  - `scripts/bench_canonical_report.sh`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+### Findings
+- Sprint 84 continues to inherit the strongest local reviewed baseline:
+  - `make quality-review-full`
+- The code-day and docs-day split is now fixed explicitly for this sprint:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial differential, property, failure-path, or support-policy
+    batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- Reviewed CMake parity remains the primary truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The reviewed CMake tree currently owns the strongest early-Sprint-84 proof
+  surfaces:
+  - public/shared and direct-family proof owners:
+    - `./build/quality-review-cmake/test_sparse_matrix`
+    - `./build/quality-review-cmake/test_qr`
+    - `./build/quality-review-cmake/test_svd`
+    - `./build/quality-review-cmake/test_chol_csc`
+    - `./build/quality-review-cmake/test_ldlt`
+    - `./build/quality-review-cmake/test_iterative`
+    - `./build/quality-review-cmake/test_eigs`
+    - `./build/quality-review-cmake/test_integration`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+  - reviewed benchmark follow-on binaries:
+    - `./build/quality-review-cmake/bench_refactor_csc`
+    - `./build/quality-review-cmake/bench_svd`
+- Canonical benchmark reporting remains command- and script-owned rather than
+  reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest Day 2 clarification is now fixed:
+  - reviewed CMake proof-owner tests and representative examples remain the
+    main executable truth surfaces for early Sprint 84 assurance work
+  - reviewed benchmark binaries remain measurability surfaces, not the
+    canonical reporting owner
+  - canonical benchmark reporting remains command/script owned
+  - install/export proof remains script owned
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Rechecked the presence of the strongest reviewed proof-owner tests,
+  representative examples, and reviewed benchmark follow-on binaries.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked `scripts/bench_canonical_report.sh`,
+  `tests/test_install.sh`, and `tests/test_cmake_install.sh`.
+
+### Day 2 Exit State
+- Sprint 84 now has one explicit implementation-day validation contract before
+  the differential rerank begins.
+- The live proof split across reviewed binaries, command-owned canonical
+  reporting, and script-owned install/package proof is fixed in writing.
+- The highest-signal rerun set is explicit before the first assurance-priority
+  rerank.

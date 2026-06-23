@@ -1082,3 +1082,66 @@ measured close baseline from actual execution.
 - Sprint 85 now has a measured validated close baseline.
 - The reviewed anchors stayed exact across the full sweep.
 - Day 14 can close from execution evidence instead of implementation state.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 85 from the Day 13 validated baseline and leave one explicit
+handoff queue for Sprint 86 and the later Epic 8 implementation sprints.
+
+### Actions
+- Rechecked the Sprint 85 close state against the validated Day 13 baseline.
+- Rechecked the Sprint 85 scope against
+  `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Fixed the ranked carry-forward queue for Sprint 86 and the later Epic 8
+  work.
+- Recorded the closeout and handoff artifact for retrospective and PR use.
+
+### Findings
+- Sprint 85 now closes as one coherent Epic 8 maintainability-modernization
+  package across:
+  - hotspot rerank
+  - bounded decomposition / ownership architecture contract
+  - Day 6 bounded iterative-source cleanup
+  - Day 9 bounded direct-family hotspot cleanup
+  - Day 11 bounded giant-test architecture cleanup
+  - validated Day 13 close baseline
+- The preserved fence stayed intact:
+  - Sprint 85 reduced maintainability cost on touched hotspot owners instead of
+    reopening Sprint 84 assurance widening
+  - the first cleanup stayed source-owned inside `src/sparse_iterative.c`
+  - the direct-family cleanup stayed bounded to the embedded dense LDL^T /
+    backend seam rehomed to the LDL^T CSC owner
+  - the giant-test cleanup stayed inside the retained Cholesky CSC proof owner
+  - benchmarks and examples still did not become correctness owners
+  - package, install, export, runtime-package, and reviewed-Windows claims were
+    not widened beyond the untouched mechanics
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 85
+  correction.
+- Sprint 85 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - focused reviewed proof owners and follow-ons all passed
+- The ranked carry-forward queue is now explicit:
+  - Sprint 86 reviewed runtime convergence and reordering-scalability work
+  - later bounded follow-through on adjacent large sources and proof hotspots
+    only where the refreshed hotspot map justifies more extraction
+  - later package/platform/runtime maturity only where touched mechanics
+    justify broader claims
+
+### Validation
+- No new validation was required on Day 14 because Sprint 85 closed from the
+  measured Day 13 execution baseline and Day 14 changed docs only.
+
+### Day 14 Exit State
+- Sprint 85 now closes from one explicit validated maintainability baseline.
+- The next Epic 8 move is Sprint 86 runtime and scalability work, not another
+  Sprint 85 hotspot-scope rerank.
+- Retrospective and PR closeout work can proceed from a stable final sprint
+  state.

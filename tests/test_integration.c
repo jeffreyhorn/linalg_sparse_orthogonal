@@ -2083,6 +2083,227 @@ test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_
     sparse_free(A_good);
 }
 
+static void test_public_lifecycle_refactor_failure_allows_retry(void) {
+    const idx_t n = 40;
+    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_bad = NULL;
+    SparseMatrix *A_retry = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact_old = NULL;
+    double *x_exact_retry = NULL;
+    double *b_old = NULL;
+    double *b_retry = NULL;
+    double *x_old = NULL;
+    double *x_retry = NULL;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+
+    x_exact_old = malloc((size_t)n * sizeof(double));
+    x_exact_retry = malloc((size_t)n * sizeof(double));
+    b_old = malloc((size_t)n * sizeof(double));
+    b_retry = malloc((size_t)n * sizeof(double));
+    x_old = malloc((size_t)n * sizeof(double));
+    x_retry = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact_old && x_exact_retry && b_old && b_retry && x_old && x_retry
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact_old[i] = 1.0;
+        x_exact_retry[i] = 2.0 - 0.01 * (double)i;
+    }
+    sparse_matvec(A_good, x_exact_old, b_old);
+
+    A_bad = sparse_copy(A_good);
+    A_retry = sparse_copy(A_good);
+    REQUIRE_OK(A_bad && A_retry ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, 0, -1.0), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++) {
+        const double diag = sparse_get(A_retry, i, i);
+        ASSERT_EQ(sparse_set(A_retry, i, i, diag + 0.5 + 0.01 * (double)i), SPARSE_OK);
+    }
+    sparse_matvec(A_retry, x_exact_retry, b_retry);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_NOT_SPD);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_old, x_old), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_old[i], x_exact_old[i], 1e-12);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_retry, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_retry, x_retry), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_retry[i], x_exact_retry[i], 1e-12);
+
+    free(x_exact_old);
+    free(x_exact_retry);
+    free(b_old);
+    free(b_retry);
+    free(x_old);
+    free(x_retry);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_retry);
+    sparse_free(A_good);
+}
+
+static void test_public_lifecycle_cholesky_csc_refactor_failure_allows_retry(void) {
+    const idx_t n = 120;
+    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_bad = NULL;
+    SparseMatrix *A_retry = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact_old = NULL;
+    double *x_exact_retry = NULL;
+    double *b_old = NULL;
+    double *b_retry = NULL;
+    double *x_old = NULL;
+    double *x_retry = NULL;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+
+    x_exact_old = malloc((size_t)n * sizeof(double));
+    x_exact_retry = malloc((size_t)n * sizeof(double));
+    b_old = malloc((size_t)n * sizeof(double));
+    b_retry = malloc((size_t)n * sizeof(double));
+    x_old = malloc((size_t)n * sizeof(double));
+    x_retry = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact_old && x_exact_retry && b_old && b_retry && x_old && x_retry
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact_old[i] = 1.0;
+        x_exact_retry[i] = 1.5 + 0.002 * (double)i;
+    }
+    sparse_matvec(A_good, x_exact_old, b_old);
+
+    A_bad = sparse_copy(A_good);
+    A_retry = sparse_copy(A_good);
+    REQUIRE_OK(A_bad && A_retry ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, 0, -1.0), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++) {
+        const double diag = sparse_get(A_retry, i, i);
+        ASSERT_EQ(sparse_set(A_retry, i, i, diag + 0.75 + 0.001 * (double)i), SPARSE_OK);
+    }
+    sparse_matvec(A_retry, x_exact_retry, b_retry);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_NOT_SPD);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_old, x_old), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_old[i], x_exact_old[i], 1e-12);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_retry, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_retry, x_retry), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_retry[i], x_exact_retry[i], 1e-12);
+
+    free(x_exact_old);
+    free(x_exact_retry);
+    free(b_old);
+    free(b_retry);
+    free(x_old);
+    free(x_retry);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_retry);
+    sparse_free(A_good);
+}
+
+static void test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd(void) {
+    const idx_t n_top = 140;
+    const idx_t n_bot = 10;
+    const idx_t n = n_top + n_bot;
+    SparseMatrix *A_good = build_kkt(n_top, n_bot);
+    SparseMatrix *A_bad = NULL;
+    SparseMatrix *A_retry = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact_old = NULL;
+    double *x_exact_retry = NULL;
+    double *b_old = NULL;
+    double *b_retry = NULL;
+    double *x_old = NULL;
+    double *x_retry = NULL;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+    ASSERT_NOT_NULL(factors.ldlt_perm);
+    ASSERT_NOT_NULL(factors.pivot_size);
+
+    x_exact_old = malloc((size_t)n * sizeof(double));
+    x_exact_retry = malloc((size_t)n * sizeof(double));
+    b_old = malloc((size_t)n * sizeof(double));
+    b_retry = malloc((size_t)n * sizeof(double));
+    x_old = malloc((size_t)n * sizeof(double));
+    x_retry = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact_old && x_exact_retry && b_old && b_retry && x_old && x_retry
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact_old[i] = 1.0;
+        x_exact_retry[i] = 1.0 + 0.005 * (double)i;
+    }
+    sparse_matvec(A_good, x_exact_old, b_old);
+
+    A_bad = sparse_copy(A_good);
+    A_retry = build_kkt(n_top, n_bot);
+    REQUIRE_OK(A_bad && A_retry ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, n_top, 0.0), SPARSE_OK);
+    ASSERT_EQ(sparse_set(A_bad, n_top, 0, 0.0), SPARSE_OK);
+    perturb_kkt_values_in_place(A_retry, n_top, n_bot, 0.35);
+    sparse_matvec(A_retry, x_exact_retry, b_retry);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_old, x_old), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_old[i], x_exact_old[i], 1e-10);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_retry, &analysis, &factors), SPARSE_OK);
+    ASSERT_NOT_NULL(factors.ldlt_perm);
+    ASSERT_NOT_NULL(factors.pivot_size);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b_retry, x_retry), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_retry[i], x_exact_retry[i], 1e-10);
+
+    free(x_exact_old);
+    free(x_exact_retry);
+    free(b_old);
+    free(b_retry);
+    free(x_old);
+    free(x_retry);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_retry);
+    sparse_free(A_good);
+}
+
 static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(void) {
     const idx_t n = 120;
     SparseMatrix *A_base = build_tridiag_spd(n);
@@ -2953,6 +3174,9 @@ int main(void) {
     RUN_TEST(test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure);
     RUN_TEST(
         test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_factors);
+    RUN_TEST(test_public_lifecycle_refactor_failure_allows_retry);
+    RUN_TEST(test_public_lifecycle_cholesky_csc_refactor_failure_allows_retry);
+    RUN_TEST(test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd);
     RUN_TEST(test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky);
     RUN_TEST(test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc_cholesky);
     RUN_TEST(test_public_lifecycle_refactor_same_pattern_matches_one_shot_ldlt);

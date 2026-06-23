@@ -915,3 +915,78 @@ property batch.
 - Day 11 can stay bounded to the retained integration failure-path proof owner.
 - Policy / CI / support-surface alignment remains explicitly deferred until
   after the landed failure-path batch.
+
+## Day 11 - Failure-Path Numerical Proof Batch
+
+### Goal
+Land the bounded failure-path numerical proof batch on the shared public
+lifecycle owner without reopening family-local or support-only surfaces.
+
+### Actions
+- Re-read the Day 10 failure-path design and re-scanned the existing public
+  lifecycle proof seams in:
+  - `tests/test_integration.c`
+- Identified the strongest remaining uncovered lifecycle contradiction:
+  - retrying a later good same-pattern refactor after a failed refactor while
+    reusing the same public `analysis` / `factors` objects
+- Added three bounded retry-after-failure proofs:
+  - linked-list Cholesky public lifecycle retry after `SPARSE_ERR_NOT_SPD`
+  - CSC Cholesky public lifecycle retry after `SPARSE_ERR_NOT_SPD`
+  - AMD LDL^T public lifecycle retry after rejected nnz drift
+- Kept the batch centered entirely in the shared integration proof owner:
+  - no `src/` production code changes
+  - no `tests/test_chol_csc.c` or `tests/test_ldlt.c` follow-through
+  - no maintainer or README wording follow-through
+- Ran the required validation gate for a substantial proof batch.
+- Recorded the batch in working notes and a Day 11 artifact.
+
+### Findings
+- Sprint 84 Day 11 landed one bounded failure-path numerical proof batch:
+  - required implementation center:
+    - `tests/test_integration.c`
+  - strongest support-only follow-through that was not needed:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `docs/maintainer_guide.md`
+- The landed retry-after-failure proofs are explicit now:
+  - `test_public_lifecycle_refactor_failure_allows_retry`
+  - `test_public_lifecycle_cholesky_csc_refactor_failure_allows_retry`
+  - `test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd`
+- The shared public lifecycle owner now proves one stronger retained contract:
+  - a failed refactor preserves the previously valid factor state
+  - callers can still use that preserved state to solve the original problem
+  - callers can then retry with a later good same-pattern matrix on the same
+    public `analysis` / `factors` objects and recover correct solves
+- The exact failure modes now covered are:
+  - Cholesky linked-list retry after a bounded `SPARSE_ERR_NOT_SPD` failure
+  - Cholesky CSC retry after a bounded `SPARSE_ERR_NOT_SPD` failure
+  - LDL^T retry after a bounded rejected-pattern / nnz-drift failure under AMD
+- The strongest Day 11 clarification is explicit now:
+  - the remaining fragile lifecycle contradiction was on the shared retry
+    semantics, not in family-local direct proofs
+  - the integration proof owner was sufficient to close it
+  - no support-surface wording or policy movement was required just because the
+    failure-path owner deepened
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- Maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+- Representative retained outputs:
+  - `test_integration` = `56 / 56`
+  - reviewed CMake `Total Test time (real)` = `512.76 sec`
+  - reviewed CMake `test_reorder_nd` remained the dominant runtime anchor at
+    `366.43 sec`
+
+### Day 11 Exit State
+- Sprint 84 now has one landed bounded failure-path numerical proof batch.
+- The shared public lifecycle owner proves preserved-old-factor solve behavior
+  and successful later retry after failed refactor on linked-list Cholesky,
+  CSC Cholesky, and AMD LDL^T lanes.
+- Policy / CI / support-surface alignment remains later work because the
+  landed batch did not force wording or surface-owner movement.

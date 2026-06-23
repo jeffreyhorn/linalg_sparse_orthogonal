@@ -816,3 +816,98 @@ the retained ND correctness proof.
   inside the retained ND proof owner.
 - Benchmark/comparison follow-through and CI/reviewed-path alignment remain
   explicitly later.
+
+## Day 9 - Proof-Surface Rebalancing Batch
+
+### Goal
+Land the bounded ND proof-owner rebalance fixed on Day 8 while preserving the
+single retained reviewed correctness owner and measuring the real reviewed
+runtime effect honestly.
+
+### Actions
+- Reworked `tests/test_reorder_nd.c` inside the retained proof owner only.
+- Added cached heavy-fixture copy helpers for repeated large ND corpus inputs:
+  - `bcsstk14`
+  - `Pres_Poisson`
+  - `Kuu`
+- Replaced repeated one-off heavy `sparse_load_mm(...)` calls in the affected
+  ND policy and supernodal-postorder families with cached-copy loads so each
+  test still receives its own `SparseMatrix`.
+- Extracted local runner groups inside the same file:
+  - `run_nd_core_tests()`
+  - `run_nd_policy_tests()`
+  - `run_nd_supernodal_tests()`
+- Kept all proof ownership inside `tests/test_reorder_nd.c`.
+- Kept build wiring unchanged:
+  - no `CMakeLists.txt` movement
+  - no `Makefile` movement
+  - no adjacent proof-owner redistribution into `tests/test_graph.c` or
+    `tests/test_reorder.c`
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- The Day 9 landing stayed inside the Day 8 fence:
+  - required implementation center:
+    - `tests/test_reorder_nd.c`
+  - directly forced support surfaces actually needed:
+    - none
+  - not needed in the batch:
+    - `CMakeLists.txt`
+    - `Makefile`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The landed proof-owner rebalance is now explicit:
+  - repeated heavy SuiteSparse fixture families no longer each reparse their
+    own Matrix Market file through standalone local `sparse_load_mm(...)`
+    calls
+  - the late-file flat registration block is now grouped into local family
+    runners
+  - proof isolation remains unchanged because each test still receives an
+    owned matrix copy
+- The useful Day 9 clarification is also explicit:
+  - this was a bounded proof-owner layout/reuse landing, not an ND algorithm
+    change
+  - it preserved one-file ND proof ownership
+  - it did not justify build-level test-count growth
+- The authoritative runtime result on this machine did **not** improve the
+  reviewed long pole:
+  - Day 6 reviewed anchor:
+    - `test_reorder_nd = 138.68 sec`
+    - reviewed CMake total = `234.05 sec`
+  - Day 9 reviewed result:
+    - `test_reorder_nd = 144.95 sec`
+    - reviewed CMake total = `246.07 sec`
+  - local `make test` proof-owner runtime also stayed effectively flat:
+    - `test_reorder_nd = 62.041 s`
+- The retained reviewed-path truth is therefore:
+  - the Day 9 rebalance is valid and clean
+  - but the strongest remaining Sprint 86 contradiction is still reviewed ND
+    runtime concentration
+  - the next day should start from that honest measured result rather than
+    assuming the in-owner rebalance solved the long pole
+
+### Validation
+- The landed Day 9 batch passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+
+### Day 9 Exit State
+- Sprint 86 now has one landed bounded proof-owner rebalance in
+  `tests/test_reorder_nd.c`.
+- The ND proof surface is locally cleaner and still owned by one reviewed
+  binary.
+- The reviewed long pole remains real after the landing, so later Sprint 86
+  work should treat benchmark/comparison follow-through and CI/reviewed-path
+  alignment as evidence-gathering or later policy seams, not as solved work.

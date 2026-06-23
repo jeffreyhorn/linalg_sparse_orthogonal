@@ -333,3 +333,86 @@ another generic “more tests” bucket.
 - Seeded property widening, failure-path proof, iterative/eigs external
   follow-through, and support-surface wording are explicitly ordered behind
   that first lane.
+
+## Day 4 - First Assurance Boundary Freeze
+
+### Goal
+Fix the first bounded assurance implementation fence for Sprint 84 so the next
+design pass can define one real oracle/property/failure-path contract instead
+of another broad proof rewrite.
+
+### Actions
+- Re-read the Day 3 differential ranking against the Sprint 84 project-plan
+  scope and the bounded Sprint 80 external-oracle contract.
+- Re-fixed the required first implementation center around the first
+  maintained external differential lane rather than seeded-property or
+  failure-path widening.
+- Separated the strongest support-only proof, CI, and wording surfaces that
+  should move only if the first landing truly forces them.
+- Re-fixed the preserved non-goal fence so the first batch cannot widen into:
+  - broad oracle dependency stories for untouched families
+  - benchmark-governance drift into correctness ownership
+  - repo-wide maintained external-proof claims
+  - support-surface churn detached from a real landed proof seam
+- Recorded the first implementation fence in working notes and a Day 4
+  artifact.
+
+### Findings
+- Sprint 84 now has one explicit first implementation fence:
+  - required first landing:
+    - `tests/test_chol_csc.c`
+  - support only if the first landing truly forces it:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+    - `tests/test_framework.h`
+    - `tests/test_ldlt.c`
+    - `tests/test_fuzz.c`
+    - `tests/test_integration.c`
+    - `tests/test_iterative.c`
+    - `tests/test_eigs.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - explicitly deferred from the first landing:
+    - `tests/test_svd.c`
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_ldlt.c`
+    - `src/sparse_iterative.c`
+    - `src/sparse_eigs.c`
+    - generic seeded-property expansion as a first-batch center
+    - broad failure-path numerical-proof widening as a first-batch center
+    - iterative/eigs maintained external comparisons
+    - benchmark/reporting surfaces as correctness owners
+    - package/runtime/dependency-matrix widening
+- The useful Day 4 clarification is now explicit:
+  - the best first Sprint 84 move is the direct-family SPD external
+    differential lane on the Cholesky CSC proof owner
+  - seeded-property widening remains the strongest second seam, not the first
+    implementation center
+  - failure-path numerical proof remains real, but it is explicitly later than
+    the first external differential landing unless that landing forces it
+  - iterative/eigs external follow-through remains real, but it is explicitly
+    later than the first direct-family lane
+  - proof and support surfaces stay support-only unless the first landing
+    truly changes behavior there
+- The preserved first-batch non-goal fence is explicit now:
+  - no repo-wide claim that every solver now has maintained external proof
+  - no benchmark or example drift into oracle ownership
+  - no broad external dependency story for untouched families
+  - no seeded-property or failure-path expansion ahead of the first external
+    differential contract
+  - no reopening Sprint 83's capability-surface owner work
+  - no support-surface churn detached from a real landed assurance seam
+
+### Validation
+- Re-read the Day 3 differential-audit result and the Day 4 plan boundary
+  expectations.
+- Re-read the bounded Sprint 80 external-oracle contract so the first landing
+  stays inside the already-fixed maintained lane.
+- Rechecked the direct-family, seeded-property, failure-path, and
+  support-surface owners in the live tree before fixing the fence.
+
+### Day 4 Exit State
+- Sprint 84 now has one bounded first assurance landing center.
+- Day 5 can design one oracle/property/failure-path contract inside that
+  fence.
+- Lower-value seeded-property, failure-path, iterative/eigs external, and
+  broader support/dependency spillover work is held back until later lanes.

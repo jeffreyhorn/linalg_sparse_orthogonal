@@ -25,6 +25,12 @@
  * public ownership model still stays with this compatibility shell. The
  * explicit repeated-run direct path with reusable symbolic and factor/workspace
  * state lives in `sparse_analysis.h`.
+ *
+ * Caller-owned dense scalar buffers on the shared matrix-shell helper paths
+ * (`sparse_norminf`, `sparse_matvec`, `sparse_matvec_block`, and related
+ * scalar-parameter entry points below) route through `sparse_scalar_t`. The
+ * shipped scalar contract still remains real-only `double`; this does not
+ * imply broad numeric genericity or complex support.
  */
 
 #include "sparse_types.h"
@@ -178,7 +184,7 @@ SparseMatrix *sparse_transpose(const SparseMatrix *A);
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL,
  *         SPARSE_ERR_BOUNDS if indices are out of range.
  */
-sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val);
+sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val);
 
 /**
  * @brief Remove the element at a physical (row, col) position.
@@ -222,7 +228,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col);
  *       `sparse_get_err(...)` and `sparse_get_last_error()`
  *       alternatives.
  */
-double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
+sparse_scalar_t sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Element access (logical indices — through permutation arrays)
@@ -246,7 +252,7 @@ double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
  *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`
  *       for the rationale + alternatives considered.
  */
-double sparse_get(const SparseMatrix *mat, idx_t row, idx_t col);
+sparse_scalar_t sparse_get(const SparseMatrix *mat, idx_t row, idx_t col);
 
 /**
  * @brief Set a value at a logical (row, col) position.
@@ -260,7 +266,7 @@ double sparse_get(const SparseMatrix *mat, idx_t row, idx_t col);
  * @param val  The value to set. If 0.0, the entry is removed.
  * @return SPARSE_OK on success, or an error code.
  */
-sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, double val);
+sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix information
@@ -322,7 +328,7 @@ size_t sparse_memory_usage(const SparseMatrix *mat);
  * @param tol  Absolute tolerance for symmetry check.
  * @return 1 if symmetric, 0 if not symmetric or mat is NULL/non-square.
  */
-int sparse_is_symmetric(const SparseMatrix *mat, double tol);
+int sparse_is_symmetric(const SparseMatrix *mat, sparse_scalar_t tol);
 
 /**
  * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
@@ -337,7 +343,7 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol);
  * @param[out] norm Pointer to receive the computed norm.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or norm is NULL.
  */
-sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
+sparse_err_t sparse_norminf(SparseMatrix *mat, sparse_scalar_t *norm);
 
 /**
  * @brief Mark a matrix as factored so that solve functions accept it.
@@ -378,7 +384,7 @@ sparse_err_t sparse_mark_factored(SparseMatrix *mat);
  * @param y    Output vector of length rows (overwritten).
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
  */
-sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
+sparse_err_t sparse_matvec(const SparseMatrix *mat, const sparse_scalar_t *x, sparse_scalar_t *y);
 
 /**
  * @brief Sparse matrix × dense block multiply: Y = A * X.
@@ -400,7 +406,8 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
  * @return SPARSE_ERR_ALLOC if any internal size calculation overflows @c size_t
  *         (including output or input stride calculations).
  */
-sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y);
+sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const sparse_scalar_t *X, idx_t nrhs,
+                                 sparse_scalar_t *Y);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix arithmetic
@@ -416,7 +423,7 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
  * @param alpha  The scalar multiplier.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.
  */
-sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
+sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
 
 /**
  * @brief Compute C = alpha*A + beta*B (sparse matrix addition with scaling).
@@ -437,8 +444,8 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
  *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
  *         memory failure.
  */
-sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alpha, double beta,
-                        SparseMatrix **C_out);
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
+                        sparse_scalar_t beta, SparseMatrix **C_out);
 
 /**
  * @brief Compute A = alpha*A + beta*B in-place.
@@ -456,7 +463,8 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alp
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
  *         SPARSE_ERR_SHAPE if dimensions mismatch.
  */
-sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double alpha, double beta);
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
+                                sparse_scalar_t beta);
 
 /**
  * @brief Compute C = A * B (sparse matrix-matrix multiply).

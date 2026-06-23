@@ -428,7 +428,7 @@ SparseMatrix *sparse_transpose(const SparseMatrix *A) {
 
 static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t col);
 
-sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val) {
+sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val) {
     if (!mat)
         return SPARSE_ERR_NULL;
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
@@ -540,7 +540,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col) {
     return err;
 }
 
-double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col) {
+sparse_scalar_t sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col) {
     if (!mat || row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
         return 0.0;
 
@@ -553,13 +553,13 @@ double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col) {
 
 /* ─── Element access (logical — through permutations) ────────────────── */
 
-double sparse_get(const SparseMatrix *mat, idx_t row, idx_t col) {
+sparse_scalar_t sparse_get(const SparseMatrix *mat, idx_t row, idx_t col) {
     if (!mat || row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
         return 0.0;
     return sparse_get_phys(mat, mat->row_perm[row], mat->col_perm[col]);
 }
 
-sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, double val) {
+sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val) {
     if (!mat)
         return SPARSE_ERR_NULL;
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
@@ -592,7 +592,7 @@ size_t sparse_memory_usage(const SparseMatrix *mat) {
 
 /* ─── Symmetry check ─────────────────────────────────────────────────── */
 
-int sparse_is_symmetric(const SparseMatrix *mat, double tol) {
+int sparse_is_symmetric(const SparseMatrix *mat, sparse_scalar_t tol) {
     if (!mat)
         return 0;
     if (mat->rows != mat->cols)
@@ -643,22 +643,22 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol) {
 
 /* ─── Infinity norm ──────────────────────────────────────────────────── */
 
-sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm) {
+sparse_err_t sparse_norminf(SparseMatrix *mat, sparse_scalar_t *norm) {
     if (!mat || !norm)
         return SPARSE_ERR_NULL;
 
     /* Return cached value if valid.  Relaxed ordering suffices: the cached
      * value is idempotent (all threads compute the same result from the
      * same immutable linked-list structure). */
-    double cached = atomic_load_explicit(&mat->cached_norm, memory_order_relaxed);
+    sparse_scalar_t cached = atomic_load_explicit(&mat->cached_norm, memory_order_relaxed);
     if (cached >= 0.0) {
         *norm = cached;
         return SPARSE_OK;
     }
 
-    double max_row_sum = 0.0;
+    sparse_scalar_t max_row_sum = 0.0;
     for (idx_t i = 0; i < mat->rows; i++) {
-        double row_sum = 0.0;
+        sparse_scalar_t row_sum = 0.0;
         Node *node = mat->row_headers[i];
         while (node) {
             row_sum += fabs(node->value);
@@ -682,7 +682,7 @@ sparse_err_t sparse_mark_factored(SparseMatrix *mat) {
         return SPARSE_ERR_SHAPE;
     /* Compute factor_norm if not already set */
     if (sparse_factor_state_factor_norm(mat) < 0.0) {
-        double norm;
+        sparse_scalar_t norm;
         sparse_err_t err = sparse_norminf(mat, &norm);
         if (err != SPARSE_OK)
             return err;
@@ -694,7 +694,7 @@ sparse_err_t sparse_mark_factored(SparseMatrix *mat) {
 
 /* ─── Matrix arithmetic ──────────────────────────────────────────────── */
 
-sparse_err_t sparse_scale(SparseMatrix *mat, double alpha) {
+sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha) {
     if (!mat)
         return SPARSE_ERR_NULL;
 
@@ -730,8 +730,8 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha) {
 /* NOTE: sparse_add() and sparse_add_inplace() operate in physical index space.
  * Do not use on matrices with non-identity permutations (e.g., after LU
  * factorization) — results would not correspond to logical matrix entries. */
-sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alpha, double beta,
-                        SparseMatrix **C_out) {
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
+                        sparse_scalar_t beta, SparseMatrix **C_out) {
     if (!A || !B || !C_out)
         return SPARSE_ERR_NULL;
     *C_out = NULL;
@@ -748,7 +748,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alp
         Node *nB = B->row_headers[i];
 
         while (nA && nB) {
-            double val;
+            sparse_scalar_t val;
             idx_t col;
             if (nA->col < nB->col) {
                 val = alpha * nA->value;
@@ -773,7 +773,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alp
             }
         }
         while (nA) {
-            double val = alpha * nA->value;
+            sparse_scalar_t val = alpha * nA->value;
             if (fabs(val) >= 1e-15) {
                 sparse_err_t err = sparse_insert(C, i, nA->col, val);
                 if (err != SPARSE_OK) {
@@ -784,7 +784,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alp
             nA = nA->right;
         }
         while (nB) {
-            double val = beta * nB->value;
+            sparse_scalar_t val = beta * nB->value;
             if (fabs(val) >= 1e-15) {
                 sparse_err_t err = sparse_insert(C, i, nB->col, val);
                 if (err != SPARSE_OK) {
@@ -800,7 +800,8 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alp
     return SPARSE_OK;
 }
 
-sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double alpha, double beta) {
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
+                                sparse_scalar_t beta) {
     if (!A || !B)
         return SPARSE_ERR_NULL;
     if (A->rows != B->rows || A->cols != B->cols)
@@ -831,7 +832,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double a
                 na = na->right;
             if (na && na->col == target_col) {
                 /* Entry exists in A — update in place */
-                double val = na->value + beta * nb->value;
+                sparse_scalar_t val = na->value + beta * nb->value;
                 if (fabs(val) < 1e-15) {
                     /* Cancellation — remove via insert(0.0) */
                     sparse_err_t ierr = sparse_insert(A, i, target_col, 0.0);
@@ -846,7 +847,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double a
                 }
             } else {
                 /* No entry in A — insert only if non-negligible */
-                double val = beta * nb->value;
+                sparse_scalar_t val = beta * nb->value;
                 if (fabs(val) < 1e-15) {
                     nb = nb->right;
                     continue;
@@ -893,10 +894,10 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         return SPARSE_ERR_ALLOC;
 
     /* Dense accumulator for one row of C, with compact touched-index list */
-    double *acc = NULL;
+    sparse_scalar_t *acc = NULL;
     int *nz_flag = NULL;
     idx_t *touched = NULL;
-    if (sparse_calloc_idx_array(nc, sizeof(double), (void **)&acc) != SPARSE_OK ||
+    if (sparse_calloc_idx_array(nc, sizeof(sparse_scalar_t), (void **)&acc) != SPARSE_OK ||
         sparse_calloc_idx_array(nc, sizeof(int), (void **)&nz_flag) != SPARSE_OK ||
         sparse_malloc_idx_array(nc, sizeof(idx_t), (void **)&touched) != SPARSE_OK) {
         free(acc);
@@ -912,7 +913,7 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         Node *a_node = A->row_headers[i];
         while (a_node) {
             idx_t j = a_node->col;
-            double a_ij = a_node->value;
+            sparse_scalar_t a_ij = a_node->value;
 
             /* Add a_ij * row_j(B) to accumulator */
             Node *b_node = B->row_headers[j];
@@ -961,7 +962,7 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
 
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */
 
-sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) {
+sparse_err_t sparse_matvec(const SparseMatrix *mat, const sparse_scalar_t *x, sparse_scalar_t *y) {
     if (!mat || !x || !y)
         return SPARSE_ERR_NULL;
 
@@ -976,7 +977,7 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) 
     for (idx_t log_i = 0; log_i < nrows; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
         Node *node = mat->row_headers[phys_i];
-        double sum = 0.0;
+        sparse_scalar_t sum = 0.0;
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
             sum += node->value * x[log_j];
@@ -990,7 +991,8 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) 
 
 /* ─── Block SpMV: Y = A * X (multiple RHS) ───────────────────────────── */
 
-sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y) {
+sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const sparse_scalar_t *X, idx_t nrhs,
+                                 sparse_scalar_t *Y) {
     if (!mat || !X || !Y)
         return SPARSE_ERR_NULL;
     if (nrhs < 0)
@@ -1026,9 +1028,9 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
-            double a_ij = node->value;
-            double *y_ptr = Y + (size_t)log_i;
-            const double *x_ptr = X + (size_t)log_j;
+            sparse_scalar_t a_ij = node->value;
+            sparse_scalar_t *y_ptr = Y + (size_t)log_i;
+            const sparse_scalar_t *x_ptr = X + (size_t)log_j;
             for (idx_t k = 0; k < nrhs; k++) {
                 *y_ptr += a_ij * (*x_ptr);
                 y_ptr += sm;

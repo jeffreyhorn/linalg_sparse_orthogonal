@@ -61,11 +61,12 @@ _Static_assert(sizeof(idx_t) * CHAR_BIT == SPARSE_IDX_BITS,
 
 /**
  * @brief Current public dense-scalar type for caller-owned numeric buffers and
- *        callback vectors.
+ *        related public scalar helper paths.
  *
- * Iterative solvers, eigensolvers, and related callback/result contracts use
- * this alias for dense scalar inputs and outputs. The current shipped contract
- * remains real-only and binds @c sparse_scalar_t to @c double.
+ * The shared matrix-shell helper seam plus the iterative and eigensolver
+ * callback/result contracts use this alias for dense scalar inputs and
+ * outputs. The current shipped contract remains real-only and binds
+ * @c sparse_scalar_t to @c double.
  *
  * This alias is a bounded public preparation seam for later scalar-surface
  * widening. It does not imply broad numeric genericity, complex support, or a
@@ -76,8 +77,9 @@ typedef double sparse_scalar_t;
 /**
  * @brief Compile-time bit width of @c sparse_scalar_t.
  *
- * Tracks the current shipped public dense-scalar contract. The reviewed build
- * remains 64-bit IEEE double precision.
+ * Tracks the current shipped public dense-scalar contract across the shared
+ * matrix-shell helper seam and the iterative/eigs public scalar seams. The
+ * reviewed build remains 64-bit IEEE double precision.
  */
 #define SPARSE_SCALAR_BITS ((size_t)(sizeof(sparse_scalar_t) * CHAR_BIT))
 
@@ -300,8 +302,9 @@ size_t sparse_idx_bits(void);
 /**
  * @brief Return the configured width of @c sparse_scalar_t in bits.
  *
- * Reports the current shipped public dense-scalar contract. This remains the
- * real-only @c double lane in the reviewed build.
+ * Reports the current shipped public dense-scalar contract across the shared
+ * matrix-shell helper seam and the iterative/eigs public scalar seams. This
+ * remains the real-only @c double lane in the reviewed build.
  *
  * @return Currently 64.
  */

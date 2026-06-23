@@ -450,6 +450,37 @@ static void test_idx_width_contract(void) {
 #endif
 }
 
+static void test_matrix_public_scalar_alias(void) {
+    SparseMatrix *m = sparse_create(2, 2);
+    ASSERT_NOT_NULL(m);
+    if (!m)
+        return;
+
+    ASSERT_EQ(sparse_scalar_bits(), sizeof(sparse_scalar_t) * CHAR_BIT);
+
+    ASSERT_ERR(sparse_insert(m, 0, 0, (sparse_scalar_t)2.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(m, 0, 1, (sparse_scalar_t)-1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(m, 1, 0, (sparse_scalar_t)3.0), SPARSE_OK);
+
+    sparse_scalar_t x[2] = {4.0, 5.0};
+    sparse_scalar_t y[2] = {0.0, 0.0};
+    sparse_scalar_t norm = 0.0;
+
+    ASSERT_ERR(sparse_matvec(m, x, y), SPARSE_OK);
+    ASSERT_NEAR(y[0], 3.0, 1e-15);
+    ASSERT_NEAR(y[1], 12.0, 1e-15);
+
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 3.0, 1e-15);
+
+    ASSERT_ERR(sparse_scale(m, (sparse_scalar_t)0.5), SPARSE_OK);
+    ASSERT_NEAR(sparse_get_phys(m, 0, 0), 1.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(m, 0, 1), -0.5, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(m, 1, 0), 1.5, 1e-15);
+
+    sparse_free(m);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Infinity norm tests
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1070,6 +1101,7 @@ int main(void) {
     /* Memory info */
     RUN_TEST(test_memory_usage);
     RUN_TEST(test_idx_width_contract);
+    RUN_TEST(test_matrix_public_scalar_alias);
 
     /* Infinity norm */
     RUN_TEST(test_norminf_identity);

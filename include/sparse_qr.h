@@ -20,8 +20,9 @@
  *   sparse_qr_factor(A, &qr);
  *
  *   // Least-squares solve: min ||Ax - b||
- *   double *x = malloc(n * sizeof(double));
- *   double residual;
+ *   sparse_scalar_t *b = ...;
+ *   sparse_scalar_t *x = malloc((size_t)n * sizeof(sparse_scalar_t));
+ *   sparse_scalar_t residual;
  *   sparse_qr_solve(&qr, b, x, &residual);
  *
  *   // Rank estimation
@@ -77,16 +78,17 @@ typedef struct {
  * freeing prior contents. sparse_qr_free() is safe on a zeroed struct.
  */
 typedef struct {
-    SparseMatrix *R;    /**< Upper triangular factor (min(m,n) × n after permutation) */
-    double *betas;      /**< Householder scalars beta_k, length min(m,n) */
-    double **v_vectors; /**< Householder vectors v_k, each length m-k (stored from diagonal down) */
-    idx_t *col_perm;    /**< Column permutation: col_perm[k] = original column index */
-    idx_t m;            /**< Number of rows of original A */
-    idx_t n;            /**< Number of columns of original A */
-    idx_t rank;         /**< Numerical rank (set during factorization) */
-    int economy;        /**< Nonzero if economy (thin Q) was requested.
-                             A thin Q is only formed when m > n; when m <= n
-                             this flag has no effect on the shape of Q. */
+    SparseMatrix *R;             /**< Upper triangular factor (min(m,n) × n after permutation) */
+    sparse_scalar_t *betas;      /**< Householder scalars beta_k, length min(m,n) */
+    sparse_scalar_t **v_vectors; /**< Householder vectors v_k, each length m-k
+                                      (stored from diagonal down) */
+    idx_t *col_perm;             /**< Column permutation: col_perm[k] = original column index */
+    idx_t m;                     /**< Number of rows of original A */
+    idx_t n;                     /**< Number of columns of original A */
+    idx_t rank;                  /**< Numerical rank (set during factorization) */
+    int economy;                 /**< Nonzero if economy (thin Q) was requested.
+                                      A thin Q is only formed when m > n; when m <= n
+                                      this flag has no effect on the shape of Q. */
 } sparse_qr_t;
 
 /**
@@ -128,22 +130,24 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
  * @param y         Output vector of length m (may alias x for in-place).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const double *x, double *y);
+sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const sparse_scalar_t *x,
+                               sparse_scalar_t *y);
 
 /**
  * @brief Explicitly form the Q matrix (for testing/diagnostics).
  *
  * For full QR (economy=0): forms Q as a dense m×m orthogonal matrix.
- * Caller allocates m*m doubles.
+ * Caller allocates m*m dense scalars.
  *
  * For economy QR (economy=1): forms the thin Q as a dense m×k matrix
- * with orthonormal columns, where k = min(m, n). Caller allocates m*k doubles.
+ * with orthonormal columns, where k = min(m, n). Caller allocates m*k dense
+ * scalars.
  *
  * @param qr  The QR factorization.
  * @param Q   Output: dense matrix in column-major order.
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
+sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, sparse_scalar_t *Q);
 
 /**
  * @brief Solve the least-squares problem min ||Ax - b||_2.
@@ -173,7 +177,8 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
  * @see sparse_qr_solve_minnorm for minimum-norm underdetermined solutions.
  * @see sparse_qr_rank_info for rank diagnostics.
  */
-sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, double *residual);
+sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const sparse_scalar_t *b, sparse_scalar_t *x,
+                             sparse_scalar_t *residual);
 
 /**
  * @brief Iterative refinement for QR least-squares solutions.
@@ -194,8 +199,9 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
  * @return SPARSE_ERR_SHAPE if A dimensions don't match the QR factorization.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
-sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, const double *b,
-                              double *x, idx_t max_refine, double *residual);
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A,
+                              const sparse_scalar_t *b, sparse_scalar_t *x, idx_t max_refine,
+                              sparse_scalar_t *residual);
 
 /**
  * @brief Estimate numerical rank from QR factorization.
@@ -234,11 +240,12 @@ idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol);
  * @param tol      Tolerance for rank determination (same as sparse_qr_rank).
  * @param basis    Output: null-space basis vectors (n × null_dim, column-major),
  *                 expressed in the original column ordering. Caller allocates
- *                 n * (n - rank) doubles.
+ *                 n * (n - rank) dense scalars.
  * @param null_dim Output: null-space dimension (n - rank).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basis, idx_t *null_dim);
+sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, sparse_scalar_t *basis,
+                                 idx_t *null_dim);
 
 /**
  * @brief Free QR factorization data.
@@ -265,18 +272,18 @@ void sparse_qr_free(sparse_qr_t *qr);
  * @return SPARSE_ERR_BADARG if qr does not contain a valid factorization
  *         (qr->R is NULL).
  */
-sparse_err_t sparse_qr_diag_r(const sparse_qr_t *qr, double *diag);
+sparse_err_t sparse_qr_diag_r(const sparse_qr_t *qr, sparse_scalar_t *diag);
 
 /**
  * @brief Rank diagnostics from a QR factorization.
  */
 typedef struct {
-    idx_t rank;         /**< Numerical rank (R diagonals above threshold) */
-    idx_t k;            /**< min(m, n) — number of R diagonal entries */
-    double r_max;       /**< Largest |R(i,i)| */
-    double r_min;       /**< Smallest |R(i,i)| among the first rank entries */
-    double condest;     /**< Quick condition estimate: r_max / r_min */
-    int near_deficient; /**< 1 if r_min / r_max < 1e-8 (near rank-deficient) */
+    idx_t rank;            /**< Numerical rank (R diagonals above threshold) */
+    idx_t k;               /**< min(m, n) — number of R diagonal entries */
+    sparse_scalar_t r_max; /**< Largest |R(i,i)| */
+    sparse_scalar_t r_min; /**< Smallest |R(i,i)| among the first rank entries */
+    double condest;        /**< Quick condition estimate: r_max / r_min */
+    int near_deficient;    /**< 1 if r_min / r_max < 1e-8 (near rank-deficient) */
 } sparse_qr_rank_info_t;
 
 /**
@@ -349,8 +356,8 @@ double sparse_qr_condest(const sparse_qr_t *qr);
  *
  * @see sparse_qr_solve for overdetermined least-squares.
  */
-sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, double *x,
-                                     const sparse_qr_opts_t *opts);
+sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const sparse_scalar_t *b,
+                                     sparse_scalar_t *x, const sparse_qr_opts_t *opts);
 
 /**
  * @brief Iterative refinement for minimum-norm solutions.
@@ -378,8 +385,8 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
  *         (propagated from sparse_qr_solve_minnorm).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
-sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, double *x,
-                                      idx_t max_refine, double *residual,
-                                      const sparse_qr_opts_t *opts);
+sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const sparse_scalar_t *b,
+                                      sparse_scalar_t *x, idx_t max_refine,
+                                      sparse_scalar_t *residual, const sparse_qr_opts_t *opts);
 
 #endif /* SPARSE_QR_H */

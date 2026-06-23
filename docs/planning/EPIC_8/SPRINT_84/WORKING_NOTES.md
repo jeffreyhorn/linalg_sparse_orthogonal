@@ -990,3 +990,92 @@ lifecycle owner without reopening family-local or support-only surfaces.
   CSC Cholesky, and AMD LDL^T lanes.
 - Policy / CI / support-surface alignment remains later work because the
   landed batch did not force wording or surface-owner movement.
+
+## Day 12 - Policy / CI / Support-Surface Alignment
+
+### Goal
+Fix the final Sprint 84 proof-owner, CI-reading, and Day 13 validation-queue
+map after the Day 6, Day 9, and Day 11 assurance landings, while keeping
+support-only surfaces bounded to what the sprint actually changed.
+
+### Actions
+- Re-read the landed Sprint 84 assurance owners:
+  - `tests/test_chol_csc.c`
+  - `tests/test_fuzz.c`
+  - `tests/test_integration.c`
+- Rechecked the strongest retained support and later-family proof owners:
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+- Rechecked the authoritative wording owners:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `.github/workflows/windows-ci.yml`
+- Rechecked the reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked representative reviewed examples and benchmark/reporting owners:
+  - `build/quality-review-cmake/example_analysis`
+  - `build/quality-review-cmake/example_basic_solve`
+  - `build/quality-review-cmake/bench_refactor_csc`
+  - `build/quality-review-cmake/bench_svd`
+  - `make bench-canonical-report`
+- Fixed the exact Day 13 validation queue in writing.
+
+### Findings
+- No new support-only edit is needed before the full sweep:
+  - `docs/maintainer_guide.md` already remains truthful about the bounded
+    direct-family external differential lane, the seeded property lane, and
+    the public lifecycle oracle lane
+  - `README.md` already remains truthful about the same proof-owner split and
+    the Windows `test_fuzz` exclusion caveat
+  - `.github/workflows/windows-ci.yml` already remains truthful that
+    `test_fuzz` stays outside the reviewed Windows subset
+- The final Sprint 84 proof-owner map is now explicit:
+  - `tests/test_chol_csc.c` owns the bounded direct-family maintained external
+    differential lane on the SPD Cholesky CSC path
+  - `tests/test_fuzz.c` owns the bounded seeded generative lifecycle/property
+    follow-through on the large-`n` CSC-backed Cholesky and LDL^T lanes
+  - `tests/test_integration.c` owns the public lifecycle oracle surface for
+    cancellation, preservation, rejection, repeated-run, and retry-after-
+    failure guarantees
+  - `tests/test_ldlt.c` remains the family-local LDL^T direct proof owner, not
+    a Sprint 84 external-differential center
+  - `tests/test_iterative.c` and `tests/test_eigs.c` remain retained
+    later-family proof owners, not Sprint 84 adopted external-differential
+    centers
+- The representative executable support map is explicit now:
+  - reviewed CMake proof owners:
+    - `test_chol_csc`
+    - `test_ldlt`
+    - `test_fuzz`
+    - `test_integration`
+    - `test_iterative`
+    - `test_eigs`
+  - representative examples:
+    - `example_analysis`
+    - `example_basic_solve`
+  - benchmark/reporting owners:
+    - `bench_refactor_csc`
+    - `bench_svd`
+    - `make bench-canonical-report`
+- The CI/platform-confidence reading is explicit now:
+  - Linux and macOS reviewed/local paths still exercise `test_fuzz`
+  - Windows still excludes `test_fuzz` from the reviewed subset
+  - Sprint 84 therefore widens local and Linux/macOS assurance depth without
+    creating new reviewed-Windows evidence claims
+- Install/export proof remains explicitly out of scope for Day 13 because
+  Sprint 84 did not move package, install, export, or runtime-package
+  mechanics.
+
+### Validation
+- Rechecked `ctest -N --test-dir build/quality-review-cmake` and confirmed the
+  live reviewed parity anchor remains `53`.
+- Rechecked the presence of the Day 13 focused reviewed binaries and
+  representative examples/benchmarks.
+- Rechecked the maintained canonical benchmark-report command surface with
+  `make -n bench-canonical-report`.
+
+### Day 12 Exit State
+- No further support-only edit is required before the full Sprint 84 sweep.
+- The final proof-owner map and CI truth map are explicit in writing.
+- The Day 13 validation queue is fixed with no ambiguity.

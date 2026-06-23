@@ -910,3 +910,96 @@ that file.
 - The strongest remaining Sprint 85 seam is now later proof/docs alignment and
   final validation rather than another immediate Cholesky CSC registration
   cleanup.
+
+## Day 12 - Proof / Docs Alignment & Validation Queue Freeze
+
+### Goal
+Reconcile the touched Sprint 85 proof-owner and support surfaces against the
+landed cleanup boundaries and fix the final Day 13 validation queue in writing.
+
+### Actions
+- Re-read the Sprint 85 Day 12 expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the landed Day 11 giant-test batch artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day11-giant-test-architecture-batch.md`.
+- Reconciled the landed Sprint 85 implementation package against the touched
+  proof-owner and support surfaces:
+  - `src/sparse_iterative.c`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `tests/test_chol_csc.c`
+  - `tests/test_iterative.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_qr.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Rechecked the reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Rechecked the representative reviewed proof-owner and support binaries now
+  fixed for Day 13:
+  - `test_iterative`
+  - `test_chol_csc`
+  - `test_integration`
+  - `test_ldlt`
+  - `test_qr`
+  - `example_analysis`
+  - `example_basic_solve`
+  - `bench_refactor_csc`
+  - `bench_svd`
+- Rechecked canonical benchmark/reporting and retained install/export proof
+  ownership:
+  - `make -n bench-canonical-report`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+### Findings
+- No new support-only edit is needed before the full sweep.
+- The final Sprint 85 proof-owner map is now explicit:
+  - `tests/test_iterative.c` owns the retained proof for the bounded
+    iterative-source cleanup
+  - `tests/test_chol_csc.c` owns the retained proof for both the bounded
+    direct-family cleanup follow-through and the bounded giant-test
+    architecture cleanup
+  - `tests/test_integration.c` remains the shared lifecycle/public-behavior
+    owner, but it was not a Sprint 85 adopted cleanup center
+  - `tests/test_ldlt.c` and `tests/test_qr.c` remain retained adjacent proof
+    owners, not Sprint 85 cleanup centers
+  - `docs/maintainer_guide.md` and `README.md` remain support-only surfaces
+    with no further alignment change required before Day 13
+- The support-surface boundary stayed fixed:
+  - benchmark/reporting surfaces remain command/script-owned rather than
+    correctness owners
+  - install/export proof remains script-owned and out of the Sprint 85 touched
+    implementation path
+- The exact Day 13 validation queue is now fixed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - focused reviewed proof owners:
+    - `./build/quality-review-cmake/test_iterative`
+    - `./build/quality-review-cmake/test_chol_csc`
+    - `./build/quality-review-cmake/test_integration`
+    - `./build/quality-review-cmake/test_ldlt`
+    - `./build/quality-review-cmake/test_qr`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+  - benchmark/reporting follow-ons:
+    - `./build/quality-review-cmake/bench_svd tests/data/suitesparse/nos4.mtx`
+    - `./build/quality-review-cmake/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+    - `make bench-canonical-report`
+
+### Validation
+- This was a docs-only alignment day, so no build/test rerun was required.
+- Rechecked the reviewed parity anchor, representative reviewed binaries, and
+  canonical benchmark/install ownership surfaces to freeze the Day 13 queue
+  against the actual landed Sprint 85 boundaries.
+
+### Day 12 Exit State
+- No support-only drift remains before the full sweep.
+- The final Sprint 85 validation queue is explicit and unambiguous.
+- Day 13 can execute from a fixed touched-surface truth map instead of
+  re-deciding Sprint 85 scope.

@@ -768,3 +768,78 @@ LDL^T/backend seam out of `src/sparse_chol_csc.c` and into the LDL^T CSC owner.
 - Sprint 85 now has one landed bounded direct-family source cleanup batch.
 - The Cholesky CSC hotspot no longer owns the LDL^T dense/backend seam.
 - Giant-test architecture cleanup remains the strongest later Sprint 85 seam.
+
+## Day 10 - Giant-Test Architecture Design
+
+### Goal
+Fix the exact bounded giant-test architecture seam Sprint 85 should land next
+after the Day 9 direct-family cleanup.
+
+### Actions
+- Re-read the Sprint 85 Day 10 expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 9 batch artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day9-direct-family-hotspot-batch.md`
+  to confirm what maintainability work remains after the source-owner move.
+- Re-checked the live giant proof-owner hotspots by line count:
+  - `tests/test_chol_csc.c` = `4965`
+  - `tests/test_qr.c` = `3234`
+  - `tests/test_integration.c` = `3197`
+  - `tests/test_ldlt.c` = `2921`
+  - `tests/test_iterative.c` = `2841`
+- Re-scanned `tests/test_chol_csc.c` for local ownership concentration:
+  - dense helper concentration
+  - late-file runner/helper groups already present for supernodal, writeback,
+    and dispatch coverage
+  - the remaining flat `RUN_TEST(...)` concentration in `main()`
+- Reconciled the candidate cleanup seam against the Day 9 non-goal fence to
+  keep the next batch test-owned and bounded.
+
+### Findings
+- The strongest remaining giant-test contradiction is now explicit:
+  - required next implementation center:
+    - `tests/test_chol_csc.c`
+- The highest-value bounded cleanup seam is not generic helper extraction
+  across proof owners.  It is the still-concentrated registration layout in
+  `tests/test_chol_csc.c`, where `main()` continues to own a long flat block of
+  `RUN_TEST(...)` calls even though the file already has local runner-group
+  patterns near the end for:
+  - supernode detection
+  - supernodal postorder
+  - supernodal dense operations
+  - extract/writeback
+  - diagonal factor helpers
+  - panel helpers
+  - parametrised supernodal cases
+  - writeback
+  - dispatch
+- The exact Day 11 seam is now fixed:
+  - reduce the long `main()` registration concentration in
+    `tests/test_chol_csc.c`
+  - keep cleanup inside that same proof owner by introducing a few additional
+    local runner groups that match the pattern already used later in the file
+  - treat helper-header, docs, and adjacent proof-owner files as support-only
+    surfaces that move only if the local registration split truly forces them
+- Directly forced support surfaces if the Day 11 cleanup truly needs them:
+  - `tests/test_chol_csc_supernodal_helpers.h`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Explicitly not the Day 11 target unless the local split truly forces it:
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - source files
+  - cross-file proof-owner redistribution
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- Re-read the Day 9 landed state, rescanned the giant-test hotspot, and
+  fixed the next bounded cleanup seam around local registration concentration
+  inside the retained Cholesky CSC proof owner.
+
+### Day 10 Exit State
+- Sprint 85 now has one explicit giant-test architecture contract.
+- Day 11 is fixed to one bounded `tests/test_chol_csc.c` cleanup centered on
+  local runner organization and `main()` registration reduction.
+- Proof-owner clarity is preserved by keeping the next cleanup inside the same
+  test owner instead of diffusing helpers across files.

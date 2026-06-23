@@ -519,3 +519,85 @@ first maintained direct-family external differential lane.
   begins.
 - Later iterative/eigs adoption and broader support/dependency spillover
   remain explicitly outside the first batch.
+
+## Day 6 - Direct-Family Differential Batch
+
+### Goal
+Land the first maintained external differential proof batch on the bounded
+direct-family SPD Cholesky lane.
+
+### Actions
+- Added a bounded external-process differential harness in
+  `tests/test_chol_csc.c` for the Cholesky CSC proof owner.
+- Added `tests/chol_external_dense_reference.py` as a pure-stdlib Python dense
+  SPD reference helper so the maintained external lane does not require a
+  heavyweight Python stack in normal builds.
+- Kept the first batch fixture-backed and family-local by comparing against
+  SuiteSparse SPD inputs:
+  - `tests/data/suitesparse/nos4.mtx`
+  - `tests/data/suitesparse/bcsstk04.mtx`
+- Preserved the Day 5 fence:
+  - no benchmark/example promotion into oracle ownership
+  - no seeded-property widening folded into the first batch
+  - no iterative/eigs external adoption in the same landing
+  - no production `src/` churn for this proof-only batch
+- Reconciled the maintainer-policy reading in `docs/maintainer_guide.md` so
+  the direct-family external differential owner is explicit and still bounded.
+- Validated the landed batch with:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Recorded the landed batch in working notes and a Day 6 artifact.
+
+### Findings
+- Sprint 84 Day 6 landed one bounded maintained direct-family external
+  differential batch:
+  - required implementation center:
+    - `tests/test_chol_csc.c`
+  - strongest support-only follow-through that was truly needed:
+    - `tests/chol_external_dense_reference.py`
+    - `docs/maintainer_guide.md`
+  - not needed in the batch:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+    - `tests/test_framework.h`
+    - `tests/test_fuzz.c`
+    - `tests/test_integration.c`
+    - `tests/test_ldlt.c`
+    - `tests/test_iterative.c`
+    - `tests/test_eigs.c`
+    - `README.md`
+- The landed differential seam is explicit now:
+  - `test_external_dense_reference_nos4_csc`
+  - `test_external_dense_reference_bcsstk04_amd_csc`
+  - helper-owned dense reference solve via `python3
+    tests/chol_external_dense_reference.py`
+- The strongest proof stayed bounded:
+  - test-owned
+  - fixture-backed
+  - family-local to the direct-family SPD Cholesky CSC path
+  - external-process based without imposing a mandatory SciPy/CHOLMOD runtime
+- Representative retained outputs stayed clean:
+  - `nos4`: `max|x-x_ref| = 4.690e-13`, `rel_residual = 3.907e-15`
+  - `bcsstk04`: `max|x-x_ref| = 3.224e-11`, `rel_residual = 3.010e-16`
+- The useful Day 6 clarification is explicit now:
+  - Sprint 84's first maintained external differential lane is real and landed
+  - it is still not a repo-wide external-proof claim
+  - seeded-property and failure-path expansion remain separate follow-through
+    seams
+  - iterative/eigs external adoption remains later work
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+
+### Day 6 Exit State
+- Sprint 84 now has one landed bounded direct-family maintained external
+  differential batch.
+- The strongest missing assurance seam is no longer "any maintained external
+  proof at all" on the direct-family SPD lane.
+- Later sprint work can stay focused on reranking seeded-property expansion,
+  failure-path numerical proof, and later-family external follow-through
+  instead of reopening whether the first external lane exists.

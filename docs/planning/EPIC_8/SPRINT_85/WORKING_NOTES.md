@@ -472,3 +472,65 @@ land on the first iterative-source cleanup lane.
   later direct-family/test follow-through is fixed before Day 6 begins.
 - Public-header, runtime, benchmark, example, and broader source/test
   spillover remain explicitly outside the first batch.
+
+## Day 6 - Iterative-Source Cleanup Batch
+
+### Goal
+Land one bounded iterative-source cleanup batch inside `src/sparse_iterative.c`
+without widening into proof-owner, public-header, or direct-family cleanup.
+
+### Actions
+- Re-read the Sprint 85 Day 6 batch expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 5 architecture contract in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day5-decomposition-ownership-architecture-design.md`.
+- Audited the highest-repeat frontend boilerplate inside
+  `src/sparse_iterative.c`, focusing on:
+  - repeated `sparse_iter_result_t` zero/reset setup
+  - repeated trivial `n == 0` handling
+  - repeated zero-right-hand-side early return handling
+- Landed one bounded helper seam in `src/sparse_iterative.c`:
+  - `s85_iter_result_reset`
+  - `s85_iter_result_mark_converged`
+  - `s85_iter_handle_trivial_system`
+- Rewired the affected iterative frontends and block-entry points to use the
+  shared helper seam while preserving existing public behavior and proof-owner
+  coverage.
+- Kept the batch source-owned inside `src/sparse_iterative.c`; no test-helper,
+  integration, maintainer-guide, or README follow-through was required.
+
+### Findings
+- The first Sprint 85 implementation landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `src/sparse_iterative.c`
+  - strongest support-only follow-through actually needed:
+    - none
+- The landed seam reduced local mixed-responsibility concentration without
+  widening into a broader rewrite:
+  - centralized frontend result reset logic
+  - centralized trivial empty-system handling
+  - centralized zero-right-hand-side converged fast path
+- The cleanup remained internal and compatibility-preserving:
+  - no public API change
+  - no proof-owner migration into `tests/test_iterative.c`
+  - no shared lifecycle follow-through needed in `tests/test_integration.c`
+  - no documentation/support-surface movement needed in
+    `docs/maintainer_guide.md` or `README.md`
+- The preserved Day 6 non-goal fence held:
+  - no direct-family cleanup folded into the batch
+  - no giant-test architecture cleanup folded into the batch
+  - no benchmark, example, package, or runtime ownership drift
+  - no assurance-surface widening detached from the landed source seam
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 6 Exit State
+- Sprint 85 now has one real bounded iterative-source cleanup batch landed in
+  `src/sparse_iterative.c`.
+- The first maintainability move reduced repeated frontend/trivial-case
+  boilerplate while preserving the existing proof-owner split.
+- Direct-family hotspot cleanup and giant-test architecture cleanup remain the
+  strongest later Sprint 85 seams.

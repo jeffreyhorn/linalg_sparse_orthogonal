@@ -843,3 +843,70 @@ after the Day 9 direct-family cleanup.
   local runner organization and `main()` registration reduction.
 - Proof-owner clarity is preserved by keeping the next cleanup inside the same
   test owner instead of diffusing helpers across files.
+
+## Day 11 - Giant-Test Architecture Batch
+
+### Goal
+Land the bounded giant-test cleanup fixed on Day 10 by reducing registration
+concentration in `tests/test_chol_csc.c` while keeping proof ownership local to
+that file.
+
+### Actions
+- Re-read the Sprint 85 Day 11 batch expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 10 giant-test architecture design artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day10-giant-test-architecture-design.md`.
+- Re-scanned the late-file runner-group pattern already present in
+  `tests/test_chol_csc.c` for supernodal, writeback, and dispatch coverage.
+- Added a matching set of local runner groups for the earlier coverage
+  families still registered inline in `main()`:
+  - alloc / growth
+  - conversion round-trips
+  - permutations plus fill-factor / norm caching
+  - symbolic analysis plus validate / edge hardening
+  - workspace plus elimination scaffolding
+  - scalar kernel coverage
+  - solve / residual / shim coverage
+- Replaced the long early flat `RUN_TEST(...)` block in `main()` with those
+  local runner-group calls.
+- Preserved the Day 10 non-goal fence:
+  - no cross-file proof-owner redistribution
+  - no test logic rewrite
+  - no helper-header churn
+  - no docs movement
+- Ran the full required validation gate for a giant-test maintainability batch.
+
+### Findings
+- The Day 11 landing stayed inside the Day 10 fence:
+  - required implementation center:
+    - `tests/test_chol_csc.c`
+  - directly forced support surfaces actually needed:
+    - none
+  - not needed in the batch:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - adjacent proof-owner files
+- The real maintainability reduction was local registration concentration:
+  - `main()` no longer owns the early giant flat registration block
+  - the file now uses one consistent runner-group pattern across both the early
+    and late coverage families
+  - proof ownership is still fully local to `tests/test_chol_csc.c`
+- The strongest Day 11 clarification is explicit:
+  - this was a bounded architecture cleanup, not a behavioral or oracle change
+  - it reduced giant-test concentration without diffusing logic into new files
+  - it keeps later Sprint 85 test-owner work separate from source-owner work
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+### Day 11 Exit State
+- Sprint 85 now has one landed bounded giant-test architecture cleanup batch.
+- `tests/test_chol_csc.c` retains proof ownership, but its registration layout
+  now follows one consistent local runner-group structure.
+- The strongest remaining Sprint 85 seam is now later proof/docs alignment and
+  final validation rather than another immediate Cholesky CSC registration
+  cleanup.

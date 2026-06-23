@@ -842,3 +842,76 @@ large-`n` direct-family lifecycle owner.
   agreement, repeated-solve invariance, and residual smallness in addition to
   the earlier same-pattern public-vs-one-shot alignment.
 - Later failure-path numerical proof remains the next assurance seam.
+
+## Day 10 - Failure-Path Numerical Proof Design
+
+### Goal
+Fix the bounded cancellation, error-path, and stress-fixture proof contract
+for the most fragile retained public lifecycle guarantees after the Day 9
+property batch.
+
+### Actions
+- Re-read the Day 9 landed property batch and the remaining fragile lifecycle
+  seams it did not try to cover.
+- Re-scanned the strongest current failure-path proof-owner surface in:
+  - `tests/test_integration.c`
+- Rechecked the strongest support-only family-local proof surfaces in:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+- Re-separated:
+  - required failure-path proof center
+  - support-only direct-family and later-family follow-through if truly forced
+  - lower-value non-touch stress ideas
+- Fixed the exact Day 11 implementation contract in writing.
+- Recorded the design in working notes and a Day 10 artifact.
+
+### Findings
+- Sprint 84 now has one explicit third implementation contract:
+  - required Day 11 center:
+    - `tests/test_integration.c`
+  - strongest support-only follow-through if the failure-path batch truly
+    forces it:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt.c`
+    - `docs/maintainer_guide.md`
+  - lower-value non-touch surfaces:
+    - `tests/test_iterative.c`
+    - `tests/test_eigs.c`
+    - `tests/test_fuzz.c`
+    - benchmark and example surfaces
+    - package/install/export surfaces
+- The highest-value remaining fragile lifecycle seam is now fixed to:
+  - cancellation and callback short-circuit guarantees on retained public
+    direct and solver workflows
+  - error-path factor / solve / refactor preservation, especially when callers
+    retry after failure
+  - zeroed-state, mismatched-state, and old-factor-preservation guarantees on
+    the shared public lifecycle path
+- The strongest Day 10 clarification is explicit now:
+  - Day 11 should not reopen Day 6 external differential work
+  - Day 11 should not reopen Day 9 property depth in `tests/test_fuzz.c`
+  - Day 11 should stay centered on the existing integration proof owner
+    because that file already owns the authoritative public lifecycle failure
+    semantics across direct, iterative, and eigensolver cancellation surfaces
+  - family-local tests remain support-only unless the batch exposes one truly
+    local contradiction
+  - maintainer/support wording remains optional unless the landed batch changes
+    the maintained assurance reading
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in direct rereads of:
+  - `tests/test_integration.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - the Day 9 working-notes close record
+
+### Day 10 Exit State
+- Sprint 84 now has one explicit third implementation contract.
+- Day 11 can stay bounded to the retained integration failure-path proof owner.
+- Policy / CI / support-surface alignment remains explicitly deferred until
+  after the landed failure-path batch.

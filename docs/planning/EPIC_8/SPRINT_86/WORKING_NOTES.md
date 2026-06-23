@@ -911,3 +911,110 @@ runtime effect honestly.
 - The reviewed long pole remains real after the landing, so later Sprint 86
   work should treat benchmark/comparison follow-through and CI/reviewed-path
   alignment as evidence-gathering or later policy seams, not as solved work.
+
+## Day 10 - Benchmark / Comparison Follow-Through Design
+
+### Goal
+Define the bounded evidence package Sprint 86 should land next so the touched
+ND runtime seam has a smaller, clearer measurement surface without turning the
+ repo into a broader benchmark-governance rewrite.
+
+### Actions
+- Re-read the Day 6 runtime landing and Day 9 proof-owner rebalance against
+  the Sprint 80 performance-truth fence.
+- Re-read the current benchmark-owner split across:
+  - `benchmarks/bench_reorder.c`
+  - `benchmarks/bench_fillin.c`
+  - `benchmarks/README.md`
+  - `scripts/bench_canonical_report.sh`
+  - `Makefile`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked the maintained benchmark classification:
+  - canonical maintained proof surface remains:
+    - `bench_refactor_csc`
+    - `bench_chol_csc`
+    - `bench_iterative_reuse`
+    - `bench_eigs_reuse`
+  - regression-sensitive runtime lane remains:
+    - `bench_scaling`
+    - `bench_fillin`
+    - `bench_colamd`
+    - `bench_reorder --skip-factor`
+    - bounded adjacent `bench_amd_qg`
+- Reconciled the current Sprint 86 runtime truth:
+  - Day 6 reduced the reviewed long pole materially
+  - Day 9 preserved proof quality but did not further reduce runtime on this
+    machine
+  - the next useful move is therefore evidence cleanup on the touched runtime
+    seam, not another unscoped proof or algorithm change
+
+### Findings
+- Sprint 86 now has one explicit third implementation contract:
+  - required Day 11 center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support-only follow-through only if the evidence batch
+    truly needs it:
+    - `benchmarks/README.md`
+    - `Makefile`
+  - maintainer/user wording only if the landed evidence surface truly changes
+    operator guidance:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - lower-value non-touch surfaces:
+    - `scripts/bench_canonical_report.sh`
+    - canonical maintained benchmark binaries
+    - `benchmarks/bench_fillin.c`
+    - proof-owner tests including `tests/test_reorder_nd.c`
+    - ND / graph implementation owners
+- The exact Day 11 center is now fixed to one bounded `bench_reorder`
+  follow-through package, not a canonical benchmark rewrite and not a new
+  timing gate.
+- The strongest Day 10 evidence lane is now explicit:
+  - keep the evidence owned by `bench_reorder`, which already owns the
+    touched ND/reorder comparison semantics:
+    - `matrix`
+    - `reorder`
+    - `nnz_L`
+    - `reorder_ms`
+    - `factor_ms`
+  - add one bounded reviewed-runtime slice around the actually touched Sprint
+    86 fixtures:
+    - `bcsstk14`
+    - `Pres_Poisson`
+    - `Kuu` only if one bounded safety comparison is truly needed after the
+      Day 6 threshold shift
+  - make Day 11 clarify before/after interpretation using the already-recorded
+    Day 6 and Day 9 anchors rather than pretending one run is portable truth
+- The highest-value Day 11 measurement package is now fixed to:
+  - a narrow `bench_reorder` surface for the reviewed ND runtime slice
+  - explicit touched-corpus comparison output that is cheap enough to rerun
+    locally
+  - no widening of `bench-canonical-report`
+  - no conversion of runtime evidence into a pass/fail threshold gate
+- The useful Day 10 clarification is explicit now:
+  - Day 11 should not reopen `tests/test_reorder_nd.c`
+  - Day 11 should not widen the canonical maintained benchmark surface
+  - Day 11 should not turn `README.md` or the maintainer guide into the owner
+    of branch-local timing numbers
+  - Day 11 should not become a broad benchmark-local schema rewrite beyond the
+    touched `bench_reorder` seam
+- The preserved measurement-ownership fence is now fixed:
+  - tests remain correctness owners
+  - `bench_reorder` remains runtime/comparison context
+  - `bench-canonical-report` stays threshold-free and canonical-only
+  - maintainer/docs wording moves only if the command/rerun contract truly
+    changes
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in rereads of the Day 6 and Day 9 landings, direct
+  inspection of `bench_reorder`, `bench_fillin`, the benchmark-local README,
+  and the current maintainer/runtime-lane policy surfaces.
+
+### Day 10 Exit State
+- Sprint 86 now has one exact third implementation contract.
+- Day 11 can stay bounded to `benchmarks/bench_reorder.c` plus only directly
+  forced benchmark-local follow-through.
+- Canonical benchmark governance, proof owners, and CI/reviewed-path wording
+  remain explicitly later unless the landed evidence surface truly forces them.

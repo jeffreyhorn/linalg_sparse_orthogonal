@@ -199,3 +199,118 @@ surface.
   reporting, and script-owned install/package proof is fixed in writing.
 - The highest-signal rerun set is explicit before the first runtime-cause
   rerank.
+
+## Day 3 - Reviewed Runtime Long-Pole Audit
+
+### Goal
+Reduce Sprint 86's broad reviewed-runtime problem to one ranked live cause map
+so the sprint can choose one bounded ND/reorder runtime lane instead of
+another generic performance bucket.
+
+### Actions
+- Re-read the Day 3 runtime-audit expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the strongest recent rerank template from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day3-hotspot-rerank-audit.md`.
+- Re-read the validated Sprint 85 close runtime anchor from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day13-full-validation-sweep.md`
+  and the Sprint 85 handoff from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day14-closeout-and-handoff.md`.
+- Refreshed the live reorder/ND hotspot map from direct `wc -l` measurement:
+  - `tests/test_reorder_nd.c` = `2287`
+  - `tests/test_reorder.c` = `1082`
+  - `tests/test_reorder_amd_qg.c` = `273`
+  - `tests/test_graph.c` = `2925`
+  - `src/sparse_reorder_nd.c` = `757`
+  - `src/sparse_reorder.c` = `419`
+  - `src/sparse_reorder_amd_qg.c` = `611`
+  - `src/sparse_graph.c` = `841`
+  - `src/sparse_graph_bisect.c` = `528`
+  - `src/sparse_graph_coarsen.c` = `659`
+  - `src/sparse_graph_refine.c` = `602`
+  - `src/sparse_graph_separator.c` = `297`
+  - `benchmarks/bench_reorder.c` = `321`
+  - `benchmarks/bench_fillin.c` = `178`
+  - `README.md` = `1050`
+  - `docs/maintainer_guide.md` = `726`
+- Re-scanned the strongest runtime and proof concentration inside:
+  - `tests/test_reorder_nd.c`
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_separator.c`
+  - `benchmarks/bench_reorder.c`
+- Reconfirmed the carried runtime anchor from the validated Sprint 85 close:
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - reviewed `test_reorder_nd` time = `283.53 sec`
+
+### Findings
+- Sprint 86's broad runtime problem is now reduced to one ranked live cause
+  map:
+  - strongest first target:
+    - bounded ND runtime reduction centered on `tests/test_reorder_nd.c`,
+      `src/sparse_reorder_nd.c`, and the multilevel graph pipeline it drives
+  - strongest second target:
+    - proof-surface concentration rebalancing across `tests/test_reorder_nd.c`
+      and adjacent reorder/graph proof owners where repeated heavy fixture work
+      is avoidable without weakening correctness ownership
+  - strongest third target:
+    - bounded graph-pipeline follow-through in `src/sparse_graph.c`,
+      `src/sparse_graph_coarsen.c`, `src/sparse_graph_bisect.c`, and
+      `src/sparse_graph_refine.c`
+  - strongest fourth target:
+    - benchmark/comparison follow-through in `benchmarks/bench_reorder.c` and
+      `benchmarks/bench_fillin.c` after a real landed runtime seam exists
+  - strongest support-only but real target:
+    - maintainer/docs wording only where the landed runtime seam changes proof,
+      rerun, or reviewed-path expectations
+- The strongest current contradiction is now explicit:
+  - the validated Sprint 85 close already fixed the reviewed long pole to
+    `test_reorder_nd` at `283.53 sec` out of `404.15 sec`
+  - the live tree shows that this is not just a large-test-file problem
+  - `tests/test_reorder_nd.c` concentrates many large-fixture and env-policy
+    proofs while the underlying algorithmic work is split across
+    `src/sparse_reorder_nd.c` and the `src/sparse_graph*.c` pipeline
+  - that means the first Sprint 86 move should be one bounded ND runtime lane,
+    not generic test trimming or benchmark-driven retuning
+- The strongest second-tier contradictions are also clear:
+  - proof-surface concentration is real:
+    - `tests/test_reorder_nd.c` = `2287`
+    - `tests/test_graph.c` = `2925`
+    - `tests/test_reorder.c` = `1082`
+  - algorithmic/policy concentration is real:
+    - `src/sparse_graph.c` = `841`
+    - `src/sparse_reorder_nd.c` = `757`
+    - `src/sparse_graph_coarsen.c` = `659`
+    - `src/sparse_reorder_amd_qg.c` = `611`
+    - `src/sparse_graph_refine.c` = `602`
+    - `src/sparse_graph_bisect.c` = `528`
+  - benchmark surfaces remain informative but secondary:
+    - `benchmarks/bench_reorder.c` = `321`
+    - `benchmarks/bench_fillin.c` = `178`
+- The Sprint 80/Sprint 85 carry-forward reading is now fixed:
+  - Sprint 80 already fenced the performance contract so Sprint 86 does not
+    need to reopen generic performance governance
+  - Sprint 85 already handed Sprint 86 a reviewed-runtime-first queue rather
+    than another maintainability-first decomposition sprint
+  - the first Sprint 86 landing must preserve correctness ownership while
+    reducing reviewed runtime on the ND lane
+
+### Validation
+- Re-read the Sprint 85 validated runtime close and handoff artifacts.
+- Re-scanned the live reorder, ND, graph-pipeline, benchmark, and support
+  hotspot map from direct `wc -l` measurement.
+- Re-read the high-signal runtime and proof concentration surfaces in
+  `tests/test_reorder_nd.c`, the reorder/graph implementation owners, and the
+  reorder benchmark lane.
+
+### Day 3 Exit State
+- Sprint 86 now has one ranked live reviewed-runtime contradiction map grounded
+  in the current tree and validated Sprint 85 runtime anchors.
+- The first implementation center is fixed to one bounded ND runtime reduction
+  lane.
+- Later proof-surface rebalancing, graph-pipeline follow-through, benchmark
+  comparisons, and support-only wording are explicitly ordered behind that
+  first lane.

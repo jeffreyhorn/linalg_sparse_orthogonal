@@ -194,3 +194,118 @@ split before Sprint 85 decomposes any large source or giant-test hotspot.
   reporting, and script-owned install/package proof is fixed in writing.
 - The highest-signal rerun set is explicit before the first hotspot-priority
   rerank.
+
+## Day 3 - Hotspot Rerank
+
+### Goal
+Reduce Sprint 85's broad maintainability problem to one ranked live
+contradiction map so the sprint can choose one bounded decomposition lane
+instead of another generic “split large files” bucket.
+
+### Actions
+- Re-read the Day 3 hotspot-rerank expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the strongest recent rerank template from
+  `docs/planning/EPIC_8/SPRINT_84/artifacts/day3-differential-proof-audit.md`.
+- Re-read the Sprint 84 close handoff in
+  `docs/planning/EPIC_8/SPRINT_84/artifacts/day14-closeout-and-handoff.md`
+  to preserve the intended Sprint 85 ordering.
+- Re-measured the strongest live source, giant-test, and support hotspots with
+  direct `wc -l` checks across:
+  - `src/sparse_iterative.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_ldlt.c`
+  - `src/sparse_eigs.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_integration.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_iterative.c`
+  - `tests/test_svd.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked the strongest live proof-owner and helper concentration signals
+  with targeted `rg -n` across `Makefile`, `CMakeLists.txt`, `tests/`, `src/`,
+  `include/`, `README.md`, and `docs/maintainer_guide.md` for:
+  - `test_iterative`
+  - `test_chol_csc`
+  - `test_integration`
+  - `test_ldlt`
+  - `test_qr`
+  - `test_svd`
+
+### Findings
+- Sprint 85's broad maintainability problem is now reduced to one ranked live
+  contradiction map:
+  - strongest first target:
+    - bounded iterative-source cleanup centered on `src/sparse_iterative.c`
+  - strongest second target:
+    - bounded direct-family source cleanup centered on
+      `src/sparse_chol_csc.c`
+  - strongest third target:
+    - bounded giant-test architecture cleanup centered first on
+      `tests/test_chol_csc.c`
+  - strongest fourth target:
+    - next giant-test/source follow-through on `tests/test_qr.c`,
+      `tests/test_integration.c`, `src/sparse_qr.c`, or `src/sparse_ldlt.c`
+  - strongest support-only but real target:
+    - maintainer/docs wording only where cleanup changes proof-owner or helper
+      boundaries
+- The strongest current contradiction is not merely file size in isolation:
+  - `src/sparse_iterative.c` is the largest implementation hotspot at `1985`
+    lines
+  - it already sits on a heavily retained proof-owner seam through
+    `tests/test_iterative.c`
+  - it is therefore the highest-value first decomposition lane because it can
+    reduce review and reasoning cost without reopening Sprint 84's bounded
+    assurance-owner package
+- The strongest second contradiction is direct-family source concentration:
+  - `src/sparse_chol_csc.c` remains a very large implementation hotspot at
+    `1841` lines
+  - its proof-owner counterpart `tests/test_chol_csc.c` is the largest giant
+    test in the tree at `4964` lines
+  - this makes the Cholesky CSC lane the strongest second maintainability seam
+    after the first iterative source move lands
+- The strongest third contradiction is giant-test concentration rather than
+  source concentration alone:
+  - `tests/test_chol_csc.c` = `4964`
+  - `tests/test_qr.c` = `3234`
+  - `tests/test_integration.c` = `3197`
+  - `tests/test_ldlt.c` = `2921`
+  - `tests/test_iterative.c` = `2841`
+  - giant proof-owner cleanup is real Sprint 85 work, but the current live map
+    still favors one implementation hotspot first, not an immediate test-only
+    cleanup batch
+- The strongest support-only surfaces remain bounded:
+  - `README.md` = `1050`
+  - `docs/maintainer_guide.md` = `726`
+  - these should move only where landed decomposition actually changes helper,
+    owner, or rerun expectations
+- The strongest Day 3 clarification is now explicit:
+  - Sprint 85 should start with one bounded source-owner decomposition lane,
+    not another repo-wide maintainability claim
+  - it should preserve proof ownership while extracting helpers and reducing
+    local review burden
+  - it should keep benchmark, example, and install/package surfaces outside the
+    first implementation center
+  - it should leave reviewed runtime-convergence and `test_reorder_nd`
+    optimization pressure to Sprint 86 rather than widening Day 4 toward
+    runtime work
+
+### Validation
+- Re-read the Sprint 85 Day 3 expectations and the strongest recent rerank
+  template.
+- Re-measured the strongest live source, giant-test, and support hotspots with
+  direct `wc -l` checks.
+- Rechecked proof-owner and helper concentration signals with targeted
+  repository `rg -n` inspection.
+
+### Day 3 Exit State
+- Sprint 85 now has one ranked live maintainability contradiction map grounded
+  in the current tree.
+- The first implementation center is fixed to one bounded iterative-source
+  cleanup lane.
+- Later direct-family source cleanup, giant-test architecture work, and
+  support-only wording follow-through are explicitly ordered behind that first
+  lane.

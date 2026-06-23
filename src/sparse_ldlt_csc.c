@@ -31,6 +31,7 @@
  * on the scalar CSC path.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
 
@@ -373,7 +374,12 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
      * tail_len is always 0, so no scratch is needed. */
     double *pivot_scratch = NULL;
     if (n > 2) {
-        pivot_scratch = malloc((size_t)(2 * (n - 2)) * sizeof(double));
+        size_t pivot_scratch_count = 0;
+        if (sparse_idx_count_bytes_overflow(n - 2, sizeof(double), &pivot_scratch_count) ||
+            sparse_size_mul_overflow(pivot_scratch_count, 2, &pivot_scratch_count)) {
+            return SPARSE_ERR_ALLOC;
+        }
+        pivot_scratch = malloc(pivot_scratch_count);
         if (!pivot_scratch)
             return SPARSE_ERR_ALLOC;
     }

@@ -309,3 +309,79 @@ instead of another generic “split large files” bucket.
 - Later direct-family source cleanup, giant-test architecture work, and
   support-only wording follow-through are explicitly ordered behind that first
   lane.
+
+## Day 4 - First Maintainability Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 85 maintainability implementation fence so the
+next design pass can define one real extraction/decomposition contract instead
+of another broad cleanup rewrite.
+
+### Actions
+- Re-read the Day 4 boundary-freeze expectations from
+  `docs/planning/EPIC_8/SPRINT_85/PLAN.md`.
+- Re-read the Day 3 hotspot rerank artifact in
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day3-hotspot-rerank-audit.md`.
+- Re-read the strongest recent boundary template from
+  `docs/planning/EPIC_8/SPRINT_84/artifacts/day4-first-assurance-boundary.md`.
+- Reconciled the live Day 3 ordering against the Sprint 85 project-plan scope:
+  - iterative source cleanup first
+  - direct-family source cleanup second
+  - giant-test architecture cleanup only where the first source lane truly
+    forces it
+- Fixed the required first landing center, the support-only touch set, and the
+  preserved non-goal fence in writing.
+
+### Findings
+- Sprint 85 now has one explicit first implementation fence:
+  - required first landing:
+    - `src/sparse_iterative.c`
+  - support only if the first landing truly forces it:
+    - `tests/test_iterative.c`
+    - `tests/test_iterative_handle_helpers.h`
+    - `tests/test_integration.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_qr.c`
+    - `src/sparse_ldlt.c`
+    - `src/sparse_eigs.c`
+    - `tests/test_chol_csc.c`
+    - `tests/test_qr.c`
+    - `tests/test_ldlt.c`
+    - generic giant-test registration cleanup as a first-batch center
+    - reviewed runtime-convergence work
+    - benchmark/reporting ownership changes
+    - install/package/runtime maturity widening
+- The strongest Day 4 clarification is now explicit:
+  - the best first Sprint 85 move is one bounded iterative-source cleanup
+  - direct-family source cleanup remains the strongest second seam, not part
+    of the first batch center
+  - giant-test architecture cleanup remains real Sprint 85 work, but only
+    after the first source cleanup exposes the actual helper seam that should
+    move
+  - proof-owner tests and maintainer wording stay support-only unless the
+    first source landing truly changes helper boundaries or rerun
+    expectations
+- The preserved first-batch non-goal fence is fixed now:
+  - no broad algorithm rewriting detached from ownership cleanup
+  - no proof dilution from moving helpers without preserving owners
+  - no repo-wide “cleanup sweep” claim
+  - no support-surface churn detached from a real landed hotspot seam
+  - no runtime-tuning or `test_reorder_nd` work inside the first lane
+  - no reopening Sprint 84's bounded assurance package as part of the first
+    Sprint 85 landing
+
+### Validation
+- Re-read the Sprint 85 Day 4 boundary expectations, the Day 3 rerank
+  artifact, and the strongest recent boundary template.
+- Reconciled the required first landing center, support-only touch set, and
+  non-goal fence against the current Sprint 85 ordering.
+
+### Day 4 Exit State
+- Sprint 85 now has one explicit first maintainability landing boundary.
+- Support-only proof-owner and documentation surfaces are clearly separated
+  from the batch center.
+- Day 5 can design one bounded iterative extraction/decomposition contract
+  instead of a broad source/test cleanup rewrite.

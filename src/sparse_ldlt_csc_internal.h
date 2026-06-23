@@ -392,6 +392,50 @@ sparse_err_t ldlt_csc_prepare_resolved_analysis(
     const SparseMatrix **factored_mat_out, const sparse_analysis_t **resolved_analysis_out);
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Dense LDL^T primitive and backend selection
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Dense LDL^T factor with Bunch-Kaufman pivoting.
+ *
+ * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for
+ * the Sprint 19 Days 12-14 batched supernodal LDL^T path to call per
+ * supernode's diagonal block.
+ *
+ * Input: `A` is n×n column-major symmetric with BOTH triangles
+ * populated so the four-criteria BK scan can read `A[i + r*lda]`
+ * directly without symmetry reflection.
+ *
+ * Output:
+ *   - `A` below-diagonal holds unit-L: diagonal set to 1.0, L[k+1, k] = 0
+ *     for 2×2 pivots (the coupling lives in `D_offdiag`).  Upper
+ *     triangle not preserved.
+ *   - `D[k]`: 1×1 pivot scalar, or the (k, k) diagonal of a 2×2 block;
+ *     `D[k+1]` for 2×2 holds (k+1, k+1).
+ *   - `D_offdiag[k]`: 2×2 block's (k, k+1) off-diagonal; 0 for 1×1.
+ *   - `pivot_size[k]`: 1 for 1×1, 2 for both indices of a 2×2 pair.
+ *   - `elem_growth_out` (optional, may be NULL): receives the max
+ *     |L[i, j]| observed during the factor.
+ */
+sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *pivot_size, idx_t n,
+                               idx_t lda, double tol, double *elem_growth_out);
+
+/**
+ * Runtime-selected LDL^T dense block factor.
+ *
+ * Preserves `ldlt_dense_factor(...)` as the shipped builtin implementation
+ * while allowing a bounded optional runtime-selected accelerated backend for
+ * the LDL^T CSC supernodal lane.
+ */
+sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
+                                        idx_t n, idx_t lda, double tol, double *elem_growth_out);
+
+/**
+ * Name of the currently selected LDL^T dense-factor backend.
+ */
+const char *ldlt_dense_factor_backend_name(void);
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking
  * ═══════════════════════════════════════════════════════════════════════ */
 

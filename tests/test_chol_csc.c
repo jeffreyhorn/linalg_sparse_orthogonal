@@ -20,6 +20,7 @@
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
 #include "sparse_types.h"
@@ -4823,14 +4824,7 @@ static void run_dispatch_tests(void) {
     RUN_TEST(test_external_dense_reference_bcsstk04_amd_csc);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Main
- * ═══════════════════════════════════════════════════════════════════════ */
-
-int main(void) {
-    TEST_SUITE_BEGIN("chol_csc");
-
-    /* Day 1 — alloc / free / grow */
+static void run_alloc_growth_tests(void) {
     RUN_TEST(test_chol_csc_alloc_null_out);
     RUN_TEST(test_chol_csc_alloc_negative_n);
     RUN_TEST(test_chol_csc_alloc_basic);
@@ -4843,8 +4837,9 @@ int main(void) {
     RUN_TEST(test_chol_csc_grow_geometric);
     RUN_TEST(test_chol_csc_grow_to_needed);
     RUN_TEST(test_chol_csc_grow_preserves_values);
+}
 
-    /* Day 2 — conversion round-trips */
+static void run_conversion_roundtrip_tests(void) {
     RUN_TEST(test_from_sparse_null_args);
     RUN_TEST(test_to_sparse_null_args);
     RUN_TEST(test_roundtrip_identity);
@@ -4855,39 +4850,36 @@ int main(void) {
     RUN_TEST(test_from_sparse_strips_upper_triangle);
     RUN_TEST(test_roundtrip_nos4);
     RUN_TEST(test_roundtrip_bcsstk04);
+}
 
-    /* Day 2 — permutations */
+static void run_permutation_cache_tests(void) {
     RUN_TEST(test_identity_perm_matches_null);
     RUN_TEST(test_reverse_perm_symmetric);
     RUN_TEST(test_amd_perm_entries_match);
     RUN_TEST(test_invalid_perm_out_of_range);
     RUN_TEST(test_invalid_perm_duplicate);
-
-    /* Day 2 — fill_factor & norm caching */
     RUN_TEST(test_fill_factor_clamp);
     RUN_TEST(test_factor_norm_cached);
+}
 
-    /* Day 3 — symbolic analysis integration */
+static void run_symbolic_validate_edge_tests(void) {
     RUN_TEST(test_with_analysis_null_args);
     RUN_TEST(test_with_analysis_wrong_type);
     RUN_TEST(test_exact_alloc_matches_dynamic_tridiag);
     RUN_TEST(test_predicted_nnz_matches_actual_nos4);
     RUN_TEST(test_predicted_nnz_matches_actual_bcsstk04);
     RUN_TEST(test_predicted_nnz_matches_actual_random_spd);
-
-    /* Day 3 — validate() */
     RUN_TEST(test_validate_null);
     RUN_TEST(test_validate_fresh_alloc_is_valid);
     RUN_TEST(test_validate_catches_missing_diagonal);
     RUN_TEST(test_validate_catches_upper_triangle);
     RUN_TEST(test_validate_catches_unsorted_column);
     RUN_TEST(test_validate_catches_col_ptr_inconsistency);
-
-    /* Day 3 — hardening edge cases */
     RUN_TEST(test_edge_case_diagonal_only);
     RUN_TEST(test_edge_case_external_capacity_growth);
+}
 
-    /* Day 4 — workspace + elimination scaffolding */
+static void run_workspace_elimination_scaffold_tests(void) {
     RUN_TEST(test_workspace_null_out);
     RUN_TEST(test_workspace_negative_n);
     RUN_TEST(test_workspace_free_null);
@@ -4903,8 +4895,9 @@ int main(void) {
     RUN_TEST(test_eliminate_tridiagonal_spd);
     RUN_TEST(test_eliminate_detects_zero_diagonal);
     RUN_TEST(test_eliminate_detects_indefinite);
+}
 
-    /* Day 5 — full kernel: fill-in, drop tolerance, L*L^T correctness */
+static void run_scalar_kernel_tests(void) {
     RUN_TEST(test_eliminate_3x3_spd);
     RUN_TEST(test_eliminate_4x4_spd);
     RUN_TEST(test_eliminate_5x5_spd);
@@ -4914,8 +4907,9 @@ int main(void) {
     RUN_TEST(test_eliminate_fillin_reverse_arrowhead);
     RUN_TEST(test_eliminate_fillin_with_analysis);
     RUN_TEST(test_eliminate_drop_tolerance);
+}
 
-    /* Day 6 — triangular solve, perm, SuiteSparse residuals, shims, edges */
+static void run_solve_residual_shim_tests(void) {
     RUN_TEST(test_solve_null_args);
     RUN_TEST(test_solve_identity);
     RUN_TEST(test_solve_diagonal);
@@ -4932,6 +4926,35 @@ int main(void) {
     RUN_TEST(test_factor_detects_indefinite);
     RUN_TEST(test_factor_detects_negative_diagonal);
     RUN_TEST(test_solve_detects_tiny_diagonal);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Main
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+int main(void) {
+    TEST_SUITE_BEGIN("chol_csc");
+
+    /* Day 1 — alloc / free / grow */
+    run_alloc_growth_tests();
+
+    /* Day 2 — conversion round-trips */
+    run_conversion_roundtrip_tests();
+
+    /* Day 2 — permutations */
+    run_permutation_cache_tests();
+
+    /* Day 3 — symbolic analysis integration */
+    run_symbolic_validate_edge_tests();
+
+    /* Day 4 — workspace + elimination scaffolding */
+    run_workspace_elimination_scaffold_tests();
+
+    /* Day 5 — full kernel: fill-in, drop tolerance, L*L^T correctness */
+    run_scalar_kernel_tests();
+
+    /* Day 6 — triangular solve, perm, SuiteSparse residuals, shims, edges */
+    run_solve_residual_shim_tests();
 
     /* Supernode detection */
     run_supernode_detection_tests();

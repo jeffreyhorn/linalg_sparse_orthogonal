@@ -314,3 +314,83 @@ another generic performance bucket.
 - Later proof-surface rebalancing, graph-pipeline follow-through, benchmark
   comparisons, and support-only wording are explicitly ordered behind that
   first lane.
+
+## Day 4 - First Runtime and Scalability Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 86 runtime/scalability implementation fence so the
+next design pass can define one real ND runtime contract instead of another
+broad optimization rewrite.
+
+### Actions
+- Re-read the Day 4 boundary-freeze expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Sprint 86 project-plan section in
+  `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Re-read the Day 3 reviewed-runtime rerank artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day3-reviewed-runtime-long-pole-audit.md`.
+- Reconciled the Day 3 ranking against the Sprint 80 performance-contract
+  carry-forward and the Sprint 85 runtime-first handoff.
+- Fixed the first implementation fence by separating:
+  - required first landing center
+  - directly forced support-only proof and graph-path surfaces
+  - explicitly deferred proof, benchmark, CI, and support spillover
+
+### Findings
+- Sprint 86 now has one explicit first implementation fence:
+  - required first landing:
+    - `src/sparse_reorder_nd.c`
+  - support only if the first landing truly forces it:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_reorder.c`
+    - `src/sparse_reorder_amd_qg.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `benchmarks/bench_reorder.c`
+    - `benchmarks/bench_fillin.c`
+    - proof-surface rebalancing as a first-batch center
+    - benchmark/comparison follow-through as a first-batch center
+    - CI/reviewed-path alignment as a first-batch center
+    - install/package/runtime-surface widening
+    - generic maintainability decomposition restart
+- The strongest Day 4 clarification is now explicit:
+  - the best first Sprint 86 move is one bounded ND orchestration/runtime
+    reduction inside `src/sparse_reorder_nd.c`
+  - graph-pipeline source movement remains allowed only where that first seam
+    truly forces it
+  - reorder/graph proof-owner tests stay support-only unless the runtime
+    landing changes their contract or requires tightly scoped proof updates
+  - benchmark and canonical-reporting surfaces remain outside the first
+    implementation center
+  - CI/reviewed-path alignment remains later work after a real landed runtime
+    seam exists
+- The preserved first-batch non-goal fence is fixed now:
+  - no weakening of correctness proof quality to buy runtime wins
+  - no broad graph/reorder family rewrite detached from the ND lane
+  - no generic maintainability decomposition restart
+  - no benchmark-governance or example-governance drift into correctness
+    ownership
+  - no support-surface churn detached from a real landed runtime seam
+  - no package/platform maturity claim widening
+
+### Validation
+- Re-read the Sprint 86 project-plan section and Day 4 plan expectations.
+- Re-read the Day 3 reviewed-runtime rerank artifact.
+- Reconciled the fixed first-batch fence against Sprint 80's performance
+  contract and Sprint 85's close handoff.
+
+### Day 4 Exit State
+- Sprint 86 now has one bounded first runtime/scalability landing center.
+- Day 5 can design one ND runtime architecture contract inside that fence.
+- Later proof-surface rebalancing, graph-pipeline spillover, benchmark
+  comparisons, CI alignment, and broader support movement are held back until
+  later lanes.

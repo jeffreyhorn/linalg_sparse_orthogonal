@@ -791,3 +791,85 @@ instead of another broad docs or support rewrite.
   and retained support-only references is explicit before implementation.
 - Day 9 can land one bounded examples/workflow batch without reopening the
   README-front-door lane.
+
+## Day 9 - Examples / Workflow Simplification Batch
+
+### Goal
+Land one bounded examples/workflow simplification batch that makes the
+post-README adoption path easier to navigate without widening into tutorial,
+install/support, benchmark-policy, or public-header cleanup.
+
+### Actions
+- Re-read the Day 9 implementation contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 8 design contract from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day8-examples-workflow-simplification-design.md`.
+- Reworked `examples/README.md` so it behaves as a compact “what to run next”
+  example/workflow map:
+  - added a `Start Here` section for the highest-value next-step examples
+  - clarified the support split between examples, tutorial, benchmarks, and
+    tests
+  - renamed and regrouped program sections around workflow/adoption intent
+  - added explicit next-step routing after the strongest direct example and
+    repeated-run direct example
+  - added a compact installed-consumer example handoff for
+    `examples/cmake_example/`
+- Kept the landing inside the required implementation center and rechecked
+  that no tutorial, install/support, README, or installed-consumer example
+  follow-through was truly forced.
+- Ran the substantial usability validation gate:
+  - `make quality-review-full`
+
+### Findings
+- Sprint 88's second implementation landing stayed inside the Day 8 fence:
+  - required implementation center:
+    - `examples/README.md`
+  - directly forced support follow-through actually needed:
+    - none
+  - not needed in the batch:
+    - `docs/tutorial.md`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The kept example/workflow usability win is explicit:
+  - `examples/README.md` now opens with one compact post-README next-step map
+  - the strongest examples are ordered by adoption intent instead of reading
+    like a flatter program inventory
+  - one-shot direct, repeated-run direct, iterative, eigensolver, and
+    installed-consumer paths now have clearer local roles
+  - the file now routes users toward tutorial, benchmarks, and installed
+    consumer examples only when they actually need those surfaces
+- The strongest Day 9 clarification is now explicit:
+  - a real example/workflow contradiction closed without reopening support or
+    package/platform claims
+  - tutorial expansion, support-surface consolidation, and public-header
+    narrative cleanup remain later Sprint 88 lanes
+  - the example surface now behaves more like a compact adoption map and less
+    like a plain example inventory
+
+### Validation
+- `make quality-review-full` passed.
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `370.46 sec`
+
+### Day 9 Exit State
+- Sprint 88 now has one landed bounded examples/workflow batch.
+- The post-README adoption path into the shipped examples is easier to follow
+  in the live repo.
+- Support-surface consolidation remains the next later lane rather than being
+  folded into this example batch.

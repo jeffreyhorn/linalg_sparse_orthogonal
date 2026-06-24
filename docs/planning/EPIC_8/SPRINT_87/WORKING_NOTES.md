@@ -540,3 +540,79 @@ Sprint 87 will actually support on its first packaging lane.
   fixed before Day 6 begins.
 - Consumer-proof expansion, workflow/platform follow-through, and broader
   docs alignment remain explicitly outside the first packaging batch.
+
+## Day 6 - Packaging Batch
+
+### Goal
+Land one bounded packaging/export modernization batch that makes the live build
+and install surface read exactly like Sprint 87's maintained static-first
+product contract.
+
+### Actions
+- Landed the first package-contract change in `CMakeLists.txt` by tightening
+  the generated CMake package version semantics from
+  `SameMajorVersion` to `ExactVersion`.
+- Added an inline contract comment at the `write_basic_package_version_file`
+  callsite so the static-first/no-broad-ABI rationale stays attached to the
+  actual generated package-version surface.
+- Updated directly forced support-surface wording only where the new contract
+  would otherwise remain implicit:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+- Extended the retained CMake install/export proof owner
+  `tests/test_cmake_install.sh` so it now validates:
+  - `find_package(Sparse ${EXPECTED_VERSION} EXACT REQUIRED)` succeeds
+  - `find_package(Sparse ${MISMATCH_VERSION} REQUIRED)` is rejected
+- Re-ran the maintained package-proof surfaces:
+  - `bash tests/test_cmake_install.sh`
+  - `bash tests/test_install.sh`
+
+### Findings
+- Sprint 87's first implementation landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `CMakeLists.txt`
+  - directly forced support follow-through actually needed:
+    - `tests/test_cmake_install.sh`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+  - not needed in the batch:
+    - `cmake/SparseConfig.cmake.in`
+    - `sparse.pc.in`
+    - `tests/test_install.sh` logic changes
+    - `examples/cmake_example/CMakeLists.txt`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+- The kept packaging win is explicit:
+  - the generated `SparseConfigVersion.cmake` no longer advertises
+    same-major-version compatibility
+  - the installed CMake package now matches the maintained docs reading:
+    exact package-version identity is real package metadata, not a broad
+    dynamic-ABI compatibility promise
+- The directly forced proof follow-through was limited and product-owned:
+  - `tests/test_cmake_install.sh` now proves the exact-version CMake consumer
+    contract end to end
+  - `tests/test_install.sh` remained valid unchanged because the Make/pkg-config
+    side of the static-first contract did not change
+- The strongest Day 6 clarification is now explicit:
+  - the first Sprint 87 packaging win does not require opening a shared lane
+  - it comes from making the existing static-first install/export semantics
+    stricter and more truthful
+  - downstream-consumer expansion and workflow follow-through remain later
+    lanes, not part of the first batch
+
+### Validation
+- `bash tests/test_cmake_install.sh` passed
+  - including exact-version success and mismatched-version rejection
+- `bash tests/test_install.sh` passed
+- Because no `*.c` or `*.h` files changed, `make format`, `make lint`, and
+  `make test` were not required for this batch.
+
+### Day 6 Exit State
+- Sprint 87 now has one landed bounded packaging/export batch.
+- The live CMake package-version semantics now match the maintained static-first
+  and no-broad-ABI contract.
+- Later Sprint 87 work remains centered on consumer-proof expansion,
+  workflow/platform follow-through, and broader support-surface alignment.

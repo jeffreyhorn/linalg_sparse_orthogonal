@@ -178,6 +178,7 @@ Current authoritative packaging contract:
   installed static archive surface
 - version metadata is single-sourced from the repo `VERSION` file and
   propagated through the generated install artifacts
+- the exported CMake package version file is exact-version only
 - current package-version metadata should not be described as a broad
   dynamic-ABI guarantee that the repo does not review
 

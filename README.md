@@ -1025,6 +1025,7 @@ The maintained package surface is intentionally static-first:
 - the exported CMake target and `pkg-config` metadata both describe that same
   static archive surface
 - version metadata is single-sourced from `VERSION`
+- the exported CMake package version file is exact-version only
 - this is a real install/export contract, not a broad shared-library or
   dynamic-ABI guarantee
 

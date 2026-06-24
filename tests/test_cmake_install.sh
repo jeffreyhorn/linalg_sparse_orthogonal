@@ -11,6 +11,10 @@ EXPECTED_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 PREFIX="$TMPDIR/usr"
 BUILD="$TMPDIR/build"
 EXAMPLE_BUILD="$TMPDIR/example_build"
+VERSION_EXACT_BUILD="$TMPDIR/version_exact_build"
+VERSION_MISMATCH_BUILD="$TMPDIR/version_mismatch_build"
+VERSION_EXACT_SRC="$TMPDIR/version_exact_src"
+VERSION_MISMATCH_SRC="$TMPDIR/version_mismatch_src"
 LOG="$TMPDIR/cmake.log"
 PASS=0
 FAIL=0
@@ -120,7 +124,49 @@ else
     fail "cmake_example executable" "not found"
 fi
 
-# ── 4. Version check ───────────────────────────────────────────────
+# ── 4. Version compatibility contract ──────────────────────────────
+echo "--- Version compatibility checks ---"
+
+mkdir -p "$VERSION_EXACT_BUILD" "$VERSION_MISMATCH_BUILD"
+mkdir -p "$VERSION_EXACT_SRC" "$VERSION_MISMATCH_SRC"
+
+cat > "$VERSION_EXACT_SRC/CMakeLists.txt" << EOF
+cmake_minimum_required(VERSION 3.14)
+project(sparse_version_exact C)
+find_package(Sparse ${EXPECTED_VERSION} EXACT REQUIRED)
+add_executable(version_exact "$ROOT_DIR/examples/cmake_example/main.c")
+target_link_libraries(version_exact PRIVATE Sparse::sparse_lu_ortho)
+EOF
+
+if cmake -S "$VERSION_EXACT_SRC" -B "$VERSION_EXACT_BUILD" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    >/dev/null 2>&1; then
+    pass "find_package exact installed version works"
+else
+    fail "find_package exact installed version" "configure failed"
+fi
+
+IFS=. read -r version_major version_minor version_patch << EOF
+$EXPECTED_VERSION
+EOF
+MISMATCH_PATCH=$((version_patch + 1))
+MISMATCH_VERSION="${version_major}.${version_minor}.${MISMATCH_PATCH}"
+
+cat > "$VERSION_MISMATCH_SRC/CMakeLists.txt" << EOF
+cmake_minimum_required(VERSION 3.14)
+project(sparse_version_mismatch C)
+find_package(Sparse ${MISMATCH_VERSION} REQUIRED)
+EOF
+
+if cmake -S "$VERSION_MISMATCH_SRC" -B "$VERSION_MISMATCH_BUILD" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    >/dev/null 2>&1; then
+    fail "find_package mismatched version" "configure unexpectedly succeeded"
+else
+    pass "find_package mismatched version is rejected"
+fi
+
+# ── 5. Version check ───────────────────────────────────────────────
 echo "--- Version checks ---"
 
 # pkg-config version

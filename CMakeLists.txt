@@ -388,7 +388,10 @@ configure_package_config_file(
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/SparseConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    # The maintained package story is static-first and does not claim a broad
+    # dynamic-ABI guarantee. Keep CMake package-version compatibility exact so
+    # the generated version file does not overstate that contract.
+    COMPATIBILITY ExactVersion
 )
 
 install(FILES

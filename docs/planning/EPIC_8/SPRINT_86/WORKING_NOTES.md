@@ -1018,3 +1018,104 @@ ND runtime seam has a smaller, clearer measurement surface without turning the
   forced benchmark-local follow-through.
 - Canonical benchmark governance, proof owners, and CI/reviewed-path wording
   remain explicitly later unless the landed evidence surface truly forces them.
+
+## Day 11 - Benchmark / Comparison Follow-Through Batch
+
+### Goal
+Land the bounded runtime-evidence package fixed on Day 10 so the touched ND
+lane now has one explicit cheap rerun surface and one benchmark-local command
+contract without widening the canonical maintained benchmark face.
+
+### Actions
+- Extended `benchmarks/bench_reorder.c` with one bounded Sprint 86 rerun mode:
+  - `--sprint86-slice`
+- Restricted that slice to the touched ND runtime fixtures only:
+  - `bcsstk14`
+  - `Pres_Poisson`
+- Kept the emitted CSV schema unchanged:
+  - `matrix`
+  - `n`
+  - `reorder`
+  - `nnz_L`
+  - `reorder_ms`
+  - `factor_ms`
+- Added one narrow rerun target in `Makefile`:
+  - `make bench-reorder-sprint86`
+  - expands to:
+    - `bench_reorder --sprint86-slice --skip-factor`
+- Reconciled only the directly forced benchmark-local docs in
+  `benchmarks/README.md`.
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `make bench-reorder-sprint86`
+
+### Findings
+- The Day 11 landing stayed inside the Day 10 fence:
+  - required implementation center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support surfaces actually needed:
+    - `Makefile`
+    - `benchmarks/README.md`
+  - not needed in the batch:
+    - `scripts/bench_canonical_report.sh`
+    - canonical maintained benchmark binaries
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - proof-owner tests
+    - ND / graph implementation owners
+- The landed rerun contract is now explicit:
+  - one branch-local runtime slice exists for the touched Sprint 86 ND lane
+  - it stays in the runtime lane rather than widening the canonical surface
+  - it stays threshold-free and comparison-oriented
+  - it stays cheap by default because it uses `--skip-factor`
+- The bounded Sprint 86 slice emitted the exact touched-corpus comparison the
+  design called for:
+  - `bcsstk14`
+    - `none`: `nnz_L=190791`, `reorder_ms=0.0`
+    - `rcm`: `nnz_L=178311`, `reorder_ms=8.9`
+    - `amd`: `nnz_L=116071`, `reorder_ms=99.5`
+    - `colamd`: `nnz_L=146037`, `reorder_ms=131.9`
+    - `nd`: `nnz_L=132634`, `reorder_ms=366.9`
+  - `Pres_Poisson`
+    - `none`: `nnz_L=5061932`, `reorder_ms=0.0`
+    - `rcm`: `nnz_L=3187081`, `reorder_ms=101.8`
+    - `amd`: `nnz_L=2668793`, `reorder_ms=6531.9`
+    - `colamd`: `nnz_L=3415793`, `reorder_ms=10972.0`
+    - `nd`: `nnz_L=2474435`, `reorder_ms=4986.5`
+- The useful Day 11 clarification is explicit now:
+  - the touched runtime seam now has a stable local comparison entry point
+  - the emitted slice preserves the current Sprint 86 story:
+    - `Pres_Poisson`: ND still beats AMD on both fill and reorder wall time
+      in the bounded skip-factor slice
+    - `bcsstk14`: AMD still beats ND on both fill and reorder wall time in the
+      same bounded slice
+  - that evidence is branch-local and measurement-side only; it does not
+    replace correctness proof ownership
+- The reviewed validation baseline also stayed fully clean:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed `test_reorder_nd` = `125.12 sec`
+  - reviewed CMake total = `225.38 sec`
+- Because the Day 11 landing did not touch ND algorithm or proof-owner code,
+  those lower observed reviewed times are retained as the current validated
+  baseline, not claimed as causal wins from the measurement surface itself.
+
+### Validation
+- The landed Day 11 batch passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `make bench-reorder-sprint86`
+
+### Day 11 Exit State
+- Sprint 86 now has one landed bounded benchmark/comparison follow-through
+  batch.
+- The touched ND runtime seam has an explicit branch-local rerun target that
+  stays outside the canonical maintained benchmark surface.
+- The next Sprint 86 seam is later CI/reviewed-path alignment and closeout,
+  not more unbounded benchmark-governance churn.

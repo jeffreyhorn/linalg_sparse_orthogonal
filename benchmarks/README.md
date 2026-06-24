@@ -45,6 +45,8 @@ depending on what the underlying factorization path actually supports:
   - cross-ordering comparison harness for `none`, `rcm`, `amd`, `colamd`,
     and `nd`
   - supports both direct reorder calls and `--reorder-via-analyze`
+  - supports `--sprint86-slice` for the bounded Sprint 86 runtime corpus
+    (`bcsstk14`, `Pres_Poisson`)
 - `bench_colamd` and `example_colamd`
   - QR-focused comparison tools for `none`, `amd`, and `colamd`
   - use the same lowercase mode labels as the benchmark CLI
@@ -160,6 +162,10 @@ This is intentionally not a pass/fail timing gate:
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
+- for the bounded Sprint 86 ND runtime rerun slice, use:
+  - `make bench-reorder-sprint86`
+  - this expands to `bench_reorder --sprint86-slice --skip-factor`
+  - it is branch-local evidence for the touched ND lane, not canonical proof
 
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:

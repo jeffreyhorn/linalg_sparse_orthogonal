@@ -44,6 +44,11 @@
  *                         fire when `analysis->perm` is set inside
  *                         `sparse_analyze`, which the pre-apply path
  *                         leaves NULL.  Sprint 29 Day 13 Item 10a.
+ *   --sprint86-slice     Restrict the run to the bounded Sprint 86
+ *                         reviewed-runtime fixtures (`bcsstk14`,
+ *                         `Pres_Poisson`) so the touched ND lane can
+ *                         be re-measured cheaply without widening the
+ *                         benchmark-governance surface.
  */
 #include "sparse_analysis.h"
 #include "sparse_cholesky.h"
@@ -85,6 +90,12 @@ static const fixture_t kFixtures[] = {
 static const size_t kFixtureCount = sizeof(kFixtures) / sizeof(kFixtures[0]);
 
 static double now_ms(void) { return (double)clock() * 1000.0 / (double)CLOCKS_PER_SEC; }
+
+static int fixture_in_sprint86_slice(const fixture_t *fx) {
+    if (!fx || !fx->name)
+        return 0;
+    return strcmp(fx->name, "bcsstk14") == 0 || strcmp(fx->name, "Pres_Poisson") == 0;
+}
 
 /* Apply a reordering to A and time it; returns the perm (caller frees)
  * or NULL when reorder == NONE. */
@@ -276,6 +287,7 @@ static void run_one(const fixture_t *fx, int do_factor) {
 int main(int argc, char **argv) {
     int do_factor = 1;
     int via_analyze = 0;
+    int sprint86_slice = 0;
     const char *only = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--nd-threshold") == 0 && i + 1 < argc) {
@@ -300,17 +312,21 @@ int main(int argc, char **argv) {
             do_factor = 0;
         } else if (strcmp(argv[i], "--reorder-via-analyze") == 0) {
             via_analyze = 1;
+        } else if (strcmp(argv[i], "--sprint86-slice") == 0) {
+            sprint86_slice = 1;
         } else if (strcmp(argv[i], "--only") == 0 && i + 1 < argc) {
             only = argv[++i];
         }
     }
 
-    fprintf(stderr, "# nd_base_threshold=%d, factor=%s, via_analyze=%s\n",
+    fprintf(stderr, "# nd_base_threshold=%d, factor=%s, via_analyze=%s, slice=%s\n",
             (int)sparse_reorder_nd_base_threshold, do_factor ? "yes" : "no",
-            via_analyze ? "yes" : "no");
+            via_analyze ? "yes" : "no", sprint86_slice ? "sprint86" : "all");
     printf("matrix,n,reorder,nnz_L,reorder_ms,factor_ms\n");
 
     for (size_t i = 0; i < kFixtureCount; i++) {
+        if (sprint86_slice && !fixture_in_sprint86_slice(&kFixtures[i]))
+            continue;
         if (only && !strstr(kFixtures[i].name, only))
             continue;
         if (via_analyze)

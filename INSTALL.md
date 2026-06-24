@@ -62,6 +62,7 @@ The maintained install surface is intentionally static-first:
   archive surface
 - version metadata comes from the repo `VERSION` file and is propagated through
   `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
+- the exported CMake package version file is exact-version only
 
 This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path

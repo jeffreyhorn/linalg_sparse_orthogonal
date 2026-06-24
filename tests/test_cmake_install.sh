@@ -11,12 +11,18 @@ EXPECTED_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 PREFIX="$TMPDIR/usr"
 BUILD="$TMPDIR/build"
 EXAMPLE_BUILD="$TMPDIR/example_build"
+VERSION_EXACT_BUILD="$TMPDIR/version_exact_build"
+VERSION_MISMATCH_BUILD="$TMPDIR/version_mismatch_build"
+VERSION_EXACT_SRC="$TMPDIR/version_exact_src"
+VERSION_MISMATCH_SRC="$TMPDIR/version_mismatch_src"
 LOG="$TMPDIR/cmake.log"
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1: $2"; FAIL=$((FAIL + 1)); }
+skip() { echo "  [SKIP] $1: $2"; SKIP=$((SKIP + 1)); }
 
 echo "=== CMake Install Validation Tests ==="
 echo "  root:   $ROOT_DIR"
@@ -120,7 +126,62 @@ else
     fail "cmake_example executable" "not found"
 fi
 
-# ── 4. Version check ───────────────────────────────────────────────
+# ── 4. Version compatibility contract ──────────────────────────────
+echo "--- Version compatibility checks ---"
+
+mkdir -p "$VERSION_EXACT_BUILD" "$VERSION_MISMATCH_BUILD"
+mkdir -p "$VERSION_EXACT_SRC" "$VERSION_MISMATCH_SRC"
+
+cat > "$VERSION_EXACT_SRC/CMakeLists.txt" << EOF
+cmake_minimum_required(VERSION 3.14)
+project(sparse_version_exact C)
+find_package(Sparse ${EXPECTED_VERSION} EXACT REQUIRED)
+add_executable(version_exact "$ROOT_DIR/examples/cmake_example/main.c")
+target_link_libraries(version_exact PRIVATE Sparse::sparse_lu_ortho)
+EOF
+
+echo "--- exact-version configure ---" >>"$LOG"
+if cmake -S "$VERSION_EXACT_SRC" -B "$VERSION_EXACT_BUILD" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    >>"$LOG" 2>&1; then
+    pass "find_package exact installed version works"
+else
+    fail "find_package exact installed version" "see $LOG"
+    tail -20 "$LOG"
+fi
+
+IFS=. read -r version_major version_minor version_patch << EOF
+$EXPECTED_VERSION
+EOF
+if [ "$version_minor" -gt 0 ]; then
+    MISMATCH_VERSION="${version_major}.$((version_minor - 1)).0"
+elif [ "$version_patch" -gt 0 ]; then
+    MISMATCH_VERSION="${version_major}.${version_minor}.$((version_patch - 1))"
+else
+    skip "find_package mismatched version" \
+        "no lower same-major version exists for $EXPECTED_VERSION"
+    MISMATCH_VERSION=""
+fi
+
+if [ -n "$MISMATCH_VERSION" ]; then
+cat > "$VERSION_MISMATCH_SRC/CMakeLists.txt" << EOF
+cmake_minimum_required(VERSION 3.14)
+project(sparse_version_mismatch C)
+find_package(Sparse ${MISMATCH_VERSION} REQUIRED)
+EOF
+
+echo "--- mismatched-version configure ---" >>"$LOG"
+if cmake -S "$VERSION_MISMATCH_SRC" -B "$VERSION_MISMATCH_BUILD" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    >>"$LOG" 2>&1; then
+    fail "find_package mismatched version" "configure unexpectedly succeeded; see $LOG"
+    tail -20 "$LOG"
+else
+    pass "find_package mismatched version is rejected"
+fi
+fi
+
+# ── 5. Version check ───────────────────────────────────────────────
 echo "--- Version checks ---"
 
 # pkg-config version
@@ -137,6 +198,7 @@ echo ""
 echo "--- Summary ---"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
+echo "Skipped: $SKIP"
 
 if [ "$FAIL" -ne 0 ]; then
     echo "CMAKE INSTALL TESTS FAILED"

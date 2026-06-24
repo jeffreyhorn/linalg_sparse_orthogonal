@@ -82,8 +82,8 @@ else
     fail "pkg-config --modversion expected $EXPECTED_VERSION, got '$PC_VERSION'"
 fi
 
-# ── 4. Compile and link a test program against installed library ────
-echo "--- Compiling example against installed library ---"
+# ── 4. Compile and link downstream consumers against installed library ─────
+echo "--- Compiling downstream consumers against installed library ---"
 cat > "$TMPDIR/test_link.c" << 'CEOF'
 #include <sparse/sparse_types.h>
 #include <sparse/sparse_matrix.h>
@@ -104,16 +104,17 @@ CEOF
 
 CC="${CC:-cc}"
 COMPILE_LOG="$TMPDIR/compile.log"
+EXAMPLE_COMPILE_LOG="$TMPDIR/example_compile.log"
 PKG_CONFIG_LOG="$TMPDIR/pkg_config.log"
 
 if ! command -v pkg-config >/dev/null 2>&1; then
-    fail "pkg-config not found; skipping compile/link test"
+    fail "pkg-config not found; cannot validate downstream consumer checks"
 elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
      LIBS_PC="$(pkg-config --libs sparse 2>>"$PKG_CONFIG_LOG")"; then
     if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
-        pass "example compiles and links"
+        pass "basic pkg-config consumer compiles and links"
     else
-        fail "example failed to compile/link"
+        fail "basic pkg-config consumer failed to compile/link"
         if [ -s "$COMPILE_LOG" ]; then
             echo "Compiler/linker output:"
             cat "$COMPILE_LOG"
@@ -123,9 +124,31 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
     if [ -x "$TMPDIR/test_link" ]; then
         OUTPUT="$("$TMPDIR/test_link" 2>&1)"
         if echo "$OUTPUT" | grep -q "OK"; then
-            pass "example runs correctly"
+            pass "basic pkg-config consumer runs correctly"
         else
-            fail "example output unexpected: $OUTPUT"
+            fail "basic pkg-config consumer output unexpected: $OUTPUT"
+        fi
+    fi
+
+    if $CC -std=c11 -Wall $CFLAGS_PC \
+        "$ROOT_DIR/examples/cmake_example/main.c" \
+        $LIBS_PC \
+        -o "$TMPDIR/example_pkgconfig" 2>"$EXAMPLE_COMPILE_LOG"; then
+        pass "maintained example source compiles with pkg-config"
+    else
+        fail "maintained example source failed to compile/link with pkg-config"
+        if [ -s "$EXAMPLE_COMPILE_LOG" ]; then
+            echo "Compiler/linker output:"
+            cat "$EXAMPLE_COMPILE_LOG"
+        fi
+    fi
+
+    if [ -x "$TMPDIR/example_pkgconfig" ]; then
+        OUTPUT="$("$TMPDIR/example_pkgconfig" 2>&1)"
+        if echo "$OUTPUT" | grep -q "OK"; then
+            pass "maintained example source runs with pkg-config install"
+        else
+            fail "maintained example source output unexpected: $OUTPUT"
         fi
     fi
 else

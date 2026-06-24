@@ -1119,3 +1119,98 @@ contract without widening the canonical maintained benchmark face.
   stays outside the canonical maintained benchmark surface.
 - The next Sprint 86 seam is later CI/reviewed-path alignment and closeout,
   not more unbounded benchmark-governance churn.
+
+## Day 12 - CI / Reviewed-Path Alignment & Validation Queue Freeze
+
+### Goal
+Reconcile the touched Sprint 86 reviewed-path, runtime-lane, and
+support-surface wording after the Day 6 ND runtime landing, Day 9 proof-owner
+rebalance, and Day 11 benchmark follow-through, then freeze the exact Day 13
+validation queue.
+
+### Actions
+- Re-read the Sprint 86 touched surfaces and their retained ownership split:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_nd_internal.h`
+  - `src/sparse_graph.c`
+  - `tests/test_reorder_nd.c`
+  - `benchmarks/bench_reorder.c`
+  - `Makefile`
+  - `benchmarks/README.md`
+- Re-read the reviewed-path and support-policy surfaces most likely to drift:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `scripts/bench_canonical_report.sh`
+- Reconfirmed the bounded Sprint 86 command split:
+  - strongest reviewed baseline remains:
+    - `make quality-review-full`
+  - reviewed CMake parity anchor remains:
+    - `ctest -N --test-dir build/quality-review-cmake`
+  - bounded branch-local runtime rerun remains:
+    - `make bench-reorder-sprint86`
+  - canonical maintained reporting surface remains:
+    - `make bench-canonical-report`
+- Rechecked whether install/export or package surfaces truly moved:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - install/export wording in `README.md`
+- Fixed the exact Day 13 queue in writing.
+
+### Findings
+- No new support-only edit is needed before the full validation sweep.
+- The final Sprint 86 touched-surface truth map is now explicit:
+  - adopted runtime/scalability centers:
+    - `src/sparse_reorder_nd.c`
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph.c`
+    - `tests/test_reorder_nd.c`
+    - `benchmarks/bench_reorder.c`
+    - `Makefile`
+    - `benchmarks/README.md`
+  - retained reviewed proof owners, not Sprint 86 adopted runtime centers:
+    - `tests/test_reorder.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `tests/test_graph.c`
+  - support-only surfaces that do not need new movement before Day 13:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `scripts/bench_canonical_report.sh`
+- The final Sprint 86 proof-owner and runtime-evidence split is fixed:
+  - reviewed ND runtime/proof owner:
+    - `tests/test_reorder_nd.c`
+  - adjacent reorder/graph reviewed proof owners:
+    - `tests/test_reorder.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `tests/test_graph.c`
+  - branch-local runtime evidence owner:
+    - `benchmarks/bench_reorder.c`
+    - via `make bench-reorder-sprint86`
+  - canonical maintained reporting owner:
+    - `make bench-canonical-report`
+    - `scripts/bench_canonical_report.sh`
+- The CI/reviewed-path truth map stayed fixed:
+  - Linux reviewed quality baseline remains `make quality-review-full`
+  - reviewed CMake parity remains the strongest explicit truth anchor
+  - `make bench-reorder-sprint86` is a bounded local/runtime evidence surface,
+    not part of the maintained reviewed baseline and not a new CI timing gate
+  - no workflow file needs Sprint 86 wording movement before validation
+- Install/export/package proof remains out of the Sprint 86 close core:
+  - Sprint 86 did not move install, export, package metadata, or consumer
+    mechanics
+  - `tests/test_install.sh` and `tests/test_cmake_install.sh` remain real
+    repo proof, but not part of the Sprint 86 Day 13 queue
+
+### Validation
+- This was a docs-only alignment day, so no build/test rerun was required.
+- The alignment was grounded in rereads of the touched runtime/proof surfaces,
+  the benchmark-local README, the top-level README, the maintainer guide, the
+  relevant CI workflow files, and the canonical-report script.
+
+### Day 12 Exit State
+- no support-only drift remains before Day 13
+- the reviewed-path and runtime-evidence split is explicit and unambiguous
+- the final validation queue is frozen against the actual Sprint 86 touch set

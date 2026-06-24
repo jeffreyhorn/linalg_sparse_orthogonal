@@ -138,32 +138,45 @@ add_executable(version_exact "$ROOT_DIR/examples/cmake_example/main.c")
 target_link_libraries(version_exact PRIVATE Sparse::sparse_lu_ortho)
 EOF
 
+echo "--- exact-version configure ---" >>"$LOG"
 if cmake -S "$VERSION_EXACT_SRC" -B "$VERSION_EXACT_BUILD" \
     -DCMAKE_PREFIX_PATH="$PREFIX" \
-    >/dev/null 2>&1; then
+    >>"$LOG" 2>&1; then
     pass "find_package exact installed version works"
 else
-    fail "find_package exact installed version" "configure failed"
+    fail "find_package exact installed version" "see $LOG"
+    tail -20 "$LOG"
 fi
 
 IFS=. read -r version_major version_minor version_patch << EOF
 $EXPECTED_VERSION
 EOF
-MISMATCH_PATCH=$((version_patch + 1))
-MISMATCH_VERSION="${version_major}.${version_minor}.${MISMATCH_PATCH}"
+if [ "$version_minor" -gt 0 ]; then
+    MISMATCH_VERSION="${version_major}.$((version_minor - 1)).0"
+elif [ "$version_patch" -gt 0 ]; then
+    MISMATCH_VERSION="${version_major}.${version_minor}.$((version_patch - 1))"
+else
+    fail "find_package mismatched version setup" \
+        "no lower same-major version exists for $EXPECTED_VERSION"
+    MISMATCH_VERSION=""
+fi
 
+if [ -n "$MISMATCH_VERSION" ]; then
 cat > "$VERSION_MISMATCH_SRC/CMakeLists.txt" << EOF
 cmake_minimum_required(VERSION 3.14)
 project(sparse_version_mismatch C)
 find_package(Sparse ${MISMATCH_VERSION} REQUIRED)
 EOF
 
+echo "--- mismatched-version configure ---" >>"$LOG"
 if cmake -S "$VERSION_MISMATCH_SRC" -B "$VERSION_MISMATCH_BUILD" \
     -DCMAKE_PREFIX_PATH="$PREFIX" \
-    >/dev/null 2>&1; then
-    fail "find_package mismatched version" "configure unexpectedly succeeded"
+    >>"$LOG" 2>&1; then
+    fail "find_package mismatched version" "configure unexpectedly succeeded; see $LOG"
+    tail -20 "$LOG"
 else
     pass "find_package mismatched version is rejected"
+fi
 fi
 
 # ── 5. Version check ───────────────────────────────────────────────

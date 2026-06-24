@@ -108,7 +108,7 @@ EXAMPLE_COMPILE_LOG="$TMPDIR/example_compile.log"
 PKG_CONFIG_LOG="$TMPDIR/pkg_config.log"
 
 if ! command -v pkg-config >/dev/null 2>&1; then
-    fail "pkg-config not found; skipping compile/link test"
+    fail "pkg-config not found; cannot validate downstream consumer checks"
 elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
      LIBS_PC="$(pkg-config --libs sparse 2>>"$PKG_CONFIG_LOG")"; then
     if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then

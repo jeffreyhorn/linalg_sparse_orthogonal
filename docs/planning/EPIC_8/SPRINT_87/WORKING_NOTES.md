@@ -1132,3 +1132,84 @@ against the landed boundaries and freeze the exact Day 13 validation queue.
 - No support-only drift remains before Day 13.
 - Day 13 can execute from a fixed package/consumer/workflow truth map rather
   than re-deciding Sprint 87 scope.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full Sprint 87 validation queue fixed on Day 12 and capture the
+measured close baseline from actual execution.
+
+### Actions
+- Ran the full local validation gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-ran the reviewed parity and focused reviewed proof owners:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_reorder`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_reorder_amd_qg`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the maintained package and consumer proof owners:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- Re-ran the retained maintained reporting follow-on:
+  - `make bench-canonical-report`
+
+### Findings
+- The full Day 13 queue passed cleanly.
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `299.15 sec`
+- The focused reviewed proof owners all passed:
+  - `test_reorder` = `38 / 38`
+  - `test_reorder_nd` = `35 / 35` with `1` bounded skip
+  - `test_reorder_amd_qg` = `7 / 7`
+  - `test_graph` = `61 / 61`
+- Representative retained outputs stayed clean:
+  - `example_analysis` solve residual = `4.44e-16`
+  - `example_basic_solve` residual `||b - Ax|| = 0.00e+00`
+  - `test_reorder_nd` rerun time = `117.359 sec`
+  - `Pres_Poisson`: AMD nnz(L) `2668793`, ND nnz(L) `2474435`
+  - `bcsstk14`: AMD nnz(L) `116071`, ND nnz(L) `132634`
+- The maintained package/consumer proof owners also stayed clean:
+  - `tests/test_install.sh` = `13` passed, `0` failed
+  - `tests/test_cmake_install.sh` = `15` passed, `0` failed
+- The retained maintained reporting follow-on stayed clean:
+  - `make bench-canonical-report` wrote:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+- One non-blocking runtime note remains explicit:
+  - reviewed CMake `test_reorder_nd` remained the long tail at `142.76 sec`
+    out of `299.15 sec`
+
+### Validation
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- `./build/quality-review-cmake/test_reorder` passed
+- `./build/quality-review-cmake/test_reorder_nd` passed
+- `./build/quality-review-cmake/test_reorder_amd_qg` passed
+- `./build/quality-review-cmake/test_graph` passed
+- `./build/quality-review-cmake/example_analysis` passed
+- `./build/quality-review-cmake/example_basic_solve` passed
+- `bash tests/test_install.sh` passed
+- `bash tests/test_cmake_install.sh` passed
+- `make bench-canonical-report` passed
+
+### Day 13 Exit State
+- Sprint 87 now has a measured validated close baseline.
+- The reviewed baseline, package proofs, and retained reporting follow-ons all
+  stayed exact and clean.
+- Day 14 can close from execution evidence rather than implementation state.

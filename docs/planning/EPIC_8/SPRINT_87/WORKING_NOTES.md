@@ -120,3 +120,111 @@ rather than another generic "improve packaging" reset.
   support-surface alignment, and validation workstreams are fixed in writing.
 - The strongest likely Sprint 87 touch surfaces and preserved non-goals are
   explicit before the validation / maintained-surface recheck begins.
+
+## Day 2 - Validation and Maintained Consumer-Surface Recheck
+
+### Goal
+Refresh the implementation-day validation contract and the live maintained
+install/export, downstream-consumer, workflow, and reviewed-surface split
+before Sprint 87 changes any package, export, or product-contract surface.
+
+### Actions
+- Re-read the Day 2 validation-baseline expectations from
+  `docs/planning/EPIC_8/SPRINT_87/PLAN.md`.
+- Re-read the strongest recent validation/proof-surface template from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day2-validation-baseline-and-reviewed-surface-recheck.md`.
+- Reconfirmed reviewed CMake parity directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the presence of the strongest reviewed representative binaries and
+  examples that remain the main executable truth surfaces entering Sprint 87:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_reorder`
+  - `./build/quality-review-cmake/test_reorder_amd_qg`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Rechecked the maintained canonical reporting command surface with:
+  - `make -n bench-canonical-report`
+- Rechecked the maintained package-proof and downstream-consumer surfaces:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `scripts/bench_canonical_report.sh`
+- Re-read the macOS and Windows workflow wording that constrains the current
+  package/platform truth:
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+
+### Findings
+- Sprint 87 continues to inherit the strongest local reviewed baseline:
+  - `make quality-review-full`
+- The code-day and docs-day split is now fixed explicitly for this sprint:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial package, consumer-proof, workflow, or support-surface batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- Reviewed CMake parity remains the primary truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The reviewed CMake tree currently remains the strongest shared executable
+  truth surface entering Sprint 87:
+  - reviewed representative proof owners:
+    - `./build/quality-review-cmake/test_reorder_nd`
+    - `./build/quality-review-cmake/test_reorder`
+    - `./build/quality-review-cmake/test_reorder_amd_qg`
+    - `./build/quality-review-cmake/test_graph`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+- Canonical benchmark reporting remains command- and script-owned rather than
+  reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/export proof remains script- and fixture-owned:
+  - `bash tests/test_install.sh` is the local Unix-side Make
+    install/uninstall + `pkg-config` proof
+  - `bash tests/test_cmake_install.sh` is the local Unix-side CMake
+    install/export + `find_package(Sparse)` proof
+  - `examples/cmake_example/CMakeLists.txt` remains the representative
+    downstream CMake consumer surface used by that proof lane
+- The workflow-side package/platform split remains intentionally narrower than
+  a broad cross-platform package parity claim:
+  - macOS carries a supplemental static-first Make install/`pkg-config`
+    confidence lane only
+  - Windows remains the reviewed CMake-first consumer subset and does not
+    claim a separate reviewed install-validation lane
+- The strongest Day 2 clarification is now fixed:
+  - reviewed CMake binaries remain the main executable truth anchor
+  - install/export proof remains script owned
+  - downstream consumer proof remains local and bounded
+  - workflow lanes are support evidence and remain narrower than a broad
+    install/export parity claim
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Rechecked the presence of the strongest reviewed representative binaries and
+  examples.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked `scripts/bench_canonical_report.sh`,
+  `tests/test_install.sh`, `tests/test_cmake_install.sh`, and
+  `examples/cmake_example/CMakeLists.txt`.
+- Re-read `.github/workflows/macos-ci.yml` and
+  `.github/workflows/windows-ci.yml` for the current bounded package/platform
+  truth model.
+
+### Day 2 Exit State
+- Sprint 87 now has one explicit validation and maintained-consumer-surface
+  contract before the package-gap audit begins.
+- The live split across reviewed binaries, command-owned canonical reporting,
+  script-owned install/export proof, and narrower workflow-side package
+  evidence is fixed in writing.
+- The highest-signal rerun set is explicit before the first package /
+  consumer contradiction rerank.

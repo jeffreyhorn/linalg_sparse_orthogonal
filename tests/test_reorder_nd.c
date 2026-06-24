@@ -77,7 +77,10 @@ static SparseMatrix *tf_nd_cached_kuu = NULL;
 
 static sparse_err_t tf_nd_load_cached_fixture_copy(SparseMatrix **out, SparseMatrix **cache,
                                                    const char *path) {
-    if (!out || !cache || !path)
+    if (!out)
+        return SPARSE_ERR_NULL;
+    *out = NULL;
+    if (!cache || !path)
         return SPARSE_ERR_NULL;
     if (!*cache) {
         sparse_err_t rc = sparse_load_mm(cache, path);

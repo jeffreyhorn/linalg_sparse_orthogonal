@@ -697,3 +697,97 @@ into generic docs follow-up.
   simplification.
 - Day 8 can design one exact second implementation contract instead of
   reopening the front-door lane.
+
+## Day 8 - Examples / Workflow Simplification Design
+
+### Goal
+Define the bounded example and workflow-adoption contract Sprint 88 will
+actually support so Day 9 can land one real post-README adoption package
+instead of another broad docs or support rewrite.
+
+### Actions
+- Re-read the Day 8 design contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 7 rerank from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day7-post-landing-audit-and-rerank.md`.
+- Re-audited the exact next-center example/workflow surfaces:
+  - `examples/README.md`
+  - `docs/tutorial.md`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `examples/cmake_example/main.c`
+- Rechecked the current handoff boundaries from the landed README front door
+  into examples, tutorial, install/support, benchmark references, and
+  maintainer-only material.
+- Fixed the exact second implementation center and the directly forced
+  support-only follow-through list.
+- Wrote the Day 8 design artifact and aligned the working-notes contract to
+  the post-Day-7 priority map.
+
+### Findings
+- Sprint 88 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `examples/README.md`
+  - directly forced support-only follow-through only if the example/workflow
+    batch truly needs it:
+    - `docs/tutorial.md`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+    - `README.md`
+  - lower-value non-touch surfaces unless the Day 9 batch truly forces them:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The Day 8 ownership split is now fixed:
+  - example discovery and adoption-order owner:
+    - `examples/README.md`
+  - retained fuller repeated-run workflow owner only if the Day 9 batch truly
+    changes how the second-step learning path should read:
+    - `docs/tutorial.md`
+  - retained downstream installed-consumer example owner only if Day 9 truly
+    changes the local-vs-installed example boundary:
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+  - retained front-door handoff owner only if the Day 9 batch truly changes
+    the exact README-to-example routing language:
+    - `README.md`
+- The strongest Day 8 design decision is now explicit:
+  - Sprint 88 should treat `examples/README.md` as the compact “what to run
+    next” surface after the README front door
+  - it should make example discovery and ordering easier before widening into
+    the fuller tutorial or install/support references
+  - it should preserve the support split:
+    - examples = adoption and workflow teaching
+    - tutorial = fuller repeated-run and API walkthrough
+    - install/support docs = operational setup and advanced reference
+    - maintainer guide = policy and ownership interpretation
+- The useful Day 8 clarification is fixed now:
+  - Day 9 should not become tutorial expansion, install/support cleanup, or
+    benchmark-policy rewriting
+  - it should simplify example discovery, ordering, and cross-links inside
+    the bounded example/workflow lane
+  - support-surface consolidation remains explicitly separate unless the
+    example/workflow batch truly forces movement
+
+### Validation
+- This was a docs-only design day, so no full build/test rerun was required.
+- Targeted sanity checks were completed:
+  - re-read the Day 8 Sprint 88 plan contract
+  - re-read the Day 7 rerank artifact
+  - re-audited `examples/README.md` and the current tutorial/example handoff
+    surfaces
+
+### Day 8 Exit State
+- Sprint 88 now has one exact second implementation contract.
+- Ownership between examples, tutorial, installed-consumer example surfaces,
+  and retained support-only references is explicit before implementation.
+- Day 9 can land one bounded examples/workflow batch without reopening the
+  README-front-door lane.

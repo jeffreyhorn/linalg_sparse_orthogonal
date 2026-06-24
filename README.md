@@ -2,6 +2,23 @@
 
 A C library for sparse matrices using the **orthogonal linked-list** (cross-linked) representation, with direct and iterative linear system solvers.
 
+## Start Here
+
+Use the README front door for the first adoption path, then widen into the
+deeper support surfaces only when you actually need them.
+
+- **Want a first successful solve quickly?**
+  - Build locally with `make`, then use the one-shot direct quick start below.
+- **Need to choose the right solver workflow first?**
+  - Jump to [Choose a Workflow](#choose-a-workflow).
+- **Need install or downstream-consumer setup?**
+  - Use [Installation](#installation) for the compact package summary, then
+    [INSTALL.md](INSTALL.md) for platform-specific detail.
+- **Need maintained examples, benchmarks, or quality policy?**
+  - Examples stay in `examples/`, performance/reporting stays under
+    `benchmarks/`, and maintainer/quality policy stays in
+    [docs/maintainer_guide.md](docs/maintainer_guide.md).
+
 ## Features
 
 ### Core Data Structure
@@ -76,18 +93,50 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ## Choose a Workflow
 
-- **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
-- For those one-shot direct paths, start from a fresh matrix or a fresh `sparse_copy()` when you still need the original coefficient view later. `example_basic_solve` is the smallest shipped reference for that discipline.
-- **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. Start with `example_analysis`, then use the [tutorial](docs/tutorial.md) when you want the fuller step-by-step flow.
-- **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
-- **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Examples vs benchmarks vs tests:** examples teach the API workflow, benchmarks prove the retained workflow/performance story, and tests own regression/oracle/property guarantees. After adopting the repeated-run direct path, move from `example_analysis` to `bench_refactor_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse` for the maintained benchmark-side proof surfaces.
-- **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`.
-- **Threshold-free reporting:** `make bench-canonical-report` writes one bounded snapshot of that maintained benchmark surface for local or CI artifact comparison. It is intentionally not a pass/fail timing gate.
+Start with the smallest surface that matches your real workload:
 
-The rest of this README keeps the deeper algorithm, API, and benchmark details.
+- **One-shot direct solve:** use LU, Cholesky, LDL^T, or QR when you are
+  solving once or only occasionally.
+- **Stable-pattern repeated direct solve:** use
+  `sparse_analyze()` -> `sparse_factor_numeric()` ->
+  `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later
+  solves as values change.
+- **Repeated-run iterative handle:** use the explicit handle path only for
+  `CG`, `GMRES`, or `MINRES` when the problem dimension is stable and
+  workspace reuse matters.
+- **Repeated-run eigensolver handle:** use the explicit handle path for
+  grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG` when you are
+  reusing the same dimension and want persistent workspace.
+
+Start from these shipped references:
+
+- `example_basic_solve` for the smallest one-shot direct path
+- `example_analysis` for the analyze-once / factor-many direct lifecycle
+- [docs/tutorial.md](docs/tutorial.md) for the fuller repeated-run direct flow
+
+When to widen beyond the first examples:
+
+- examples teach the API workflow
+- benchmarks prove the retained workflow/performance story
+- tests own regression, oracle, and property guarantees
+- `make bench-canonical-report` writes one bounded snapshot of the maintained
+  benchmark surface and is intentionally not a pass/fail timing gate
+
+If you still need the original coefficient view later, start one-shot direct
+paths from a fresh matrix or a fresh `sparse_copy()`.
 
 ## Building
+
+Most first-time local adoption only needs:
+
+```bash
+make
+make test
+```
+
+Use `make tooling-build` when you want the example and benchmark binaries
+without running them yet. Use [INSTALL.md](INSTALL.md) when you need
+cross-platform install, downstream-consumer, or package-manager detail.
 
 ### With Make (recommended)
 
@@ -136,6 +185,9 @@ See [INSTALL.md](INSTALL.md) for detailed cross-platform instructions.
 
 ## Quick Start
 
+Use this path if you want one successful direct solve before learning the
+repeated-run direct lifecycle or iterative/eigensolver surfaces.
+
 ```c
 #include "sparse_matrix.h"
 #include "sparse_lu.h"
@@ -174,6 +226,16 @@ Compile and link:
 make
 cc -Iinclude -o example example.c -Lbuild -lsparse_lu_ortho -lm
 ```
+
+Next steps after the first solve:
+
+- stay on the one-shot path for small or occasional direct solves
+- move to [Repeated-Run Direct Workflow](#repeated-run-direct-workflow) when
+  the sparsity pattern is stable across many value changes
+- move to [Iterative Solver Example](#iterative-solver-example) when the
+  matrix/system type makes iterative workflows a better fit
+- use [Installation](#installation) and [INSTALL.md](INSTALL.md) when you need
+  installed consumer workflows instead of local build-tree linking
 
 ### Iterative Solver Example
 

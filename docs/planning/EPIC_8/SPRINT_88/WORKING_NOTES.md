@@ -538,3 +538,84 @@ instead of another broad docs cleanup.
   and retained proof/workflow evidence is explicit before implementation.
 - Day 6 can land one bounded README/tutorial batch without reopening the
   scope fence.
+
+## Day 6 - README / Tutorial Batch
+
+### Goal
+Land one bounded README/front-door simplification batch that closes a real
+adoption-friction contradiction without widening into examples, support docs,
+workflow policy, or public-header cleanup.
+
+### Actions
+- Re-read the Day 6 implementation contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 5 design contract from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day5-workflow-simplification-design.md`.
+- Reworked `README.md` so the first-user path is more explicit and adoption
+  first:
+  - added a compact `Start Here` front-door section near the top
+  - tightened `Choose a Workflow` around the smallest real workflow choices
+  - added a minimal first-adoption build path ahead of the deeper build
+    reference
+  - added explicit quick-start follow-through so users know when to widen
+    into repeated-run direct, iterative, or install surfaces
+- Kept the landing inside the required implementation center and rechecked
+  that no support-surface or proof-owner follow-through was truly forced.
+- Ran the substantial-docs validation gate required by the Sprint 88
+  validation split:
+  - `make quality-review-full`
+
+### Findings
+- Sprint 88's first implementation landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `README.md`
+  - directly forced support follow-through actually needed:
+    - none
+  - not needed in the batch:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The kept front-door usability win is explicit:
+  - the README now opens with one compact `Start Here` path instead of making
+    the first-time user infer that path from the larger feature surface
+  - workflow choice is now organized around the smallest real solver/lifecycle
+    surface rather than mixing first adoption with benchmark and proof-policy
+    detail
+  - local build guidance now starts with the shortest realistic first-adoption
+    command path before widening into the full build reference
+  - the quick start now hands off explicitly to repeated-run direct,
+    iterative, and install surfaces instead of leaving the next step implicit
+- The strongest Day 6 clarification is now explicit:
+  - a real front-door contradiction closed without reopening package/platform
+    semantics
+  - examples, support-surface consolidation, workflow evidence, and
+    public-header narrative cleanup remain later Sprint 88 lanes
+  - the README now behaves more like an adoption-first surface and less like a
+    mixed operator/reference dump
+
+### Validation
+- `make quality-review-full` passed.
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `412.54 sec`
+
+### Day 6 Exit State
+- Sprint 88 now has one landed bounded README/front-door batch.
+- The first-user path from build to workflow choice to quick-start follow-on
+  is sharper in the live repo.
+- Later examples/workflow simplification, support-surface consolidation, and
+  public-header narrative cleanup remain explicitly outside this first
+  landing.

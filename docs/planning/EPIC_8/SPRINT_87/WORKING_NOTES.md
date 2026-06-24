@@ -713,3 +713,103 @@ the Day 6 packaging/export landing.
   `tests/test_install.sh`.
 - Workflow/platform follow-through and broader support-surface alignment remain
   clearly separated from the real next implementation move.
+
+## Day 8 - Consumer-Proof Expansion Design
+
+### Goal
+Define the bounded local install/export and downstream-consumer proof package
+Sprint 87 should land next so the maintained static-first consumer story is
+stronger than it was at sprint start.
+
+### Actions
+- Re-read the Day 7 rerank against the Sprint 87 project-plan scope for
+  Consumer-Proof Expansion.
+- Re-scanned the exact current maintained proof owners and retained adjacent
+  surfaces:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+- Reconciled what the Day 6 package-contract landing already proves versus
+  what the maintained local Make/pkg-config consumer surface still leaves
+  comparatively narrow.
+
+### Findings
+- Sprint 87 now has one explicit second implementation contract:
+  - required Day 9 center:
+    - `tests/test_install.sh`
+  - directly forced support-only follow-through if the consumer batch truly
+    needs it:
+    - `examples/cmake_example/CMakeLists.txt`
+    - `tests/test_cmake_install.sh`
+  - strongest support-only wording if the proof contract truly changes the
+    maintained rerun story:
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+  - lower-value non-touch surfaces:
+    - `CMakeLists.txt`
+    - `cmake/SparseConfig.cmake.in`
+    - `sparse.pc.in`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+- The exact Day 9 implementation center is now fixed to one bounded expansion
+  inside `tests/test_install.sh`, not another package-contract batch and not a
+  workflow-first widening pass.
+- The decisive Day 8 reason is explicit:
+  - `tests/test_cmake_install.sh` already proves installed CMake consumer and
+    exact-version behavior end to end
+  - `tests/test_install.sh` proves the Make/pkg-config lane, but it still owns
+    the narrowest maintained downstream consumer reading
+  - the highest-value next seam is therefore to make that static-first
+    pkg-config consumer proof richer without widening platform or ABI claims
+- The strongest bounded Day 9 consumer lane is now fixed to:
+  - keep `tests/test_install.sh` as the implementation owner
+  - strengthen the installed Make/pkg-config consumer story through one more
+    explicit downstream-consumer proof seam
+  - reuse the retained local compile/link/run lane rather than inventing a new
+    workflow or broad package surface
+  - touch `examples/cmake_example/CMakeLists.txt` only if the Day 9 proof
+    package truly benefits from reusing the maintained example consumer shape
+  - touch `tests/test_cmake_install.sh` only if the Day 9 batch exposes a real
+    shared helper or contract seam that should stay synchronized
+- The strongest support-only follow-through is now:
+  - `examples/cmake_example/CMakeLists.txt`
+  - `tests/test_cmake_install.sh`
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+- Current reading:
+  - `examples/cmake_example/CMakeLists.txt` should stay untouched unless the
+    maintained local consumer batch can reuse it directly without turning Day 9
+    into a CMake-first consumer rewrite
+  - `tests/test_cmake_install.sh` should stay untouched unless the Day 9 proof
+    package truly changes a shared downstream-consumer contract
+  - docs wording should stay deferred unless the landed batch changes the
+    maintained rerun contract, not just the local proof depth
+- The bounded Day 8 fence is explicit:
+  - no second immediate product-matrix or export-semantics batch
+  - no workflow/platform widening folded into Day 9
+  - no shared-library or broad ABI claim widening
+  - no generic install-script rewrite detached from the consumer-proof seam
+  - no drift from maintained local proof into benchmark or reviewed-test
+    ownership
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in direct rereads of:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `CMakeLists.txt`
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - the Sprint 87 project-plan section
+
+### Day 8 Exit State
+- Sprint 87 now has one exact second implementation contract.
+- Day 9 can stay bounded to `tests/test_install.sh` and strengthen the
+  maintained static-first consumer story without reopening package semantics or
+  workflow claims.
+- Workflow/platform follow-through remains explicitly later.

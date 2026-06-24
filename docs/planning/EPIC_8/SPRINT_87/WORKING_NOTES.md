@@ -228,3 +228,125 @@ before Sprint 87 changes any package, export, or product-contract surface.
   evidence is fixed in writing.
 - The highest-signal rerun set is explicit before the first package /
   consumer contradiction rerank.
+
+## Day 3 - Release / Package Gap Audit
+
+### Goal
+Reduce Sprint 87's broad packaging and ABI problem to one ranked live
+contradiction map so the sprint can choose one bounded product-contract lane
+instead of another generic build or release bucket.
+
+### Actions
+- Re-read the Day 3 package-gap expectations from
+  `docs/planning/EPIC_8/SPRINT_87/PLAN.md`.
+- Re-read the strongest recent rerank template from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day3-reviewed-runtime-long-pole-audit.md`.
+- Re-read the current authoritative package and ABI wording in:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+  - `INSTALL.md`
+- Re-read the live build/export implementation surfaces:
+  - `CMakeLists.txt`
+  - `Makefile`
+  - `cmake/SparseConfig.cmake.in`
+  - `sparse.pc.in`
+  - `examples/cmake_example/CMakeLists.txt`
+- Re-read the workflow-side package/platform contract surfaces:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Reconciled the package rerank against the Sprint 80 packaging/platform
+  direction and the Sprint 86 close handoff.
+
+### Findings
+- Sprint 87's broad package / ABI / consumer problem is now reduced to one
+  ranked live contradiction map:
+  - strongest first target:
+    - bounded product-matrix design centered on the static/shared and ABI
+      contract currently implemented by `CMakeLists.txt`,
+      `cmake/SparseConfig.cmake.in`, `sparse.pc.in`, and the matching package
+      wording in `README.md`, `INSTALL.md`, and
+      `docs/maintainer_guide.md`
+  - strongest second target:
+    - bounded consumer-proof expansion centered on
+      `tests/test_install.sh`, `tests/test_cmake_install.sh`, and
+      `examples/cmake_example/CMakeLists.txt`
+  - strongest third target:
+    - bounded workflow / platform follow-through centered on
+      `.github/workflows/macos-ci.yml` and `.github/workflows/windows-ci.yml`
+      after the product contract is explicit
+  - strongest support-only but real target:
+    - support-surface alignment across `README.md`, `INSTALL.md`,
+      `docs/maintainer_guide.md`, and narrow benchmark/docs wording only where
+      landed package work truly changes the contract
+- The strongest current contradiction is now explicit:
+  - the repo's maintained docs repeatedly say the package surface is
+    intentionally static-first and not a broad shared-library or dynamic-ABI
+    guarantee
+  - but the live CMake install/export surface already emits package-version
+    metadata through `SparseConfigVersion.cmake` with `SameMajorVersion`
+    compatibility semantics
+  - and the configure path accepts `BUILD_SHARED_LIBS=ON` only to continue
+    producing a static target
+  - this means the strongest first Sprint 87 move is not "add shared now"; it
+    is to define the exact product matrix the repo is willing to support and
+    make the build/export language match it cleanly
+- The strongest second contradiction is downstream consumer asymmetry:
+  - the local proof story is real on Unix:
+    - `tests/test_install.sh` proves Make install/uninstall + `pkg-config`
+    - `tests/test_cmake_install.sh` proves CMake install/export +
+      `find_package(Sparse)`
+  - but the installed surfaces are still asymmetric:
+    - Make installs headers, archive, and `sparse.pc`
+    - CMake installs headers, archive, exported targets, and package config
+  - and the representative downstream consumer example is CMake-only
+  - that makes consumer-proof expansion real Sprint 87 work, but still second
+    after the product-matrix contract is explicit
+- The strongest third contradiction is workflow/platform asymmetry:
+  - Linux remains the strongest reviewed source of truth, but its package proof
+    stays developer-side rather than a separate reviewed CI lane
+  - macOS carries only a narrower supplemental Make install/`pkg-config`
+    confidence path
+  - Windows keeps the reviewed CMake-first consumer subset and explicitly does
+    not claim a separate reviewed install-validation lane
+  - that means workflow follow-through is real Sprint 87 work, but it remains
+    bounded and must stay behind a truthful product contract
+- The strongest support-only follow-through remains bounded:
+  - `README.md` = `1050`
+  - `INSTALL.md` = `265`
+  - `docs/maintainer_guide.md` = `726`
+  - `benchmarks/README.md` = `399`
+  - these remain support-only unless the landed package work truly changes the
+    contract, local proof interpretation, or workflow reading
+- The Sprint 80 and Sprint 86 carry-forward reading is now fixed:
+  - Sprint 80 already pushed the repo toward a static-first maintained package
+    truth rather than an unbounded platform promise
+  - Sprint 86 already removed reviewed-runtime as the strongest first-tier Epic
+    8 contradiction
+  - Sprint 87 therefore begins with package-contract truthfulness, not another
+    runtime or generic maintainability lane
+- Broad product and ABI widening remains lower-value first work:
+  - no broad shared-library product claim without bounded proof
+  - no dynamic-ABI promise detached from explicit validation ownership
+  - no generic build-system rewrite detached from the chosen product contract
+  - no workflow widening that outruns maintained local proof
+  - no support-surface churn detached from a real landed packaging seam
+
+### Validation
+- Re-read the authoritative package and ABI wording in `README.md`,
+  `INSTALL.md`, and `docs/maintainer_guide.md`.
+- Re-read the live build/export implementation surfaces in `CMakeLists.txt`,
+  `Makefile`, `cmake/SparseConfig.cmake.in`, `sparse.pc.in`, and
+  `examples/cmake_example/CMakeLists.txt`.
+- Re-read `.github/workflows/ci.yml`, `.github/workflows/macos-ci.yml`, and
+  `.github/workflows/windows-ci.yml`.
+- Reconciled the package rerank against the validated Sprint 86 handoff and
+  Sprint 80 packaging direction.
+
+### Day 3 Exit State
+- Sprint 87 now has one ranked live package / ABI / consumer contradiction map
+  grounded in the current tree and maintained package contract.
+- The first implementation center is fixed to bounded product-matrix design,
+  not immediate shared-library widening.
+- Later consumer-proof expansion, workflow/platform follow-through, and
+  support-surface alignment are explicitly ordered behind that first lane.

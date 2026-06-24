@@ -1,0 +1,31 @@
+Sprint 88 Day 1 authoritative inputs
+
+Primary planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md
+- docs/planning/EPIC_8/SPRINT_88/PLAN.md
+- docs/planning/EPIC_8/SPRINT_87/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_8/SPRINT_87/RETROSPECTIVE.md
+
+Baseline and parity commands rechecked
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Live hotspot measurement inputs
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- benchmarks/README.md
+- examples/cmake_example/CMakeLists.txt
+- examples/cmake_example/main.c
+- include/sparse_matrix.h
+- include/sparse_types.h
+- include/sparse_iterative.h
+- include/sparse_eigs.h
+- tests/test_install.sh
+- tests/test_cmake_install.sh
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+- CMakeLists.txt
+- Makefile

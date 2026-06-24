@@ -421,3 +421,120 @@ docs or support rewrite.
   inside that fence.
 - Later examples/workflow simplification, support-surface consolidation, and
   public-narrative cleanup are held back until later lanes.
+
+## Day 5 - Workflow-Simplification Design
+
+### Goal
+Define the bounded adoption-guidance and support-layering contract Sprint 88
+will actually support so Day 6 can land one real README/front-door change
+instead of another broad docs cleanup.
+
+### Actions
+- Re-read the Day 5 contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the fixed first-batch fence from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day4-first-usability-boundary.md`.
+- Re-read the strongest recent Day 5 design template from
+  `docs/planning/EPIC_8/SPRINT_87/artifacts/day5-product-matrix-design.md`.
+- Re-audited the strongest front-door ownership seams in `README.md`,
+  especially:
+  - `Choose a Workflow`
+  - `Quick Start`
+  - repeated-run direct guidance
+  - iterative/eigensolver workflow guidance
+  - support and advanced-reference handoff points
+- Fixed the intended ownership split between:
+  - front-door guidance surfaces
+  - example/workflow adoption surfaces
+  - support-only advanced reference surfaces
+  - maintainer-only detail surfaces
+- Wrote the Day 5 design artifact and aligned the working-notes contract to
+  the Day 4 fence.
+
+### Findings
+- Sprint 88 now has one explicit first implementation contract:
+  - required implementation center:
+    - `README.md`
+  - directly forced support surfaces only if the first batch truly needs
+    them:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+  - proof and workflow surfaces remain later owners unless the first batch
+    truly changes their obligations:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+  - public-header narrative cleanup remains later than the first front-door
+    landing:
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The Day 5 ownership split is now fixed:
+  - front-door adoption-guidance owner:
+    - `README.md`
+  - retained example/workflow adoption owners only if the front-door landing
+    truly changes how downstream examples should be sequenced:
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+  - retained support-only advanced-reference owners only if the front-door
+    landing truly changes where operational detail should live:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+  - retained maintainer-only detail owner only if the front-door landing
+    truly changes audience boundaries:
+    - `docs/maintainer_guide.md`
+  - retained proof and workflow evidence owners after the first landing:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+- The strongest Day 5 design decision is now explicit:
+  - Sprint 88 should treat `README.md` as an adoption-first surface, not as
+    the place where every support, benchmark, workflow, or maintainer detail
+    must be taught
+  - the front door should preserve one clear user path:
+    - choose a workflow
+    - complete a minimal quick start
+    - widen into repeated-run direct workflows
+    - widen later into iterative/eigensolver, examples, install/support, and
+      benchmark references only when the user actually needs them
+  - advanced support and maintainer material should remain in their retained
+    owners instead of being pulled forward into the first read path
+- The useful Day 5 clarification is fixed now:
+  - Day 6 should not try to solve examples, install/support, maintainer, and
+    public-header narrative cleanup all at once
+  - it should simplify the front door so the first adoption sequence reads
+    clearly and hands off deliberately to later surfaces
+  - it should preserve the maintained proof, workflow, and package-contract
+    owners as later lanes rather than blending them into the first README
+    pass
+- The preserved first-batch fence remains explicit:
+  - no package/platform contract reopening
+  - no correctness-ownership redistribution
+  - no benchmark-policy rewrite detached from adoption guidance
+  - no workflow/platform claim broadening beyond the maintained proof
+    surfaces
+  - no public-header narrative widening folded into the first README batch
+    unless the front-door contract truly forces it
+
+### Validation
+- This was a docs-only design day, so no full build/test rerun was required.
+- Targeted sanity checks were completed:
+  - re-read the Day 5 Sprint 88 plan contract
+  - re-read the fixed Day 4 boundary artifact
+  - re-read the strongest recent Day 5 design template
+  - re-audited the highest-value README adoption sequence and handoff seams
+
+### Day 5 Exit State
+- Sprint 88 now has one bounded front-door usability design contract.
+- Ownership between README, examples, support references, maintainer detail,
+  and retained proof/workflow evidence is explicit before implementation.
+- Day 6 can land one bounded README/tutorial batch without reopening the
+  scope fence.

@@ -619,3 +619,81 @@ workflow policy, or public-header cleanup.
 - Later examples/workflow simplification, support-surface consolidation, and
   public-header narrative cleanup remain explicitly outside this first
   landing.
+
+## Day 7 - Post-Landing Audit and Re-Rank
+
+### Goal
+Re-audit the touched front-door usability surfaces after the Day 6 landing and
+fix the highest-value next implementation center so Sprint 88 does not drift
+into generic docs follow-up.
+
+### Actions
+- Re-read the Day 7 rerank contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the landed Day 6 batch from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day6-readme-tutorial-batch.md`.
+- Re-audited the touched README front door and the strongest current handoff
+  seams into examples, tutorial, install/support, benchmarks, and maintainer
+  material.
+- Rechecked the retained example/workflow adoption surfaces most likely to own
+  the next contradiction:
+  - `examples/README.md`
+  - `docs/tutorial.md`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `examples/cmake_example/main.c`
+- Reconfirmed which lower-value support and public-narrative surfaces remain
+  real Sprint 88 work but still do not justify becoming the next center.
+- Wrote the rerank artifact and aligned the working-notes priority map to the
+  post-Day-6 repo state.
+
+### Findings
+- The Day 6 landing closed the strongest first usability contradiction:
+  - `README.md` no longer stands out as the unclear first adoption center
+  - a second immediate README-only batch is not the highest-value next move
+- The strongest remaining contradiction is now examples / workflow
+  simplification:
+  - the README now tells users when to widen into examples and the fuller
+    repeated-run flow
+  - but the next-step example surfaces still live across multiple owners
+    without one compact adoption package
+  - `examples/README.md` and `docs/tutorial.md` now matter more because the
+    README handoff is clearer than it was before Day 6
+- The exact Day 8 design center is now fixed to the example/workflow adoption
+  lane, centered first on:
+  - `examples/README.md`
+- The strongest directly adjacent support-only follow-through is now:
+  - `docs/tutorial.md`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `examples/cmake_example/main.c`
+  - `README.md`
+- Lower-value but still real later Sprint 88 lanes remain:
+  - support-surface consolidation:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - public-header / API narrative cleanup:
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The strongest Day 7 clarification is now explicit:
+  - Sprint 88 should not widen next into install/support or header narrative
+    cleanup just because the README now points at those surfaces
+  - the best next move is one bounded example/workflow adoption package that
+    makes the post-README handoff easier to follow
+  - support-surface consolidation remains real, but it is later than the
+    example/workflow lane unless that lane truly forces it
+
+### Validation
+- This was a docs-only rerank day, so no full build/test rerun was required.
+- Targeted sanity checks were completed:
+  - re-read the Day 6 artifact and the touched README sections
+  - rechecked the strongest example/workflow ownership surfaces
+  - rechecked the retained support-only and later public-narrative surfaces
+
+### Day 7 Exit State
+- Sprint 88 no longer needs another front-door-first rerank debate.
+- The next implementation center is fixed to bounded example/workflow
+  simplification.
+- Day 8 can design one exact second implementation contract instead of
+  reopening the front-door lane.

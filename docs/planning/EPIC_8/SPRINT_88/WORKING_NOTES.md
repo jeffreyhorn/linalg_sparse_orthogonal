@@ -343,3 +343,81 @@ instead of another generic docs or example bucket.
   simplification, not immediate support-surface or header cleanup.
 - Later examples/workflow simplification, support-surface consolidation, and
   public narrative cleanup are explicitly ordered behind that first lane.
+
+## Day 4 - First Usability Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 88 usability implementation fence so the next
+design pass can define one real front-door contract instead of another broad
+docs or support rewrite.
+
+### Actions
+- Re-read the Day 3 usability contradiction map against the Sprint 88
+  project-plan scope.
+- Reconciled the ranked front-door, examples, support-surface, and
+  public-narrative lanes against the preserved Sprint 87 package/platform
+  contract and proof-ownership split.
+- Fixed the required first implementation center and the directly forced
+  support-only surfaces that may move only if the first landing truly needs
+  them.
+- Fixed the preserved first-batch non-goal fence for README/front-door work.
+
+### Findings
+- Sprint 88 now has one explicit first implementation fence:
+  - required first landing:
+    - `README.md`
+  - directly forced support surfaces only if the first landing truly needs
+    them:
+    - `INSTALL.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+  - support-only proof and workflow surfaces that stay later unless the first
+    landing truly forces movement:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+  - explicitly deferred from the first landing:
+    - examples / workflow simplification as a first-batch center
+    - support-surface consolidation as a first-batch center
+    - public-header / API narrative cleanup as a first-batch center
+    - package/platform contract reopening
+    - benchmark-policy rewriting detached from adoption guidance
+    - correctness-ownership redistribution
+- The strongest Day 4 clarification is now explicit:
+  - the best first Sprint 88 move is one bounded front-door simplification
+    pass centered on `README.md`
+  - the first landing should decide how the repo wants the first user path,
+    support references, and adoption sequence to read before example or header
+    widening moves
+  - `INSTALL.md`, `benchmarks/README.md`, `docs/maintainer_guide.md`, and the
+    example surfaces remain directly allowed support surfaces only if the
+    README/front-door contract truly forces them to move
+  - install/export proof, workflow surfaces, and public-header cleanup stay
+    later unless the front-door landing truly changes their obligations
+- The preserved first-batch non-goal fence is explicit now:
+  - no package/platform contract reopening
+  - no correctness-ownership redistribution
+  - no benchmark-policy rewrite detached from adoption guidance
+  - no internal architectural rewrite disguised as docs cleanup
+  - no workflow/platform claim broadening beyond the already-maintained proof
+    and support surfaces
+
+### Validation
+- This was a docs-only boundary-freeze day, so no full build/test rerun was
+  required.
+- Targeted sanity checks were completed:
+  - re-read the Day 3 user-journey audit
+  - re-read the Sprint 88 plan boundary expectations
+  - rechecked the strongest first-tier and deferred support surfaces in the
+    current tree
+
+### Day 4 Exit State
+- Sprint 88 now has one bounded first front-door landing center.
+- Day 5 can design one explicit front-door and support-layering contract
+  inside that fence.
+- Later examples/workflow simplification, support-surface consolidation, and
+  public-narrative cleanup are held back until later lanes.

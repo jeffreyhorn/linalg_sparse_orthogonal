@@ -1,0 +1,35 @@
+Sprint 87 Day 1 authoritative inputs
+
+Primary planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md
+- docs/planning/EPIC_8/SPRINT_87/PLAN.md
+- docs/planning/EPIC_8/SPRINT_86/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_8/SPRINT_86/RETROSPECTIVE.md
+
+Baseline and parity commands rechecked
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Maintained package-contract inputs re-read
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- tests/test_install.sh
+- tests/test_cmake_install.sh
+
+Live hotspot measurement inputs
+- CMakeLists.txt
+- Makefile
+- sparse.pc.in
+- cmake/SparseConfig.cmake.in
+- examples/cmake_example/CMakeLists.txt
+- tests/test_install.sh
+- tests/test_cmake_install.sh
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- benchmarks/README.md

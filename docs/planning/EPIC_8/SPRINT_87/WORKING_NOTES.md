@@ -1213,3 +1213,71 @@ measured close baseline from actual execution.
 - The reviewed baseline, package proofs, and retained reporting follow-ons all
   stayed exact and clean.
 - Day 14 can close from execution evidence rather than implementation state.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 87 from the validated Day 13 baseline and leave one explicit
+handoff queue for Sprint 88 and the later Epic 8 implementation sprints.
+
+### Actions
+- Re-read the validated Day 13 execution baseline and the landed Sprint 87
+  implementation boundaries.
+- Rechecked the Epic 8 project-plan queue after Sprint 87:
+  - `docs/planning/EPIC_8/PROJECT_PLAN.md`
+- Consolidated the final Sprint 87 package, consumer, workflow, and support
+  surfaces into one closeout and handoff artifact.
+
+### Findings
+- Sprint 87 now closes as one coherent packaging, ABI, and cross-platform
+  quality-convergence package across:
+  - package / ABI / consumer gap rerank
+  - bounded product-matrix and package-contract architecture
+  - Day 6 bounded packaging batch
+  - Day 9 bounded consumer-proof expansion
+  - Day 11 bounded workflow/platform follow-through
+  - validated Day 13 close baseline
+- The preserved fence stayed intact:
+  - Sprint 87 sharpened the static-first package/export contract instead of
+    reopening a broader shared-library product lane
+  - the first packaging landing stayed product-owned inside `CMakeLists.txt`
+  - the consumer-proof expansion stayed script-owned inside
+    `tests/test_install.sh`
+  - the retained CMake install/export proof stayed owned by
+    `tests/test_cmake_install.sh`
+  - the workflow follow-through stayed supplemental and macOS-local inside
+    `.github/workflows/macos-ci.yml`
+  - Windows scope remained the narrower maintained CMake-first consumer subset
+  - canonical maintained reporting stayed unchanged under
+    `make bench-canonical-report`
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 87 correction.
+- The landed Sprint 87 package still supports the intended Epic 8 execution
+  order:
+  - Sprint 88 front-door usability and workflow simplification after the
+    package/platform contract is stable enough for public-surface cleanup
+  - Sprint 89 final integration, external comparison, and Epic 8 closeout
+    after the front-door guidance layers are reconciled
+  - later package/platform widening only where bounded evidence still justifies
+    it beyond the maintained static-first contract
+
+### Validation
+- This was a docs-only closeout day, so no rerun beyond Day 13 was required.
+- Sprint 87 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - `Total Test time (real) = 299.15 sec`
+  - `bash tests/test_install.sh` = `13` passed, `0` failed
+  - `bash tests/test_cmake_install.sh` = `15` passed, `0` failed
+  - `make bench-canonical-report` passed
+
+### Day 14 Exit State
+- Sprint 87 now closes from a measured packaging/consumer/workflow baseline
+  rather than from package-contract design intent alone.
+- The branch has one explicit handoff queue for Sprint 88 front-door
+  simplification and Sprint 89 Epic 8 closeout work.
+- No Sprint 87 project-plan correction is needed.

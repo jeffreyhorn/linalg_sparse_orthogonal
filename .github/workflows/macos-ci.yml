@@ -100,18 +100,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run supplemental package-path build
-        run: make
-
-      - name: Run supplemental Make install to /tmp prefix
-        run: make install PREFIX=/tmp/sparse-prefix
-
-      - name: Run supplemental pkg-config consumer verification
-        run: |
-          export PKG_CONFIG_PATH=/tmp/sparse-prefix/lib/pkgconfig
-          pkg-config --modversion sparse
-          pkg-config --cflags sparse
-          pkg-config --libs sparse
-
-      - name: Run supplemental uninstall reversibility check
-        run: make uninstall PREFIX=/tmp/sparse-prefix
+      - name: Run maintained supplemental Make install/pkg-config proof
+        run: bash tests/test_install.sh

@@ -975,3 +975,58 @@ truthfully maintain after the stronger Day 9 local consumer proof.
   widening broader platform claims.
 - Windows scope and broader support-surface alignment remain explicitly later
   unless a real shared wording seam is forced.
+
+## Day 11 - Workflow / Platform Follow-Through Batch
+
+### Goal
+Tighten the supplemental macOS package lane around the maintained local proof
+without widening broader platform claims.
+
+### Actions
+- Landed the bounded workflow follow-through inside `.github/workflows/macos-ci.yml`.
+- Replaced the thinner hand-rolled macOS supplemental package steps with one
+  direct invocation of the maintained local proof owner:
+  - `bash tests/test_install.sh`
+- Kept the job explicitly supplemental and left Windows scope and wording
+  unchanged.
+- Re-ran the owned package-proof surface locally:
+  - `bash tests/test_install.sh`
+
+### Findings
+- Sprint 87's third implementation landing stayed inside the Day 10 fence:
+  - required implementation center:
+    - `.github/workflows/macos-ci.yml`
+  - directly forced support follow-through actually needed:
+    - none
+  - not needed in the batch:
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+- The kept workflow win is explicit:
+  - the macOS supplemental package lane now reuses the maintained local
+    Make/pkg-config proof surface directly
+  - the workflow no longer carries a thinner hand-rolled subset than the
+    maintained proof owner it is meant to support
+  - macOS still remains supplemental package evidence, not reviewed
+    install/export parity
+- The strongest Day 11 clarification is now explicit:
+  - this batch did not widen Windows claims
+  - it did not change package semantics or ABI promises
+  - it improved only the fidelity between the macOS supplemental workflow lane
+    and the maintained local package proof
+
+### Validation
+- `bash tests/test_install.sh` passed
+  - total result: `13` passed, `0` failed
+- Because no `*.c` or `*.h` files changed, `make format`, `make lint`, and
+  `make test` were not required for this batch.
+
+### Day 11 Exit State
+- Sprint 87 now has one landed bounded workflow/platform follow-through batch.
+- The supplemental macOS package lane is better aligned with the maintained
+  local proof than it was at sprint start.
+- Windows scope and broader support-surface alignment remain later lanes.

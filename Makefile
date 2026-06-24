@@ -308,6 +308,15 @@ bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@$(BUILDDIR)/bench_reorder --skip-factor
 	@echo "bench-fast: complete"
 
+# Focused Sprint 86 ND runtime evidence slice.  Keeps the rerun bounded to the
+# touched reviewed-runtime fixtures without widening the canonical maintained
+# benchmark surface or re-enabling the slow numeric-factor pass on
+# Pres_Poisson.
+.PHONY: bench-reorder-sprint86
+bench-reorder-sprint86: $(BUILDDIR)/bench_reorder
+	@echo "=== Running bench_reorder --sprint86-slice --skip-factor ==="
+	@$(BUILDDIR)/bench_reorder --sprint86-slice --skip-factor
+
 # Threshold-free canonical performance snapshot for local before/after diffs
 # or CI artifact capture. Keeps the Sprint 65 maintained surface visible
 # without turning it into a noisy timing gate.

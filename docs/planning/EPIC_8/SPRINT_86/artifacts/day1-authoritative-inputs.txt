@@ -1,0 +1,33 @@
+Sprint 86 Day 1 authoritative inputs
+
+Primary planning and closeout inputs
+- docs/planning/EPIC_8/PROJECT_PLAN.md
+- docs/planning/EPIC_8/SPRINT_86/PLAN.md
+- docs/planning/EPIC_8/SPRINT_85/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_8/SPRINT_85/RETROSPECTIVE.md
+
+Baseline and parity commands rechecked
+- make -n quality-review-full
+- make quality-review-cmake-compile
+- ctest -N --test-dir build/quality-review-cmake
+
+Validated close runtime anchors carried forward from Sprint 85
+- reviewed CMake Total Test time (real) = 404.15 sec
+- reviewed test_reorder_nd time = 283.53 sec
+
+Live hotspot measurement inputs
+- tests/test_reorder_nd.c
+- tests/test_reorder.c
+- tests/test_reorder_amd_qg.c
+- src/sparse_reorder_nd.c
+- src/sparse_reorder.c
+- src/sparse_reorder_amd_qg.c
+- src/sparse_graph.c
+- src/sparse_graph_bisect.c
+- src/sparse_graph_coarsen.c
+- src/sparse_graph_refine.c
+- src/sparse_graph_separator.c
+- benchmarks/bench_reorder.c
+- benchmarks/bench_fillin.c
+- docs/maintainer_guide.md
+- README.md

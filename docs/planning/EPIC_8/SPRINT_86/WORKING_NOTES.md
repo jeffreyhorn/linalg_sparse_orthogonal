@@ -1,0 +1,1370 @@
+# Sprint 86 Working Notes
+
+## Day 1 - Baseline and Scope
+
+### Goal
+Establish a precise Sprint 86 baseline for Epic 8 by grounding the sprint in
+the validated Sprint 85 close state, the live Sprint 86 project-plan section,
+and the current reviewed-runtime, reorder, nested-dissection, benchmark, and
+support-surface hotspots rather than another generic “optimize tests” reset.
+
+### Actions
+- Re-read the Sprint 86 section of `docs/planning/EPIC_8/PROJECT_PLAN.md` and
+  the full Sprint 86 day-by-day plan in
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the strongest Sprint 85 closeout context:
+  - `docs/planning/EPIC_8/SPRINT_85/artifacts/day14-closeout-and-handoff.md`
+  - `docs/planning/EPIC_8/SPRINT_85/RETROSPECTIVE.md`
+- Rechecked the maintained reviewed wrapper surface with:
+  - `make -n quality-review-full`
+- Re-materialized the reviewed CMake parity tree with:
+  - `make quality-review-cmake-compile`
+- Reconfirmed the reviewed parity anchor directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Captured the live raw `wc -l` hotspot map for the strongest likely Sprint 86
+  touch surfaces across reorder proof owners, reorder/graph implementation
+  owners, benchmark surfaces, and support surfaces.
+- Opened Sprint 86 working notes and fixed the intended Day 1 and Day 2
+  landing order, artifacts, and validation expectations in writing.
+
+### Findings
+- Sprint 86 starts from the same strongest local reviewed baseline Sprint 85
+  closed on:
+  - `make quality-review-full`
+- Reviewed CMake parity remains explicit before any Sprint 86 implementation
+  work:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+- Sprint 86 is not a generic “speed up tests” sprint. Its highest value is one
+  bounded reviewed-runtime and reordering-scalability package centered on:
+  - reviewed runtime audit
+  - algorithm / proof runtime design
+  - ND runtime reduction
+  - proof-surface rebalancing
+  - benchmark / comparison follow-through
+  - CI / reviewed-path alignment
+  - validation and closeout
+- The validated Sprint 85 close baseline already fixed the strongest runtime
+  contradiction entering Sprint 86:
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - reviewed `test_reorder_nd` time = `283.53 sec`
+  - the strongest runtime long pole is therefore concentrated on the reorder /
+    ND reviewed proof lane, not on a generic whole-suite slowdown
+- The strongest likely Sprint 86 implementation, proof, and support surfaces
+  are explicit from the live tree:
+  - strongest reviewed proof and runtime owner:
+    - `tests/test_reorder_nd.c` = `2287`
+  - adjacent reorder proof owners:
+    - `tests/test_reorder.c` = `1082`
+    - `tests/test_reorder_amd_qg.c` = `273`
+  - strongest reorder and ND implementation owners:
+    - `src/sparse_graph.c` = `841`
+    - `src/sparse_reorder_nd.c` = `757`
+    - `src/sparse_graph_coarsen.c` = `659`
+    - `src/sparse_reorder_amd_qg.c` = `611`
+    - `src/sparse_graph_refine.c` = `602`
+    - `src/sparse_graph_bisect.c` = `528`
+    - `src/sparse_reorder.c` = `419`
+    - `src/sparse_graph_separator.c` = `297`
+  - strongest measurement and support surfaces:
+    - `benchmarks/bench_reorder.c` = `321`
+    - `benchmarks/bench_fillin.c` = `178`
+    - `README.md` = `1050`
+    - `docs/maintainer_guide.md` = `726`
+- The strongest Day 1 clarification is now fixed:
+  - Sprint 86 should not reopen Sprint 85’s source-decomposition package as
+    its first implementation center
+  - Sprint 86 should first reduce reviewed runtime concentration and improve
+    reorder / ND scalability on the strongest current long pole
+  - it should preserve correctness-proof quality while deciding how much of
+    the fix is algorithmic, fixture-organization, or reviewed-path
+    architecture
+- The preserved Sprint 86 non-goal pressure is explicit before Day 2:
+  - no generic maintainability decomposition restart
+  - no weakening of correctness proof quality to buy runtime wins
+  - no benchmark-governance or example-governance drift into correctness
+    ownership
+  - no package/platform maturity claim widening
+  - no support-surface churn detached from a real landed runtime seam
+
+### Validation
+- Rechecked `make -n quality-review-full`.
+- Re-ran `make quality-review-cmake-compile`.
+- Reconfirmed the reviewed parity anchor at
+  `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Carried forward the validated Sprint 85 close runtime anchors:
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - reviewed `test_reorder_nd` time = `283.53 sec`
+- Captured the live reorder, ND, benchmark, and support-surface hotspot map
+  from direct `wc -l` measurement.
+
+### Day 1 Exit State
+- Sprint 86 no longer starts from generic Epic 8 runtime prose.
+- The reviewed runtime audit, algorithm/proof design, ND runtime reduction,
+  proof-surface rebalancing, benchmark follow-through, CI alignment, and
+  validation workstreams are fixed in writing.
+- The strongest likely Sprint 86 touch surfaces are explicit before the
+  validation/proof recheck begins.
+
+## Day 2 - Validation and Reviewed-Surface Recheck
+
+### Goal
+Refresh the implementation-day validation contract and the live reviewed
+proof-owner split before Sprint 86 changes any reorder, ND, or reviewed-runtime
+surface.
+
+### Actions
+- Re-read the Day 2 validation-baseline expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the strongest recent validation/proof-surface template from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day2-validation-baseline-and-proof-surface-recheck.md`.
+- Reconfirmed reviewed CMake parity directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the presence of the strongest reviewed proof-owner and runtime
+  binaries for the early Sprint 86 lanes:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_reorder`
+  - `./build/quality-review-cmake/test_reorder_amd_qg`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/bench_reorder`
+  - `./build/quality-review-cmake/bench_fillin`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Rechecked the maintained canonical reporting command surface with:
+  - `make -n bench-canonical-report`
+- Rechecked the script-owned support-proof surfaces:
+  - `scripts/bench_canonical_report.sh`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+### Findings
+- Sprint 86 continues to inherit the strongest local reviewed baseline:
+  - `make quality-review-full`
+- The code-day and docs-day split is now fixed explicitly for this sprint:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial runtime, proof-surface, or reviewed-path batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- Reviewed CMake parity remains the primary truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The reviewed CMake tree currently owns the strongest early-Sprint-86 proof
+  and runtime surfaces:
+  - reorder and ND reviewed proof owners:
+    - `./build/quality-review-cmake/test_reorder_nd`
+    - `./build/quality-review-cmake/test_reorder`
+    - `./build/quality-review-cmake/test_reorder_amd_qg`
+    - `./build/quality-review-cmake/test_graph`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+  - reviewed benchmark follow-on binaries:
+    - `./build/quality-review-cmake/bench_reorder`
+    - `./build/quality-review-cmake/bench_fillin`
+- Canonical benchmark reporting remains command- and script-owned rather than
+  reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/package proof remains script-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest Day 2 clarification is now fixed:
+  - reviewed CMake reorder/ND proof-owner tests and representative examples
+    remain the main executable truth surfaces for Sprint 86
+  - reviewed benchmark binaries remain runtime-side measurability surfaces,
+    not the canonical reporting owner
+  - canonical benchmark reporting remains command/script owned
+  - install/export proof remains script owned
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Rechecked the presence of the strongest reviewed reorder/ND proof-owner
+  tests, representative examples, and reviewed benchmark follow-on binaries.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked `scripts/bench_canonical_report.sh`,
+  `tests/test_install.sh`, and `tests/test_cmake_install.sh`.
+
+### Day 2 Exit State
+- Sprint 86 now has one explicit validation and reviewed-surface contract
+  before the runtime long-pole audit begins.
+- The live proof split across reviewed binaries, command-owned canonical
+  reporting, and script-owned install/package proof is fixed in writing.
+- The highest-signal rerun set is explicit before the first runtime-cause
+  rerank.
+
+## Day 3 - Reviewed Runtime Long-Pole Audit
+
+### Goal
+Reduce Sprint 86's broad reviewed-runtime problem to one ranked live cause map
+so the sprint can choose one bounded ND/reorder runtime lane instead of
+another generic performance bucket.
+
+### Actions
+- Re-read the Day 3 runtime-audit expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the strongest recent rerank template from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day3-hotspot-rerank-audit.md`.
+- Re-read the validated Sprint 85 close runtime anchor from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day13-full-validation-sweep.md`
+  and the Sprint 85 handoff from
+  `docs/planning/EPIC_8/SPRINT_85/artifacts/day14-closeout-and-handoff.md`.
+- Refreshed the live reorder/ND hotspot map from direct `wc -l` measurement:
+  - `tests/test_reorder_nd.c` = `2287`
+  - `tests/test_reorder.c` = `1082`
+  - `tests/test_reorder_amd_qg.c` = `273`
+  - `tests/test_graph.c` = `2925`
+  - `src/sparse_reorder_nd.c` = `757`
+  - `src/sparse_reorder.c` = `419`
+  - `src/sparse_reorder_amd_qg.c` = `611`
+  - `src/sparse_graph.c` = `841`
+  - `src/sparse_graph_bisect.c` = `528`
+  - `src/sparse_graph_coarsen.c` = `659`
+  - `src/sparse_graph_refine.c` = `602`
+  - `src/sparse_graph_separator.c` = `297`
+  - `benchmarks/bench_reorder.c` = `321`
+  - `benchmarks/bench_fillin.c` = `178`
+  - `README.md` = `1050`
+  - `docs/maintainer_guide.md` = `726`
+- Re-scanned the strongest runtime and proof concentration inside:
+  - `tests/test_reorder_nd.c`
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_separator.c`
+  - `benchmarks/bench_reorder.c`
+- Reconfirmed the carried runtime anchor from the validated Sprint 85 close:
+  - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - reviewed `test_reorder_nd` time = `283.53 sec`
+
+### Findings
+- Sprint 86's broad runtime problem is now reduced to one ranked live cause
+  map:
+  - strongest first target:
+    - bounded ND runtime reduction centered on `tests/test_reorder_nd.c`,
+      `src/sparse_reorder_nd.c`, and the multilevel graph pipeline it drives
+  - strongest second target:
+    - proof-surface concentration rebalancing across `tests/test_reorder_nd.c`
+      and adjacent reorder/graph proof owners where repeated heavy fixture work
+      is avoidable without weakening correctness ownership
+  - strongest third target:
+    - bounded graph-pipeline follow-through in `src/sparse_graph.c`,
+      `src/sparse_graph_coarsen.c`, `src/sparse_graph_bisect.c`, and
+      `src/sparse_graph_refine.c`
+  - strongest fourth target:
+    - benchmark/comparison follow-through in `benchmarks/bench_reorder.c` and
+      `benchmarks/bench_fillin.c` after a real landed runtime seam exists
+  - strongest support-only but real target:
+    - maintainer/docs wording only where the landed runtime seam changes proof,
+      rerun, or reviewed-path expectations
+- The strongest current contradiction is now explicit:
+  - the validated Sprint 85 close already fixed the reviewed long pole to
+    `test_reorder_nd` at `283.53 sec` out of `404.15 sec`
+  - the live tree shows that this is not just a large-test-file problem
+  - `tests/test_reorder_nd.c` concentrates many large-fixture and env-policy
+    proofs while the underlying algorithmic work is split across
+    `src/sparse_reorder_nd.c` and the `src/sparse_graph*.c` pipeline
+  - that means the first Sprint 86 move should be one bounded ND runtime lane,
+    not generic test trimming or benchmark-driven retuning
+- The strongest second-tier contradictions are also clear:
+  - proof-surface concentration is real:
+    - `tests/test_reorder_nd.c` = `2287`
+    - `tests/test_graph.c` = `2925`
+    - `tests/test_reorder.c` = `1082`
+  - algorithmic/policy concentration is real:
+    - `src/sparse_graph.c` = `841`
+    - `src/sparse_reorder_nd.c` = `757`
+    - `src/sparse_graph_coarsen.c` = `659`
+    - `src/sparse_reorder_amd_qg.c` = `611`
+    - `src/sparse_graph_refine.c` = `602`
+    - `src/sparse_graph_bisect.c` = `528`
+  - benchmark surfaces remain informative but secondary:
+    - `benchmarks/bench_reorder.c` = `321`
+    - `benchmarks/bench_fillin.c` = `178`
+- The Sprint 80/Sprint 85 carry-forward reading is now fixed:
+  - Sprint 80 already fenced the performance contract so Sprint 86 does not
+    need to reopen generic performance governance
+  - Sprint 85 already handed Sprint 86 a reviewed-runtime-first queue rather
+    than another maintainability-first decomposition sprint
+  - the first Sprint 86 landing must preserve correctness ownership while
+    reducing reviewed runtime on the ND lane
+
+### Validation
+- Re-read the Sprint 85 validated runtime close and handoff artifacts.
+- Re-scanned the live reorder, ND, graph-pipeline, benchmark, and support
+  hotspot map from direct `wc -l` measurement.
+- Re-read the high-signal runtime and proof concentration surfaces in
+  `tests/test_reorder_nd.c`, the reorder/graph implementation owners, and the
+  reorder benchmark lane.
+
+### Day 3 Exit State
+- Sprint 86 now has one ranked live reviewed-runtime contradiction map grounded
+  in the current tree and validated Sprint 85 runtime anchors.
+- The first implementation center is fixed to one bounded ND runtime reduction
+  lane.
+- Later proof-surface rebalancing, graph-pipeline follow-through, benchmark
+  comparisons, and support-only wording are explicitly ordered behind that
+  first lane.
+
+## Day 4 - First Runtime and Scalability Boundary Freeze
+
+### Goal
+Fix the first bounded Sprint 86 runtime/scalability implementation fence so the
+next design pass can define one real ND runtime contract instead of another
+broad optimization rewrite.
+
+### Actions
+- Re-read the Day 4 boundary-freeze expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Sprint 86 project-plan section in
+  `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Re-read the Day 3 reviewed-runtime rerank artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day3-reviewed-runtime-long-pole-audit.md`.
+- Reconciled the Day 3 ranking against the Sprint 80 performance-contract
+  carry-forward and the Sprint 85 runtime-first handoff.
+- Fixed the first implementation fence by separating:
+  - required first landing center
+  - directly forced support-only proof and graph-path surfaces
+  - explicitly deferred proof, benchmark, CI, and support spillover
+
+### Findings
+- Sprint 86 now has one explicit first implementation fence:
+  - required first landing:
+    - `src/sparse_reorder_nd.c`
+  - support only if the first landing truly forces it:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - explicitly deferred from the first landing:
+    - `src/sparse_reorder.c`
+    - `src/sparse_reorder_amd_qg.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `benchmarks/bench_reorder.c`
+    - `benchmarks/bench_fillin.c`
+    - proof-surface rebalancing as a first-batch center
+    - benchmark/comparison follow-through as a first-batch center
+    - CI/reviewed-path alignment as a first-batch center
+    - install/package/runtime-surface widening
+    - generic maintainability decomposition restart
+- The strongest Day 4 clarification is now explicit:
+  - the best first Sprint 86 move is one bounded ND orchestration/runtime
+    reduction inside `src/sparse_reorder_nd.c`
+  - graph-pipeline source movement remains allowed only where that first seam
+    truly forces it
+  - reorder/graph proof-owner tests stay support-only unless the runtime
+    landing changes their contract or requires tightly scoped proof updates
+  - benchmark and canonical-reporting surfaces remain outside the first
+    implementation center
+  - CI/reviewed-path alignment remains later work after a real landed runtime
+    seam exists
+- The preserved first-batch non-goal fence is fixed now:
+  - no weakening of correctness proof quality to buy runtime wins
+  - no broad graph/reorder family rewrite detached from the ND lane
+  - no generic maintainability decomposition restart
+  - no benchmark-governance or example-governance drift into correctness
+    ownership
+  - no support-surface churn detached from a real landed runtime seam
+  - no package/platform maturity claim widening
+
+### Validation
+- Re-read the Sprint 86 project-plan section and Day 4 plan expectations.
+- Re-read the Day 3 reviewed-runtime rerank artifact.
+- Reconciled the fixed first-batch fence against Sprint 80's performance
+  contract and Sprint 85's close handoff.
+
+### Day 4 Exit State
+- Sprint 86 now has one bounded first runtime/scalability landing center.
+- Day 5 can design one ND runtime architecture contract inside that fence.
+- Later proof-surface rebalancing, graph-pipeline spillover, benchmark
+  comparisons, CI alignment, and broader support movement are held back until
+  later lanes.
+
+## Day 5 - Algorithm and Proof Runtime Architecture Design
+
+### Goal
+Define the bounded runtime/scalability contract that Sprint 86 will actually
+land on the first ND runtime-reduction lane.
+
+### Actions
+- Re-read the Day 5 runtime-design expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 4 boundary artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day4-first-runtime-scalability-boundary.md`.
+- Re-read the Day 3 reviewed-runtime rerank artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day3-reviewed-runtime-long-pole-audit.md`.
+- Re-scanned the ownership seams across:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_separator.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - `tests/test_reorder.c`
+- Fixed the first-batch ownership split between:
+  - ND runtime-reduction owner
+  - retained proof-owner tests
+  - graph-pipeline follow-through owners only if forced
+  - benchmark/comparison and CI/reviewed-path surfaces explicitly later
+
+### Findings
+- Sprint 86 now has one explicit first implementation contract:
+  - required implementation center:
+    - `src/sparse_reorder_nd.c`
+  - support only if the first batch truly forces it:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The Day 5 ownership split is now fixed:
+  - ND runtime-reduction owner:
+    - `src/sparse_reorder_nd.c`
+  - retained reviewed proof owner after the runtime landing:
+    - `tests/test_reorder_nd.c`
+  - graph-pipeline follow-through owners only if the runtime seam truly forces
+    algorithmic spillover:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+  - retained graph-family proof owner only if the first batch truly changes
+    graph-path behavior:
+    - `tests/test_graph.c`
+  - retained public reorder proof owner only if the first batch changes
+    top-level reorder behavior outside the ND-focused reviewed lane:
+    - `tests/test_reorder.c`
+  - benchmark/comparison evidence owners, but not first-batch owners:
+    - `benchmarks/bench_reorder.c`
+    - `benchmarks/bench_fillin.c`
+  - support-surface wording owners only if implementation truly changes the
+    maintainer rerun or reviewed-path reading:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The strongest Day 5 clarification is explicit now:
+  - the first landing should stay runtime-owned inside `src/sparse_reorder_nd.c`
+  - it should reduce reviewed runtime concentration by changing one bounded ND
+    orchestration/policy seam rather than redistributing work across many new
+    owners
+  - it should preserve `tests/test_reorder_nd.c` as the primary reviewed proof
+    owner instead of turning Day 6 into a proof-surface rebalance batch
+  - it should keep graph-pipeline movement support-only unless the touched ND
+    seam genuinely exposes one graph-local bottleneck that must move in the
+    same batch
+  - it should keep benchmarks informative rather than authoritative
+  - it should keep CI/reviewed-path alignment explicitly later, after a real
+    runtime seam lands
+- The preserved first-batch fence is explicit:
+  - no weakening of correctness proof quality to buy runtime wins
+  - no broad graph/reorder family rewrite detached from the ND lane
+  - no proof-surface rebalancing folded into the first batch unless the ND
+    runtime seam truly forces it
+  - no benchmark/reporting or example drift into correctness ownership
+  - no generic maintainability decomposition restart
+  - no public docs or package/runtime churn detached from the landed runtime
+    seam
+
+### Validation
+- Re-read the Day 5 plan expectations and the Day 3/Day 4 Sprint 86 artifacts.
+- Re-scanned the live ND/reorder and graph-pipeline ownership seams.
+- Reconciled the first-batch ownership split against Sprint 80's performance
+  fence and Sprint 85's clearer owner map.
+
+### Day 5 Exit State
+- Sprint 86 now has one bounded ND runtime architecture contract.
+- Ownership between the first ND runtime lane, retained reviewed proof owner,
+  graph-pipeline spillover, and later benchmark/CI follow-through is fixed
+  before Day 6 begins.
+- Proof-surface rebalancing, benchmark evidence, CI alignment, and broader
+  support spillover remain explicitly outside the first batch.
+
+## Day 6 - ND Runtime Reduction Batch
+
+### Goal
+Land one bounded ND runtime-reduction batch inside `src/sparse_reorder_nd.c`
+that moves the authoritative reviewed-runtime long pole without widening into
+proof-surface rebalancing or graph-family rewrite.
+
+### Actions
+- Re-read the Day 6 runtime-batch expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 5 runtime-design artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day5-algorithm-proof-runtime-architecture-design.md`.
+- Re-profiled the current ND long pole with focused runtime instrumentation:
+  - `SPARSE_ND_PROFILE=1 ./build/test_reorder_nd`
+- Measured the current policy seam with bounded threshold sweeps using:
+  - `./build/bench_reorder --skip-factor --nd-threshold <n> ...`
+- Tried two leaf-glue-oriented `src/sparse_reorder_nd.c` experiments and
+  discarded both after validation because they did not improve the
+  authoritative reviewed path.
+- Landed the kept ND policy flip by raising
+  `sparse_reorder_nd_base_threshold` from `128` to `160` and aligned the
+  touched local-history comments in:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_nd_internal.h`
+  - `src/sparse_graph.c`
+  - `benchmarks/bench_reorder.c`
+- Applied the only forced proof-owner follow-through in
+  `tests/test_reorder_nd.c`:
+  - retained the Pres_Poisson fill gate with the updated current ratio
+  - switched the fixed-`k` differentiation fixture from `bcsstk04` to
+    `bcsstk14` because `bcsstk04` becomes a pure leaf-AMD case at the new
+    default threshold
+- Revalidated the code-day gates and the authoritative reviewed path.
+
+### Findings
+- Sprint 86's first implementation landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `src/sparse_reorder_nd.c`
+  - directly forced support follow-through actually needed:
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph.c`
+    - `benchmarks/bench_reorder.c`
+    - `tests/test_reorder_nd.c`
+  - not needed in the batch:
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The key Day 6 runtime clarification is now explicit:
+  - the real current long pole is not leaf-AMD glue
+  - `SPARSE_ND_PROFILE=1 ./build/test_reorder_nd` showed the current ND cost
+    is dominated by partition work:
+    - `partition = 23022.473 ms`
+    - `leaf_amd = 155.773 ms`
+    - `subgraph = 55.253 ms`
+    - `total = 23482.393 ms`
+  - the kept win therefore came from the ND orchestration/policy seam
+    instead of deeper leaf-side surgery
+- The bounded threshold re-sweep fixed the kept landing:
+  - headline Pres_Poisson sweep:
+    - `t=128`: `nnz(L)=2462201`, `reorder wall=7371.8 ms`
+    - `t=160`: `nnz(L)=2474435`, `reorder wall=5015.2 ms`
+    - `t=192`: `nnz(L)=2499686`, `reorder wall=4687.5 ms`
+  - retained default:
+    - `128 -> 160`
+  - reason:
+    - `160` materially reduces the current reviewed-runtime hotspot while
+      preserving the current fill-quality proof contract
+    - `192` buys comparatively little extra runtime on Pres_Poisson while
+      pushing fill higher there and was left opt-in
+- The multi-fixture threshold evidence stayed inside current proof tolerances:
+  - `nos4`:
+    - unchanged at `nnz(L)=637`
+  - `bcsstk04`:
+    - `3722 -> 3143`
+    - `135.2 ms -> 2.5 ms`
+  - `Kuu`:
+    - `764664 -> 753755`
+    - `5972.7 ms -> 2964.4 ms`
+  - `bcsstk14`:
+    - `130422 -> 132634`
+    - `464.6 ms -> 377.5 ms`
+  - `s3rmt3m3`:
+    - `487832 -> 484890`
+    - `4896.7 ms -> 3423.9 ms`
+  - `Pres_Poisson`:
+    - `2462201 -> 2474435`
+    - `7371.8 ms -> 5015.2 ms`
+- The only proof-owner follow-through that the kept runtime seam truly forced
+  was inside `tests/test_reorder_nd.c`:
+  - the Pres_Poisson ratio commentary now matches the current default path:
+    - `0.923 -> 0.927`
+  - the fixed-`k` differentiation seam now uses `bcsstk14`, which still
+    crosses the partitioner at the new threshold and differentiates clearly:
+    - `hybrid=284058`
+    - `balance=195336`
+    - `degree=267391`
+- The authoritative reviewed-path win is now explicit relative to the Sprint
+  85 close anchor:
+  - reviewed `test_reorder_nd`:
+    - `283.53 sec -> 138.68 sec`
+  - reviewed CMake total real time:
+    - `404.15 sec -> 234.05 sec`
+  - Makefile/CMake parity remained exact:
+    - `53 vs 53`
+
+### Validation
+- Re-ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reconfirmed reviewed parity:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+- Captured the final authoritative runtime anchors on the kept revision:
+  - reviewed `test_reorder_nd` = `138.68 sec`
+  - reviewed CMake `Total Test time (real)` = `234.05 sec`
+
+### Day 6 Exit State
+- Sprint 86 now has one landed bounded ND runtime-reduction batch.
+- The first real win came from the ND threshold/policy seam rather than a
+  deeper graph rewrite or proof-surface redistribution.
+- The reviewed-runtime long pole moved materially while correctness proof
+  quality and reviewed parity stayed intact.
+
+## Day 7 - Post-Landing Runtime Audit and Rerank
+
+### Goal
+Re-rank the remaining Sprint 86 contradiction map after the Day 6 ND
+runtime-reduction landing so the next batch follows the actual remaining
+reviewed-path pressure rather than the original pre-landing ordering.
+
+### Actions
+- Re-read the Day 7 rerank expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 6 landing record from:
+  - `docs/planning/EPIC_8/SPRINT_86/WORKING_NOTES.md`
+  - `docs/planning/EPIC_8/SPRINT_86/artifacts/day6-nd-runtime-reduction-batch.md`
+- Re-read the validated Sprint 85 close runtime anchor and compared it against
+  the Day 6 reviewed close:
+  - Sprint 85 close:
+    - reviewed `test_reorder_nd` = `283.53 sec`
+    - reviewed CMake `Total Test time (real)` = `404.15 sec`
+  - post-Day-6 reviewed close:
+    - reviewed `test_reorder_nd` = `138.68 sec`
+    - reviewed CMake `Total Test time (real)` = `234.05 sec`
+- Refreshed the live post-Day-6 hotspot map from direct `wc -l` measurement:
+  - `tests/test_reorder_nd.c` = `2288`
+  - `tests/test_graph.c` = `2925`
+  - `tests/test_reorder.c` = `1082`
+  - `src/sparse_reorder_nd.c` = `771`
+  - `src/sparse_graph.c` = `841`
+  - `src/sparse_graph_coarsen.c` = `659`
+  - `src/sparse_graph_bisect.c` = `528`
+  - `src/sparse_graph_refine.c` = `602`
+  - `src/sparse_graph_separator.c` = `297`
+  - `benchmarks/bench_reorder.c` = `322`
+  - `benchmarks/bench_fillin.c` = `178`
+  - `docs/maintainer_guide.md` = `726`
+  - `README.md` = `1050`
+- Reconciled the post-Day-6 runtime reading against the Sprint 86 queue:
+  - proof-surface rebalancing
+  - benchmark/comparison follow-through
+  - CI/reviewed-path alignment
+
+### Findings
+- The Day 6 landing closed the strongest first Sprint 86 contradiction:
+  - `src/sparse_reorder_nd.c` no longer stands out as the clear next landing
+    center
+  - the repo now has one real bounded ND runtime/scalability seam landed
+  - a second immediate algorithm-first ND batch is not the highest-value next
+    move
+- The strongest remaining Sprint 86 seam is now reviewed-surface
+  concentration:
+  - reviewed `test_reorder_nd` still dominates the reviewed path even after
+    the Day 6 win:
+    - `138.68 sec` out of `234.05 sec`
+    - roughly `59%` of the reviewed CMake total
+  - that remaining pressure now reads more like proof concentration than
+    unresolved ND threshold policy
+- The exact Day 8 design center is now fixed to:
+  - `tests/test_reorder_nd.c`
+- The strongest support-only follow-through is now:
+  - `tests/test_graph.c`
+  - `tests/test_reorder.c`
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- The useful Day 7 clarification is explicit now:
+  - no second immediate ND-policy retuning batch as the next center
+  - no graph-pipeline rewrite before the proof-owner concentration is designed
+  - no early benchmark/comparison batch before the reviewed proof surface is
+    rebalanced
+  - no CI/reviewed-path wording movement before a real reviewed-surface seam
+    lands
+- The remaining ordering is now fixed:
+  - next seam:
+    - proof-surface rebalancing centered on `tests/test_reorder_nd.c`
+  - later seam:
+    - benchmark/comparison follow-through
+  - later seam:
+    - CI/reviewed-path alignment
+  - still deferred unless newly justified:
+    - another algorithmic ND or graph-family runtime landing
+
+### Validation
+- This was a docs-only rerank day, so no build/test rerun was required.
+- The rerank was grounded in direct rereads of the Day 6 landing records, the
+  validated Sprint 85 close baseline, and the live post-Day-6 hotspot map.
+
+### Day 7 Exit State
+- Sprint 86 now has one explicit post-Day-6 rerank.
+- Day 8 can stay bounded to one proof-surface design lane centered on
+  `tests/test_reorder_nd.c`.
+- Benchmark/comparison follow-through and CI/reviewed-path alignment remain
+  clearly separated from the real next implementation move.
+
+## Day 8 - Proof-Surface Rebalancing Design
+
+### Goal
+Define the bounded reviewed-surface cleanup Sprint 86 should land next so the
+remaining `test_reorder_nd` runtime concentration can fall without weakening
+the retained ND correctness proof.
+
+### Actions
+- Re-read the Day 8 proof-design expectations from
+  `docs/planning/EPIC_8/SPRINT_86/PLAN.md`.
+- Re-read the Day 7 rerank artifact from
+  `docs/planning/EPIC_8/SPRINT_86/artifacts/day7-post-landing-audit-and-rerank.md`.
+- Re-scanned the live `tests/test_reorder_nd.c` structure, with emphasis on:
+  - the flat `main()` registration block
+  - repeated `bcsstk14` policy/comparison tests
+  - repeated `Pres_Poisson` policy/comparison tests
+  - later supernodal-postorder family coverage
+- Rechecked the build wiring for the proof owner:
+  - `CMakeLists.txt`
+  - `Makefile`
+- Reconciled the design options against the post-Day-6 runtime reading:
+  - keep the next batch inside the retained proof owner
+  - avoid a build-level test split that would add reviewed test-count churn
+    without necessarily reducing sequential reviewed runtime
+  - prefer one bounded fixture/reuse and runner-group seam that can lower
+    repeated heavy setup work inside the same correctness owner
+
+### Findings
+- Sprint 86 now has one explicit second implementation contract:
+  - required Day 9 center:
+    - `tests/test_reorder_nd.c`
+  - directly forced support-only follow-through if the rebalance truly needs
+    it:
+    - `CMakeLists.txt`
+    - `Makefile`
+  - strongest adjacent proof-owner follow-through only if the batch exposes a
+    real shared-fixture or rerun-contract seam:
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+  - strongest support-only wording if the contract truly changes reviewed
+    rerun guidance:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - lower-value non-touch surfaces:
+    - `src/sparse_reorder_nd.c`
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_coarsen.c`
+    - `src/sparse_graph_bisect.c`
+    - `src/sparse_graph_refine.c`
+    - `src/sparse_graph_separator.c`
+    - `benchmarks/bench_reorder.c`
+    - `benchmarks/bench_fillin.c`
+- The exact Day 9 center is now fixed to one in-owner rebalance inside
+  `tests/test_reorder_nd.c`, not a second immediate algorithm batch and not a
+  build-level binary split.
+- The strongest Day 8 proof lane is now explicit:
+  - extract a small number of local runner/helper seams inside
+    `tests/test_reorder_nd.c`
+  - group the repeated heavy `bcsstk14` and `Pres_Poisson` policy families so
+    each family can reuse one fixture load and one bounded comparison context
+    rather than reloading the same large matrix across many standalone tests
+  - keep the retained authoritative ND proof owner in place while reducing
+    repeated heavy setup work and flattening the long registration block
+- The highest-value family split inside the retained owner is now:
+  - core ND permutation / fill / dispatch contracts
+  - ND policy and typed-env override contracts on shared heavy fixtures
+  - supernodal-postorder advisory and corpus-safety contracts
+- The useful Day 8 clarification is explicit now:
+  - Day 9 should not become a build-system test-count expansion by default
+  - Day 9 should not redistribute ND proof ownership into `tests/test_graph.c`
+    or `tests/test_reorder.c`
+  - Day 9 should not reopen `src/sparse_reorder_nd.c` or graph-family code
+  - the correct next move is fixture and runner rebalance inside the same
+    reviewed proof owner
+- The preserved proof-quality fence is now fixed:
+  - no weakening or deletion of the retained large-fixture ND contracts
+  - no benchmark/example drift into correctness ownership
+  - no maintainer/README churn unless the rerun contract truly changes
+  - no CI/reviewed-path alignment folded into the Day 9 batch
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in rereads of the Day 7 rerank, direct inspection
+  of `tests/test_reorder_nd.c`, and a recheck of the current test wiring in
+  `CMakeLists.txt` and `Makefile`.
+
+### Day 8 Exit State
+- Sprint 86 now has one exact second implementation contract.
+- Day 9 can stay bounded to `tests/test_reorder_nd.c` and reduce reviewed
+  runtime concentration through fixture/reuse and runner-group rebalancing
+  inside the retained ND proof owner.
+- Benchmark/comparison follow-through and CI/reviewed-path alignment remain
+  explicitly later.
+
+## Day 9 - Proof-Surface Rebalancing Batch
+
+### Goal
+Land the bounded ND proof-owner rebalance fixed on Day 8 while preserving the
+single retained reviewed correctness owner and measuring the real reviewed
+runtime effect honestly.
+
+### Actions
+- Reworked `tests/test_reorder_nd.c` inside the retained proof owner only.
+- Added cached heavy-fixture copy helpers for repeated large ND corpus inputs:
+  - `bcsstk14`
+  - `Pres_Poisson`
+  - `Kuu`
+- Replaced repeated one-off heavy `sparse_load_mm(...)` calls in the affected
+  ND policy and supernodal-postorder families with cached-copy loads so each
+  test still receives its own `SparseMatrix`.
+- Extracted local runner groups inside the same file:
+  - `run_nd_core_tests()`
+  - `run_nd_policy_tests()`
+  - `run_nd_supernodal_tests()`
+- Kept all proof ownership inside `tests/test_reorder_nd.c`.
+- Kept build wiring unchanged:
+  - no `CMakeLists.txt` movement
+  - no `Makefile` movement
+  - no adjacent proof-owner redistribution into `tests/test_graph.c` or
+    `tests/test_reorder.c`
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Findings
+- The Day 9 landing stayed inside the Day 8 fence:
+  - required implementation center:
+    - `tests/test_reorder_nd.c`
+  - directly forced support surfaces actually needed:
+    - none
+  - not needed in the batch:
+    - `CMakeLists.txt`
+    - `Makefile`
+    - `tests/test_graph.c`
+    - `tests/test_reorder.c`
+    - `docs/maintainer_guide.md`
+    - `README.md`
+- The landed proof-owner rebalance is now explicit:
+  - repeated heavy SuiteSparse fixture families no longer each reparse their
+    own Matrix Market file through standalone local `sparse_load_mm(...)`
+    calls
+  - the late-file flat registration block is now grouped into local family
+    runners
+  - proof isolation remains unchanged because each test still receives an
+    owned matrix copy
+- The useful Day 9 clarification is also explicit:
+  - this was a bounded proof-owner layout/reuse landing, not an ND algorithm
+    change
+  - it preserved one-file ND proof ownership
+  - it did not justify build-level test-count growth
+- The authoritative runtime result on this machine did **not** improve the
+  reviewed long pole:
+  - Day 6 reviewed anchor:
+    - `test_reorder_nd = 138.68 sec`
+    - reviewed CMake total = `234.05 sec`
+  - Day 9 reviewed result:
+    - `test_reorder_nd = 144.95 sec`
+    - reviewed CMake total = `246.07 sec`
+  - local `make test` proof-owner runtime also stayed effectively flat:
+    - `test_reorder_nd = 62.041 s`
+- The retained reviewed-path truth is therefore:
+  - the Day 9 rebalance is valid and clean
+  - but the strongest remaining Sprint 86 contradiction is still reviewed ND
+    runtime concentration
+  - the next day should start from that honest measured result rather than
+    assuming the in-owner rebalance solved the long pole
+
+### Validation
+- The landed Day 9 batch passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+
+### Day 9 Exit State
+- Sprint 86 now has one landed bounded proof-owner rebalance in
+  `tests/test_reorder_nd.c`.
+- The ND proof surface is locally cleaner and still owned by one reviewed
+  binary.
+- The reviewed long pole remains real after the landing, so later Sprint 86
+  work should treat benchmark/comparison follow-through and CI/reviewed-path
+  alignment as evidence-gathering or later policy seams, not as solved work.
+
+## Day 10 - Benchmark / Comparison Follow-Through Design
+
+### Goal
+Define the bounded evidence package Sprint 86 should land next so the touched
+ND runtime seam has a smaller, clearer measurement surface without turning the
+ repo into a broader benchmark-governance rewrite.
+
+### Actions
+- Re-read the Day 6 runtime landing and Day 9 proof-owner rebalance against
+  the Sprint 80 performance-truth fence.
+- Re-read the current benchmark-owner split across:
+  - `benchmarks/bench_reorder.c`
+  - `benchmarks/bench_fillin.c`
+  - `benchmarks/README.md`
+  - `scripts/bench_canonical_report.sh`
+  - `Makefile`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked the maintained benchmark classification:
+  - canonical maintained proof surface remains:
+    - `bench_refactor_csc`
+    - `bench_chol_csc`
+    - `bench_iterative_reuse`
+    - `bench_eigs_reuse`
+  - regression-sensitive runtime lane remains:
+    - `bench_scaling`
+    - `bench_fillin`
+    - `bench_colamd`
+    - `bench_reorder --skip-factor`
+    - bounded adjacent `bench_amd_qg`
+- Reconciled the current Sprint 86 runtime truth:
+  - Day 6 reduced the reviewed long pole materially
+  - Day 9 preserved proof quality but did not further reduce runtime on this
+    machine
+  - the next useful move is therefore evidence cleanup on the touched runtime
+    seam, not another unscoped proof or algorithm change
+
+### Findings
+- Sprint 86 now has one explicit third implementation contract:
+  - required Day 11 center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support-only follow-through only if the evidence batch
+    truly needs it:
+    - `benchmarks/README.md`
+    - `Makefile`
+  - maintainer/user wording only if the landed evidence surface truly changes
+    operator guidance:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+  - lower-value non-touch surfaces:
+    - `scripts/bench_canonical_report.sh`
+    - canonical maintained benchmark binaries
+    - `benchmarks/bench_fillin.c`
+    - proof-owner tests including `tests/test_reorder_nd.c`
+    - ND / graph implementation owners
+- The exact Day 11 center is now fixed to one bounded `bench_reorder`
+  follow-through package, not a canonical benchmark rewrite and not a new
+  timing gate.
+- The strongest Day 10 evidence lane is now explicit:
+  - keep the evidence owned by `bench_reorder`, which already owns the
+    touched ND/reorder comparison semantics:
+    - `matrix`
+    - `reorder`
+    - `nnz_L`
+    - `reorder_ms`
+    - `factor_ms`
+  - add one bounded reviewed-runtime slice around the actually touched Sprint
+    86 fixtures:
+    - `bcsstk14`
+    - `Pres_Poisson`
+    - `Kuu` only if one bounded safety comparison is truly needed after the
+      Day 6 threshold shift
+  - make Day 11 clarify before/after interpretation using the already-recorded
+    Day 6 and Day 9 anchors rather than pretending one run is portable truth
+- The highest-value Day 11 measurement package is now fixed to:
+  - a narrow `bench_reorder` surface for the reviewed ND runtime slice
+  - explicit touched-corpus comparison output that is cheap enough to rerun
+    locally
+  - no widening of `bench-canonical-report`
+  - no conversion of runtime evidence into a pass/fail threshold gate
+- The useful Day 10 clarification is explicit now:
+  - Day 11 should not reopen `tests/test_reorder_nd.c`
+  - Day 11 should not widen the canonical maintained benchmark surface
+  - Day 11 should not turn `README.md` or the maintainer guide into the owner
+    of branch-local timing numbers
+  - Day 11 should not become a broad benchmark-local schema rewrite beyond the
+    touched `bench_reorder` seam
+- The preserved measurement-ownership fence is now fixed:
+  - tests remain correctness owners
+  - `bench_reorder` remains runtime/comparison context
+  - `bench-canonical-report` stays threshold-free and canonical-only
+  - maintainer/docs wording moves only if the command/rerun contract truly
+    changes
+
+### Validation
+- This was a docs-only design day, so no build/test rerun was required.
+- The design was grounded in rereads of the Day 6 and Day 9 landings, direct
+  inspection of `bench_reorder`, `bench_fillin`, the benchmark-local README,
+  and the current maintainer/runtime-lane policy surfaces.
+
+### Day 10 Exit State
+- Sprint 86 now has one exact third implementation contract.
+- Day 11 can stay bounded to `benchmarks/bench_reorder.c` plus only directly
+  forced benchmark-local follow-through.
+- Canonical benchmark governance, proof owners, and CI/reviewed-path wording
+  remain explicitly later unless the landed evidence surface truly forces them.
+
+## Day 11 - Benchmark / Comparison Follow-Through Batch
+
+### Goal
+Land the bounded runtime-evidence package fixed on Day 10 so the touched ND
+lane now has one explicit cheap rerun surface and one benchmark-local command
+contract without widening the canonical maintained benchmark face.
+
+### Actions
+- Extended `benchmarks/bench_reorder.c` with one bounded Sprint 86 rerun mode:
+  - `--sprint86-slice`
+- Restricted that slice to the touched ND runtime fixtures only:
+  - `bcsstk14`
+  - `Pres_Poisson`
+- Kept the emitted CSV schema unchanged:
+  - `matrix`
+  - `n`
+  - `reorder`
+  - `nnz_L`
+  - `reorder_ms`
+  - `factor_ms`
+- Added one narrow rerun target in `Makefile`:
+  - `make bench-reorder-sprint86`
+  - expands to:
+    - `bench_reorder --sprint86-slice --skip-factor`
+- Reconciled only the directly forced benchmark-local docs in
+  `benchmarks/README.md`.
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `make bench-reorder-sprint86`
+
+### Findings
+- The Day 11 landing stayed inside the Day 10 fence:
+  - required implementation center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support surfaces actually needed:
+    - `Makefile`
+    - `benchmarks/README.md`
+  - not needed in the batch:
+    - `scripts/bench_canonical_report.sh`
+    - canonical maintained benchmark binaries
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - proof-owner tests
+    - ND / graph implementation owners
+- The landed rerun contract is now explicit:
+  - one branch-local runtime slice exists for the touched Sprint 86 ND lane
+  - it stays in the runtime lane rather than widening the canonical surface
+  - it stays threshold-free and comparison-oriented
+  - it stays cheap by default because it uses `--skip-factor`
+- The bounded Sprint 86 slice emitted the exact touched-corpus comparison the
+  design called for:
+  - `bcsstk14`
+    - `none`: `nnz_L=190791`, `reorder_ms=0.0`
+    - `rcm`: `nnz_L=178311`, `reorder_ms=8.9`
+    - `amd`: `nnz_L=116071`, `reorder_ms=99.5`
+    - `colamd`: `nnz_L=146037`, `reorder_ms=131.9`
+    - `nd`: `nnz_L=132634`, `reorder_ms=366.9`
+  - `Pres_Poisson`
+    - `none`: `nnz_L=5061932`, `reorder_ms=0.0`
+    - `rcm`: `nnz_L=3187081`, `reorder_ms=101.8`
+    - `amd`: `nnz_L=2668793`, `reorder_ms=6531.9`
+    - `colamd`: `nnz_L=3415793`, `reorder_ms=10972.0`
+    - `nd`: `nnz_L=2474435`, `reorder_ms=4986.5`
+- The useful Day 11 clarification is explicit now:
+  - the touched runtime seam now has a stable local comparison entry point
+  - the emitted slice preserves the current Sprint 86 story:
+    - `Pres_Poisson`: ND still beats AMD on both fill and reorder wall time
+      in the bounded skip-factor slice
+    - `bcsstk14`: AMD still beats ND on both fill and reorder wall time in the
+      same bounded slice
+  - that evidence is branch-local and measurement-side only; it does not
+    replace correctness proof ownership
+- The reviewed validation baseline also stayed fully clean:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed `test_reorder_nd` = `125.12 sec`
+  - reviewed CMake total = `225.38 sec`
+- Because the Day 11 landing did not touch ND algorithm or proof-owner code,
+  those lower observed reviewed times are retained as the current validated
+  baseline, not claimed as causal wins from the measurement surface itself.
+
+### Validation
+- The landed Day 11 batch passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `make bench-reorder-sprint86`
+
+### Day 11 Exit State
+- Sprint 86 now has one landed bounded benchmark/comparison follow-through
+  batch.
+- The touched ND runtime seam has an explicit branch-local rerun target that
+  stays outside the canonical maintained benchmark surface.
+- The next Sprint 86 seam is later CI/reviewed-path alignment and closeout,
+  not more unbounded benchmark-governance churn.
+
+## Day 12 - CI / Reviewed-Path Alignment & Validation Queue Freeze
+
+### Goal
+Reconcile the touched Sprint 86 reviewed-path, runtime-lane, and
+support-surface wording after the Day 6 ND runtime landing, Day 9 proof-owner
+rebalance, and Day 11 benchmark follow-through, then freeze the exact Day 13
+validation queue.
+
+### Actions
+- Re-read the Sprint 86 touched surfaces and their retained ownership split:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_nd_internal.h`
+  - `src/sparse_graph.c`
+  - `tests/test_reorder_nd.c`
+  - `benchmarks/bench_reorder.c`
+  - `Makefile`
+  - `benchmarks/README.md`
+- Re-read the reviewed-path and support-policy surfaces most likely to drift:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `scripts/bench_canonical_report.sh`
+- Reconfirmed the bounded Sprint 86 command split:
+  - strongest reviewed baseline remains:
+    - `make quality-review-full`
+  - reviewed CMake parity anchor remains:
+    - `ctest -N --test-dir build/quality-review-cmake`
+  - bounded branch-local runtime rerun remains:
+    - `make bench-reorder-sprint86`
+  - canonical maintained reporting surface remains:
+    - `make bench-canonical-report`
+- Rechecked whether install/export or package surfaces truly moved:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - install/export wording in `README.md`
+- Fixed the exact Day 13 queue in writing.
+
+### Findings
+- No new support-only edit is needed before the full validation sweep.
+- The final Sprint 86 touched-surface truth map is now explicit:
+  - adopted runtime/scalability centers:
+    - `src/sparse_reorder_nd.c`
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph.c`
+    - `tests/test_reorder_nd.c`
+    - `benchmarks/bench_reorder.c`
+    - `Makefile`
+    - `benchmarks/README.md`
+  - retained reviewed proof owners, not Sprint 86 adopted runtime centers:
+    - `tests/test_reorder.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `tests/test_graph.c`
+  - support-only surfaces that do not need new movement before Day 13:
+    - `docs/maintainer_guide.md`
+    - `README.md`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `scripts/bench_canonical_report.sh`
+- The final Sprint 86 proof-owner and runtime-evidence split is fixed:
+  - reviewed ND runtime/proof owner:
+    - `tests/test_reorder_nd.c`
+  - adjacent reorder/graph reviewed proof owners:
+    - `tests/test_reorder.c`
+    - `tests/test_reorder_amd_qg.c`
+    - `tests/test_graph.c`
+  - branch-local runtime evidence owner:
+    - `benchmarks/bench_reorder.c`
+    - via `make bench-reorder-sprint86`
+  - canonical maintained reporting owner:
+    - `make bench-canonical-report`
+    - `scripts/bench_canonical_report.sh`
+- The CI/reviewed-path truth map stayed fixed:
+  - Linux reviewed quality baseline remains `make quality-review-full`
+  - reviewed CMake parity remains the strongest explicit truth anchor
+  - `make bench-reorder-sprint86` is a bounded local/runtime evidence surface,
+    not part of the maintained reviewed baseline and not a new CI timing gate
+  - no workflow file needs Sprint 86 wording movement before validation
+- Install/export/package proof remains out of the Sprint 86 close core:
+  - Sprint 86 did not move install, export, package metadata, or consumer
+    mechanics
+  - `tests/test_install.sh` and `tests/test_cmake_install.sh` remain real
+    repo proof, but not part of the Sprint 86 Day 13 queue
+
+### Validation
+- This was a docs-only alignment day, so no build/test rerun was required.
+- The alignment was grounded in rereads of the touched runtime/proof surfaces,
+  the benchmark-local README, the top-level README, the maintainer guide, the
+  relevant CI workflow files, and the canonical-report script.
+
+### Day 12 Exit State
+- no support-only drift remains before Day 13
+- the reviewed-path and runtime-evidence split is explicit and unambiguous
+- the final validation queue is frozen against the actual Sprint 86 touch set
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the exact Sprint 86 validation queue frozen on Day 12 and capture the
+measured close baseline from actual execution.
+
+### Actions
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-ran the Day 12 focused reviewed proof owners:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_reorder`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_reorder_amd_qg`
+  - `./build/quality-review-cmake/test_graph`
+- Re-ran the representative reviewed examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the Sprint 86 benchmark/reporting follow-ons:
+  - `make bench-reorder-sprint86`
+  - `make bench-canonical-report`
+
+### Findings
+- The full Day 13 queue passed cleanly:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- The maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `229.94 sec`
+- The focused reviewed proof owners all passed:
+  - `test_reorder` = `38 / 38`
+  - `test_reorder_nd` = `35 / 35` with `1` bounded skip
+  - `test_reorder_amd_qg` = `7 / 7`
+  - `test_graph` = `61 / 61`
+- Representative retained proof outputs stayed explicit:
+  - `test_reorder`:
+    - `west0067`: AMD fill `819` vs natural `928`
+    - `nos4`: AMD fill `1174` vs natural `1510`
+  - `test_reorder_nd`:
+    - reviewed rerun time = `131.638 sec`
+    - `Pres_Poisson`: AMD nnz(L) `2668793`, ND nnz(L) `2474435`
+    - `bcsstk14`: AMD nnz(L) `116071`, ND nnz(L) `132634`
+  - `test_reorder_amd_qg`:
+    - `bcsstk14`: wrapper nnz(L) = qg nnz(L) = `116071`
+  - `test_graph`:
+    - `bcsstk14`: separator `97`, smoke time `45.2 ms`
+    - `Pres_Poisson`: separator `216`, smoke time `277.4 ms`
+- Representative examples passed:
+  - `example_analysis`:
+    - solve residual = `4.44e-16`
+  - `example_basic_solve`:
+    - residual `||b - Ax|| = 0.00e+00`
+- Representative benchmark/reporting follow-ons passed:
+  - `make bench-reorder-sprint86` emitted:
+    - `bcsstk14`: AMD `nnz_L=116071`, `reorder_ms=79.8`; ND `nnz_L=132634`, `reorder_ms=297.0`
+    - `Pres_Poisson`: AMD `nnz_L=2668793`, `reorder_ms=5311.6`; ND `nnz_L=2474435`, `reorder_ms=3675.0`
+  - `make bench-canonical-report` wrote:
+    - `bench_refactor_csc.csv`
+    - `bench_chol_csc.csv`
+    - `bench_iterative_reuse.csv`
+    - `bench_eigs_reuse.csv`
+    - `index.tsv`
+    - `manifest.txt`
+- One non-blocking runtime note remains explicit:
+  - reviewed CMake `test_reorder_nd` remained the long tail at `135.01 sec`
+    out of `229.94 sec`
+
+### Validation
+- The full Day 13 queue above was executed successfully on the branch.
+
+### Day 13 Exit State
+- Sprint 86 now has a measured validated close baseline.
+- The reviewed anchors stayed exact across the full sweep.
+- Day 14 can close from execution evidence rather than implementation state.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 86 from the validated Day 13 baseline and leave one explicit
+handoff queue for Sprint 87 and the later Epic 8 implementation sprints.
+
+### Actions
+- Re-read the Sprint 86 project-plan section against the landed Day 6, Day 9,
+  Day 11, and Day 13 outcomes.
+- Re-checked whether Sprint 86 changed anything large enough to require a
+  correction to `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Collapsed the sprint close state into one bounded runtime/proof/package
+  handoff summary.
+- Fixed the ranked carry-forward queue explicitly in writing.
+
+### Findings
+- Sprint 86 now closes as one coherent Epic 8 reviewed-runtime modernization
+  package across:
+  - reviewed runtime rerank
+  - bounded algorithm / proof runtime architecture contract
+  - Day 6 bounded ND runtime reduction
+  - Day 9 bounded proof-owner/runtime-surface rebalance
+  - Day 11 bounded benchmark/comparison follow-through
+  - validated Day 13 close baseline
+- The preserved fence stayed intact:
+  - Sprint 86 reduced the strongest reviewed runtime long pole instead of
+    reopening generic maintainability decomposition
+  - the first runtime landing stayed ND-policy-owned inside
+    `src/sparse_reorder_nd.c`
+  - the proof-owner rebalance stayed inside `tests/test_reorder_nd.c` and did
+    not redistribute correctness ownership into adjacent test binaries
+  - the measurement follow-through stayed benchmark-local inside
+    `bench_reorder` and `make bench-reorder-sprint86`
+  - canonical maintained benchmark reporting stayed unchanged under
+    `make bench-canonical-report`
+  - CI/workflow wording, install/export proof, package metadata, and consumer
+    mechanics were not widened beyond the untouched surfaces
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 86 correction.
+- The landed Sprint 86 package still supports the intended Epic 8 execution
+  order:
+  1. Sprint 87 packaging, ABI, install/export, and cross-platform quality
+     convergence after the strongest reviewed runtime contradiction was reduced
+  2. later bounded iterative/eigs maintained external differential widening
+     only where bounded evidence still justifies it
+  3. later adjacent reorder/runtime follow-through only where refreshed runtime
+     evidence justifies more change beyond the bounded Sprint 86 lane
+
+### Validation
+- This was a docs-only closeout day, so no build/test rerun was required.
+- Sprint 86 closes from the Day 13 validated baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `229.94 sec`
+  - `./build/quality-review-cmake/test_reorder` -> `38 / 38`
+  - `./build/quality-review-cmake/test_reorder_nd` -> `35 / 35` with `1` skip
+  - `./build/quality-review-cmake/test_reorder_amd_qg` -> `7 / 7`
+  - `./build/quality-review-cmake/test_graph` -> `61 / 61`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `make bench-reorder-sprint86`
+  - `make bench-canonical-report`
+
+### Day 14 Exit State
+- Sprint 86 now closes from one measured reviewed-runtime baseline rather than
+  from runtime-design intent alone.
+- The handoff queue is fixed explicitly for Sprint 87 and later Epic 8 work.

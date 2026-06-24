@@ -138,18 +138,21 @@ static long long nd_prof_now_ns(void) {
  * partition recursion (Sprint 23 Day 7 introduced the leaf-AMD
  * splice; Sprint 22 used natural ordering at the base case).
  *
- * **Sprint 27 Day 3 flip: 96 → 128 (relaxed flip rule).**  Sprint
- * 26 Day 5 picked t=96 under a strict 1pp regression cap that
- * rejected t=128 by s3rmt3m3 +1.05pp (just barely past the gate).
- * Sprint 27 Day 3 re-swept t ∈ {96, 128, 192, 256} under a relaxed
- * 2pp regression cap + the new Sprint 27 Day 2 HCC + Kuu-safe
- * default coarsening; t=128 is the maximum threshold satisfying
- * the relaxed rule.  Result on Pres_Poisson: ND wall 8 826 ms →
- * 7 079 ms (-19.8 %) with nnz_L +0.5 % (well within 2pp).  Per-
- * fixture: Kuu nnz_L -1.1 % win; bcsstk14 / s3rmt3m3 within
- * +/-0.5 %; nos4 / bcsstk04 bit-stable.  t=192 fails the relaxed
- * rule by Pres_Poisson +2.0 % (right at the 2pp cap); t=256 fails
- * clearly (Pres_Poisson +3.2 %).
+ * **Sprint 86 Day 6 flip: 128 → 160 (runtime-convergence sweep).**
+ * Sprint 27 Day 3 picked t=128 under a relaxed 2pp regression cap
+ * after the Sprint 27 Day 2 HCC + Kuu-safe default-coarsening flip.
+ * Sprint 86 Day 6 re-swept the runtime long pole with the current
+ * multilevel pipeline because reviewed runtime had converged on
+ * `test_reorder_nd`, not on leaf-AMD glue.  A bounded `bench_reorder
+ * --skip-factor` sweep on the current corpus showed t=160 cuts ND
+ * reorder wall materially while preserving current fill tolerances:
+ * Pres_Poisson 7 371.8 ms → 5 015.2 ms with nnz_L +0.5 %, Kuu
+ * 5 972.7 ms → 2 964.4 ms with nnz_L -1.4 %, s3rmt3m3 4 896.7 ms →
+ * 3 423.9 ms with nnz_L -0.6 %, bcsstk14 464.6 ms → 377.5 ms with
+ * nnz_L +1.7 %, and bcsstk04 135.2 ms → 2.5 ms with nnz_L improving
+ * back to the 3 143-entry leaf-AMD floor.  t=192 buys little extra
+ * runtime on Pres_Poisson while pushing nnz_L to +1.2 % there and
+ * was therefore left as an opt-in rather than the default.
  *
  * **Prior history (preserved for traceability).**  Sprint 22 Day 9's
  * original sweep set the default at 32 against natural-ordering
@@ -161,7 +164,9 @@ static long long nd_prof_now_ns(void) {
  * small-subgraph calls).  The 32 → 96 flip on Day 5 of Sprint 26
  * cut Pres_Poisson ND wall 38.1 s → 12.2 s (-67.9 %); Sprint 27
  * Day 2 HCC default added another -28 % (8.8 s); Day 3's t=128 flip
- * adds another -19.8 % (7.1 s).  Cumulative wall improvement vs
+ * adds another -19.8 % (7.1 s); Sprint 86 Day 6's t=160 flip trims
+ * the current bench_reorder Pres_Poisson reorder wall to ~5.0 s.
+ * Cumulative wall improvement vs
  * the Sprint 25 baseline (t=32 + HEM) is roughly -81 %.
  *
  * Per-fixture-class advisory: bimodal-degree solid-mechanics SPDs
@@ -171,17 +176,18 @@ static long long nd_prof_now_ns(void) {
  * `bench_reorder --nd-threshold 256` or programmatic
  * `sparse_reorder_nd_base_threshold = 256` per the
  * `sparse_reorder_nd_internal.h` exposure contract.  Default
- * stays at t=128 because Pres_Poisson is the headline fixture and
- * its fill-quality regress at t > 128 fails the corpus flip rule.
- * See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
- * for the full sweep matrix + flip-rule application.
+ * now stays at t=160 because it preserves the current proof-owner
+ * fill bounds while materially reducing the current reviewed-runtime
+ * hotspot.  See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
+ * for the earlier threshold history; Sprint 86 Day 6 records the
+ * reviewed-runtime re-sweep against the current tree.
  *
  * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
  * not thread-safe, no ABI guarantee — see that header) so the
  * `benchmarks/bench_reorder.c --nd-threshold N` flag can override
  * it from the command line without recompiling the library, but
  * library consumers don't see it. */
-idx_t sparse_reorder_nd_base_threshold = 128;
+idx_t sparse_reorder_nd_base_threshold = 160;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the
@@ -434,18 +440,26 @@ static sparse_err_t nd_recurse_side(const sparse_graph_t *G, const idx_t *vertex
                                     const idx_t *vertex_set, idx_t vertex_count, idx_t *perm,
                                     idx_t *next_pos, int depth,
                                     const sparse_graph_nd_policy_t *policy) {
-    sparse_graph_t subgraph = {0};
-    idx_t *map = NULL;
-    if (sparse_malloc_idx_array(vertex_count, sizeof(idx_t), (void **)&map) != SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
+    if (vertex_count == 0)
+        return SPARSE_OK;
+    if (vertex_count == 1) {
+        perm[*next_pos] = vertex_id_map[vertex_set[0]];
+        (*next_pos)++;
+        return SPARSE_OK;
+    }
 
+    sparse_graph_t subgraph = {0};
     long long sg_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     sparse_err_t rc = sparse_graph_subgraph(G, vertex_set, vertex_count, &subgraph, NULL);
     if (nd_prof_enabled)
         nd_prof_subgraph_ns += nd_prof_now_ns() - sg_t0;
-    if (rc != SPARSE_OK) {
-        free(map);
+    if (rc != SPARSE_OK)
         return rc;
+
+    idx_t *map = NULL;
+    if (sparse_malloc_idx_array(vertex_count, sizeof(idx_t), (void **)&map) != SPARSE_OK) {
+        sparse_graph_free(&subgraph);
+        return SPARSE_ERR_ALLOC;
     }
 
     for (idx_t i = 0; i < vertex_count; i++) {

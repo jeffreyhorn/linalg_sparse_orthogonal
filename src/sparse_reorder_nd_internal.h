@@ -39,21 +39,23 @@
  * @brief ND base-case threshold (`n ≤ threshold` → leaf-AMD via
  *        `sparse_reorder_amd_qg`).
  *
- * Default 128 from the Sprint 27 Day 3 relaxed-flip-rule re-sweep
- * across t ∈ {96, 128, 192, 256} under the new Sprint 27 Day 2 HCC
- * + Kuu-safe default coarsening — the maximum threshold satisfying
- * the relaxed flip rule (≥ 5 % Pres_Poisson wall improvement, no
- * fixture nnz_L regression past 2pp).  Result on Pres_Poisson: ND
- * wall 8 826 ms → 7 079 ms (-19.8 %) with nnz_L +0.5 % (within
- * 2pp).  Bonus Kuu nnz_L -1.1 % win.  See
- * `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
- * for the sweep matrix + relaxed-flip-rule application.
+ * Default 160 after Sprint 86 Day 6's reviewed-runtime re-sweep on
+ * the current multilevel pipeline.  The bounded `bench_reorder
+ * --skip-factor` sweep showed that t=160 materially reduces the
+ * current ND reorder hotspot while preserving the present fill
+ * contracts: Pres_Poisson 7 371.8 ms → 5 015.2 ms with nnz_L +0.5 %,
+ * Kuu 5 972.7 ms → 2 964.4 ms with nnz_L -1.4 %, s3rmt3m3 4 896.7 ms
+ * → 3 423.9 ms with nnz_L -0.6 %, and bcsstk14 464.6 ms → 377.5 ms
+ * with nnz_L +1.7 %.  t=192 buys little extra runtime on
+ * Pres_Poisson while pushing nnz_L higher there, so it remains an
+ * opt-in rather than the default.
  *
- * Prior history: Sprint 26 Day 5 picked t=96 under a strict 1pp
- * cap (t=128 was rejected by s3rmt3m3 +1.05pp).  Sprint 22 Day 9's
- * original t=32 came from a sweep where the leaf path was natural
- * ordering; Sprint 23 spliced quotient-graph AMD into each leaf,
- * which changed the cost shape and let larger thresholds win.
+ * Prior history: Sprint 27 Day 3 had raised the default to 128 under
+ * a relaxed 2pp flip rule after Sprint 26 Day 5's strict-1pp t=96
+ * choice. Sprint 22 Day 9's original t=32 came from a sweep where the
+ * leaf path was natural ordering; Sprint 23 spliced quotient-graph
+ * AMD into each leaf, which changed the cost shape and let larger
+ * thresholds win.
  *
  * Per-fixture-class advisory: bimodal-degree solid-mechanics SPDs
  * (Kuu's CV=0.425 class) benefit monotonically from larger t —

@@ -65,6 +65,41 @@
 
 /* ─── Fixture builders (shared shape with tests/test_graph.c) ─────── */
 
+/* ─── Cached SuiteSparse fixture copies for heavy ND proof families ─ */
+
+/* Sprint 86 Day 9 keeps the ND reviewed proof owner in one binary but
+ * stops reparsing the same large Matrix Market fixtures across many
+ * standalone tests.  Each test still gets its own SparseMatrix via
+ * sparse_copy() so proof isolation remains unchanged. */
+static SparseMatrix *tf_nd_cached_bcsstk14 = NULL;
+static SparseMatrix *tf_nd_cached_pres_poisson = NULL;
+static SparseMatrix *tf_nd_cached_kuu = NULL;
+
+static sparse_err_t tf_nd_load_cached_fixture_copy(SparseMatrix **out, SparseMatrix **cache,
+                                                   const char *path) {
+    if (!out)
+        return SPARSE_ERR_NULL;
+    *out = NULL;
+    if (!cache || !path)
+        return SPARSE_ERR_NULL;
+    if (!*cache) {
+        sparse_err_t rc = sparse_load_mm(cache, path);
+        if (rc != SPARSE_OK)
+            return rc;
+    }
+    *out = sparse_copy(*cache);
+    return *out ? SPARSE_OK : SPARSE_ERR_ALLOC;
+}
+
+static void tf_nd_release_cached_fixtures(void) {
+    sparse_free(tf_nd_cached_bcsstk14);
+    tf_nd_cached_bcsstk14 = NULL;
+    sparse_free(tf_nd_cached_pres_poisson);
+    tf_nd_cached_pres_poisson = NULL;
+    sparse_free(tf_nd_cached_kuu);
+    tf_nd_cached_kuu = NULL;
+}
+
 /* Helper: insert into A and free + return non-OK on failure.
  * Used by make_grid_2d / make_path_1d so a partial allocation
  * surfaces as a NULL fixture rather than a silently-incomplete one. */
@@ -436,9 +471,10 @@ static idx_t symbolic_cholesky_nnz_nd(const SparseMatrix *A) {
 
 static void test_nd_bcsstk14_fill_vs_amd(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -468,9 +504,10 @@ static void test_nd_bcsstk14_fill_vs_amd(void) {
 
 static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_pres_poisson, SS_DIR "/Pres_Poisson.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Pres_Poisson fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -499,16 +536,15 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 27 Day 13: tightened from Sprint 24 Day 7's `nnz_nd ≤
-     * 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.  Sprint 27 Day 2
-     * flipped `SPARSE_ND_COARSENING` default `heavy_edge` → `hcc`
-     * (Kuu-safe degree-CV-fall-through); Day 3 flipped
-     * `nd_base_threshold` 96 → 128.  Cumulative Pres_Poisson default-
-     * path achievement: 0.952× (Sprint 23) → 0.923× (Sprint 27 Day 3),
-     * a -2.9pp improvement.  The new bound's 1.7-percentage-point
-     * safety margin (0.923× + 2pp = 0.943× → round to 0.94×) pins the
-     * Sprint 27 ratio without claiming production headroom that
-     * doesn't exist.
+    /* Sprint 27 Day 13 tightened this Pres_Poisson guard from Sprint 24
+     * Day 7's `nnz_nd ≤ 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.
+     * The current default path still stays inside that bound after
+     * Sprint 86 Day 6's `nd_base_threshold` 128 → 160 runtime flip:
+     * Pres_Poisson moves from 0.923× (Sprint 27 Day 3's HCC + t=128
+     * path) to 0.927× while cutting reorder wall materially on the
+     * current reviewed-runtime hotspot.  The retained 0.94× gate keeps
+     * about 1.3 percentage points of headroom on the current default
+     * ratio while preserving the earlier corpus-quality contract.
      *
      * The PLAN.md ≤ 0.85× literal target REMAINS UNMET after Sprint
      * 27 (5th consecutive sprint).  Sprint 27 Items 4-6 (annealing
@@ -565,9 +601,9 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
  * Placement".  */
 static void test_hcc_kuu_no_default_flip_blocker(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    sparse_err_t rc = tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_kuu, SS_DIR "/Kuu.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Kuu fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -622,9 +658,10 @@ cleanup:
  * today; Day 11 enables it). */
 static void test_finest_fm_thick_restart_returns_to_anchor(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -686,9 +723,10 @@ cleanup:
  * fails today; Day 8-9 lights it up). */
 static void test_nd_root_spectral_pres_poisson_smoke(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_pres_poisson, SS_DIR "/Pres_Poisson.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Pres_Poisson fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -763,9 +801,10 @@ static void test_nd_profile_override_precedence(void) {
 
 static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_pres_poisson, SS_DIR "/Pres_Poisson.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Pres_Poisson fixture copy not available: %d)\n", (int)rc);
         return;
     }
     idx_t n = sparse_rows(A);
@@ -835,9 +874,10 @@ cleanup:
 
 static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_pres_poisson, SS_DIR "/Pres_Poisson.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Pres_Poisson fixture copy not available: %d)\n", (int)rc);
         return;
     }
     idx_t n = sparse_rows(A);
@@ -918,9 +958,10 @@ cleanup:
 
 static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -978,9 +1019,10 @@ cleanup:
 
 static void test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1015,9 +1057,10 @@ cleanup:
 
 static void test_analysis_typed_nd_coarsening_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1070,9 +1113,9 @@ cleanup:
 
 static void test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    sparse_err_t rc = tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_kuu, SS_DIR "/Kuu.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Kuu fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1111,9 +1154,9 @@ cleanup:
 
 static void test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    sparse_err_t rc = tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_kuu, SS_DIR "/Kuu.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (Kuu fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1158,9 +1201,10 @@ cleanup:
 
 static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1355,9 +1399,10 @@ cleanup:
  * placement". */
 static void test_finest_fm_annealing_differs_from_baseline(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1423,11 +1468,11 @@ cleanup:
  * within +0.7 % regress (well under the 5pp budget). */
 static void test_hcc_kuu_safe_corpus_parity(void) {
     SparseMatrix *A = NULL;
-    /* Test on bcsstk14 (n=1806; loads fast; representative mid-size
-     * irregular SPD). */
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    /* Test on bcsstk14 (n=1806; representative mid-size irregular SPD). */
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1478,12 +1523,16 @@ static void test_hcc_kuu_safe_corpus_parity(void) {
  */
 static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     SparseMatrix *A = NULL;
-    /* bcsstk04 (n=132): tiny but exhibits 3-scheme differentiation
-     * per Sprint 27 Day 4 sweep (hybrid 3679, balance 4469, degree
-     * 4613 under fixed-K).  Fast for unit tests. */
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    const char *skip_reason = NULL;
+    /* Under the Sprint 86 Day 6 default threshold flip to 160,
+     * bcsstk04 becomes a pure leaf-AMD case and no longer exercises
+     * the fixed-K separator-lift policy seam.  bcsstk14 (n=1806) still
+     * crosses the partitioner and differentiates strongly under
+     * fixed-K while remaining fast enough for unit-test use. */
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -1499,14 +1548,23 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
         return;
     }
 
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=hybrid failed";
+        goto cleanup;
+    }
     idx_t nnz_hybrid = symbolic_cholesky_nnz_nd(A);
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=balance failed";
+        goto cleanup;
+    }
     idx_t nnz_balance = symbolic_cholesky_nnz_nd(A);
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=degree failed";
+        goto cleanup;
+    }
     idx_t nnz_degree = symbolic_cholesky_nnz_nd(A);
 
-    fprintf(stderr, "    bcsstk04 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
+    fprintf(stderr, "    bcsstk14 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
             (int)nnz_hybrid, (int)nnz_balance, (int)nnz_degree);
 
     /* Two pairwise checks are sufficient: if hybrid==balance and balance==degree
@@ -1514,10 +1572,13 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     int differs = (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree);
     ASSERT_TRUE(differs);
 
+cleanup:
     tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 /* ─── Public-API determinism contract ─────────────────────────────── */
@@ -1727,9 +1788,10 @@ static void test_supernodal_postorder_etree_contract(void) {
     /* Use bcsstk14 — a real SuiteSparse SPD with n=1806 and a non-
      * trivial elimination tree. */
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
     idx_t n = sparse_rows(A);
@@ -1796,9 +1858,10 @@ cleanup:
 
 static void test_analysis_typed_supernodal_postorder_overrides_env(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
     idx_t n = sparse_rows(A);
@@ -1942,9 +2005,10 @@ static void test_supernodal_postorder_corpus_nnz_L_invariant(void) {
  * Asserts the resulting analysis is bit-identical to the env-off baseline. */
 static void test_supernodal_postorder_no_reorder_skips(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
 
@@ -2006,9 +2070,10 @@ cleanup:
  * of A and the env" contract. */
 static void test_supernodal_postorder_deterministic(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    sparse_err_t rc =
+        tf_nd_load_cached_fixture_copy(&A, &tf_nd_cached_bcsstk14, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        printf("    skipped (bcsstk14 fixture copy not available: %d)\n", (int)rc);
         return;
     }
     idx_t n = sparse_rows(A);
@@ -2217,9 +2282,7 @@ static void test_ldlt_via_nd_dispatch(void) {
 
 /* ═══════════════════════════════════════════════════════════════════ */
 
-int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 6-8: nested-dissection reordering + analyze + enum dispatch");
-
+static void run_nd_core_tests(void) {
     /* Day 6: recursive driver + permutation assembly. */
     RUN_TEST(test_nd_4x4_grid_valid_permutation);
     RUN_TEST(test_nd_10x10_grid_matches_or_beats_amd_fill);
@@ -2227,22 +2290,17 @@ int main(void) {
     RUN_TEST(test_nd_singleton);
     RUN_TEST(test_nd_null_args);
     RUN_TEST(test_nd_rejects_rectangular);
-
-    /* Day 7: sparse_analyze integration + SuiteSparse smoke. */
     RUN_TEST(test_nd_bcsstk14_fill_vs_amd);
     RUN_TEST(test_nd_pres_poisson_fill_with_leaf_amd);
-    /* Sprint 27 Day 2: HCC Kuu-safe matching variant lights up
-     * the Day-1 stub.  CV-detection-and-HEM-fall-through (default
-     * threshold 0.30) routes Kuu (CV=0.425) to HEM, restoring the
-     * Sprint 26 default-strategy fill quality. */
+    RUN_TEST(test_nd_determinism_public_api);
+    RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
+    RUN_TEST(test_lu_via_nd_dispatch);
+    RUN_TEST(test_ldlt_via_nd_dispatch);
+}
+
+static void run_nd_policy_tests(void) {
     RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
-    /* Sprint 27 Day 6: annealing FM differs from baseline. */
     RUN_TEST(test_finest_fm_annealing_differs_from_baseline);
-    /* Sprint 27 Day 8: SPARSE_ND_ROOT_BISECT=spectral differs from
-     * multilevel on Pres_Poisson.  Day 8 wires the root-level
-     * Lanczos+Fiedler path; the smoke assertion just verifies the
-     * dispatch fires and produces a different cut.  Day 9's flip-or-
-     * stay decision lands separately. */
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
     RUN_TEST(test_nd_profile_override_precedence);
     RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
@@ -2255,33 +2313,28 @@ int main(void) {
     RUN_TEST(test_analysis_typed_nd_coarsest_bisection_overrides_env);
     RUN_TEST(test_analysis_typed_nd_sep_lift_strategy_overrides_env);
     RUN_TEST(test_analysis_typed_nd_sep_lift_weight_overrides_env);
-    /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
     RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
     RUN_TEST(test_hcc_kuu_safe_corpus_parity);
     RUN_TEST(test_per_vertex_fixed_k_three_schemes_differentiate);
-    RUN_TEST(test_nd_determinism_public_api);
-    RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
+}
 
-    /* Sprint 28 Days 7-14: Liu 1990 supernodal-etree reordering
-     * lit up + corpus-safety + flip-or-stay decision shipped.
-     * `SPARSE_SUPERNODAL_POSTORDER=on` composes the etree
-     * postorder into `analysis->perm`; the test asserts the direct
-     * postorder-composition contract
-     * (perm_on[k] == perm_off[postorder_off[k]]) per the PR #36
-     * review (commit 75fd871, comment 3222851170).  Sprint 28
-     * verdict: STAY at default `off` (advisory only;
-     * `non_pipeline_decision.md`); 0.85× Pres_Poisson target
-     * formally RETIRED with 6-sprint empirical evidence. */
+static void run_nd_supernodal_tests(void) {
+    /* Sprint 28 Days 7-14: supernodal etree postorder advisory lane. */
     RUN_TEST(test_supernodal_postorder_etree_contract);
     RUN_TEST(test_analysis_typed_supernodal_postorder_overrides_env);
-    /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
     RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
     RUN_TEST(test_supernodal_postorder_no_reorder_skips);
     RUN_TEST(test_supernodal_postorder_deterministic);
     RUN_TEST(test_supernodal_postorder_n_one);
-    /* Day 8: enum dispatch on each factorization. */
-    RUN_TEST(test_lu_via_nd_dispatch);
-    RUN_TEST(test_ldlt_via_nd_dispatch);
+}
+
+int main(void) {
+    TEST_SUITE_BEGIN("Sprint 22 Days 6-8: nested-dissection reordering + analyze + enum dispatch");
+
+    run_nd_core_tests();
+    run_nd_policy_tests();
+    run_nd_supernodal_tests();
+    tf_nd_release_cached_fixtures();
 
     TEST_SUITE_END();
 }

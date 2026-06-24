@@ -813,3 +813,63 @@ stronger than it was at sprint start.
   maintained static-first consumer story without reopening package semantics or
   workflow claims.
 - Workflow/platform follow-through remains explicitly later.
+
+## Day 9 - Consumer-Proof Expansion Batch
+
+### Goal
+Strengthen the maintained static-first Make/pkg-config consumer story without
+reopening package semantics or widening workflow/platform claims.
+
+### Actions
+- Landed the bounded consumer-proof expansion inside `tests/test_install.sh`.
+- Kept the existing basic pkg-config compile/link/run proof intact.
+- Added one richer downstream-consumer proof seam by compiling and running the
+  maintained `examples/cmake_example/main.c` source against the installed
+  package using `pkg-config` rather than `find_package`.
+- Re-ran the owned package-proof surfaces:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+### Findings
+- Sprint 87's second implementation landing stayed inside the Day 8 fence:
+  - required implementation center:
+    - `tests/test_install.sh`
+  - directly forced support follow-through actually needed:
+    - none
+  - not needed in the batch:
+    - `examples/cmake_example/CMakeLists.txt`
+    - `tests/test_cmake_install.sh` logic changes
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+- The kept consumer-proof win is explicit:
+  - the Make/pkg-config lane no longer proves only a tiny ad hoc consumer
+  - it now also proves the maintained example source can compile and run
+    through the installed pkg-config metadata
+  - the static-first downstream story is therefore stronger without changing
+    package semantics
+- The strongest Day 9 clarification is now explicit:
+  - this batch did not reopen CMake package semantics or version behavior
+  - it did not widen platform or ABI claims
+  - it improved only the bounded local consumer evidence on the maintained
+    Unix-side Make/pkg-config lane
+
+### Validation
+- `bash tests/test_install.sh` passed
+  - including the new maintained example source pkg-config compile/run proof
+  - total result: `13` passed, `0` failed
+- `bash tests/test_cmake_install.sh` passed
+  - retained adjacent CMake consumer/export proof
+  - total result: `15` passed, `0` failed
+- Because no `*.c` or `*.h` files changed, `make format`, `make lint`, and
+  `make test` were not required for this batch.
+
+### Day 9 Exit State
+- Sprint 87 now has one landed bounded consumer-proof expansion batch.
+- The maintained static-first consumer story is stronger on the Make/pkg-config
+  lane than it was at sprint start.
+- Workflow/platform follow-through remains the next later lane rather than part
+  of this consumer batch.

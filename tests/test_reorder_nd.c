@@ -1520,6 +1520,7 @@ static void test_hcc_kuu_safe_corpus_parity(void) {
  */
 static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     SparseMatrix *A = NULL;
+    const char *skip_reason = NULL;
     /* Under the Sprint 86 Day 6 default threshold flip to 160,
      * bcsstk04 becomes a pure leaf-AMD case and no longer exercises
      * the fixed-K separator-lift policy seam.  bcsstk14 (n=1806) still
@@ -1544,11 +1545,20 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
         return;
     }
 
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=hybrid failed";
+        goto cleanup;
+    }
     idx_t nnz_hybrid = symbolic_cholesky_nnz_nd(A);
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=balance failed";
+        goto cleanup;
+    }
     idx_t nnz_balance = symbolic_cholesky_nnz_nd(A);
-    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree");
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree") != 0) {
+        skip_reason = "setenv SPARSE_ND_SEP_LIFT_WEIGHT=degree failed";
+        goto cleanup;
+    }
     idx_t nnz_degree = symbolic_cholesky_nnz_nd(A);
 
     fprintf(stderr, "    bcsstk14 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
@@ -1559,10 +1569,13 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     int differs = (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree);
     ASSERT_TRUE(differs);
 
+cleanup:
     tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 /* ─── Public-API determinism contract ─────────────────────────────── */

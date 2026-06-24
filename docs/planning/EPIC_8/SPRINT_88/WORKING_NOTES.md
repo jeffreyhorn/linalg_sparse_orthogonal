@@ -873,3 +873,94 @@ install/support, benchmark-policy, or public-header cleanup.
   in the live repo.
 - Support-surface consolidation remains the next later lane rather than being
   folded into this example batch.
+
+## Day 10 - Support-Surface Consolidation Design
+
+### Goal
+Define one bounded install/benchmark/support audience-boundary contract so
+Day 11 can land a real support-surface improvement without drifting into
+generic documentation expansion.
+
+### Actions
+- Re-read the Day 10 design contract from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 9 batch from
+  `docs/planning/EPIC_8/SPRINT_88/artifacts/day9-examples-workflow-simplification-batch.md`.
+- Re-audited the strongest remaining support-surface owners:
+  - `INSTALL.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked the current README/example handoffs into install/support and
+  benchmark references so the next lane stays tied to real adoption flow.
+- Fixed the exact Day 11 implementation center and the support-only
+  follow-through list.
+- Wrote the Day 10 design artifact and aligned the working-notes contract to
+  the post-Day-9 repo state.
+
+### Findings
+- Sprint 88 now has one exact third implementation contract:
+  - required Day 11 center:
+    - `INSTALL.md`
+  - directly forced support-only follow-through only if the support batch
+    truly needs it:
+    - `README.md`
+    - `examples/README.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - lower-value non-touch surfaces unless the Day 11 batch truly forces them:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The Day 10 ownership split is now fixed:
+  - operational setup and installed-consumer handoff owner:
+    - `INSTALL.md`
+  - retained front-door handoff owner only if the Day 11 batch truly changes
+    how users are routed from adoption into install/support detail:
+    - `README.md`
+    - `examples/README.md`
+  - retained benchmark-local command and proof owner only if the Day 11 batch
+    truly changes benchmark-reference wording in adoption/support surfaces:
+    - `benchmarks/README.md`
+  - retained maintainer-only policy owner only if the Day 11 batch truly
+    changes repository-wide interpretation boundaries:
+    - `docs/maintainer_guide.md`
+- The strongest Day 10 design decision is now explicit:
+  - Sprint 88 should treat `INSTALL.md` as the bounded user-facing owner for
+    operational setup and installed-consumer detail
+  - it should tighten audience boundaries there before widening benchmark or
+    maintainer wording
+  - it should preserve the support split:
+    - README/examples = adoption and workflow guidance
+    - INSTALL = operational setup and installed-consumer detail
+    - benchmarks/README = benchmark-local command and proof interpretation
+    - maintainer guide = policy and ownership interpretation
+- The useful Day 10 clarification is fixed now:
+  - Day 11 should not become benchmark-governance rewriting or maintainer-guide
+    expansion
+  - it should improve one real install/support audience boundary inside
+    `INSTALL.md`
+  - public-header narrative cleanup remains explicitly later than this
+    support-surface lane
+
+### Validation
+- This was a docs-only design day, so no full build/test rerun was required.
+- Targeted sanity checks were completed:
+  - re-read the Day 10 Sprint 88 plan contract
+  - re-read the Day 9 batch artifact
+  - re-audited `INSTALL.md`, `benchmarks/README.md`, and
+    `docs/maintainer_guide.md`
+
+### Day 10 Exit State
+- Sprint 88 now has one exact third implementation contract.
+- Ownership between install/support detail, benchmark-local references, and
+  maintainer-only policy is explicit before implementation.
+- Day 11 can land one bounded support-surface batch without reopening the
+  README or example lanes.

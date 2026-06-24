@@ -1210,3 +1210,64 @@ proof surfaces, and canonical benchmark-report surface.
 - Reviewed, example, package, and canonical benchmark-report anchors are all
   explicit in writing.
 - Only non-blocking runtime debt remains going into closeout.
+
+## Day 14 - Sprint 88 Closeout and Handoff
+
+### Goal
+Close Sprint 88 from the validated Day 13 baseline and hand off the final Epic
+8 queue with no remaining ambiguity about what Sprint 88 actually changed.
+
+### Actions
+- Re-read the Sprint 88 section in `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Reconciled the Sprint 88 plan against the actual landed branch state.
+- Reconciled the closeout against the validated Day 13 baseline instead of the
+  earlier implementation intent.
+- Fixed the carry-forward queue into Sprint 89 around the remaining Epic 8
+  end-state, comparison, and closeout work.
+- Wrote the Day 14 closeout artifact and updated the working-notes close
+  summary.
+
+### Findings
+- Sprint 88 closes as one bounded front-door usability and workflow
+  simplification package across:
+  - user-journey rerank
+  - bounded workflow-simplification design contract
+  - Day 6 README/front-door simplification
+  - Day 9 examples/workflow simplification
+  - Day 11 support-surface consolidation
+  - Day 12 narrative freeze and validation-queue freeze
+  - validated Day 13 close baseline
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 88 correction.
+  The actual sprint outcome still matches the project-plan section:
+  - front-door adoption path is simpler
+  - audience split across README/examples/install/benchmarks/maintainer
+    surfaces is clearer
+  - public-header cleanup was explicitly re-audited and closed as unnecessary
+    for this sprint rather than silently dropped
+- Sprint 88 closes from the validated Day 13 baseline:
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `408.39 sec`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `bash tests/test_install.sh` = `13` passed, `0` failed
+  - `bash tests/test_cmake_install.sh` = `15` passed, `0` failed, `0` skipped
+  - `make bench-canonical-report`
+- The non-blocking residual remains explicit:
+  - reviewed `test_reorder_nd` stayed the long pole at `222.30 sec`
+  - Sprint 88 did not reopen that runtime lane because Sprint 86 already
+    bounded it and Sprint 88 stayed in the usability/support contract
+
+### Validation
+- This was a docs-only closeout day, so no post-Day-13 rerun was required.
+- Sprint 88 closes from the existing validated Day 13 baseline.
+
+### Day 14 Exit State
+- Sprint 88 is closed from a validated baseline rather than implementation
+  intent.
+- No Sprint 88 ambiguity remains in the front-door, example, support, or
+  package handoff.
+- The next Epic 8 queue is explicitly narrowed to Sprint 89 end-state audit,
+  external comparison, final cross-surface fix batch, and Epic 8 closeout.

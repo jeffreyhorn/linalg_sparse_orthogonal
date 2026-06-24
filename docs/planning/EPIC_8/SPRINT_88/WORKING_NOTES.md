@@ -964,3 +964,90 @@ generic documentation expansion.
   maintainer-only policy is explicit before implementation.
 - Day 11 can land one bounded support-surface batch without reopening the
   README or example lanes.
+
+## Day 11 - Support-Surface Consolidation Batch
+
+### Goal
+Land one bounded install/support audience-boundary improvement so the user-facing
+support surface reads as a real owner for setup, install, installed-consumer
+detail, and local package proof.
+
+### Actions
+- Re-read the Day 11 contract from `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 10 design artifact.
+- Reworked `INSTALL.md` so it now opens with:
+  - an explicit support-surface owner statement
+  - a `Start Here` routing section
+  - a compact `Choose an Install Path` split
+- Promoted the static-first package contract into a clearer
+  `Maintained Install Contract` section.
+- Moved the reviewed platform matrix later in the file so first-action setup
+  and installed-consumer guidance appear before workflow-proof and platform
+  nuance.
+- Tightened the installation-validation section so it reads as the explicit
+  local proof owner for the installed package surface.
+- Kept the batch inside `INSTALL.md`; no README/example/benchmark/maintainer
+  follow-through was forced.
+- Ran the required Sprint 88 reviewed validation gate.
+
+### Findings
+- Sprint 88's third implementation landing stayed inside the Day 10 fence:
+  - required implementation center:
+    - `INSTALL.md`
+  - directly forced support follow-through actually needed:
+    - none
+  - not needed in the batch:
+    - `README.md`
+    - `examples/README.md`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `examples/cmake_example/CMakeLists.txt`
+    - `examples/cmake_example/main.c`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/macos-ci.yml`
+    - `.github/workflows/windows-ci.yml`
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The kept support-surface usability win is explicit:
+  - `INSTALL.md` now reads as the user-facing owner for operational setup,
+    staged install, installed-consumer workflows, and install-surface
+    validation
+  - the file now routes the smallest real needs first:
+    - first local success without install
+    - Unix static install plus `pkg-config`
+    - installed CMake consumer or Windows path
+    - local proof of the installed package surface
+  - the support split is now stated directly inside the file:
+    - README/examples = adoption and workflow guidance
+    - INSTALL = operational setup and installed-consumer detail
+    - maintainer guide = reviewed-platform and policy interpretation
+  - the static-first package contract stays explicit without widening into
+    broader ABI or shared-library claims
+- The useful Day 11 clarification is fixed now:
+  - support-surface consolidation does not require benchmark-governance or
+    maintainer-guide churn
+  - it comes from making `INSTALL.md` behave like a bounded operational owner
+    rather than a flatter mix of setup, policy, and proof interpretation
+  - public-header narrative cleanup remains explicitly later than this lane
+
+### Validation
+- The landed batch passed:
+  - `make quality-review-full`
+- Reviewed parity remained exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `673.44 sec`
+- Non-blocking runtime note:
+  - reviewed `test_reorder_nd` remained the long pole at `532.69 sec`
+
+### Day 11 Exit State
+- Sprint 88 now has one landed bounded support-surface batch.
+- The live repo now gives users a clearer boundary between front-door adoption,
+  installed package setup, and maintainer/platform interpretation.
+- The next later lane remains public-header and API narrative cleanup rather
+  than more install/support churn.

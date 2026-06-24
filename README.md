@@ -98,7 +98,7 @@ Start with the smallest surface that matches your real workload:
 - **One-shot direct solve:** use LU, Cholesky, LDL^T, or QR when you are
   solving once or only occasionally.
 - **Stable-pattern repeated direct solve:** use
-  `sparse_analyze()` -> `sparse_factor_numeric()` ->
+  `sparse_analyze()` → `sparse_factor_numeric()` →
   `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later
   solves as values change.
 - **Repeated-run iterative handle:** use the explicit handle path only for

@@ -18,9 +18,11 @@ VERSION_MISMATCH_SRC="$TMPDIR/version_mismatch_src"
 LOG="$TMPDIR/cmake.log"
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1: $2"; FAIL=$((FAIL + 1)); }
+skip() { echo "  [SKIP] $1: $2"; SKIP=$((SKIP + 1)); }
 
 echo "=== CMake Install Validation Tests ==="
 echo "  root:   $ROOT_DIR"
@@ -156,7 +158,7 @@ if [ "$version_minor" -gt 0 ]; then
 elif [ "$version_patch" -gt 0 ]; then
     MISMATCH_VERSION="${version_major}.${version_minor}.$((version_patch - 1))"
 else
-    fail "find_package mismatched version setup" \
+    skip "find_package mismatched version" \
         "no lower same-major version exists for $EXPECTED_VERSION"
     MISMATCH_VERSION=""
 fi
@@ -196,6 +198,7 @@ echo ""
 echo "--- Summary ---"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
+echo "Skipped: $SKIP"
 
 if [ "$FAIL" -ne 0 ]; then
     echo "CMAKE INSTALL TESTS FAILED"

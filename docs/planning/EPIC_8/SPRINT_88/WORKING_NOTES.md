@@ -1143,3 +1143,70 @@ and Day 13 validation queue.
 - No remaining Sprint 88 support-only or header-only edit is needed before the
   validation sweep.
 - Day 13 now has one exact frozen validation queue.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full Sprint 88 validation queue and record the refreshed usability-close
+baseline across the reviewed path, maintained example surfaces, install/export
+proof surfaces, and canonical benchmark-report surface.
+
+### Actions
+- Ran the strongest maintained reviewed baseline:
+  - `make quality-review-full`
+- Re-ran the exact Day 12 frozen queue:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+- Recorded the reviewed parity, focused example outputs, install/export proof
+  counts, and canonical-report emission surface.
+
+### Findings
+- The full Day 13 queue passed cleanly:
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `408.39 sec`
+- The focused reruns and follow-ons also all passed:
+  - `example_analysis`
+  - `example_basic_solve`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+- The measured close outputs are now explicit:
+  - `example_analysis` solve residual = `4.44e-16`
+  - `example_basic_solve` residual = `0.00e+00`
+  - `tests/test_install.sh` = `13` passed, `0` failed
+  - `tests/test_cmake_install.sh` = `15` passed, `0` failed, `0` skipped
+  - `make bench-canonical-report` wrote:
+    - `build/bench-reports/canonical/bench_refactor_csc.csv`
+    - `build/bench-reports/canonical/bench_chol_csc.csv`
+    - `build/bench-reports/canonical/bench_iterative_reuse.csv`
+    - `build/bench-reports/canonical/bench_eigs_reuse.csv`
+    - `build/bench-reports/canonical/index.tsv`
+    - `build/bench-reports/canonical/manifest.txt`
+- The non-blocking runtime note remains explicit:
+  - reviewed `test_reorder_nd` = `222.30 sec`
+  - reviewed total = `408.39 sec`
+
+### Validation
+- Full validation was completed and passed cleanly.
+- No additional bounded follow-up validation is required before Sprint 88
+  closeout.
+
+### Day 13 Exit State
+- Sprint 88 now has one refreshed validated close baseline.
+- Reviewed, example, package, and canonical benchmark-report anchors are all
+  explicit in writing.
+- Only non-blocking runtime debt remains going into closeout.

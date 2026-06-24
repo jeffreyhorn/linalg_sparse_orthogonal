@@ -230,3 +230,116 @@ surface.
   workflow-side platform evidence is fixed in writing.
 - The highest-signal rerun set is explicit before the first adoption-friction
   rerank.
+
+## Day 3 - User-Journey Audit
+
+### Goal
+Reduce Sprint 88's broad front-door usability problem to one ranked live
+contradiction map so the sprint can choose one bounded adoption-guidance lane
+instead of another generic docs or example bucket.
+
+### Actions
+- Re-read the Day 3 user-journey expectations from
+  `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the strongest recent rerank template from
+  `docs/planning/EPIC_8/SPRINT_87/artifacts/day3-release-package-gap-audit.md`.
+- Re-read the current authoritative front-door and support wording in:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - `benchmarks/README.md`
+- Re-scanned the highest-signal adoption and public-narrative surfaces through
+  targeted section searches in:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - `benchmarks/README.md`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+- Reconciled the usability rerank against the Sprint 87 close handoff and the
+  preserved package/platform contract stabilized there.
+
+### Findings
+- Sprint 88's broad front-door usability problem is now reduced to one ranked
+  live contradiction map:
+  - strongest first target:
+    - bounded front-door simplification centered on `README.md`, with direct
+      follow-through only where the first user path currently leaks too much
+      install, benchmark, or maintainer density
+  - strongest second target:
+    - bounded examples / workflow simplification centered on the example
+      references in `README.md` plus the maintained downstream example surface
+      in `examples/cmake_example/`
+  - strongest third target:
+    - bounded support-surface consolidation centered on `INSTALL.md`,
+      `benchmarks/README.md`, and `docs/maintainer_guide.md` after the
+      front-door contract is explicit
+  - strongest fourth target:
+    - bounded header / API narrative cleanup centered on the highest-signal
+      public headers:
+      - `include/sparse_iterative.h`
+      - `include/sparse_eigs.h`
+      - `include/sparse_matrix.h`
+      - `include/sparse_types.h`
+  - strongest support-only but real target:
+    - workflow and proof-surface wording only where a landed usability batch
+      truly changes how users should interpret those surfaces
+- The strongest current contradiction is now explicit:
+  - `README.md` already contains a real user entry path through:
+    - `Choose a Workflow`
+    - `Quick Start`
+    - repeated-run workflow guidance
+    - installation references
+  - but the same file still carries advanced benchmark, dead-code, maintainer,
+    and support references deep into the front-door reading path
+  - the result is a truthful but over-dense front door: first-adoption
+    decisions, advanced workflow interpretation, and maintainer-facing
+    references still coexist too closely
+- The strongest second contradiction is examples/workflow asymmetry:
+  - the example surfaces are real and maintained
+  - the downstream CMake example is minimal and bounded
+  - but README still has to do too much work explaining how to move from
+    one-shot examples to repeated-run, benchmark, and maintained proof lanes
+- The strongest third contradiction is support-surface audience blur:
+  - `INSTALL.md` already says README is the canonical front door
+  - `benchmarks/README.md` already self-limits toward benchmark ownership
+  - `docs/maintainer_guide.md` is already maintainer-facing
+  - but the audience boundaries among these surfaces are still not quite sharp
+    enough, so README still carries more support-routing burden than it should
+- The strongest fourth contradiction is public-narrative spillover:
+  - the highest-signal public headers remain large and valuable
+  - but they still read with more internal workflow/policy context than an
+    adoption-focused public narrative ideally needs
+  - this remains real Sprint 88 work, but it is clearly later than the first
+    front-door and example lanes
+- The strongest Day 3 clarification is now fixed:
+  - the best first Sprint 88 move is not generic "improve docs"
+  - it is one bounded front-door simplification pass on the README-level user
+    decision path
+  - examples/workflow simplification follows next where the README contract
+    exposes a real maintained adoption gap
+  - support-surface consolidation comes after that where audience boundaries
+    need sharpening
+  - public header narrative cleanup remains real, but later than the first
+    adoption-flow lanes
+
+### Validation
+- This was a docs-only audit day, so no full build/test rerun was required.
+- Targeted sanity checks were completed:
+  - re-read `README.md`, `INSTALL.md`, `docs/maintainer_guide.md`, and
+    `benchmarks/README.md`
+  - re-scanned key user-facing and maintainer-facing section boundaries with
+    targeted `rg`
+  - rechecked the strongest example and public-header narrative surfaces
+
+### Day 3 Exit State
+- Sprint 88 now has one ranked live front-door usability contradiction map
+  grounded in the current tree and the stabilized Sprint 87 package/platform
+  contract.
+- The first implementation center is fixed to bounded README/front-door
+  simplification, not immediate support-surface or header cleanup.
+- Later examples/workflow simplification, support-surface consolidation, and
+  public narrative cleanup are explicitly ordered behind that first lane.

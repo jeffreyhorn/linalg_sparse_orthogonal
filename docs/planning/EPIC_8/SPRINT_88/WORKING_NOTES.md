@@ -1051,3 +1051,95 @@ detail, and local package proof.
   installed package setup, and maintainer/platform interpretation.
 - The next later lane remains public-header and API narrative cleanup rather
   than more install/support churn.
+
+## Day 12 - Header / API Narrative Cleanup & Validation Queue Freeze
+
+### Goal
+Reconcile the touched public narrative surfaces after the README, examples, and
+install batches, then freeze the exact final Sprint 88 support/proof-owner map
+and Day 13 validation queue.
+
+### Actions
+- Re-read the Day 12 contract from `docs/planning/EPIC_8/SPRINT_88/PLAN.md`.
+- Re-read the Day 11 support-batch artifact.
+- Re-audited the highest-signal public narrative surfaces after the landed
+  Sprint 88 batches:
+  - `README.md`
+  - `examples/README.md`
+  - `INSTALL.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Re-audited the strongest public API-local narrative owners:
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+- Rechecked the maintained proof surfaces that actually anchor Sprint 88's
+  user-facing package and workflow claims:
+  - reviewed CMake parity tree
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- Fixed the final support/proof-owner map and froze the exact Day 13 queue.
+
+### Findings
+- No final bounded public-header narrative reconciliation is needed before the
+  full sweep.
+- The retained headers already read as API-local contract owners rather than
+  front-door or support-surface owners:
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+- Sprint 88's final support/proof-owner split is now fixed around:
+  - front-door adoption owners:
+    - `README.md`
+    - `examples/README.md`
+  - support-only advanced reference owner:
+    - `INSTALL.md`
+  - support-only benchmark reference owner:
+    - `benchmarks/README.md`
+  - maintainer-only policy owner:
+    - `docs/maintainer_guide.md`
+  - reviewed executable truth owners:
+    - `build/quality-review-cmake` parity tree
+    - `example_analysis`
+    - `example_basic_solve`
+  - install/export proof owners:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+  - retained public API-local narrative owners, not Sprint 88 adoption/support
+    centers:
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_matrix.h`
+    - `include/sparse_types.h`
+- The useful Day 12 clarification is fixed now:
+  - Sprint 88 does not need a header cleanup batch to close its usability
+    contract cleanly
+  - the strongest remaining work is validation from the already-landed README,
+    examples, and install/support surfaces
+  - public-header narrative cleanup is explicitly unnecessary for Sprint 88
+    rather than silently deferred
+- The exact Day 13 validation queue is now frozen around:
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+
+### Validation
+- This was a docs-only alignment day, so no full validation rerun was required.
+- Targeted sanity checks were completed:
+  - re-read the Day 12 Sprint 88 plan contract
+  - re-read the Day 11 support-batch artifact
+  - re-audited the touched README/example/install/benchmark/maintainer surfaces
+  - re-audited the retained public API-local narrative headers
+
+### Day 12 Exit State
+- No ambiguity remains about front-door, example, support, and maintainer
+  ownership.
+- No remaining Sprint 88 support-only or header-only edit is needed before the
+  validation sweep.
+- Day 13 now has one exact frozen validation queue.

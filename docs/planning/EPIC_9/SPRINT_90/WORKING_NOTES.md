@@ -368,3 +368,134 @@ than another generic modernization story.
 - Portable backend maturity, capability widening, and runtime/ABI follow-through
   are explicitly ordered behind that first center before Day 4 widens into
   maintainability, coherence, and workflow duplication.
+
+## Day 4 - Maintainability, Coherence, and Workflow Audit
+
+### Goal
+Reduce the remaining maintainability, documentation-coherence, and
+build/workflow-duplication problem to one ranked live contradiction map so
+Epic 9 can choose bounded structural cleanup lanes rather than another generic
+cleanup story.
+
+### Actions
+- Re-read the Sprint 90 Day 4 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the Epic 9 review findings around maintainability, chronology
+  residue, and build/workflow duplication.
+- Re-measured the highest-signal implementation, proof, support, build, and
+  workflow owners directly from the live tree.
+- Re-scanned the live tree against the remaining Epic 9 concern classes:
+  - large mixed-role implementation hotspots
+  - giant-test and proof-owner concentration
+  - sprint-era chronology in permanent docs/code/tests
+  - duplicated build/package/workflow topology
+- Rechecked direct chronology residue across public/support surfaces, headers,
+  benchmarks, workflows, and the retained sprint-named tests.
+- Rechecked the main duplicated topology owners:
+  - `Makefile`
+  - `CMakeLists.txt`
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Wrote the Day 4 ranked audit artifact and fixed the highest-friction
+  support-surface map in writing.
+
+### Findings
+- Sprint 90's remaining maintainability/coherence/duplication problem is now
+  reduced to one ranked live map:
+  - strongest first target:
+    - large mixed-role implementation hotspot reduction
+  - strongest second target:
+    - giant-test and proof-owner concentration cleanup
+  - strongest third target:
+    - sprint-era chronology removal from permanent product, maintainer,
+      header, benchmark, and test surfaces
+  - strongest fourth target:
+    - build/package/workflow topology convergence where hand-maintained
+      duplication is still high
+  - strongest support-only but real target:
+    - public/support surface simplification where structural cleanup truly
+      changes naming or navigation expectations
+- The strongest current contradiction is now explicit:
+  - the largest implementation hotspots remain large and mixed-role:
+    - `src/sparse_ldlt_csc.c` = `2694`
+    - `src/sparse_iterative.c` = `1854`
+    - `src/sparse_lu_csr.c` = `1665`
+    - `src/sparse_qr.c` = `1563`
+    - `src/sparse_ldlt.c` = `1535`
+    - `src/sparse_eigs.c` = `1534`
+    - `src/sparse_svd.c` = `1319`
+    - `src/sparse_matrix.c` = `1297`
+    - `src/sparse_chol_csc.c` = `1279`
+  - these files still combine algorithm detail, lifecycle policy, helper
+    logic, and family-local orchestration in the same retained owners
+- The strongest second contradiction is proof concentration:
+  - `tests/test_chol_csc.c` = `4987`
+  - `tests/test_ldlt_csc.c` = `3680`
+  - `tests/test_qr.c` = `3234`
+  - `tests/test_integration.c` = `3197`
+  - `tests/test_etree.c` = `2962`
+  - `tests/test_graph.c` = `2925`
+  - `tests/test_ldlt.c` = `2921`
+  - `tests/test_iterative.c` = `2841`
+  - `tests/test_reorder_nd.c` = `2340`
+- The strongest third contradiction is chronology residue:
+  - `README.md` still contains many sprint-era historical note blocks
+  - `docs/maintainer_guide.md` still contains many "after Sprint X" anchors
+  - `INSTALL.md`, `benchmarks/README.md`, several headers, and several
+    benchmark files still carry sprint/day chronology in permanent surfaces
+  - sprint-named retained proof owners still exist:
+    - `tests/test_sprint20_integration.c`
+    - `tests/test_sprint19_integration.c`
+    - `tests/test_sprint11_integration.c`
+    - `tests/test_sprint8_integration.c`
+    - `tests/test_sprint6_integration.c`
+    - `tests/test_sprint5_integration.c`
+- The strongest fourth contradiction is duplicated topology:
+  - `Makefile` = `908`
+  - `CMakeLists.txt` = `416`
+  - `.github/workflows/ci.yml` = `223`
+  - `.github/workflows/macos-ci.yml` = `104`
+  - `.github/workflows/windows-ci.yml` = `63`
+  - `Makefile` still hand-enumerates library, test, benchmark, and workflow
+    topology
+  - `CMakeLists.txt` still duplicates the library/test/benchmark/example
+    topology separately
+  - all three workflows still carry intentionally asymmetric product truth,
+    which is honest but increases long-term maintenance cost
+- The highest-friction public/support owners are now fixed:
+  - `README.md` = `1113`
+  - `docs/maintainer_guide.md` = `727`
+  - `docs/tutorial.md` = `473`
+  - `benchmarks/README.md` = `399`
+  - `INSTALL.md` = `315`
+- The strongest Day 4 clarification is now fixed:
+  - the maintainability/coherence problem is real, but it is not one
+    undifferentiated bucket
+  - the best first cleanup lane is the largest mixed-role implementation
+    concentration
+  - giant-test concentration follows next
+  - chronology cleanup follows after that
+  - build/package/workflow convergence follows after that
+  - support surfaces stay support-only unless structural cleanup truly changes
+    owner, naming, or navigation expectations
+
+### Validation
+- Re-read the Sprint 90 Day 4 plan contract.
+- Re-read the Epic 9 review findings around maintainability, chronology, and
+  duplication.
+- Re-measured the highest-signal implementation, proof, support, build, and
+  workflow owners from the live tree.
+- Rechecked direct sprint-era chronology residue across permanent repo
+  surfaces.
+- Recorded the ranked contradiction map and high-friction support surfaces in
+  the Day 4 artifact.
+
+### Day 4 Exit State
+- Sprint 90 now has one ranked live
+  maintainability/coherence/duplication map grounded in the current tree.
+- The strongest residual source hotspots, proof hotspots, chronology residue,
+  and duplicated topology surfaces are explicit.
+- Day 5 can now define the Epic 9 target state against the full contradiction
+  inventory instead of against only the structural product/backend/capability
+  side.

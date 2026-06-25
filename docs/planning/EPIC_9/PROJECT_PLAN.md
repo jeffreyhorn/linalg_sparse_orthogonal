@@ -3,11 +3,13 @@
 Epic 9 takes the repository from the strong but still bounded post-Epic-8
 state toward a more competitive sparse linear algebra product. The goal is not
 to widen the surface randomly. It is to close the most important gaps
-identified in `reviews/review-codex-2026-06-24.md`:
+identified in `reviews/review-codex-2026-06-25.md` and ordered in
+`reviews/todo-codex-2026-06-25.md`:
 
 - linked-list-first public/product model
-- narrow dense/backend and runtime scalability ceiling
+- narrow dense/backend ceiling
 - bounded capability surface
+- partial concurrency/runtime scalability story
 - history-heavy documentation and proof naming
 - remaining large source / giant-test maintainability hotspots
 - duplicated build/package/workflow topology
@@ -218,40 +220,7 @@ make the public workflow narrative smaller, clearer, and more coherent.
 
 ---
 
-## Sprint 96: Build, Packaging & Cross-Platform Product Convergence Phase 4
-
-**Duration:** 14 days (~166 hours)  
-**Goal:** Reduce build/workflow duplication, sharpen the long-term package
-surface, and improve cross-platform product maturity without fake parity.
-
-### Prerequisites from Previous Sprints
-
-- Sprint 90 package/platform claim fence complete
-- Sprint 92 backend/package work and Sprint 95 public narrative cleanup in place
-
-### Items
-
-| Item # | Item Name | Item Description | Estimate (in hours) |
-|---|---|---|---:|
-| 1 | Build-Topology Audit | Identify the highest-cost duplication between Make, CMake, CI, and install/export proof surfaces. | 18 |
-| 2 | Convergence Architecture Design | Define the bounded Epic 9 plan for reducing duplication without losing proof strength. | 24 |
-| 3 | Source-List/Workflow Reduction Batch | Centralize or generate the highest-value duplicated topology surfaces. | 30 |
-| 4 | Package-Surface Decision Batch | Decide whether the repo remains permanently static-first or earns one bounded shared-library lane. | 22 |
-| 5 | Consumer/Workflow Follow-Through | Update install/export proof and workflow surfaces to match the refined package/build contract. | 22 |
-| 6 | Cross-Platform Truth Calibration | Expand or refine macOS/Windows proof only where the evidence justifies it. | 20 |
-| 7 | Validation and Closeout | Full validation, artifacts, and Sprint 96 closeout. | 30 |
-
-### Deliverables
-
-- lower build/workflow duplication
-- sharper long-term package/product contract
-- more coherent cross-platform product story without fake parity
-
-**Total estimate:** ~166 hours
-
----
-
-## Sprint 97: Large-Source & Giant-Test Maintainability Phase 6
+## Sprint 96: Large-Source & Giant-Test Maintainability Phase 6
 
 **Duration:** 14 days (~168 hours)  
 **Goal:** Reduce the largest remaining mixed-role implementation and proof
@@ -272,7 +241,7 @@ hotspots after the Epic 8 cleanup and the Epic 9 narrative/package changes.
 | 4 | Solver/Algorithm Source Cleanup Batch | Land the next bounded cleanup in one major iterative, QR, eigensolver, or SVD hotspot. | 28 |
 | 5 | Giant-Test Architecture Batch | Reduce the densest remaining proof-owner concentration in one or two giant tests. | 22 |
 | 6 | Internal Comment/Rationale Cleanup | Remove stale chronology while preserving durable algorithm rationale on touched files. | 18 |
-| 7 | Validation and Closeout | Full validation, artifacts, and Sprint 97 closeout. | 26 |
+| 7 | Validation and Closeout | Full validation, artifacts, and Sprint 96 closeout. | 26 |
 
 ### Deliverables
 
@@ -281,6 +250,39 @@ hotspots after the Epic 8 cleanup and the Epic 9 narrative/package changes.
 - better long-term maintainability for the next capability/runtime work
 
 **Total estimate:** ~168 hours
+
+---
+
+## Sprint 97: Build, Packaging & Cross-Platform Product Convergence Phase 4
+
+**Duration:** 14 days (~166 hours)  
+**Goal:** Reduce build/workflow duplication, sharpen the long-term package
+surface, and improve cross-platform product maturity without fake parity.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 90 package/platform claim fence complete
+- Sprint 92 backend/package work and Sprint 95 public narrative cleanup in place
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Build-Topology Audit | Identify the highest-cost duplication between Make, CMake, CI, and install/export proof surfaces. | 18 |
+| 2 | Convergence Architecture Design | Define the bounded Epic 9 plan for reducing duplication without losing proof strength. | 24 |
+| 3 | Source-List/Workflow Reduction Batch | Centralize or generate the highest-value duplicated topology surfaces. | 30 |
+| 4 | Package-Surface Decision Batch | Decide whether the repo remains permanently static-first or earns one bounded shared-library lane. | 22 |
+| 5 | Consumer/Workflow Follow-Through | Update install/export proof and workflow surfaces to match the refined package/build contract. | 22 |
+| 6 | Cross-Platform Truth Calibration | Expand or refine macOS/Windows proof only where the evidence justifies it. | 20 |
+| 7 | Validation and Closeout | Full validation, artifacts, and Sprint 97 closeout. | 30 |
+
+### Deliverables
+
+- lower build/workflow duplication
+- sharper long-term package/product contract
+- more coherent cross-platform product story without fake parity
+
+**Total estimate:** ~166 hours
 
 ---
 
@@ -293,7 +295,7 @@ the repo can support stronger competitive claims than the bounded Epic 8 lane.
 ### Prerequisites from Previous Sprints
 
 - Sprint 90 comparison contract complete
-- Sprint 94 capability work and Sprint 97 maintainability extraction stable enough for proof expansion
+- Sprint 94 capability work and Sprint 96 maintainability extraction stable enough for proof expansion
 
 ### Items
 

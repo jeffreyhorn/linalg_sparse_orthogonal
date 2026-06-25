@@ -75,12 +75,12 @@ sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr_out) {
 
 /* ─── From CSR ───────────────────────────────────────────────────────── */
 
-sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out) {
-    if (!mat_out)
-        return SPARSE_ERR_NULL;
-    *mat_out = NULL;
+static sparse_err_t sparse_validate_csr(const SparseCsr *csr) {
     if (!csr)
         return SPARSE_ERR_NULL;
+
+    if (csr->rows < 0 || csr->cols < 0 || csr->nnz < 0)
+        return SPARSE_ERR_BADARG;
 
     if (!csr->row_ptr || (!csr->col_idx && csr->nnz > 0) || (!csr->values && csr->nnz > 0))
         return SPARSE_ERR_BADARG;
@@ -115,22 +115,48 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out) {
         }
     }
 
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_build_from_csr(const SparseCsr *csr, SparseMatrix **mat_out) {
+    if (!mat_out)
+        return SPARSE_ERR_NULL;
+    *mat_out = NULL;
+
+    sparse_err_t validate_err = sparse_validate_csr(csr);
+    if (validate_err != SPARSE_OK)
+        return validate_err;
+
+    idx_t m = csr->rows;
+    idx_t nc = csr->cols;
+
     SparseMatrix *mat = sparse_create(m, nc);
     if (!mat)
         return SPARSE_ERR_ALLOC;
 
     for (idx_t i = 0; i < m; i++) {
         for (idx_t k = csr->row_ptr[i]; k < csr->row_ptr[i + 1]; k++) {
-            sparse_err_t err = sparse_insert(mat, i, csr->col_idx[k], csr->values[k]);
-            if (err != SPARSE_OK) {
+            sparse_err_t insert_err = sparse_insert(mat, i, csr->col_idx[k], csr->values[k]);
+            if (insert_err != SPARSE_OK) {
                 sparse_free(mat);
-                return err;
+                return insert_err;
             }
         }
     }
 
     *mat_out = mat;
     return SPARSE_OK;
+}
+
+SparseMatrix *sparse_create_from_csr(const SparseCsr *csr) {
+    SparseMatrix *mat = NULL;
+    if (sparse_build_from_csr(csr, &mat) != SPARSE_OK)
+        return NULL;
+    return mat;
+}
+
+sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out) {
+    return sparse_build_from_csr(csr, mat_out);
 }
 
 /* ─── To CSC ─────────────────────────────────────────────────────────── */
@@ -182,12 +208,12 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc_out) {
 
 /* ─── From CSC ───────────────────────────────────────────────────────── */
 
-sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out) {
-    if (!mat_out)
-        return SPARSE_ERR_NULL;
-    *mat_out = NULL;
+static sparse_err_t sparse_validate_csc(const SparseCsc *csc) {
     if (!csc)
         return SPARSE_ERR_NULL;
+
+    if (csc->rows < 0 || csc->cols < 0 || csc->nnz < 0)
+        return SPARSE_ERR_BADARG;
 
     if (!csc->col_ptr || (!csc->row_idx && csc->nnz > 0) || (!csc->values && csc->nnz > 0))
         return SPARSE_ERR_BADARG;
@@ -222,20 +248,46 @@ sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out) {
         }
     }
 
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_build_from_csc(const SparseCsc *csc, SparseMatrix **mat_out) {
+    if (!mat_out)
+        return SPARSE_ERR_NULL;
+    *mat_out = NULL;
+
+    sparse_err_t validate_err = sparse_validate_csc(csc);
+    if (validate_err != SPARSE_OK)
+        return validate_err;
+
+    idx_t m = csc->rows;
+    idx_t nc = csc->cols;
+
     SparseMatrix *mat = sparse_create(m, nc);
     if (!mat)
         return SPARSE_ERR_ALLOC;
 
     for (idx_t j = 0; j < nc; j++) {
         for (idx_t k = csc->col_ptr[j]; k < csc->col_ptr[j + 1]; k++) {
-            sparse_err_t err = sparse_insert(mat, csc->row_idx[k], j, csc->values[k]);
-            if (err != SPARSE_OK) {
+            sparse_err_t insert_err = sparse_insert(mat, csc->row_idx[k], j, csc->values[k]);
+            if (insert_err != SPARSE_OK) {
                 sparse_free(mat);
-                return err;
+                return insert_err;
             }
         }
     }
 
     *mat_out = mat;
     return SPARSE_OK;
+}
+
+SparseMatrix *sparse_create_from_csc(const SparseCsc *csc) {
+    SparseMatrix *mat = NULL;
+    if (sparse_build_from_csc(csc, &mat) != SPARSE_OK)
+        return NULL;
+    return mat;
+}
+
+sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out) {
+    return sparse_build_from_csc(csc, mat_out);
 }

@@ -28,9 +28,9 @@
   - no fake broad complex/mixed-precision claim
   - no fake benchmark supremacy claim
 - [x] Sprint 90 produced one complete dated review/todo/project-plan package:
-  - [review-codex-2026-06-25.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_9/reviews/review-codex-2026-06-25.md:1)
-  - [todo-codex-2026-06-25.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_9/reviews/todo-codex-2026-06-25.md:1)
-  - [PROJECT_PLAN.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_9/PROJECT_PLAN.md:1)
+  - [review-codex-2026-06-25.md](../reviews/review-codex-2026-06-25.md)
+  - [todo-codex-2026-06-25.md](../reviews/todo-codex-2026-06-25.md)
+  - [PROJECT_PLAN.md](../PROJECT_PLAN.md)
 - [x] Sprint 90 aligned the review, todo, and project plan into one coherent
       package with stable sequencing and claim boundaries
 - [x] Sprint 90 ran the final docs-only validation sweep and closed from one
@@ -163,7 +163,7 @@ Notes:
 |---|---:|
 | C/C++ implementation files touched | `0` |
 | public headers touched | `0` |
-| build/package files touched | `1` |
+| non-sprint-local permanent planning files touched | `1` |
 | workflow files touched | `0` |
 | planning/review docs touched | substantial |
 | docs-only sprint | `1` |
@@ -171,7 +171,7 @@ Notes:
 Notes:
 
 - the only non-sprint-local permanent project surface touched was
-  [PROJECT_PLAN.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_9/PROJECT_PLAN.md:1)
+  [PROJECT_PLAN.md](../PROJECT_PLAN.md)
 - Sprint 90’s value came from evidence-backed planning and sequencing, not
   from implementation churn
 

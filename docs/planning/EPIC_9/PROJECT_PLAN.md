@@ -295,7 +295,7 @@ the repo can support stronger competitive claims than the bounded Epic 8 lane.
 ### Prerequisites from Previous Sprints
 
 - Sprint 90 comparison contract complete
-- Sprint 94 capability work and Sprint 97 maintainability extraction stable enough for proof expansion
+- Sprint 94 capability work and Sprint 96 maintainability extraction stable enough for proof expansion
 
 ### Items
 

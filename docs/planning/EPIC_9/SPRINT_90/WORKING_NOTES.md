@@ -1158,3 +1158,59 @@ project plan with bounded hours and stage-ordered sprint sequencing.
   to the frozen review and todo package.
 - Day 12 can perform cross-document alignment from one coherent review/todo/plan
   package without reopening sprint ordering.
+
+## Day 12 - Cross-Document Alignment Pass
+
+### Goal
+Make the frozen Epic 9 review, todo, and project plan read as one coherent
+planning package with no remaining sequencing or claim-boundary contradictions.
+
+### Actions
+- Re-read the Sprint 90 Day 12 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the frozen dated Epic 9 review from `2026-06-25`.
+- Re-read the dated Epic 9 todo from `2026-06-25`.
+- Re-read the updated Epic 9 project plan.
+- Checked for mismatches in:
+  - ranked priorities
+  - stage order and sprint order
+  - target-state wording
+  - anti-sprawl and non-claim wording
+  - package/platform claim boundaries
+  - maintainability vs duplication sequencing
+- Corrected the remaining concrete plan mismatch:
+  - Sprint 98 prerequisites now point at Sprint 96 maintainability extraction,
+    matching the Day 10 stage order and Day 11 sprint remap
+- Wrote the Day 12 artifact to record the aligned package state.
+
+### Findings
+- Sprint 90 now has an aligned Epic 9 planning package across:
+  - `docs/planning/EPIC_9/reviews/review-codex-2026-06-25.md`
+  - `docs/planning/EPIC_9/reviews/todo-codex-2026-06-25.md`
+  - `docs/planning/EPIC_9/PROJECT_PLAN.md`
+- The ranked contradiction order remains aligned across all three documents:
+  - product-model convergence first
+  - backend/runtime ceiling next
+  - capability widening next
+  - chronology/coherence cleanup next
+  - maintainability reduction before duplication reduction
+  - broader comparison depth later
+  - final convergence and closeout last
+- The strongest Day 12 clarification is now fixed:
+  - the review, todo, and project plan no longer disagree about the late-epic
+    maintainability vs duplication order
+  - the package/platform/shared-library non-claim fence remains consistent
+    across findings, remediation, and sprint planning
+
+### Validation
+- Re-read the Sprint 90 Day 12 plan contract.
+- Re-read the frozen `2026-06-25` review, todo, and project plan together.
+- Checked ranked priorities, terminology, claim boundaries, sequencing, and
+  estimates for major contradictions.
+- Corrected the remaining Sprint 98 prerequisite mismatch.
+- Recorded the aligned package state in the Day 12 artifact.
+
+### Day 12 Exit State
+- Sprint 90 now has one internally consistent review/todo/plan package.
+- Day 13 can validate the final Sprint 90 planning package without reopening
+  the document structure or sprint ordering.

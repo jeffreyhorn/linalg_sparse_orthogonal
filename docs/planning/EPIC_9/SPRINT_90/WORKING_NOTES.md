@@ -1267,3 +1267,74 @@ correct before closeout.
 - Sprint 90 now has one validated docs-only planning package anchored to the
   live reviewed repo state.
 - Day 14 can close Sprint 90 without reopening the planning package.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 90 from the validated planning package and fix the Sprint 91-first
+Epic 9 execution queue explicitly in writing.
+
+### Actions
+- Re-read the Sprint 90 Day 14 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the validated Day 13 planning baseline and final project plan.
+- Checked whether `docs/planning/EPIC_9/PROJECT_PLAN.md` needed any correction
+  from the actual Sprint 90 result.
+- Confirmed no Day 14 correction was needed.
+- Wrote the Day 14 closeout and handoff artifact.
+- Fixed the Sprint 91-first queue explicitly:
+  - Sprint 91:
+    - compressed-first product convergence first
+  - Sprint 92:
+    - backend maturity second
+  - Sprint 93 onward:
+    - runtime, capability, coherence, maintainability, packaging, comparison,
+      and final closeout later in the already-ranked order
+
+### Findings
+- Sprint 90 now closes as the bounded Epic 9 planning and contract-definition
+  package across:
+  - baseline recheck
+  - target-state freeze
+  - contradiction-map audit
+  - comparison and measurement contract
+  - anti-sprawl and non-goal fence
+  - full review/todo/project-plan package
+  - validated Day 13 planning baseline
+- `docs/planning/EPIC_9/PROJECT_PLAN.md` does not need a Day 14 correction.
+- Sprint 90 closes from the validated Day 13 docs-only planning baseline:
+  - `make quality-review-cmake-compile` passed
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - `make -n bench-canonical-report` remained clean
+- The fixed Sprint 91-first queue is now explicit:
+  - Sprint 91:
+    - compressed-first product convergence first
+  - Sprint 92:
+    - portable backend and dense-kernel maturity second
+  - Sprint 93:
+    - runtime/threading and reviewed-runtime convergence next
+  - Sprint 94:
+    - capability widening after the first structural moves
+  - Sprint 95:
+    - public narrative and workflow coherence after structural moves
+  - Sprint 96:
+    - large-source and giant-test maintainability reduction
+  - Sprint 97:
+    - build/package/workflow convergence after maintainability cleanup
+  - Sprint 98:
+    - broader assurance and external comparison depth
+  - Sprint 99:
+    - final integration, calibration, and Epic 9 closeout
+
+### Validation
+- Re-read the Sprint 90 Day 14 plan contract.
+- Re-read the validated Day 13 baseline and final project plan.
+- Checked whether the project plan needed correction from the actual Sprint 90
+  outcome.
+- Wrote the closeout and handoff artifact from the validated package.
+
+### Day 14 Exit State
+- Sprint 90 now closes from one explicit validated planning package.
+- Epic 9 now starts from a clear, bounded, evidence-backed contract instead of
+  an open-ended wishlist.

@@ -745,3 +745,87 @@ workflow lifecycle clarity.
   natural public entry model for compressed-input callers.
 - Day 10 can rerank from a landed validated public-story batch rather than
   from a pure design contract.
+
+## Day 10 - Proof Design
+
+### Goal
+Define the strongest focused proof follow-through still needed after the Day 6
+constructor landing and the Day 9 public-story landing.
+
+### Actions
+- Re-read the Sprint 91 Day 10 plan contract.
+- Re-read the Day 6 construction/import batch and the Day 9
+  publication/lifecycle batch together.
+- Re-scanned the strongest remaining proof and support owners:
+  - `tests/test_csr.c`
+  - `tests/test_integration.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Re-checked where the new constructor-style APIs are currently proven and
+  where the public direct-workflow lifecycle is currently proven.
+- Fixed the exact Day 11 center, the strongest support-only follow-through
+  map, and the bounded rerun/proof queue.
+- Wrote the Day 10 design artifact and recorded the contract here.
+
+### Findings
+- Sprint 91 now has one exact Day 11 follow-through center:
+  - required center:
+    - `tests/test_integration.c`
+- directly forced support-only follow-through only if the Day 11 batch truly
+  needs them:
+  - `tests/test_csr.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- The strongest remaining proof gap is now explicit:
+  - `tests/test_csr.c` proves that:
+    - `sparse_create_from_csr(...)`
+    - `sparse_create_from_csc(...)`
+    build valid shell objects
+  - `tests/test_integration.c` already owns the public repeated-run direct
+    lifecycle and one-shot vs public-lifecycle agreement story
+  - but the public lifecycle owner does not yet explicitly prove that a
+    constructor-built compressed-input matrix enters those direct workflows
+    cleanly
+- That makes `tests/test_integration.c`, not a second constructor-only unit
+  batch, the highest-value Day 11 owner:
+  - the README now teaches constructor-style compressed-first one-shot entry
+  - the repo therefore needs one focused public-lifecycle proof showing that
+    those constructor-built matrices:
+    - solve correctly on the one-shot direct path
+    - and, where useful, feed the explicit repeated-run direct lifecycle
+      without changing the public contract reading
+- The useful support-only split is now fixed:
+  - `tests/test_csr.c`
+    - only if Day 11 needs a tiny constructor-fixture helper or a narrow
+      entry-path sanity proof alongside the integration owner
+  - `README.md`
+    - only if the new proof exposes wording drift in the compressed-first
+      adoption story
+  - `docs/maintainer_guide.md`
+    - only if the landed proof changes how maintainers should explain the
+      public owner split
+- The benchmark/measurement call is now explicit:
+  - Sprint 91 did not make a new runtime claim
+  - Day 11 therefore does not need a benchmark source change
+  - the strongest measurement confirmation remains the reviewed validation
+    baseline rather than a new touched benchmark lane
+- The explicit Day 11 non-touch list is now fixed:
+  - no new constructor API changes
+  - no sparse shell or lifecycle implementation churn
+  - no benchmark harness widening
+  - no broader Epic 9 external comparison work
+  - no package/install/export or iterative/eigensolver follow-through
+
+### Validation
+- Re-read the Day 6 and Day 9 landed contracts against the current proof
+  owners.
+- Re-scanned the constructor-path and public-lifecycle tests.
+- This was a docs-only design pass, so I did not rerun `make format`,
+  `make lint`, or `make test`.
+
+### Day 10 Exit State
+- The remaining Sprint 91 proof need is now explicit and bounded.
+- Day 11 has one exact focused owner:
+  - `tests/test_integration.c`
+- Broader comparison and benchmark widening remain deferred behind the Sprint
+  91 proof batch.

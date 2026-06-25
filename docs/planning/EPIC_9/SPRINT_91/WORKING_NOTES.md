@@ -1042,3 +1042,86 @@ and record the final Sprint 91 validation baseline.
 - The compressed-first construction, public story, and public-workflow proof
   surfaces are all jointly validated.
 - Day 14 can now close the sprint from an exact retained baseline.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 91 from the validated Day 13 baseline and leave one explicit
+Sprint 92-first handoff queue for Epic 9.
+
+### Actions
+- Re-read the Sprint 91 plan, the Day 13 validated baseline, and the Sprint 92
+  section of `docs/planning/EPIC_9/PROJECT_PLAN.md`.
+- Rechecked whether Sprint 91 forced any project-plan correction.
+- Collapsed the sprint into one bounded closeout reading from the validated
+  branch-local baseline.
+- Fixed the next handoff queue explicitly around Sprint 92 first.
+- Wrote the Day 14 artifact and recorded the final close state here.
+
+### Findings
+- Sprint 91 now closes as one bounded compressed-first product-convergence
+  package across:
+  - linked-list-first shell-cost rerank
+  - bounded compressed-first architecture and boundary contract
+  - Day 6 construction/import landing
+  - Day 9 publication/public-story landing
+  - Day 11 public-workflow proof follow-through
+  - validated Day 13 close baseline
+- `docs/planning/EPIC_9/PROJECT_PLAN.md` does not need a Sprint 91 correction.
+- The final Sprint 91 result matches the frozen project-plan contract:
+  - compressed CSR/CSC inputs now have first-class public constructor-style
+    entry paths
+  - the README now teaches compressed-first direct entry as a real peer lane
+  - the public direct-workflow lifecycle now explicitly proves the new
+    constructor-built paths
+  - the sprint did not reopen broader product-removal, packaging, capability,
+    or runtime lanes
+- The validated Sprint 91 baseline is now fixed as:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `340.76 sec`
+  - focused touched proof owners:
+    - `test_csr` = `13 / 13`
+    - `test_integration` = `58 / 58`
+    - `test_chol_csc` = `151 / 151`
+    - `test_ldlt_csc` = `96 / 96`
+  - representative examples:
+    - `example_analysis` residual = `4.44e-16`
+    - `example_basic_solve` residual = `0.00e+00`
+  - `make bench-canonical-report`
+- The Sprint 92-first handoff queue is now explicit:
+  - Sprint 92:
+    - portable dense backend and kernel maturity first
+  - Sprint 93:
+    - runtime/threading and reviewed-runtime convergence next
+  - later:
+    - capability-envelope widening
+    - public narrative/workflow coherence
+    - maintainability reduction
+    - build/package/workflow convergence
+    - broader comparison depth
+    - final Epic 9 integration and closeout
+- The residual non-blocking note remains explicit:
+  - reviewed `test_reorder_nd` stayed the long pole at `203.14 sec`
+  - that runtime concentration remains later Epic 9 work, not a Sprint 91
+    reopen trigger
+
+### Validation
+- Sprint 91 closes from the retained Day 13 validated baseline.
+- This was a docs-only Day 14 closeout pass, so I did not rerun:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+
+### Day 14 Exit State
+- Sprint 91 closes from one explicit validated baseline.
+- Epic 9 now carries one clearer compressed-first public product model than it
+  did at Sprint 90 handoff.
+- Sprint 92 can start from a fixed backend-maturity queue instead of reopening
+  the Sprint 91 product/lifecycle seam.

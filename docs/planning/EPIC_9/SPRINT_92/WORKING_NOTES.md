@@ -862,3 +862,75 @@ proof, or package work.
 - Day 11 is fixed to `benchmarks/bench_refactor_csc.c`.
 - Support-only wording and build/package movement remain sequenced behind real
   output or command-contract changes.
+
+## Day 11 - Observability and Build Alignment Batch
+
+### Goal
+Land the bounded Sprint 92 observability batch so the retained repeated-run
+LDLT benchmark exposes backend request, actual selected backend, and fallback
+behavior for the widened dense backend seam without widening to QR, broad
+reporting rewrites, or package claims.
+
+### Actions
+- Re-read the Sprint 92 Day 11 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 10 observability design and the Day 9 LDLT backend landing.
+- Updated the benchmark owner in:
+  - `benchmarks/bench_refactor_csc.c`
+- Added directly forced benchmark-side support follow-through in:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Ran the required implementation-day validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Ran focused observability reruns on the landed benchmark center:
+  - `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `SPARSE_LDLT_DENSE_BACKEND=external ./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+- Wrote the Day 11 batch artifact after the queue passed.
+
+### Findings
+- Sprint 92 Day 11 landed one bounded observability batch:
+  - required implementation center:
+    - `benchmarks/bench_refactor_csc.c`
+  - directly forced support-only follow-through:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+- The retained repeated-run LDLT benchmark now exposes three backend-proof
+  fields:
+  - `ldlt_dense_backend_request`
+  - `ldlt_dense_backend_selected`
+  - `ldlt_dense_backend_fallback`
+- The reporting split stayed bounded and truthful:
+  - default SPD / Cholesky rows report `n/a` for the LDLT backend fields
+  - `--indefinite-kkt` rows now expose the widened LDLT dense backend seam
+  - fallback is explicitly visible when an external-capable request resolves
+    back to builtin
+- The focused live reruns confirmed the new output contract on this machine:
+  - default request:
+    - `builtin -> builtin`
+    - fallback = `no`
+  - explicit external request:
+    - `external -> accelerate`
+    - fallback = `no`
+- The Day 10 boundary held:
+  - no QR adoption
+  - no LDLT correctness-test widening
+  - no canonical report script rewrite
+  - no Makefile / CMake follow-through
+  - no README / install-surface wording changes
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- Focused benchmark observability reruns passed:
+  - `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `SPARSE_LDLT_DENSE_BACKEND=external ./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+
+### Day 11 Exit State
+- Sprint 92 has completed its bounded observability batch.
+- The retained LDLT repeated-run benchmark now exposes backend request,
+  backend selection, and fallback state in its CSV output.
+- Day 12 can now freeze the final owner map and validation queue from the live
+  post-Day-11 tree.

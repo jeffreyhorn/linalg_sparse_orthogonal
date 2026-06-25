@@ -727,3 +727,115 @@ intentionally instead of opportunistically.
   evidence classes are clearly separated.
 - Later Day 7-Day 10 risk-fence, review, todo, and plan work can reference
   one stable evidence-class and claim-strength package.
+
+## Day 7 - Non-goal and Risk Fence
+
+### Goal
+Fix the anti-sprawl contract for Epic 9 before the final review, todo, and
+project-plan package is written, so later sprint planning cannot widen the
+epic into fake product claims or undisciplined rewrite work.
+
+### Actions
+- Re-read the Sprint 90 Day 7 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the Day 5 target-state contract and the Day 6
+  comparison-and-measurement contract.
+- Re-read the Epic 9 todo package's Stage 1 anti-sprawl guidance so the Day 7
+  fence stays aligned with the intended epic closure order.
+- Fixed the strongest invalid widenings explicitly:
+  - fake full compressed rewrite claims
+  - fake platform symmetry
+  - fake broad complex/mixed-precision claims
+  - fake benchmark supremacy claims
+  - generic rewrite-without-proof modernization
+- Recorded the strongest execution risks:
+  - branch-wide sprawl
+  - build/package drift
+  - proof-owner overload
+  - runtime/benchmark overclaim
+  - claim inflation from partial wins
+- Fixed the strongest carry-forward boundary areas that may still remain after
+  Epic 9.
+- Wrote the Day 7 artifact and recorded one stable "will do / will not do"
+  boundary in working notes.
+
+### Findings
+- Sprint 90 now has one explicit Epic 9 non-goal and risk fence:
+  - Epic 9 *will* pursue:
+    - bounded compressed-first product-model convergence
+    - bounded portable backend maturity
+    - one real capability-breadth widening
+    - bounded runtime/proof/product-coherence improvement
+    - bounded build/package/workflow convergence
+    - broader but still disciplined comparison depth
+  - Epic 9 *will not* pursue:
+    - a blanket full-library compressed rewrite
+    - fake platform symmetry
+    - fake broad complex or mixed-precision maturity
+    - fake benchmark supremacy
+    - generic rewrite-without-proof modernization
+- The strongest invalid widenings are now fixed:
+  - no blanket "rewrite the whole library in compressed form" story
+  - no product claim that the linked-list shell disappears entirely
+  - no broad complex-scalar claim without real implemented and tested support
+  - no broad mixed-precision claim without real implemented and tested support
+  - no claim of symmetric Linux/macOS/Windows reviewed parity
+  - no claim of broad shared-library-first package maturity unless later
+    work truly lands and proves it
+  - no claim of universal best-in-class runtime, fill quality, or solver
+    performance from bounded touched benchmark slices
+  - no generic modernization rewrite detached from the ranked contradiction map
+    and maintained proof ownership
+- The strongest execution risks are now explicit:
+  - branch-wide sprawl
+  - build/package drift
+  - proof-owner overload
+  - runtime/benchmark overclaim
+  - claim inflation from partial wins
+- The stable execution boundary is now fixed:
+  - Epic 9 will:
+    - move the public product reading closer to compressed-first compute
+      reality
+    - raise the backend ceiling with at least one bounded portable lane
+    - widen capability on at least one high-value real lane
+    - reduce the strongest runtime/control, maintenance, chronology, and
+      duplication costs where they materially affect product credibility
+    - broaden comparison evidence in a bounded, reviewable,
+      claim-disciplined way
+  - Epic 9 will not:
+    - pretend the repo becomes a fully generalized industrial sparse stack in
+      one epic
+    - collapse maintained proof into ad hoc benchmark or workflow claims
+    - reopen every historical rough edge at once
+    - treat every large file or every sprint-era comment as equally urgent
+    - trade truthfulness for ambition in packaging, backend, runtime, or
+      capability wording
+- The strongest carry-forward boundary areas are now fixed:
+  - broader external correctness comparison beyond the bounded maintained lanes
+  - broader ecosystem runtime and reorder/fill comparison depth
+  - broad complex and mixed-precision maturity if Epic 9 lands only one
+    bounded capability widening
+  - full symmetric cross-platform package and workflow maturity
+  - complete elimination of all large mixed-role source and proof owners
+  - full removal of all historical chronology from every permanent surface
+- The strongest Day 7 clarification is now fixed:
+  - Epic 9 should be ambitious, but only inside a hard truthfulness fence
+  - it may move the repo materially closer to a state-of-the-art sparse
+    numerical product
+  - it may not broaden claims faster than proof, implementation, and
+    ownership maturity
+
+### Validation
+- Re-read the Sprint 90 Day 7 plan contract.
+- Re-read the Day 5 target-state and Day 6 comparison contracts.
+- Re-read the Epic 9 todo package's anti-sprawl guidance.
+- Recorded the invalid widenings, execution risks, carry-forward boundaries,
+  and stable will-do/will-not-do fence in the Day 7 artifact.
+
+### Day 7 Exit State
+- Sprint 90 now has one stable anti-sprawl contract.
+- The strongest invalid widenings, execution risks, and carry-forward
+  boundary areas are explicit.
+- Later Day 8-Day 10 review, todo, and plan writing can use one durable
+  "will do / will not do" scope boundary instead of re-deciding epic scope ad
+  hoc.

@@ -293,3 +293,94 @@ highest-value compressed-first seam instead of generic product churn.
   the public matrix-shell story.
 - Day 5 can define the architecture contract without reopening the ranked
   first-center choice.
+
+## Day 5 - Compressed-First Architecture Design
+
+### Goal
+Define the bounded Sprint 91 contract for compressed-first
+construction/import/publication and shell containment before the first code
+landing.
+
+### Actions
+- Re-read the Sprint 91 Day 5 contract in
+  `docs/planning/EPIC_9/SPRINT_91/PLAN.md`.
+- Re-read the Day 4 boundary fence against the Day 3 shell-cost audit.
+- Re-read the strongest current construction/import and shell owners:
+  - `include/sparse_csr.h`
+  - `include/sparse_matrix.h`
+- Rechecked the repeated-run direct owner for contrast:
+  - `include/sparse_analysis.h`
+- Fixed the future role split for:
+  - linked-list shell
+  - CSR/CSC-backed construction/import
+  - publication/export seams
+  - repeated-run direct lifecycle
+- Fixed the compatibility-shim policy and the exact Day 6 implementation
+  center.
+- Wrote the Day 5 architecture artifact and recorded the contract in working
+  notes.
+
+### Findings
+- Sprint 91 now has one explicit compressed-first product contract:
+  - linked-list shell:
+    - remains the mutable sparse construction and one-shot direct-workflow
+      compatibility surface
+    - remains valid for pedagogy, mutation-heavy callers, and compatibility
+      one-shot flows
+    - stops being treated as the only natural public entry path for callers
+      that already have compressed inputs
+  - CSC/CSR-backed construction and import:
+    - should read as first-class public entry paths for callers that already
+      own compressed sparse data
+    - should preserve physical-index-space truth and existing compatibility
+      semantics
+    - should not require broader lifecycle or publication rewrites in the
+      first batch
+  - public publication/export seams:
+    - stay bounded behind the first batch
+    - remain real Sprint 91 work, but as the second seam after entry-path
+      improvement
+- The useful public role split is now explicit:
+  - shell-first path:
+    - mutation and compatibility one-shot direct workflows
+  - compressed-first path:
+    - callers that already own CSR/CSC data
+  - repeated-run direct path:
+    - long-lived symbolic and factor/workspace state through
+      `sparse_analysis.h`
+- The compatibility policy is now fixed:
+  - acceptable to keep:
+    - shell-centered one-shot direct APIs
+    - shell-centered mutation APIs
+    - conversion/export helpers that preserve current behavior while wording
+      and ownership are still being tightened
+  - should stop being conceptual center stage:
+    - the idea that every serious direct or interop workflow must begin by
+      mentally adopting the linked-list shell as the primary owner
+  - explicitly out of scope for the first landing:
+    - broad shell deprecation
+    - broad repeated-run owner rewrites
+    - family-wide compressed-native API redesign
+- The exact Day 6 implementation center is now fixed to:
+  - `include/sparse_csr.h`
+  - the matching import/construction implementation seam behind the public
+    matrix-shell owner
+- The strongest Day 5 clarification is now fixed:
+  - Sprint 91 should promote compressed inputs to first-class public entry
+    paths
+  - it should not claim the whole product is already compressed-first
+  - it should keep the shell as a bounded mutable compatibility surface while
+    removing the strongest unnecessary shell-first conceptual detour
+
+### Validation
+- Re-read the Sprint 91 Day 5 plan contract.
+- Re-read the Day 4 boundary artifact and Day 3 shell-cost audit.
+- Re-scanned the current shell, compressed-import, and repeated-run owner
+  surfaces.
+- Recorded the architecture contract and Day 6 implementation center in the
+  Day 5 artifact.
+
+### Day 5 Exit State
+- Sprint 91 now has one explicit compressed-first architecture contract.
+- The shell is bounded conceptually even though compatibility remains.
+- Day 6 can land the first code batch without reopening product intent.

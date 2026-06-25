@@ -1327,3 +1327,79 @@ and the Day 11 no-op confirmation.
   fixed from a live reviewed parity anchor.
 - Sprint 89 is ready for the full validation sweep and then final Sprint 89
   and Epic 8 closeout writing.
+
+## Day 13 - Full Validation & Reporting Sweep
+
+### Goal
+Run the strongest reviewed baseline, maintained install/export proof, and
+canonical reporting surfaces for the final Epic 8 close baseline.
+
+### Actions
+- Re-read the Day 13 validation-sweep contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Executed the strongest reviewed baseline:
+  - `make quality-review-full`
+- Executed the maintained install/export proof owners:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- Executed the maintained reporting surface:
+  - `make bench-canonical-report`
+- Recorded the exact validation outcomes, parity anchors, and non-blocking
+  runtime note in working notes and the Day 13 artifact.
+
+### Findings
+- The full Day 13 validation/reporting queue now passes cleanly from the live
+  branch state:
+  - `make quality-review-full`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `375.43 sec`
+- The strongest non-blocking runtime note remains explicit:
+  - reviewed `test_reorder_nd` = `215.72 sec`
+  - reviewed total = `375.43 sec`
+  - reorder/ND runtime concentration therefore remains the strongest explicit
+    carry-forward implementation topic, not a Day 13 blocker
+- The maintained install/export proof stayed clean:
+  - `bash tests/test_install.sh`
+    - `13` passed
+    - `0` failed
+  - `bash tests/test_cmake_install.sh`
+    - `15` passed
+    - `0` failed
+    - `0` skipped
+- The maintained canonical reporting surface stayed clean:
+  - `make bench-canonical-report` wrote:
+    - `build/bench-reports/canonical/bench_refactor_csc.csv`
+    - `build/bench-reports/canonical/bench_chol_csc.csv`
+    - `build/bench-reports/canonical/bench_iterative_reuse.csv`
+    - `build/bench-reports/canonical/bench_eigs_reuse.csv`
+    - `build/bench-reports/canonical/index.tsv`
+    - `build/bench-reports/canonical/manifest.txt`
+- The exact Day 13 touch implication is now explicit:
+  - no touched follow-on proofs were required beyond the frozen queue
+  - Day 11 remained a true no-op, so no extra proof-owner reruns were needed
+- The strongest Day 13 clarification is now explicit:
+  - Sprint 89 now has one fully validated final close baseline
+  - reviewed correctness, maintained package shape, and maintained reporting
+    are all explicit in writing from the same branch state
+  - only non-blocking carry-forward runtime concentration remains going into
+    final Sprint 89 and Epic 8 closeout writing
+
+### Validation
+- Re-read the Sprint 89 Day 13 plan contract.
+- Executed:
+  - `make quality-review-full`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make bench-canonical-report`
+
+### Day 13 Exit State
+- Sprint 89 now has one explicit validated Epic 8 close baseline.
+- The strongest maintained reviewed, package, and reporting surfaces all pass
+  from the live branch state.
+- Day 14 can close Sprint 89 and Epic 8 from a validated, sourceable state.

@@ -237,3 +237,134 @@ surfaces rather than against flattened assumptions.
   writing.
 - Later Day 3-Day 10 audit, design, review, and plan work no longer needs to
   guess which surfaces are authoritative.
+
+## Day 3 - Product, Performance, and Capability Gap Audit
+
+### Goal
+Reduce the broad post-Epic-8 structural problem to one ranked live
+contradiction map across the public product model, dense/backend maturity, and
+capability breadth so Epic 9 can choose real implementation centers rather
+than another generic modernization story.
+
+### Actions
+- Re-read the Sprint 90 Day 3 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the strongest Epic 9 baseline review and closure-order package:
+  - `docs/planning/EPIC_9/reviews/review-codex-2026-06-24.md`
+  - `docs/planning/EPIC_9/reviews/todo-codex-2026-06-24.md`
+- Re-scanned the live tree against the strongest structural concern classes:
+  - linked-list-first public/product model
+  - dense/backend maturity ceiling
+  - capability breadth and ABI/index maturity
+- Re-anchored the audit directly on the current product and implementation
+  surfaces:
+  - `README.md`
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+  - `src/sparse_dense.c`
+  - `src/sparse_matrix.c`
+  - `src/sparse_ldlt_csc.c`
+- Rechecked the live wording around:
+  - the public orthogonal linked-list shell
+  - bounded compressed-first helpers
+  - real-only `sparse_scalar_t`
+  - optional Accelerate-backed dense/direct slices
+  - optional OpenMP/runtime lanes
+- Wrote the Day 3 ranked contradiction artifact and fixed the strongest owner
+  surfaces in writing.
+
+### Findings
+- Sprint 90's broad structural problem is now reduced to one ranked live map:
+  - strongest first target:
+    - compressed-first product-model convergence centered on the public
+      matrix-shell and direct-workflow ownership story
+  - strongest second target:
+    - portable dense/backend maturity beyond the current builtin scalar core
+      plus bounded optional Accelerate slices
+  - strongest third target:
+    - capability-surface widening beyond the current real-only scalar and
+      intentionally bounded solver/eigensolver breadth
+  - strongest fourth target:
+    - runtime/threading and ABI/index follow-through only where they sharpen
+      the first three structural lanes
+  - strongest support-only but real target:
+    - public/support wording that still truthfully reflects the narrower
+      current product, backend, and capability reading
+- The strongest current contradiction is now explicit:
+  - `README.md` still introduces the library as an orthogonal linked-list
+    sparse matrix library
+  - `include/sparse_matrix.h` still presents the matrix shell as the library's
+    mutable sparse construction and one-shot direct-workflow compatibility
+    shell
+  - the same header explicitly says compressed-first helpers may exist
+    internally, but the public ownership model still stays with that
+    compatibility shell
+  - `src/sparse_matrix.c` remains a major shell/mutation/utility owner
+- The strongest second contradiction is backend maturity:
+  - `src/sparse_dense.c` still owns scalar builtin dense helpers
+  - `src/sparse_ldlt_csc.c` still exposes only a bounded optional Accelerate
+    lane rather than a portable backend story
+  - the repo now has backend architecture, but not yet backend maturity
+- The strongest third contradiction is capability breadth:
+  - `include/sparse_types.h` still binds `sparse_scalar_t` to real-only
+    `double`
+  - the same header explicitly says this does not imply broad numeric
+    genericity, complex support, or wider precision maturity today
+  - `README.md` still keeps iterative/eigensolver breadth intentionally
+    bounded
+  - wider indices are real, but still read as a compile-time lane rather than
+    as deeply matured product-wide support
+- The strongest owner surfaces are now fixed:
+  - product model:
+    - `README.md`
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+  - backend/performance:
+    - `src/sparse_dense.c`
+    - `src/sparse_ldlt_csc.c`
+    - `README.md`
+  - capability surface:
+    - `include/sparse_types.h`
+    - `README.md`
+    - later touched iterative/eigs/direct public headers if widening truly
+      moves there
+- The useful fix-now vs bounded non-claim split is now explicit:
+  - fix-now Epic 9 structural contradictions:
+    - linked-list-first public/product ownership
+    - bounded dense/backend maturity
+    - bounded capability breadth
+  - bounded non-claims for now:
+    - broad complex support
+    - broad mixed precision
+    - symmetric platform/package maturity
+    - broad best-in-class runtime or ordering claims
+  - contradictions already materially improved by Epic 8:
+    - package/install/export truth
+    - front-door usability and support layering
+    - bounded external SPD comparison
+    - shared scalar/index ownership consistency on touched seams
+    - reviewed runtime concentration relative to the Sprint 85 close state
+- The strongest Day 3 clarification is now fixed:
+  - Epic 9 should not begin with another generic modernization lane
+  - it should begin with a compressed-first product-model center
+  - portable backend maturity follows next
+  - capability widening follows after that
+  - runtime/threading and ABI/index maturity remain real, but explicitly
+    later unless Day 5 target-state design proves otherwise
+
+### Validation
+- Re-read the Sprint 90 Day 3 plan contract.
+- Re-read the Epic 9 review and todo package.
+- Rechecked the live product-model, backend, and scalar/index wording in the
+  touched public and implementation surfaces.
+- Recorded the ranked contradiction map and strongest owner surfaces in the
+  Day 3 artifact.
+
+### Day 3 Exit State
+- Sprint 90 now has one ranked live product/performance/capability
+  contradiction map grounded in the current tree.
+- The first structural Epic 9 center is fixed to compressed-first
+  product-model convergence.
+- Portable backend maturity, capability widening, and runtime/ABI follow-through
+  are explicitly ordered behind that first center before Day 4 widens into
+  maintainability, coherence, and workflow duplication.

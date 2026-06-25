@@ -839,3 +839,103 @@ epic into fake product claims or undisciplined rewrite work.
 - Later Day 8-Day 10 review, todo, and plan writing can use one durable
   "will do / will not do" scope boundary instead of re-deciding epic scope ad
   hoc.
+
+## Day 8 - Review Structure and Evidence Freeze
+
+### Goal
+Turn the Day 2-Day 7 audit, target, comparison, and risk outputs into one
+final review structure so the Epic 9 review can be drafted from a frozen
+evidence package rather than from another open-ended repo-wide reinterpretation.
+
+### Actions
+- Re-read the Sprint 90 Day 8 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the prior review structure in:
+  - `docs/planning/EPIC_8/reviews/review-codex-2026-06-18.md`
+  - `docs/planning/EPIC_9/reviews/review-codex-2026-06-24.md`
+- Re-read the current Day 3-Day 7 Sprint 90 artifacts so the review outline,
+  evidence map, and checklist stay aligned with the frozen contradiction,
+  target, comparison, and anti-sprawl contracts.
+- Fixed the final review outline explicitly:
+  - `Scope`
+  - `Baseline`
+  - `Executive Verdict`
+  - `What The Project Does Unusually Well`
+  - `Repository Snapshot`
+  - `Findings`
+  - `Category Assessment`
+  - `Bottom-Line Gap Summary`
+- Mapped the evidence sources each major review section must cite.
+- Fixed the Day 9 review-writing checklist so the review stays evidence-backed
+  and does not drift into generic sparse-library commentary.
+
+### Findings
+- Sprint 90 now has one exact Epic 9 review-writing structure:
+  - `Scope`
+  - `Baseline`
+  - `Executive Verdict`
+  - `What The Project Does Unusually Well`
+  - `Repository Snapshot`
+  - `Findings`
+  - `Category Assessment`
+  - `Bottom-Line Gap Summary`
+- The strongest Day 9 writing rule is now fixed:
+  - the review must distinguish:
+    - actual engineering debt
+    - bounded non-claims
+    - Epic 8 improvements that already materially moved the repo
+- The evidence map is now explicit:
+  - `Scope`:
+    - Epic 9 project-plan surface plus the live post-Epic-8 tree
+  - `Baseline`:
+    - Day 2 maintained-surface contract
+  - `Executive Verdict`:
+    - Day 3 and Day 4 contradiction maps
+    - Day 5 target-state contract
+    - Day 6 comparison contract
+    - Day 7 anti-sprawl fence
+  - `Strengths`:
+    - validated reviewed baseline
+    - bounded external SPD comparison
+    - install/export proof
+    - materially cleaner front door and support split
+    - broad proof ownership
+  - `Repository Snapshot`:
+    - Day 4 implementation, proof, and support/build/workflow measurements
+  - `Findings`:
+    - Day 3 product/backend/capability contradictions
+    - Day 4 maintainability/coherence/duplication contradictions
+    - Day 6 comparison-depth contradiction
+  - `Category Assessment`:
+    - synthesized from the Day 3-Day 6 contract stack
+  - `Bottom-Line Gap Summary`:
+    - the frozen ranked closure order from the Sprint 90 artifacts
+- The review-writing checklist is now fixed:
+  - cite the maintained baseline before making gap claims
+  - lead with the verdict, not changelog recap
+  - preserve the strongest strengths explicitly
+  - keep the findings ranked
+  - distinguish real debt from bounded non-claims
+  - distinguish current gaps from Epic 8 issues already materially reduced
+  - keep comparison ambition disciplined by the Day 6 evidence fence
+  - keep product ambition disciplined by the Day 5 target-state contract
+  - avoid generic sparse-library commentary detached from repo evidence
+- The strongest Day 8 clarification is now fixed:
+  - the final Epic 9 review should not be a fresh brainstorm
+  - it should be a structured verdict written from a frozen evidence package
+  - it may be blunt, but it may not drift away from the Day 2-Day 7 contract
+    stack
+
+### Validation
+- Re-read the Sprint 90 Day 8 plan contract.
+- Re-read the prior Epic review structures.
+- Re-read the Day 3-Day 7 Sprint 90 artifacts.
+- Recorded the final outline, evidence map, and review-writing checklist in
+  the Day 8 artifact.
+
+### Day 8 Exit State
+- Sprint 90 now has one frozen review structure and evidence map.
+- Day 9 can draft the Epic 9 review from a stable package without reopening
+  scope, ranking, or claim-fence questions.
+- Later todo and project-plan drafting can inherit the same frozen ranked gap
+  set.

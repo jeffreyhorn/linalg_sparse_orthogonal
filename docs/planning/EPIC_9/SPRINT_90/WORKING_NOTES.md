@@ -939,3 +939,84 @@ evidence package rather than from another open-ended repo-wide reinterpretation.
   scope, ranking, or claim-fence questions.
 - Later todo and project-plan drafting can inherit the same frozen ranked gap
   set.
+
+## Day 9 - Epic 9 Review Draft
+
+### Goal
+Write the full repo-wide Epic 9 review from the frozen Day 8 structure and
+evidence package so later todo and project-plan drafting can inherit one
+stable ranked finding set.
+
+### Actions
+- Re-read the Sprint 90 Day 8 review structure and evidence-freeze artifact.
+- Re-read the prior Epic 9 review draft from `2026-06-24` as the closest
+  structural baseline.
+- Drafted the dated Sprint 90 review at:
+  - `docs/planning/EPIC_9/reviews/review-codex-2026-06-25.md`
+- Preserved the frozen review structure exactly:
+  - `Scope`
+  - `Baseline`
+  - `Executive Verdict`
+  - `What The Project Does Unusually Well`
+  - `Repository Snapshot`
+  - `Findings`
+  - `Category Assessment`
+  - `Bottom-Line Gap Summary`
+- Kept the frozen writing rules explicit:
+  - cite the maintained baseline before making gap claims
+  - preserve the strongest post-Epic-8 strengths
+  - keep the findings ranked
+  - distinguish actual engineering debt from bounded non-claims
+  - distinguish current gaps from Epic 8 problems already materially reduced
+- Wrote the Day 9 artifact to record the draft state and the preserved finding
+  set.
+
+### Findings
+- Sprint 90 now has a complete dated Epic 9 review draft at:
+  - `docs/planning/EPIC_9/reviews/review-codex-2026-06-25.md`
+- The draft preserves the frozen Day 8 structure exactly:
+  - `Scope`
+  - `Baseline`
+  - `Executive Verdict`
+  - `What The Project Does Unusually Well`
+  - `Repository Snapshot`
+  - `Findings`
+  - `Category Assessment`
+  - `Bottom-Line Gap Summary`
+- The draft explicitly covers all requested evaluation dimensions:
+  - code efficiency
+  - maintainability
+  - usability
+  - documentation quality
+  - cross-surface coherence
+  - test coverage
+  - state-of-the-art sparse linear algebra readiness
+- The review draft now carries the frozen ranked contradiction set:
+  1. linked-list-first public/core product model
+  2. dense/backend ceiling too low for a top-tier performance claim
+  3. capability surface still too narrow
+  4. concurrency/runtime story still partial and family-local
+  5. maintainability hotspots still too concentrated
+  6. sprint-era chronology still leaks into permanent surfaces
+  7. build/package/workflow topology still too manual and duplicated
+  8. test coverage is strong but still fragmented and operationally heavy
+  9. usability is improved but still spread across too many large surfaces
+  10. comparison depth is still too bounded for a top competitive claim
+- The strongest Day 9 clarification is now fixed:
+  - the review draft does not reopen scope
+  - it uses the frozen Day 2-Day 8 package
+  - it keeps the verdict blunt without widening into fake claims or generic
+    sparse-library commentary
+
+### Validation
+- Re-read the Sprint 90 Day 8 review-freeze artifact.
+- Re-read the prior Epic 9 review draft from `2026-06-24`.
+- Drafted the new dated review and checked that it preserves the frozen
+  section structure and ranked finding set.
+- Recorded the draft state in the Day 9 artifact.
+
+### Day 9 Exit State
+- Sprint 90 now has one complete Epic 9 review draft grounded in the frozen
+  evidence package.
+- Day 10 can convert that ranked review directly into the staged gap-closure
+  todo without reopening the repo-wide verdict.

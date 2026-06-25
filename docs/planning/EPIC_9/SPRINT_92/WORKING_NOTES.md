@@ -507,3 +507,72 @@ the Day 4 boundary.
   strongest Cholesky-side adopter as directly forced follow-through.
 - Later LDL^T, QR, benchmark, and package work stays sequenced behind the
   first backend landing.
+
+## Day 6 - Portable Backend Integration Batch
+
+### Goal
+Land the first bounded portable-backend integration batch in the shared dense
+owner, keeping builtin kernels authoritative while widening the runtime-probed
+optional external backend seam for the strongest current direct-family adopter.
+
+### Actions
+- Implemented the Day 5 first landing in:
+  - `src/sparse_dense.c`
+- Widened the shared dense-kernel runtime probe from the prior bounded
+  Apple-only seam into one optional external BLAS/LAPACK-class provider seam
+  with builtin fallback still authoritative.
+- Added provider-name and environment-selection support for:
+  - builtin
+  - Accelerate when present on Apple
+  - external BLAS/LAPACK-class providers when present through runtime loading
+- Kept the first adopter bounded to the existing Cholesky supernodal dense
+  descriptor contract through:
+  - `src/sparse_chol_csc_internal.h`
+- Added the directly forced proof follow-through in:
+  - `tests/test_chol_csc.c`
+- Added the directly forced build/link follow-through for non-Apple POSIX
+  `dlopen` resolution in:
+  - `Makefile`
+  - `CMakeLists.txt`
+- Ran the required implementation-day validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+### Findings
+- Sprint 92 Day 6 landed as one bounded shared-dense-owner batch rather than a
+  broad dense-family rewrite:
+  - `src/sparse_dense.c` now owns one wider optional external
+    BLAS/LAPACK-class dense-kernel seam
+  - builtin kernels remain the default and authoritative fallback
+  - the first adopted consumer remains the existing Cholesky supernodal dense
+    backend descriptor path
+- The backend-name/runtime contract is now sharper without reopening the
+  public product contract:
+  - builtin remains `builtin`
+  - optional Apple provider remains visible as `accelerate`
+  - optional non-Apple or generic external provider is surfaced as
+    `blas-lapack`
+  - invalid or unavailable external requests still fail closed to builtin
+- The directly forced support-only movement stayed bounded:
+  - no LDL^T adoption movement
+  - no QR adoption movement
+  - no benchmark/reporting widening
+  - no README / install / maintainer wording follow-through
+  - no install/export or workflow-surface movement
+- The only validation interruption was one local lint correction in the new
+  preprocessor style inside `src/sparse_dense.c`; after that fix, the full
+  queue passed from the top.
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 6 Exit State
+- Sprint 92 now has one landed optional portable dense-backend seam in the
+  shared dense owner with builtin fallback still authoritative.
+- The first adoption stays bounded to the Cholesky supernodal dense path and
+  its proof/build follow-through.
+- Day 7 can now rerank from a real landed backend seam instead of from the Day
+  5 design contract alone.

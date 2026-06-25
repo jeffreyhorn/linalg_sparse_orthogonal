@@ -709,8 +709,10 @@ typedef struct {
  * lane.
  *
  * The current authoritative path remains the self-contained built-in kernel
- * set.  The accessor exists so the supernodal path can depend on one bounded
- * internal abstraction seam instead of hardcoding dense-kernel ownership into
+ * set, but Sprint 92 widens this seam so the same accessor can publish one
+ * bounded optional external BLAS/LAPACK-class provider when available. The
+ * supernodal path therefore depends on one narrow internal abstraction seam
+ * instead of hardcoding dense-kernel ownership into
  * `src/sparse_chol_csc_supernodal.c`.
  */
 const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void);

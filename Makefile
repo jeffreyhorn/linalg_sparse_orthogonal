@@ -8,6 +8,9 @@ ifneq ($(SYSROOT),)
 CFLAGS += -isysroot $(SYSROOT)
 endif
 LDFLAGS = -lm
+ifeq ($(shell uname -s),Linux)
+LDFLAGS += -ldl
+endif
 # When SPARSE_MUTEX is enabled, all binaries need -pthread
 ifdef SPARSE_MUTEX
 CFLAGS  += -DSPARSE_MUTEX

@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifndef _WIN32
 #include <dlfcn.h>
 #endif
 
@@ -274,92 +274,144 @@ static int s64_idx_to_blas_int_checked(idx_t value, int *out) {
     return 1;
 }
 
-#ifdef __APPLE__
-typedef void (*s64_accel_dpotrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
-                                    int *info);
-typedef void (*s64_accel_dtrsv_fn)(const char *uplo, const char *trans, const char *diag,
-                                   const int *n, const double *a, const int *lda, double *x,
-                                   const int *incx);
-typedef void (*s64_accel_dtrsm_fn)(const char *side, const char *uplo, const char *transa,
-                                   const char *diag, const int *m, const int *n,
-                                   const double *alpha, const double *a, const int *lda, double *b,
-                                   const int *ldb);
+#ifndef _WIN32
+typedef void (*s64_ext_dpotrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
+                                  int *info);
+typedef void (*s64_ext_dtrsv_fn)(const char *uplo, const char *trans, const char *diag,
+                                 const int *n, const double *a, const int *lda, double *x,
+                                 const int *incx);
+typedef void (*s64_ext_dtrsm_fn)(const char *side, const char *uplo, const char *transa,
+                                 const char *diag, const int *m, const int *n, const double *alpha,
+                                 const double *a, const int *lda, double *b, const int *ldb);
 
-static void *s64_accel_handle = NULL;
-static s64_accel_dpotrf_fn s64_accel_dpotrf = NULL;
-static s64_accel_dtrsv_fn s64_accel_dtrsv = NULL;
-static s64_accel_dtrsm_fn s64_accel_dtrsm = NULL;
-static atomic_int s64_accel_probe_state = ATOMIC_VAR_INIT(0);
+typedef enum {
+    S64_EXT_PROVIDER_NONE = 0,
+    S64_EXT_PROVIDER_ACCELERATE = 1,
+    S64_EXT_PROVIDER_BLAS_LAPACK = 2,
+} s64_ext_provider_t;
 
-static int s64_accel_probe_dense_kernels(void) {
+typedef struct {
+    const char *path;
+    s64_ext_provider_t provider;
+} s64_ext_candidate_t;
+
+static void *s64_ext_handles[8];
+static size_t s64_ext_handle_count = 0;
+static s64_ext_dpotrf_fn s64_ext_dpotrf = NULL;
+static s64_ext_dtrsv_fn s64_ext_dtrsv = NULL;
+static s64_ext_dtrsm_fn s64_ext_dtrsm = NULL;
+static s64_ext_provider_t s64_ext_provider = S64_EXT_PROVIDER_NONE;
+static atomic_int s64_ext_probe_state = ATOMIC_VAR_INIT(0);
+
+static void s64_ext_reset_dense_kernels(void) {
+    for (size_t i = 0; i < s64_ext_handle_count; i++) {
+        if (s64_ext_handles[i])
+            dlclose(s64_ext_handles[i]);
+        s64_ext_handles[i] = NULL;
+    }
+    s64_ext_handle_count = 0;
+    s64_ext_dpotrf = NULL;
+    s64_ext_dtrsv = NULL;
+    s64_ext_dtrsm = NULL;
+    s64_ext_provider = S64_EXT_PROVIDER_NONE;
+}
+
+static void *s64_ext_find_symbol(const char *name) {
+    if (!name)
+        return NULL;
+    for (size_t i = 0; i < s64_ext_handle_count; i++) {
+        if (!s64_ext_handles[i])
+            continue;
+        void *sym = dlsym(s64_ext_handles[i], name);
+        if (sym)
+            return sym;
+    }
+    return NULL;
+}
+
+static int s64_ext_probe_dense_kernels(void) {
     enum {
-        S64_ACCEL_UNINITIALIZED = 0,
-        S64_ACCEL_INITIALIZING = 1,
-        S64_ACCEL_READY = 2,
-        S64_ACCEL_FAILED = 3,
+        S64_EXT_UNINITIALIZED = 0,
+        S64_EXT_INITIALIZING = 1,
+        S64_EXT_READY = 2,
+        S64_EXT_FAILED = 3,
     };
 
-    int state = atomic_load_explicit(&s64_accel_probe_state, memory_order_acquire);
-    if (state == S64_ACCEL_READY)
+    int state = atomic_load_explicit(&s64_ext_probe_state, memory_order_acquire);
+    if (state == S64_EXT_READY)
         return 1;
-    if (state == S64_ACCEL_FAILED)
+    if (state == S64_EXT_FAILED)
         return 0;
 
-    int expected = S64_ACCEL_UNINITIALIZED;
-    if (atomic_compare_exchange_strong_explicit(&s64_accel_probe_state, &expected,
-                                                S64_ACCEL_INITIALIZING, memory_order_acq_rel,
+    int expected = S64_EXT_UNINITIALIZED;
+    if (atomic_compare_exchange_strong_explicit(&s64_ext_probe_state, &expected,
+                                                S64_EXT_INITIALIZING, memory_order_acq_rel,
                                                 memory_order_acquire)) {
-        void *handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
-                              RTLD_LAZY | RTLD_LOCAL);
-        s64_accel_dpotrf_fn dpotrf = NULL;
-        s64_accel_dtrsv_fn dtrsv = NULL;
-        s64_accel_dtrsm_fn dtrsm = NULL;
+        static const s64_ext_candidate_t candidates[] = {
+#ifdef __APPLE__
+            {"/System/Library/Frameworks/Accelerate.framework/Accelerate",
+             S64_EXT_PROVIDER_ACCELERATE},
+            {"/opt/homebrew/opt/openblas/lib/libopenblas.dylib", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"/usr/local/opt/openblas/lib/libopenblas.dylib", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"libopenblas.dylib", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.dylib", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.dylib", S64_EXT_PROVIDER_BLAS_LAPACK},
+#else
+            {"libopenblas.so", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"libopenblas.so.0", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.so.3", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.so", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.so.3", S64_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.so", S64_EXT_PROVIDER_BLAS_LAPACK},
+#endif
+        };
+        s64_ext_reset_dense_kernels();
 
-        if (handle) {
-            dpotrf = (s64_accel_dpotrf_fn)dlsym(handle, "dpotrf_");
-            dtrsv = (s64_accel_dtrsv_fn)dlsym(handle, "dtrsv_");
-            dtrsm = (s64_accel_dtrsm_fn)dlsym(handle, "dtrsm_");
-        }
-        if (!handle || !dpotrf || !dtrsv || !dtrsm) {
-            if (handle)
-                dlclose(handle);
-            s64_accel_handle = NULL;
-            s64_accel_dpotrf = NULL;
-            s64_accel_dtrsv = NULL;
-            s64_accel_dtrsm = NULL;
-            atomic_store_explicit(&s64_accel_probe_state, S64_ACCEL_FAILED, memory_order_release);
-            return 0;
+        for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+            if (s64_ext_handle_count >= sizeof(s64_ext_handles) / sizeof(s64_ext_handles[0]))
+                break;
+
+            void *handle = dlopen(candidates[i].path, RTLD_LAZY | RTLD_LOCAL);
+            if (!handle)
+                continue;
+
+            s64_ext_handles[s64_ext_handle_count++] = handle;
+            s64_ext_dpotrf = (s64_ext_dpotrf_fn)s64_ext_find_symbol("dpotrf_");
+            s64_ext_dtrsv = (s64_ext_dtrsv_fn)s64_ext_find_symbol("dtrsv_");
+            s64_ext_dtrsm = (s64_ext_dtrsm_fn)s64_ext_find_symbol("dtrsm_");
+
+            if (s64_ext_dpotrf && s64_ext_dtrsv && s64_ext_dtrsm) {
+                s64_ext_provider = candidates[i].provider;
+                atomic_store_explicit(&s64_ext_probe_state, S64_EXT_READY, memory_order_release);
+                return 1;
+            }
         }
 
-        s64_accel_handle = handle;
-        s64_accel_dpotrf = dpotrf;
-        s64_accel_dtrsv = dtrsv;
-        s64_accel_dtrsm = dtrsm;
-        atomic_store_explicit(&s64_accel_probe_state, S64_ACCEL_READY, memory_order_release);
-        return 1;
+        s64_ext_reset_dense_kernels();
+        atomic_store_explicit(&s64_ext_probe_state, S64_EXT_FAILED, memory_order_release);
+        return 0;
     }
 
     do {
-        state = atomic_load_explicit(&s64_accel_probe_state, memory_order_acquire);
-    } while (state == S64_ACCEL_INITIALIZING);
+        state = atomic_load_explicit(&s64_ext_probe_state, memory_order_acquire);
+    } while (state == S64_EXT_INITIALIZING);
 
-    return state == S64_ACCEL_READY;
+    return state == S64_EXT_READY;
 }
 
-static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
+static sparse_err_t s64_external_chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
     if (!A)
         return SPARSE_ERR_NULL;
     if (n < 0 || lda < n)
         return SPARSE_ERR_BADARG;
     if (n == 0)
         return SPARSE_OK;
-    if (!s64_accel_probe_dense_kernels())
+    if (!s64_ext_probe_dense_kernels())
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     int n_blas = 0;
     int lda_blas = 0;
     if (!s64_idx_to_blas_int_checked(n, &n_blas) || !s64_idx_to_blas_int_checked(lda, &lda_blas))
-        /* BLAS-int width overflow is an optional-backend contract limit, not OOM. */
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     double ref_norm = 0.0;
@@ -373,7 +425,7 @@ static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t l
 
     const char uplo = 'L';
     int info = 0;
-    s64_accel_dpotrf(&uplo, &n_blas, A, &lda_blas, &info);
+    s64_ext_dpotrf(&uplo, &n_blas, A, &lda_blas, &info);
     if (info < 0)
         return SPARSE_ERR_BACKEND_CONTRACT;
     if (info > 0)
@@ -386,15 +438,15 @@ static sparse_err_t s64_accelerate_chol_dense_factor(double *A, idx_t n, idx_t l
     return SPARSE_OK;
 }
 
-static sparse_err_t s64_accelerate_chol_dense_solve_lower(const double *L, idx_t n, idx_t lda,
-                                                          double *b) {
+static sparse_err_t s64_external_chol_dense_solve_lower(const double *L, idx_t n, idx_t lda,
+                                                        double *b) {
     if (!L || !b)
         return SPARSE_ERR_NULL;
     if (n < 0 || lda < n)
         return SPARSE_ERR_BADARG;
     if (n == 0)
         return SPARSE_OK;
-    if (!s64_accel_probe_dense_kernels())
+    if (!s64_ext_probe_dense_kernels())
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     int n_blas = 0;
@@ -411,13 +463,13 @@ static sparse_err_t s64_accelerate_chol_dense_solve_lower(const double *L, idx_t
     const char trans = 'N';
     const char diag = 'N';
     const int incx = 1;
-    s64_accel_dtrsv(&uplo, &trans, &diag, &n_blas, L, &lda_blas, b, &incx);
+    s64_ext_dtrsv(&uplo, &trans, &diag, &n_blas, L, &lda_blas, b, &incx);
     return SPARSE_OK;
 }
 
-static sparse_err_t s64_accelerate_chol_dense_solve_panel(const double *L, idx_t n, idx_t lda,
-                                                          double *panel, idx_t ldb,
-                                                          idx_t panel_rows) {
+static sparse_err_t s64_external_chol_dense_solve_panel(const double *L, idx_t n, idx_t lda,
+                                                        double *panel, idx_t ldb,
+                                                        idx_t panel_rows) {
     if (!L)
         return SPARSE_ERR_NULL;
     if (n < 0 || lda < n || panel_rows < 0)
@@ -428,7 +480,7 @@ static sparse_err_t s64_accelerate_chol_dense_solve_panel(const double *L, idx_t
         return SPARSE_ERR_NULL;
     if (ldb < panel_rows)
         return SPARSE_ERR_BADARG;
-    if (!s64_accel_probe_dense_kernels())
+    if (!s64_ext_probe_dense_kernels())
         return SPARSE_ERR_BACKEND_CONTRACT;
 
     int n_blas = 0;
@@ -450,21 +502,25 @@ static sparse_err_t s64_accelerate_chol_dense_solve_panel(const double *L, idx_t
     const char transa = 'T';
     const char diag = 'N';
     const double alpha = 1.0;
-    s64_accel_dtrsm(&side, &uplo, &transa, &diag, &panel_rows_blas, &n_blas, &alpha, L, &lda_blas,
-                    panel, &ldb_blas);
+    s64_ext_dtrsm(&side, &uplo, &transa, &diag, &panel_rows_blas, &n_blas, &alpha, L, &lda_blas,
+                  panel, &ldb_blas);
     return SPARSE_OK;
 }
 #endif
 
 typedef enum {
     S64_CHOL_DENSE_BACKEND_BUILTIN = 0,
-    S64_CHOL_DENSE_BACKEND_ACCELERATE = 1,
+    S64_CHOL_DENSE_BACKEND_EXTERNAL = 1,
+    S64_CHOL_DENSE_BACKEND_ACCELERATE = 2,
 } s64_chol_dense_backend_t;
 
 static s64_chol_dense_backend_t s64_read_chol_dense_backend_env(void) {
     const char *value = getenv("SPARSE_CHOL_DENSE_BACKEND");
     if (!value || value[0] == '\0')
         return S64_CHOL_DENSE_BACKEND_BUILTIN;
+    if (strcmp(value, "external") == 0 || strcmp(value, "blas") == 0 ||
+        strcmp(value, "lapack") == 0)
+        return S64_CHOL_DENSE_BACKEND_EXTERNAL;
     if (strcmp(value, "accelerate") == 0)
         return S64_CHOL_DENSE_BACKEND_ACCELERATE;
     return S64_CHOL_DENSE_BACKEND_BUILTIN;
@@ -477,12 +533,19 @@ static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
     .solve_panel = chol_dense_solve_panel,
 };
 
-#ifdef __APPLE__
+#ifndef _WIN32
 static const chol_dense_kernels_t s64_accelerate_chol_dense_kernels = {
     .name = "accelerate",
-    .factor = s64_accelerate_chol_dense_factor,
-    .solve_lower = s64_accelerate_chol_dense_solve_lower,
-    .solve_panel = s64_accelerate_chol_dense_solve_panel,
+    .factor = s64_external_chol_dense_factor,
+    .solve_lower = s64_external_chol_dense_solve_lower,
+    .solve_panel = s64_external_chol_dense_solve_panel,
+};
+
+static const chol_dense_kernels_t s64_blas_lapack_chol_dense_kernels = {
+    .name = "blas-lapack",
+    .factor = s64_external_chol_dense_factor,
+    .solve_lower = s64_external_chol_dense_solve_lower,
+    .solve_panel = s64_external_chol_dense_solve_panel,
 };
 #endif
 
@@ -492,10 +555,19 @@ static int s64_test_override_dense_kernels_enabled = 0;
 const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void) {
     if (s64_test_override_dense_kernels_enabled)
         return s64_test_override_dense_kernels;
+#ifndef _WIN32
+    s64_chol_dense_backend_t backend = s64_read_chol_dense_backend_env();
+    if (backend == S64_CHOL_DENSE_BACKEND_EXTERNAL && s64_ext_probe_dense_kernels()) {
+        if (s64_ext_provider == S64_EXT_PROVIDER_ACCELERATE)
+            return &s64_accelerate_chol_dense_kernels;
+        if (s64_ext_provider == S64_EXT_PROVIDER_BLAS_LAPACK)
+            return &s64_blas_lapack_chol_dense_kernels;
+    }
 #ifdef __APPLE__
-    if (s64_read_chol_dense_backend_env() == S64_CHOL_DENSE_BACKEND_ACCELERATE &&
-        s64_accel_probe_dense_kernels())
+    if (backend == S64_CHOL_DENSE_BACKEND_ACCELERATE && s64_ext_probe_dense_kernels() &&
+        s64_ext_provider == S64_EXT_PROVIDER_ACCELERATE)
         return &s64_accelerate_chol_dense_kernels;
+#endif
 #endif
     return &s64_builtin_chol_dense_kernels;
 }

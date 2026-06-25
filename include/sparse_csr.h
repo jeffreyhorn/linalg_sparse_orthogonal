@@ -7,6 +7,10 @@
  *
  * Provides conversion between the orthogonal linked-list representation
  * and standard compressed formats for interoperability with other libraries.
+ * It also exposes compressed-first construction entry paths for callers that
+ * already own CSR or CSC data and want to enter the public matrix-shell
+ * workflow without treating linked-list mutation as the conceptual starting
+ * point.
  *
  * @note These operate in physical index space. Do not use on matrices with
  *       non-identity permutations (e.g., after LU factorization).
@@ -57,6 +61,24 @@ typedef struct {
 sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr);
 
 /**
+ * @brief Create a SparseMatrix from CSR format through the compressed-first
+ *        public entry path.
+ *
+ * This is the simplest public constructor for callers that already own CSR
+ * data. It preserves the same physical-index-space semantics as the broader
+ * matrix shell, but does not require the caller to start from
+ * `sparse_create()` and incremental insertion.
+ *
+ * @param csr  Input CSR structure (not modified).
+ * @return A new SparseMatrix on success, or NULL on invalid input or
+ *         allocation failure.
+ *
+ * @note Use `sparse_from_csr()` when the caller needs an explicit
+ *       `sparse_err_t` result.
+ */
+SparseMatrix *sparse_create_from_csr(const SparseCsr *csr);
+
+/**
  * @brief Create an orthogonal linked-list matrix from CSR format.
  *
  * @param csr      Input CSR structure (not modified).
@@ -80,6 +102,24 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat);
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc);
+
+/**
+ * @brief Create a SparseMatrix from CSC format through the compressed-first
+ *        public entry path.
+ *
+ * This is the simplest public constructor for callers that already own CSC
+ * data. It preserves the same physical-index-space semantics as the broader
+ * matrix shell, but does not require the caller to start from
+ * `sparse_create()` and incremental insertion.
+ *
+ * @param csc  Input CSC structure (not modified).
+ * @return A new SparseMatrix on success, or NULL on invalid input or
+ *         allocation failure.
+ *
+ * @note Use `sparse_from_csc()` when the caller needs an explicit
+ *       `sparse_err_t` result.
+ */
+SparseMatrix *sparse_create_from_csc(const SparseCsc *csc);
 
 /**
  * @brief Create an orthogonal linked-list matrix from CSC format.

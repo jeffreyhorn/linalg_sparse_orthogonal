@@ -138,12 +138,41 @@ static void test_csr_dense(void) {
     sparse_free(B);
 }
 
+/* Public compressed-first constructor from CSR */
+static void test_create_from_csr_entry_path(void) {
+    idx_t row_ptr[] = {0, 2, 3, 5};
+    idx_t col_idx[] = {0, 2, 1, 0, 2};
+    double values[] = {1.0, 3.0, 5.0, 7.0, 9.0};
+    SparseCsr csr = {
+        .rows = 3,
+        .cols = 3,
+        .nnz = 5,
+        .row_ptr = row_ptr,
+        .col_idx = col_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = sparse_create_from_csr(&csr);
+    ASSERT_NOT_NULL(A);
+    ASSERT_EQ(sparse_rows(A), 3);
+    ASSERT_EQ(sparse_cols(A), 3);
+    ASSERT_EQ(sparse_nnz(A), 5);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 2), 3.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 1), 5.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 0), 7.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 2), 9.0, 0.0);
+
+    sparse_free(A);
+}
+
 /* NULL inputs → proper error codes */
 static void test_csr_null(void) {
     SparseCsr *csr;
     SparseMatrix *mat;
     ASSERT_ERR(sparse_to_csr(NULL, &csr), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_from_csr(NULL, &mat), SPARSE_ERR_NULL);
+    ASSERT_NULL(sparse_create_from_csr(NULL));
 
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_ERR(sparse_to_csr(A, NULL), SPARSE_ERR_NULL);
@@ -216,12 +245,41 @@ static void test_csc_roundtrip(void) {
     sparse_free(B);
 }
 
+/* Public compressed-first constructor from CSC */
+static void test_create_from_csc_entry_path(void) {
+    idx_t col_ptr[] = {0, 2, 3, 5};
+    idx_t row_idx[] = {0, 2, 1, 0, 2};
+    double values[] = {1.0, 7.0, 5.0, 3.0, 9.0};
+    SparseCsc csc = {
+        .rows = 3,
+        .cols = 3,
+        .nnz = 5,
+        .col_ptr = col_ptr,
+        .row_idx = row_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = sparse_create_from_csc(&csc);
+    ASSERT_NOT_NULL(A);
+    ASSERT_EQ(sparse_rows(A), 3);
+    ASSERT_EQ(sparse_cols(A), 3);
+    ASSERT_EQ(sparse_nnz(A), 5);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 2), 3.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 1), 5.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 0), 7.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 2), 9.0, 0.0);
+
+    sparse_free(A);
+}
+
 /* CSC NULL inputs */
 static void test_csc_null(void) {
     SparseCsc *csc;
     SparseMatrix *mat;
     ASSERT_ERR(sparse_to_csc(NULL, &csc), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_from_csc(NULL, &mat), SPARSE_ERR_NULL);
+    ASSERT_NULL(sparse_create_from_csc(NULL));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -342,11 +400,13 @@ int main(void) {
     RUN_TEST(test_csr_roundtrip);
     RUN_TEST(test_csr_empty);
     RUN_TEST(test_csr_dense);
+    RUN_TEST(test_create_from_csr_entry_path);
     RUN_TEST(test_csr_null);
 
     /* CSC */
     RUN_TEST(test_csc_known);
     RUN_TEST(test_csc_roundtrip);
+    RUN_TEST(test_create_from_csc_entry_path);
     RUN_TEST(test_csc_null);
 
     /* SuiteSparse validation */

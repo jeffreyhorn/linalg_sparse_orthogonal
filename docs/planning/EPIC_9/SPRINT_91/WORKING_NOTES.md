@@ -384,3 +384,86 @@ landing.
 - Sprint 91 now has one explicit compressed-first architecture contract.
 - The shell is bounded conceptually even though compatibility remains.
 - Day 6 can land the first code batch without reopening product intent.
+
+## Day 6 - Construction / Import Batch
+
+### Goal
+Land the first bounded compressed-first implementation seam by promoting CSR
+and CSC inputs to first-class public construction entry paths without
+reopening broader lifecycle or publication ownership.
+
+### Actions
+- Re-read the Sprint 91 Day 6 contract in
+  `docs/planning/EPIC_9/SPRINT_91/PLAN.md`.
+- Re-read the Day 5 architecture design against the Day 4 implementation
+  fence.
+- Re-scanned the current compressed conversion owner surfaces:
+  - `include/sparse_csr.h`
+  - `src/sparse_csr.c`
+  - `tests/test_csr.c`
+- Added new public compressed-first constructor entry points:
+  - `sparse_create_from_csr(const SparseCsr *csr)`
+  - `sparse_create_from_csc(const SparseCsc *csc)`
+- Refactored the retained import implementation into shared validation and
+  build helpers so the new constructor path and the legacy `sparse_from_*`
+  path use the same core seam.
+- Added focused proof-owner coverage for the new constructor-style entry path
+  in `tests/test_csr.c`.
+- Ran the required implementation-day validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Fixed one local `-Wshadow` lint finding in the new shared helper seam.
+- Wrote the Day 6 artifact and recorded the landed batch here.
+
+### Findings
+- Sprint 91 now has a real compressed-first public construction lane:
+  - `include/sparse_csr.h` now exposes:
+    - `sparse_create_from_csr(const SparseCsr *csr)`
+    - `sparse_create_from_csc(const SparseCsc *csc)`
+  - retained compatibility entry points:
+    - `sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat)`
+    - `sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat)`
+  - the retained compatibility imports now route through the same shared
+    validated builder seam as the new constructor-style entry path
+- The landing stayed inside the Day 5 fence:
+  - required implementation center:
+    - `include/sparse_csr.h`
+    - `src/sparse_csr.c`
+  - directly forced proof-owner follow-through:
+    - `tests/test_csr.c`
+  - no support-only follow-through was needed in:
+    - `include/sparse_matrix.h`
+    - `src/sparse_matrix.c`
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+- The useful technical split is now real in code:
+  - callers that already own CSR/CSC data can enter through direct
+    constructor-style public APIs
+  - callers that still need explicit `sparse_err_t` handling can keep using
+    `sparse_from_*`
+  - both lanes preserve the same physical-index-space truth and linked-list
+    shell compatibility semantics
+- The focused proof follow-through is now explicit:
+  - `tests/test_csr.c` proves direct constructor-style CSR entry
+  - `tests/test_csr.c` proves direct constructor-style CSC entry
+  - `tests/test_csr.c` proves null rejection on the new compressed-first APIs
+  - the existing round-trip and SuiteSparse coverage still proves retained
+    compatibility on the legacy `sparse_from_*` path
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- The only validation interruption was one local `-Wshadow` warning in the new
+  shared helper seam; it was fixed immediately and the full queue was rerun
+  from the top.
+
+### Day 6 Exit State
+- Sprint 91 now has a real first-class compressed-input construction lane.
+- The linked-list shell remains the mutable compatibility owner, but it is no
+  longer the only public conceptual entry path for CSR/CSC-backed callers.
+- Day 7 can rerank the remaining shell-first costs from a landed validated
+  implementation rather than from a pure design contract.

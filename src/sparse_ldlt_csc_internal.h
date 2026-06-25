@@ -424,8 +424,8 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
  * Runtime-selected LDL^T dense block factor.
  *
  * Preserves `ldlt_dense_factor(...)` as the shipped builtin implementation
- * while allowing a bounded optional runtime-selected accelerated backend for
- * the LDL^T CSC supernodal lane.
+ * while allowing a bounded optional runtime-selected external
+ * BLAS/LAPACK-class backend for the LDL^T CSC supernodal lane.
  */
 sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
                                         idx_t n, idx_t lda, double tol, double *elem_growth_out);

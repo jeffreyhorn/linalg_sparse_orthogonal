@@ -42,7 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifndef _WIN32
 #include <dlfcn.h>
 #endif
 
@@ -105,15 +105,22 @@ static int s64_ldlt_accel_accepts_noperm_2x2_pivot(const int *ipiv, idx_t k, idx
     return ipiv[k] < 0 && ipiv[k + 1] == ipiv[k] && ipiv[k] == -pivot_tag;
 }
 
-#ifdef __APPLE__
+#ifndef _WIN32
 typedef void (*s64_accel_dsytrf_fn)(const char *uplo, const int *n, double *a, const int *lda,
                                     int *ipiv, double *work, const int *lwork, int *info);
 
-static void *s64_ldlt_accel_handle = NULL;
-static s64_accel_dsytrf_fn s64_ldlt_accel_dsytrf = NULL;
-static atomic_int s64_ldlt_accel_probe_state = ATOMIC_VAR_INIT(0);
+typedef enum {
+    S64_LDLT_EXT_PROVIDER_NONE = 0,
+    S64_LDLT_EXT_PROVIDER_ACCELERATE = 1,
+    S64_LDLT_EXT_PROVIDER_BLAS_LAPACK = 2,
+} s64_ldlt_ext_provider_t;
 
-static int s64_ldlt_accel_probe_dense_factor(void) {
+static void *s64_ldlt_ext_handle = NULL;
+static s64_accel_dsytrf_fn s64_ldlt_ext_dsytrf = NULL;
+static s64_ldlt_ext_provider_t s64_ldlt_ext_provider = S64_LDLT_EXT_PROVIDER_NONE;
+static atomic_int s64_ldlt_ext_probe_state = ATOMIC_VAR_INIT(0);
+
+static int s64_ldlt_ext_probe_dense_factor(void) {
     enum {
         S64_LDLT_ACCEL_UNINITIALIZED = 0,
         S64_LDLT_ACCEL_INITIALIZING = 1,
@@ -121,49 +128,76 @@ static int s64_ldlt_accel_probe_dense_factor(void) {
         S64_LDLT_ACCEL_FAILED = 3,
     };
 
-    int state = atomic_load_explicit(&s64_ldlt_accel_probe_state, memory_order_acquire);
+    int state = atomic_load_explicit(&s64_ldlt_ext_probe_state, memory_order_acquire);
     if (state == S64_LDLT_ACCEL_READY)
         return 1;
     if (state == S64_LDLT_ACCEL_FAILED)
         return 0;
 
     int expected = S64_LDLT_ACCEL_UNINITIALIZED;
-    if (atomic_compare_exchange_strong_explicit(&s64_ldlt_accel_probe_state, &expected,
+    if (atomic_compare_exchange_strong_explicit(&s64_ldlt_ext_probe_state, &expected,
                                                 S64_LDLT_ACCEL_INITIALIZING, memory_order_acq_rel,
                                                 memory_order_acquire)) {
-        void *handle = dlopen("/System/Library/Frameworks/Accelerate.framework/Accelerate",
-                              RTLD_LAZY | RTLD_LOCAL);
-        s64_accel_dsytrf_fn dsytrf = NULL;
+        static const struct {
+            const char *path;
+            s64_ldlt_ext_provider_t provider;
+        } candidates[] = {
+#ifdef __APPLE__
+            {"/System/Library/Frameworks/Accelerate.framework/Accelerate",
+             S64_LDLT_EXT_PROVIDER_ACCELERATE},
+            {"/opt/homebrew/opt/openblas/lib/libopenblas.dylib", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"/usr/local/opt/openblas/lib/libopenblas.dylib", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"libopenblas.dylib", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.dylib", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.dylib", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+#else
+            {"libopenblas.so", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"libopenblas.so.0", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.so.3", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"libblas.so", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.so.3", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+            {"liblapack.so", S64_LDLT_EXT_PROVIDER_BLAS_LAPACK},
+#endif
+        };
 
-        if (handle)
-            dsytrf = (s64_accel_dsytrf_fn)dlsym(handle, "dsytrf_");
-        if (!handle || !dsytrf) {
+        for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+            void *handle = dlopen(candidates[i].path, RTLD_LAZY | RTLD_LOCAL);
+            s64_accel_dsytrf_fn dsytrf = NULL;
+
             if (handle)
-                dlclose(handle);
-            s64_ldlt_accel_handle = NULL;
-            s64_ldlt_accel_dsytrf = NULL;
-            atomic_store_explicit(&s64_ldlt_accel_probe_state, S64_LDLT_ACCEL_FAILED,
+                dsytrf = (s64_accel_dsytrf_fn)dlsym(handle, "dsytrf_");
+            if (!handle || !dsytrf) {
+                if (handle)
+                    dlclose(handle);
+                continue;
+            }
+
+            s64_ldlt_ext_handle = handle;
+            s64_ldlt_ext_dsytrf = dsytrf;
+            s64_ldlt_ext_provider = candidates[i].provider;
+            atomic_store_explicit(&s64_ldlt_ext_probe_state, S64_LDLT_ACCEL_READY,
                                   memory_order_release);
-            return 0;
+            return 1;
         }
 
-        s64_ldlt_accel_handle = handle;
-        s64_ldlt_accel_dsytrf = dsytrf;
-        atomic_store_explicit(&s64_ldlt_accel_probe_state, S64_LDLT_ACCEL_READY,
+        s64_ldlt_ext_handle = NULL;
+        s64_ldlt_ext_dsytrf = NULL;
+        s64_ldlt_ext_provider = S64_LDLT_EXT_PROVIDER_NONE;
+        atomic_store_explicit(&s64_ldlt_ext_probe_state, S64_LDLT_ACCEL_FAILED,
                               memory_order_release);
-        return 1;
+        return 0;
     }
 
     do {
-        state = atomic_load_explicit(&s64_ldlt_accel_probe_state, memory_order_acquire);
+        state = atomic_load_explicit(&s64_ldlt_ext_probe_state, memory_order_acquire);
     } while (state == S64_LDLT_ACCEL_INITIALIZING);
 
     return state == S64_LDLT_ACCEL_READY;
 }
 
-static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, double *D_offdiag,
-                                                     idx_t *pivot_size, idx_t n, idx_t lda,
-                                                     double tol, double *elem_growth_out) {
+static sparse_err_t s64_external_ldlt_dense_factor(double *A, double *D, double *D_offdiag,
+                                                   idx_t *pivot_size, idx_t n, idx_t lda,
+                                                   double tol, double *elem_growth_out) {
     if (!A || !D || !D_offdiag || !pivot_size)
         return SPARSE_ERR_NULL;
     if (n < 0 || lda < n)
@@ -172,7 +206,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
         *elem_growth_out = 0.0;
     if (n == 0)
         return SPARSE_OK;
-    if (!s64_ldlt_accel_probe_dense_factor())
+    if (!s64_ldlt_ext_probe_dense_factor())
         return SPARSE_ERR_PIVOT_REJECTED;
 
     int n_blas = 0;
@@ -202,7 +236,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
     int lwork = -1;
     int info = 0;
     double work_query = 0.0;
-    s64_ldlt_accel_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, &work_query, &lwork, &info);
+    s64_ldlt_ext_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, &work_query, &lwork, &info);
     if (info != 0) {
         free(ipiv);
         return info < 0 ? SPARSE_ERR_PIVOT_REJECTED : SPARSE_ERR_SINGULAR;
@@ -223,7 +257,7 @@ static sparse_err_t s64_accelerate_ldlt_dense_factor(double *A, double *D, doubl
         return SPARSE_ERR_ALLOC;
     }
 
-    s64_ldlt_accel_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, work, &lwork_int, &info);
+    s64_ldlt_ext_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, work, &lwork_int, &info);
     free(work);
     if (info != 0) {
         free(ipiv);
@@ -319,23 +353,38 @@ cleanup:
 
 typedef enum {
     S64_LDLT_DENSE_BACKEND_BUILTIN = 0,
-    S64_LDLT_DENSE_BACKEND_ACCELERATE = 1,
+    S64_LDLT_DENSE_BACKEND_EXTERNAL = 1,
+    S64_LDLT_DENSE_BACKEND_ACCELERATE = 2,
 } s64_ldlt_dense_backend_t;
 
 static s64_ldlt_dense_backend_t s64_read_ldlt_dense_backend_env(void) {
     const char *value = getenv("SPARSE_LDLT_DENSE_BACKEND");
-    if (!value)
+    if (!value || strcmp(value, "builtin") == 0)
         return S64_LDLT_DENSE_BACKEND_BUILTIN;
+    if (strcmp(value, "external") == 0 || strcmp(value, "blas") == 0 ||
+        strcmp(value, "lapack") == 0)
+        return S64_LDLT_DENSE_BACKEND_EXTERNAL;
+#ifdef __APPLE__
     if (strcmp(value, "accelerate") == 0)
         return S64_LDLT_DENSE_BACKEND_ACCELERATE;
+#endif
     return S64_LDLT_DENSE_BACKEND_BUILTIN;
 }
 
 const char *ldlt_dense_factor_backend_name(void) {
+#ifndef _WIN32
+    s64_ldlt_dense_backend_t backend = s64_read_ldlt_dense_backend_env();
+    if (backend == S64_LDLT_DENSE_BACKEND_EXTERNAL && s64_ldlt_ext_probe_dense_factor()) {
+        if (s64_ldlt_ext_provider == S64_LDLT_EXT_PROVIDER_ACCELERATE)
+            return "accelerate";
+        if (s64_ldlt_ext_provider == S64_LDLT_EXT_PROVIDER_BLAS_LAPACK)
+            return "blas-lapack";
+    }
 #ifdef __APPLE__
-    if (s64_read_ldlt_dense_backend_env() == S64_LDLT_DENSE_BACKEND_ACCELERATE &&
-        s64_ldlt_accel_probe_dense_factor())
+    if (backend == S64_LDLT_DENSE_BACKEND_ACCELERATE && s64_ldlt_ext_probe_dense_factor() &&
+        s64_ldlt_ext_provider == S64_LDLT_EXT_PROVIDER_ACCELERATE)
         return "accelerate";
+#endif
 #endif
     return "builtin";
 }
@@ -540,11 +589,17 @@ cleanup:
 
 sparse_err_t ldlt_dense_factor_selected(double *A, double *D, double *D_offdiag, idx_t *pivot_size,
                                         idx_t n, idx_t lda, double tol, double *elem_growth_out) {
+#ifndef _WIN32
+    s64_ldlt_dense_backend_t backend = s64_read_ldlt_dense_backend_env();
+    if (backend == S64_LDLT_DENSE_BACKEND_EXTERNAL && s64_ldlt_ext_probe_dense_factor())
+        return s64_external_ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol,
+                                              elem_growth_out);
 #ifdef __APPLE__
-    if (s64_read_ldlt_dense_backend_env() == S64_LDLT_DENSE_BACKEND_ACCELERATE &&
-        s64_ldlt_accel_probe_dense_factor())
-        return s64_accelerate_ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol,
-                                                elem_growth_out);
+    if (backend == S64_LDLT_DENSE_BACKEND_ACCELERATE && s64_ldlt_ext_probe_dense_factor() &&
+        s64_ldlt_ext_provider == S64_LDLT_EXT_PROVIDER_ACCELERATE)
+        return s64_external_ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol,
+                                              elem_growth_out);
+#endif
 #endif
     return ldlt_dense_factor(A, D, D_offdiag, pivot_size, n, lda, tol, elem_growth_out);
 }

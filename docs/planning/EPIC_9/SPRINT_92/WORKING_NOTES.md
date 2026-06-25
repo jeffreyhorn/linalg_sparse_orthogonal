@@ -724,3 +724,71 @@ reopening broad direct-family or benchmark work.
   internal-header follow-through if truly forced.
 - Later benchmark, support-surface, and QR work remains sequenced behind real
   LDLT adoption movement.
+
+## Day 9 - Solver Adoption Follow-Through Batch
+
+### Goal
+Land the bounded LDLT backend-adoption batch so the strongest remaining
+direct-family dense consumer converges onto the widened shared builtin-vs-
+portable backend seam without reopening broader family or support-surface
+work.
+
+### Actions
+- Re-read the Sprint 92 Day 9 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 8 adoption design and the Day 6 shared-backend landing.
+- Updated the live LDLT backend-selection seam in:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+- Added retained proof-owner follow-through in:
+  - `tests/test_ldlt.c`
+- Ran the full implementation-day validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Wrote the Day 9 batch artifact after validation passed.
+
+### Findings
+- Sprint 92 Day 9 landed one bounded LDLT backend-adoption batch:
+  - required implementation center:
+    - `src/sparse_ldlt_csc.c`
+  - directly forced follow-through:
+    - `src/sparse_ldlt_csc_internal.h`
+    - `tests/test_ldlt.c`
+- The live LDLT backend reading now converges onto the widened shared contract:
+  - builtin remains the default and authoritative fallback path
+  - LDLT can now consume the bounded optional external backend lane under the
+    same runtime contract already visible on the Cholesky side
+  - the retained backend names are now:
+    - `builtin`
+    - `accelerate`
+    - `blas-lapack`
+- The retained proof-owner follow-through stayed bounded:
+  - `tests/test_ldlt.c` now proves the `external` env-contract path end-to-end
+    without widening to broader LDLT CSC or benchmark owners
+- The strongest Day 9 coherence win is now explicit:
+  - Sprint 92 no longer carries one widened direct-family backend story on
+    the Cholesky side and one narrower family-local backend story on the
+    LDLT side
+  - the strongest direct-family dense adopters now share one bounded
+    builtin-vs-portable backend reading
+- The Day 8 boundary held:
+  - no generic LDLT numeric rewrite
+  - no QR adoption
+  - no benchmark/reporting widening
+  - no README / install / maintainer wording changes
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- One local lint-style preprocessor-guard issue surfaced while widening the
+  LDLT-side external-backend seam; it was corrected, and the full validation
+  queue then passed again from the top.
+
+### Day 9 Exit State
+- Sprint 92 has completed its bounded LDLT backend-adoption batch.
+- LDLT now shares the widened shared dense backend contract rather than
+  lagging on a family-local Accelerate-only side path.
+- Day 10 can now rerank the remaining backend, proof, benchmark, and support
+  surfaces from the live post-Day-9 tree.

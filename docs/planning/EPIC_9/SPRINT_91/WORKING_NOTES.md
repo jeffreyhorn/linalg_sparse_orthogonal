@@ -561,3 +561,101 @@ evidence rather than from the original shell-cost audit.
   clarification, with lifecycle tightening ordered immediately behind it.
 - Day 8 can define one exact bounded publication/lifecycle contract from the
   live post-Day-6 tree.
+
+## Day 8 - Publication & Lifecycle Design
+
+### Goal
+Define the bounded second Sprint 91 implementation contract around
+publication/public-surface clarification and one-shot vs repeated-run direct
+workflow lifecycle clarity.
+
+### Actions
+- Re-read the Sprint 91 Day 8 contract in
+  `docs/planning/EPIC_9/SPRINT_91/PLAN.md`.
+- Re-read the Day 7 rerank against the live public workflow surfaces.
+- Re-scanned the strongest current public and lifecycle owners:
+  - `README.md`
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `docs/maintainer_guide.md`
+  - likely proof-owner follow-through surfaces:
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+- Fixed the exact Day 9 implementation center.
+- Fixed the support-only follow-through map and the explicit non-touch list.
+- Wrote the Day 8 design artifact and recorded the contract here.
+
+### Findings
+- Sprint 91 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `README.md`
+  - directly forced support-only follow-through only if the Day 9 contract
+    truly needs them:
+    - `include/sparse_matrix.h`
+    - `include/sparse_analysis.h`
+    - `docs/maintainer_guide.md`
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+- The key Day 8 reading is now explicit:
+  - the Day 6 code already made compressed-first construction real through:
+    - `sparse_create_from_csr(...)`
+    - `sparse_create_from_csc(...)`
+  - the strongest remaining contradiction is that the README still teaches the
+    shell-first conversion story as:
+    - `sparse_to_csr(mat, &csr)` / `sparse_from_csr(csr, &mat)`
+    - `sparse_to_csc(mat, &csc)` / `sparse_from_csc(csc, &mat)`
+  - `sparse_analysis.h` already gives the repo a real repeated-run direct
+    owner
+  - so the highest-value next move is to make the README teach:
+    - when compressed-first entry is the right one-shot starting path
+    - when the shell-first path is still the right mutable or compatibility
+      path
+    - when callers should move to the explicit repeated-run direct lifecycle
+- The useful support-only follow-through split is now fixed:
+  - `include/sparse_matrix.h`
+    - only if the Day 9 README contract exposes a real mismatch in how the
+      shell role is described
+  - `include/sparse_analysis.h`
+    - only if the Day 9 README contract exposes a real mismatch in how the
+      repeated-run direct owner is described
+  - `docs/maintainer_guide.md`
+    - only if the Day 9 wording change alters maintainer-facing explanation of
+      the public product split
+  - `tests/test_sparse_matrix.c`
+    - only if the touched README contract creates a real new public-behavior
+      claim that needs proof
+  - `tests/test_integration.c`
+    - only if the touched README contract creates a real lifecycle claim that
+      is not already owned by the existing integration proofs
+- The explicit Day 9 non-touch list is now fixed:
+  - no second construction/import code batch
+  - no broad linked-list-shell deprecation
+  - no family-wide direct API redesign
+  - no repeated-run direct implementation changes
+  - no package/install/export contract reopening
+  - no iterative/eigensolver workflow rewriting
+  - no examples, install scripts, benchmark docs, or CI/workflow churn
+    detached from the touched direct-workflow story
+- The exact intended Day 9 shape is now explicit:
+  - tighten `README.md` around the direct-workflow adoption split
+  - make compressed-first one-shot entry read like a real peer lane
+  - keep the linked-list shell framed as:
+    - mutable construction owner
+    - pedagogy/compatibility owner
+    - not the only natural public starting point
+  - make the handoff from one-shot direct to repeated-run direct smaller and
+    clearer
+
+### Validation
+- Re-read the Sprint 91 Day 8 plan contract.
+- Re-read the Day 7 rerank artifact against the current README and direct
+  lifecycle owners.
+- Re-scanned the strongest support-only follow-through surfaces.
+- This was a docs-only design pass, so I did not rerun `make format`,
+  `make lint`, or `make test`.
+
+### Day 8 Exit State
+- Day 9 now has one exact bounded publication/lifecycle contract.
+- The second batch is still small enough to validate cleanly.
+- Broader lifecycle churn remains fenced off behind the Day 9 public-story
+  landing.

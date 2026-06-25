@@ -235,3 +235,127 @@ direct-family surfaces.
   writing.
 - Later Day 3-Day 11 audit, design, implementation, and follow-through work no
   longer needs to guess which surfaces are authoritative.
+
+## Day 3 - Dense Hotspot Profiling Audit
+
+### Goal
+Reduce Sprint 92's broad portable-backend problem to one ranked live
+contradiction map centered on the strongest builtin dense-kernel hotspots, the
+highest-value direct-family consumers, and the narrow current optional-backend
+story.
+
+### Actions
+- Re-read the Sprint 92 Day 3 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the closest prior Epic 9 structural audit:
+  - `docs/planning/EPIC_9/SPRINT_90/artifacts/day3-product-performance-capability-gap-audit.md`
+- Re-scanned the live tree against the strongest Sprint 92 contradiction
+  class:
+  - builtin dense-kernel hotspots
+  - strongest direct-family dense consumers
+  - Darwin-only or bounded acceleration seams
+  - runtime, allocation, and observability costs around dense work
+- Re-anchored the audit directly on the current dense and direct-family owners:
+  - `src/sparse_dense.c`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_matrix.h`
+- Rechecked the strongest benchmark and proof owners likely to matter later:
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `benchmarks/bench_svd.c`
+  - `tests/test_dense.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+- Captured the live hotspot map and current backend-contract evidence from
+  those owner surfaces.
+- Wrote the Day 3 audit artifact and fixed the ranked backend-hotspot order in
+  writing.
+
+### Findings
+- Sprint 92's broad backend problem is now reduced to one ranked live map of
+  the highest-value portable-kernel opportunities:
+  - strongest first target:
+    - the generic dense-kernel owner in `src/sparse_dense.c`, where the
+      builtin scalar GEMM/GEMV/factor/solve primitives still define the
+      broadest performance ceiling
+  - strongest second target:
+    - the direct-family adoption seam currently concentrated in
+      `src/sparse_chol_csc.c` and `src/sparse_ldlt_csc.c`, where backend
+      dispatch is real but still narrow and family-local
+  - strongest third target:
+    - QR and adjacent dense consumers that still read as builtin-only and do
+      not yet share the strongest bounded backend seam
+  - strongest fourth target:
+    - benchmark and observability follow-through so any widened backend path
+      is measurable and fallback-visible
+  - strongest support-only but real target:
+    - build/package/support wording that still truthfully reflects a builtin-
+      first default plus bounded optional acceleration
+- The strongest current contradiction is still the backend-maturity ceiling in
+  the shared dense owner:
+  - `src/sparse_dense.c` still owns the generic dense GEMM/GEMV and Cholesky
+    dense factor/solve primitives in self-contained scalar C
+  - the only current optional accelerated lane exposed there is the
+    Apple-only Accelerate probe for the Cholesky supernodal dense-kernel
+    descriptor
+  - that lane is environment-selected and bounded by backend-contract limits,
+    not a broader portable backend story
+- The strongest direct-family dense adoption surfaces are now explicit:
+  - `src/sparse_chol_csc.c` already consumes `chol_csc_supernodal_dense_kernels`
+    and therefore has the cleanest immediate backend-adoption seam
+  - `src/sparse_ldlt_csc.c` carries its own bounded optional Accelerate seam,
+    but it is still family-local rather than converged with the shared dense
+    owner
+  - `src/sparse_qr.c` remains a large dense consumer candidate, but it reads
+    more like a later adopter than the first backend-integration center
+- The strongest current owner surfaces are now explicit from the live tree:
+  - `src/sparse_dense.c` = `862`
+  - `src/sparse_ldlt_csc.c` = `2694`
+  - `src/sparse_chol_csc.c` = `1279`
+  - `src/sparse_qr.c` = `1563`
+  - `benchmarks/bench_chol_csc.c` = `423`
+  - `benchmarks/bench_refactor_csc.c` = `611`
+  - `benchmarks/bench_svd.c` = `180`
+  - `tests/test_dense.c` = `584`
+  - `tests/test_chol_csc.c` = `4987`
+  - `tests/test_ldlt_csc.c` = `3680`
+  - `tests/test_qr.c` = `3234`
+- The fix-now vs later split is now explicit:
+  - Sprint 92 should drive:
+    - the shared dense-kernel backend seam
+    - the strongest direct-family backend adopters
+    - backend observability, fallback proof, and bounded package wording only
+      where the implementation truly moves
+  - Sprint 92 should keep later for now:
+    - broad runtime/threading work
+    - fake cross-platform backend symmetry
+    - full-family dense-kernel convergence in every solver owner
+    - capability-surface widening beyond backend maturity
+- The strongest Day 3 clarification is now fixed:
+  - Sprint 92 does not begin with another generic direct-family speed pass
+  - it begins with one ranked backend-hotspot map
+  - the best first implementation center is the shared dense-kernel owner and
+    the strongest immediate Cholesky/LDL^T adoption seam
+  - QR follow-through, benchmark/reporting widening, and support-surface
+    wording remain real Sprint 92 work, but only after the first backend seam
+    is fixed
+
+### Validation
+- Re-read the Sprint 92 Day 3 plan contract.
+- Re-read the closest prior Sprint 90 structural audit.
+- Re-scanned the live dense/backend owners and strongest benchmark/proof
+  surfaces.
+- Captured the live hotspot map and current backend-contract evidence from the
+  strongest likely Sprint 92 surfaces.
+
+### Day 3 Exit State
+- Sprint 92 now has one ranked live backend-hotspot contradiction map grounded
+  in the current post-Sprint-91 tree.
+- The first backend implementation center is fixed to the shared dense-kernel
+  owner and its strongest direct-family adoption seam.
+- Day 4 can freeze the first implementation boundary without reopening the
+  ranked backend-hotspot order.

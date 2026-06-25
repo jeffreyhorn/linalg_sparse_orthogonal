@@ -1214,3 +1214,56 @@ planning package with no remaining sequencing or claim-boundary contradictions.
 - Sprint 90 now has one internally consistent review/todo/plan package.
 - Day 13 can validate the final Sprint 90 planning package without reopening
   the document structure or sprint ordering.
+
+## Day 13 - Final Validation & Readability Sweep
+
+### Goal
+Validate the docs-only Sprint 90 planning package against the live repo state
+and confirm that references, dates, paths, and estimate bounds are still
+correct before closeout.
+
+### Actions
+- Re-read the Sprint 90 Day 13 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-ran the strongest maintained reviewed-tree anchor relevant to the
+  planning package:
+  - `make quality-review-cmake-compile`
+- Rechecked reviewed CMake parity directly:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the canonical reporting owner contract:
+  - `make -n bench-canonical-report`
+- Re-read the final Epic 9 review, todo, and project plan for:
+  - formatting and readability
+  - file/path/date correctness
+  - sprint numbering correctness
+  - target-state and non-goal wording consistency
+  - sprint hour-cap and total-estimate bounds
+- Wrote the Day 13 artifact to record the validated planning-package state.
+
+### Findings
+- The final Sprint 90 planning package is now validated against the live tree.
+- The strongest maintained reviewed-tree anchors remain clean:
+  - `make quality-review-cmake-compile` passed
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+- The maintained canonical reporting owner still resolves cleanly:
+  - `make -n bench-canonical-report` still points at
+    `scripts/bench_canonical_report.sh` and the maintained canonical binaries
+- The final review/todo/project-plan package still reads consistently:
+  - no new date or sprint-reference mismatch surfaced
+  - no new path/reference mismatch surfaced
+  - sprint hour caps and total estimates remain inside the requested bounds
+
+### Validation
+- Re-read the Sprint 90 Day 13 plan contract.
+- Ran `make quality-review-cmake-compile`.
+- Ran `ctest -N --test-dir build/quality-review-cmake`.
+- Ran `make -n bench-canonical-report`.
+- Re-read the final review, todo, and project plan for readability and
+  reference correctness.
+- Recorded the validated state in the Day 13 artifact.
+
+### Day 13 Exit State
+- Sprint 90 now has one validated docs-only planning package anchored to the
+  live reviewed repo state.
+- Day 14 can close Sprint 90 without reopening the planning package.

@@ -1,5 +1,27 @@
 # Installation Guide
 
+Use this file for operational setup, staged installs, installed-consumer
+workflows, and install-surface validation.
+
+For the first local adoption path and solver/workflow choice, start with:
+
+- [README.md](README.md)
+- [examples/README.md](examples/README.md)
+
+## Start Here
+
+Choose the smallest install/setup path that matches what you actually need:
+
+- **Need one local success before installing anything?**
+  - Use the front-door path in [README.md](README.md), then move to
+    [examples/README.md](examples/README.md).
+- **Need a Unix-side static install plus `pkg-config` downstream use?**
+  - Use [Quick Start (Makefile)](#quick-start-makefile).
+- **Need an installed CMake consumer or the Windows-supported path?**
+  - Use [CMake Build](#cmake-build).
+- **Need to prove the installed package surface locally?**
+  - Use [Verifying the Installation](#verifying-the-installation).
+
 ## Prerequisites
 
 - C11 compiler (GCC >= 7, Clang >= 5, MSVC >= 2019)
@@ -11,22 +33,31 @@ Optional:
 - `lcov` + `bc` (for `make coverage`)
 - `libomp` / GCC libgomp (for `make omp` — OpenMP-parallel SpMV + Lanczos MGS)
 
-## Supported platforms
+## Choose an Install Path
 
-| platform | toolchain | CI job | notes |
-|---|---|---|---|
-| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | strongest reviewed source of truth: reviewed Makefile quality, reviewed CMake parity, dead-code; supplemental direct runtime and `bench-fast` also live here |
-| Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | supplemental ThreadSanitizer + OpenMP lane |
-| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries supplemental static-first Make install/`pkg-config` verification |
-| macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | supplemental second-compiler direct build/test/wall-check coverage |
-| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset only; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane |
+Keep the support split narrow:
 
-`make tsan` on macOS 15+ is blocked by an upstream dyld initialization
-hang (Sprint 28 inheritance; macOS 15.7 platform issue not specific to
-this codebase).  Sprint 29 Day 8 routes the TSan job to Linux CI per
-`docs/planning/EPIC_2/SPRINT_29/windows_ci_decision.md`.
+- local build-tree adoption:
+  - `README.md`
+  - `examples/README.md`
+- Unix-side installed static package with `pkg-config`:
+  - `make install`
+  - `tests/test_install.sh`
+- installed CMake consumer path:
+  - `cmake --install`
+  - `find_package(Sparse)`
+  - `tests/test_cmake_install.sh`
+- maintainer/reviewed-platform interpretation:
+  - `docs/maintainer_guide.md`
+
+This file owns the middle two layers: operational setup and installed-consumer
+detail. It should not try to become the front-door adoption guide, the
+benchmark command reference, or the maintainer-policy home.
 
 ## Quick Start (Makefile)
+
+Use this path when you want the maintained Unix-side static install surface and
+`pkg-config` downstream story.
 
 ```sh
 make
@@ -49,7 +80,7 @@ The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 make install PREFIX=/usr DESTDIR=/tmp/staging
 ```
 
-### Maintained release shape
+## Maintained Install Contract
 
 The maintained install surface is intentionally static-first:
 
@@ -68,7 +99,7 @@ This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
 remains the reviewed CMake workflow.
 
-Read that contract in three bounded layers:
+Use the split below when deciding how much package detail you need:
 
 - installed package shape:
   - static library
@@ -82,6 +113,21 @@ Read that contract in three bounded layers:
   - local Unix-side install scripts prove the Make and CMake install/export
     paths directly
   - reviewed platform claims remain narrower than those local scripts
+
+## Supported platforms
+
+| platform | toolchain | CI job | notes |
+|---|---|---|---|
+| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | strongest reviewed source of truth: reviewed Makefile quality, reviewed CMake parity, dead-code; supplemental direct runtime and `bench-fast` also live here |
+| Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | supplemental ThreadSanitizer + OpenMP lane |
+| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries supplemental static-first Make install/`pkg-config` verification |
+| macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | supplemental second-compiler direct build/test/wall-check coverage |
+| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset only; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane |
+
+`make tsan` on macOS 15+ is blocked by an upstream dyld initialization
+hang (Sprint 28 inheritance; macOS 15.7 platform issue not specific to
+this codebase).  Sprint 29 Day 8 routes the TSan job to Linux CI per
+`docs/planning/EPIC_2/SPRINT_29/windows_ci_decision.md`.
 
 ### Installed files
 
@@ -225,6 +271,9 @@ Note: The Makefile targets (`make install`, etc.) are Unix-only. On
 Windows, use the CMake workflow exclusively.
 
 ## Verifying the Installation
+
+Use this section when you want explicit local proof of the installed package
+surface rather than another build-tree example.
 
 Run the install validation script (Unix):
 

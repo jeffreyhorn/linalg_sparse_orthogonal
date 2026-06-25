@@ -2,6 +2,24 @@
 
 Standalone example programs demonstrating the sparse linear algebra library.
 
+## Start Here
+
+Use this file as the compact next-step map after the README front door.
+
+- **Want the smallest first success?**
+  - Run `./build/example_basic_solve`.
+- **Need the repeated-run direct lifecycle?**
+  - Run `./build/example_analysis`.
+- **Need a one-shot iterative workflow?**
+  - Run `./build/example_iterative`.
+- **Need the symmetric eigensolver workflow?**
+  - Run `./build/example_eigs`.
+- **Need an installed downstream-consumer example instead of a local build-tree example?**
+  - Use `examples/cmake_example/` and the install flow in
+    [INSTALL.md](../INSTALL.md).
+- **Need the fuller repeated-run and API walkthrough?**
+  - Use the [tutorial](../docs/tutorial.md).
+
 ## Building
 
 From the project root:
@@ -34,18 +52,25 @@ repeated runs, not replacements for the small one-shot examples here:
 The public repeated-run handle surface intentionally does not broaden to
 `BiCGSTAB` or block iterative workflows.
 
-For examples that need dynamic scratch buffers, the current small-example
-convention is to route allocation through `examples/example_alloc_helpers.h`
-rather than open-coding unchecked count/byte multiplication at each call site.
+Keep the support split explicit:
+
+- examples = adoption and workflow teaching
+- tutorial = fuller repeated-run and API walkthrough
+- benchmarks = retained workflow/performance proof
+- tests = regression, oracle, and property guarantees
 
 For the broader user-facing workflow behind those matrix-state rules, use the
 [tutorial](../docs/tutorial.md) and the relevant public headers under
 [`include/`](../include/). This file stays focused on example-local behavior
 and entry points.
 
+For examples that need dynamic scratch buffers, the current small-example
+convention is to route allocation through `examples/example_alloc_helpers.h`
+rather than open-coding unchecked count/byte multiplication at each call site.
+
 ## Programs
 
-### example_basic_solve
+### One-Shot Direct: example_basic_solve
 
 Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial
 pivoting. Demonstrates matrix creation, copying before in-place
@@ -59,7 +84,13 @@ matrix copy and keep the one-shot mutation on that working factor matrix.
 ./build/example_basic_solve
 ```
 
-### example_analysis
+Next step after this example:
+
+- stay on the one-shot direct path for small or occasional solves
+- move to `example_analysis` when the sparsity pattern is stable across many
+  value changes
+
+### Repeated-Run Direct: example_analysis
 
 Demonstrate the explicit repeated-run direct lifecycle:
 
@@ -105,7 +136,14 @@ That keeps the support split explicit:
 ./build/example_analysis
 ```
 
-### example_least_squares
+Next step after this example:
+
+- move to the [tutorial](../docs/tutorial.md) for the fuller repeated-run
+  workflow and API walkthrough
+- move to the benchmark surfaces when you need retained workflow/performance
+  proof rather than another teaching example
+
+### Rectangular Least-Squares: example_least_squares
 
 Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows
 how to find the least-squares solution that minimizes `||Ax - b||` and reports
@@ -117,7 +155,7 @@ public API path `sparse_qr_solve_minnorm()`, documented in the
 ./build/example_least_squares
 ```
 
-### example_svd_lowrank
+### SVD / Low-Rank: example_svd_lowrank
 
 Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows the singular value spectrum, condition number, rank estimation at different tolerances, and compression ratios for various ranks.
 
@@ -125,7 +163,7 @@ Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows t
 ./build/example_svd_lowrank
 ```
 
-### example_iterative
+### One-Shot Iterative: example_iterative
 
 Solve a 200x200 sparse system using GMRES with and without ILU(0)
 preconditioning. Compares iteration counts and convergence behavior, and builds
@@ -139,7 +177,7 @@ the public iterative-handle path now covers `CG`, `GMRES`, and `MINRES`.
 ./build/example_iterative
 ```
 
-### example_eigs
+### One-Shot Symmetric Eigensolver: example_eigs
 
 Compute symmetric eigenpairs with `sparse_eigs_sym` across three high-signal
 workflows. Part (a) finds the five largest eigenvalues of a small SPD
@@ -157,9 +195,23 @@ grow-m Lanczos, thick-restart Lanczos, and explicit `LOBPCG`.
 ./build/example_eigs
 ```
 
+### Installed Consumer Example: examples/cmake_example
+
+Use `examples/cmake_example/` when you want the downstream installed-consumer
+story rather than a local build-tree example. This example stays separate from
+the local `./build/example_*` teaching binaries because it proves the
+installed CMake consumer path instead of the local adoption flow.
+
+For that installed-consumer path, use:
+
+- `examples/cmake_example/CMakeLists.txt`
+- `examples/cmake_example/main.c`
+- [INSTALL.md](../INSTALL.md)
+
 ## Writing Your Own
 
-Each example is a single `.c` file that includes only public headers from `include/`. To compile manually:
+Each build-tree teaching example is a single `.c` file that includes only public
+headers from `include/`. To compile manually:
 
 ```bash
 cc -O2 -Iinclude -o my_program my_program.c -Lbuild -lsparse_lu_ortho -lm

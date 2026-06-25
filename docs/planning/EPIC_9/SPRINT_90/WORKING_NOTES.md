@@ -499,3 +499,111 @@ cleanup story.
 - Day 5 can now define the Epic 9 target state against the full contradiction
   inventory instead of against only the structural product/backend/capability
   side.
+
+## Day 5 - Competitive Target and Product Contract Design
+
+### Goal
+Define what Epic 9 is actually trying to make the library become so later
+implementation, comparison, and closeout work can aim at one stable bounded
+target rather than at a vague "state of the art" label.
+
+### Actions
+- Re-read the Sprint 90 Day 5 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the Sprint 90 Day 3 and Day 4 audit artifacts against the live Epic
+  9 project-plan intent.
+- Re-read the Epic 9 project plan's sprint ordering so the target state stays
+  consistent with the later compressed-first, backend, capability,
+  runtime, narrative, package, and comparison lanes.
+- Compared the plausible target-state readings explicitly:
+  - high-end research sparse toolkit
+  - production-grade sparse numerical library
+  - bounded state-of-the-art sparse linear algebra library
+- Fixed the success-marker order and the first-pass claim fence in writing.
+- Wrote the Day 5 target-state artifact and recorded the ownership split for
+  the first, second, and third implementation centers implied by that target.
+
+### Findings
+- Sprint 90 now has one explicit Epic 9 target-state reading:
+  - bounded state-of-the-art sparse linear algebra library
+- The target is explicitly *not*:
+  - a generic research playground with unconstrained surface sprawl
+  - a fully productized broad-platform/broad-backend industrial sparse stack
+  - a benchmark-supremacy claim machine
+- The strongest success-marker order is now fixed:
+  - first:
+    - compressed-first product-model convergence on the highest-value public
+      direct and interop workflows
+  - second:
+    - portable dense/backend maturity beyond the current scalar builtin core
+      and bounded Darwin-only acceleration seams
+  - third:
+    - one real capability-breadth widening beyond the current bounded
+      real-only scalar and family-local limits
+  - fourth:
+    - cleaner runtime/threading, proof, and reviewed-surface maturity where
+      it materially strengthens the first three lanes
+  - fifth:
+    - lower chronology/duplication/maintenance drag across permanent product
+      and maintainer surfaces
+- The Day 5 product reading is now explicit:
+  - Epic 9 should aim to make this repo a serious modern sparse numerical
+    library that is:
+    - unusually well validated
+    - structurally closer to compressed-first compute reality
+    - backend-aware in a portable way
+    - broader in capability on at least one high-value lane
+    - cleaner in permanent product narrative and build topology
+- The first implementation-center owners implied by the target are now fixed:
+  - `README.md`
+  - `include/sparse_matrix.h`
+  - `src/sparse_matrix.c`
+- The second implementation-center owners implied by the target are now fixed:
+  - `src/sparse_dense.c`
+  - `src/sparse_ldlt_csc.c`
+  - later touched direct-family consumers
+- The third implementation-center owners implied by the target are now fixed:
+  - `include/sparse_types.h`
+  - later touched iterative/eigs/direct public headers and implementation
+    seams
+- The most important success markers are now explicit:
+  - high-value workflows no longer read as linked-list-first by default
+  - the library has at least one serious portable accelerated dense/backend
+    lane beyond the builtin scalar baseline
+  - the repo ships one real additional high-value capability lane
+  - runtime concentration and runtime-control complexity are reduced where
+    they materially affect credibility
+  - package/build truth remains honest and cleaner without fake symmetry
+  - the largest mixed-role source/proof owners, chronology residue, and
+    duplicated topology surfaces are smaller and easier to navigate
+- The first-pass claim fence is now fixed:
+  - valid end-state claims may include:
+    - more compressed-first
+    - more competitive backend ceiling
+    - broader than the Epic 8 capability surface
+    - better calibrated and better compared
+    - cleaner and easier to maintain
+  - invalid end-state claims remain:
+    - fully generic sparse numerical platform
+    - broad complex and mixed-precision maturity
+    - symmetric cross-platform product parity
+    - broad shared-library product maturity
+    - universal best-in-class runtime or reorder quality
+- The strongest Day 5 clarification is now fixed:
+  - Epic 9 should aim higher than "research-grade but careful"
+  - it should not aim so high that it starts lying about product maturity
+  - the right target is a bounded state-of-the-art sparse linear algebra
+    library with explicit non-claims
+
+### Validation
+- Re-read the Sprint 90 Day 5 plan contract.
+- Re-read the Day 3 and Day 4 audit artifacts.
+- Re-read the Epic 9 project-plan sprint ordering.
+- Recorded the target-state reading, success markers, ownership split, and
+  first-pass claim fence in the Day 5 artifact.
+
+### Day 5 Exit State
+- Sprint 90 now has one bounded Epic 9 target-state contract.
+- "State of the art" now has a concrete local meaning for this repo.
+- Later Day 6-Day 10 comparison, risk-fence, review, todo, and plan work can
+  reference one stable success-marker and claim-fence package.

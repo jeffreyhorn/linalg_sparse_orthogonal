@@ -114,3 +114,106 @@ surface.
   writing.
 - Later Day 3-Day 11 audit, design, implementation, and follow-through work no
   longer needs to guess which surfaces are authoritative.
+
+## Day 3 - Remaining Linked-List-First Cost Audit
+
+### Goal
+Reduce Sprint 91's broad compressed-first product-model problem to one ranked
+live contradiction map centered on the remaining linked-list-first
+construction, import/export, publication, and lifecycle costs.
+
+### Actions
+- Re-read the Sprint 91 Day 3 contract in
+  `docs/planning/EPIC_9/SPRINT_91/PLAN.md`.
+- Re-read the closest prior structural audit artifact:
+  - `docs/planning/EPIC_9/SPRINT_90/artifacts/day3-product-performance-capability-gap-audit.md`
+- Re-scanned the live tree against the strongest Sprint 91 contradiction class:
+  - linked-list-first construction
+  - linked-list-first import/export and publication
+  - shell-centric direct-workflow entry paths
+  - lifecycle ambiguity on mutated vs solve-ready states
+- Re-anchored the audit directly on the current product and implementation
+  owners:
+  - `README.md`
+  - `include/sparse_matrix.h`
+  - `src/sparse_matrix.c`
+  - `include/sparse_analysis.h`
+  - `include/sparse_csr.h`
+- Rechecked the strongest direct-workflow proof owners likely to matter later:
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_integration.c`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+- Captured the live hotspot map for those strongest owner surfaces.
+- Wrote the Day 3 audit artifact and fixed the ranked shell-cost order in
+  writing.
+
+### Findings
+- Sprint 91's broad compressed-first problem is now reduced to one ranked live
+  map of the highest-value linked-list-first costs:
+  - strongest first target:
+    - compressed-first construction and import entry points on the public
+      matrix shell
+  - strongest second target:
+    - shell-centric publication and export round-trips that still keep the
+      linked-list shell as the default conceptual owner
+  - strongest third target:
+    - one-shot direct-workflow entry paths that still read as shell-first even
+      when the repeated-run direct lifecycle already exists
+  - strongest fourth target:
+    - lifecycle ambiguity on mutated vs solve-ready shell state and on where
+      the long-lived direct-workflow owner really lives
+  - strongest support-only but real target:
+    - README, maintainer, and public-header wording that still teaches the
+      shell as conceptual center instead of bounded mutable compatibility
+      surface
+- The strongest current contradiction is still the public construction and
+  ownership reading:
+  - `README.md` still opens by describing the project as an orthogonal
+    linked-list sparse matrix library
+  - `include/sparse_matrix.h` still describes the public API as the orthogonal
+    linked-list sparse matrix shell
+  - the same header still keeps the shell as the public mutable sparse
+    construction and one-shot direct-workflow compatibility owner
+  - `src/sparse_matrix.c` remains a major shell, mutation, and utility owner
+- The strongest current owner surfaces are now explicit from the live tree:
+  - `include/sparse_matrix.h` = `622`
+  - `src/sparse_matrix.c` = `1297`
+  - `include/sparse_analysis.h` = `499`
+  - `include/sparse_csr.h` = `109`
+  - `README.md` = `1113`
+  - `tests/test_sparse_matrix.c` = `1136`
+  - `tests/test_integration.c` = `3197`
+  - `tests/test_chol_csc.c` = `4987`
+  - `tests/test_ldlt_csc.c` = `3680`
+- The fix-now vs compatibility-only split is now explicit:
+  - Sprint 91 should drive:
+    - shell-first construction/import costs
+    - shell-centric publication/export reading
+    - one-shot vs repeated-run direct ownership ambiguity
+  - Sprint 91 should keep compatibility-only for now:
+    - broad shell removal
+    - family-wide direct-API rewrites
+    - fake fully compressed-first ownership claims
+    - backend, runtime, capability, or packaging widening under Day 3
+- The strongest Day 3 clarification is now fixed:
+  - Sprint 91 does not begin with generic direct-family cleanup
+  - it begins with one ranked shell-cost map
+  - the best first implementation center is compressed-first construction and
+    import on the public matrix-shell story
+  - publication/export and lifecycle tightening follow after that
+
+### Validation
+- Re-read the Sprint 91 Day 3 plan contract.
+- Re-read the closest prior Sprint 90 structural audit.
+- Re-scanned the live product-model owners and strongest direct-workflow proof
+  owners.
+- Captured the live hotspot map for the strongest likely Sprint 91 surfaces.
+
+### Day 3 Exit State
+- Sprint 91 now has one ranked live shell-cost contradiction map grounded in
+  the current post-Sprint-90 tree.
+- The first compressed-first implementation center is fixed to construction and
+  import entry points on the public matrix-shell story.
+- Day 4 can freeze the first implementation boundary without reopening the
+  ranked shell-cost order.

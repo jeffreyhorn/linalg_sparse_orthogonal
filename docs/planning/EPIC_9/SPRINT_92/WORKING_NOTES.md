@@ -576,3 +576,85 @@ optional external backend seam for the strongest current direct-family adopter.
   its proof/build follow-through.
 - Day 7 can now rerank from a real landed backend seam instead of from the Day
   5 design contract alone.
+
+## Day 7 - Post-Landing Audit & Rerank
+
+### Goal
+Re-rank the remaining backend-maturity work after the Day 6 landing so Sprint
+92's second implementation center is chosen from the live post-landing tree
+rather than from the original hotspot audit alone.
+
+### Actions
+- Re-read the Sprint 92 Day 7 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 3 hotspot audit and the Day 6 backend-batch artifact.
+- Rechecked the live backend-owner split after Day 6 across:
+  - `src/sparse_dense.c`
+  - `src/sparse_chol_csc_internal.h`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_refactor_csc.c`
+- Rechecked the remaining backend-name and environment-contract surfaces to
+  distinguish:
+  - shared-seam work already landed
+  - residual family-local backend seams
+  - later proof/benchmark/build wording follow-through
+- Wrote the Day 7 rerank artifact and fixed the exact Day 8 design center in
+  writing.
+
+### Findings
+- The Day 6 landing closed the strongest first Sprint 92 contradiction:
+  - the shared dense owner no longer lacks a real bounded optional portable
+    backend seam
+  - Cholesky no longer depends only on a narrower family-local acceleration
+    pocket to expose optional dense-kernel acceleration
+  - the backend runtime contract is now visible through one shared
+    `builtin` / `accelerate` / `blas-lapack` naming surface
+- That changes the ranked remaining backend map to:
+  - strongest first target now:
+    - direct-family backend adoption convergence centered on
+      `src/sparse_ldlt_csc.c`
+  - strongest second target now:
+    - QR and later dense-consumer adoption only after the LDLT seam is
+      reconciled with the shared dense owner
+  - strongest third target now:
+    - bounded benchmark/proof observability follow-through once the strongest
+      direct-family adopters actually share the widened seam
+  - strongest support-only but real target now:
+    - build/package/support wording only where later observability work truly
+      changes the maintained backend contract
+- The strongest remaining contradiction is now explicit:
+  - `src/sparse_ldlt_csc.c` still owns a bounded family-local
+    Accelerate-only dense-factor selection seam
+  - that means the repo now has one widened shared dense seam on the
+    Cholesky side and one still narrower family-local seam on the LDLT side
+  - this duplication now outranks benchmark wording or build/package wording
+    because it still limits backend maturity on one of the strongest direct
+    consumers
+- The useful rerank change is therefore:
+  - Sprint 92 should stay code-owned for its second implementation center
+  - it should not shift yet to benchmark/proof owners
+  - it should not widen to QR before LDLT stops lagging the new shared dense
+    contract
+- The strongest later-but-not-next seam is now explicit too:
+  - `src/sparse_qr.c` still reads as a later adopter rather than the next
+    forced backend consumer
+  - `benchmarks/bench_refactor_csc.c` remains real Sprint 92 work, but only
+    after the strongest direct-family adoption seam actually lands
+
+### Validation
+- Re-read the Sprint 92 Day 7 plan contract.
+- Re-read the Day 3 hotspot audit and Day 6 landed-batch artifact.
+- Rechecked the live backend-owner and proof-owner split across the shared
+  dense owner, Cholesky, LDLT, and benchmark surfaces.
+
+### Day 7 Exit State
+- The post-Day-6 contradiction map is now explicit.
+- Sprint 92's second implementation center stays code-owned and is fixed to
+  the LDLT backend-adoption seam.
+- Day 8 can now define one exact bounded LDLT adoption contract from the live
+  post-Day-6 tree.

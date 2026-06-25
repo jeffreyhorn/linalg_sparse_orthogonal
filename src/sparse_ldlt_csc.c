@@ -120,6 +120,18 @@ static s64_accel_dsytrf_fn s64_ldlt_ext_dsytrf = NULL;
 static s64_ldlt_ext_provider_t s64_ldlt_ext_provider = S64_LDLT_EXT_PROVIDER_NONE;
 static atomic_int s64_ldlt_ext_probe_state = ATOMIC_VAR_INIT(0);
 
+/* Copy the raw dlsym result into a typed function pointer without a direct
+ * object-pointer-to-function-pointer cast, which trips -Wpedantic on Linux. */
+static void s64_ldlt_store_symbol(void *symbol, void *fn_out, size_t fn_size) {
+    if (!fn_out || fn_size == 0)
+        return;
+    memset(fn_out, 0, fn_size);
+    if (!symbol)
+        return;
+    size_t copy_size = fn_size < sizeof(symbol) ? fn_size : sizeof(symbol);
+    memcpy(fn_out, &symbol, copy_size);
+}
+
 static int s64_ldlt_ext_probe_dense_factor(void) {
     enum {
         S64_LDLT_ACCEL_UNINITIALIZED = 0,
@@ -165,7 +177,7 @@ static int s64_ldlt_ext_probe_dense_factor(void) {
             s64_accel_dsytrf_fn dsytrf = NULL;
 
             if (handle)
-                dsytrf = (s64_accel_dsytrf_fn)dlsym(handle, "dsytrf_");
+                s64_ldlt_store_symbol(dlsym(handle, "dsytrf_"), &dsytrf, sizeof(dsytrf));
             if (!handle || !dsytrf) {
                 if (handle)
                     dlclose(handle);

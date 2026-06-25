@@ -329,6 +329,18 @@ static void *s64_ext_find_symbol(const char *name) {
     return NULL;
 }
 
+/* Copy the raw dlsym result into a typed function pointer without a direct
+ * object-pointer-to-function-pointer cast, which trips -Wpedantic on Linux. */
+static void s64_ext_store_symbol(void *symbol, void *fn_out, size_t fn_size) {
+    if (!fn_out || fn_size == 0)
+        return;
+    memset(fn_out, 0, fn_size);
+    if (!symbol)
+        return;
+    size_t copy_size = fn_size < sizeof(symbol) ? fn_size : sizeof(symbol);
+    memcpy(fn_out, &symbol, copy_size);
+}
+
 static int s64_ext_probe_dense_kernels(void) {
     enum {
         S64_EXT_UNINITIALIZED = 0,
@@ -376,9 +388,12 @@ static int s64_ext_probe_dense_kernels(void) {
                 continue;
 
             s64_ext_handles[s64_ext_handle_count++] = handle;
-            s64_ext_dpotrf = (s64_ext_dpotrf_fn)s64_ext_find_symbol("dpotrf_");
-            s64_ext_dtrsv = (s64_ext_dtrsv_fn)s64_ext_find_symbol("dtrsv_");
-            s64_ext_dtrsm = (s64_ext_dtrsm_fn)s64_ext_find_symbol("dtrsm_");
+            s64_ext_store_symbol(s64_ext_find_symbol("dpotrf_"), &s64_ext_dpotrf,
+                                 sizeof(s64_ext_dpotrf));
+            s64_ext_store_symbol(s64_ext_find_symbol("dtrsv_"), &s64_ext_dtrsv,
+                                 sizeof(s64_ext_dtrsv));
+            s64_ext_store_symbol(s64_ext_find_symbol("dtrsm_"), &s64_ext_dtrsm,
+                                 sizeof(s64_ext_dtrsm));
 
             if (s64_ext_dpotrf && s64_ext_dtrsv && s64_ext_dtrsm) {
                 s64_ext_provider = candidates[i].provider;

@@ -1020,3 +1020,76 @@ stable ranked finding set.
   evidence package.
 - Day 10 can convert that ranked review directly into the staged gap-closure
   todo without reopening the repo-wide verdict.
+
+## Day 10 - Epic 9 Gap-Closure Todo Draft
+
+### Goal
+Convert the frozen Day 9 review into one ordered Epic 9 closure sequence so
+later project-plan drafting can inherit a stable staged execution order.
+
+### Actions
+- Re-read the Sprint 90 Day 10 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the full dated Epic 9 review draft from `2026-06-25`.
+- Re-read the prior Epic 9 todo draft from `2026-06-24` as the closest
+  structural baseline.
+- Drafted the dated Epic 9 todo at:
+  - `docs/planning/EPIC_9/reviews/todo-codex-2026-06-25.md`
+- Preserved the staged closure order implied by the frozen review:
+  - target and claim fence first
+  - structural product/backend ceilings before broader widening
+  - coherence and duplication after major architecture moves
+  - comparison-depth widening later
+  - final closeout from a measured end-state
+- Wrote the Day 10 artifact to record the draft state and preserved stage
+  sequence.
+
+### Findings
+- Sprint 90 now has a complete dated Epic 9 todo draft at:
+  - `docs/planning/EPIC_9/reviews/todo-codex-2026-06-25.md`
+- The draft preserves the frozen ranked gap order from the review and converts
+  it into one staged execution sequence:
+  - Stage 1:
+    - hold the Epic 9 target and claim fence
+  - Stage 2:
+    - heal the core product and compute model
+  - Stage 3:
+    - raise the dense/backend and runtime ceiling
+  - Stage 4:
+    - expand the capability envelope
+  - Stage 5:
+    - heal documentation, naming, and product coherence
+  - Stage 6:
+    - reduce maintainability concentration
+  - Stage 7:
+    - reduce duplication in build/package/workflow surfaces
+  - Stage 8:
+    - broaden comparison and assurance evidence
+  - Stage 9:
+    - final convergence and closeout
+- The drafted todo now explicitly maps the review's contradiction classes to
+  remediation stages:
+  - compressed-first product-model convergence
+  - backend and runtime ceiling
+  - capability breadth
+  - chronology/coherence cleanup
+  - maintainability hotspot reduction
+  - build/package/workflow convergence
+  - broader comparison depth
+- The strongest Day 10 clarification is now fixed:
+  - the todo is not just a summary of problems
+  - it is the ordered execution sequence the later project plan must inherit
+  - it keeps the epic narrow enough to stay truthful while still ambitious
+
+### Validation
+- Re-read the Sprint 90 Day 10 plan contract.
+- Re-read the full dated review draft from `2026-06-25`.
+- Re-read the prior todo draft from `2026-06-24`.
+- Drafted the new dated todo and checked that it preserves the frozen ranked
+  gap order and staged execution logic.
+- Recorded the draft state in the Day 10 artifact.
+
+### Day 10 Exit State
+- Sprint 90 now has one complete Epic 9 gap-closure todo draft.
+- Day 11 can map that staged sequence directly onto the 10-sprint Epic 9
+  project plan without reopening the ranked closure order.

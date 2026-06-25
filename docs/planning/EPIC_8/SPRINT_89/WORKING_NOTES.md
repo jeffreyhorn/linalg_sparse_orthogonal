@@ -942,3 +942,117 @@ evidence from mixed proof and benchmark surfaces.
   runtime evidence lanes without ad hoc framing.
 - Any possible final fix batch remains gated by explicit comparison outcomes
   rather than by generic endgame pressure.
+
+## Day 9 - External Comparison Sweep
+
+### Goal
+Execute the bounded external comparison package fixed on Day 8 and decide
+whether Sprint 89 still needs any real final cross-surface implementation
+batch.
+
+### Actions
+- Re-read the Day 9 comparison-batch contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Executed the maintained SPD correctness comparison owner:
+  - `./build/quality-review-cmake/test_chol_csc`
+- Executed the maintained package-shape proof owners:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- Re-materialized the generated build header state needed by the bounded
+  runtime-reference lane without changing source:
+  - `make build/include/sparse_version.h`
+- Executed the retained bounded runtime-reference support owner:
+  - `make bench-reorder-sprint86`
+- Recorded the comparison results and the resulting fix-vs-no-fix decision
+  input in working notes and the Day 9 artifact.
+
+### Findings
+- Sprint 89 now has one real bounded external comparison package across the
+  retained correctness, package-shape, and touched-runtime lanes.
+- The maintained SPD correctness comparison lane stayed clean:
+  - `./build/quality-review-cmake/test_chol_csc`
+    - `151 / 151` tests passed
+    - retained external dense reference outputs:
+      - `nos4`:
+        - `max|x-x_ref| = 4.690e-13`
+        - `rel_residual = 3.907e-15`
+      - `bcsstk04`:
+        - `max|x-x_ref| = 3.224e-11`
+        - `rel_residual = 3.010e-16`
+  - interpretation:
+    - the maintained external SPD comparison lane agrees strongly on both
+      retained fixtures
+    - no correctness contradiction was exposed
+- The maintained package-shape comparison lane stayed clean:
+  - `bash tests/test_install.sh`
+    - `13` passed
+    - `0` failed
+  - `bash tests/test_cmake_install.sh`
+    - `15` passed
+    - `0` failed
+    - `0` skipped
+  - interpretation:
+    - the maintained static-first installed consumer surface still matches the
+      shipped contract
+    - the installed CMake export/version surface still matches the exact
+      version and bounded package-shape contract
+    - no install/export contradiction was exposed
+- The bounded runtime-reference support lane stayed mixed but interpretable:
+  - `make bench-reorder-sprint86`
+    - `bcsstk14`:
+      - `amd`: `nnz_L=116071`, `reorder_ms=108.3`
+      - `nd`: `nnz_L=132634`, `reorder_ms=401.2`
+    - `Pres_Poisson`:
+      - `amd`: `nnz_L=2668793`, `reorder_ms=7035.0`
+      - `nd`: `nnz_L=2474435`, `reorder_ms=5687.8`
+  - interpretation:
+    - the retained touched-runtime story remains mixed rather than uniformly
+      dominant
+    - `bcsstk14` still favors AMD on both fill and reorder time
+    - `Pres_Poisson` still favors ND on both fill and reorder time
+    - this remains bounded branch-local runtime evidence rather than a timing
+      pass/fail gate
+    - no new touched contradiction was exposed large enough, by itself, to
+      force a final implementation batch
+- The strongest agreement/difference split is now explicit:
+  - agrees strongly:
+    - maintained SPD external differential correctness
+    - maintained install/export and consumer-shape contract
+  - differs acceptably:
+    - touched reorder/ND runtime behavior remains fixture-dependent
+    - the repo does not claim broad best-in-class ordering/runtime superiority
+  - still needs calibration rather than implementation:
+    - final closeout wording should preserve the bounded mixed-runtime reading
+      rather than overclaiming uniform ND wins
+- The strongest final-fix decision input is now explicit:
+  - no correctness mismatch was exposed
+  - no package/install/export contradiction was exposed
+  - no touched runtime contradiction was exposed that clearly justifies one
+    last bounded source or proof-owner batch
+  - the likely Day 11 outcome is now:
+    - explicit no-op final fix batch
+    - or at most bounded wording calibration if Day 10 still identifies a
+      necessary support-surface clarification
+- The strongest Day 9 clarification is now explicit:
+  - Sprint 89 now has a real comparison package, not just internal validation
+  - that package supports Epic 8 closeout from bounded evidence
+  - the final implementation batch has likely collapsed from "small" to
+    "unnecessary unless later validation exposes a new contradiction"
+
+### Validation
+- Re-read the Sprint 89 Day 9 plan contract.
+- Executed:
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `make build/include/sparse_version.h`
+  - `make bench-reorder-sprint86`
+
+### Day 9 Exit State
+- Sprint 89 now has one explicit bounded external comparison package with real
+  correctness, package-shape, and touched-runtime outcomes.
+- The comparison result is strong enough to retire the expected final
+  implementation batch unless later design or validation surfaces a new
+  contradiction.
+- Day 10 can design the last landing from evidence instead of from generic
+  endgame pressure.

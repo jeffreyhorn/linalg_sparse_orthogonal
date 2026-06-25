@@ -1093,3 +1093,68 @@ later project-plan drafting can inherit a stable staged execution order.
 - Sprint 90 now has one complete Epic 9 gap-closure todo draft.
 - Day 11 can map that staged sequence directly onto the 10-sprint Epic 9
   project plan without reopening the ranked closure order.
+
+## Day 11 - Project Plan Draft
+
+### Goal
+Turn the frozen Day 9 review and Day 10 todo into one complete 10-sprint Epic 9
+project plan with bounded hours and stage-ordered sprint sequencing.
+
+### Actions
+- Re-read the Sprint 90 Day 11 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the frozen dated Epic 9 review from `2026-06-25`.
+- Re-read the dated Epic 9 todo from `2026-06-25`.
+- Re-read the existing `docs/planning/EPIC_9/PROJECT_PLAN.md` draft.
+- Updated the project-plan introduction so it now points at the frozen
+  `2026-06-25` review and todo package instead of the earlier provisional
+  review-only reading.
+- Reordered the late-epic sprint sequence so it now follows the Day 10 stage
+  order:
+  - maintainability reduction before build/package/workflow duplication
+- Wrote the Day 11 artifact to record the completed project-plan draft state.
+
+### Findings
+- Sprint 90 now has an updated full Epic 9 project plan at:
+  - `docs/planning/EPIC_9/PROJECT_PLAN.md`
+- The project plan now explicitly inherits the frozen `2026-06-25` review and
+  todo package.
+- The staged closure order from the todo now maps cleanly onto Sprints 90-99:
+  - Sprint 90:
+    - baseline, target, comparison, and risk fence
+  - Sprint 91:
+    - compressed-first product convergence
+  - Sprints 92-93:
+    - backend ceiling and runtime/threading convergence
+  - Sprint 94:
+    - capability widening
+  - Sprint 95:
+    - public narrative and workflow coherence
+  - Sprint 96:
+    - large-source and giant-test maintainability reduction
+  - Sprint 97:
+    - build/package/workflow convergence
+  - Sprint 98:
+    - broader assurance and comparison architecture
+  - Sprint 99:
+    - final integration, calibration, and closeout
+- The strongest Day 11 clarification is now fixed:
+  - the plan is no longer only directionally aligned with the review
+  - it now follows the same ranked gap order and stage order as the frozen
+    todo
+  - maintainability now lands before duplication reduction, matching the Day
+    10 closure sequence
+
+### Validation
+- Re-read the Sprint 90 Day 11 plan contract.
+- Re-read the full dated review and todo package from `2026-06-25`.
+- Re-read the current Epic 9 project-plan draft.
+- Checked that each sprint remains within the `168`-hour cap.
+- Checked that the late-epic sprint order now matches the Day 10 stage order.
+- Recorded the completed draft state in the Day 11 artifact.
+
+### Day 11 Exit State
+- Sprint 90 now has one complete 10-sprint Epic 9 project-plan draft aligned
+  to the frozen review and todo package.
+- Day 12 can perform cross-document alignment from one coherent review/todo/plan
+  package without reopening sprint ordering.

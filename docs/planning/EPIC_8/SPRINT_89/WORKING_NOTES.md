@@ -814,3 +814,131 @@ work.
 - The comparison lane and fix lane are ordered clearly.
 - Day 8 can design the explicit external comparison protocol without ambiguity
   about what comes next.
+
+## Day 8 - External Comparison Sweep Design
+
+### Goal
+Freeze the exact bounded external comparison protocol and reporting shape so
+Day 9 can execute one explicit comparison package instead of assembling ad hoc
+evidence from mixed proof and benchmark surfaces.
+
+### Actions
+- Re-read the Day 8 comparison-design contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the Day 7 rerank and the Day 5 comparison/fix architecture
+  contract.
+- Re-read the retained external comparison and runtime-reference owners:
+  - `tests/test_chol_csc.c`
+  - `tests/chol_external_dense_reference.py`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `benchmarks/bench_reorder.c`
+  - `Makefile` through `make bench-reorder-sprint86`
+- Fixed the exact comparison lanes, commands, fixtures, and output fields
+  Sprint 89 will actually treat as maintained Day 9 evidence.
+- Fixed the acceptance criteria for a "good enough to close" comparison result
+  and the narrow conditions that would still justify a final fix batch.
+- Recorded the result in working notes and the Day 8 artifact.
+
+### Findings
+- Sprint 89 now has one exact Day 9 comparison-execution contract:
+  - required execution owners:
+    - `tests/test_chol_csc.c`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `Makefile` through `make bench-reorder-sprint86`
+  - directly forced support-only comparison surfaces only if the execution
+    truly exposes a contradiction:
+    - `tests/chol_external_dense_reference.py`
+    - `benchmarks/bench_reorder.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+- The exact comparison protocol is now fixed:
+  - maintained correctness lane:
+    - execute the retained SPD external differential owner on the reviewed
+      build through `./build/quality-review-cmake/test_chol_csc`
+    - capture the bounded external-dense-reference outputs for:
+      - `nos4`
+      - `bcsstk04`
+    - interpret the lane through:
+      - `max|x-x_ref|`
+      - retained in-repo residual strength
+  - maintained package-shape lane:
+    - execute:
+      - `bash tests/test_install.sh`
+      - `bash tests/test_cmake_install.sh`
+    - capture the exact pass/fail/skip totals and whether the installed
+      static-first consumer and export surfaces still match the maintained
+      package contract
+  - bounded runtime-reference support lane:
+    - execute `make bench-reorder-sprint86`
+    - capture the bounded touched-corpus slice for:
+      - `bcsstk14`
+      - `Pres_Poisson`
+    - report the emitted:
+      - `nnz_L`
+      - `reorder_ms`
+      - reorder name
+    - preserve the bounded reading:
+      - branch-local touched-lane evidence only
+      - not a portable timing gate
+      - not a broad product-superiority claim
+- The accepted Day 9 reporting shape is now fixed:
+  - correctness agreement:
+    - one explicit fixture-by-fixture statement for `nos4` and `bcsstk04`
+    - each statement must include the external agreement metric and the
+      retained residual reading
+  - package/consumer shape alignment:
+    - exact totals from the two install/export proof scripts
+    - explicit statement of whether the installed package contract still reads
+      as maintained and truthful
+  - bounded runtime observations:
+    - one explicit AMD-vs-ND comparison on the Sprint 86 slice fixtures
+    - interpretation framed as touched-runtime evidence, not pass/fail timing
+      policy
+- The strongest "good enough to close" comparison criteria are now explicit:
+  - the maintained SPD external lane shows no correctness mismatch on `nos4`
+    or `bcsstk04`
+  - both install/export proof scripts pass without exposing a package-shape or
+    consumer-contract contradiction
+  - the Sprint 86 reorder slice remains interpretable as bounded mixed runtime
+    evidence and does not expose one new touched contradiction large enough to
+    force a final implementation batch on its own
+  - any remaining differences must be classifiable as:
+    - bounded and acceptable
+    - or explicit residual items
+- The strongest forced-spillover rule is now fixed:
+  - Day 10 and Day 11 should only move into a real final fix batch if the
+    Day 9 comparison execution exposes:
+    - an SPD correctness disagreement
+    - a local install/export contradiction
+    - a touched reorder/ND contradiction still large enough to justify one
+      last bounded fix
+    - or an unavoidable support-surface wording contradiction created by the
+      evidence
+  - the comparison package should not force movement just because:
+    - external ecosystems are broader elsewhere
+    - a fixture shows mixed rather than uniformly dominant runtime behavior
+    - the repo remains intentionally bounded on capability, platform, or
+      product shape
+- The strongest Day 8 clarification is now explicit:
+  - Day 9 does not need to invent a new comparison lane
+  - it only needs to execute the already-retained SPD, package-shape, and
+    bounded runtime owners together and interpret them coherently
+  - that keeps the final-fix decision evidence-backed and keeps Epic 8 closeout
+    truthful rather than aspirational
+
+### Validation
+- Re-read the Sprint 89 Day 8 plan contract.
+- Re-read the Day 7 rerank and Day 5 comparison/fix architecture contract.
+- Re-read the retained SPD external differential owner, the install/export
+  proof owners, and the bounded Sprint 86 runtime-reference owner.
+
+### Day 8 Exit State
+- Sprint 89 now has one exact bounded external comparison protocol and
+  reporting shape.
+- Day 9 can execute the retained correctness, package-shape, and bounded
+  runtime evidence lanes without ad hoc framing.
+- Any possible final fix batch remains gated by explicit comparison outcomes
+  rather than by generic endgame pressure.

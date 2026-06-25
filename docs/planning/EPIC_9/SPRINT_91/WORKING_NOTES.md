@@ -829,3 +829,77 @@ constructor landing and the Day 9 public-story landing.
   - `tests/test_integration.c`
 - Broader comparison and benchmark widening remain deferred behind the Sprint
   91 proof batch.
+
+## Day 11 - Proof Follow-Through Batch
+
+### Intent
+- Land the bounded Day 10 proof batch by proving that constructor-built
+  compressed-input matrices can enter the direct workflows the Day 9 README
+  now teaches.
+
+### Actions
+- Re-read the Day 10 proof-follow-through contract.
+- Added two focused constructor-entry proofs in `tests/test_integration.c`.
+- Added two tiny local constructor helpers in the same integration owner so
+  the new proofs stay public-behavior-focused instead of scattering format
+  plumbing:
+  - `build_from_csr_constructor(...)`
+  - `build_from_csc_constructor(...)`
+- Landed one CSR-backed one-shot direct proof:
+  - `test_create_from_csr_enters_one_shot_lu_workflow`
+- Landed one CSC-backed public-lifecycle proof:
+  - `test_public_lifecycle_constructor_built_csc_refactor_same_pattern_matches_one_shot_cholesky`
+- Registered both tests in the integration suite.
+- Confirmed that no support-only follow-through was required in:
+  - `tests/test_csr.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Wrote the Day 11 artifact and recorded the validated outcome here.
+
+### Findings
+- Sprint 91 now has a landed focused proof batch inside the retained public
+  lifecycle owner:
+  - constructor-built CSR input is now proven to enter a one-shot direct solve
+    cleanly
+  - constructor-built CSC input is now proven to enter the explicit
+    repeated-run direct lifecycle and agree with the one-shot Cholesky path
+- The landed Day 11 shape stayed exactly inside the Day 10 fence:
+  - required center:
+    - `tests/test_integration.c`
+  - directly forced support follow-through:
+    - none
+- The strongest useful proof changes are now explicit:
+  - `test_create_from_csr_enters_one_shot_lu_workflow`
+    proves that the compressed-first CSR constructor path is not just a
+    valid shell builder; it really reaches a public one-shot direct solve
+  - `test_public_lifecycle_constructor_built_csc_refactor_same_pattern_matches_one_shot_cholesky`
+    proves that constructor-built CSC matrices:
+    - analyze/factor/solve cleanly on the public repeated-run direct path
+    - refactor cleanly across same-pattern value changes
+    - agree with the one-shot Cholesky path across those solves
+  - the new local constructor helpers keep the integration owner small and
+    readable without widening constructor-only unit ownership
+- The useful no-follow-through call is now explicit:
+  - `tests/test_csr.c` already owned constructor validity
+  - the Day 11 batch only needed the missing public-workflow proof
+  - the Day 9 README wording remained truthful after the proof landed
+  - maintainer wording did not need to move
+
+### Validation
+- Because `tests/test_integration.c` changed, I ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+- All passed cleanly.
+- Representative retained proof:
+  - `test_integration` = `58 / 58`
+  - `test_csr` = `13 / 13`
+
+### Day 11 Exit State
+- The Sprint 91 compressed-first product claims now have focused public-proof
+  support.
+- Constructor-style compressed entry is now proven both as:
+  - a one-shot direct starting path
+  - and a valid feeder into the explicit repeated-run direct lifecycle
+- Day 12 can freeze the final Sprint 91 proof-owner map from a landed
+  validated batch.

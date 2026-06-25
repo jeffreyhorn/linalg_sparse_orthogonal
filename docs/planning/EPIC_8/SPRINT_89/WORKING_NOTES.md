@@ -121,3 +121,117 @@ hotspots rather than another generic "final polish" reset.
   workstreams are fixed in writing.
 - The strongest likely Sprint 89 touch surfaces and preserved non-goals are
   explicit before the validation and maintained cross-surface recheck begins.
+
+## Day 2 - Validation and Maintained Cross-Surface Recheck
+
+### Goal
+Refresh the implementation-day validation contract and the live maintained
+reviewed, install/export, benchmark-reporting, example, and workflow truth
+split before Sprint 89 changes any final-integration, comparison, or closeout
+surface.
+
+### Actions
+- Re-read the Day 2 validation-baseline expectations from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the strongest recent validation/surface templates from:
+  - `docs/planning/EPIC_8/SPRINT_88/artifacts/day2-validation-baseline-and-maintained-support-surface-recheck.md`
+  - `docs/planning/EPIC_8/SPRINT_87/artifacts/day2-validation-baseline-and-maintained-consumer-surface-recheck.md`
+- Reconfirmed reviewed CMake parity directly with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the presence of the strongest reviewed representative binaries and
+  examples that remain the main executable truth surfaces entering Sprint 89:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_reorder`
+  - `./build/quality-review-cmake/test_reorder_amd_qg`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Rechecked the maintained canonical reporting command surface with:
+  - `make -n bench-canonical-report`
+- Rechecked the maintained reporting and consumer-proof owners:
+  - `scripts/bench_canonical_report.sh`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+- Re-read the CI, macOS, and Windows workflow surfaces that constrain the
+  current reviewed, supplemental, and staged platform truth:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+
+### Findings
+- Sprint 89 continues to inherit the strongest local reviewed baseline:
+  - `make quality-review-full`
+- The code-day and docs-day split is now fixed explicitly for this sprint:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial final-integration, comparison, residual-calibration, or
+    closeout-support batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- Reviewed CMake parity remains the primary truthfulness anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The reviewed CMake tree currently remains the strongest shared executable
+  truth surface entering Sprint 89:
+  - reviewed representative proof owners:
+    - `./build/quality-review-cmake/test_reorder_nd`
+    - `./build/quality-review-cmake/test_reorder`
+    - `./build/quality-review-cmake/test_reorder_amd_qg`
+    - `./build/quality-review-cmake/test_graph`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+- Canonical benchmark reporting remains command- and script-owned rather than
+  reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/export proof remains script- and fixture-owned:
+  - `bash tests/test_install.sh` proves the local Unix-side Make
+    install/uninstall + `pkg-config` path
+  - `bash tests/test_cmake_install.sh` proves the local Unix-side CMake
+    install/export + `find_package(Sparse)` path
+  - `examples/cmake_example/CMakeLists.txt` remains the representative
+    downstream CMake consumer surface used by the CMake install/export proof
+- Workflow-side truth remains intentionally layered rather than flattened into
+  one broad parity claim:
+  - Linux remains the strongest reviewed source of truth through the enforced
+    reviewed Makefile, reviewed CMake, and dead-code lanes
+  - macOS carries a narrower enforced reviewed Apple Clang lane plus a
+    supplemental static-first Make install/`pkg-config` confidence lane
+  - Windows remains the reviewed CMake-first consumer subset and does not
+    claim a reviewed Makefile or separate reviewed install-validation lane
+  - Windows still fixes its reviewed `ctest -N` expectation at `50` and keeps
+    staged exclusions explicit in job output
+- The strongest Day 2 clarification is now fixed:
+  - reviewed CMake binaries remain the main executable truth anchor
+  - canonical benchmark reporting remains command/script owned
+  - install/export proof remains script owned
+  - downstream consumer proof remains local and bounded
+  - workflow lanes remain support evidence rather than broad cross-platform
+    parity claims
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Rechecked the presence of the strongest reviewed representative binaries and
+  examples.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked `scripts/bench_canonical_report.sh`,
+  `tests/test_install.sh`, `tests/test_cmake_install.sh`,
+  `examples/cmake_example/CMakeLists.txt`, and the CI/macOS/Windows workflow
+  surfaces.
+
+### Day 2 Exit State
+- Sprint 89 now has one explicit validation and maintained cross-surface
+  contract before the end-state re-audit begins.
+- Reviewed CMake binaries remain the main executable truth anchor.
+- Canonical benchmark reporting remains command/script owned.
+- Install/export proof remains script owned.
+- Workflow lanes remain support evidence rather than broad parity claims.

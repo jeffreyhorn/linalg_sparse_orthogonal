@@ -467,3 +467,97 @@ reopening broader lifecycle or publication ownership.
   longer the only public conceptual entry path for CSR/CSC-backed callers.
 - Day 7 can rerank the remaining shell-first costs from a landed validated
   implementation rather than from a pure design contract.
+
+## Day 7 - Post-Landing Audit & Rerank
+
+### Goal
+Re-rank the remaining compressed-first work after the first code landing so
+Sprint 91's second implementation center is chosen from live post-Day-6
+evidence rather than from the original shell-cost audit.
+
+### Actions
+- Re-read the Sprint 91 Day 7 contract in
+  `docs/planning/EPIC_9/SPRINT_91/PLAN.md`.
+- Re-read the Day 6 landing against:
+  - the Day 3 shell-cost audit
+  - the Day 5 compressed-first architecture design
+- Re-scanned the strongest remaining public and lifecycle owners:
+  - `README.md`
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `docs/maintainer_guide.md`
+  - likely proof-owner follow-through surfaces:
+    - `tests/test_sparse_matrix.c`
+    - `tests/test_integration.c`
+- Re-ranked the remaining shell-first contradiction set from the live
+  post-Day-6 tree.
+- Fixed the exact Day 8 design center and support-only follow-through map.
+- Wrote the Day 7 rerank artifact and recorded the updated order here.
+
+### Findings
+- The Day 6 landing closed the strongest first Sprint 91 contradiction:
+  - compressed CSR/CSC inputs now have first-class public construction entry
+    paths
+  - callers that already own compressed sparse data no longer need to begin
+    conceptually from `sparse_create()` plus linked-list insertion just to
+    enter the matrix-shell workflow
+  - the first construction/import seam is no longer the highest-value
+    remaining Sprint 91 target
+- The ranked remaining shell-cost map is now:
+  - strongest first target now:
+    - publication and public-surface clarification around the new
+      compressed-first entry path
+  - strongest second target now:
+    - one-shot vs repeated-run direct-workflow lifecycle clarification
+  - strongest third target now:
+    - focused proof-owner or integration follow-through only if the
+      publication and lifecycle contract truly forces it
+  - strongest support-only but real target now:
+    - README, maintainer, and public-header wording that still over-centers
+      the linked-list shell after the Day 6 entry-path landing
+- The strongest remaining contradiction is now publication/public-surface
+  reading:
+  - `README.md` still teaches CSR/CSC conversion as:
+    - `sparse_to_csr(mat, &csr)` / `sparse_from_csr(csr, &mat)`
+    - `sparse_to_csc(mat, &csc)` / `sparse_from_csc(csc, &mat)`
+  - the README still presents the shell-first one-shot path as the more
+    natural public center even though compressed-first construction now exists
+  - `include/sparse_matrix.h` still truthfully describes the shell as the
+    mutable compatibility owner, but the public adoption story around that
+    owner has not yet been recalibrated against the new Day 6 entry path
+- Lifecycle clarification remains real, but is now second:
+  - `include/sparse_analysis.h` already gives the repo a real explicit
+    repeated-run direct owner
+  - `README.md` already teaches the repeated-run direct workflow
+  - the remaining gap is now the relationship between the shell-first and
+    compressed-first one-shot entry story and that repeated-run owner
+- The exact Day 8 design center is now fixed to:
+  - `README.md`
+- The strongest support-only follow-through, only if the Day 8 contract truly
+  forces movement, is:
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `docs/maintainer_guide.md`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_integration.c`
+- Sprint 91 no longer needs:
+  - a second immediate construction/import implementation batch
+  - broad linked-list-shell deprecation
+  - a family-wide direct-workflow rewrite
+  - proof-owner widening detached from the touched public contract
+
+### Validation
+- Re-read the Sprint 91 Day 7 plan contract.
+- Re-read the Day 6 artifact against the Day 3 and Day 5 artifacts.
+- Re-scanned the strongest remaining public, lifecycle, and proof-owner
+  surfaces.
+- This was a docs-only rerank pass, so I did not rerun `make format`,
+  `make lint`, or `make test`.
+
+### Day 7 Exit State
+- The strongest remaining Sprint 91 seam is now explicit after the first
+  implementation landing.
+- The second implementation center is fixed first to publication/public-surface
+  clarification, with lifecycle tightening ordered immediately behind it.
+- Day 8 can define one exact bounded publication/lifecycle contract from the
+  live post-Day-6 tree.

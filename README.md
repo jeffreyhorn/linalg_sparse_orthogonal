@@ -583,8 +583,8 @@ remain one-shot compatibility surfaces.
 
 **I/O and format conversion:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
-- `sparse_to_csr(mat, &csr)` / `sparse_create_from_csr(csr)` — CSR export and compressed-first construction
-- `sparse_to_csc(mat, &csc)` / `sparse_create_from_csc(csc)` — CSC export and compressed-first construction
+- `sparse_to_csr(mat, &csr)` / `sparse_create_from_csr(csr)` — CSR export and compressed-first construction; free exported storage with `sparse_csr_free(csr)`
+- `sparse_to_csc(mat, &csc)` / `sparse_create_from_csc(csc)` — CSC export and compressed-first construction; free exported storage with `sparse_csc_free(csc)`
 - `sparse_from_csr(csr, &mat)` / `sparse_from_csc(csc, &mat)` — retained compatibility wrappers when you need explicit `sparse_err_t` import status
 - `sparse_errno()` — retrieve system errno after I/O failure
 

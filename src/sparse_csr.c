@@ -79,6 +79,9 @@ static sparse_err_t sparse_validate_csr(const SparseCsr *csr) {
     if (!csr)
         return SPARSE_ERR_NULL;
 
+    if (csr->rows < 0 || csr->cols < 0 || csr->nnz < 0)
+        return SPARSE_ERR_BADARG;
+
     if (!csr->row_ptr || (!csr->col_idx && csr->nnz > 0) || (!csr->values && csr->nnz > 0))
         return SPARSE_ERR_BADARG;
 
@@ -208,6 +211,9 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc_out) {
 static sparse_err_t sparse_validate_csc(const SparseCsc *csc) {
     if (!csc)
         return SPARSE_ERR_NULL;
+
+    if (csc->rows < 0 || csc->cols < 0 || csc->nnz < 0)
+        return SPARSE_ERR_BADARG;
 
     if (!csc->col_ptr || (!csc->row_idx && csc->nnz > 0) || (!csc->values && csc->nnz > 0))
         return SPARSE_ERR_BADARG;

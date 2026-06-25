@@ -1403,3 +1403,86 @@ canonical reporting surfaces for the final Epic 8 close baseline.
 - The strongest maintained reviewed, package, and reporting surfaces all pass
   from the live branch state.
 - Day 14 can close Sprint 89 and Epic 8 from a validated, sourceable state.
+
+## Day 14 - Retrospective, Handoff & Epic 8 Closeout
+
+### Goal
+Close Sprint 89 and Epic 8 from the validated Day 13 baseline and leave one
+truthful next-cycle handoff instead of another broad residual bucket.
+
+### Actions
+- Re-read the Day 14 closeout contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the Day 12 residual-freeze artifact and the Day 13 validated close
+  baseline together.
+- Wrote the Sprint 89 closeout and handoff artifact as the final Epic 8
+  close-state summary.
+- Reconfirmed:
+  - Sprint 89 closes from Day 13's validated baseline
+  - Epic 8 closes from a bounded evidence-backed end state
+  - the next planning cycle inherits one explicit residual queue
+- Recorded the closeout state in working notes and the Day 14 artifact.
+
+### Findings
+- Sprint 89 now closes as one bounded final-integration and Epic 8 closeout
+  package across:
+  - end-state re-audit
+  - bounded external comparison design and execution
+  - explicit retirement of the final implementation batch
+  - residual-queue finalization
+  - validated Day 13 close baseline
+- Epic 8 now closes from one evidence-backed end state rather than from
+  another implementation aspiration:
+  - materially improved and now bounded/calibrated:
+    - linked-list-first product/storage ceiling
+    - builtin dense/backend performance ceiling
+    - widened but still intentionally bounded capability surface
+    - static-first and asymmetric package/platform contract
+    - front-door usability and workflow layering
+    - large-source and giant-test maintainability concentration
+  - explicitly closed for Epic 8 purposes:
+    - maintained direct-family external SPD comparison lane exists and agrees
+    - maintained install/export and consumer-shape proof exists and passes
+    - final close baseline is validated across reviewed, package, and
+      reporting owners
+- `docs/planning/EPIC_8/PROJECT_PLAN.md` does not need a Sprint 89 correction.
+- Sprint 89 and Epic 8 now close from the validated Day 13 baseline:
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `375.43 sec`
+  - `bash tests/test_install.sh` = `13` passed, `0` failed
+  - `bash tests/test_cmake_install.sh` = `15` passed, `0` failed, `0` skipped
+  - `make bench-canonical-report`
+- The strongest non-blocking residual note remains explicit:
+  - reviewed `test_reorder_nd` remained the runtime long pole at `215.72 sec`
+  - Epic 8 records that as carry-forward runtime concentration, not as a
+    Sprint 89 close blocker
+- The next-cycle handoff queue is now fixed explicitly around:
+  - reviewed reorder/ND runtime concentration
+  - broader external comparison depth beyond the bounded maintained lanes
+  - later maintainability extraction only where refreshed hotspot maps justify
+    more source or giant-test decomposition
+  - any broader capability or package/platform widening only where future
+    evidence justifies reopening those bounded non-claims
+- The strongest Day 14 clarification is now explicit:
+  - Sprint 89 did not need a last hidden implementation pass
+  - Epic 8 closes with a smaller, better-calibrated residual queue than it
+    opened with
+  - the next cycle inherits explicit bounded carry-forward work instead of
+    unresolved ambiguity
+
+### Validation
+- Re-read the Sprint 89 Day 14 plan contract.
+- Re-read the Day 12 residual queue and Day 13 validation artifacts.
+- Confirmed Sprint 89 closes from the Day 13 validated baseline without any
+  post-validation changes.
+
+### Day 14 Exit State
+- Sprint 89 is closed from a validated baseline rather than implementation
+  intent.
+- Epic 8 now has one explicit closeout package and one explicit next-cycle
+  residual queue.
+- The branch is ready for the later Sprint 89 retrospective and Epic 8/final
+  summary writing surfaces without reopening technical scope.

@@ -903,3 +903,71 @@ constructor landing and the Day 9 public-story landing.
   - and a valid feeder into the explicit repeated-run direct lifecycle
 - Day 12 can freeze the final Sprint 91 proof-owner map from a landed
   validated batch.
+
+## Day 12 - Alignment Pass
+
+### Goal
+Freeze the final Sprint 91 proof-owner map and the exact Day 13 validation
+queue from the live post-Day-11 branch.
+
+### Actions
+- Re-read the landed Day 6 construction/import batch, Day 9
+  publication/lifecycle batch, and Day 11 proof batch together.
+- Rechecked whether any support-only edit was still needed in:
+  - `README.md`
+  - `tests/test_csr.c`
+  - `docs/maintainer_guide.md`
+- Re-materialized the reviewed CMake parity tree from the live branch state.
+- Rechecked the canonical reporting owner command and the representative
+  reviewed binaries/examples that matter most to the Sprint 91 lane.
+- Fixed the final proof-owner split and the exact Day 13 queue.
+- Wrote the Day 12 artifact and recorded the freeze here.
+
+### Findings
+- No new support-only edit is needed before the full sweep.
+- The final Sprint 91 proof-owner split is now fixed around:
+  - compressed-first construction owner:
+    - `tests/test_csr.c`
+  - public direct-workflow lifecycle owner:
+    - `tests/test_integration.c`
+  - public adoption/story owner:
+    - `README.md`
+  - retained adjacent direct-family proof owners, not new Sprint 91 centers:
+    - `tests/test_chol_csc.c`
+    - `tests/test_ldlt_csc.c`
+  - retained support-only maintainer owner:
+    - `docs/maintainer_guide.md`
+- The useful final Sprint 91 reading is now explicit:
+  - Day 6 made constructor-style compressed entry real
+  - Day 9 taught that entry path in the public story
+  - Day 11 proved the missing public-workflow behavior
+  - no further wording or proof redistribution is required before close
+- The exact Day 13 queue is now frozen around:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - focused touched proof owners:
+    - `./build/quality-review-cmake/test_csr`
+    - `./build/quality-review-cmake/test_integration`
+    - `./build/quality-review-cmake/test_chol_csc`
+    - `./build/quality-review-cmake/test_ldlt_csc`
+  - representative examples:
+    - `./build/quality-review-cmake/example_analysis`
+    - `./build/quality-review-cmake/example_basic_solve`
+  - canonical reporting follow-through:
+    - `make bench-canonical-report`
+
+### Validation
+- Re-ran `make quality-review-cmake-compile` from the live post-Day-11 tree.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked the representative reviewed proof-owner and example binaries.
+- This was a docs-only alignment pass, so I did not rerun `make format`,
+  `make lint`, `make test`, or `make quality-review-full`.
+
+### Day 12 Exit State
+- Sprint 91 now has one frozen final proof-owner map.
+- The Day 13 validation queue is fixed from the live post-Day-11 branch.
+- The sprint can now close from one exact validation sweep rather than from a
+  rolling queue.

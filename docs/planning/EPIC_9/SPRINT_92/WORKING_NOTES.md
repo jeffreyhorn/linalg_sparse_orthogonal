@@ -432,3 +432,78 @@ highest-value backend seam instead of generic dense or direct-family churn.
   strongest immediate Cholesky-side adoption seam.
 - Day 5 can define the backend ABI/runtime contract without reopening the
   ranked first-center choice.
+
+## Day 5 - Portable Backend ABI and Runtime Contract Design
+
+### Goal
+Define the bounded builtin-vs-portable backend contract so Day 6 can widen the
+shared dense-kernel seam without breaking builtin-default truth or reopening
+the Day 4 boundary.
+
+### Actions
+- Re-read the Sprint 92 Day 5 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 4 first-implementation boundary artifact.
+- Re-read the current shared dense-kernel and strongest adopter interfaces:
+  - `include/sparse_dense.h`
+  - `src/sparse_dense.c`
+  - `src/sparse_chol_csc_internal.h`
+  - `benchmarks/bench_backend_compare_helpers.h`
+- Rechecked the current bounded backend evidence:
+  - shared dense owner exposes only the Cholesky supernodal descriptor seam
+  - runtime selection is environment-based and currently Apple Accelerate only
+  - proof and benchmark surfaces already know how to inspect backend names
+- Wrote the Day 5 architecture artifact and fixed the Day 6 implementation
+  center in writing.
+
+### Findings
+- Sprint 92 now has one explicit builtin-vs-portable backend contract:
+  - builtin dense kernels:
+    - remain the default, self-contained, always-available product truth
+    - continue to define correctness and fallback semantics for every caller
+    - must stay usable even when no optional backend is present
+  - optional portable backend lane:
+    - should widen the shared dense-kernel descriptor/runtime-selection seam
+      rather than creating another family-local acceleration pocket
+    - should remain optional and capability-gated
+    - should fail closed to builtin kernels when unavailable or unsupported
+  - runtime or compile-time selection:
+    - stays bounded to the shared dense owner
+    - should present one explicit backend name / descriptor contract to direct
+      consumers and proof surfaces
+    - should not turn Sprint 92 into a broad public configuration-product
+      rewrite
+- The exact Day 6 implementation center is now fixed to:
+  - `src/sparse_dense.c`
+  - directly forced follow-through only if needed in:
+    - `src/sparse_chol_csc.c`
+    - `src/sparse_chol_csc_internal.h`
+    - `tests/test_dense.c`
+    - `tests/test_chol_csc.c`
+    - `benchmarks/bench_chol_csc.c`
+- The strongest Day 5 clarification is now explicit:
+  - Sprint 92 should not try to solve every backend problem at once
+  - the first landing should widen the shared descriptor/runtime-selection seam
+    around the Cholesky dense kernel path
+  - LDL^T, QR, broader benchmark/reporting follow-through, and package wording
+    stay later unless the shared seam truly forces them
+- The contract also fixes what Day 6 should not become:
+  - a broad public API redesign in `include/sparse_dense.h`
+  - a fake platform-symmetry claim
+  - a QR or LDL^T adoption batch as the first code center
+  - a build/package/workflow batch detached from the shared dense seam
+
+### Validation
+- Re-read the Sprint 92 Day 5 plan contract.
+- Re-read the Day 4 boundary artifact.
+- Re-read the current shared dense-kernel and Cholesky-side internal
+  interfaces.
+- Rechecked the benchmark/proof surfaces that already observe backend names.
+
+### Day 5 Exit State
+- Sprint 92 now has one explicit builtin-vs-portable backend contract before
+  code moves.
+- Day 6 implementation is fixed to the shared dense-kernel seam with only the
+  strongest Cholesky-side adopter as directly forced follow-through.
+- Later LDL^T, QR, benchmark, and package work stays sequenced behind the
+  first backend landing.

@@ -1056,3 +1056,93 @@ batch.
   contradiction.
 - Day 10 can design the last landing from evidence instead of from generic
   endgame pressure.
+
+## Day 10 - Final Cross-Surface Fix Design
+
+### Goal
+Freeze the smallest truthful last-mile reconciliation batch from the Day 6
+re-audit and the executed Day 9 comparison package.
+
+### Actions
+- Re-read the Day 10 final-fix-design contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the Day 6 end-state re-audit package and the Day 9 comparison
+  results together.
+- Re-tested the Day 5 final-fix entry criteria against the actual comparison
+  outcomes:
+  - correctness mismatch
+  - package/install/export contradiction
+  - touched runtime contradiction large enough to justify a last source batch
+  - unavoidable support-surface wording contradiction
+- Fixed the exact Day 11 decision:
+  - the final implementation batch is intentionally empty
+  - only bounded wording calibration remains eligible if a later closeout
+    surface would otherwise misstate the evidence
+- Recorded the design in working notes and the Day 10 artifact.
+
+### Findings
+- Sprint 89 now has one exact final-fix design contract:
+  - required Day 11 landing:
+    - explicit no-op final fix batch confirmation
+  - directly forced support-only follow-through only if later closeout writing
+    exposes a real wording contradiction:
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+    - Sprint 89 closeout-writing surfaces
+  - explicitly not reopened:
+    - `tests/test_chol_csc.c`
+    - `tests/chol_external_dense_reference.py`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `benchmarks/bench_reorder.c`
+    - `Makefile`
+    - reorder/ND implementation owners
+    - package/export implementation owners
+- The strongest evidence-backed no-op call is now explicit:
+  - the Day 9 comparison package exposed:
+    - no SPD correctness mismatch
+    - no install/export or consumer-shape contradiction
+    - no touched runtime contradiction large enough to justify one last source
+      or proof-owner batch
+  - the Day 6 re-audit already fixed that runtime was the only plausible
+    remaining implementation-side candidate
+  - the Day 9 bounded runtime evidence preserved a mixed-but-truthful reading
+    rather than exposing a broken maintained contract
+- The exact Day 11 validation expectation is now fixed:
+  - if Day 11 stays a true no-op confirmation:
+    - no `make format`
+    - no `make lint`
+    - no `make test`
+    - no `make quality-review-full`
+  - if Day 11 is forced into bounded wording calibration only:
+    - still no code validation gate
+    - reruns defer to the frozen Day 13 full validation/reporting queue
+- The strongest support-only fence is now explicit:
+  - Day 11 should not reopen any implementation owner merely to chase:
+    - broader ecosystem comparison breadth
+    - uniform runtime superiority claims the repo never made
+    - cosmetic wording churn detached from the comparison evidence
+  - only a wording correction made unavoidable by the Day 9 evidence would be
+    eligible follow-through
+- The strongest Day 10 clarification is now explicit:
+  - the final-fix batch did not merely shrink; it retired
+  - Sprint 89 now needs residual calibration and full-close validation more
+    than it needs one more implementation touch
+  - Epic 8 closeout can now proceed from evidence-backed non-claims instead of
+    from another speculative cleanup pass
+
+### Validation
+- Re-read the Sprint 89 Day 10 plan contract.
+- Re-read the Day 6 end-state re-audit package.
+- Re-read the Day 9 external comparison package.
+- Re-tested the Day 5 final-fix entry criteria against the actual Day 9
+  results.
+
+### Day 10 Exit State
+- Sprint 89 now has one explicit empty final-fix design rather than an
+  ambiguous "maybe small" implementation batch.
+- Day 11 can confirm the no-op landing exactly and move directly into residual
+  calibration and full-close validation preparation.
+- Support-only churn remains fenced unless later closeout writing would
+  misstate the validated evidence.

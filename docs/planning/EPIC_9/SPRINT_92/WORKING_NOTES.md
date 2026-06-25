@@ -1015,3 +1015,86 @@ still needed before the full sweep.
 - No additional support-only edit is needed before the full sweep.
 - Day 13 can now run from one exact validation queue anchored to the live
   post-Day-11 branch.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Run the full frozen Sprint 92 Day 13 queue from the live post-Day-12 branch
+and record the exact reviewed, proof-owner, example, backend-observability,
+and reporting results.
+
+### Actions
+- Ran the frozen implementation and reviewed queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-ran the reviewed parity anchor explicitly:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused touched proof owners:
+  - `./build/quality-review-cmake/test_dense`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+  - `./build/quality-review-cmake/test_qr`
+- Re-ran the representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the focused backend observability checks:
+  - `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `SPARSE_LDLT_DENSE_BACKEND=external ./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+- Re-ran canonical reporting:
+  - `make bench-canonical-report`
+- Wrote the Day 13 validation artifact after the queue passed.
+
+### Findings
+- The full Day 13 queue passed cleanly.
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `326.70 sec`
+- The focused proof-owner reruns also all passed:
+  - `test_dense` = `34 / 34`
+  - `test_chol_csc` = `152 / 152`
+  - `test_ldlt` = `88 / 88`
+  - `test_ldlt_csc` = `96 / 96`
+  - `test_qr` = `73 / 73`
+- The representative examples also passed:
+  - `example_analysis` solve residual = `4.44e-16`
+  - `example_basic_solve` residual `||b - Ax|| = 0.00e+00`
+- The retained repeated-run LDLT backend observability lane stayed clean:
+  - default request:
+    - `builtin -> builtin`
+    - fallback = `no`
+    - `speedup_refactor=0.99`
+  - explicit external request:
+    - `external -> accelerate`
+    - fallback = `no`
+    - `speedup_refactor=1.59`
+  - both runs kept:
+    - `res_public = 2.96e-16`
+    - `res_csc = 2.96e-16`
+- Canonical reporting also passed:
+  - `make bench-canonical-report` wrote the canonical bundle under
+    `build/bench-reports/canonical`
+- The non-blocking reviewed runtime note remains explicit:
+  - `test_reorder_nd` = `183.22 sec`
+  - reviewed total = `326.70 sec`
+
+### Validation
+- `make format` passed.
+- `make lint` passed.
+- `make test` passed.
+- `make quality-review-full` passed.
+- `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Focused proof-owner reruns passed.
+- Representative examples passed.
+- Focused backend observability reruns passed.
+- `make bench-canonical-report` passed.
+
+### Day 13 Exit State
+- Sprint 92 now has one validated close baseline.
+- The bounded portable backend package and its retained proof/reporting
+  surfaces passed from the same live branch state.
+- Day 14 can now close Sprint 92 from this validated baseline.

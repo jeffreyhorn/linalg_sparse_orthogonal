@@ -658,3 +658,69 @@ rather than from the original hotspot audit alone.
   the LDLT backend-adoption seam.
 - Day 8 can now define one exact bounded LDLT adoption contract from the live
   post-Day-6 tree.
+
+## Day 8 - Solver Adoption Follow-Through Design
+
+### Goal
+Define one exact bounded Day 9 adoption contract that converges the strongest
+remaining LDLT dense-backend seam onto the widened shared dense owner without
+reopening broad direct-family or benchmark work.
+
+### Actions
+- Re-read the Sprint 92 Day 8 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 7 rerank and the Day 5 backend contract.
+- Re-read the live LDLT backend-selection and contract surfaces:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_internal.h`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+- Rechecked which adjacent surfaces are truly forced by LDLT backend
+  convergence versus which remain later:
+  - proof-owner tests
+  - benchmark owners
+  - public/support wording
+- Wrote the Day 8 design artifact and fixed the exact Day 9 center in
+  writing.
+
+### Findings
+- Sprint 92 now has one exact second implementation contract:
+  - required Day 9 center:
+    - `src/sparse_ldlt_csc.c`
+  - directly forced support-only follow-through only if the Day 9 contract
+    truly needs them:
+    - `src/sparse_ldlt_csc_internal.h`
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+  - strongest later surfaces only if LDLT adoption exposes a real shared seam
+    that needs them:
+    - `benchmarks/bench_refactor_csc.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+- The exact Day 9 adoption target is now explicit:
+  - stop treating LDLT dense backend selection as a family-local
+    Accelerate-only side path
+  - converge LDLT onto the widened shared builtin-vs-portable backend reading
+    already landed on the Cholesky side
+  - preserve builtin fallback truth and avoid widening claims beyond the
+    landed shared seam
+- The strongest Day 8 clarification is now explicit:
+  - Day 9 should not become a generic LDLT numeric rewrite
+  - it should not widen to QR
+  - it should not shift early to benchmark/reporting work
+  - it should not reopen package or workflow wording detached from a real
+    adoption movement
+
+### Validation
+- Re-read the Sprint 92 Day 8 plan contract.
+- Re-read the Day 7 rerank artifact and the Day 5 backend contract.
+- Rechecked the live LDLT backend-selection, internal contract, and proof
+  surfaces.
+
+### Day 8 Exit State
+- Sprint 92 now has one exact bounded LDLT backend-adoption contract.
+- Day 9 is fixed to `src/sparse_ldlt_csc.c` with only tightly bounded test and
+  internal-header follow-through if truly forced.
+- Later benchmark, support-surface, and QR work remains sequenced behind real
+  LDLT adoption movement.

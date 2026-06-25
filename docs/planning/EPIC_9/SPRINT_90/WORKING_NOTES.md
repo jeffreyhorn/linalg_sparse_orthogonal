@@ -607,3 +607,123 @@ target rather than at a vague "state of the art" label.
 - "State of the art" now has a concrete local meaning for this repo.
 - Later Day 6-Day 10 comparison, risk-fence, review, todo, and plan work can
   reference one stable success-marker and claim-fence package.
+
+## Day 6 - Comparison and Measurement Contract Design
+
+### Goal
+Freeze the external correctness, runtime, package-shape, and workflow
+comparison model for Epic 9 so later sprint work can widen evidence
+intentionally instead of opportunistically.
+
+### Actions
+- Re-read the Sprint 90 Day 6 contract in
+  `docs/planning/EPIC_9/SPRINT_90/PLAN.md`.
+- Re-read the Day 5 target-state contract and the Day 2 maintained-surface
+  ownership map.
+- Re-read the closest prior bounded comparison-contract pattern:
+  - `docs/planning/EPIC_8/SPRINT_89/artifacts/day8-external-comparison-sweep-design.md`
+- Re-read the Epic 9 review's external-comparison and benchmark finding so the
+  contract responds to the real credibility gap rather than to generic
+  benchmarking pressure.
+- Fixed the evidence classes explicitly:
+  - maintained correctness
+  - maintained package shape
+  - bounded runtime-reference
+  - advisory but not maintained ecosystem comparison
+- Wrote the Day 6 artifact and fixed the claim strength for each evidence
+  class in writing.
+
+### Findings
+- Sprint 90 now has one explicit Epic 9 comparison-and-measurement contract:
+  - maintained correctness comparison lane:
+    - bounded external SPD differential proof
+  - maintained package-shape comparison lane:
+    - local install/export and downstream-consumer proof
+  - bounded runtime-reference lane:
+    - touched reorder/runtime comparison slices plus canonical reporting
+  - advisory but not maintained comparison lanes:
+    - broader ecosystem, broader platform, and broader solver-family
+      comparison
+- The strongest evidence-class order is now fixed:
+  - first:
+    - correctness evidence strong enough to support bounded product claims
+  - second:
+    - package-shape and installed-consumer evidence strong enough to support
+      bounded product-shape claims
+  - third:
+    - bounded runtime-reference evidence strong enough to support
+      calibration, not superiority
+  - fourth:
+    - advisory ecosystem comparison strong enough to inform prioritization,
+      not to carry maintained product claims
+- The exact maintained comparison protocol is now fixed:
+  - correctness:
+    - `./build/quality-review-cmake/test_chol_csc`
+    - retained external-dense-reference readings for `nos4` and `bcsstk04`
+    - interpreted through `max|x-x_ref|` plus retained residual strength
+  - package shape:
+    - `bash tests/test_install.sh`
+    - `bash tests/test_cmake_install.sh`
+    - interpreted through pass/fail/skip totals plus agreement with the
+      maintained static-first consumer/export contract
+  - runtime reference:
+    - `make bench-reorder-sprint86`
+    - `make bench-canonical-report`
+    - interpreted as bounded touched-runtime evidence and reproducible
+      reporting, not as broad timing proof
+- The widening order is now explicit:
+  - correctness-only widening may land later where deterministic and
+    dependency-bounded
+  - runtime/fill/reference widening may land later where still bounded and
+    reproducible
+  - broader ecosystem comparison remains advisory until a later explicit
+    maintained contract widens it
+- The claim fence by evidence class is now fixed:
+  - strong enough for bounded product claims:
+    - maintained SPD external correctness lane
+    - maintained install/export and downstream-consumer package-shape lane
+  - strong enough for calibration/support claims only:
+    - bounded reorder/runtime reference slices
+    - canonical benchmark-report generation
+    - asymmetric macOS/Windows workflow evidence
+  - not strong enough for maintained product claims today:
+    - broader ecosystem comparisons not yet under maintained proof
+    - ad hoc local timing wins
+    - platform-specific speed anecdotes
+    - workflow completion outside the retained reviewed/script-owned lanes
+- The runtime evidence fence is now explicit:
+  - Epic 9 may use runtime evidence to claim bounded touched-lane improvement
+    and better calibration
+  - Epic 9 may not use runtime evidence to claim universal speed leadership,
+    cross-platform timing parity, or benchmark pass/fail guarantees
+- The package/workflow comparison reading is now explicit:
+  - package-shape truth stays with:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `examples/cmake_example/CMakeLists.txt`
+  - Linux remains the strongest reviewed truth lane
+  - macOS remains narrower reviewed truth plus supplemental install
+    confidence
+  - Windows remains the reviewed CMake-first consumer subset only
+- The strongest Day 6 clarification is now fixed:
+  - Epic 9 needs stronger comparison depth, but not every comparison class
+    should be promoted equally
+  - correctness and package-shape proof are the maintained claim-bearing lanes
+  - runtime evidence remains intentionally bounded and calibration-oriented
+  - broader ecosystem comparison remains advisory until a later deliberate
+    contract widens it
+
+### Validation
+- Re-read the Sprint 90 Day 6 plan contract.
+- Re-read the Day 5 target-state contract and Day 2 maintained-surface map.
+- Re-read the prior bounded comparison-design artifact from Sprint 89.
+- Re-read the Epic 9 review finding on comparison-story limits.
+- Recorded the comparison protocol, widening order, and claim fence in the
+  Day 6 artifact.
+
+### Day 6 Exit State
+- Sprint 90 now has one explicit comparison-and-measurement contract.
+- Correctness, package-shape, runtime-reference, and advisory ecosystem
+  evidence classes are clearly separated.
+- Later Day 7-Day 10 risk-fence, review, todo, and plan work can reference
+  one stable evidence-class and claim-strength package.

@@ -971,3 +971,74 @@ queue from the live post-Day-11 branch.
 - The Day 13 validation queue is fixed from the live post-Day-11 branch.
 - The sprint can now close from one exact validation sweep rather than from a
   rolling queue.
+
+## Day 13 - Validation Sweep
+
+### Goal
+Run the exact frozen Day 13 validation queue from the live post-Day-12 branch
+and record the final Sprint 91 validation baseline.
+
+### Actions
+- Ran:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- Re-ran the explicit reviewed parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the focused touched proof owners:
+  - `./build/quality-review-cmake/test_csr`
+  - `./build/quality-review-cmake/test_integration`
+  - `./build/quality-review-cmake/test_chol_csc`
+  - `./build/quality-review-cmake/test_ldlt_csc`
+- Re-ran the representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran canonical reporting:
+  - `make bench-canonical-report`
+- Wrote the Day 13 artifact and recorded the validated baseline here.
+
+### Findings
+- The full Day 13 queue passed cleanly from the live branch state.
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `340.76 sec`
+- The focused touched proof owners also all passed:
+  - `test_csr` = `13 / 13`
+  - `test_integration` = `58 / 58`
+  - `test_chol_csc` = `151 / 151`
+  - `test_ldlt_csc` = `96 / 96`
+- The representative examples passed cleanly:
+  - `example_analysis` residual = `4.44e-16`
+  - `example_basic_solve` residual = `0.00e+00`
+- Canonical reporting also completed cleanly:
+  - `make bench-canonical-report` wrote the canonical bundle under
+    `build/bench-reports/canonical`
+- The useful final runtime note is now explicit:
+  - reviewed `test_reorder_nd` remained the long pole at `203.14 sec`
+    out of `340.76 sec`
+  - that remains non-blocking for Sprint 91 because this sprint's adopted
+    work stayed in the compressed-first construction/public-lifecycle lane
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- `./build/quality-review-cmake/test_csr`
+- `./build/quality-review-cmake/test_integration`
+- `./build/quality-review-cmake/test_chol_csc`
+- `./build/quality-review-cmake/test_ldlt_csc`
+- `./build/quality-review-cmake/example_analysis`
+- `./build/quality-review-cmake/example_basic_solve`
+- `make bench-canonical-report`
+
+### Day 13 Exit State
+- Sprint 91 now closes from one validated branch-local baseline instead of
+  from separate landed sub-batches.
+- The compressed-first construction, public story, and public-workflow proof
+  surfaces are all jointly validated.
+- Day 14 can now close the sprint from an exact retained baseline.

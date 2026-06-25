@@ -792,3 +792,73 @@ work.
   lagging on a family-local Accelerate-only side path.
 - Day 10 can now rerank the remaining backend, proof, benchmark, and support
   surfaces from the live post-Day-9 tree.
+
+## Day 10 - Observability and Proof Design
+
+### Goal
+Define one exact bounded Day 11 observability center so Sprint 92 can expose
+backend selection, fallback behavior, and bounded repeated-run evidence for the
+widened direct-family dense backend surface without reopening broad solver,
+proof, or package work.
+
+### Actions
+- Re-read the Sprint 92 Day 10 contract in
+  `docs/planning/EPIC_9/SPRINT_92/PLAN.md`.
+- Re-read the Day 9 landing and the Day 8 adoption design.
+- Re-read the live benchmark and adjacent proof/support surfaces:
+  - `benchmarks/bench_refactor_csc.c`
+  - `benchmarks/README.md`
+  - `tests/test_ldlt.c`
+  - `tests/test_ldlt_csc.c`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Rechecked whether the remaining evidence gap is benchmark-owned, proof-owned,
+  or one truly bounded combined follow-through.
+- Wrote the Day 10 design artifact and fixed the exact Day 11 center in
+  writing.
+
+### Findings
+- Sprint 92 now has one exact Day 11 observability contract:
+  - required Day 11 center:
+    - `benchmarks/bench_refactor_csc.c`
+  - directly forced support-only follow-through only if the Day 11 contract
+    truly needs them:
+    - `benchmarks/README.md`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+  - retained adjacent proof owners only if the benchmark lane exposes a real
+    contradiction they must cover:
+    - `tests/test_ldlt.c`
+    - `tests/test_ldlt_csc.c`
+- The strongest Day 10 rerank is now explicit:
+  - the retained LDLT proof owner already proves the widened env contract
+    cleanly enough
+  - the remaining Sprint 92 evidence gap is benchmark-side observability, not
+    baseline LDLT correctness
+  - the repeated-run LDLT benchmark owner still does not visibly report which
+    dense backend actually ran or whether a requested external path fell back
+    to builtin
+- Sprint 92's Day 11 reporting shape is now frozen around:
+  - selected dense backend visibility
+  - builtin fallback visibility when external acceleration is requested but not
+    selected
+  - bounded repeated-run LDLT evidence through
+    `bench_refactor_csc --indefinite-kkt`
+- The useful boundary call is now explicit:
+  - Day 11 should stay benchmark-owned
+  - Day 11 should not reopen QR adoption
+  - Day 11 should not widen canonical reporting or package/build surfaces
+    unless the benchmark contract truly changes them
+  - Day 11 should not try to prove portable external-backend superiority
+
+### Validation
+- Re-read the Sprint 92 Day 10 plan contract.
+- Re-read the Day 8 design and Day 9 landed-batch artifact.
+- Rechecked the live benchmark, proof, and support-owner split around the
+  widened LDLT backend seam.
+
+### Day 10 Exit State
+- Sprint 92 now has one exact bounded observability center.
+- Day 11 is fixed to `benchmarks/bench_refactor_csc.c`.
+- Support-only wording and build/package movement remain sequenced behind real
+  output or command-contract changes.

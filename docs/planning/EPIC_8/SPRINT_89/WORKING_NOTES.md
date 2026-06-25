@@ -235,3 +235,149 @@ surface.
 - Canonical benchmark reporting remains command/script owned.
 - Install/export proof remains script owned.
 - Workflow lanes remain support evidence rather than broad parity claims.
+
+## Day 3 - End-State Re-audit
+
+### Goal
+Reduce the full post-Sprint-88 tree to one ranked final contradiction map by
+re-checking the original Epic 8 opening review categories against the live
+project state instead of inheriting earlier sprint assumptions.
+
+### Actions
+- Re-read the Day 3 end-state audit contract from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the Epic 8 opening concern list in
+  `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Re-read the original competitive-gap vocabulary from
+  `docs/planning/EPIC_8/SPRINT_80/artifacts/day3-live-competitive-gap-inventory.md`.
+- Re-audited the live post-Sprint-88 tree against the original Epic 8 concern
+  categories:
+  - linked-list-first product/storage ceiling
+  - builtin dense/backend performance ceiling
+  - bounded capability surface
+  - limited external differential proof
+  - large source / giant-test maintainability concentration
+  - reviewed runtime concentration
+  - static-first and asymmetric package/platform maturity
+  - front-door usability and policy density
+- Reconciled those original concerns with the actual outcomes already landed
+  in Sprints 81-88.
+- Separated:
+  - contradictions still strong enough to justify a final fix batch
+  - contradictions that now primarily need explicit calibration or
+    non-claims
+  - contradictions already substantially closed by earlier sprint landings
+  - contradictions that belong to the next planning cycle rather than Sprint
+    89 implementation scope
+- Identified the proof and comparison surfaces most likely to decide the final
+  end-state call.
+
+### Findings
+- Sprint 89's broad closeout problem is now reduced to one ranked live
+  contradiction map:
+  - strongest first target:
+    - final evidence and external-comparison ceiling
+  - strongest second target:
+    - reviewed runtime concentration around reorder/ND proof
+  - strongest third target:
+    - residual package/platform asymmetry calibration rather than broad new
+      product work
+  - strongest fourth target:
+    - residual large-source and giant-test carry-forward calibration
+  - strongest support-only but real target:
+    - final public non-claims and next-cycle queue wording
+- The strongest current contradiction is now explicit:
+  - the project no longer lacks a sprint-by-sprint modernization story
+  - it no longer lacks strong internal reviewed, install/export, and bounded
+    benchmark/reporting proof surfaces
+  - but it still does not yet have one final project-level end-state review
+    plus external comparison package strong enough to close Epic 8 from the
+    same vocabulary that opened it
+- The original Epic 8 concern list now re-reads as follows against the live
+  tree:
+  - linked-list-first product/storage ceiling:
+    - materially reduced by Sprint 81
+    - still a truthful product characteristic
+    - now mostly a calibrated non-claim rather than a Sprint 89 fix center
+  - builtin dense/backend performance ceiling:
+    - materially improved by Sprint 82's bounded optional backend lane
+    - still not a claim of universal backend maturity
+    - now mostly a calibration/comparison issue rather than a first Sprint 89
+      implementation center
+  - bounded capability surface:
+    - materially improved by Sprint 83's scalar/index/public-surface widening
+    - still intentionally bounded
+    - now reads as a residual queue and explicit non-claim issue
+  - limited external differential proof:
+    - partially improved by Sprint 84's maintained direct-family differential
+      lane
+    - still the strongest remaining project-level evidence gap because the
+      repo lacks one final bounded external comparison sweep across the
+      end-state claims
+  - large source / giant-test maintainability concentration:
+    - meaningfully reduced by Sprint 85
+    - still present in some retained hotspots
+    - now reads as next-cycle carry-forward more than Sprint 89 first-batch
+      work
+  - reviewed runtime concentration:
+    - materially reduced by Sprint 86
+    - still visibly present around `test_reorder_nd`
+    - remains the strongest live implementation-side contradiction if a final
+      fix batch is truly needed
+  - static-first and asymmetric package/platform maturity:
+    - sharpened significantly by Sprint 87
+    - still intentionally asymmetric
+    - now reads primarily as a truthful bounded contract rather than a broad
+      reopening target
+  - front-door usability and policy density:
+    - materially improved by Sprint 88
+    - no longer reads like a first-tier open contradiction
+- The strongest likely fix-now vs calibrate-only split is now explicit:
+  - strongest likely fix-now candidates:
+    - any last-mile evidence or touched-surface reconciliation exposed by the
+      final external comparison sweep
+    - any bounded reorder/ND runtime or proof-surface seam that still reads as
+      disproportionately costly in the final validated baseline
+  - strongest calibrate-only lanes:
+    - linked-list-first public product reading
+    - bounded capability surface beyond the widened Epic 8 seams
+    - static-first and asymmetric platform/package maturity
+    - residual large-source concentration not reopened by the final evidence
+      package
+- The strongest proof-surface priority map is now fixed:
+  - main reviewed executable truth:
+    - `make quality-review-full`
+    - reviewed CMake parity and representative reviewed binaries
+  - main maintained consumer/package truth:
+    - `bash tests/test_install.sh`
+    - `bash tests/test_cmake_install.sh`
+  - main maintained reporting truth:
+    - `make bench-canonical-report`
+    - `scripts/bench_canonical_report.sh`
+  - main bounded external-comparison starting lane:
+    - the retained direct-family and touched runtime/package surfaces rather
+      than a broad library-wide oracle claim
+- The strongest Day 3 clarification is now fixed:
+  - Sprint 89 should not start with a blind last-mile fix batch
+  - it should first produce one end-state audit and one bounded external
+    comparison package
+  - only then should it decide whether a final implementation batch is truly
+    necessary
+
+### Validation
+- Re-read the Sprint 89 Day 3 plan contract.
+- Re-read the Epic 8 opening concern list from
+  `docs/planning/EPIC_8/PROJECT_PLAN.md`.
+- Re-read the original gap vocabulary from
+  `docs/planning/EPIC_8/SPRINT_80/artifacts/day3-live-competitive-gap-inventory.md`.
+- Re-audited the live post-Sprint-88 tree against the original Epic 8 concern
+  categories and reconciled them with the landed Sprint 81-88 outcomes.
+
+### Day 3 Exit State
+- Sprint 89 now has one ranked live end-state contradiction map grounded in
+  the original Epic 8 opening review vocabulary.
+- The strongest remaining problem is fixed to final evidence and external
+  comparison, not another generic modernization lane.
+- The strongest implementation-side residual seam is now clearly bounded to
+  reviewed runtime concentration only if the later evidence package justifies a
+  real fix batch.

@@ -465,3 +465,149 @@ another broad final-cleanup rewrite.
   contract inside that fence.
 - Later fix, validation, residual-calibration, and closeout-writing work is
   explicitly held back until the evidence lane is defined.
+
+## Day 5 - Comparison and Fix Architecture Design
+
+### Goal
+Define the bounded external-comparison and final-fix contract Sprint 89 will
+actually support before any end-state evidence or last-mile implementation work
+lands.
+
+### Actions
+- Re-read the Day 5 integration-design expectations from
+  `docs/planning/EPIC_8/SPRINT_89/PLAN.md`.
+- Re-read the Day 4 boundary fence from
+  `docs/planning/EPIC_8/SPRINT_89/artifacts/day4-final-integration-boundary.md`.
+- Re-read the bounded external-oracle contract from:
+  - `docs/planning/EPIC_8/SPRINT_80/artifacts/day5-external-oracle-contract.md`
+  - `docs/planning/EPIC_8/SPRINT_84/artifacts/day5-oracle-property-failure-path-architecture-design.md`
+  - `docs/planning/EPIC_8/SPRINT_84/artifacts/day6-direct-family-differential-batch.md`
+- Re-read the current maintained external differential helper and bounded
+  runtime evidence surfaces:
+  - `tests/chol_external_dense_reference.py`
+  - `benchmarks/bench_reorder.c`
+  - `Makefile` `bench-reorder-sprint86`
+- Fixed the exact comparison contract across:
+  - correctness signal
+  - package-shape signal
+  - bounded performance signal
+- Fixed how Sprint 89 will interpret comparison outcomes:
+  - immediate final fix candidate
+  - calibrated non-claim
+  - future residual item
+- Fixed the ownership split across comparison, final fixes,
+  validation/reporting, and closeout writing.
+- Defined the objective entry criteria for any final cross-surface fix batch.
+
+### Findings
+- Sprint 89 now has one explicit first implementation contract:
+  - required implementation center:
+    - bounded external comparison and end-state evidence package
+  - directly forced support surfaces only if the first batch truly needs them:
+    - `tests/test_chol_csc.c`
+    - `tests/chol_external_dense_reference.py`
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+    - `benchmarks/bench_reorder.c`
+    - `Makefile`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+  - retained later owners unless the first batch truly changes their
+    obligations:
+    - `scripts/bench_canonical_report.sh`
+    - `make quality-review-full`
+    - Sprint 89 retrospective
+    - Epic 8 closeout notes
+    - final project-summary surfaces
+- The Day 5 ownership split is now fixed:
+  - maintained correctness comparison owner:
+    - `tests/test_chol_csc.c`
+  - retained external dense reference helper owner:
+    - `tests/chol_external_dense_reference.py`
+  - maintained package-shape truth owners:
+    - `tests/test_install.sh`
+    - `tests/test_cmake_install.sh`
+  - bounded performance-reference support owner:
+    - `benchmarks/bench_reorder.c`
+  - bounded runtime rerun contract owner if the comparison lane truly needs a
+    dedicated local driver:
+    - `Makefile` through `make bench-reorder-sprint86`
+  - retained canonical reporting owner after the comparison lane:
+    - `scripts/bench_canonical_report.sh`
+  - support-surface wording owners only if the evidence package truly changes
+    how the contract should be read:
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+- The strongest comparison contract is now explicit:
+  - maintained correctness comparison lane:
+    - bounded CHOLMOD-class SPD direct-solver comparison through the retained
+      external dense reference lane already owned by `tests/test_chol_csc.c`
+      and `tests/chol_external_dense_reference.py`
+  - maintained package-shape comparison lane:
+    - installed consumer and export-surface truth through
+      `tests/test_install.sh` and `tests/test_cmake_install.sh`
+  - bounded performance-reference support lane:
+    - touched reorder/ND runtime evidence through
+      `bench_reorder --sprint86-slice --skip-factor`
+    - this is support for the final runtime reading, not a broad product
+      correctness or benchmark-superiority claim
+  - explicitly advisory but not first-contract lanes:
+    - METIS-class graph/reordering comparison remains useful advisory context
+      only
+    - broader sparse-solver ecosystem comparison remains outside the maintained
+      Sprint 89 contract
+- The strongest outcome interpretation contract is now fixed:
+  - immediate final fix candidate:
+    - maintained correctness comparison disagreement on the bounded SPD lane
+    - package/install/export contract mismatch on the maintained local proof
+      surfaces
+    - clear touched-lane runtime contradiction on the retained reorder/ND
+      evidence surface that stays attributable and bounded
+  - calibrated non-claim:
+    - comparison confirms the repo remains intentionally bounded rather than
+      broad or best-in-class on a lane
+    - package/platform asymmetry remains truthful and explicitly supported only
+      on the maintained surfaces
+  - future residual item:
+    - advisory ecosystem gaps that remain real but fall outside the maintained
+      Sprint 89 comparison contract
+- The strongest final-fix entry contract is now explicit:
+  - a final fix batch should land only if the comparison package exposes:
+    - a correctness mismatch on the maintained SPD comparison lane
+    - a local install/export or consumer-shape contradiction
+    - a bounded reorder/ND runtime or proof-surface contradiction still large
+      enough to justify one last touched implementation pass
+    - or a support-surface wording contradiction made unavoidable by the
+      evidence package
+  - a final fix batch should not land just because:
+    - advisory ecosystem comparisons look broader elsewhere
+    - the repo remains intentionally bounded on capability or platform shape
+    - a performance result is merely less impressive than an external system
+      without contradicting the maintained contract
+- The strongest Day 5 clarification is now fixed:
+  - Day 6 should not try to compare "everything"
+  - it should preserve the Sprint 80 oracle fence and the Sprint 84 direct
+    differential lane
+  - it should add package-shape truth and bounded runtime-reference support to
+    that same final evidence package
+  - it should keep canonical reporting and all closeout writing as later lanes
+    rather than collapsing them into the first evidence batch
+
+### Validation
+- Re-read the Sprint 89 Day 5 plan contract.
+- Re-read the Day 4 boundary artifact.
+- Re-read the bounded oracle contract and the Sprint 84 maintained external
+  differential ownership package.
+- Re-read the current external dense reference helper and bounded reorder
+  runtime evidence surfaces.
+
+### Day 5 Exit State
+- Sprint 89 now has one bounded external-comparison and final-fix architecture
+  contract.
+- Ownership between correctness comparison, package-shape proof,
+  performance-reference support, retained validation/reporting, and later
+  closeout writing is fixed before Day 6 begins.
+- Any final implementation batch is now gated by objective evidence-entry
+  criteria rather than by generic endgame pressure.

@@ -659,3 +659,89 @@ workflow lifecycle clarity.
 - The second batch is still small enough to validate cleanly.
 - Broader lifecycle churn remains fenced off behind the Day 9 public-story
   landing.
+
+## Day 9 - Publication Batch
+
+### Intent
+- Land the bounded Day 8 public-story batch by tightening `README.md` around
+  compressed-first one-shot direct entry, the linked-list shell's retained
+  mutable/compatibility role, and the handoff to the explicit repeated-run
+  direct lifecycle.
+
+### Actions
+- Re-read the Day 8 publication/lifecycle contract and the Day 7 rerank.
+- Re-read the README direct-workflow, API overview, and format-conversion
+  sections against the landed Day 6 constructor-style CSR/CSC entry points.
+- Tightened `README.md` so it now:
+  - presents compressed-first one-shot direct entry as a first-class peer lane
+  - keeps the linked-list shell framed as the mutable construction and
+    compatibility owner
+  - makes the repeated-run direct workflow handoff smaller and clearer
+  - treats `sparse_create_from_csr(...)` / `sparse_create_from_csc(...)` as
+    the primary compressed-first construction APIs while preserving
+    `sparse_from_*` as compatibility wrappers when explicit `sparse_err_t`
+    status is wanted
+- Confirmed that no support-only follow-through was required in:
+  - `include/sparse_matrix.h`
+  - `include/sparse_analysis.h`
+  - `docs/maintainer_guide.md`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_integration.c`
+- Wrote the Day 9 artifact and recorded the validated outcome here.
+
+### Findings
+- Sprint 91 now has a bounded landed publication/public-surface batch:
+  - `README.md` teaches compressed-first one-shot direct entry as a real
+    public starting path for callers that already own CSR/CSC inputs
+  - the linked-list shell remains explicitly framed as:
+    - mutable construction owner
+    - pedagogy/compatibility owner
+    - not the only natural public starting point
+  - the repeated-run direct workflow remains the long-lived direct owner, but
+    the handoff from one-shot entry now reads smaller and more intentional
+- The landed Day 9 README shape stayed inside the Day 8 fence:
+  - touched center:
+    - `README.md`
+  - directly forced support follow-through:
+    - none
+- The strongest public-story changes are now explicit:
+  - `Choose a Workflow` includes a direct compressed-first one-shot lane
+  - `Quick Start` now points compressed-input callers toward the new
+    constructor-style entry APIs before widening into repeated-run direct work
+  - `Repeated-Run Direct Workflow` now makes the relationship between:
+    - compressed-first one-shot entry
+    - shell-first mutable compatibility entry
+    - explicit repeated-run direct lifecycle
+    easier to understand
+  - the API overview and format-conversion sections now present:
+    - `sparse_create_from_csr(...)`
+    - `sparse_create_from_csc(...)`
+    as the primary compressed-first construction seams
+  - the legacy:
+    - `sparse_from_csr(...)`
+    - `sparse_from_csc(...)`
+    remain documented as compatibility wrappers rather than as the only public
+    compressed-input story
+- The useful Day 9 no-follow-through call is now explicit:
+  - the README contract changed the adoption story, not the live API contract
+  - the existing headers and proof owners already remained truthful against
+    that narrower public-story clarification
+  - no new lifecycle claim was introduced that needed fresh proof ownership
+
+### Validation
+- Because this was a substantial public-surface batch, I ran:
+  - `make quality-review-full`
+- The reviewed queue passed cleanly.
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `363.62 sec`
+
+### Day 9 Exit State
+- Sprint 91 now teaches compressed-first one-shot direct entry as a real peer
+  lane without reopening broader lifecycle or proof-surface churn.
+- The linked-list shell remains real, but no longer reads like the only
+  natural public entry model for compressed-input callers.
+- Day 10 can rerank from a landed validated public-story batch rather than
+  from a pure design contract.

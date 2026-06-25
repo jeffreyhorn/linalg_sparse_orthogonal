@@ -82,7 +82,7 @@ deeper support surfaces only when you actually need them.
 
 ### I/O & Interop
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
-- **CSR/CSC export/import** — convert to/from compressed sparse row/column formats
+- **CSR/CSC export plus compressed-first construction** — convert to/from compressed sparse row/column formats and enter the one-shot direct workflow directly from caller-owned compressed data
 
 ### Quality
 - **Thread-safe** — concurrent solves on shared factored matrices, per-matrix pool allocators
@@ -97,6 +97,10 @@ Start with the smallest surface that matches your real workload:
 
 - **One-shot direct solve:** use LU, Cholesky, LDL^T, or QR when you are
   solving once or only occasionally.
+- **Compressed-first one-shot direct entry:** use
+  `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when your
+  matrix already lives in compressed sparse storage and you want a one-shot
+  direct path without treating linked-list mutation as the starting point.
 - **Stable-pattern repeated direct solve:** use
   `sparse_analyze()` → `sparse_factor_numeric()` →
   `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later
@@ -230,12 +234,25 @@ cc -Iinclude -o example example.c -Lbuild -lsparse_lu_ortho -lm
 Next steps after the first solve:
 
 - stay on the one-shot path for small or occasional direct solves
+- move to a compressed-first one-shot entry path when your matrix already
+  arrives as CSR or CSC data
 - move to [Repeated-Run Direct Workflow](#repeated-run-direct-workflow) when
   the sparsity pattern is stable across many value changes
 - move to [Iterative Solver Example](#iterative-solver-example) when the
   matrix/system type makes iterative workflows a better fit
 - use [Installation](#installation) and [INSTALL.md](INSTALL.md) when you need
   installed consumer workflows instead of local build-tree linking
+
+If your coefficients already live in compressed sparse storage, the smallest
+one-shot direct entry path is now:
+
+- `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` to build the
+  public matrix shell from caller-owned compressed data
+- then the usual one-shot direct family API on that matrix shell
+
+That keeps the linked-list shell as the mutable compatibility owner, but it
+avoids forcing compressed-input callers to think of incremental shell mutation
+as their natural starting point.
 
 ### Iterative Solver Example
 
@@ -388,6 +405,11 @@ The intended lifecycle is:
 Important behavior:
 
 - the one-shot LU / Cholesky / LDL^T APIs remain first-class peer entry points
+- the compressed-first one-shot entry path is:
+  - build the public matrix shell from caller-owned CSR/CSC data with
+    `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)`
+  - then use the one-shot direct family API when you only need occasional
+    solves
 - repeated direct reuse preserves symbolic/permutation setup, not old numeric
   factor contents
 - failed `sparse_refactor_numeric(...)` calls preserve the previously usable
@@ -417,7 +439,7 @@ Important behavior:
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
 | [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
 | [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
-| [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
+| [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion plus compressed-first matrix construction |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, ND, COLAMD), permutation, bandwidth |
 | [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
 | [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — Lanczos/LOBPCG backends, shift-invert mode, Ritz pairs, explicit repeated-run handle |
@@ -561,8 +583,9 @@ remain one-shot compatibility surfaces.
 
 **I/O and format conversion:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
-- `sparse_to_csr(mat, &csr)` / `sparse_from_csr(csr, &mat)` — CSR conversion
-- `sparse_to_csc(mat, &csc)` / `sparse_from_csc(csc, &mat)` — CSC conversion
+- `sparse_to_csr(mat, &csr)` / `sparse_create_from_csr(csr)` — CSR export and compressed-first construction
+- `sparse_to_csc(mat, &csc)` / `sparse_create_from_csc(csc)` — CSC export and compressed-first construction
+- `sparse_from_csr(csr, &mat)` / `sparse_from_csc(csc, &mat)` — retained compatibility wrappers when you need explicit `sparse_err_t` import status
 - `sparse_errno()` — retrieve system errno after I/O failure
 
 All functions return `sparse_err_t` error codes (except accessors that return values directly). See `sparse_strerror()` for human-readable error messages.

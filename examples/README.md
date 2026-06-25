@@ -210,7 +210,8 @@ For that installed-consumer path, use:
 
 ## Writing Your Own
 
-Each example is a single `.c` file that includes only public headers from `include/`. To compile manually:
+Each build-tree teaching example is a single `.c` file that includes only public
+headers from `include/`. To compile manually:
 
 ```bash
 cc -O2 -Iinclude -o my_program my_program.c -Lbuild -lsparse_lu_ortho -lm

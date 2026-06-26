@@ -352,3 +352,87 @@ proof concentration seams.
   recursive runtime seam and its adjacent graph-partition owner surfaces.
 - Day 4 can freeze the runtime/threading contract without reopening the
   ranked runtime order.
+
+## Day 4 - Threading and Runtime Contract Design
+
+### Goal
+Separate remaining Sprint 93 debt into algorithmic runtime concentration,
+runtime-control complexity, and proof-topology cost so the first
+implementation boundary can stay bounded to the highest-value reviewed seam.
+
+### Actions
+- Re-read the Sprint 93 Day 4 plan target in
+  `docs/planning/EPIC_9/SPRINT_93/PLAN.md`.
+- Re-read the Day 3 ranked runtime audit:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day3-reviewed-runtime-audit.md`
+- Re-read the closest contract-design pattern:
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day5-portable-backend-abi-and-runtime-contract-design.md`
+- Re-read the Sprint 93 section of the Epic 9 project plan so the design
+  stays inside the explicit runtime/threading/non-claim fence.
+- Reconciled the ranked Day 3 runtime owners against the project-plan item
+  split:
+  - ND runtime reduction batch
+  - runtime-control cleanup
+  - proof-surface rebalancing
+  - runtime evidence follow-through
+- Wrote the Day 4 runtime/threading contract artifact.
+
+### Findings
+- Sprint 93 now has one explicit runtime/threading contract:
+  - algorithmic runtime debt:
+    - means repeated work, recursion-side cost, or graph-partition cost on the
+      touched reviewed ND lane
+    - remains the strongest first-class implementation target
+  - runtime-control debt:
+    - means profile env vars, threshold knobs, or thread-local FM/coarsening
+      overrides that are still useful but too diffuse to read as one clean
+      runtime model
+    - remains a real Sprint 93 target, but sequenced behind the first
+      algorithmic seam unless directly forced
+  - proof-topology debt:
+    - means reviewed runtime cost caused by giant binary owners or repeated
+      heavy fixture/proof concentration rather than by the algorithm itself
+    - remains real Sprint 93 work, but only where rebalancing reduces cost
+      without weakening correctness trust
+- The strongest Day 4 clarification is now explicit:
+  - Sprint 93 should not treat all remaining runtime debt as a concurrency
+    problem
+  - it should not treat every thread-local override as equally urgent
+  - it should first improve the touched reviewed ND runtime seam, then tighten
+    the runtime-control story only where the same seam still depends on it
+- The preserved non-claim fence is now fixed more sharply:
+  - no fake broad scaling victory
+  - no fake repo-wide threading maturity claim
+  - no broad cross-platform runtime parity claim
+  - no benchmark-superiority claim detached from the reviewed proof owners
+- The strongest direct-owner reading is now explicit:
+  - first-center implementation owners:
+    - `src/sparse_reorder_nd.c`
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_refine.c`
+  - second-center runtime-control owners if truly forced:
+    - `src/sparse_graph_internal.h`
+    - `src/sparse_reorder_nd_internal.h`
+    - adjacent profile / override test coverage in `tests/test_reorder_nd.c`
+      and `tests/test_graph.c`
+  - later proof-only or support-only owners unless the first landing forces
+    movement:
+    - `tests/test_threads.c`
+    - `tests/test_omp.c`
+    - `benchmarks/bench_reorder.c`
+    - `README.md`
+    - `docs/maintainer_guide.md`
+
+### Validation
+- Re-read the Day 3 runtime audit against the Sprint 93 project-plan contract.
+- Re-read the closest prior contract-design artifact for bounded-seam format.
+- Reconfirmed that Sprint 93's runtime/threading lane stays inside the Epic 9
+  non-goal fence.
+
+### Day 4 Exit State
+- Sprint 93 now has one explicit threading/runtime contract before the first
+  implementation fence is frozen.
+- Algorithmic runtime debt, runtime-control debt, and proof-topology debt are
+  separated in writing.
+- Day 5 can freeze one bounded first landing without reopening generic
+  threading or benchmark claims.

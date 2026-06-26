@@ -514,3 +514,77 @@ benchmark churn.
   follow-through.
 - Day 6 can define the runtime-reduction implementation contract without
   reopening the ranked first-center choice.
+
+## Day 6 - ND Runtime Reduction Design
+
+### Goal
+Define the bounded implementation contract for the touched ND recursive runtime
+seam so Sprint 93 can land one real reviewed-runtime reduction without
+reopening broad graph policy, threading, or benchmark-governance work.
+
+### Actions
+- Re-read the Sprint 93 Day 6 plan target in
+  `docs/planning/EPIC_9/SPRINT_93/PLAN.md`.
+- Re-read the Day 5 first-boundary fence:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day5-first-implementation-boundary.md`
+- Re-read the touched first-center owner:
+  - `src/sparse_reorder_nd.c`
+- Re-read the strongest bounded runtime evidence owner:
+  - `benchmarks/bench_reorder.c`
+- Reconciled the live ND recursive owner against the Day 4 debt split so the
+  first code landing stays inside:
+  - algorithmic runtime debt
+  - directly forced proof/evidence owners only
+  - explicit non-claim fence
+- Wrote the Day 6 runtime-reduction design artifact.
+
+### Findings
+- The exact Sprint 93 first implementation center is now fixed to:
+  - `src/sparse_reorder_nd.c`
+- The exact runtime reduction target is now fixed to:
+  - remove avoidable recursion-side work inside the ND driver before widening
+    any graph-policy or threading story
+  - prioritize repeated non-leaf overhead that is paid across the reviewed ND
+    recursion:
+    - temporary side-set collection and repeated full-array passes
+    - avoidable heap churn around partition-side bookkeeping
+    - recursion-local work that does not change the final permutation or
+      policy reading
+- The first landing is explicitly not targeting:
+  - leaf-AMD semantics as a product-level redesign
+  - FM/coarsening policy changes in `src/sparse_graph.c`
+  - broad thread-local override cleanup
+  - new public runtime knobs
+  - detached benchmark-only tuning
+- The preserved invariants are now fixed:
+  - permutation contract must remain `perm[new_i] = old_i`
+  - current ND policy/env interpretation must remain unchanged
+  - leaf-vs-non-leaf routing at the current threshold must remain unchanged
+  - separator-last ordering must remain unchanged
+  - touched reviewed proof owners must stay deterministic under repeated runs
+- The strongest directly forced proof and evidence owners are now fixed to:
+  - `tests/test_reorder_nd.c`
+  - `benchmarks/bench_reorder.c`
+- The strongest adjacent owners remain support-only unless the first landing
+  truly forces movement:
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_refine.c`
+  - `tests/test_graph.c`
+- The strongest Day 6 clarification is now explicit:
+  - Sprint 93 should first reduce repeated ND driver overhead, not redesign
+    ND policy
+  - it should preserve the current tuned threshold and current policy surface
+    unless the touched recursion-side reduction proves impossible otherwise
+  - it should read success as a smaller reviewed ND runtime cost with the same
+    ordering semantics, not as a broader graph-quality or threading claim
+
+### Validation
+- Re-read the Day 5 boundary fence against the live ND owner.
+- Re-read the bounded runtime evidence owner in `benchmarks/bench_reorder.c`.
+- Reconfirmed that the first runtime landing stays inside the Day 4
+  algorithmic/runtime-control/proof-topology split.
+
+### Day 6 Exit State
+- Sprint 93 now has one explicit ND runtime-reduction implementation contract.
+- Day 7 can land the touched recursion-side runtime batch without reopening
+  broad graph policy, runtime-control, or benchmark-governance work.

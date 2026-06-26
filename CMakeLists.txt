@@ -161,7 +161,9 @@ endif()
 # platforms. Apple resolves those from libSystem; Linux and similar may still
 # require an explicit libdl link.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(sparse_lu_ortho PUBLIC dl)
+    if(CMAKE_DL_LIBS)
+        target_link_libraries(sparse_lu_ortho PUBLIC ${CMAKE_DL_LIBS})
+    endif()
 endif()
 
 # Tests

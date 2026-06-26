@@ -185,8 +185,10 @@ static const char *ldlt_dense_backend_request_name(void) {
     if (strcmp(value, "external") == 0 || strcmp(value, "blas") == 0 ||
         strcmp(value, "lapack") == 0)
         return "external";
+#ifdef __APPLE__
     if (strcmp(value, "accelerate") == 0)
         return "accelerate";
+#endif
     return "builtin";
 }
 
@@ -204,11 +206,11 @@ static void emit_csv_row(const char *matrix, const char *scenario, idx_t n, idx_
                          const char *ldlt_dense_backend_fallback, double analyze_ms,
                          double refactor_public_ms, double refactor_csc_ms, double solve_public_ms,
                          double solve_csc_ms, double speedup, double res_public, double res_csc) {
-    printf(
-        "bench_refactor_csc,proof,%s,%s,%d,%d,%s,%s,%s,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n",
-        matrix, scenario, (int)n, (int)nnz, ldlt_dense_backend_request, ldlt_dense_backend_selected,
-        ldlt_dense_backend_fallback, analyze_ms, refactor_public_ms, refactor_csc_ms,
-        solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
+    printf("bench_refactor_csc,proof,%s,%s,%" SPARSE_PRIDX ",%" SPARSE_PRIDX
+           ",%s,%s,%s,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n",
+           matrix, scenario, n, nnz, ldlt_dense_backend_request, ldlt_dense_backend_selected,
+           ldlt_dense_backend_fallback, analyze_ms, refactor_public_ms, refactor_csc_ms,
+           solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
 }
 
 /* SPD / Cholesky matrix runner: analyze once, refactor N times, emit one CSV row. */

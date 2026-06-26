@@ -536,8 +536,10 @@ static s64_chol_dense_backend_t s64_read_chol_dense_backend_env(void) {
     if (strcmp(value, "external") == 0 || strcmp(value, "blas") == 0 ||
         strcmp(value, "lapack") == 0)
         return S64_CHOL_DENSE_BACKEND_EXTERNAL;
+#ifdef __APPLE__
     if (strcmp(value, "accelerate") == 0)
         return S64_CHOL_DENSE_BACKEND_ACCELERATE;
+#endif
     return S64_CHOL_DENSE_BACKEND_BUILTIN;
 }
 

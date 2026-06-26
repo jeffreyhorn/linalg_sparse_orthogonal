@@ -335,10 +335,9 @@ static void s64_ext_store_symbol(void *symbol, void *fn_out, size_t fn_size) {
     if (!fn_out || fn_size == 0)
         return;
     memset(fn_out, 0, fn_size);
-    if (!symbol)
+    if (!symbol || fn_size != sizeof(symbol))
         return;
-    size_t copy_size = fn_size < sizeof(symbol) ? fn_size : sizeof(symbol);
-    memcpy(fn_out, &symbol, copy_size);
+    memcpy(fn_out, &symbol, sizeof(symbol));
 }
 
 static int s64_ext_probe_dense_kernels(void) {

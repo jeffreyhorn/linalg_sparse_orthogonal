@@ -243,3 +243,112 @@ the graph and reorder surfaces.
 - Install/export proof remains script owned.
 - Workflow lanes remain layered support evidence rather than broad
   cross-platform runtime-parity claims.
+
+## Day 3 - Reviewed Runtime Audit
+
+### Goal
+Reduce Sprint 93's broad runtime-scalability and threading problem to one
+ranked live contradiction map centered on the reviewed ND long pole, the
+highest-value graph/reorder owners, and the remaining runtime-control and
+proof concentration seams.
+
+### Actions
+- Re-read the Sprint 93 Day 3 plan target in
+  `docs/planning/EPIC_9/SPRINT_93/PLAN.md`.
+- Re-read the closest prior audit pattern:
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day3-dense-hotspot-profiling-audit.md`
+- Re-read the strongest current reviewed runtime owner:
+  - `src/sparse_reorder_nd.c`
+- Re-read the strongest current reviewed ND proof owner:
+  - `tests/test_reorder_nd.c`
+- Re-read the strongest concurrency proof surfaces:
+  - `tests/test_threads.c`
+  - `tests/test_omp.c`
+- Re-read the strongest bounded runtime-evidence surface:
+  - `benchmarks/bench_reorder.c`
+- Re-searched the live runtime/control seams across source, test, benchmark,
+  README, and maintainer surfaces:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - ND base-threshold controls
+  - graph and FM thread-local override owners
+  - reviewed Windows/macOS/Linux runtime-support wording
+- Wrote the ranked Day 3 runtime audit artifact.
+
+### Findings
+- Sprint 93's broad runtime problem is now reduced to one ranked live
+  contradiction map:
+  - strongest first target:
+    - the ND recursive driver and its graph-partition pipeline concentrated in
+      `src/sparse_reorder_nd.c`, `src/sparse_graph.c`, and
+      `src/sparse_graph_refine.c`
+  - strongest second target:
+    - runtime-control and thread-local override complexity across the ND and
+      graph pipeline, where tuning and profile hooks are real but now too
+      diffuse to read as one clean runtime model
+  - strongest third target:
+    - proof concentration in `tests/test_reorder_nd.c` and `tests/test_graph.c`,
+      where major runtime truth still sits inside large single-binary owners
+  - strongest fourth target:
+    - bounded benchmark and evidence follow-through so touched runtime changes
+      remain measurable against the maintained reorder lane
+  - strongest support-only but real target:
+    - public and maintainer wording that still needs to stay truthful about
+      bounded threading maturity and reviewed runtime claims
+- The strongest current contradiction is still the reviewed ND long pole:
+  - `src/sparse_reorder_nd.c` remains the recursive entry point and still owns
+    threshold, profile, leaf, and recursion-side runtime behavior
+  - the current tree still centers the reviewed runtime hotspot on
+    `test_reorder_nd`, not on broad library execution or on backend work
+  - `benchmarks/bench_reorder.c` already carries a bounded touched rerun lane
+    (`--sprint86-slice`, `--nd-threshold`, `--skip-factor`) that matches this
+    ownership story rather than widening it
+- The strongest second contradiction is runtime-control complexity:
+  - `src/sparse_reorder_nd.c` still exposes profile env and override hooks
+  - `src/sparse_graph.c` and `src/sparse_graph_internal.h` still carry a
+    growing set of thread-local FM / coarsening / separator override seams
+  - that control surface is useful for diagnosis and bounded tuning, but it
+    now reads as a real cleanup target before the repo can claim a sharper
+    runtime/threading model
+- The strongest third contradiction is proof concentration rather than proof
+  absence:
+  - `tests/test_reorder_nd.c` remains a giant owner containing fixture loading,
+    runtime-control coverage, and major reviewed runtime proof
+  - `tests/test_graph.c` remains the adjacent giant owner for partition and FM
+    behavior
+  - `tests/test_threads.c` and `tests/test_omp.c` provide concurrency proof,
+    but they do not yet rebalance the cost concentration centered on the ND and
+    graph review owners
+- The strongest fourth contradiction is evidence follow-through:
+  - `benchmarks/bench_reorder.c` is already the bounded runtime evidence owner
+  - `benchmarks/bench_amd_qg.c` and `benchmarks/bench_iterative_reuse.c`
+    remain adjacent measurement surfaces, but they are clearly second-tier
+    relative to the reviewed ND lane
+  - canonical reporting remains real, but it should not become the first
+    implementation owner
+- Sprint 93's fix-now vs deferred split is now clearer:
+  - should drive Sprint 93 implementation:
+    - ND recursive runtime seam
+    - runtime-control cleanup on touched ND/graph owners
+    - proof-surface rebalancing only where it reduces reviewed-runtime cost
+  - remains later or bounded non-claim territory:
+    - fake broad multithreading maturity
+    - generic graph/reorder rewrite everywhere at once
+    - broad benchmark-superiority claims
+    - capability or packaging work outside the touched runtime lane
+
+### Validation
+- Re-read the current ND recursive owner in `src/sparse_reorder_nd.c`.
+- Re-read the current ND reviewed proof owner in `tests/test_reorder_nd.c`.
+- Re-read concurrency proof owners in `tests/test_threads.c` and
+  `tests/test_omp.c`.
+- Re-read the bounded runtime evidence owner in `benchmarks/bench_reorder.c`.
+- Re-searched the live runtime/profile/override seams across the touched tree.
+
+### Day 3 Exit State
+- Sprint 93 now has one ranked live reviewed-runtime contradiction map grounded
+  in the current post-Sprint-92 tree.
+- The strongest first Sprint 93 implementation center is fixed to the ND
+  recursive runtime seam and its adjacent graph-partition owner surfaces.
+- Day 4 can freeze the runtime/threading contract without reopening the
+  ranked runtime order.

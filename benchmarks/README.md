@@ -195,6 +195,9 @@ surfaces for the public repeated-run direct lifecycle:
     - `category`
     - `matrix`
     - `scenario`
+    - `ldlt_dense_backend_request`
+    - `ldlt_dense_backend_selected`
+    - `ldlt_dense_backend_fallback`
     - `analyze_ms`
     - `refactor_public_ms`
     - `refactor_csc_ms`
@@ -203,6 +206,13 @@ surfaces for the public repeated-run direct lifecycle:
     - `speedup_refactor`
     - `res_public`
     - `res_csc`
+  - interpret the LDL^T backend fields narrowly:
+    - SPD / Cholesky rows report `n/a` in those three columns
+    - `--indefinite-kkt` reports the normalized backend request, the current
+      env/probe-derived backend name, and whether the widened LDL^T selector
+      reported fallback to builtin
+    - this is bounded observability for the retained repeated-run LDL^T lane,
+      not a broad portability or performance claim
 
 Read that support split narrowly:
 

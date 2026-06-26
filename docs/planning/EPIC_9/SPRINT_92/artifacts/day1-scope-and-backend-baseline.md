@@ -1,0 +1,112 @@
+# Sprint 92 Day 1: Scope and Backend Baseline
+
+## Purpose
+
+Turn the Sprint 92 project-plan section and the Sprint 91 validated closeout
+into one bounded portable dense backend and kernel-maturity execution package
+before any hotspot profiling, backend design, or implementation lands.
+
+## Starting Truth
+
+Sprint 92 begins from a validated Sprint 91 close state, not from another
+generic direct-family cleanup reset:
+
+- strongest local reviewed baseline remains `make quality-review-full`
+- reviewed CMake parity was re-materialized live and remains explicit:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+
+Sprint 91 already moved the strongest prior product-model contradiction:
+
+- compressed CSR/CSC inputs now have first-class public constructor-style
+  entry paths
+- the public one-shot vs repeated-run direct workflow story is materially
+  clearer
+- constructor-built direct workflows now have explicit public lifecycle proof
+
+That means Sprint 92 can start from the next real Epic 9 contradiction center:
+
+- the current dense-kernel and optional-backend ceiling on the strongest
+  direct-family workloads while preserving the builtin self-contained default
+  build
+
+## Sprint 92 Workstreams
+
+The highest-value Sprint 92 package is now fixed explicitly around:
+
+- dense hotspot profiling
+- backend ABI and runtime-selection design
+- portable backend integration
+- solver adoption follow-through
+- benchmark and proof observability
+- build/package alignment
+
+## Strongest Backend Starting Point
+
+The live maintained backend story is already more disciplined than a generic
+"add acceleration everywhere" claim:
+
+- the builtin dense path is real, self-contained, and remains the default
+  product truth
+- direct-family dense consumers are already concentrated enough to target
+  surgically
+- the repo already has bounded benchmark owners for direct-family dense work
+- install/export and package surfaces are maintained, but they are not yet the
+  right first implementation center for Sprint 92
+
+Sprint 92 therefore does not begin from "make the library fast." It begins
+from one explicit truthfulness question:
+
+- where can the repo earn one bounded portable dense-backend lane with real
+  fallback proof and meaningful direct-family value without overclaiming
+  platform symmetry or backend maturity
+
+## Strongest Likely Touch Surfaces
+
+The live tree currently points most strongly at these Sprint 92 surfaces:
+
+- strongest dense/backend implementation owners:
+  - `src/sparse_dense.c`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_qr.c`
+- strongest benchmark and measurement owners:
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `benchmarks/bench_svd.c`
+- strongest proof-owner tests likely to matter:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_dense.c`
+  - `tests/test_qr.c`
+- strongest support and package wording surfaces if backend work truly forces
+  follow-through:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - `Makefile`
+  - `CMakeLists.txt`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+
+## Preserved Fence
+
+Sprint 92 is explicitly bounded against:
+
+- treating optional acceleration as stronger than builtin fallback truth
+- promising broad platform symmetry before a maintained portable backend lane
+  exists
+- widening into runtime/threading, capability-surface, or packaging-product
+  work before the backend seam is fixed
+- treating benchmark evidence as stronger than reviewed solver correctness,
+  install/export proof, or maintained support surfaces
+- drifting into generic dense rewrite churn detached from one real highest-
+  value backend seam
+
+## Day 1 Result
+
+Sprint 92 now starts from one precise portable dense backend and
+kernel-maturity execution package rather than from a generic "speed up direct
+solvers" bucket. The strongest likely touch surfaces, preserved non-goals, and
+maintained reviewed starting truth are fixed in writing before the validation
+and maintained-surface recheck begins.

@@ -1,9 +1,13 @@
+#include "sparse_alloc_internal.h"
+#include "sparse_errno_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
 #include <limits.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -448,6 +452,96 @@ static void test_idx_width_contract(void) {
 #else
     ASSERT_TRUE(0);
 #endif
+}
+
+static void test_sparse_types_error_contract(void) {
+    struct {
+        sparse_err_t err;
+        const char *msg;
+    } cases[] = {
+        {SPARSE_OK, "success"},
+        {SPARSE_ERR_NULL, "null pointer argument"},
+        {SPARSE_ERR_ALLOC, "memory allocation failure"},
+        {SPARSE_ERR_BOUNDS, "index out of bounds"},
+        {SPARSE_ERR_SINGULAR, "singular or nearly singular matrix"},
+        {SPARSE_ERR_FOPEN, "cannot open file"},
+        {SPARSE_ERR_FREAD, "file read error"},
+        {SPARSE_ERR_FWRITE, "file write error"},
+        {SPARSE_ERR_PARSE, "file format parse error"},
+        {SPARSE_ERR_SHAPE, "matrix shape mismatch"},
+        {SPARSE_ERR_IO, "I/O error (check sparse_errno())"},
+        {SPARSE_ERR_BADARG, "invalid argument"},
+        {SPARSE_ERR_NOT_SPD, "matrix is not symmetric positive-definite"},
+        {SPARSE_ERR_NOT_CONVERGED, "iterative solver did not converge"},
+        {SPARSE_ERR_NUMERIC, "numerical failure (NaN or Inf)"},
+        {SPARSE_ERR_CANCELLED, "operation cancelled via progress callback"},
+        {SPARSE_ERR_PIVOT_REJECTED, "cached pivot pattern rejected"},
+        {SPARSE_ERR_BACKEND_CONTRACT, "internal backend contract violated"},
+    };
+
+    sparse_set_errno_(1234);
+    ASSERT_EQ(sparse_errno(), 1234);
+    sparse_set_errno_(0);
+    ASSERT_EQ(sparse_errno(), 0);
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        const char *msg = sparse_strerror(cases[i].err);
+        ASSERT_NOT_NULL(msg);
+        ASSERT_TRUE(strcmp(msg, cases[i].msg) == 0);
+    }
+
+    ASSERT_TRUE(strcmp(sparse_strerror((sparse_err_t)9999), "unknown error") == 0);
+}
+
+static void test_internal_alloc_helpers(void) {
+    void *ptr = (void *)0x1;
+
+    ASSERT_ERR(sparse_malloc_array(1, sizeof(double), NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_calloc_array(1, sizeof(double), NULL), SPARSE_ERR_NULL);
+
+    ASSERT_ERR(sparse_malloc_array(0, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NULL(ptr);
+    ptr = (void *)0x1;
+    ASSERT_ERR(sparse_calloc_array(4, 0, &ptr), SPARSE_OK);
+    ASSERT_NULL(ptr);
+
+    ASSERT_ERR(sparse_malloc_array(SIZE_MAX, 2, &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+    ASSERT_ERR(sparse_calloc_array(SIZE_MAX, 2, &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+
+    ASSERT_ERR(sparse_calloc_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+}
+
+static void test_internal_idx_alloc_helpers(void) {
+    void *ptr = (void *)0x1;
+
+    ASSERT_ERR(sparse_malloc_idx_array(1, sizeof(double), NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_calloc_idx_array(1, sizeof(double), NULL), SPARSE_ERR_NULL);
+
+    ASSERT_ERR(sparse_malloc_idx_array(-1, 0, &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+    ASSERT_ERR(sparse_calloc_idx_array(-1, 0, &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+
+    ASSERT_ERR(sparse_malloc_idx_array(0, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NULL(ptr);
+    ASSERT_ERR(sparse_calloc_idx_array(0, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NULL(ptr);
+
+    ASSERT_ERR(sparse_malloc_idx_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+
+    ASSERT_ERR(sparse_calloc_idx_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
 }
 
 static void test_matrix_public_scalar_alias(void) {
@@ -1101,6 +1195,9 @@ int main(void) {
     /* Memory info */
     RUN_TEST(test_memory_usage);
     RUN_TEST(test_idx_width_contract);
+    RUN_TEST(test_sparse_types_error_contract);
+    RUN_TEST(test_internal_alloc_helpers);
+    RUN_TEST(test_internal_idx_alloc_helpers);
     RUN_TEST(test_matrix_public_scalar_alias);
 
     /* Infinity norm */

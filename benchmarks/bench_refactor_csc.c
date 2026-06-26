@@ -30,8 +30,10 @@
  *   explicitly instead of re-entering the public one-shot wrapper path
  *
  * Output is CSV on stdout:
- *   benchmark,category,matrix,scenario,n,nnz,analyze_ms,
- *   refactor_public_ms,refactor_csc_ms,
+ *   benchmark,category,matrix,scenario,n,nnz,
+ *   ldlt_dense_backend_request,ldlt_dense_backend_selected,
+ *   ldlt_dense_backend_fallback,
+ *   analyze_ms,refactor_public_ms,refactor_csc_ms,
  *   solve_public_ms,solve_csc_ms,
  *   speedup_refactor,res_public,res_csc
  *
@@ -176,12 +178,38 @@ static sparse_err_t perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, id
     return SPARSE_OK;
 }
 
+static const char *ldlt_dense_backend_request_name(void) {
+    const char *value = getenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (!value || strcmp(value, "builtin") == 0)
+        return "builtin";
+    if (strcmp(value, "external") == 0 || strcmp(value, "blas") == 0 ||
+        strcmp(value, "lapack") == 0)
+        return "external";
+#ifdef __APPLE__
+    if (strcmp(value, "accelerate") == 0)
+        return "accelerate";
+#endif
+    return "builtin";
+}
+
+static const char *ldlt_dense_backend_fallback_name(const char *request, const char *selected) {
+    if (!request || !selected)
+        return "n/a";
+    if (strcmp(request, "builtin") == 0)
+        return "no";
+    return strcmp(selected, "builtin") == 0 ? "yes" : "no";
+}
+
 static void emit_csv_row(const char *matrix, const char *scenario, idx_t n, idx_t nnz,
-                         double analyze_ms, double refactor_public_ms, double refactor_csc_ms,
-                         double solve_public_ms, double solve_csc_ms, double speedup,
-                         double res_public, double res_csc) {
-    printf("bench_refactor_csc,proof,%s,%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", matrix,
-           scenario, (int)n, (int)nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
+                         const char *ldlt_dense_backend_request,
+                         const char *ldlt_dense_backend_selected,
+                         const char *ldlt_dense_backend_fallback, double analyze_ms,
+                         double refactor_public_ms, double refactor_csc_ms, double solve_public_ms,
+                         double solve_csc_ms, double speedup, double res_public, double res_csc) {
+    printf("bench_refactor_csc,proof,%s,%s,%" SPARSE_PRIDX ",%" SPARSE_PRIDX
+           ",%s,%s,%s,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n",
+           matrix, scenario, n, nnz, ldlt_dense_backend_request, ldlt_dense_backend_selected,
+           ldlt_dense_backend_fallback, analyze_ms, refactor_public_ms, refactor_csc_ms,
            solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
 }
 
@@ -364,8 +392,8 @@ static int bench_spd_matrix(const char *path, int repeat) {
     double solve_csc_ms = solve_csc_total * 1000.0 / (double)repeat;
     double speedup = refactor_public_ms / refactor_csc_ms;
 
-    emit_csv_row(base, "chol_spd", n, nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
-                 solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
+    emit_csv_row(base, "chol_spd", n, nnz, "n/a", "n/a", "n/a", analyze_ms, refactor_public_ms,
+                 refactor_csc_ms, solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
 
     sparse_factor_free(&factors_public);
     sparse_analysis_free(&an);
@@ -553,8 +581,14 @@ static int bench_indefinite_kkt(int repeat) {
     double solve_csc_ms = solve_csc_total * 1000.0 / (double)repeat;
     double speedup = refactor_public_ms / refactor_csc_ms;
 
-    emit_csv_row("kkt-150", "ldlt_kkt", n, nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
-                 solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
+    const char *backend_request = ldlt_dense_backend_request_name();
+    const char *backend_selected = ldlt_dense_factor_backend_name();
+    const char *backend_fallback =
+        ldlt_dense_backend_fallback_name(backend_request, backend_selected);
+
+    emit_csv_row("kkt-150", "ldlt_kkt", n, nnz, backend_request, backend_selected, backend_fallback,
+                 analyze_ms, refactor_public_ms, refactor_csc_ms, solve_public_ms, solve_csc_ms,
+                 speedup, res_public, res_csc);
 
     sparse_factor_free(&factors_public);
     sparse_analysis_free(&an);
@@ -593,7 +627,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("benchmark,category,matrix,scenario,n,nnz,analyze_ms,"
+    printf("benchmark,category,matrix,scenario,n,nnz,"
+           "ldlt_dense_backend_request,ldlt_dense_backend_selected,"
+           "ldlt_dense_backend_fallback,"
+           "analyze_ms,"
            "refactor_public_ms,refactor_csc_ms,"
            "solve_public_ms,solve_csc_ms,"
            "speedup_refactor,res_public,res_csc\n");

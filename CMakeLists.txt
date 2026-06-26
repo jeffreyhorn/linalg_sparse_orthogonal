@@ -157,6 +157,15 @@ if(NOT MSVC)
     target_link_libraries(sparse_lu_ortho PUBLIC m)
 endif()
 
+# Runtime-probed optional dense backends use dlopen/dlsym on non-Apple POSIX
+# platforms. Apple resolves those from libSystem; Linux and similar may still
+# require an explicit libdl link.
+if(UNIX AND NOT APPLE)
+    if(CMAKE_DL_LIBS)
+        target_link_libraries(sparse_lu_ortho PUBLIC ${CMAKE_DL_LIBS})
+    endif()
+endif()
+
 # Tests
 enable_testing()
 

@@ -609,6 +609,9 @@ Canonical output ownership:
   - `scenario`
 - direct canonical surfaces keep their path/backend-specific proof fields:
   - `speedup_refactor`
+  - `ldlt_dense_backend_request`
+  - `ldlt_dense_backend_selected`
+  - `ldlt_dense_backend_fallback`
   - `csc_scalar_path`
   - `csc_supernodal_path`
   - `csc_supernodal_dense_kernel`

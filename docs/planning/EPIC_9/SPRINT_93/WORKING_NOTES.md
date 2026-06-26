@@ -436,3 +436,81 @@ implementation boundary can stay bounded to the highest-value reviewed seam.
   separated in writing.
 - Day 5 can freeze one bounded first landing without reopening generic
   threading or benchmark claims.
+
+## Day 5 - First Implementation Boundary
+
+### Goal
+Fix one bounded first implementation fence so Sprint 93 starts with the
+highest-value ND runtime seam instead of generic graph, threading, or
+benchmark churn.
+
+### Actions
+- Re-read the Sprint 93 Day 5 plan target in
+  `docs/planning/EPIC_9/SPRINT_93/PLAN.md`.
+- Re-read the Day 3 runtime audit:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day3-reviewed-runtime-audit.md`
+- Re-read the Day 4 runtime/threading contract:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day4-threading-and-runtime-contract-design.md`
+- Re-read the closest prior first-boundary pattern:
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day4-first-implementation-boundary.md`
+- Reconciled the ranked runtime seam against the Day 4 debt split:
+  - algorithmic ND runtime debt first
+  - runtime-control cleanup second
+  - proof-topology and evidence follow-through later unless forced
+- Wrote the Day 5 boundary artifact and updated working notes.
+
+### Findings
+- Sprint 93 now has one explicit first implementation fence:
+  - required first landing:
+    - `src/sparse_reorder_nd.c`
+    - the matching touched recursion-side and leaf/runtime seam behind the
+      reviewed ND owner
+  - directly forced support surfaces only if the first landing truly needs
+    them:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_refine.c`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `benchmarks/bench_reorder.c`
+  - explicitly later unless the first landing truly forces movement:
+    - `src/sparse_graph_internal.h`
+    - `src/sparse_reorder_nd_internal.h`
+    - `tests/test_threads.c`
+    - `tests/test_omp.c`
+    - `benchmarks/bench_amd_qg.c`
+    - `benchmarks/bench_iterative_reuse.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+    - `Makefile`
+    - `CMakeLists.txt`
+    - install/export and workflow surfaces
+- The strongest Day 5 clarification is now explicit:
+  - Sprint 93 should start by improving the ND recursive runtime seam
+  - it should not begin by widening every graph-partition, threading, or
+    runtime-control owner at once
+  - it should not reopen proof naming, workflow wording, or broad benchmark
+    interpretation in the first batch unless the touched runtime seam itself
+    truly forces it
+- The first batch now explicitly defers:
+  - broad graph/reorder rewrites
+  - generic multithreading everywhere
+  - runtime-control cleanup detached from the touched ND seam
+  - proof-surface restructuring detached from real reviewed-runtime savings
+  - benchmark/reporting widening detached from the first runtime landing
+  - public support-surface wording churn detached from the touched seam
+
+### Validation
+- Re-read the Day 3 and Day 4 artifacts against the Sprint 93 project-plan
+  contract.
+- Re-read the closest prior boundary-freeze artifact for bounded-seam format.
+- Reconfirmed that the first landing stays inside the Day 4 runtime/threading
+  non-claim fence.
+
+### Day 5 Exit State
+- Sprint 93 now has one explicit first implementation boundary.
+- The first code landing is fixed to the ND recursive runtime owner with only
+  the strongest adjacent graph and proof surfaces as directly forced
+  follow-through.
+- Day 6 can define the runtime-reduction implementation contract without
+  reopening the ranked first-center choice.

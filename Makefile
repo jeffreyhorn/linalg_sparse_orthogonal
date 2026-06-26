@@ -8,8 +8,13 @@ ifneq ($(SYSROOT),)
 CFLAGS += -isysroot $(SYSROOT)
 endif
 LDFLAGS = -lm
-ifeq ($(shell uname -s),Linux)
+
+DLOPEN_LINKS_WITHOUT_LIBDL = $(shell CC='$(CC)' CFLAGS='$(CFLAGS)' sh scripts/probe_dlopen_link.sh plain && echo yes || echo no)
+DLOPEN_LINKS_WITH_LIBDL = $(shell CC='$(CC)' CFLAGS='$(CFLAGS)' sh scripts/probe_dlopen_link.sh libdl && echo yes || echo no)
+ifeq ($(DLOPEN_LINKS_WITHOUT_LIBDL),no)
+ifeq ($(DLOPEN_LINKS_WITH_LIBDL),yes)
 LDFLAGS += -ldl
+endif
 endif
 # When SPARSE_MUTEX is enabled, all binaries need -pthread
 ifdef SPARSE_MUTEX

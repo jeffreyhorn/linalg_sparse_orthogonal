@@ -128,3 +128,118 @@ package before any runtime audit, contract design, or implementation lands.
   maintained-surface recheck begins.
 - Day 2 can now freeze the authoritative reviewed, benchmark, install/export,
   and workflow truth split without reopening the Day 1 scope question.
+
+## Day 2 - Validation and Maintained Surface Recheck
+
+### Goal
+Refresh the implementation-day validation contract and the live maintained
+reviewed, benchmark, install/export, example, and workflow truth split before
+Sprint 93 begins runtime-, threading-, and ND-focused implementation work on
+the graph and reorder surfaces.
+
+### Actions
+- Re-read the Sprint 93 Day 2 plan target in
+  `docs/planning/EPIC_9/SPRINT_93/PLAN.md`.
+- Re-read the closest prior validation-contract artifact:
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day2-validation-baseline-and-maintained-surface-recheck.md`
+- Reconfirmed the live reviewed parity anchor with:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Rechecked the maintained canonical benchmark-reporting owner with:
+  - `make -n bench-canonical-report`
+- Rechecked the presence of the strongest reviewed and maintained Sprint 93
+  truth surfaces:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_threads`
+  - `./build/quality-review-cmake/test_omp`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+  - `scripts/bench_canonical_report.sh`
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- Re-read the Linux, macOS, and Windows workflow surfaces so Sprint 93 does
+  not overclaim reviewed runtime parity, threading breadth, or install/export
+  coverage while touching graph and reorder concentration.
+- Wrote the Day 2 artifact and fixed the authoritative rerun set in writing.
+
+### Findings
+- Sprint 93 continues to inherit the same strongest local reviewed baseline:
+  - `make quality-review-full`
+- The implementation-day and docs-day split is now fixed explicitly for
+  runtime- and ND-convergence work:
+  - bounded `*.c` / `*.h` landing days:
+    - `make format`
+    - `make lint`
+    - `make test`
+  - substantial runtime-contract, proof-owner, benchmark, or support-surface
+    batches:
+    - `make quality-review-full`
+  - docs-only audit/design/review days:
+    - targeted sanity checks only
+- Reviewed CMake parity remains the primary truth anchor before any Sprint 93
+  code lands:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- The strongest reviewed executable truth owners for Sprint 93’s runtime lane
+  are now fixed around:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_threads`
+  - `./build/quality-review-cmake/test_omp`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Canonical benchmark reporting remains command- and script-owned rather than
+  reviewed-binary-owned:
+  - `make bench-canonical-report`
+  - `scripts/bench_canonical_report.sh`
+  - root `build/` canonical emitters:
+    - `build/bench_refactor_csc`
+    - `build/bench_chol_csc`
+    - `build/bench_iterative_reuse`
+    - `build/bench_eigs_reuse`
+- Maintained install/export proof remains script- and fixture-owned:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - `examples/cmake_example/CMakeLists.txt`
+- Workflow truth remains intentionally layered rather than flattened:
+  - Linux remains the strongest reviewed source of truth through the enforced
+    reviewed Makefile compile-quality, reviewed CMake parity, and dead-code
+    lanes
+  - macOS remains a narrower reviewed Apple Clang lane plus a supplemental
+    static-first install/`pkg-config` confidence lane
+  - Windows remains the reviewed CMake-first consumer subset and does not
+    claim reviewed Makefile parity or separate reviewed install-validation
+    parity
+- The highest-signal rerun set is now fixed for the rest of Sprint 93:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_threads`
+  - `./build/quality-review-cmake/test_omp`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `make bench-canonical-report`
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+- The strongest Day 2 clarification is now fixed:
+  - Sprint 93 should read runtime- and threading-focused changes against the
+    reviewed graph, reorder, and concurrency proof owners
+  - canonical reporting remains a bounded command/script-owned evidence
+    surface, not a reviewed-binary runtime-parity claim
+
+### Validation
+- Reconfirmed `ctest -N --test-dir build/quality-review-cmake` = `53`.
+- Rechecked `make -n bench-canonical-report`.
+- Rechecked the presence of the strongest reviewed runtime, example,
+  install/export, and workflow owner surfaces.
+
+### Day 2 Exit State
+- Sprint 93 now has one explicit validation and maintained-surface contract
+  before runtime implementation begins.
+- Reviewed graph/runtime binaries remain the main executable truth anchor.
+- Canonical benchmark reporting remains command/script owned.
+- Install/export proof remains script owned.
+- Workflow lanes remain layered support evidence rather than broad
+  cross-platform runtime-parity claims.

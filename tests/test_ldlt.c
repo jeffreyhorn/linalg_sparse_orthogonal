@@ -2821,9 +2821,9 @@ static void test_ldlt_dense_backend_external_env_contract(void) {
     ASSERT_EQ(pivot_size[0], 1);
     ASSERT_EQ(pivot_size[1], 1);
     ASSERT_EQ(pivot_size[2], 1);
-    ASSERT_NEAR(A[0], 1.0, 0.0);
-    ASSERT_NEAR(A[4], 1.0, 0.0);
-    ASSERT_NEAR(A[8], 1.0, 0.0);
+    ASSERT_NEAR(A[0], 1.0, 1e-12);
+    ASSERT_NEAR(A[4], 1.0, 1e-12);
+    ASSERT_NEAR(A[8], 1.0, 1e-12);
 
     SparseMatrix *M = day4_build_indefinite_4x4();
     int used_csc = -1;

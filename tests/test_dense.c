@@ -339,6 +339,19 @@ static void test_givens_apply_left(void) {
     ASSERT_NEAR(y[0], 0.0, 1e-14);
 }
 
+/* apply_right rotates two column vectors in place */
+static void test_givens_apply_right(void) {
+    double x[2] = {1.0, 2.0};
+    double y[2] = {3.0, 4.0};
+
+    givens_apply_right(0.0, 1.0, x, y, 2);
+
+    ASSERT_NEAR(x[0], -3.0, 1e-14);
+    ASSERT_NEAR(x[1], -4.0, 1e-14);
+    ASSERT_NEAR(y[0], 1.0, 1e-14);
+    ASSERT_NEAR(y[1], 2.0, 1e-14);
+}
+
 /* Negative values */
 static void test_givens_negative(void) {
     double c, s;
@@ -525,6 +538,51 @@ static void test_tridiag_null(void) {
     ASSERT_ERR(tridiag_qr_eigenvalues(NULL, NULL, 5, 0), SPARSE_ERR_NULL);
 }
 
+/* Missing subdiagonal storage is an error for n >= 2 */
+static void test_tridiag_null_subdiag(void) {
+    double diag[] = {1.0, 2.0};
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, NULL, 2, 0), SPARSE_ERR_NULL);
+}
+
+/* A tiny iteration budget should surface NOT_CONVERGED */
+static void test_tridiag_not_converged(void) {
+    double diag[10];
+    double sub[9];
+    for (idx_t i = 0; i < 10; i++)
+        diag[i] = 2.0;
+    for (idx_t i = 0; i < 9; i++)
+        sub[i] = -1.0;
+
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, 10, 1), SPARSE_ERR_NOT_CONVERGED);
+}
+
+/* Eigenpairs API rejects missing outputs and subdiagonal storage */
+static void test_tridiag_eigenpairs_null_args(void) {
+    double diag[] = {1.0, 2.0};
+    double sub[] = {0.5};
+    double Q[4] = {0.0, 0.0, 0.0, 0.0};
+
+    ASSERT_ERR(tridiag_qr_eigenpairs(NULL, sub, Q, 2, 0), SPARSE_ERR_NULL);
+    ASSERT_ERR(tridiag_qr_eigenpairs(diag, sub, NULL, 2, 0), SPARSE_ERR_NULL);
+    ASSERT_ERR(tridiag_qr_eigenpairs(diag, NULL, Q, 2, 0), SPARSE_ERR_NULL);
+}
+
+/* Eigenpairs API should also report non-convergence under a tiny budget */
+static void test_tridiag_eigenpairs_not_converged(void) {
+    double diag[10];
+    double sub[9];
+    double Q[100];
+    for (idx_t i = 0; i < 10; i++) {
+        diag[i] = 2.0;
+        for (idx_t j = 0; j < 10; j++)
+            Q[i + j * 10] = (i == j) ? 1.0 : 0.0;
+    }
+    for (idx_t i = 0; i < 9; i++)
+        sub[i] = -1.0;
+
+    ASSERT_ERR(tridiag_qr_eigenpairs(diag, sub, Q, 10, 1), SPARSE_ERR_NOT_CONVERGED);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -559,6 +617,7 @@ int main(void) {
     RUN_TEST(test_givens_both_zero);
     RUN_TEST(test_givens_norm_preserving);
     RUN_TEST(test_givens_apply_left);
+    RUN_TEST(test_givens_apply_right);
     RUN_TEST(test_givens_negative);
 
     /* 2×2 eigenvalue solver (Sprint 7 Day 5) */
@@ -579,6 +638,10 @@ int main(void) {
     RUN_TEST(test_tridiag_large);
     RUN_TEST(test_tridiag_graded);
     RUN_TEST(test_tridiag_null);
+    RUN_TEST(test_tridiag_null_subdiag);
+    RUN_TEST(test_tridiag_not_converged);
+    RUN_TEST(test_tridiag_eigenpairs_null_args);
+    RUN_TEST(test_tridiag_eigenpairs_not_converged);
 
     TEST_SUITE_END();
 }

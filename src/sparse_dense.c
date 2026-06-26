@@ -378,7 +378,12 @@ static int s64_ext_probe_dense_kernels(void) {
         };
         s64_ext_reset_dense_kernels();
 
+        s64_ext_provider_t active_provider = S64_EXT_PROVIDER_NONE;
         for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+            if (candidates[i].provider != active_provider) {
+                s64_ext_reset_dense_kernels();
+                active_provider = candidates[i].provider;
+            }
             if (s64_ext_handle_count >= sizeof(s64_ext_handles) / sizeof(s64_ext_handles[0]))
                 break;
 
@@ -395,7 +400,7 @@ static int s64_ext_probe_dense_kernels(void) {
                                  sizeof(s64_ext_dtrsm));
 
             if (s64_ext_dpotrf && s64_ext_dtrsv && s64_ext_dtrsm) {
-                s64_ext_provider = candidates[i].provider;
+                s64_ext_provider = active_provider;
                 atomic_store_explicit(&s64_ext_probe_state, S64_EXT_READY, memory_order_release);
                 return 1;
             }

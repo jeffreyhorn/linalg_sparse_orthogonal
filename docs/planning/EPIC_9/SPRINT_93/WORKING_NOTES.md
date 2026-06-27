@@ -1047,3 +1047,108 @@ proof, benchmark-governance, or support-surface churn.
   - `benchmarks/bench_reorder.c`
 - Proof-owner movement and support wording remain sequenced behind real
   evidence changes.
+
+## Day 12 - Proof and Runtime Evidence Follow-Through Batch
+
+### Goal
+Land one bounded runtime-evidence follow-through batch on the retained reorder
+benchmark owner so Sprint 93 can close the remaining ND runtime lane with a
+smaller, self-describing row shape instead of reopening proof topology or
+broad benchmark-governance churn.
+
+### Actions
+- Re-read the Day 11 evidence contract:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day11-proof-surface-and-runtime-evidence-design.md`
+- Re-read the retained runtime-evidence owner:
+  - `benchmarks/bench_reorder.c`
+- Re-read the directly forced support-only owners:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Updated `benchmarks/bench_reorder.c` so emitted rows now record:
+  - `reorder_path`
+  - `fixture_slice`
+  - `nd_base_threshold`
+- Kept the landing bounded:
+  - no changes to `tests/test_reorder_nd.c`
+  - no changes to `tests/test_graph.c`
+  - no changes to `scripts/bench_canonical_report.sh`
+- Updated the benchmark/support wording only where the landed row shape
+  changed the maintained interpretation:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Ran the required code-validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Ran the focused runtime-evidence commands:
+  - `./build/bench_reorder --sprint86-slice --skip-factor`
+  - `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+- Wrote the Day 12 implementation artifact.
+
+### Findings
+- The Day 12 landing stayed inside the exact Day 11 fence:
+  - required center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support follow-through:
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - not needed:
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `scripts/bench_canonical_report.sh`
+- The touched reorder benchmark now emits one smaller but more
+  self-describing CSV shape:
+  - preserved core fields:
+    - `matrix`
+    - `n`
+    - `reorder`
+    - `nnz_L`
+    - `reorder_ms`
+    - `factor_ms`
+  - added bounded evidence fields:
+    - `reorder_path`
+    - `fixture_slice`
+    - `nd_base_threshold`
+- The meaning of the added fields is now explicit and narrow:
+  - `reorder_path` records whether the row came from:
+    - direct reorder entry
+    - analyze-driven reorder entry
+  - `fixture_slice` records the bounded fixture scope:
+    - `sprint86`
+    - `all`
+  - `nd_base_threshold` records the live ND threshold that produced the row
+- Focused runtime evidence now reads directly from the emitted rows:
+  - `./build/bench_reorder --sprint86-slice --skip-factor`
+    - header:
+      - `matrix,n,reorder,nnz_L,reorder_ms,factor_ms,reorder_path,fixture_slice,nd_base_threshold`
+    - representative rows:
+      - `bcsstk14,1806,nd,132634,300.4,skip,direct,sprint86,160`
+      - `Pres_Poisson,14822,nd,2474435,4318.9,skip,direct,sprint86,160`
+  - `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+    - representative rows:
+      - `bcsstk14,1806,nd,132634,322.1,skip,analyze,sprint86,160`
+      - `Pres_Poisson,14822,nd,2474435,4665.0,skip,analyze,sprint86,160`
+- The strongest Day 12 clarification is now explicit:
+  - the remaining Sprint 93 runtime gap was evidence-shape, not proof trust
+  - the bounded Sprint 86 runtime lane now carries enough row-local context
+    to stay interpretable across reruns
+  - no proof-owner rebalance or canonical-reporting widening was required by
+    this batch
+- Validation passed cleanly after the landing:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `./build/bench_reorder --sprint86-slice --skip-factor`
+- `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+
+### Day 12 Exit State
+- Sprint 93 now has one landed bounded runtime-evidence follow-through batch.
+- The touched reorder benchmark rows carry enough local context to stay
+  interpretable after the Sprint 93 runtime and control-cleanup landings.
+- Day 13 can now freeze the final validation queue from a cleaner runtime
+  evidence surface rather than from a benchmark lane with hidden context.

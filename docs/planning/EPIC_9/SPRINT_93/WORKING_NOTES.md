@@ -765,3 +765,97 @@ evidence rather than from the original Day 3 runtime map alone.
   runtime-control cleanup on the touched ND owner.
 - Day 9 can now define one exact bounded runtime-control cleanup contract from
   the live post-Day-7 tree.
+
+## Day 9 - Runtime-Control Cleanup Design
+
+### Goal
+Freeze one exact Day 10 cleanup contract so Sprint 93 can sharpen the touched
+ND runtime/threading control model without turning the second batch into a
+broad graph-policy rewrite, proof-topology pass, or generic threading sweep.
+
+### Actions
+- Re-read the Day 8 rerank artifact:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day8-post-landing-audit-and-rerank.md`
+- Re-read the Sprint 93 plan around the Day 9 and Day 10 control-cleanup
+  steps:
+  - `docs/planning/EPIC_9/SPRINT_93/PLAN.md`
+- Re-read the touched runtime-control owner and its strongest staging seams:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_nd_internal.h`
+  - `src/sparse_graph_internal.h`
+- Re-read the main live control cluster in `src/sparse_reorder_nd.c`:
+  - compatibility env/default policy normalization
+  - ND profile override
+  - ND base-threshold hook
+  - graph override begin/end staging inside `sparse_reorder_nd_with_policy(...)`
+- Reconciled the live control seam against the Sprint 93 contract so the next
+  batch stays centered on:
+  - control-model sharpness
+  - preserved runtime-policy results
+  - deferred proof/evidence widening
+- Wrote the Day 9 design artifact and fixed the exact Day 10 cleanup center in
+  writing.
+
+### Findings
+- Sprint 93 now has one exact second implementation contract:
+  - required Day 10 center:
+    - `src/sparse_reorder_nd.c`
+  - directly forced support-only follow-through only if the Day 10 batch truly
+    needs them:
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph_internal.h`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `benchmarks/bench_reorder.c`
+  - strongest later surfaces only if runtime-control cleanup exposes a real
+    maintained-contract mismatch:
+    - `tests/test_threads.c`
+    - `tests/test_omp.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+- The exact Day 10 target is now explicit:
+  - stop treating ND runtime-control as a loose cluster of compatibility
+    parsing plus stacked override begin/end calls
+  - keep the touched cleanup centered on `src/sparse_reorder_nd.c`
+  - preserve the current runtime-policy results while making the control seam
+    smaller and sharper
+- In practical terms, the Day 10 batch is now fixed around:
+  - consolidating the ND compatibility/default policy normalization path
+  - tightening the override-staging seam around:
+    - coarsening override
+    - coarsen-floor-ratio override
+    - coarsening-CV-fallthrough override
+    - coarsest-bisection override
+    - separator-lift override
+  - preserving the current typed-policy and compatibility semantics:
+    - `sparse_reorder_nd_default_policy()` remains the baseline owner
+    - typed policy still wins where the shipped contract says it should win
+    - current env names and accepted values stay intact
+  - preserving the touched benchmark/test-only hooks unless a strictly smaller
+    owner can preserve them cleanly:
+    - ND profile override
+    - ND base-threshold hook
+- The strongest Day 9 clarification is now explicit:
+  - Day 10 should not become a generic graph-policy redesign
+  - Day 10 should not widen into FM/coarsening algorithm changes
+  - Day 10 should not reopen proof-topology or benchmark/reporting work ahead
+    of the touched control-model cleanup
+  - Day 10 should not widen into public or maintainer wording detached from a
+    real touched runtime-control movement
+
+### Validation
+- Re-read the Day 8 rerank against the Sprint 93 Day 9 and Day 10 plan steps.
+- Re-read the strongest live control-seam owners in
+  `src/sparse_reorder_nd.c`, `src/sparse_reorder_nd_internal.h`, and
+  `src/sparse_graph_internal.h`.
+- Reconfirmed that the smallest truthful Day 10 batch is control-model cleanup
+  on the touched ND owner rather than proof-topology, benchmark, or generic
+  threading widening.
+
+### Day 9 Exit State
+- The second Sprint 93 implementation contract is explicit before code moves.
+- Day 10 now has one exact bounded center:
+  - `src/sparse_reorder_nd.c`
+- Later proof, benchmark, and support work remains clearly sequenced behind a
+  real landed runtime-control improvement.

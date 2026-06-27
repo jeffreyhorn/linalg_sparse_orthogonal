@@ -949,3 +949,101 @@ pulling proof and benchmark follow-through forward before they are needed.
   runtime-policy behavior.
 - Day 11 can now design the remaining proof-surface rebalancing and bounded
   runtime-evidence follow-through from that cleaner touched control seam.
+
+## Day 11 - Proof-Surface Rebalancing and Runtime Evidence Design
+
+### Goal
+Freeze one exact Day 12 evidence contract so Sprint 93 can close the remaining
+runtime gap from the cleaner Day 10 control seam without reopening broad
+proof, benchmark-governance, or support-surface churn.
+
+### Actions
+- Re-read the Day 10 cleanup artifact:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day10-runtime-control-cleanup-batch.md`
+- Re-read the Sprint 93 plan around the Day 11 and Day 12 proof/evidence
+  steps:
+  - `docs/planning/EPIC_9/SPRINT_93/PLAN.md`
+- Re-read the retained runtime-evidence owner:
+  - `benchmarks/bench_reorder.c`
+- Re-read the strongest adjacent proof and reporting owners from the live
+  tree:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - `scripts/bench_canonical_report.sh`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- Reconciled the live post-Day-10 state against the remaining Sprint 93 queue
+  so the next batch stays centered on:
+  - bounded runtime evidence
+  - no speculative proof-owner movement
+  - no broad reporting or support churn
+- Wrote the Day 11 design artifact and fixed the exact Day 12 center in
+  writing.
+
+### Findings
+- Sprint 93 now has one exact Day 12 follow-through contract:
+  - required Day 12 center:
+    - `benchmarks/bench_reorder.c`
+  - directly forced support-only follow-through only if the Day 12 batch truly
+    needs them:
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `scripts/bench_canonical_report.sh`
+    - `benchmarks/README.md`
+    - `docs/maintainer_guide.md`
+  - retained later surfaces unless the evidence batch exposes a real contract
+    mismatch:
+    - `README.md`
+    - `INSTALL.md`
+    - `tests/test_threads.c`
+    - `tests/test_omp.c`
+- The exact Day 12 center is now explicit:
+  - keep the remaining Sprint 93 gap evidence-owned rather than proof-owned
+  - use the retained reorder benchmark owner:
+    - `bench_reorder --sprint86-slice`
+  - expose the bounded runtime evidence needed for the touched ND lane after
+    the Day 7 runtime reduction and Day 10 control cleanup
+- The strongest reason for that choice is now explicit:
+  - the touched proof owners already passed cleanly after the Day 10 landing:
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+  - no new correctness contradiction surfaced from the runtime or
+    control-model batches
+  - the remaining gap is not baseline proof trust anymore
+  - the remaining gap is bounded runtime evidence shape:
+    - what Sprint 93 wants to keep reporting about the touched ND lane
+    - how the Sprint 86 slice should read after the Day 7 recursion-side
+      reduction
+    - whether the touched benchmark lane needs a smaller, cleaner emitted
+      shape before closeout
+- The proof-topology call is now explicit:
+  - a Day 12 proof-owner rebalance is not currently required
+  - `tests/test_reorder_nd.c` remains heavy, but the Day 10 landing did not
+    force new proof movement or expose weakened trust
+  - proof-owner movement should land only if the evidence batch shows a real
+    mismatch that the current reviewed proof surfaces cannot explain or
+    validate
+- The strongest Day 11 clarification is now explicit:
+  - Day 12 should not become another `src/sparse_reorder_nd.c`
+    implementation batch
+  - Day 12 should not widen into generic proof splitting just because the
+    runtime owner is large
+  - Day 12 should not widen canonical reporting beyond the touched reorder
+    lane unless the bounded evidence contract truly forces it
+
+### Validation
+- Re-read the Day 10 cleanup artifact against the Sprint 93 Day 11 and Day 12
+  plan steps.
+- Re-read the retained runtime-evidence owner in `benchmarks/bench_reorder.c`
+  and the strongest adjacent proof/reporting owners from the live tree.
+- Reconfirmed that the smallest truthful Day 12 batch is bounded
+  runtime-evidence follow-through on the touched reorder benchmark lane rather
+  than proof-owner rebalancing.
+
+### Day 11 Exit State
+- The remaining Sprint 93 gap is explicit before the final follow-through
+  batch.
+- Day 12 now has one exact bounded center:
+  - `benchmarks/bench_reorder.c`
+- Proof-owner movement and support wording remain sequenced behind real
+  evidence changes.

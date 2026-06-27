@@ -859,3 +859,93 @@ broad graph-policy rewrite, proof-topology pass, or generic threading sweep.
   - `src/sparse_reorder_nd.c`
 - Later proof, benchmark, and support work remains clearly sequenced behind a
   real landed runtime-control improvement.
+
+## Day 10 - Runtime-Control Cleanup Batch
+
+### Goal
+Land one bounded runtime-control cleanup inside the touched ND owner without
+changing current runtime-policy results, widening into graph-policy work, or
+pulling proof and benchmark follow-through forward before they are needed.
+
+### Actions
+- Re-read the Day 9 cleanup contract:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day9-runtime-control-cleanup-design.md`
+- Re-read the touched runtime-control owner:
+  - `src/sparse_reorder_nd.c`
+- Split the touched ND control seam into smaller local owners:
+  - added a baseline default-policy constructor:
+    - `nd_default_policy_baseline()`
+  - added a compatibility-override application seam:
+    - `nd_apply_compat_policy_overrides(...)`
+  - added a scoped graph-override staging owner:
+    - `nd_graph_override_scope_begin(...)`
+    - `nd_graph_override_scope_end(...)`
+- Rewired `sparse_reorder_nd_default_policy()` to read as:
+  - baseline defaults first
+  - compatibility overrides second
+- Rewired `sparse_reorder_nd_with_policy(...)` to route the touched graph
+  override cluster through the new scoped helper instead of manually spelling
+  each begin/end call in the main path
+- Verified that the landing stayed inside the Day 9 fence:
+  - no env-name changes
+  - no typed-policy precedence changes
+  - no threshold-hook changes
+  - no graph-policy algorithm changes
+  - no proof or benchmark widening
+- Ran the required validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Wrote the Day 10 implementation artifact.
+
+### Findings
+- The Day 10 landing stayed inside the exact Day 9 contract:
+  - the only code owner touched was `src/sparse_reorder_nd.c`
+  - no directly forced edits were needed in:
+    - `src/sparse_reorder_nd_internal.h`
+    - `src/sparse_graph_internal.h`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `benchmarks/bench_reorder.c`
+- The landed cleanup is now explicit:
+  - ND default policy construction is split into:
+    - one baseline owner with the shipped default values
+    - one compatibility-override application seam
+  - the graph override begin/end stack is now grouped behind one scoped
+    helper:
+    - `nd_graph_override_scope_begin(...)`
+    - `nd_graph_override_scope_end(...)`
+  - `sparse_reorder_nd_with_policy(...)` now applies the touched
+    graph-policy override cluster through that one scoped seam instead of
+    manually spelling each begin/end call in the main execution path
+- The preserved semantics remained unchanged:
+  - `sparse_reorder_nd_default_policy()` still returns the same effective
+    compatibility-default policy surface
+  - current env names and accepted values stay unchanged
+  - typed-policy precedence remains unchanged
+  - current benchmark/test-only hooks stay intact:
+    - ND profile override
+    - ND base-threshold hook
+  - ND ordering semantics and runtime-policy results stay unchanged
+- Validation passed cleanly after the landing:
+  - `make format`
+  - `make lint`
+  - `make test`
+- The strongest Day 10 clarification is now explicit:
+  - Sprint 93's second code batch sharpened the touched ND control seam
+    without widening into proof-topology, benchmark/reporting, or public
+    runtime-claim work
+  - the remaining queue can now move to proof and runtime-evidence work from
+    a cleaner control-model state
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 10 Exit State
+- Sprint 93 now has one landed ND runtime-control cleanup batch.
+- The touched ND control model is smaller and sharper without changing current
+  runtime-policy behavior.
+- Day 11 can now design the remaining proof-surface rebalancing and bounded
+  runtime-evidence follow-through from that cleaner touched control seam.

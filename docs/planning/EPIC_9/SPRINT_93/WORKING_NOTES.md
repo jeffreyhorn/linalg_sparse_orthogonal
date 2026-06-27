@@ -588,3 +588,81 @@ reopening broad graph policy, threading, or benchmark-governance work.
 - Sprint 93 now has one explicit ND runtime-reduction implementation contract.
 - Day 7 can land the touched recursion-side runtime batch without reopening
   broad graph policy, runtime-control, or benchmark-governance work.
+
+## Day 7 - ND Runtime Reduction Batch
+
+### Goal
+Land one bounded recursion-side runtime reduction inside the reviewed ND owner
+without changing ND policy semantics, widening graph-policy work, or reopening
+proof topology beyond directly forced validation.
+
+### Actions
+- Re-read the Day 6 runtime-reduction contract:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day6-nd-runtime-reduction-design.md`
+- Re-read the touched first-center owner:
+  - `src/sparse_reorder_nd.c`
+- Reworked the per-recursion partition-side bookkeeping in `nd_recurse`:
+  - added `nd_collect_partition_vertices(...)`
+  - replaced separate `vs0` / `vs1` heap allocations with one `scratch`
+    buffer sized to the current subgraph
+  - packed side 0, side 1, and separator vertices in one scratch layout
+  - reused that packed layout for both recursive side calls and separator
+    emission
+- Verified that the landing stayed inside the Day 5 fence:
+  - no policy/env changes
+  - no threshold changes
+  - no graph-policy changes
+  - no proof-owner widening beyond validation of the existing touched owners
+- Ran the required validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Wrote the Day 7 implementation artifact.
+
+### Findings
+- The Day 7 landing stayed inside the exact Day 6 contract:
+  - the only code owner touched was `src/sparse_reorder_nd.c`
+  - no directly forced edits were needed in:
+    - `src/sparse_graph.c`
+    - `src/sparse_graph_refine.c`
+    - `tests/test_reorder_nd.c`
+    - `tests/test_graph.c`
+    - `benchmarks/bench_reorder.c`
+- The landed runtime reduction is now explicit:
+  - ND no longer allocates two separate side arrays (`vs0`, `vs1`) per
+    non-leaf recursion frame
+  - ND no longer performs a separate full post-recursion scan over `part[]`
+    to emit separators
+  - one `scratch` buffer now carries:
+    - side 0 vertices
+    - side 1 vertices
+    - separator vertices
+  - the recursive side calls and final separator-last emission both consume
+    that same packed layout
+- The preserved semantics remained unchanged:
+  - per-side vertex order is still ascending because packing still walks
+    `part[]` left-to-right
+  - `perm[new_i] = old_i` stays unchanged
+  - separator-last behavior stays unchanged
+  - current threshold, policy, and env/control interpretation stay unchanged
+- Validation passed cleanly after the landing:
+  - `make format`
+  - `make lint`
+  - `make test`
+- The strongest Day 7 clarification is now explicit:
+  - Sprint 93's first code batch reduced recursion-side overhead without
+    widening into graph-policy or threading cleanup
+  - proof and benchmark owners stayed validation-only, which keeps the next
+    rerank honest before any further widening
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 7 Exit State
+- Sprint 93 now has one landed ND recursion-side runtime reduction batch.
+- The first implementation seam reduced heap churn and post-partition scan
+  cost without changing ND ordering semantics.
+- Day 8 can now rerank the remaining runtime debt from the post-landing tree
+  instead of from the pre-landing design state.

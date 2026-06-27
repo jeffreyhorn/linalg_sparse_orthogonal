@@ -432,6 +432,26 @@ static sparse_err_t nd_partition_current_graph(const sparse_graph_t *G, idx_t *p
     return SPARSE_OK;
 }
 
+/* Pack the partition labels into one recursion scratch buffer:
+ * side-0 vertices first, then side-1 vertices, then separator vertices.
+ * This lets `nd_recurse` avoid two side-array allocations plus a later
+ * full re-scan for separators.  The caller still sees the same ascending
+ * per-side vertex order because the pass walks `part[]` left-to-right. */
+static void nd_collect_partition_vertices(const idx_t *part, idx_t n, idx_t n0, idx_t n1,
+                                          idx_t *scratch) {
+    idx_t i0 = 0;
+    idx_t i1 = n0;
+    idx_t isep = n0 + n1;
+    for (idx_t i = 0; i < n; i++) {
+        if (part[i] == 0)
+            scratch[i0++] = i;
+        else if (part[i] == 1)
+            scratch[i1++] = i;
+        else
+            scratch[isep++] = i;
+    }
+}
+
 /* Helper participates in the same ND recursion chain as `nd_recurse`.
  * Keeping the side-subgraph build/map/recurse glue local is clearer than
  * inlining two copies back into the recursive driver. */
@@ -596,58 +616,44 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         return SPARSE_OK;
     }
 
-    /* Collect the two interior vertex sets in ascending index order
-     * so `sparse_graph_subgraph`'s "sorted vertex_set" precondition
-     * is met for free. */
-    idx_t *vs0 = malloc((size_t)n0 * sizeof(idx_t));
-    idx_t *vs1 = malloc((size_t)n1 * sizeof(idx_t));
-    if (!vs0 || !vs1) {
+    /* Sprint 93 Day 7: collapse the per-recursion side bookkeeping into one
+     * scratch buffer.  The prior path paid two heap allocations (`vs0`, `vs1`)
+     * and then a later third full scan over `part[]` to emit separators.
+     * Packing side 0, side 1, and the separator tail into one `scratch`
+     * buffer reduces heap churn and cuts the post-partition label walks from
+     * three to two without changing ordering semantics. */
+    idx_t *scratch = malloc((size_t)n * sizeof(idx_t));
+    if (!scratch) {
         free(part);
-        free(vs0);
-        free(vs1);
         return SPARSE_ERR_ALLOC;
     }
-    {
-        idx_t i0 = 0;
-        idx_t i1 = 0;
-        for (idx_t i = 0; i < n; i++) {
-            if (part[i] == 0)
-                vs0[i0++] = i;
-            else if (part[i] == 1)
-                vs1[i1++] = i;
-        }
-    }
+    nd_collect_partition_vertices(part, n, n0, n1, scratch);
 
     /* Recurse on side 0. */
-    rc = nd_recurse_side(G, vertex_id_map, vs0, n0, perm, next_pos, depth, policy);
+    rc = nd_recurse_side(G, vertex_id_map, scratch, n0, perm, next_pos, depth, policy);
     if (rc != SPARSE_OK) {
         free(part);
-        free(vs0);
-        free(vs1);
+        free(scratch);
         return rc;
     }
 
     /* Recurse on side 1. */
-    rc = nd_recurse_side(G, vertex_id_map, vs1, n1, perm, next_pos, depth, policy);
+    rc = nd_recurse_side(G, vertex_id_map, scratch + n0, n1, perm, next_pos, depth, policy);
     if (rc != SPARSE_OK) {
         free(part);
-        free(vs0);
-        free(vs1);
+        free(scratch);
         return rc;
     }
 
     /* Separator last — the rule that makes ND fill-reducing. */
-    for (idx_t i = 0; i < n; i++) {
-        if (part[i] == 2) {
-            // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-            perm[*next_pos] = vertex_id_map[i];
-            (*next_pos)++;
-        }
+    for (idx_t i = n0 + n1; i < n; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
+        perm[*next_pos] = vertex_id_map[scratch[i]];
+        (*next_pos)++;
     }
 
     free(part);
-    free(vs0);
-    free(vs1);
+    free(scratch);
     return SPARSE_OK;
 }
 

@@ -668,8 +668,8 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * Packing side 0, side 1, and the separator tail into one `scratch`
      * buffer reduces heap churn and cuts the post-partition label walks from
      * three to two without changing ordering semantics. */
-    idx_t *scratch = malloc((size_t)n * sizeof(idx_t));
-    if (!scratch) {
+    idx_t *scratch = NULL;
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&scratch) != SPARSE_OK) {
         free(part);
         return SPARSE_ERR_ALLOC;
     }

@@ -216,9 +216,9 @@ static void run_one_via_analyze(const fixture_t *fx, int do_factor, const char *
         double a_ms = now_ms() - t0;
 
         if (rc != SPARSE_OK) {
-            printf("%s,%d,%s,error,%.1f,n/a,%s,%s,%d\n", fx->name, (int)n, r->name, a_ms,
-                   bench_reorder_path_label(/*via_analyze=*/1), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,error,%.1f,n/a,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   a_ms, bench_reorder_path_label(/*via_analyze=*/1), slice_label,
+                   sparse_reorder_nd_base_threshold);
             sparse_analysis_free(&analysis);
             continue;
         }
@@ -243,13 +243,13 @@ static void run_one_via_analyze(const fixture_t *fx, int do_factor, const char *
         }
 
         if (f_ms < 0)
-            printf("%s,%d,%s,%d,%.1f,skip,%s,%s,%d\n", fx->name, (int)n, r->name, (int)nnz, a_ms,
-                   bench_reorder_path_label(/*via_analyze=*/1), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,%d,%.1f,skip,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   (int)nnz, a_ms, bench_reorder_path_label(/*via_analyze=*/1), slice_label,
+                   sparse_reorder_nd_base_threshold);
         else
-            printf("%s,%d,%s,%d,%.1f,%.1f,%s,%s,%d\n", fx->name, (int)n, r->name, (int)nnz, a_ms,
-                   f_ms, bench_reorder_path_label(/*via_analyze=*/1), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,%d,%.1f,%.1f,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   (int)nnz, a_ms, f_ms, bench_reorder_path_label(/*via_analyze=*/1), slice_label,
+                   sparse_reorder_nd_base_threshold);
         fflush(stdout);
 
         sparse_analysis_free(&analysis);
@@ -272,17 +272,17 @@ static void run_one(const fixture_t *fx, int do_factor, const char *slice_label)
         double r_ms = 0.0;
         sparse_err_t rc = time_reorder(A, r->value, &perm, &r_ms);
         if (rc != SPARSE_OK) {
-            printf("%s,%d,%s,error,%.1f,n/a,%s,%s,%d\n", fx->name, (int)n, r->name, r_ms,
-                   bench_reorder_path_label(/*via_analyze=*/0), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,error,%.1f,n/a,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   r_ms, bench_reorder_path_label(/*via_analyze=*/0), slice_label,
+                   sparse_reorder_nd_base_threshold);
             continue;
         }
 
         idx_t nnz = symbolic_nnz_L(A, perm);
         if (nnz < 0) {
-            printf("%s,%d,%s,n/a,%.1f,n/a,%s,%s,%d\n", fx->name, (int)n, r->name, r_ms,
-                   bench_reorder_path_label(/*via_analyze=*/0), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,n/a,%.1f,n/a,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   r_ms, bench_reorder_path_label(/*via_analyze=*/0), slice_label,
+                   sparse_reorder_nd_base_threshold);
             free(perm);
             continue;
         }
@@ -292,13 +292,13 @@ static void run_one(const fixture_t *fx, int do_factor, const char *slice_label)
             f_ms = time_factor(A, perm);
 
         if (f_ms < 0)
-            printf("%s,%d,%s,%d,%.1f,skip,%s,%s,%d\n", fx->name, (int)n, r->name, (int)nnz, r_ms,
-                   bench_reorder_path_label(/*via_analyze=*/0), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,%d,%.1f,skip,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   (int)nnz, r_ms, bench_reorder_path_label(/*via_analyze=*/0), slice_label,
+                   sparse_reorder_nd_base_threshold);
         else
-            printf("%s,%d,%s,%d,%.1f,%.1f,%s,%s,%d\n", fx->name, (int)n, r->name, (int)nnz, r_ms,
-                   f_ms, bench_reorder_path_label(/*via_analyze=*/0), slice_label,
-                   (int)sparse_reorder_nd_base_threshold);
+            printf("%s,%d,%s,%d,%.1f,%.1f,%s,%s,%" SPARSE_PRIDX "\n", fx->name, (int)n, r->name,
+                   (int)nnz, r_ms, f_ms, bench_reorder_path_label(/*via_analyze=*/0), slice_label,
+                   sparse_reorder_nd_base_threshold);
         fflush(stdout);
 
         free(perm);
@@ -341,9 +341,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    fprintf(stderr, "# nd_base_threshold=%d, factor=%s, via_analyze=%s, slice=%s\n",
-            (int)sparse_reorder_nd_base_threshold, do_factor ? "yes" : "no",
-            via_analyze ? "yes" : "no", sprint86_slice ? "sprint86" : "all");
+    fprintf(stderr, "# nd_base_threshold=%" SPARSE_PRIDX ", factor=%s, via_analyze=%s, slice=%s\n",
+            sparse_reorder_nd_base_threshold, do_factor ? "yes" : "no", via_analyze ? "yes" : "no",
+            sprint86_slice ? "sprint86" : "all");
     const char *slice_label = bench_reorder_slice_label(sprint86_slice);
     printf("matrix,n,reorder,nnz_L,reorder_ms,factor_ms,reorder_path,fixture_slice,nd_base_"
            "threshold\n");

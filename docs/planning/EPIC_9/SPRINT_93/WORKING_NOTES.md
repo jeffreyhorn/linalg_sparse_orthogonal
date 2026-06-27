@@ -1152,3 +1152,117 @@ broad benchmark-governance churn.
   interpretable after the Sprint 93 runtime and control-cleanup landings.
 - Day 13 can now freeze the final validation queue from a cleaner runtime
   evidence surface rather than from a benchmark lane with hidden context.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Validate the full Sprint 93 runtime/threading/ND package from the live branch
+state after the Day 12 evidence batch, then freeze one exact validated close
+baseline before Sprint 93 closeout.
+
+### Actions
+- Re-read the Day 12 implementation artifact:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day12-proof-and-runtime-evidence-follow-through-batch.md`
+- Re-read the Sprint 93 Day 13 plan step in:
+  - `docs/planning/EPIC_9/SPRINT_93/PLAN.md`
+- Ran the full implementation-day queue again from the live branch state:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Ran the full reviewed path:
+  - `make quality-review-full`
+- Reconfirmed reviewed parity explicitly:
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Re-ran the strongest touched reviewed-runtime and adjacent proof owners:
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_threads`
+  - `./build/quality-review-cmake/test_omp`
+- Re-ran the representative examples:
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Re-ran the bounded Sprint 93 runtime-evidence surfaces:
+  - `./build/bench_reorder --sprint86-slice --skip-factor`
+  - `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+- Re-ran the maintained canonical reporting owner:
+  - `make bench-canonical-report`
+- Wrote the Day 13 validation artifact.
+
+### Findings
+- The full Day 13 queue passed cleanly from the live branch state:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `./build/quality-review-cmake/test_reorder_nd`
+  - `./build/quality-review-cmake/test_graph`
+  - `./build/quality-review-cmake/test_threads`
+  - `./build/quality-review-cmake/test_omp`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+  - `./build/bench_reorder --sprint86-slice --skip-factor`
+  - `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+  - `make bench-canonical-report`
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `286.93 sec`
+- The touched reviewed-runtime and adjacent proof-owner reruns all passed:
+  - `test_reorder_nd`
+    - `35 / 35`
+    - `1` skip
+    - `Time = 175.541 s`
+  - `test_graph`
+    - `61 / 61`
+    - `Time = 7.368 s`
+  - `test_threads`
+    - `8 / 8`
+    - `Time = 0.089 s`
+  - `test_omp`
+    - `12 / 12`
+    - `Time = 0.012 s`
+- The representative examples also stayed clean:
+  - `example_analysis` residual = `4.44e-16`
+  - `example_basic_solve` residual = `0.00e+00`
+- The bounded Sprint 93 runtime-evidence lane also stayed clean:
+  - direct path representative ND rows:
+    - `bcsstk14,1806,nd,132634,422.7,skip,direct,sprint86,160`
+    - `Pres_Poisson,14822,nd,2474435,5165.8,skip,direct,sprint86,160`
+  - analyze path representative ND rows:
+    - `bcsstk14,1806,nd,132634,449.6,skip,analyze,sprint86,160`
+    - `Pres_Poisson,14822,nd,2474435,5589.6,skip,analyze,sprint86,160`
+- Canonical reporting also passed cleanly:
+  - `make bench-canonical-report` wrote the bundle under:
+    - `build/bench-reports/canonical`
+- The residual non-blocking runtime note stays explicit:
+  - reviewed `test_reorder_nd` remained the long pole at `169.17 sec` inside
+    the reviewed CMake run and `175.541 s` in the focused rerun
+  - the bounded Sprint 86 runtime slice remains mixed by matrix and entry
+    path, not broad-claim oriented
+  - `test_omp` still truthfully reads as the current serial-build lane:
+    - `OpenMP DISABLED (serial build)`
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- `./build/quality-review-cmake/test_reorder_nd`
+- `./build/quality-review-cmake/test_graph`
+- `./build/quality-review-cmake/test_threads`
+- `./build/quality-review-cmake/test_omp`
+- `./build/quality-review-cmake/example_analysis`
+- `./build/quality-review-cmake/example_basic_solve`
+- `./build/bench_reorder --sprint86-slice --skip-factor`
+- `./build/bench_reorder --sprint86-slice --skip-factor --reorder-via-analyze`
+- `make bench-canonical-report`
+
+### Day 13 Exit State
+- Sprint 93 now has one validated live-branch close baseline.
+- The reviewed runtime, touched proof owners, bounded runtime evidence, and
+  canonical reporting surfaces all rechecked cleanly from the post-Day-12
+  state.
+- Day 14 can now close Sprint 93 from one exact validated baseline.

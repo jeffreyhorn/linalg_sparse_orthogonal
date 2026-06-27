@@ -666,3 +666,102 @@ proof topology beyond directly forced validation.
   cost without changing ND ordering semantics.
 - Day 8 can now rerank the remaining runtime debt from the post-landing tree
   instead of from the pre-landing design state.
+
+## Day 8 - Post-Landing Audit and Rerank
+
+### Goal
+Re-rank the remaining runtime and threading work after the Day 7 ND landing
+so Sprint 93's second implementation center is chosen from live post-landing
+evidence rather than from the original Day 3 runtime map alone.
+
+### Actions
+- Re-read the Day 7 landing artifact:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day7-nd-runtime-reduction-batch.md`
+- Re-read the closest prior post-landing rerank patterns:
+  - `docs/planning/EPIC_9/SPRINT_91/artifacts/day7-post-landing-audit-and-rerank.md`
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day7-post-landing-audit-and-rerank.md`
+- Re-read the Sprint 93 plan around the post-landing rerank and Day 9 control
+  design steps:
+  - `docs/planning/EPIC_9/SPRINT_93/PLAN.md`
+- Re-read the strongest remaining runtime-control and support-only owners from
+  the live tree:
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_graph_internal.h`
+  - `src/sparse_reorder_nd_internal.h`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - `benchmarks/bench_reorder.c`
+- Reconciled the live post-Day-7 state against the Sprint 93 project-plan
+  order so the rerank reflects:
+  - landed algorithmic runtime reduction already done
+  - runtime-control cleanup next if still required
+  - proof-surface rebalancing and runtime evidence only after that
+- Wrote the Day 8 rerank artifact and fixed the exact Day 9 design center in
+  writing.
+
+### Findings
+- The Day 7 landing closed the strongest first Sprint 93 contradiction:
+  - the reviewed ND owner no longer pays the same recursion-side heap churn
+    and separator-emission scan cost at each non-leaf recursion frame
+  - a second immediate recursion-side runtime batch is no longer the
+    highest-value remaining Sprint 93 move
+- The ranked remaining runtime map is now:
+  - strongest first target:
+    - runtime-control cleanup centered on the ND policy/env and override
+      plumbing in `src/sparse_reorder_nd.c`
+  - strongest second target:
+    - proof-surface rebalancing only after the touched runtime-control seam
+      is bounded cleanly
+  - strongest third target:
+    - bounded benchmark and runtime-evidence follow-through after the runtime
+      model itself is sharper
+  - strongest support-only but real target:
+    - maintainer and public wording only where later control cleanup or
+      runtime evidence truly changes the maintained contract reading
+- The strongest remaining contradiction is now runtime-control sharpness:
+  - `src/sparse_reorder_nd.c` still carries the main compatibility env
+    parsing and override orchestration for the ND runtime lane
+  - the touched runtime story still depends on a wide set of internal
+    policy/override seams:
+    - ND profile override
+    - ND base-threshold hook
+    - graph coarsening override
+    - coarsest-bisection override
+    - separator-lift override
+    - related compatibility env normalization
+  - that now outranks proof rebalancing because the next proof/evidence pass
+    should validate a cleaner touched runtime model rather than preserve a
+    looser one
+- The exact Day 9 design center is now fixed to:
+  - `src/sparse_reorder_nd.c`
+- The strongest directly forced support-only follow-through, only if the Day 9
+  contract truly forces movement, is now fixed to:
+  - `src/sparse_graph_internal.h`
+  - `src/sparse_reorder_nd_internal.h`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - `benchmarks/bench_reorder.c`
+- The strongest Day 8 clarification is now explicit:
+  - Sprint 93 should not widen into proof-topology or benchmark/reporting work
+    before the touched runtime-control seam is bounded
+  - it should not treat generic threading cleanup as stronger than the
+    touched ND runtime model itself
+  - it should sharpen the control model first, then validate and report from
+    that cleaner touched state
+
+### Validation
+- Re-read the Day 7 landing artifact against the Sprint 93 Day 8 rerank step
+  in `PLAN.md`.
+- Re-read the strongest remaining runtime-control and support-only owners from
+  the live tree.
+- Reconfirmed that the live post-Day-7 state moves Sprint 93 from algorithmic
+  runtime reduction into runtime-control cleanup rather than into a second
+  immediate recursion-side batch.
+
+### Day 8 Exit State
+- The strongest remaining Sprint 93 seam is now explicit after the first ND
+  runtime landing.
+- The second implementation center stays code-owned and is fixed to
+  runtime-control cleanup on the touched ND owner.
+- Day 9 can now define one exact bounded runtime-control cleanup contract from
+  the live post-Day-7 tree.

@@ -1266,3 +1266,110 @@ baseline before Sprint 93 closeout.
   canonical reporting surfaces all rechecked cleanly from the post-Day-12
   state.
 - Day 14 can now close Sprint 93 from one exact validated baseline.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Close Sprint 93 from the validated Day 13 baseline, summarize what the sprint
+actually moved, and freeze one explicit Sprint 94-first handoff queue for the
+next Epic 9 lane.
+
+### Actions
+- Re-read the Sprint 93 Day 14 closeout target in:
+  - `docs/planning/EPIC_9/SPRINT_93/PLAN.md`
+- Re-read the validated Day 13 artifact:
+  - `docs/planning/EPIC_9/SPRINT_93/artifacts/day13-full-validation-sweep.md`
+- Re-read the Sprint 93 project-plan contract in:
+  - `docs/planning/EPIC_9/PROJECT_PLAN.md`
+- Reconciled the full sprint against the original Sprint 93 contract:
+  - reviewed runtime audit
+  - threading/runtime contract design
+  - ND runtime reduction
+  - runtime-control cleanup
+  - bounded runtime-evidence follow-through
+  - validated close baseline
+- Checked whether the Sprint 93 section of `PROJECT_PLAN.md` needed a closeout
+  correction.
+- Froze the validated baseline and residual runtime/threading notes in one
+  closeout artifact.
+- Fixed the Sprint 94-first handoff order in writing.
+- Wrote the Day 14 closeout and handoff artifact.
+
+### Findings
+- Sprint 93 now closes as one bounded runtime-scalability, threading, and ND
+  convergence package across:
+  - reviewed runtime audit and contradiction rerank
+  - bounded threading/runtime contract and first implementation fence
+  - Day 7 ND recursion-side runtime reduction
+  - Day 10 runtime-control cleanup
+  - Day 12 bounded runtime-evidence follow-through
+  - validated Day 13 close baseline
+- `docs/planning/EPIC_9/PROJECT_PLAN.md` does not need a Sprint 93 correction.
+- The final Sprint 93 result matches the frozen project-plan contract:
+  - the strongest reviewed-runtime seam stayed centered on the ND lane
+  - recursion-side overhead was materially reduced without widening into broad
+    graph-policy churn
+  - the touched runtime-control seam was tightened without changing the
+    shipped policy/env contract
+  - the remaining evidence gap was closed through bounded reorder-benchmark
+    context instead of speculative proof-owner movement
+  - the sprint stayed truthful about residual runtime concentration and
+    bounded threading maturity
+- Sprint 93 closes from the validated Day 13 baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `286.93 sec`
+  - focused touched reviewed-runtime and proof owners:
+    - `test_reorder_nd` = `35 / 35`, `1` skip, `175.541 s`
+    - `test_graph` = `61 / 61`
+    - `test_threads` = `8 / 8`
+    - `test_omp` = `12 / 12`
+  - representative examples:
+    - `example_analysis` residual = `4.44e-16`
+    - `example_basic_solve` residual = `0.00e+00`
+  - bounded runtime-evidence reruns:
+    - direct path representative ND rows:
+      - `bcsstk14,1806,nd,132634,422.7,skip,direct,sprint86,160`
+      - `Pres_Poisson,14822,nd,2474435,5165.8,skip,direct,sprint86,160`
+    - analyze path representative ND rows:
+      - `bcsstk14,1806,nd,132634,449.6,skip,analyze,sprint86,160`
+      - `Pres_Poisson,14822,nd,2474435,5589.6,skip,analyze,sprint86,160`
+  - `make bench-canonical-report`
+- The fixed next queue now starts:
+  1. Sprint 94:
+     - capability-envelope widening next
+  2. later Epic 9 lanes:
+     - public narrative, docs, and workflow coherence
+     - maintainability reduction
+     - build/package/workflow convergence
+     - broader comparison depth
+     - final integration and Epic 9 closeout
+- The residual non-blocking notes stay explicit:
+  - reviewed `test_reorder_nd` remained the long pole at `169.17 sec` inside
+    the reviewed CMake run and `175.541 s` in the focused rerun
+  - the bounded Sprint 86 runtime slice remains mixed by matrix and entry
+    path, not broad-claim oriented
+  - `test_omp` still truthfully reads as the current serial-build lane:
+    - `OpenMP DISABLED (serial build)`
+  - broader threading/runtime scalability claims remain later Epic 9 work,
+    not a Sprint 93 close claim
+
+### Validation
+- Re-read the Sprint 93 Day 14 closeout target in `PLAN.md`.
+- Re-read the validated Day 13 artifact.
+- Re-read the Sprint 93 section of `PROJECT_PLAN.md`.
+- Confirmed that Sprint 93 closeout is docs-only and that the validated Day 13
+  baseline remains the authoritative closing state.
+
+### Day 14 Exit State
+- Sprint 93 closes from one explicit validated baseline.
+- Epic 9 now carries a materially smaller ND runtime/control contradiction
+  with bounded runtime evidence attached directly to the touched benchmark
+  lane.
+- Sprint 94 can start from a fixed capability-widening queue instead of
+  reopening Sprint 93’s runtime/ND convergence intent.

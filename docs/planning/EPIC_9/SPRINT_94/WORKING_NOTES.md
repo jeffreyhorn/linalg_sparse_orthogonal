@@ -980,3 +980,72 @@ as more trustworthy to consumers and maintainers on this owner.
   widening beyond the Sprint 94 scalar/index contract.
 - Day 11 can now decide whether any remaining solver-family breadth follow-
   through is still justified from this validated post-Day-10 baseline.
+
+## Day 11 - Solver-Family Breadth and Alignment Design
+
+### Goal
+Decide whether Sprint 94 still needs one bounded solver-family implementation
+landing after the validated Day 7 scalar and Day 10 index/ABI batches, or
+whether the truthful final move is support-only alignment from the post-Day-10
+baseline.
+
+### Actions
+- Re-read the Sprint 94 Day 11 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the validated Day 8 post-landing rerank and Day 10 index/ABI batch:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day8-post-landing-audit-and-rerank.md`
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day10-index-and-abi-maturity-batch.md`
+- Re-read the strongest widened scalar/index contract owners:
+  - `include/sparse_types.h`
+  - `include/sparse_matrix.h`
+  - `src/sparse_matrix.c`
+- Re-read the strongest already-real bounded solver-family public scalar seams:
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `include/sparse_qr.h`
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `tests/test_qr.c`
+- Re-read the strongest support-only interpretation owners:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- Wrote the Day 11 breadth/alignment design artifact.
+
+### Findings
+- Sprint 94 does not need another solver-family implementation landing to make
+  the current bounded capability claim truthful:
+  - the Day 7 matrix-shell scalar landing made the highest-value shared public-
+    to-implementation scalar seam real
+  - the Day 10 matrix-shell index/ABI landing made the touched width-aware
+    consumer and diagnostic seam materially sharper
+  - the iterative, eigensolver, and QR public scalar seams were already real
+    and proof-owned before Day 11
+- The strongest remaining contradiction is now support-surface interpretation,
+  not missing implementation:
+  - maintainer wording should reflect that the current bounded scalar claim now
+    includes the real matrix-shell storage/build seam plus the already-real
+    iterative/eigs/QR public seams
+  - public wording should stay explicit that SVD, dense helpers, and broad
+    complex or mixed-precision maturity remain deferred
+- Sprint 94's final Day 12 center is therefore support-only:
+  - required Day 12 center:
+    - `docs/maintainer_guide.md`
+  - directly forced support-only follow-through only if the wording truly
+    needs it:
+    - `README.md`
+  - not reopened unless a wording contradiction forces it:
+    - solver-family implementation owners
+    - proof binaries or package/install surfaces
+
+### Validation
+- Re-read the Day 8 rerank from the validated post-Day-7 tree.
+- Re-read the Day 10 validated matrix-shell index/ABI batch.
+- Re-read the current public scalar and support-surface contract owners.
+
+### Day 11 Exit State
+- Sprint 94's final implementation batch is explicitly retired by evidence.
+- Day 12 is now fixed as a support-only alignment pass centered on
+  `docs/maintainer_guide.md`, with `README.md` only if a real wording
+  contradiction remains.
+- The bounded Sprint 94 capability claim stays truthful without reopening
+  broader solver-family numeric owners.

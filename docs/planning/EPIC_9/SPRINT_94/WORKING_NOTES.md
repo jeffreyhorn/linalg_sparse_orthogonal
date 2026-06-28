@@ -1049,3 +1049,63 @@ baseline.
   contradiction remains.
 - The bounded Sprint 94 capability claim stays truthful without reopening
   broader solver-family numeric owners.
+
+## Day 12 - Solver-Family Breadth and Support Alignment Batch
+
+### Goal
+Land the final support-only follow-through required by the validated Sprint 94
+capability contract so the maintainer and public wording match the actual
+scalar/index landing set without reopening broader solver-family owners.
+
+### Actions
+- Re-read the Sprint 94 Day 12 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 11 alignment design:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day11-solver-family-breadth-and-alignment-design.md`
+- Re-read the required center and only directly forced support surface:
+  - `docs/maintainer_guide.md`
+  - `README.md`
+- Landed the bounded support-only alignment batch:
+  - tightened `docs/maintainer_guide.md` so the maintained scalar reading now
+    explicitly includes the real shared matrix-shell storage/build seam and the
+    already-real iterative/eigs/QR public seams
+  - updated the maintained proof-owner map so it reflects the validated Sprint
+    94 baseline, including the touched Matrix Market parse-width proof in
+    `tests/test_sparse_io.c`
+  - tightened `README.md` so the bounded real-only scalar limitation matches
+    the now-real matrix-shell and already-real iterative/eigs/QR public seams
+- Kept the batch support-only:
+  - no solver-family implementation owners reopened
+  - no proof binaries or package/install surfaces changed
+- Wrote the Day 12 alignment artifact.
+
+### Findings
+- Sprint 94's final landing set is now aligned across code, proof ownership,
+  maintainer interpretation, and public non-claims.
+- The Day 12 support batch stayed inside the Day 11 fence:
+  - required center:
+    - `docs/maintainer_guide.md`
+  - directly forced support-only follow-through:
+    - `README.md`
+  - not needed:
+    - solver-family implementation owners
+    - focused capability tests
+    - package/install/export wording
+- The kept non-claims stayed explicit:
+  - no broad complex support
+  - no broad mixed-precision maturity
+  - no dense/SVD family-wide scalar widening claim
+  - no broader package or platform reinterpretation
+
+### Validation
+- Re-read the Day 11 design from the validated post-Day-10 baseline.
+- Re-read the touched maintainer and public wording after the support-only
+  edits.
+
+### Day 12 Exit State
+- Sprint 94's final capability claim is now supported by aligned code, proof,
+  maintainer wording, and public wording.
+- The final Sprint 94 landing set is explicit without reopening any broader
+  solver-family implementation owner.
+- Day 13 can now run the full close validation sweep from one fixed landing
+  set.

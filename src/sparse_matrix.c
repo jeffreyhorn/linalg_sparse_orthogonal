@@ -64,7 +64,7 @@ void pool_free_all(NodePool *pool) {
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
-static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
+static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
     Node *n = pool_alloc(&mat->pool);
     if (!n)
         return NULL;
@@ -79,7 +79,7 @@ static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
 typedef struct {
     idx_t row;
     idx_t col;
-    double value;
+    sparse_scalar_t value;
     idx_t order;
 } SparseBuildEntry;
 
@@ -143,7 +143,7 @@ static sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols,
     for (idx_t pos = 0; pos < nentries;) {
         idx_t row = entries[pos].row;
         idx_t col = entries[pos].col;
-        double value = entries[pos].value;
+        sparse_scalar_t value = entries[pos].value;
         idx_t next = pos + 1;
 
         while (next < nentries && entries[next].row == row && entries[next].col == col) {
@@ -1138,7 +1138,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
     size_t entry_count = 0;
     for (idx_t k = 0; k < nnz_file; k++) {
         idx_t i, j;
-        double v = 1.0; /* default for pattern matrices */
+        sparse_scalar_t v = 1.0; /* default for pattern matrices */
         if (is_pattern) {
             if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &i, &j) != 2) {
                 sparse_err_t ioerr =

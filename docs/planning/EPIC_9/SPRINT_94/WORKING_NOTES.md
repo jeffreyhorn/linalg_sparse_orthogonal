@@ -679,3 +679,77 @@ into broad solver-family, index, or support churn.
   moves.
 - Later index/ABI and solver-family work remains clearly sequenced behind the
   first scalar landing.
+
+## Day 7 - Scalar-Family Widening Batch
+
+### Goal
+Land one real bounded scalar widening step on the shared matrix-shell owner so
+the public `sparse_scalar_t` contract stops reading like naming-only
+preparation on this touched seam.
+
+### Actions
+- Re-read the Sprint 94 Day 7 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 6 scalar widening contract:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day6-scalar-family-widening-design.md`
+- Re-read the touched public scalar contract owner:
+  - `include/sparse_types.h`
+- Re-read the strongest shared matrix-shell implementation seam:
+  - `src/sparse_matrix.c`
+  - `src/sparse_matrix_internal.h`
+- Re-read the strongest directly forced proof owner:
+  - `tests/test_sparse_matrix.c`
+- Reconciled the remaining `double`-specialized spots against the widened
+  matrix-shell helper contract:
+  - internal node storage still read as `double`
+  - builder triplet storage still read as `double`
+  - Matrix Market pattern-load default still read as `double`
+- Landed the bounded scalar widening batch:
+  - widened the touched matrix-shell storage/build seam to
+    `sparse_scalar_t`
+  - tightened the public scalar contract wording so the touched matrix-shell
+    owner now truthfully claims that the storage/build seam follows the alias
+  - added one focused transpose proof so the builder path is exercised through
+    the public scalar alias test
+- Wrote the Day 7 implementation artifact.
+
+### Findings
+- Sprint 94's first scalar landing is now real on the touched owner:
+  - `src/sparse_matrix_internal.h`
+    - `Node.value` now uses `sparse_scalar_t`
+  - `src/sparse_matrix.c`
+    - `make_node(...)` now takes `sparse_scalar_t`
+    - `SparseBuildEntry.value` now uses `sparse_scalar_t`
+    - builder-side overwrite selection now keeps `sparse_scalar_t`
+    - Matrix Market pattern defaults now enter through `sparse_scalar_t`
+  - `include/sparse_types.h`
+    - the public scalar contract wording now explicitly says the touched
+      matrix-shell storage/build seam follows the alias
+- The Day 7 landing stayed bounded:
+  - directly forced proof follow-through:
+    - `tests/test_sparse_matrix.c`
+  - not needed:
+    - `include/sparse_matrix.h`
+    - `tests/test_integration.c`
+    - `docs/maintainer_guide.md`
+- The kept proof win is explicit:
+  - `test_matrix_public_scalar_alias` now exercises a transpose/build path in
+    addition to insert/matvec/norminf/scale, so the widened builder seam is
+    covered from the public matrix-shell surface
+- The preserved non-claims stayed intact:
+  - no broad solver-family numeric widening
+  - no wider-index/ABI reopening
+  - no fake complex or mixed-precision product claim
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 7 Exit State
+- Sprint 94 now has one real bounded scalar widening landing on the shared
+  matrix-shell owner.
+- The public `sparse_scalar_t` contract no longer reads like naming-only
+  preparation on this touched seam.
+- Day 8 can rerank the remaining capability contradictions from a validated
+  post-landing baseline instead of from a still-`double` matrix-shell owner.

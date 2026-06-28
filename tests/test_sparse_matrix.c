@@ -549,12 +549,22 @@ static void test_matrix_public_scalar_alias(void) {
     ASSERT_NOT_NULL(m);
     if (!m)
         return;
+    SparseMatrix *t = NULL;
 
     ASSERT_EQ(sparse_scalar_bits(), sizeof(sparse_scalar_t) * CHAR_BIT);
 
     ASSERT_ERR(sparse_insert(m, 0, 0, (sparse_scalar_t)2.0), SPARSE_OK);
     ASSERT_ERR(sparse_insert(m, 0, 1, (sparse_scalar_t)-1.0), SPARSE_OK);
     ASSERT_ERR(sparse_insert(m, 1, 0, (sparse_scalar_t)3.0), SPARSE_OK);
+
+    t = sparse_transpose(m);
+    ASSERT_NOT_NULL(t);
+    if (!t) {
+        sparse_free(m);
+        return;
+    }
+    ASSERT_NEAR(sparse_get_phys(t, 0, 1), 3.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(t, 1, 0), -1.0, 1e-15);
 
     sparse_scalar_t x[2] = {4.0, 5.0};
     sparse_scalar_t y[2] = {0.0, 0.0};
@@ -572,6 +582,7 @@ static void test_matrix_public_scalar_alias(void) {
     ASSERT_NEAR(sparse_get_phys(m, 0, 1), -0.5, 1e-15);
     ASSERT_NEAR(sparse_get_phys(m, 1, 0), 1.5, 1e-15);
 
+    sparse_free(t);
     sparse_free(m);
 }
 

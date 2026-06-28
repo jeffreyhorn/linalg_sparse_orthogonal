@@ -125,7 +125,7 @@ static inline double sparse_rel_tol(double reference_norm, double user_tol) {
 typedef struct Node {
     idx_t row;
     idx_t col;
-    double value;
+    sparse_scalar_t value;
     struct Node *right; /* next in same row (sorted by col)  */
     struct Node *down;  /* next in same col (sorted by row)  */
 } Node;

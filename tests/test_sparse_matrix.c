@@ -1082,6 +1082,55 @@ static void test_load_mm_duplicate_last_write_wins(void) {
     sparse_free(A);
 }
 
+static void test_print_surfaces_width_aware_smoke(void) {
+    SparseMatrix *A = sparse_create(2, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    ASSERT_ERR(sparse_insert(A, 0, 1, 2.5), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 2, -4.0), SPARSE_OK);
+
+    FILE *fp = tmpfile();
+    ASSERT_NOT_NULL(fp);
+    if (!fp) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_ERR(sparse_print_info(A, fp), SPARSE_OK);
+    ASSERT_ERR(sparse_print_entries(A, fp), SPARSE_OK);
+    ASSERT_ERR(sparse_print_dense(A, fp), SPARSE_OK);
+    ASSERT_TRUE(fflush(fp) == 0);
+    ASSERT_TRUE(fseek(fp, 0, SEEK_SET) == 0);
+
+    char buf[1024];
+    size_t nread = fread(buf, 1, sizeof(buf) - 1, fp);
+    ASSERT_TRUE(nread > 0);
+    buf[nread] = '\0';
+
+    char expected_info[128];
+    snprintf(expected_info, sizeof(expected_info),
+             "SparseMatrix: %" SPARSE_PRIDX " x %" SPARSE_PRIDX ", nnz = %" SPARSE_PRIDX, (idx_t)2,
+             (idx_t)3, (idx_t)2);
+    ASSERT_NOT_NULL(strstr(buf, expected_info));
+
+    char expected_entry_01[64];
+    snprintf(expected_entry_01, sizeof(expected_entry_01),
+             "(%" SPARSE_PRIDX ", %" SPARSE_PRIDX ") = 2.5", (idx_t)0, (idx_t)1);
+    ASSERT_NOT_NULL(strstr(buf, expected_entry_01));
+
+    char expected_entry_12[64];
+    snprintf(expected_entry_12, sizeof(expected_entry_12),
+             "(%" SPARSE_PRIDX ", %" SPARSE_PRIDX ") = -4", (idx_t)1, (idx_t)2);
+    ASSERT_NOT_NULL(strstr(buf, expected_entry_12));
+    ASSERT_NOT_NULL(strstr(buf, "2.5000"));
+    ASSERT_NOT_NULL(strstr(buf, "-4.0000"));
+
+    fclose(fp);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 29 Day 10 (Item 7): pin the documented silent-zero contract
  * for the accessor API surface.  See
@@ -1239,6 +1288,7 @@ int main(void) {
     RUN_TEST(test_transpose_nos4);
     RUN_TEST(test_transpose_west0067);
     RUN_TEST(test_load_mm_duplicate_last_write_wins);
+    RUN_TEST(test_print_surfaces_width_aware_smoke);
 
     TEST_SUITE_END();
 }

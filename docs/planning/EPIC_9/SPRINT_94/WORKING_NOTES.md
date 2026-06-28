@@ -904,3 +904,79 @@ solver-family or package surfaces.
   maturity on save/load and diagnostic surfaces.
 - Later solver-family and support-surface work remains clearly sequenced
   behind this touched index-width batch.
+
+## Day 10 - Index and ABI Maturity Batch
+
+### Goal
+Land one bounded matrix-shell index and ABI maturity step on the touched
+save/load and diagnostic surfaces so the current `idx_t` width contract reads
+as more trustworthy to consumers and maintainers on this owner.
+
+### Actions
+- Re-read the Sprint 94 Day 10 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 9 touched index/ABI contract:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day9-index-and-abi-maturity-design.md`
+- Re-read the required owner:
+  - `src/sparse_matrix.c`
+- Re-read the strongest directly forced proof surfaces:
+  - `tests/test_sparse_io.c`
+  - `tests/test_sparse_matrix.c`
+- Landed the bounded matrix-shell index/ABI batch:
+  - added checked stream-print helpers for matrix-shell save and diagnostic
+    surfaces so write failures now fail closed with `SPARSE_ERR_IO`
+  - tightened Matrix Market parsing so malformed negative dimensions,
+    rectangular symmetric headers, zero coordinates, and out-of-range
+    coordinates are rejected as `SPARSE_ERR_PARSE` instead of being accepted
+    or silently dropped
+  - kept the batch strictly inside the matrix-shell owner and the directly
+    forced proof surfaces
+- Added focused proof follow-through:
+  - malformed Matrix Market parse rejection coverage in `tests/test_sparse_io.c`
+  - width-aware diagnostic output smoke coverage in
+    `tests/test_sparse_matrix.c`
+- Ran the full implementation-day validation queue to completion after fixing
+  one local brace regression, one `-Wformat-nonliteral` strict-warning issue
+  inside the checked print helper, and one cppcheck redundancy note on the new
+  bounds guard.
+- Wrote the Day 10 implementation artifact.
+
+### Findings
+- Sprint 94 now has one real touched matrix-shell index/ABI maturity landing:
+  - `src/sparse_matrix.c`
+    - save and diagnostic output paths now treat stream write failures as real
+      `SPARSE_ERR_IO` results instead of ignoring them
+    - Matrix Market header and coordinate parsing now rejects malformed
+      dimension and coordinate cases more truthfully as parse failures
+    - the touched width-aware read/write story is sharper without changing the
+      public width contract itself
+- The Day 10 landing stayed inside the Day 9 fence:
+  - directly forced proof follow-through:
+    - `tests/test_sparse_io.c`
+    - `tests/test_sparse_matrix.c`
+  - not needed:
+    - `include/sparse_matrix.h`
+    - broader README / INSTALL / maintainer wording
+    - later solver-family owners
+- The kept maturity win is explicit:
+  - the matrix-shell consumer and diagnostic seam now better matches the
+    existing `SPARSE_IDX_BITS` / `idx_t` / format-macro contract
+  - malformed Matrix Market inputs are no longer silently tolerated on the
+    touched cases covered by the batch
+- The preserved non-claims stayed intact:
+  - no typedef or ABI-policy rewrite
+  - no broad solver-family widening
+  - no new shared-library or broad binary-compatibility claim
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+
+### Day 10 Exit State
+- Sprint 94 now has one validated bounded index/ABI maturity landing on the
+  matrix-shell save/load and diagnostic owner.
+- The touched consumer and diagnostic surfaces are materially sharper without
+  widening beyond the Sprint 94 scalar/index contract.
+- Day 11 can now decide whether any remaining solver-family breadth follow-
+  through is still justified from this validated post-Day-10 baseline.

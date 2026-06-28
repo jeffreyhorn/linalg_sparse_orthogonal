@@ -1109,3 +1109,87 @@ scalar/index landing set without reopening broader solver-family owners.
   solver-family implementation owner.
 - Day 13 can now run the full close validation sweep from one fixed landing
   set.
+
+## Day 13 - Full Validation Sweep
+
+### Goal
+Re-run the strongest full-stack validation and evidence surfaces from the final
+Sprint 94 branch state so Day 14 can close from one authoritative validated
+baseline.
+
+### Actions
+- Re-read the Sprint 94 Day 13 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Ran the full implementation-day validation queue:
+  - `make format`
+  - `make lint`
+  - `make test`
+- Ran the strongest reviewed baseline and parity queue:
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+- Ran focused Sprint 94 scalar/index/capability reruns from the reviewed CMake
+  tree:
+  - `./build/quality-review-cmake/test_sparse_matrix`
+  - `./build/quality-review-cmake/test_sparse_io`
+  - `./build/quality-review-cmake/test_iterative`
+  - `./build/quality-review-cmake/test_qr`
+  - `./build/quality-review-cmake/test_eigs`
+  - `./build/quality-review-cmake/example_analysis`
+  - `./build/quality-review-cmake/example_basic_solve`
+- Regenerated the canonical benchmark/report bundle:
+  - `make bench-canonical-report`
+- Did not rerun install/export proof surfaces because Sprint 94's widened
+  contract did not materially touch package/install/export semantics.
+- Wrote the Day 13 validation artifact.
+
+### Findings
+- The full Day 13 queue passed cleanly from the final Sprint 94 branch state:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - focused reviewed reruns on the touched scalar/index/capability owners
+  - `make bench-canonical-report`
+- The reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `446.86 sec`
+- The focused Sprint 94 reruns also all passed:
+  - `test_sparse_matrix` = `63 / 63`
+  - `test_sparse_io` = `26 / 26`
+  - `test_iterative` = `80 / 80`
+  - `test_qr` = `73 / 73`
+  - `test_eigs` = `31 / 31`
+  - `example_analysis` residual = `4.44e-16`
+  - `example_basic_solve` residual = `0.00e+00`
+- Canonical reporting also passed:
+  - `make bench-canonical-report` wrote the bundle under
+    `build/bench-reports/canonical`
+- The residual non-blocking runtime note remains explicit:
+  - reviewed `test_reorder_nd` stayed the long pole at `217.46 sec`
+  - reviewed `test_fuzz` remained the second-largest reviewed-runtime owner at
+    `79.28 sec`
+
+### Validation
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- `./build/quality-review-cmake/test_sparse_matrix`
+- `./build/quality-review-cmake/test_sparse_io`
+- `./build/quality-review-cmake/test_iterative`
+- `./build/quality-review-cmake/test_qr`
+- `./build/quality-review-cmake/test_eigs`
+- `./build/quality-review-cmake/example_analysis`
+- `./build/quality-review-cmake/example_basic_solve`
+- `make bench-canonical-report`
+
+### Day 13 Exit State
+- Sprint 94 now has one authoritative validated close baseline across the
+  bounded scalar/index capability landing set.
+- The widened capability claim is anchored to the strongest maintained proof
+  surfaces without reopening any broader solver-family implementation owner.
+- Day 14 can close from this validated baseline.

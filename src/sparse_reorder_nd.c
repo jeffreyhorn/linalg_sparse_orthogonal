@@ -371,14 +371,22 @@ static sparse_graph_nd_policy_t nd_default_policy_baseline(void) {
 static void nd_apply_compat_policy_overrides(sparse_graph_nd_policy_t *policy) {
     if (!policy)
         return;
-    policy->nd_coarsening = parse_nd_coarsening_compat_override();
-    policy->nd_coarsest_bisection = parse_nd_coarsest_bisection_compat_override();
-    policy->nd_root_bisect = parse_nd_root_bisect_strategy_compat_override();
-    policy->nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override();
-    policy->nd_coarsen_floor_ratio = parse_nd_coarsen_floor_ratio_compat_override();
-    policy->nd_coarsening_cv_fallthrough = parse_nd_coarsening_cv_fallthrough_compat_override();
-    policy->nd_sep_lift_strategy = parse_nd_sep_lift_strategy_compat_override();
-    policy->nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override();
+    if (getenv("SPARSE_ND_COARSENING") != NULL)
+        policy->nd_coarsening = parse_nd_coarsening_compat_override();
+    if (getenv("SPARSE_ND_COARSEST_BISECTION") != NULL)
+        policy->nd_coarsest_bisection = parse_nd_coarsest_bisection_compat_override();
+    if (getenv("SPARSE_ND_ROOT_BISECT") != NULL)
+        policy->nd_root_bisect = parse_nd_root_bisect_strategy_compat_override();
+    if (getenv("SPARSE_ND_ROOT_BISECT_MAX_N") != NULL)
+        policy->nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override();
+    if (getenv("SPARSE_ND_COARSEN_FLOOR_RATIO") != NULL)
+        policy->nd_coarsen_floor_ratio = parse_nd_coarsen_floor_ratio_compat_override();
+    if (getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH") != NULL)
+        policy->nd_coarsening_cv_fallthrough = parse_nd_coarsening_cv_fallthrough_compat_override();
+    if (getenv("SPARSE_ND_SEP_LIFT_STRATEGY") != NULL)
+        policy->nd_sep_lift_strategy = parse_nd_sep_lift_strategy_compat_override();
+    if (getenv("SPARSE_ND_SEP_LIFT_WEIGHT") != NULL)
+        policy->nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override();
 }
 
 sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {

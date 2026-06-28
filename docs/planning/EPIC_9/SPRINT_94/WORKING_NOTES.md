@@ -1193,3 +1193,80 @@ baseline.
 - The widened capability claim is anchored to the strongest maintained proof
   surfaces without reopening any broader solver-family implementation owner.
 - Day 14 can close from this validated baseline.
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+Freeze the Sprint 94 result, residual queue, and Sprint 95 handoff from the
+validated Day 13 baseline so Epic 9 capability work moves forward from one
+precise bounded close state.
+
+### Actions
+- Re-read the Sprint 94 Day 14 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Sprint 94 project-plan contract in
+  `docs/planning/EPIC_9/PROJECT_PLAN.md`.
+- Re-read the validated Day 13 baseline and the final Day 11-Day 12 alignment
+  package.
+- Summarized the final Sprint 94 result against the original project-plan
+  contract:
+  - capability rerank
+  - scalar/index contract
+  - scalar widening landing
+  - index/ABI maturity landing
+  - support-only final alignment
+- Froze the residual queue and explicit non-claims.
+- Evaluated whether `docs/planning/EPIC_9/PROJECT_PLAN.md` needs a correction
+  from the live branch result.
+- Wrote the Day 14 closeout and handoff artifact.
+
+### Findings
+- Sprint 94 closes as one bounded capability-surface modernization package
+  across:
+  - capability rerank and scalar/index contract freeze
+  - Day 7 bounded matrix-shell scalar widening
+  - Day 10 bounded matrix-shell index/ABI maturity landing
+  - Day 11 explicit retirement of further solver-family implementation
+  - Day 12 support-only proof/docs alignment
+  - validated Day 13 close baseline
+- `docs/planning/EPIC_9/PROJECT_PLAN.md` does not need a Sprint 94 correction:
+  - the live branch delivered one real bounded capability-breadth improvement
+    beyond Epic 8's prior seams
+  - the strongest touched index-width maturity seam did land
+  - the final solver-family item truthfully collapsed into support-only
+    retirement by evidence rather than drifting into a larger implementation
+    batch
+- The frozen residual queue is now explicit:
+  - deferred capability lanes:
+    - broad complex support
+    - broad mixed-precision maturity
+    - dense/SVD-family scalar widening beyond the touched bounded seams
+  - still-bounded product and support notes:
+    - reviewed builds still default to `SPARSE_IDX_BITS=32`
+    - broader package/platform symmetry remains unchanged
+    - broader solver-family capability claims still require later direct proof
+      and implementation movement
+- The Sprint 95 handoff queue is now fixed:
+  - narrative and workflow coherence first
+  - chronology residue and public/support simplification second
+  - no reset back into broad capability-expansion brainstorming
+
+### Validation
+- Closed from the validated Day 13 baseline:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - reviewed CMake `ctest` = `53 / 53`
+  - reviewed CMake `Total Test time (real)` = `446.86 sec`
+  - focused Sprint 94 reruns on scalar/index/capability owners
+  - `make bench-canonical-report`
+
+### Day 14 Exit State
+- Sprint 94 closes from one authoritative validated baseline.
+- The repo now has one bounded capability-widening close state with explicit
+  residuals and non-claims.
+- Sprint 95 receives a precise narrative/workflow-coherence handoff instead of
+  another broad modernization reset.

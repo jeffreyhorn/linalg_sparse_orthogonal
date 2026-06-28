@@ -544,7 +544,8 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename);
  *
  * @param mat     The matrix.
  * @param stream  Output stream (e.g., stdout).
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL,
+ *         SPARSE_ERR_IO on stream write failure.
  */
 sparse_err_t sparse_print_dense(const SparseMatrix *mat, FILE *stream);
 
@@ -553,7 +554,8 @@ sparse_err_t sparse_print_dense(const SparseMatrix *mat, FILE *stream);
  *
  * @param mat     The matrix.
  * @param stream  Output stream.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL,
+ *         SPARSE_ERR_IO on stream write failure.
  */
 sparse_err_t sparse_print_entries(const SparseMatrix *mat, FILE *stream);
 
@@ -562,7 +564,8 @@ sparse_err_t sparse_print_entries(const SparseMatrix *mat, FILE *stream);
  *
  * @param mat     The matrix.
  * @param stream  Output stream.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or stream is NULL,
+ *         SPARSE_ERR_IO on stream write failure.
  */
 sparse_err_t sparse_print_info(const SparseMatrix *mat, FILE *stream);
 

@@ -753,3 +753,85 @@ preparation on this touched seam.
   preparation on this touched seam.
 - Day 8 can rerank the remaining capability contradictions from a validated
   post-landing baseline instead of from a still-`double` matrix-shell owner.
+
+## Day 8 - Post-Landing Audit and Re-rank
+
+### Goal
+Re-rank the remaining Sprint 94 capability contradictions from the validated
+Day 7 state so the next implementation move stays bounded to the strongest
+remaining maturity seam rather than widening into generic solver-family churn.
+
+### Actions
+- Re-read the Sprint 94 Day 8 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 3 capability rerank and Day 4 scalar/index contract:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day3-capability-rerank-audit.md`
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day4-scalar-and-index-capability-contract-design.md`
+- Re-read the Day 7 landing result:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day7-scalar-family-widening-batch.md`
+- Re-scanned the strongest remaining touched owner surfaces after the Day 7
+  landing:
+  - `include/sparse_matrix.h`
+  - `include/sparse_types.h`
+  - `src/sparse_matrix.c`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_sparse_io.c`
+  - the later solver-family public headers and implementation owners
+- Reconciled what Day 7 materially closed versus what still remains open
+  across scalar breadth, index/ABI maturity, solver-family breadth, and proof
+  or public-surface clarity.
+- Wrote the Day 8 rerank artifact.
+
+### Findings
+- The Day 7 scalar landing materially closed the strongest first Sprint 94
+  contradiction:
+  - the shared matrix-shell public helper seam now has a real matching
+    storage/build owner through `sparse_scalar_t`
+  - the touched matrix-shell scalar story no longer reads like naming-only
+    preparation
+  - a second immediate scalar landing is not the highest-value next move
+- The strongest remaining contradiction is now the touched 64-bit and ABI
+  maturity seam:
+  - `SPARSE_IDX_BITS`, `idx_t`, `SPARSE_PRIDX`, and `SPARSE_SCNIDX` are
+    already first-class contract surfaces
+  - the strongest remaining work is now touched-path maturity and consumer
+    interpretation, especially on the matrix-shell I/O and debug/inspection
+    surfaces in `src/sparse_matrix.c`
+  - this is a tighter, more defensible next batch than widening deeper
+    solver-family numeric owners immediately
+- Solver-family breadth is still real, but now clearly third:
+  - later public scalar-buffer owners in iterative, eigensolver, QR, SVD, and
+    dense-family seams still read as bounded real-only implementations
+  - reopening them next would widen claim scope faster than the current
+    bounded scalar/index contract intends
+- Proof and public-surface clarity remain support lanes rather than the next
+  implementation center:
+  - focused proof should follow the touched index/ABI batch where it is
+    directly forced
+  - broader maintainer or product wording still remains later unless the
+    touched index path truly changes the contract reading
+
+### Validation
+- Re-read the Day 3 rerank from the live post-Day-7 tree.
+- Re-read the Day 4 scalar/index contract.
+- Re-read the Day 7 landed batch.
+- Re-scanned the strongest touched matrix-shell index/ABI owner surfaces.
+
+### Day 8 Exit State
+- Sprint 94's remaining contradiction order is now fixed from the validated
+  post-Day-7 tree:
+  - strongest next target:
+    - touched 64-bit and ABI maturity
+  - strongest later target:
+    - bounded solver-family breadth only where the widened scalar/index
+      contract truly needs it
+  - strongest support-only later target:
+    - proof/docs/package wording only where the touched capability claim
+      truly moves
+- The exact Day 9 design center is now fixed to:
+  - `src/sparse_matrix.c`
+- The strongest directly forced support-only follow-through, only if the Day 9
+  contract truly needs it, is now fixed to:
+  - `include/sparse_matrix.h`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_sparse_io.c`

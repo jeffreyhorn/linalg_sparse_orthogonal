@@ -621,6 +621,14 @@ Canonical output ownership:
   - reuse timing
   - speedup
   - last-run convergence/residual agreement fields
+- bounded branch-local runtime lanes should keep the smallest context needed to
+  make emitted rows interpretable across reruns:
+  - `bench_reorder` now stamps each row with:
+    - `reorder_path`
+    - `fixture_slice`
+    - `nd_base_threshold`
+  - read those as bounded local runtime-evidence context, not as broad
+    benchmark-governance widening
 
 Current threshold-free reporting surface:
 

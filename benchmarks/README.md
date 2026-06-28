@@ -47,6 +47,20 @@ depending on what the underlying factorization path actually supports:
   - supports both direct reorder calls and `--reorder-via-analyze`
   - supports `--sprint86-slice` for the bounded Sprint 86 runtime corpus
     (`bcsstk14`, `Pres_Poisson`)
+  - emits stable CSV rows with:
+    - `matrix`
+    - `n`
+    - `reorder`
+    - `nnz_L`
+    - `reorder_ms`
+    - `factor_ms`
+    - `reorder_path`
+    - `fixture_slice`
+    - `nd_base_threshold`
+  - interpret the added Sprint 93 evidence fields narrowly:
+    - `reorder_path` = `direct` or `analyze`
+    - `fixture_slice` = `sprint86` when `--sprint86-slice` is active, otherwise `all`
+    - `nd_base_threshold` = current ND base-threshold setting for the run; only `reorder=nd` rows use it
 - `bench_colamd` and `example_colamd`
   - QR-focused comparison tools for `none`, `amd`, and `colamd`
   - use the same lowercase mode labels as the benchmark CLI

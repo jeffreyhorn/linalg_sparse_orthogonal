@@ -71,6 +71,7 @@ static sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt,
         return SPARSE_ERR_NULL;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
+    errno = 0;
     rc = vfprintf(stream, fmt, ap);
 #pragma GCC diagnostic pop
     if (rc < 0) {

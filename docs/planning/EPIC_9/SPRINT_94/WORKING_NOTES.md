@@ -411,3 +411,110 @@ index-width maturity, and solver-family breadth seams.
   breadth third.
 - Day 4 can freeze the scalar/index capability contract without reopening the
   ranked capability order.
+
+## Day 4 - Scalar and Index Capability Contract Design
+
+### Goal
+Separate remaining Sprint 94 debt into scalar-contract widening,
+index/ABI-maturity follow-through, and solver-family breadth so the first
+implementation boundary can stay bounded to the highest-value capability seam.
+
+### Actions
+- Re-read the Sprint 94 Day 4 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 3 ranked capability audit:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day3-capability-rerank-audit.md`
+- Re-read the Sprint 94 section of the Epic 9 project plan so the design
+  stays inside the explicit capability/non-claim fence.
+- Re-read the closest contract-design pattern:
+  - `docs/planning/EPIC_9/SPRINT_92/artifacts/day5-portable-backend-abi-and-runtime-contract-design.md`
+- Re-read the current maintained scalar/index interpretation in
+  `docs/maintainer_guide.md`.
+- Reconciled the ranked Day 3 capability owners against the project-plan item
+  split:
+  - scalar/index architecture design
+  - scalar-family widening batch
+  - index/ABI maturity batch
+  - solver-family breadth batch
+  - proof/docs/package alignment
+- Wrote the Day 4 scalar/index capability contract artifact.
+
+### Findings
+- Sprint 94 now has one explicit scalar/index capability contract:
+  - public scalar-contract debt:
+    - means the repo has already widened naming and some caller-facing buffer
+      seams through `sparse_scalar_t`, but still ships a real-only `double`
+      product truth
+    - remains the strongest first-class implementation target
+  - index/ABI-maturity debt:
+    - means compile-time `SPARSE_IDX_BITS` and `idx_t` are real public
+      features, but touched-path formatting, width-aware proof, and consumer
+      interpretation are not yet as mature as the contract wording invites
+    - remains real Sprint 94 work, but sequenced behind the first scalar seam
+      unless directly forced
+  - solver-family breadth debt:
+    - means some solver-family public buffers already route through
+      `sparse_scalar_t`, while deeper dense/solver owners still read as
+      bounded real-only implementations
+    - remains real Sprint 94 work, but only where a first scalar/index
+      widening actually needs it
+- The strongest Day 4 clarification is now explicit:
+  - Sprint 94 should not treat all remaining capability debt as one generic
+    "support more numeric types" problem
+  - it should not treat wider-index maturity as equivalent to broad scalar
+    widening
+  - it should first widen one bounded scalar-contract seam, then tighten
+    touched index/ABI maturity and solver-family breadth only where the same
+    widened seam still depends on them
+- The preserved non-claim fence is now fixed more sharply:
+  - no fake full-library complex support claim
+  - no fake broad mixed-precision maturity claim
+  - no fake templated-everywhere product story
+  - no broad package/platform symmetry claim detached from the touched scalar
+    and index seams
+- The strongest direct-owner reading is now explicit:
+  - first-center public and implementation owners:
+    - `include/sparse_types.h`
+    - `include/sparse_matrix.h`
+    - the matching strongest shared implementation seam behind that public
+      scalar owner
+  - second-center index/ABI owners if truly forced:
+    - touched width-aware public headers
+    - touched formatting, allocation, and consumer-proof owners
+  - third-center solver-family owners only if the widened scalar/index seam
+    truly requires them:
+    - `include/sparse_iterative.h`
+    - `include/sparse_eigs.h`
+    - `include/sparse_qr.h`
+    - `include/sparse_dense.h`
+    - the matching implementation and proof owners
+  - later proof-only or support-only owners unless the first landing forces
+    movement:
+    - `benchmarks/bench_svd.c`
+    - `benchmarks/bench_eigs.c`
+    - `benchmarks/bench_iterative_reuse.c`
+    - `README.md`
+    - `INSTALL.md`
+    - `docs/maintainer_guide.md`
+- The useful bounded product interpretation is now fixed:
+  - builtin reviewed defaults stay authoritative
+  - public wording may widen one bounded scalar lane without claiming broad
+    complex or mixed-precision maturity
+  - touched 64-bit maturity must read as stronger ABI/consumer correctness on
+    touched paths, not as a claim that every product surface is fully 64-bit
+    battle-hardened
+
+### Validation
+- Re-read the ranked Day 3 capability audit.
+- Re-read the Sprint 94 project-plan contract.
+- Re-read the closest prior contract-design pattern.
+- Re-read the current maintained scalar/index interpretation in
+  `docs/maintainer_guide.md`.
+
+### Day 4 Exit State
+- Sprint 94 now has one explicit scalar/index capability contract before code
+  movement.
+- The strongest first Sprint 94 implementation center remains fixed to the
+  bounded public scalar-contract seam.
+- Day 5 can freeze the first implementation boundary without reopening the
+  ranked capability order.

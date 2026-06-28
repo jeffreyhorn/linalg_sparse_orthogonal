@@ -835,3 +835,72 @@ remaining maturity seam rather than widening into generic solver-family churn.
   - `include/sparse_matrix.h`
   - `tests/test_sparse_matrix.c`
   - `tests/test_sparse_io.c`
+
+## Day 9 - Index and ABI Maturity Design
+
+### Goal
+Define the bounded touched-path 64-bit and ABI maturity contract so Day 10 can
+land one real matrix-shell index-width improvement without reopening broader
+solver-family or package surfaces.
+
+### Actions
+- Re-read the Sprint 94 Day 9 plan target in
+  `docs/planning/EPIC_9/SPRINT_94/PLAN.md`.
+- Re-read the Day 8 rerank:
+  - `docs/planning/EPIC_9/SPRINT_94/artifacts/day8-post-landing-audit-and-rerank.md`
+- Re-read the strongest touched owner surfaces on the matrix-shell family:
+  - `src/sparse_matrix.c`
+  - `include/sparse_matrix.h`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_sparse_io.c`
+- Reconciled the touched index/ABI maturity problem against the live owner
+  split:
+  - public width contract already exists through `SPARSE_IDX_BITS`,
+    `idx_t`, `SPARSE_PRIDX`, `SPARSE_SCNIDX`, and `sparse_idx_bits()`
+  - the strongest remaining batch is not a typedef change
+  - the strongest remaining batch is touched-path maturity on Matrix Market
+    save/load plus debug and inspection printing paths inside the matrix-shell
+    owner
+- Wrote the Day 9 design artifact.
+
+### Findings
+- Sprint 94 now has one exact touched index/ABI implementation contract:
+  - required Day 10 center:
+    - `src/sparse_matrix.c`
+  - exact maturity target:
+    - strengthen the matrix-shell save/load and debug/inspection paths so the
+      touched consumer and diagnostic surfaces read as width-aware and ABI-safe
+      under both `SPARSE_IDX_BITS=32` and `SPARSE_IDX_BITS=64`
+    - keep the batch bounded to formatting, parsing, and width-aware
+      interpretation on this owner rather than widening into broader package,
+      binary, or solver-family claims
+- The preserved invariants are now fixed:
+  - `SPARSE_IDX_BITS`, `idx_t`, `SPARSE_PRIDX`, and `SPARSE_SCNIDX` remain
+    the authoritative public width contract
+  - the default reviewed build remains unchanged unless the touched batch
+    explicitly says otherwise
+  - no new dynamic-ABI or broad binary-compatibility claim should be inferred
+  - touched proof owners stay deterministic and focused on the matrix-shell
+    consumer and diagnostic seam
+- The strongest directly forced follow-through is now fixed to:
+  - `include/sparse_matrix.h`
+  - `tests/test_sparse_matrix.c`
+  - `tests/test_sparse_io.c`
+- The strongest explicitly deferred work is also fixed:
+  - later solver-family breadth follow-through
+  - broader maintainer, README, INSTALL, or package wording
+  - broader benchmark/reporting interpretation
+  - broad binary, shared-library, or platform-symmetry claim widening
+
+### Validation
+- Re-read the Day 8 rerank from the validated post-Day-7 tree.
+- Re-read the touched matrix-shell save/load and debug/inspection owners.
+- Re-read the strongest directly forced proof owners.
+
+### Day 9 Exit State
+- Sprint 94 now has one exact Day 10 implementation center fixed to
+  `src/sparse_matrix.c`.
+- The next batch is explicitly bounded to touched matrix-shell index and ABI
+  maturity on save/load and diagnostic surfaces.
+- Later solver-family and support-surface work remains clearly sequenced
+  behind this touched index-width batch.

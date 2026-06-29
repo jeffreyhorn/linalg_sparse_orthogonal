@@ -1,0 +1,131 @@
+Sprint 98 Day 1 authoritative inputs
+====================================
+
+Project-plan scope
+------------------
+
+- docs/planning/EPIC_9/PROJECT_PLAN.md, section:
+  "Sprint 98: Assurance, External Comparison & Coverage Architecture Phase 3"
+- Sprint 98 goal:
+  Broaden the maintained external comparison and proof architecture so the
+  repo can support stronger competitive claims than the bounded Epic 8 lane.
+- Sprint 98 project-plan items:
+  1. Comparison-Surface Rerank
+  2. Proof/Comparison Architecture Design
+  3. External Correctness Expansion Batch
+  4. Runtime/Fill Comparison Batch
+  5. Coverage-Topology Cleanup
+  6. CI/Support-Surface Alignment
+  7. Validation and Closeout
+
+Prior-sprint context
+--------------------
+
+- Sprint 90 comparison-and-measurement contract:
+  docs/planning/EPIC_9/SPRINT_90/artifacts/day6-comparison-and-measurement-contract-design.md
+- Sprint 94 capability-surface closeout:
+  docs/planning/EPIC_9/SPRINT_94/artifacts/day14-closeout-and-handoff.md
+- Sprint 96 maintainability and proof-owner closeout:
+  docs/planning/EPIC_9/SPRINT_96/artifacts/day14-sprint96-closeout.md
+- Sprint 97 build/package/product convergence closeout:
+  docs/planning/EPIC_9/SPRINT_97/artifacts/day14-sprint-closeout-and-handoff.md
+- docs/planning/EPIC_9/SPRINT_98/PLAN.md, Day 1:
+  "Sprint 98 Scope & Assurance Baseline"
+
+Live assurance and comparison surfaces inspected
+------------------------------------------------
+
+- Makefile
+- CMakeLists.txt
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+- README.md
+- INSTALL.md
+- docs/maintainer_guide.md
+- docs/algorithm.md
+- tests/chol_external_dense_reference.py
+- tests/test_chol_csc.c
+- tests/test_chol_csc_supernodal.c
+- tests/test_ldlt_csc.c
+- tests/test_iterative.c
+- tests/test_eigs.c
+- tests/test_svd.c
+- tests/test_qr.c
+- tests/test_colamd.c
+- tests/test_reorder_nd.c
+- tests/test_reorder_amd_qg.c
+- benchmarks/README.md
+- benchmarks/bench_refactor_csc.c
+- benchmarks/bench_chol_csc.c
+- benchmarks/bench_iterative_reuse.c
+- benchmarks/bench_eigs_reuse.c
+- benchmarks/bench_fillin.c
+- benchmarks/bench_reorder.c
+- benchmarks/bench_amd_qg.c
+- scripts/bench_canonical_report.sh
+
+Current maintained comparison contract
+--------------------------------------
+
+- Maintained correctness lane:
+  - bounded external SPD differential proof
+  - `tests/test_chol_csc.c`
+  - `tests/chol_external_dense_reference.py`
+  - SuiteSparse SPD fixtures `nos4` and `bcsstk04`
+- Maintained package-shape lane:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+  - static-first install/export and downstream consumer proof
+- Bounded runtime-reference lane:
+  - `make bench-reorder-sprint86`
+  - `make bench-canonical-report`
+  - threshold-free local before/after calibration
+- Advisory lanes:
+  - broader ecosystem, broader platform, and broader solver-family comparisons
+  - not maintained product-truth owners without a later explicit contract
+
+Current benchmark and coverage ownership
+----------------------------------------
+
+- Canonical maintained performance surface:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- Regression-sensitive runtime lane:
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_colamd`
+  - `bench_reorder --skip-factor`
+  - bounded adjacent lane: `bench_amd_qg`
+- Coverage surface:
+  - `make coverage`
+  - `make coverage-lcov`
+  - `make coverage-gcovr`
+  - Linux supplemental coverage workflow
+  - local tree-mutating coverage modes require `make clean` before returning
+    to normal reviewed paths
+
+Current validation expectations
+-------------------------------
+
+- Planning/docs-only artifacts:
+  - `git diff --check`
+  - trailing-whitespace scan on touched Sprint 98 planning files
+- `.c` or `.h` changes:
+  - `make format && make lint && make test`
+- Comparison harness or benchmark script changes:
+  - focused touched comparison command
+  - relevant benchmark/report generation command
+  - full source validation when C/header files are touched
+- Build, workflow, or package proof changes:
+  - local equivalent reviewed command where possible
+  - CI remains final proof for platform-specific workflow syntax
+
+Day 1 validation note
+---------------------
+
+Day 1 changed planning documentation only. No source, header, build-system,
+workflow, benchmark, script, or test validation beyond documentation hygiene is
+required.

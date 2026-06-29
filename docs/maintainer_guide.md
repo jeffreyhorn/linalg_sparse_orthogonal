@@ -290,18 +290,47 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
     solve
   - fixture-backed SuiteSparse SPD coverage on `nos4` and `bcsstk04`
   - maintained proof stays family-local to the direct-family SPD Cholesky path
+- `tests/test_ldlt_csc.c` and `tests/ldlt_external_dense_reference.py` own the
+  bounded LDLT CSC maintained external differential lane:
+  - deterministic indefinite KKT solves on `kkt5` and `kkt10`
+  - external-process dense reference solutions emitted by fixture key
+  - maintained proof stays family-local to LDLT CSC solve correctness for these
+    deterministic fixtures
 
 Interpretation:
 
 - examples and docs remain support surfaces on this lane
 - do not imply that touched capability wording replaces the focused proof
   owners above
-- do not reinterpret `bench_chol_csc` or examples as oracle owners for this
-  lane
+- do not reinterpret `bench_chol_csc`, `bench_ldlt_csc`, or examples as oracle
+  owners for this lane
 - do not imply that every solver family now has maintained external
   differential proof
+- do not present the LDLT CSC lane as broad indefinite ecosystem parity,
+  external factorization parity, or proof of pivot/CSC-layout internals
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
+
+## Sprint 98 Assurance Topology Snapshot
+
+Sprint 98 widened assurance evidence in two bounded lanes and audited coverage
+and workflow topology without widening those surfaces.
+
+| Evidence class | Owner | Validation command | Interpretation |
+|---|---|---|---|
+| LDLT CSC external correctness | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | `make build/test_ldlt_csc && ./build/test_ldlt_csc` | bounded deterministic KKT solve comparison on `kkt5` and `kkt10` |
+| Reorder/fill calibration | `make bench-reorder-sprint86` / `bench_reorder --sprint86-slice --skip-factor` | `make bench-reorder-sprint86` | bounded two-fixture artifact; `nnz_L` is the fill field and `reorder_ms` is local timing context |
+| Coverage topology | `make coverage`, `make coverage-lcov`, `make coverage-gcovr`, and Linux supplemental coverage workflow | no Sprint 98 validation command added | audited but not widened; coverage remains tree-mutating and supplemental |
+| Workflow topology | `.github/workflows/ci.yml`, `.github/workflows/macos-ci.yml`, `.github/workflows/windows-ci.yml` | no Sprint 98 workflow lane added | audited but not widened; reviewed, supplemental, and staged platform claims stay unchanged |
+
+Interpretation:
+
+- this snapshot is a maintainer map, not a new public claim surface
+- do not move proof ownership out of the family-local test owners without a
+  separate extraction boundary
+- do not treat the Sprint 98 runtime/fill artifact as canonical reporting or a
+  portable timing gate
+- do not imply that audited coverage or workflows gained new reviewed scope
 
 ## Configuration Surface Ownership
 
@@ -672,6 +701,9 @@ Canonical output ownership:
     - `reorder_path`
     - `fixture_slice`
     - `nd_base_threshold`
+  - the Sprint 98 reorder/fill artifact uses `make bench-reorder-sprint86`
+    as a bounded two-fixture calibration slice, with `nnz_L` as the primary
+    fill field and `reorder_ms` as local timing context only
   - read those as bounded local runtime-evidence context, not as broad
     benchmark-governance widening
 
@@ -707,6 +739,8 @@ Interpretation:
 - do not widen the canonical maintained performance surface casually
 - do not turn the runtime lane into threshold-heavy pseudo-governance
 - do not reinterpret `bench-canonical-report` as a pass/fail portability claim
+- do not reinterpret the Sprint 98 reorder/fill artifact as a replacement for
+  the canonical maintained performance surface or as a portable timing claim
 - do not let exploratory benchmark breadth blur the smaller claim-bearing
   maintained surface
 

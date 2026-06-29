@@ -70,6 +70,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_cholesky.c \
            $(SRCDIR)/sparse_csr.c \
            $(SRCDIR)/sparse_iterative.c \
+           $(SRCDIR)/sparse_iterative_block.c \
            $(SRCDIR)/sparse_iterative_minres.c \
            $(SRCDIR)/sparse_iterative_workspace_internal.c \
            $(SRCDIR)/sparse_ilu.c \
@@ -86,6 +87,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_colamd.c \
            $(SRCDIR)/sparse_chol_csc.c \
            $(SRCDIR)/sparse_chol_csc_supernodal.c \
+           $(SRCDIR)/sparse_ldlt_dense.c \
            $(SRCDIR)/sparse_ldlt_csc.c \
            $(SRCDIR)/sparse_ldlt_csc_supernodal.c \
            $(SRCDIR)/sparse_eigs_workspace_internal.c \
@@ -144,6 +146,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_bicgstab.c \
             $(TESTDIR)/test_stagnation.c \
             $(TESTDIR)/test_chol_csc.c \
+            $(TESTDIR)/test_chol_csc_supernodal.c \
             $(TESTDIR)/test_ldlt_csc.c \
             $(TESTDIR)/test_direct_csc_dispatch.c \
             $(TESTDIR)/test_direct_csc_regression.c \

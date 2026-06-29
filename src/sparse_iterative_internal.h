@@ -28,6 +28,14 @@ typedef struct {
 double s29_iter_now_s(void);
 sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
                                     sparse_iter_workspace_t **workspace_out);
+
+/*
+ * Shared iterative result/default helpers used by split solver owners.
+ * Keep these private to source files under src/.
+ */
+const sparse_iter_opts_t *s85_iter_cg_defaults(void);
+void s85_iter_result_reset(sparse_iter_result_t *result);
+void s85_iter_result_mark_converged(sparse_iter_result_t *result);
 sparse_err_t sparse_iter_stag_init(stag_tracker_t *st, idx_t window);
 void sparse_iter_stag_free(stag_tracker_t *st);
 void sparse_iter_stag_record(stag_tracker_t *st, double residual);

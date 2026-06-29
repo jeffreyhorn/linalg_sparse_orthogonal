@@ -8,18 +8,19 @@
 #include "test_framework.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Family-local helper seam for the supernodal/writeback/dispatch proof group
- * in `test_chol_csc.c`. Keep this narrow and specific instead of widening the
- * shared solver test helper layer with CSC-family details.
+/* Family-local helper seam for the Cholesky CSC supernodal/writeback proof
+ * owner. Keep this narrow and specific instead of widening the shared solver
+ * test helper layer with CSC-family details.
  */
 
 /* Linear scan helper: return L[i, j] from a factored CholCsc, or 0.0
  * if not stored. Used by the supernode diagonal-block reference checks.
  */
-static double day7_chol_csc_get(const CholCsc *csc, idx_t i, idx_t j) {
+static double chol_csc_value_at(const CholCsc *csc, idx_t i, idx_t j) {
     if (j < 0 || j >= csc->n)
         return 0.0;
     for (idx_t p = csc->col_ptr[j]; p < csc->col_ptr[j + 1]; p++) {
@@ -32,7 +33,7 @@ static double day7_chol_csc_get(const CholCsc *csc, idx_t i, idx_t j) {
 /* Compare two factored CholCsc values structurally and numerically.
  * Returns 1 on match, 0 on divergence.
  */
-static int day8_chol_csc_match(const CholCsc *a, const CholCsc *b, double tol) {
+static int chol_csc_values_match(const CholCsc *a, const CholCsc *b, double tol) {
     if (a->n != b->n || a->nnz != b->nnz)
         return 0;
     for (idx_t j = 0; j <= a->n; j++)
@@ -45,6 +46,41 @@ static int day8_chol_csc_match(const CholCsc *a, const CholCsc *b, double tol) {
             return 0;
     }
     return 1;
+}
+
+/* Helper: compute ||A*x - b||_inf / ||b||_inf (relative residual).
+ * Returns 0.0 for an empty system and NaN on allocation failure. Callers
+ * compare against a tolerance with ASSERT_TRUE(rel_res < tol), which treats
+ * NaN as out-of-range.
+ */
+static double compute_rel_residual(const SparseMatrix *A, const double *x, const double *b) {
+    if (!A || !x || !b)
+        return (double)NAN;
+    idx_t n = sparse_rows(A);
+    if (n == 0)
+        return 0.0;
+    size_t n_size = (size_t)n;
+    if (n < 0 || (idx_t)n_size != n || n_size > SIZE_MAX / sizeof(double))
+        return (double)NAN;
+    double *Ax = malloc(n_size * sizeof(double));
+    if (!Ax)
+        return (double)NAN;
+    if (sparse_matvec(A, x, Ax) != SPARSE_OK) {
+        free(Ax);
+        return (double)NAN;
+    }
+    double max_r = 0.0;
+    double max_b = 0.0;
+    for (size_t i = 0; i < n_size; i++) {
+        double ri = fabs(Ax[i] - b[i]);
+        if (ri > max_r)
+            max_r = ri;
+        double bi = fabs(b[i]);
+        if (bi > max_b)
+            max_b = bi;
+    }
+    free(Ax);
+    return max_b > 0.0 ? max_r / max_b : max_r;
 }
 
 static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **starts_out,
@@ -71,7 +107,8 @@ static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **st
  * sparse factored `L` back to `CholCsc` and rerunning supernode detection.
  * Return -1 on failure so callers can skip the derived check cleanly.
  */
-static idx_t day8_count_supernodes(const SparseMatrix *L_sparse, idx_t min_size, idx_t *count_out) {
+static idx_t count_grouped_supernode_columns(const SparseMatrix *L_sparse, idx_t min_size,
+                                             idx_t *count_out) {
     CholCsc *L = NULL;
     if (chol_csc_from_sparse(L_sparse, NULL, 2.0, &L) != SPARSE_OK)
         return -1;
@@ -99,8 +136,8 @@ static idx_t day8_count_supernodes(const SparseMatrix *L_sparse, idx_t min_size,
 /* Factor `A` through the scalar and supernodal paths and assert the two
  * factored CSC values still match within `tol`.
  */
-static void day9_assert_batched_matches_scalar(const SparseMatrix *A, const idx_t *perm,
-                                               idx_t min_size, double tol, const char *label) {
+static void assert_supernodal_matches_scalar(const SparseMatrix *A, const idx_t *perm,
+                                             idx_t min_size, double tol, const char *label) {
     (void)label; /* reserved for future diagnostic messages */
     CholCsc *Ls = NULL;
     REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &Ls));
@@ -111,48 +148,23 @@ static void day9_assert_batched_matches_scalar(const SparseMatrix *A, const idx_
     REQUIRE_OK(chol_csc_eliminate_supernodal(Ln, min_size));
     REQUIRE_OK(chol_csc_validate(Ln));
 
-    ASSERT_TRUE(day8_chol_csc_match(Ls, Ln, tol));
+    ASSERT_TRUE(chol_csc_values_match(Ls, Ln, tol));
 
     chol_csc_free(Ls);
     chol_csc_free(Ln);
 }
 
-/* Build a diagonally dominant SPD matrix with a fixed sparsity pattern so the
- * dispatch residual checks remain deterministic across reruns.
- */
-static SparseMatrix *day11_build_spd(idx_t n, double density, unsigned int seed) {
-    unsigned int rng = seed;
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < n; i++)
-        sparse_insert(A, i, i, (double)n);
-    for (idx_t i = 1; i < n; i++) {
-        for (idx_t j = 0; j < i; j++) {
-            rng = rng * 1664525u + 1013904223u;
-            double p = (double)(rng & 0xffffff) / (double)0x1000000;
-            if (p < density) {
-                rng = rng * 1664525u + 1013904223u;
-                double v = ((double)(rng & 0xffff) / (double)0x10000) - 0.5;
-                sparse_insert(A, i, j, v);
-                sparse_insert(A, j, i, v);
-            }
-        }
-    }
-    return A;
-}
-
 /* Field-by-field comparison helper. Returns 1 iff every checked invariant on
  * the scalar-factored `ref` matches the writeback-factored `got`.
  */
-static int day10_factored_matches(const SparseMatrix *ref, const SparseMatrix *got, double tol) {
+static int factored_sparse_matches(const SparseMatrix *ref, const SparseMatrix *got, double tol) {
     idx_t n = sparse_rows(ref);
     if (sparse_rows(got) != n || sparse_cols(got) != sparse_cols(ref)) {
-        fprintf(stderr, "day10: shape mismatch\n");
+        fprintf(stderr, "writeback: shape mismatch\n");
         return 0;
     }
     if (!ref->factored || !got->factored) {
-        fprintf(stderr, "day10: factored flag mismatch ref=%d got=%d\n", ref->factored,
+        fprintf(stderr, "writeback: factored flag mismatch ref=%d got=%d\n", ref->factored,
                 got->factored);
         return 0;
     }
@@ -160,20 +172,20 @@ static int day10_factored_matches(const SparseMatrix *ref, const SparseMatrix *g
         double diff = fabs(ref->factor_norm - got->factor_norm);
         double scale = fabs(ref->factor_norm) > 1.0 ? fabs(ref->factor_norm) : 1.0;
         if (diff > 1e-12 * scale) {
-            fprintf(stderr, "day10: factor_norm mismatch ref=%.17g got=%.17g (rel %.3e)\n",
+            fprintf(stderr, "writeback: factor_norm mismatch ref=%.17g got=%.17g (rel %.3e)\n",
                     ref->factor_norm, got->factor_norm, diff / scale);
             return 0;
         }
     }
     if ((ref->reorder_perm == NULL) != (got->reorder_perm == NULL)) {
-        fprintf(stderr, "day10: reorder_perm NULLness mismatch ref=%p got=%p\n",
+        fprintf(stderr, "writeback: reorder_perm NULLness mismatch ref=%p got=%p\n",
                 (void *)ref->reorder_perm, (void *)got->reorder_perm);
         return 0;
     }
     if (ref->reorder_perm) {
         for (idx_t i = 0; i < n; i++) {
             if (ref->reorder_perm[i] != got->reorder_perm[i]) {
-                fprintf(stderr, "day10: reorder_perm[%d] mismatch ref=%d got=%d\n", (int)i,
+                fprintf(stderr, "writeback: reorder_perm[%d] mismatch ref=%d got=%d\n", (int)i,
                         (int)ref->reorder_perm[i], (int)got->reorder_perm[i]);
                 return 0;
             }
@@ -182,12 +194,12 @@ static int day10_factored_matches(const SparseMatrix *ref, const SparseMatrix *g
     for (idx_t i = 0; i < n; i++) {
         if (ref->row_perm[i] != i || ref->col_perm[i] != i || ref->inv_row_perm[i] != i ||
             ref->inv_col_perm[i] != i) {
-            fprintf(stderr, "day10: ref internal perm not identity at i=%d\n", (int)i);
+            fprintf(stderr, "writeback: ref internal perm not identity at i=%d\n", (int)i);
             return 0;
         }
         if (got->row_perm[i] != i || got->col_perm[i] != i || got->inv_row_perm[i] != i ||
             got->inv_col_perm[i] != i) {
-            fprintf(stderr, "day10: got internal perm not identity at i=%d\n", (int)i);
+            fprintf(stderr, "writeback: got internal perm not identity at i=%d\n", (int)i);
             return 0;
         }
     }
@@ -196,8 +208,8 @@ static int day10_factored_matches(const SparseMatrix *ref, const SparseMatrix *g
             double a = sparse_get(ref, i, j);
             double b = sparse_get(got, i, j);
             if (fabs(a - b) > tol) {
-                fprintf(stderr, "day10: value mismatch at (%d,%d) ref=%.17g got=%.17g\n", (int)i,
-                        (int)j, a, b);
+                fprintf(stderr, "writeback: value mismatch at (%d,%d) ref=%.17g got=%.17g\n",
+                        (int)i, (int)j, a, b);
                 return 0;
             }
         }
@@ -208,7 +220,7 @@ static int day10_factored_matches(const SparseMatrix *ref, const SparseMatrix *g
 /* Build a test matrix A, factor it via both paths, and assert the writeback
  * matches the scalar reference field-by-field.
  */
-static void day10_roundtrip_check(SparseMatrix *A, int use_amd, double tol) {
+static void writeback_roundtrip_check(SparseMatrix *A, int use_amd, double tol) {
     idx_t n = sparse_rows(A);
 
     SparseMatrix *ref = sparse_copy(A);
@@ -232,7 +244,7 @@ static void day10_roundtrip_check(SparseMatrix *A, int use_amd, double tol) {
     ASSERT_TRUE(got != NULL);
     REQUIRE_OK(chol_csc_writeback_to_sparse(L, got, perm));
 
-    ASSERT_TRUE(day10_factored_matches(ref, got, tol));
+    ASSERT_TRUE(factored_sparse_matches(ref, got, tol));
 
     free(perm);
     chol_csc_free(L);

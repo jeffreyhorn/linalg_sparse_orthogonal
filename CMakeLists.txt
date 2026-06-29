@@ -95,6 +95,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_cholesky.c
     src/sparse_csr.c
     src/sparse_iterative.c
+    src/sparse_iterative_block.c
     src/sparse_iterative_minres.c
     src/sparse_iterative_workspace_internal.c
     src/sparse_ilu.c
@@ -111,6 +112,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_colamd.c
     src/sparse_chol_csc.c
     src/sparse_chol_csc_supernodal.c
+    src/sparse_ldlt_dense.c
     src/sparse_ldlt_csc.c
     src/sparse_ldlt_csc_supernodal.c
     src/sparse_eigs_workspace_internal.c
@@ -232,6 +234,7 @@ add_sparse_test(test_colamd)
 add_sparse_test(test_bicgstab)
 add_sparse_test(test_stagnation)
 add_sparse_test(test_chol_csc)
+add_sparse_test(test_chol_csc_supernodal)
 add_sparse_test(test_ldlt_csc)
 add_sparse_test(test_direct_csc_dispatch)
 add_sparse_test(test_direct_csc_regression)

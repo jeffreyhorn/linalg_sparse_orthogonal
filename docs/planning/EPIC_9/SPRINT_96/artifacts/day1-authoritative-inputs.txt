@@ -1,0 +1,69 @@
+Sprint 96 Day 1 Authoritative Inputs
+====================================
+
+Primary project-plan source
+---------------------------
+
+- docs/planning/EPIC_9/PROJECT_PLAN.md
+  - section: "Sprint 96: Large-Source & Giant-Test Maintainability Phase 6"
+  - lines requested by task: 223-252
+  - project-plan estimate: ~168 hours
+  - project-plan items:
+    - Hotspot Rerank
+    - Source Extraction Design
+    - Direct-Family Source Cleanup Batch
+    - Solver/Algorithm Source Cleanup Batch
+    - Giant-Test Architecture Batch
+    - Internal Comment/Rationale Cleanup
+    - Validation and Closeout
+
+Sprint 96 execution plan
+------------------------
+
+- docs/planning/EPIC_9/SPRINT_96/PLAN.md
+  - Day 1: Sprint 96 Scope & Hotspot Baseline
+  - Day 2: Hotspot Rerank
+  - Days 3-4: extraction and direct-family boundary design
+  - Days 5-6: direct-family cleanup landing
+  - Days 7-9: solver/algorithm cleanup design and landing
+  - Days 10-11: giant-test architecture design and landing
+  - Day 12: internal comment/rationale cleanup
+  - Days 13-14: validation and closeout
+
+Prior sprint inputs
+-------------------
+
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day4-maintainability-coherence-workflow-audit.md
+  - strongest first target: large mixed-role implementation hotspots
+  - strongest second target: giant-test and proof-owner concentration
+  - strongest third target: sprint-era chronology in permanent surfaces
+  - strongest fourth target: build/package/workflow duplication
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day14-closeout-and-handoff.md
+  - Sprint 96 is the planned large-source and giant-test maintainability
+    reduction step after Sprint 95 narrative/workflow coherence
+- docs/planning/EPIC_9/SPRINT_95/artifacts/day14-sprint95-closeout.md
+  - Sprint 95 completed public narrative, support-surface, and selected
+    proof-owner naming cleanup
+  - Sprint 96 handoff includes scoped algorithm-doc modernization,
+    split-first proof-owner redesign, and compatibility-aware benchmark naming
+    decisions
+- docs/planning/EPIC_9/SPRINT_95/RETROSPECTIVE.md
+  - confirms remaining source/test maintainability work should start from an
+    explicit ownership model and residual queue
+
+Live tree measurements captured on Day 1
+----------------------------------------
+
+Commands:
+
+- find src -maxdepth 1 \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 wc -l | sort -nr | head -30
+- find tests -maxdepth 1 -name 'test_*.c' -print0 | xargs -0 wc -l | sort -nr | head -35
+- find benchmarks examples include -maxdepth 1 \( -name '*.c' -o -name '*.h' -o -name '*.md' \) -print0 | xargs -0 wc -l | sort -nr | head -25
+
+Day 1 validation rule
+---------------------
+
+- Day 1 is planning documentation only.
+- No `.c` or `.h` files are changed.
+- Full `make format && make lint && make test` is not required unless later
+  Day 1 edits unexpectedly touch code.

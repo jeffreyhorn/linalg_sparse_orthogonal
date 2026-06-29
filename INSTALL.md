@@ -66,9 +66,10 @@ make install PREFIX=/usr/local   # install library, headers, pkg-config
 ```
 
 `make quality-review-compile` is the maintained local compile-quality wrapper
-(`format-check` + `lint`). `make quality-review` adds `test` and
-`deadcode-check` on top of that reviewed path. For the fuller command map and
-failure-rerun guidance, use `README.md` as the canonical front-door reference.
+(`format-check` + `source-list-check` + `lint`). `make quality-review` adds
+`test` and `deadcode-check` on top of that reviewed path. For the fuller
+command map and failure-rerun guidance, use `README.md` as the canonical
+front-door reference.
 
 The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 (e.g., packaging):
@@ -95,6 +96,10 @@ The maintained install surface is intentionally static-first:
 This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
 remains the reviewed CMake workflow.
+
+Shared-library packaging is deferred until a future change adds explicit build
+rules, package metadata, installed-consumer proof, and platform-specific
+runtime-loader coverage.
 
 Use the split below when deciding how much package detail you need:
 

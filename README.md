@@ -153,7 +153,7 @@ cross-platform install, downstream-consumer, or package-manager detail.
 make            # build library
 make tooling-build  # compile benchmark/example binaries without running them
 make lint       # strict compile + static analysis (includes tooling-build)
-make quality-review-compile  # reviewed format-check + lint wrapper
+make quality-review-compile  # reviewed format-check + source-list-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
 make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
@@ -767,6 +767,9 @@ After installation, downstream projects can use either `pkg-config` or
 - `pkg-config --cflags --libs sparse`
 - `find_package(Sparse REQUIRED)` plus
   `target_link_libraries(... Sparse::sparse_lu_ortho)`
+
+Shared-library packaging is intentionally deferred; the maintained install
+contract is the static archive surface described in [INSTALL.md](INSTALL.md).
 
 ## Documentation
 

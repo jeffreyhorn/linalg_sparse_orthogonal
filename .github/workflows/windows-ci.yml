@@ -25,7 +25,7 @@ jobs:
     # image that actually carries the reviewed MSVC/CMake surface.
     runs-on: windows-2022
     env:
-      EXPECTED_WINDOWS_CTEST_COUNT: "50"
+      EXPECTED_WINDOWS_CTEST_COUNT: "51"
     steps:
       - uses: actions/checkout@v4
 

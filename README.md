@@ -689,6 +689,10 @@ make tsan
 make coverage
 ```
 
+On macOS with Apple Clang, `make asan` can hang because of a toolchain/runtime
+limitation. Use GCC or LLVM clang for ASan on macOS, or use `make sanitize` for
+the maintained UBSan path.
+
 The test framework also supports opt-in non-default coverage when fixture size,
 runtime, or intentionally non-default behavior makes a check unsuitable for the
 ordinary default suite:

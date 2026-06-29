@@ -5,8 +5,8 @@
  * @file sparse_ldlt_csc_internal.h
  * @brief CSC working format for LDL^T numeric factorization.
  *
- * Not part of the public API.  Used by sparse_ldlt_csc.c and
- * sparse_ldlt_csc_supernodal.c.
+ * Not part of the public API.  Used by sparse_ldlt_csc.c,
+ * sparse_ldlt_csc_supernodal.c, and sparse_ldlt_dense.c.
  *
  * ─── Design: LDL^T on top of the Cholesky CSC ──────────────────────────
  *
@@ -102,7 +102,7 @@ typedef struct {
  *   - `L` is allocated via `chol_csc_alloc(n, initial_nnz, ...)`
  *   - `D`, `D_offdiag` zeroed
  *   - `pivot_size[i]` defaults to 1 (stable default for a not-yet-
- *     factored matrix; Day 8 overrides each entry during elimination)
+ *     factored matrix; elimination overrides each entry)
  *   - `perm[i] = i` (identity)
  *   - `n` set; `factor_norm = 0.0`
  *
@@ -121,7 +121,7 @@ void ldlt_csc_free(LdltCsc *m);
  * the per-row array geometrically (2×) when capacity is hit.
  *
  * Called as each column finishes its writeback during `ldlt_csc_eliminate_native`
- * (Day 9) so `ldlt_csc_cmod_unified`'s Phase A can iterate only the
+ * so `ldlt_csc_cmod_unified`'s Phase A can iterate only the
  * prior columns that carry a stored entry in a given row rather than
  * scanning `[0, step_k)` and binary-searching.  Insertion order
  * preserved; callers append monotonically increasing `col` values
@@ -140,19 +140,19 @@ sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col);
  * Detect fundamental supernodes of `F->L` that also respect the 2×2
  * pivot boundaries in `F->pivot_size`.
  *
- * Sprint 19 Day 10 builds on `chol_csc_detect_supernodes` (Sprint 17
- * Day 10) with one extra invariant: a 2×2 pivot pair at (k, k+1) —
- * identified by `pivot_size[k] == pivot_size[k+1] == 2` — is atomic.
+ * This mirrors `chol_csc_detect_supernodes` with one extra invariant:
+ * a 2x2 pivot pair at (k, k+1), identified by
+ * `pivot_size[k] == pivot_size[k+1] == 2`, is atomic.
  * Either both columns are in the same supernode or neither is.
  * Supernodes that would end on the first of a 2×2 pair are either
  * extended by one column (if pattern permits) or truncated to
  * exclude it; 2×2 pairs that can't be kept together through their
  * pattern become scalar-factored columns.
  *
- * Callers feed the returned supernodes into the Days 11-14 batched
- * path (extract / eliminate_diag / eliminate_panel / writeback),
- * which operates atomically on each supernode without splitting a
- * 2×2 pivot.  `pivot_size[]` must already be populated from a prior
+ * Callers feed the returned supernodes into the batched path
+ * (extract / eliminate_diag / eliminate_panel / writeback), which operates
+ * atomically on each supernode without splitting a 2x2 pivot.
+ * `pivot_size[]` must already be populated from a prior
  * `ldlt_csc_eliminate_native` run — detection uses it to decide
  * atomicity, not to perform any numeric work.
  *
@@ -185,7 +185,7 @@ sparse_err_t ldlt_csc_detect_supernodes(const LdltCsc *F, idx_t min_size, idx_t 
  * `perm_in == NULL`).  Caches `factor_norm = ||A||_inf`.
  *
  * The factorization itself (Bunch-Kaufman 1x1/2x2 pivots) runs in
- * Day 8's `ldlt_csc_eliminate`; Day 7 just scaffolds storage.
+ * `ldlt_csc_eliminate`; allocation only scaffolds storage.
  *
  * @param mat           Input matrix (not modified).  Must be square.
  * @param perm_in       Optional symmetric fill-reducing permutation
@@ -205,17 +205,16 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  * Convert a SparseMatrix into an LdltCsc using `sparse_analyze`'s
  * pre-computed symbolic L pattern.
  *
- * Mirrors `chol_csc_from_sparse_with_analysis` (Sprint 18 Day 12 +
- * Sprint 19 Day 6) for the LDL^T side.  Pre-allocates every column
- * of the embedded `L` with its full `sym_L` pattern rather than A's
+ * Mirrors `chol_csc_from_sparse_with_analysis` for the LDL^T side.
+ * Pre-allocates every column of the embedded `L` with its full `sym_L`
+ * pattern rather than A's
  * lower-triangle-only entries, so the batched supernodal writeback
  * (`ldlt_csc_eliminate_supernodal`) can preserve cmod fill rows on
  * indefinite inputs (KKT-style saddle points, matrices with non-
  * trivial off-block structure).  Without this the heuristic
  * `ldlt_csc_from_sparse` initialiser silently drops those fill rows
- * and produces an incorrect factor — the residual symptom documented
- * in the Sprint 19 indefinite-scope NOTE in
- * `tests/test_direct_csc_regression.c`.
+ * and produces an incorrect factor, which is covered by the indefinite CSC
+ * regression tests.
  *
  * `analysis->type` must be `SPARSE_FACTOR_LDLT` or
  * `SPARSE_FACTOR_CHOLESKY`: `sparse_analyze`'s symbolic pipeline
@@ -231,9 +230,9 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  * pre-permuted input BK will not swap again during the batched
  * factor, so `sym_L` on the pre-permuted matrix is complete.  SPD
  * inputs (all 1×1 pivots, no swaps) may call this function directly
- * without the pre-pass.  The transparent dispatch added in Sprint 20
- * Days 4-6 wraps this workflow behind `sparse_ldlt_factor_opts` so
- * public-API callers do not need to orchestrate the pre-pass manually.
+ * without the pre-pass. Transparent dispatch wraps this workflow behind
+ * `sparse_ldlt_factor_opts` so public-API callers do not need to orchestrate
+ * the pre-pass manually.
  *
  * On success, the returned `LdltCsc`:
  *   - delegates its embedded `L` layout + A-scatter to
@@ -395,12 +394,14 @@ sparse_err_t ldlt_csc_prepare_resolved_analysis(
  * Dense LDL^T primitive and backend selection
  * ═══════════════════════════════════════════════════════════════════════ */
 
+/* Implemented in `src/sparse_ldlt_dense.c`; declared here so the CSC
+ * supernodal path and direct-family proof owners share one internal contract. */
+
 /**
  * Dense LDL^T factor with Bunch-Kaufman pivoting.
  *
  * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for
- * the Sprint 19 Days 12-14 batched supernodal LDL^T path to call per
- * supernode's diagonal block.
+ * the batched supernodal LDL^T path to call per supernode's diagonal block.
  *
  * Input: `A` is n×n column-major symmetric with BOTH triangles
  * populated so the four-criteria BK scan can read `A[i + r*lda]`
@@ -462,8 +463,8 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
  * `ldlt_csc_eliminate` is the stable public entry point.  Under the
  * hood it dispatches to one of two implementations:
  *
- *   - **Wrapper** (Sprint 17 Day 8).  Expands the CSC lower triangle
- *     to a full symmetric `SparseMatrix`, calls `sparse_ldlt_factor`,
+ *   - **Wrapper**.  Expands the CSC lower triangle to a full symmetric
+ *     `SparseMatrix`, calls `sparse_ldlt_factor`,
  *     and unpacks the result.  Correct by construction; slow because
  *     the factor body runs through the linked-list kernel.
  *     `src/sparse_ldlt_csc.c` now keeps this as one public wrapper
@@ -471,23 +472,22 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
  *     publish-back helper clusters, so the fallback contract stays
  *     explicit without one giant mixed-role function body.
  *
- *   - **Native** (Sprint 18).  Column-by-column Bunch-Kaufman directly
- *     on packed CSC storage.  Target: bit-identical output vs wrapper
- *     on every test matrix, with the pointer-chasing overhead of the
- *     linked-list kernel removed.
+ *   - **Native**.  Runs column-by-column Bunch-Kaufman directly on packed CSC
+ *     storage. Target: bit-identical output vs wrapper on every test matrix,
+ *     with the pointer-chasing overhead of the linked-list kernel removed.
  *
  * Dispatch is compile-time (`-DLDLT_CSC_USE_NATIVE=1` to flip the
  * default to native) and runtime-overridable via
  * `ldlt_csc_set_kernel_override` so a single test binary can exercise
- * either path on demand during Sprint 18's migration.
+ * either path on demand.
  */
 
 /** @name Kernel selection for ldlt_csc_eliminate.
  *
  * Compile-time default controlled by LDLT_CSC_USE_NATIVE (0 = wrapper,
- * 1 = native).  Sprint 18 Day 5 flipped this to native-by-default after
- * the full test corpus (including a 20+ random-matrix cross-check
- * against `sparse_ldlt_factor`) passes bit-identically on both paths.
+ * 1 = native). Native is the maintained default after the full test corpus
+ * (including random-matrix cross-checks against `sparse_ldlt_factor`) passed
+ * bit-identically on both paths.
  * The wrapper stays compiled so tests and benchmarks can exercise it
  * via the runtime override, but no production call site selects it.
  */
@@ -498,14 +498,14 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
 /** Kernel-selection override codes for `ldlt_csc_set_kernel_override`. */
 typedef enum {
     LDLT_CSC_KERNEL_DEFAULT = 0, /**< Use the compile-time default (LDLT_CSC_USE_NATIVE). */
-    LDLT_CSC_KERNEL_WRAPPER = 1, /**< Force the Sprint 17 wrapper path. */
-    LDLT_CSC_KERNEL_NATIVE = 2,  /**< Force the Sprint 18 native kernel. */
+    LDLT_CSC_KERNEL_WRAPPER = 1, /**< Force the wrapper path. */
+    LDLT_CSC_KERNEL_NATIVE = 2,  /**< Force the native kernel. */
 } LdltCscKernelOverride;
 
 /**
  * Override the kernel selected by `ldlt_csc_eliminate` for the current
  * process.  Intended for tests and benchmarks that need to exercise
- * both paths on the same binary during the Sprint 18 migration.
+ * both paths on the same binary.
  *
  * Thread-safety: not thread-safe.  Callers are expected to set once
  * at test setup and clear at teardown.  Production call sites should
@@ -553,14 +553,14 @@ LdltCscKernelOverride ldlt_csc_get_kernel_override(void);
  */
 sparse_err_t ldlt_csc_eliminate(LdltCsc *F);
 
-/** Sprint 17 wrapper path — exposed for tests/benchmarks via override. */
+/** Wrapper path — exposed for tests/benchmarks via override. */
 sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F);
 
-/** Sprint 18 native path — exposed for tests/benchmarks via override. */
+/** Native path — exposed for tests/benchmarks via override. */
 sparse_err_t ldlt_csc_eliminate_native(LdltCsc *F);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Native-kernel workspace (Sprint 18)
+ * Native-kernel workspace
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Bunch-Kaufman needs two dense column accumulators per step: one for
@@ -569,7 +569,8 @@ sparse_err_t ldlt_csc_eliminate_native(LdltCsc *F);
  * gather triple (dense buffer + pattern list + per-row marker) so a
  * single cmod pass over the prior factored columns touches only the
  * rows that end up non-zero.  This mirrors the `CholCscWorkspace`
- * layout from Sprint 17 Day 4, duplicated for the partner column.
+ * layout used by the Cholesky CSC workspace, duplicated for the partner
+ * column.
  */
 typedef struct {
     idx_t n;                /**< Matrix dimension (matches the LdltCsc being factored). */
@@ -600,7 +601,7 @@ sparse_err_t ldlt_csc_workspace_alloc(idx_t n, LdltCscWorkspace **out);
 void ldlt_csc_workspace_free(LdltCscWorkspace *ws);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * In-place symmetric swap (Sprint 18 Day 2)
+ * In-place symmetric swap
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Bunch-Kaufman pivoting forms a symmetric permutation P every time it
@@ -654,7 +655,7 @@ void ldlt_csc_workspace_free(LdltCscWorkspace *ws);
 sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Day 9: Triangular + block diagonal solve on a factored LdltCsc
+ * Triangular + block diagonal solve on a factored LdltCsc
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Given P*A*P^T = L*D*L^T, solving A*x = b proceeds in five phases:
@@ -900,8 +901,8 @@ sparse_err_t ldlt_csc_supernode_eliminate_panel(const double *L_diag, const doub
 /**
  * Top-level batched supernodal LDL^T entry point.
  *
- * Mirror of `chol_csc_eliminate_supernodal` (Sprint 18 Day 10) for the
- * LDL^T side.  Detects 2×2-aware supernodes via
+ * Mirror of `chol_csc_eliminate_supernodal` for the LDL^T side.
+ * Detects 2x2-aware supernodes via
  * `ldlt_csc_detect_supernodes`, then for each detected supernode of
  * size >= 2 runs the batched path (extract / eliminate_diag /
  * eliminate_panel / writeback).  Singleton supernodes and any column

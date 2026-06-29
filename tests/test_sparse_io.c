@@ -221,6 +221,74 @@ static void test_load_bad_header(void) {
     ASSERT_NULL(A);
 }
 
+static void test_load_bad_negative_dimensions(void) {
+    const char *path = tf_tmp("bad_negative_dimensions.mtx");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    if (!fp)
+        return;
+
+    fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
+    fprintf(fp, "-3 3 1\n");
+    fprintf(fp, "1 1 1.0\n");
+    ASSERT_TRUE(fclose(fp) == 0);
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_ERR_PARSE);
+    ASSERT_NULL(A);
+}
+
+static void test_load_bad_rectangular_symmetric_header(void) {
+    const char *path = tf_tmp("bad_rectangular_symmetric_header.mtx");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    if (!fp)
+        return;
+
+    fprintf(fp, "%%%%MatrixMarket matrix coordinate real symmetric\n");
+    fprintf(fp, "2 3 1\n");
+    fprintf(fp, "1 1 1.0\n");
+    ASSERT_TRUE(fclose(fp) == 0);
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_ERR_PARSE);
+    ASSERT_NULL(A);
+}
+
+static void test_load_bad_out_of_range_coordinate(void) {
+    const char *path = tf_tmp("bad_out_of_range_coordinate.mtx");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    if (!fp)
+        return;
+
+    fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
+    fprintf(fp, "3 3 1\n");
+    fprintf(fp, "4 1 1.0\n");
+    ASSERT_TRUE(fclose(fp) == 0);
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_ERR_PARSE);
+    ASSERT_NULL(A);
+}
+
+static void test_load_bad_zero_coordinate(void) {
+    const char *path = tf_tmp("bad_zero_coordinate.mtx");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    if (!fp)
+        return;
+
+    fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
+    fprintf(fp, "3 3 1\n");
+    fprintf(fp, "0 1 1.0\n");
+    ASSERT_TRUE(fclose(fp) == 0);
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_ERR_PARSE);
+    ASSERT_NULL(A);
+}
+
 static void test_save_null_args(void) {
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_ERR(sparse_save_mm(NULL, tf_tmp("test.mtx")), SPARSE_ERR_NULL);
@@ -419,6 +487,10 @@ int main(void) {
     /* Error paths */
     RUN_TEST(test_load_nonexistent_file);
     RUN_TEST(test_load_bad_header);
+    RUN_TEST(test_load_bad_negative_dimensions);
+    RUN_TEST(test_load_bad_rectangular_symmetric_header);
+    RUN_TEST(test_load_bad_out_of_range_coordinate);
+    RUN_TEST(test_load_bad_zero_coordinate);
     RUN_TEST(test_save_null_args);
     RUN_TEST(test_load_null_args);
     RUN_TEST(test_save_invalid_path);

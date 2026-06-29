@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -64,7 +65,36 @@ void pool_free_all(NodePool *pool) {
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
-static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
+static sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt, va_list ap) {
+    int rc = 0;
+    if (!stream || !fmt)
+        return SPARSE_ERR_NULL;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+    errno = 0;
+    rc = vfprintf(stream, fmt, ap);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+    if (rc < 0) {
+        sparse_set_errno_(errno != 0 ? errno : EIO);
+        return SPARSE_ERR_IO;
+    }
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...) {
+    sparse_err_t err;
+    va_list ap;
+    va_start(ap, fmt);
+    err = sparse_stream_vprintf_checked(stream, fmt, ap);
+    va_end(ap);
+    return err;
+}
+
+static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
     Node *n = pool_alloc(&mat->pool);
     if (!n)
         return NULL;
@@ -79,7 +109,7 @@ static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, double v) {
 typedef struct {
     idx_t row;
     idx_t col;
-    double value;
+    sparse_scalar_t value;
     idx_t order;
 } SparseBuildEntry;
 
@@ -143,7 +173,7 @@ static sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols,
     for (idx_t pos = 0; pos < nentries;) {
         idx_t row = entries[pos].row;
         idx_t col = entries[pos].col;
-        double value = entries[pos].value;
+        sparse_scalar_t value = entries[pos].value;
         idx_t next = pos + 1;
 
         while (next < nentries && entries[next].row == row && entries[next].col == col) {
@@ -1055,17 +1085,24 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {
         return SPARSE_ERR_IO;
     }
 
-    fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
-    fprintf(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %" SPARSE_PRIDX "\n", mat->rows, mat->cols,
-            mat->nnz);
+    if (sparse_stream_printf_checked(fp, "%%%%MatrixMarket matrix coordinate real general\n") !=
+            SPARSE_OK ||
+        sparse_stream_printf_checked(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %" SPARSE_PRIDX "\n",
+                                     mat->rows, mat->cols, mat->nnz) != SPARSE_OK) {
+        fclose(fp);
+        return SPARSE_ERR_IO;
+    }
 
     for (idx_t log_i = 0; log_i < mat->rows; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
-            fprintf(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %.15g\n", log_i + 1, log_j + 1,
-                    node->value);
+            if (sparse_stream_printf_checked(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %.15g\n",
+                                             log_i + 1, log_j + 1, node->value) != SPARSE_OK) {
+                fclose(fp);
+                return SPARSE_ERR_IO;
+            }
             node = node->right;
         }
     }
@@ -1122,6 +1159,10 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
         fclose(fp);
         return SPARSE_ERR_PARSE;
     }
+    if (m < 0 || n < 0 || nnz_file < 0 || (is_symmetric && m != n)) {
+        fclose(fp);
+        return SPARSE_ERR_PARSE;
+    }
 
     size_t nnz_file_count = 0;
     size_t triplet_capacity = 0;
@@ -1138,7 +1179,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
     size_t entry_count = 0;
     for (idx_t k = 0; k < nnz_file; k++) {
         idx_t i, j;
-        double v = 1.0; /* default for pattern matrices */
+        sparse_scalar_t v = 1.0; /* default for pattern matrices */
         if (is_pattern) {
             if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &i, &j) != 2) {
                 sparse_err_t ioerr =
@@ -1156,9 +1197,19 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
                 return ioerr;
             }
         }
+        if (i <= 0 || j <= 0) {
+            free(entries);
+            fclose(fp);
+            return SPARSE_ERR_PARSE;
+        }
         i--; /* 1-based -> 0-based */
         j--;
-        if (i >= 0 && i < m && j >= 0 && j < n) {
+        if (i >= m || j >= n) {
+            free(entries);
+            fclose(fp);
+            return SPARSE_ERR_PARSE;
+        }
+        {
             idx_t order = 0;
             if (entry_count >= triplet_capacity ||
                 sparse_size_to_idx_checked(entry_count, &order)) {
@@ -1173,7 +1224,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
                 .order = order,
             };
             /* For symmetric matrices, also insert the mirror entry */
-            if (is_symmetric && i != j && j < m && i < n) {
+            if (is_symmetric && i != j) {
                 if (entry_count >= triplet_capacity ||
                     sparse_size_to_idx_checked(entry_count, &order)) {
                     free(entries);
@@ -1221,17 +1272,20 @@ sparse_err_t sparse_print_dense(const SparseMatrix *mat, FILE *stream) {
         return SPARSE_ERR_NULL;
 
     if (mat->rows > 50 || mat->cols > 50) {
-        fprintf(stream,
-                "[WARNING: matrix is %" SPARSE_PRIDX "x%" SPARSE_PRIDX
-                ", dense print may be very large]\n",
-                mat->rows, mat->cols);
+        if (sparse_stream_printf_checked(stream,
+                                         "[WARNING: matrix is %" SPARSE_PRIDX "x%" SPARSE_PRIDX
+                                         ", dense print may be very large]\n",
+                                         mat->rows, mat->cols) != SPARSE_OK)
+            return SPARSE_ERR_IO;
     }
 
     for (idx_t i = 0; i < mat->rows; i++) {
         for (idx_t j = 0; j < mat->cols; j++) {
-            fprintf(stream, "%10.4f ", sparse_get(mat, i, j));
+            if (sparse_stream_printf_checked(stream, "%10.4f ", sparse_get(mat, i, j)) != SPARSE_OK)
+                return SPARSE_ERR_IO;
         }
-        fprintf(stream, "\n");
+        if (sparse_stream_printf_checked(stream, "\n") != SPARSE_OK)
+            return SPARSE_ERR_IO;
     }
 
     return SPARSE_OK;
@@ -1246,8 +1300,10 @@ sparse_err_t sparse_print_entries(const SparseMatrix *mat, FILE *stream) {
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
-            fprintf(stream, "  (%" SPARSE_PRIDX ", %" SPARSE_PRIDX ") = %.15g\n", log_i, log_j,
-                    node->value);
+            if (sparse_stream_printf_checked(stream,
+                                             "  (%" SPARSE_PRIDX ", %" SPARSE_PRIDX ") = %.15g\n",
+                                             log_i, log_j, node->value) != SPARSE_OK)
+                return SPARSE_ERR_IO;
             node = node->right;
         }
     }
@@ -1259,10 +1315,12 @@ sparse_err_t sparse_print_info(const SparseMatrix *mat, FILE *stream) {
     if (!mat || !stream)
         return SPARSE_ERR_NULL;
 
-    fprintf(stream,
-            "SparseMatrix: %" SPARSE_PRIDX " x %" SPARSE_PRIDX ", nnz = %" SPARSE_PRIDX
-            ", memory ~ %zu bytes\n",
-            mat->rows, mat->cols, mat->nnz, sparse_memory_usage(mat));
+    if (sparse_stream_printf_checked(stream,
+                                     "SparseMatrix: %" SPARSE_PRIDX " x %" SPARSE_PRIDX
+                                     ", nnz = %" SPARSE_PRIDX ", memory ~ %zu bytes\n",
+                                     mat->rows, mat->cols, mat->nnz,
+                                     sparse_memory_usage(mat)) != SPARSE_OK)
+        return SPARSE_ERR_IO;
 
     return SPARSE_OK;
 }

@@ -825,9 +825,11 @@ The library is safe for concurrent use under the following contract:
 - **In-place factorization.** `sparse_lu_factor` and `sparse_cholesky_factor` overwrite the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
 - **Factored-state validation.** Solve functions check an internal `factored` flag and return `SPARSE_ERR_BADARG` if the matrix has not been factored. Modifying a factored matrix (insert/remove) clears the flag. For externally-constructed factors (e.g., imported from CSR), call `sparse_mark_factored()` before solving.
 - **Scalar support is still real-only.** The current dense-scalar public seam
-  is named `sparse_scalar_t`, but the shipped contract still binds it to real
-  double precision only. This is bounded preparation for later widening, not a
-  claim of complex or broad generic-scalar support today.
+  is named `sparse_scalar_t`. The shared matrix-shell helper and storage/build
+  seam plus the iterative, eigensolver, and QR public buffer seams now route
+  through that alias, but the shipped contract still binds it to real double
+  precision only. This is bounded preparation for later widening, not a claim
+  of complex or broad generic-scalar support today.
 
 ## Testing
 

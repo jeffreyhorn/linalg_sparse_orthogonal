@@ -214,7 +214,8 @@ Current maintained interpretation:
 - wider indices are now a bounded compile-time contract through
   `SPARSE_IDX_BITS`, not a hand-edited typedef story
 - the strongest touched public dense-scalar seam now routes through
-  `sparse_scalar_t`
+  `sparse_scalar_t`, and the shared matrix-shell storage/build owner now
+  matches that public seam
 - current shipped scalar support still remains real-only `double`
 - later scalar breadth and later algorithm-family widening remain explicitly
   deferred
@@ -224,21 +225,22 @@ Interpretation:
 - caller-facing docs should present the width lane as compile-time-selectable,
   but should not imply that the whole repo is already broadly 64-bit-modernized
 - caller-facing docs and touched public headers may use `sparse_scalar_t` as
-  the dense-scalar owner on the shared matrix-shell helper seam plus the
-  iterative/eigs seam
+  the dense-scalar owner on the shared matrix-shell helper seam and
+  storage/build path plus the iterative/eigs/QR public seams
 - maintainers should keep the scalar wording explicit: this is bounded public
   preparation for later widening, not proof of complex support or broad
   numeric genericity
 - install/export, reviewed-platform, and ABI wording should stay unchanged
   unless a later sprint actually moves those contracts
 
-Current maintained proof ownership after Sprint 84 Day 6:
+Current maintained proof ownership after the Sprint 94 Day 10 baseline:
 
 - `tests/test_sparse_matrix.c` owns the width-contract proof surface:
   - `SPARSE_IDX_BITS`
   - `IDX_MAX`
   - `sparse_idx_bits()`
-  - `sparse_scalar_t` on the shared matrix-shell helper seam
+  - `sparse_scalar_t` on the shared matrix-shell helper seam plus the
+    touched storage/build owner
   - `sparse_scalar_bits()` on the shared matrix-shell public contract
 - `tests/test_iterative.c` owns the iterative public scalar seam:
   - `sparse_scalar_t` matrix-free callback vectors
@@ -249,6 +251,10 @@ Current maintained proof ownership after Sprint 84 Day 6:
 - `tests/test_qr.c` owns the QR public scalar seam:
   - `sparse_scalar_t` caller-owned solve buffers
   - `sparse_scalar_t` QR helper output buffers on the widened public header
+- `tests/test_sparse_io.c` owns the touched matrix-shell load-path width and
+  parse-rejection proof:
+  - malformed Matrix Market dimension and coordinate rejection on the touched
+    width-aware consumer seam
 - `tests/test_chol_csc.c` owns the bounded direct-family maintained external
   differential lane:
   - Cholesky CSC SPD solves checked against an external-process dense reference

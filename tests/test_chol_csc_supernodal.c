@@ -865,6 +865,8 @@ static void test_ldlt_dense_factor_2x2_forced(void) {
     ASSERT_EQ(ps[0], 2);
     ASSERT_EQ(ps[1], 2);
     ASSERT_TRUE(fabs(Doff[0]) > 1e-10);
+    ASSERT_NEAR(A[1], 0.0, 0.0);
+    ASSERT_NEAR(A[3], 0.0, 0.0);
     ASSERT_TRUE(ldlt_dense_reconstruction_matches(A_init, A, D, Doff, ps, 3, 3, 1e-10));
 }
 

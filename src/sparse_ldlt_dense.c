@@ -554,6 +554,7 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 
             A[k + k * lda] = 1.0;
             A[(k + 1) + k * lda] = 0.0;
+            A[k + (k + 1) * lda] = 0.0;
             A[(k + 1) + (k + 1) * lda] = 1.0;
 
             k += 2;

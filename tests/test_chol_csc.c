@@ -24,6 +24,7 @@
 
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1621,6 +1622,8 @@ static double compute_rel_residual(const SparseMatrix *A, const double *x, const
     idx_t n = sparse_rows(A);
     if (n == 0)
         return 0.0;
+    if (n < 0 || (size_t)n > SIZE_MAX / sizeof(double))
+        return (double)NAN;
     double *Ax = malloc((size_t)n * sizeof(double));
     if (!Ax)
         return (double)NAN;

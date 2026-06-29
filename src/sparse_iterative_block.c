@@ -55,8 +55,12 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     sparse_iter_workspace_t workspace;
     sparse_block_cg_workspace_view_t block_ws;
     sparse_iter_workspace_init(&workspace);
-    if (sparse_iter_workspace_prepare_block_cg(&workspace, n, nrhs, &block_ws) != SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
+    sparse_err_t prepare_err =
+        sparse_iter_workspace_prepare_block_cg(&workspace, n, nrhs, &block_ws);
+    if (prepare_err != SPARSE_OK) {
+        sparse_iter_workspace_free(&workspace);
+        return prepare_err;
+    }
     double *R = block_ws.R;
     double *Z = block_ws.Z;
     double *P = block_ws.P;

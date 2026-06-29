@@ -1622,15 +1622,16 @@ static double compute_rel_residual(const SparseMatrix *A, const double *x, const
     idx_t n = sparse_rows(A);
     if (n == 0)
         return 0.0;
-    if (n < 0 || (size_t)n > SIZE_MAX / sizeof(double))
+    size_t n_size = (size_t)n;
+    if (n < 0 || (idx_t)n_size != n || n_size > SIZE_MAX / sizeof(double))
         return (double)NAN;
-    double *Ax = malloc((size_t)n * sizeof(double));
+    double *Ax = malloc(n_size * sizeof(double));
     if (!Ax)
         return (double)NAN;
     sparse_matvec(A, x, Ax);
     double max_r = 0.0;
     double max_b = 0.0;
-    for (idx_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n_size; i++) {
         double ri = fabs(Ax[i] - b[i]);
         if (ri > max_r)
             max_r = ri;

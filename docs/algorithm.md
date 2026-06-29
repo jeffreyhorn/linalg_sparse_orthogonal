@@ -282,11 +282,11 @@ A dense column accumulator is used for each column k to efficiently handle fill-
 | nos4 (100×100) | 1510 | 805 | 47% |
 | bcsstk04 (132×132) | 8581 | 3664 | 57% |
 
-## CSC Numeric Backend for Cholesky (Sprint 17)
+## CSC Numeric Backend for Cholesky
 
 The CSC Cholesky path (`src/sparse_chol_csc.c`) re-implements Cholesky's
-inner loop on contiguous column arrays, mirroring the Sprint 10 CSR LU
-working-format strategy for SPD matrices.
+inner loop on contiguous column arrays, mirroring the CSR LU working-format
+strategy for SPD matrices.
 
 ### Data layout
 
@@ -351,14 +351,14 @@ factor with AMD reorder inside the timed region on all paths):
 Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
 within double-precision round-off on every matrix above.
 
-Three takeaways from the scaling corpus (Sprint 18 Day 12):
+Three takeaways from the current scaling corpus:
 
 - **Scalar-CSC speedup scales with n.**  The ratio climbs from 1.09×
-  at n = 100 to 2.61× at n = 14 822, matching the Sprint 17
-  hypothesis that linked-list pointer-chasing overhead grows faster
+  at n = 100 to 2.61× at n = 14 822, matching the design hypothesis
+  that linked-list pointer-chasing overhead grows faster
   than CSC column traversal.
 - **Supernodal beats scalar on every non-trivial matrix.**  The
-  batched Days 6-10 kernel pulls ahead by another 1.2–2.9× on top
+  batched supernodal kernel pulls ahead by another 1.2–2.9× on top
   of scalar CSC on the four new fixtures.  The only exception is
   bcsstk04 (supernodal 1.01× vs scalar 1.16×) where the matrix is
   small enough that supernode-detection overhead eats the dense-
@@ -378,8 +378,8 @@ analyze-once / factor-many workflow (`sparse_analyze` once →
 repeated `sparse_refactor_numeric` for each new value pattern)
 the AMD cost amortizes and the CSC
 kernel's advantage is dramatically larger — measured 2.4× at n = 132
-climbing to 24.3× at n ≈ 15 k on the same corpus (Sprint 19 Day 1-2,
-captured by `benchmarks/bench_refactor_csc.c`).  See
+climbing to 24.3× at n ≈ 15 k on the same corpus, captured by
+`benchmarks/bench_refactor_csc.c`.  See
 [`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
 for the full 12-column CSV, both workflow tables, the hypothesis-
 check analysis, and reproduction instructions; raw captures in
@@ -388,7 +388,7 @@ check analysis, and reproduction instructions; raw captures in
 [`docs/planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt`](planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt)
 (analyze-once).
 
-## Supernodal Detection and Batched Kernel (Sprint 17 + Sprint 18 Days 6-9)
+## Supernodal Detection and Batched Kernel
 
 A *fundamental supernode* is a contiguous run of columns
 `j, j+1, …, j+s-1` that share the same below-diagonal nonzero pattern.

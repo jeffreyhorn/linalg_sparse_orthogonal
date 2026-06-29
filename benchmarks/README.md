@@ -4,6 +4,12 @@ Permanent benchmark drivers for the sparse linear algebra library.
 Built via `make bench`; invoked individually via `make bench-<name>`
 or by running the binary in `build/` directly.
 
+Use this file for benchmark command groups, CSV fields, report artifacts, and
+measurement caveats. Use the [README](../README.md) for the top-level project
+route, [examples/README](../examples/README.md) for API adoption examples, and
+the [Maintainer Guide](../docs/maintainer_guide.md) for reviewed-baseline and
+proof-owner interpretation.
+
 ## Compile-only gate
 
 Routine local quality checks should now catch benchmark/example compile
@@ -25,10 +31,9 @@ Focused subsets remain available:
 - `make bench-build`
 - `make examples-build`
 
-For repository-wide reviewed-baseline, dead-code, and maintainer-policy
-interpretation, use the top-level [README](../README.md) and the
-[Maintainer Guide](../docs/maintainer_guide.md). This file stays focused on
-benchmark-local command usage and surface-specific behavior.
+This compile-only gate is a support check for benchmark drift; it is not the
+owner of repository-wide reviewed-baseline, dead-code, or maintainer-policy
+claims.
 
 ## Reorder coverage
 
@@ -45,8 +50,9 @@ depending on what the underlying factorization path actually supports:
   - cross-ordering comparison harness for `none`, `rcm`, `amd`, `colamd`,
     and `nd`
   - supports both direct reorder calls and `--reorder-via-analyze`
-  - supports `--sprint86-slice` for the bounded Sprint 86 runtime corpus
-    (`bcsstk14`, `Pres_Poisson`)
+  - supports `--sprint86-slice` for the bounded ND rerun corpus
+    (`bcsstk14`, `Pres_Poisson`); the flag name is historical, but the current
+    use is a small, named fixture slice
   - emits stable CSV rows with:
     - `matrix`
     - `n`
@@ -57,9 +63,10 @@ depending on what the underlying factorization path actually supports:
     - `reorder_path`
     - `fixture_slice`
     - `nd_base_threshold`
-  - interpret the added Sprint 93 evidence fields narrowly:
+  - interpret the added evidence fields narrowly:
     - `reorder_path` = `direct` or `analyze`
-    - `fixture_slice` = `sprint86` when `--sprint86-slice` is active, otherwise `all`
+    - `fixture_slice` = `sprint86` when `--sprint86-slice` is active,
+      otherwise `all`
     - `nd_base_threshold` = current ND base-threshold setting for the run; only `reorder=nd` rows use it
 - `bench_colamd` and `example_colamd`
   - QR-focused comparison tools for `none`, `amd`, and `colamd`
@@ -77,9 +84,9 @@ depending on what the underlying factorization path actually supports:
 | `bench_convergence`    | Iterative-solver convergence rates                      | (in `make bench`)         |
 | `bench_svd`            | Sparse SVD (bidiagonalisation + QR)                     | (in `make bench`)         |
 | `bench_refactor`       | Direct repeated-run lifecycle: Cholesky analyze once / refactor many | (in `make bench`) |
-| `bench_refactor_csc`   | Direct repeated-run lifecycle proof: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`) |
-| `bench_iterative_reuse`| Public repeated-run iterative handle proof: CG, GMRES, MINRES | (in `make bench`)    |
-| `bench_eigs_reuse`     | Public repeated-run eigensolver handle proof: grow-m, thick-restart, explicit LOBPCG | (in `make bench`) |
+| `bench_refactor_csc`   | Direct repeated-run lifecycle measurement: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`) |
+| `bench_iterative_reuse`| Public repeated-run iterative handle measurement: CG, GMRES, MINRES | (in `make bench`)    |
+| `bench_eigs_reuse`     | Public repeated-run eigensolver handle measurement: grow-m, thick-restart, explicit LOBPCG | (in `make bench`) |
 | `bench_colamd`         | QR/COLAMD ordering quality                              | (in `make bench`)         |
 | `bench_bicgstab`       | BiCGStab convergence                                    | (in `make bench`)         |
 | `bench_chol_csc`       | CSC Cholesky backend comparison                         | (in `make bench`)         |
@@ -111,9 +118,9 @@ The shipped benchmark surfaces are easiest to read in four bounded groups:
 
 ## Current maintained category split
 
-The Sprint 65 maintained performance-governance split is:
+The current maintained performance-governance split is:
 
-- canonical maintained proof surface:
+- canonical maintained measurement surface:
   - `bench_refactor_csc`
   - `bench_chol_csc`
   - `bench_iterative_reuse`
@@ -134,14 +141,14 @@ The Sprint 65 maintained performance-governance split is:
 
 Interpretation:
 
-- the canonical maintained surface is where Sprint 65 normalization and later
-  efficiency follow-through should stay centered
+- the canonical maintained surface is where efficiency follow-through should
+  stay centered
 - the runtime lane is useful for current-branch checks but should not be
-  marketed as portable performance proof
+  marketed as a portable performance guarantee
 - the exploratory lane stays valuable without defining the compact maintained
   benchmark face of the repo
 - examples remain the API-adoption teaching surface; benchmarks remain the
-  workflow/performance proof surface
+  workflow/performance measurement surface
 
 For threshold-free local or CI-friendly reporting on the maintained canonical
 surface, use:
@@ -170,16 +177,17 @@ plus a bounded bundle-level metadata surface:
 This is intentionally not a pass/fail timing gate:
 
 - compare the emitted CSV rows across branches or runs
-- treat it as artifact-friendly reporting, not portable performance proof
+- treat it as artifact-friendly reporting, not a portable performance guarantee
 - use the bundle metadata to make before/after or cross-branch snapshots
   easier to line up without widening the benchmark claim surface
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
-- for the bounded Sprint 86 ND runtime rerun slice, use:
+- for the bounded ND rerun slice, use:
   - `make bench-reorder-sprint86`
   - this expands to `bench_reorder --sprint86-slice --skip-factor`
-  - it is branch-local evidence for the touched ND lane, not canonical proof
+  - the target name is historical; treat the current output as branch-local
+    evidence for the bounded ND lane, not as a canonical benchmark claim
 
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:
@@ -197,7 +205,7 @@ surfaces for the public repeated-run direct lifecycle:
   - `--indefinite-kkt` switches to a synthetic above-threshold KKT saddle-point
     workload and compares the public repeated-run LDL^T path against the direct
     resolved-analysis CSC completion path
-  - reads as the main throughput/proof surface for the large-`n` CSC-backed
+  - reads as the main throughput/measurement surface for the large-`n` CSC-backed
     repeated-run direct lane, not as the error-path contract surface; failed
     refactor preservation stays owned by `tests/test_integration.c`
   - the family-local large-`n` analysis-backed CSC helper parity stays owned
@@ -232,12 +240,12 @@ Read that support split narrowly:
 
 - examples such as `example_analysis` stay the adoption entry points
 - `bench_refactor` / `bench_refactor_csc` stay the retained
-  workflow/performance proof surfaces after adoption
+  workflow/performance measurement surfaces after adoption
 - tests still own regression/oracle/property guarantees for the large-`n`
   CSC-backed lifecycle lane
 
-`bench_chol_csc` remains the maintained benchmark-side proof surface for the
-first Sprint 64 backend-aware Cholesky CSC lane:
+`bench_chol_csc` remains the maintained benchmark-side measurement surface for
+the backend-aware Cholesky CSC lane:
 
 - it still compares linked-list, CSC scalar, and CSC supernodal timings on
   one fixed AMD-reordered workload so fallback and accelerated paths stay
@@ -257,25 +265,25 @@ first Sprint 64 backend-aware Cholesky CSC lane:
   behind the supernodal lane; on the current default build it reports
   `builtin`
 - `csc_supernodal_panel_solver` identifies whether the supernodal lane has
-  the batched panel-solve callback required by the Sprint 75 Day 7 kernel
+  the batched panel-solve callback required by the supernodal kernel
   landing; on the current default build it reports `batched_panel`
-- this keeps the Sprint 64 benchmark refresh bounded to path measurability and
+- this keeps the benchmark refresh bounded to path measurability and
   truthfulness, not broad benchmark-governance churn
-- the Sprint 75 Day 10 public callback/runtime semantics remain test-owned in
+- the public callback/runtime semantics remain test-owned in
   `tests/test_integration.c`; this benchmark stays a measurement surface, not
   the owner of progress/cancel truth
-- it is not the owner of the Sprint 68 staged public-path oracle/parity lane
+- it is not the owner of the staged public-path oracle/parity lane
   or the bounded seeded lifecycle property lane; those remain test-owned in
   `tests/test_integration.c` and `tests/test_fuzz.c`
 
 So the benchmark-side reading stays:
 
-- benchmarks = proof and measurement surfaces
+- benchmarks = measurement surfaces
 - examples = adoption surfaces
 - tests = regression/oracle/property owners
 
 The two reuse benchmarks stay intentionally narrow and should be read as public
-handle-path proof surfaces, not broad solver bake-offs:
+handle-path measurement surfaces, not broad solver bake-offs:
 
 - `bench_iterative_reuse`
   - compares one-shot and explicit public-handle repeated-run paths for:

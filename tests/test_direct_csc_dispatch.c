@@ -1,13 +1,13 @@
 /**
- * Sprint 18 cross-feature integration tests.
+ * Direct CSC dispatch integration tests.
  *
  * Exercises the transparent CSC dispatch in
  * `sparse_cholesky_factor_opts` across the `SPARSE_CSC_THRESHOLD`
  * boundary: matrices with n < threshold must take the linked-list
  * path, matrices with n >= threshold must take the CSC supernodal
  * path, and both paths must agree on the solution for a matrix that
- * can be factored either way.  Also covers the native CSC LDL^T
- * kernel (Sprint 18 Days 1-5) on indefinite and SPD inputs.
+ * can be factored either way. Also covers the native CSC LDL^T kernel on
+ * indefinite and SPD inputs.
  */
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
@@ -472,7 +472,7 @@ static void test_s18_ldlt_csc_native_matches_wrapper_indefinite(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("test_sprint18_integration");
+    TEST_SUITE_BEGIN("test_direct_csc_dispatch");
 
     /* Cholesky dispatch — cross-threshold coverage */
     RUN_TEST(test_s18_below_threshold_uses_linked_list);

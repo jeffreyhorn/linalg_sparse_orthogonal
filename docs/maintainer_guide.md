@@ -59,6 +59,35 @@ Command-detail boundary:
 - use this guide for repository-wide interpretation of those surfaces, not as a
   shadow command reference
 
+## Support Surface Ownership
+
+Current support surfaces should keep a clear owner split:
+
+- `README.md` owns the project front door, first local build path, compact
+  workflow chooser, and links to deeper support surfaces.
+- `INSTALL.md` owns operational setup, staged installs, installed-consumer
+  detail, and local install-surface validation.
+- `benchmarks/README.md` owns benchmark command groups, CSV schema,
+  report-artifact meaning, and measurement caveats.
+- `examples/README.md` owns executable example selection and example-local
+  usage notes.
+- `docs/tutorial.md` owns the longer learning path after the README.
+- public headers own API-local call-site contracts.
+- tests own regression, oracle, and property guarantees.
+- `docs/planning/**` owns historical sprint provenance.
+- this guide owns the maintainer interpretation of those boundaries.
+
+Support cross-link rules:
+
+- link to `INSTALL.md` when the reader needs install, package, downstream
+  consumer, or install-validation detail
+- link to `benchmarks/README.md` when the reader needs benchmark command
+  syntax, CSV fields, or measurement interpretation
+- link to this guide when the reader needs reviewed-platform interpretation,
+  proof ownership, warning authority, or documentation-placement policy
+- link to planning artifacts only when historical context explains a current
+  limitation, compatibility decision, or validation boundary
+
 ## Reviewed Baseline and Warning Authority
 
 ### Strongest local reviewed baseline
@@ -474,6 +503,16 @@ Current maintained proof ownership after Sprint 79 Day 6:
   ownership proof surface:
   - a writeback-produced shell is factored, solve-ready, and carries the
     published reorder permutation payload
+- `tests/test_direct_csc_dispatch.c` owns the cross-threshold Cholesky CSC
+  dispatch and forced backend parity proof surface
+- `tests/test_direct_csc_regression.c` owns the retained direct-family CSC
+  regression bundle:
+  - threshold lock
+  - Kuu scalar CSC regression
+  - row-adjacency structural checks
+  - supernodal LDL^T scalar/batched parity
+- `tests/test_ldlt_backend_dispatch.c` owns the public LDL^T backend selector
+  and AUTO/forced dispatch proof surface
 - `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
   Cholesky parity and failure-preservation contract
 - `tests/test_integration.c` also owns the public repeated-run LDL^T lifecycle

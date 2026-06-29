@@ -52,17 +52,12 @@ repeated runs, not replacements for the small one-shot examples here:
 The public repeated-run handle surface intentionally does not broaden to
 `BiCGSTAB` or block iterative workflows.
 
-Keep the support split explicit:
-
-- examples = adoption and workflow teaching
-- tutorial = fuller repeated-run and API walkthrough
-- benchmarks = retained workflow/performance proof
-- tests = regression, oracle, and property guarantees
-
 For the broader user-facing workflow behind those matrix-state rules, use the
 [tutorial](../docs/tutorial.md) and the relevant public headers under
 [`include/`](../include/). This file stays focused on example-local behavior
-and entry points.
+and entry points. Use [benchmarks/README](../benchmarks/README.md) for
+measurement workflows and the [Maintainer Guide](../docs/maintainer_guide.md)
+for quality-policy interpretation.
 
 For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
@@ -108,29 +103,14 @@ Use this path when reuse is the point. Keep the smaller LU/Cholesky/LDL^T
 examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
-It is still an example-side surface, not the owner of the larger
-regression/oracle/property story. Specifically:
-
-- failed refactor preservation and staged public one-shot vs repeated-run
-  parity stay intentionally owned by `tests/test_integration.c`
-- the bounded seeded generative lifecycle follow-through stays owned by
-  `tests/test_fuzz.c`
-
-For retained workflow/performance proof after you adopt that lifecycle, move to
-the benchmark surfaces rather than expecting examples to double as timing
-harnesses:
+For measurement after you adopt that lifecycle, move to the benchmark surfaces
+rather than expecting examples to double as timing harnesses:
 
 - `bench_refactor` / `bench_refactor_csc` for repeated-run direct reuse
 - `bench_iterative_reuse` for iterative handles
 - `bench_eigs_reuse` for eigensolver handles
 - `make bench-canonical-report` when you want one threshold-free snapshot of
   the canonical maintained benchmark surface
-
-That keeps the support split explicit:
-
-- examples = adoption and workflow teaching
-- benchmarks = retained workflow/performance proof
-- tests = regression/oracle/property guarantees
 
 ```bash
 ./build/example_analysis
@@ -140,8 +120,8 @@ Next step after this example:
 
 - move to the [tutorial](../docs/tutorial.md) for the fuller repeated-run
   workflow and API walkthrough
-- move to the benchmark surfaces when you need retained workflow/performance
-  proof rather than another teaching example
+- move to the benchmark surfaces when you need measurement rather than another
+  teaching example
 
 ### Rectangular Least-Squares: example_least_squares
 
@@ -179,7 +159,7 @@ the public iterative-handle path now covers `CG`, `GMRES`, and `MINRES`.
 
 ### One-Shot Symmetric Eigensolver: example_eigs
 
-Compute symmetric eigenpairs with `sparse_eigs_sym` across three high-signal
+Compute symmetric eigenpairs with `sparse_eigs_sym` across three representative
 workflows. Part (a) finds the five largest eigenvalues of a small SPD
 SuiteSparse matrix (nos4, n = 100) and reports per-pair eigen-equation
 residuals. Part (b) exercises shift-invert mode: three eigenvalues nearest
@@ -199,7 +179,7 @@ grow-m Lanczos, thick-restart Lanczos, and explicit `LOBPCG`.
 
 Use `examples/cmake_example/` when you want the downstream installed-consumer
 story rather than a local build-tree example. This example stays separate from
-the local `./build/example_*` teaching binaries because it proves the
+the local `./build/example_*` teaching binaries because it demonstrates the
 installed CMake consumer path instead of the local adoption flow.
 
 For that installed-consumer path, use:

@@ -39,8 +39,7 @@ typedef struct {
                          k = min(m,n); zero produces full U (m×m col-major, leading dim m)
                          and V^T (n×n col-major, leading dim n) — the padded columns/rows
                          past index k are orthonormal completions of the basis (MGS over
-                         canonical unit vectors).  Sprint 29 Day 3 lit up full mode; prior
-                         to that, economy=0 returned SPARSE_ERR_BADARG. */
+                         canonical unit vectors). */
     idx_t max_iter; /**< Maximum QR iterations (0 for default: 30*k) */
     double tol;     /**< Convergence tolerance for superdiagonal entries (0 for default: 1e-14) */
 } sparse_svd_opts_t;
@@ -219,10 +218,8 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  *       intermediate for O(nnz_result) sparse-insert overhead -- it wins
  *       large memory reductions on min(m,n) >> rank_k fixtures (e.g.
  *       ~76-88 % rss reduction on bcsstk14) with neutral wall (SVD compute
- *       dominates either way). Default off preserves Sprint 28 behaviour;
- *       opt in for memory-constrained workloads. See
- *       docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt for the
- *       per-fixture wall + rss measurements.
+ *       dominates either way). Default off preserves the dense-intermediate path;
+ *       opt in for memory-constrained workloads.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

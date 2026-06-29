@@ -59,15 +59,13 @@
 /**
  * @brief Dimension crossover for the CSC Cholesky backend.
  *
- * Since Sprint 18 Day 11 this is *load-bearing*:
  * `sparse_cholesky_factor_opts` with `backend == SPARSE_CHOL_BACKEND_AUTO`
  * dispatches matrices with `rows >= SPARSE_CSC_THRESHOLD` to the
- * Sprint 17 / Sprint 18 CSC working-format kernel (batched supernodal
- * factor + writeback), and routes smaller matrices through the
- * linked-list scalar kernel to avoid the one-time conversion cost on
- * inputs where it would dominate the numeric work.
+ * CSC working-format kernel (batched supernodal factor + writeback), and
+ * routes smaller matrices through the linked-list scalar kernel to avoid the
+ * one-time conversion cost on inputs where it would dominate the numeric work.
  *
- * The default of 100 is measured.  Sprint 19 Day 3-4 ran
+ * The default of 100 is measured. The small-corpus benchmark ran
  * `./build/bench_chol_csc --small-corpus --repeat 50` on 10
  * in-memory SPD fixtures at n ∈ {20, 40, 60, 80} across three
  * families (tridiagonal, banded, dense) plus the real-corpus
@@ -89,10 +87,9 @@
  *
  * 100 is the conservative worst-case that favours the common
  * moderately-sparse SuiteSparse input without penalising the fewer-
- * than-100-column edge.  See the "Threshold guidance" section in
- * `docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md` for the full
- * crossover table and per-structure recommended overrides (dense:
- * ~20, tridiagonal: 150–200).
+ * than-100-column edge. Per-structure override guidance from the
+ * calibration corpus is approximately: dense ~20 and tridiagonal
+ * 150-200.
  *
  * Callers with a known structure can override with
  * `-DSPARSE_CSC_THRESHOLD=N` at compile time, or set
@@ -208,8 +205,8 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col);
  * @param col  Physical column index (0-based).
  * @return The stored value, or 0.0 if the entry is absent or indices are invalid.
  *
- * @note **Silent-zero contract (Sprint 29 Item 7):** this function
- *       returns `0.0` in three distinct cases, which are NOT
+ * @note **Silent-zero contract:** this function returns `0.0` in three
+ *       distinct cases, which are NOT
  *       distinguished by the return value:
  *         1. `mat == NULL`.
  *         2. `row` or `col` is out of `[0, mat->rows)` / `[0,
@@ -221,12 +218,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col);
  *       is in-bounds reads against a populated matrix, where "entry
  *       not stored" naturally means zero (the sparse-matrix
  *       convention).  Callers needing to distinguish absent-vs-OOB
- *       should pre-validate indices via `sparse_rows` /
- *       `sparse_cols`.  See
- *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`
- *       for the design rationale + rejection of the
- *       `sparse_get_err(...)` and `sparse_get_last_error()`
- *       alternatives.
+ *       should pre-validate indices via `sparse_rows` / `sparse_cols`.
  */
 sparse_scalar_t sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
 
@@ -245,12 +237,10 @@ sparse_scalar_t sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
  * @param col  Logical column index (0-based).
  * @return The stored value, or 0.0 if absent or invalid.
  *
- * @note **Silent-zero contract (Sprint 29 Item 7):** mirrors
+ * @note **Silent-zero contract:** mirrors
  *       `sparse_get_phys` — returns `0.0` for NULL `mat`, out-of-
  *       range indices, and absent entries.  These three cases are
- *       NOT distinguishable from the return value.  See
- *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`
- *       for the rationale + alternatives considered.
+ *       NOT distinguishable from the return value.
  */
 sparse_scalar_t sparse_get(const SparseMatrix *mat, idx_t row, idx_t col);
 
@@ -277,10 +267,9 @@ sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t
  * @param mat  The matrix (may be NULL).
  * @return Number of rows, or 0 if mat is NULL.
  *
- * @note **Silent-zero contract (Sprint 29 Item 7):** returns 0 on
+ * @note **Silent-zero contract:** returns 0 on
  *       NULL.  This is indistinguishable from a 0-row matrix
- *       (legitimate corner case).  See
- *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`.
+ *       (legitimate corner case).
  */
 idx_t sparse_rows(const SparseMatrix *mat);
 

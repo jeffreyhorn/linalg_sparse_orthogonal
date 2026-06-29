@@ -456,8 +456,8 @@ typedef struct {
     /** Output: for shift-invert mode (`which == NEAREST_SIGMA`),
      *  set to 1 when the internal `sparse_ldlt_factor_opts` call
      *  selected the CSC supernodal backend and 0 when it routed to
-     *  the linked-list path.  Mirrors the Day 4-6 `used_csc_path`
-     *  telemetry on `sparse_ldlt_opts_t`. Always 0 for
+     *  the linked-list path. Mirrors the `used_csc_path` telemetry on
+     *  `sparse_ldlt_opts_t`. Always 0 for
      *  LARGEST / SMALLEST (no LDL^T factor involved). */
     int used_csc_path_ldlt;
     /** Output: peak Lanczos basis size (number of length-n columns

@@ -1,22 +1,22 @@
 /**
- * Sprint 19 cross-feature integration tests.
+ * Direct CSC regression integration tests.
  *
- * Covers the five Sprint 19 deliverables end-to-end:
- *   - Analyze-once / factor-many smoke (Days 1-2): a refactor-numeric
+ * Covers the retained direct-family CSC regression bundle end-to-end:
+ *   - Analyze-once / factor-many smoke: a refactor-numeric
  *     round-trip on a moderately-sized SPD matrix produces the same
  *     residual as a one-shot factor.
- *   - Sub-100 small-matrix corpus / `SPARSE_CSC_THRESHOLD` (Days 3-4):
+ *   - Sub-100 small-matrix corpus / `SPARSE_CSC_THRESHOLD`:
  *     verify the documented threshold value (100) hasn't drifted.
- *   - Scalar CSC Kuu regression fix (Days 5-7): factor Kuu via the
+ *   - Scalar CSC Kuu regression: factor Kuu via the
  *     scalar CSC Cholesky kernel and assert the solve remains
  *     numerically correct with no residual regression.  A wall-clock
  *     speedup is measured and captured in
  *     `docs/planning/EPIC_2/SPRINT_19/bench_day7_post_kuu.txt` but
  *     not asserted at the test level (CI variance under sanitizers).
- *   - Row-adjacency index (Days 8-9): post-factor `F->row_adj[r]`
+ *   - Row-adjacency index: post-factor `F->row_adj[r]`
  *     reflects exactly the priors with stored entries at row r on a
  *     SuiteSparse-style indefinite fixture.
- *   - Batched supernodal LDL^T (Days 10-13): scalar vs batched
+ *   - Batched supernodal LDL^T: scalar vs batched
  *     factor agreement on SPD and indefinite fixtures across a range
  *     of sizes, plus a force-both-paths solve test.
  *
@@ -544,7 +544,7 @@ static void test_s19_analyze_refactor_smoke(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("test_sprint19_integration");
+    TEST_SUITE_BEGIN("test_direct_csc_regression");
 
     /* Days 10-13: batched supernodal LDL^T cross-checks (SPD only;
      * see indefinite-path scope note above). */

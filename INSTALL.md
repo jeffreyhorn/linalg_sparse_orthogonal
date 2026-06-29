@@ -1,12 +1,9 @@
 # Installation Guide
 
 Use this file for operational setup, staged installs, installed-consumer
-workflows, and install-surface validation.
-
-For the first local adoption path and solver/workflow choice, start with:
-
-- [README.md](README.md)
-- [examples/README.md](examples/README.md)
+workflows, and install-surface validation. For first-use solver choice or
+build-tree adoption, start with [README.md](README.md) and
+[examples/README.md](examples/README.md).
 
 ## Start Here
 
@@ -33,9 +30,9 @@ Optional:
 - `lcov` + `bc` (for `make coverage`)
 - `libomp` / GCC libgomp (for `make omp` — OpenMP-parallel SpMV + Lanczos MGS)
 
-## Choose an Install Path
+## Support Split
 
-Keep the support split narrow:
+Use each support surface for the layer it owns:
 
 - local build-tree adoption:
   - `README.md`
@@ -47,12 +44,12 @@ Keep the support split narrow:
   - `cmake --install`
   - `find_package(Sparse)`
   - `tests/test_cmake_install.sh`
-- maintainer/reviewed-platform interpretation:
+- reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
 
-This file owns the middle two layers: operational setup and installed-consumer
-detail. It should not try to become the front-door adoption guide, the
-benchmark command reference, or the maintainer-policy home.
+This file owns operational setup, installed-consumer detail, and local
+install-surface validation. It is not the front-door adoption guide, benchmark
+command reference, or maintainer-policy home.
 
 ## Quick Start (Makefile)
 
@@ -109,8 +106,8 @@ Use the split below when deciding how much package detail you need:
 - downstream consumer story:
   - `pkg-config` and `find_package(Sparse)` both describe that same installed
     static archive surface
-- proof story:
-  - local Unix-side install scripts prove the Make and CMake install/export
+- validation story:
+  - local Unix-side install scripts validate the Make and CMake install/export
     paths directly
   - reviewed platform claims remain narrower than those local scripts
 
@@ -125,9 +122,8 @@ Use the split below when deciding how much package detail you need:
 | Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset only; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane |
 
 `make tsan` on macOS 15+ is blocked by an upstream dyld initialization
-hang (Sprint 28 inheritance; macOS 15.7 platform issue not specific to
-this codebase).  Sprint 29 Day 8 routes the TSan job to Linux CI per
-`docs/planning/EPIC_2/SPRINT_29/windows_ci_decision.md`.
+hang that is not specific to this codebase. The maintained TSan job runs on
+Linux CI.
 
 ### Installed files
 
@@ -238,15 +234,11 @@ make coverage-lcov CC=gcc-15
 ```
 
 Note: Homebrew GCC's built-in sysroot may not match the installed
-CommandLineTools SDK on macOS 15+ (Sprint 29 Day 12 surfaced this —
-Apple's CLT clang assembler chokes on `-mmacosx-version-min=15.0`
-while Homebrew GCC 15 was configured against MacOSX15.sdk).  If
-`make coverage-lcov CC=gcc-15` fails to build, fall back to
-`make coverage` (gcovr path).
+CommandLineTools SDK on macOS 15+. If `make coverage-lcov CC=gcc-15` fails to
+build, fall back to `make coverage` (gcovr path).
 
 The Linux CI job uses gcc-native `--coverage` + lcov directly + the
-calibrated 80 % threshold (Sprint 29 Day 12; see
-`docs/planning/EPIC_2/SPRINT_29/coverage_threshold_decision.md`).
+calibrated 80 % threshold.
 
 For OpenMP support:
 
@@ -272,7 +264,7 @@ Windows, use the CMake workflow exclusively.
 
 ## Verifying the Installation
 
-Use this section when you want explicit local proof of the installed package
+Use this section when you want explicit local validation of the installed package
 surface rather than another build-tree example.
 
 Run the install validation script (Unix):
@@ -290,8 +282,8 @@ For CMake integration verification:
 bash tests/test_cmake_install.sh
 ```
 
-These focused regression scripts are Unix-oriented local proof surfaces for the
-maintained static-first install/export contract:
+These focused regression scripts are Unix-oriented local validation surfaces for
+the maintained static-first install/export contract:
 
 - `tests/test_install.sh` covers Make install/uninstall plus `pkg-config`
 - `tests/test_cmake_install.sh` covers CMake install/export plus
@@ -300,7 +292,7 @@ maintained static-first install/export contract:
 They complement, rather than replace, the narrower reviewed platform lanes.
 Use the split below when reading install confidence:
 
-- local direct proof:
+- local direct validation:
   - the two scripts above exercise the Unix-side Make and CMake install paths
     end to end
 - reviewed platform confidence:

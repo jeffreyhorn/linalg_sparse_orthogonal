@@ -4,6 +4,14 @@ A practical guide to using the sparse linear algebra library.
 
 ## Getting Started
 
+Use this tutorial after the README when you want the fuller learning path:
+
+1. create or load a sparse matrix;
+2. choose a one-shot solve or repeated-run lifecycle;
+3. validate return codes and output;
+4. move to examples, benchmarks, headers, or install docs when you need the
+   owner surface for that next step.
+
 ### Choose a Workflow First
 
 Start with the smallest public path that matches the problem:
@@ -40,6 +48,10 @@ make          # Build the static library (build/libsparse_lu_ortho.a)
 make test     # Run all tests
 make examples # Build example programs
 ```
+
+For install, downstream consumer, or package validation workflows, use
+[`INSTALL.md`](../INSTALL.md). For benchmark commands and measurement
+interpretation, use [`benchmarks/README.md`](../benchmarks/README.md).
 
 ### Linking Your Program
 
@@ -177,11 +189,9 @@ sparse_free(L);
 For stable-pattern repeated direct solves, keep the one-shot Cholesky path for
 small usage examples and move to the explicit repeated-run direct lifecycle
 only when you need analyze-once / factor-many reuse. Start with
-`examples/example_analysis.c`, then move to `bench_refactor` /
-`bench_refactor_csc` when you want retained benchmark-side proof. Use
-`make bench-canonical-report` for a threshold-free snapshot of the canonical
-maintained benchmark surface, and keep regression/oracle/property ownership
-with the maintained test surfaces rather than with this tutorial.
+`examples/example_analysis.c`. Move to `bench_refactor`,
+`bench_refactor_csc`, or `make bench-canonical-report` only when you need
+benchmark-side measurement rather than a learning path.
 
 On that explicit repeated-run direct path, failed same-pattern refactors keep
 the previous usable factor state intact. Obvious nnz drift is still rejected

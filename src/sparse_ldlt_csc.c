@@ -956,7 +956,7 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  * every column's full sym_L pattern rather than the heuristic
  * `fill_factor × A.nnz` pattern that `ldlt_csc_from_sparse` produces.
  * This closes the indefinite-fill hole documented in the Sprint 19
- * NOTE in `tests/test_sprint19_integration.c` (search for
+ * NOTE in `tests/test_direct_csc_regression.c` (search for
  * "NOTE on the indefinite supernodal path's current scope"): the
  * batched `ldlt_csc_eliminate_supernodal` writeback silently dropped
  * cmod fill rows on KKT-style saddle points, producing residuals of

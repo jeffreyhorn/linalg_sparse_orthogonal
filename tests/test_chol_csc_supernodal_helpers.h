@@ -48,12 +48,14 @@ static int chol_csc_values_match(const CholCsc *a, const CholCsc *b, double tol)
 }
 
 /* Helper: compute ||A*x - b||_inf / ||b||_inf (relative residual).
- * Returns the residual norm, or NaN on allocation failure. Callers compare
- * against a tolerance with ASSERT_TRUE(rel_res < tol), which treats NaN as
- * out-of-range.
+ * Returns 0.0 for an empty system and NaN on allocation failure. Callers
+ * compare against a tolerance with ASSERT_TRUE(rel_res < tol), which treats
+ * NaN as out-of-range.
  */
 static double compute_rel_residual(const SparseMatrix *A, const double *x, const double *b) {
     idx_t n = sparse_rows(A);
+    if (n == 0)
+        return 0.0;
     double *Ax = malloc((size_t)n * sizeof(double));
     if (!Ax)
         return (double)NAN;

@@ -394,6 +394,21 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_compute_rel_residual_null_inputs_fail_closed(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    double x[1] = {1.0};
+    double b[1] = {1.0};
+
+    ASSERT_NOT_NULL(A);
+    sparse_insert(A, 0, 0, 1.0);
+
+    ASSERT_TRUE(isnan(compute_rel_residual(NULL, x, b)));
+    ASSERT_TRUE(isnan(compute_rel_residual(A, NULL, b)));
+    ASSERT_TRUE(isnan(compute_rel_residual(A, x, NULL)));
+
+    sparse_free(A);
+}
+
 /* Corpus-safety: supernode total_grouped stays within a 25% band of the
  * env-off baseline across the corpus. AMD output is already approximately
  * etree-postordered on most fixtures, so the composition should not move the
@@ -2355,6 +2370,7 @@ static void run_supernode_detection_tests(void) {
 }
 
 static void run_supernodal_postorder_tests(void) {
+    RUN_TEST(test_compute_rel_residual_null_inputs_fail_closed);
     RUN_TEST(test_supernodal_postorder_residual_unchanged);
     RUN_TEST(test_supernodal_postorder_no_supernode_count_regression);
 }

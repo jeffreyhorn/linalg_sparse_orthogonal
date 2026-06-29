@@ -404,14 +404,15 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
      * tail_len is always 0, so no scratch is needed. */
     double *pivot_scratch = NULL;
     if (n > 2) {
+        size_t tail_len_max = 0;
         size_t pivot_scratch_count = 0;
-        if (sparse_idx_count_bytes_overflow(n - 2, sizeof(double), &pivot_scratch_count) ||
-            sparse_size_mul_overflow(pivot_scratch_count, 2, &pivot_scratch_count)) {
+        if (sparse_idx_to_size_checked(n - 2, &tail_len_max) ||
+            sparse_size_mul_overflow(tail_len_max, 2, &pivot_scratch_count)) {
             return SPARSE_ERR_ALLOC;
         }
-        pivot_scratch = malloc(pivot_scratch_count);
-        if (!pivot_scratch)
-            return SPARSE_ERR_ALLOC;
+        err = sparse_malloc_array(pivot_scratch_count, sizeof(double), (void **)&pivot_scratch);
+        if (err != SPARSE_OK)
+            return err;
     }
 
     idx_t k = 0;

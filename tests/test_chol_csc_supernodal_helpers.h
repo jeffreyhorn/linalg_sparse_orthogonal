@@ -54,6 +54,8 @@ static int chol_csc_values_match(const CholCsc *a, const CholCsc *b, double tol)
  * NaN as out-of-range.
  */
 static double compute_rel_residual(const SparseMatrix *A, const double *x, const double *b) {
+    if (!A || !x || !b)
+        return (double)NAN;
     idx_t n = sparse_rows(A);
     if (n == 0)
         return 0.0;
@@ -63,7 +65,10 @@ static double compute_rel_residual(const SparseMatrix *A, const double *x, const
     double *Ax = malloc(n_size * sizeof(double));
     if (!Ax)
         return (double)NAN;
-    sparse_matvec(A, x, Ax);
+    if (sparse_matvec(A, x, Ax) != SPARSE_OK) {
+        free(Ax);
+        return (double)NAN;
+    }
     double max_r = 0.0;
     double max_b = 0.0;
     for (size_t i = 0; i < n_size; i++) {

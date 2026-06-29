@@ -130,7 +130,7 @@ typedef enum {
     SPARSE_ERR_NOT_SPD = 12, /**< Matrix is not symmetric positive-definite */
     SPARSE_ERR_NOT_CONVERGED = 13, /**< Iterative solver did not converge within max iterations */
     SPARSE_ERR_NUMERIC = 14,   /**< Numerical failure (NaN or Inf produced during computation) */
-    SPARSE_ERR_CANCELLED = 15, /**< Operation cancelled via opts.progress_cb (Sprint 29 Day 6).
+    SPARSE_ERR_CANCELLED = 15, /**< Operation cancelled via opts.progress_cb.
                                     Callback returned non-zero; library freed intermediate state
                                     and aborted.  For in-place factorisations (LU, Cholesky)
                                     the caller-visible matrix is left in an indeterminate state
@@ -152,7 +152,7 @@ typedef enum {
                                            caller contract itself was valid. */
 } sparse_err_t;
 
-/* ─── Progress / cancel callback (Sprint 29 Day 6, Item 4) ──────────── */
+/* ─── Progress / cancel callback ────────────────────────────────────── */
 
 /**
  * @brief Progress event payload passed to `sparse_progress_cb_t`.

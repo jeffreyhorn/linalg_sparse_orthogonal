@@ -1,11 +1,11 @@
 /**
- * Sprint 20 cross-feature integration tests.
+ * LDL^T backend dispatch integration tests.
  *
- * Covers the transparent LDL^T dispatch landed in Days 4-5:
+ * Covers transparent LDL^T dispatch through the public options surface:
  *   - `sparse_ldlt_opts_t::backend` selector plumbs through
  *     `sparse_ldlt_factor_opts` routing.
  *   - AUTO routes CSC above `SPARSE_CSC_THRESHOLD`, linked-list
- *     below — mirrors the Sprint 18 Cholesky dispatch heuristic.
+ *     below, matching the Cholesky dispatch heuristic.
  *   - Forced CSC on a small matrix and forced LINKED_LIST on a
  *     large matrix each take the requested path regardless of
  *     dimension.
@@ -897,7 +897,7 @@ static void test_s20_day10_eigs_sym_wide_spectrum(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("test_sprint20_integration");
+    TEST_SUITE_BEGIN("test_ldlt_backend_dispatch");
 
     /* AUTO dispatch routing by size */
     RUN_TEST(test_s20_auto_below_threshold_routes_linked_list);

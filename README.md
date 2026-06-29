@@ -19,7 +19,7 @@ deeper support surfaces only when you actually need them.
     `benchmarks/`, and maintainer/quality policy stays in
     [docs/maintainer_guide.md](docs/maintainer_guide.md).
 
-## Features
+## Current Capabilities
 
 ### Core Data Structure
 - **Orthogonal linked-list storage** — each non-zero is linked into both its row list and column list, enabling efficient row and column traversal
@@ -88,7 +88,12 @@ deeper support surfaces only when you actually need them.
 - **Thread-safe** — concurrent solves on shared factored matrices, per-matrix pool allocators
 - **Parallel SpMV** — OpenMP row-wise parallelization (compile with `-DSPARSE_OPENMP`)
 - **errno capture** for I/O errors (`sparse_errno`)
-- **Progress / cancel callbacks** (Sprint 29 Days 6-7) — `sparse_progress_cb_t` + `opts->progress_cb` / `opts->progress_user` across LU (linked-list + CSR), Cholesky (linked-list), LDL^T (linked-list), QR, CG, GMRES, MINRES, BiCGSTAB, grow-m Lanczos, and LOBPCG.  The CSC supernodal Cholesky / LDL^T kernels and the Wu/Simon thick-restart Lanczos outer loop are NOT wired (Sprint 30+ follow-up).  Callback signature emits `phase` / `step` / `total` / `elapsed_s`; a non-zero return cancels with `SPARSE_ERR_CANCELLED`.  **Cancellation semantics are family/path-local:** LU no-reorder one-shot cancellation at step 0 preserves the caller matrix, reordered LU one-shot attempts preserve the caller matrix through a temporary reordered working copy, Cholesky no-reorder linked-list cancellation is not bit-identical because the upper triangle is stripped before the first emission, reordered Cholesky one-shot attempts preserve the caller matrix through a temporary reordered working copy, and LDL^T / QR leave the input matrix bit-identical because factor state is separately owned.  Iterative solvers and eigensolvers don't write to `A` at all.  See `include/sparse_lu.h` / `include/sparse_cholesky.h` / `include/sparse_ldlt.h` opts headers for the per-routine contract.  Default `NULL` callback runs at zero overhead (no `make wall-check` regression vs Sprint 28).
+- **Progress / cancel callbacks** — `sparse_progress_cb_t` plus
+  `opts->progress_cb` / `opts->progress_user` are available across the public
+  LU, Cholesky, LDL^T, QR, iterative, and supported eigensolver paths. Callback
+  signatures emit `phase`, `step`, `total`, and `elapsed_s`; a non-zero return
+  cancels with `SPARSE_ERR_CANCELLED`. See the relevant option headers for
+  family-local cancellation and input-mutation contracts.
 - **Continuous integration** — Linux remains the strongest reviewed source of truth (`make quality-review-compile`, reviewed CMake parity, dead-code); macOS enforces the Apple Clang reviewed path with supplemental Homebrew GCC and static-first Make install/`pkg-config` verification; Windows enforces the reviewed CMake subset and the CMake-first consumer story. ThreadSanitizer stays on Linux (macOS-15+ TSan blocked by an upstream dyld issue), and `make bench-fast` remains the bounded PR-time runtime benchmark signal.
 
 ## Choose a Workflow
@@ -487,10 +492,10 @@ Important behavior:
 - `sparse_ldlt_condest(A, &ldlt, &cond)` — 1-norm condition estimate via Hager/Higham
 - `sparse_ldlt_free(&ldlt)` — free factorization data
 
-**Symmetric eigensolvers (Sprint 20):**
+**Symmetric eigensolvers:**
 - `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via Lanczos (growing-m outer loop) with full MGS reorthogonalization
 - `sparse_eigs_handle_init(&handle)` / `sparse_eigs_handle_prepare(&handle, n, k, &opts)` / `sparse_eigs_sym_with_handle(A, k, &opts, &result, &handle)` / `sparse_eigs_handle_free(&handle)` — explicit repeated-run lifecycle path for stable-dimension symmetric eigensolves
-- `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts` (Sprint 20 Days 4-6 AUTO dispatch)
+- `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts`
 - `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert
 
 **Symbolic analysis & refactorization:**
@@ -592,203 +597,35 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 
 ## Performance Characteristics
 
-| Matrix type | Pivoting | Factorization | Fill-in |
-|-------------|----------|---------------|---------|
-| Tridiagonal (n=5000) | Partial | 0.5 ms | 1.00x (zero fill-in) |
-| Tridiagonal (n=5000) | Complete | 322 ms | ~1.7x |
-| west0067 (67×67) | Partial | 0.5 ms | 3.2x |
-| nos4 (100×100, sym) | Partial | 0.6 ms | 2.5x |
-| fs_541_1 (541×541) | Partial | 5.2 ms | 1.7x |
-| orsirr_1 (1030×1030) | Partial | 1,744 ms | 11.4x |
+The README keeps only the high-level performance story. Benchmark command
+syntax, CSV schemas, current benchmark grouping, and measurement caveats live in
+[benchmarks/README.md](benchmarks/README.md).
 
-### CSR LU Speedup
+For n x n sparse matrices with nnz non-zeros:
 
-The CSR working format eliminates linked-list pointer chasing during elimination, achieving significant speedup on large matrices:
+| Operation | Complexity | Notes |
+|-----------|------------|-------|
+| Insert/Remove | O(row_nnz + col_nnz) | Maintains sorted row and column order |
+| MatVec | O(nnz) | Parallel with OpenMP when enabled |
+| LU Factor | O(n^3) worst case | Usually much better on sparse structured matrices |
+| Solve | O(nnz_LU) | Forward/back substitution |
+| QR Factor | O(mn^2) | Householder transformations |
+| SVD | O(mn^2) | Bidiagonalization plus QR |
 
-| Matrix | Linked-list | CSR | Speedup |
-|--------|------------|-----|---------|
-| orsirr_1 (1030×1030) | 1.38 s | 0.11 s | **12x** |
+Current benchmark surfaces cover:
 
-### CSC Cholesky Speedup (Sprint 17 + Sprint 18)
+- one-shot LU, Cholesky, LDL^T, SVD, eigensolver, SpMV, and iterative
+  comparison paths;
+- repeated-run direct workflows through `bench_refactor` and
+  `bench_refactor_csc`;
+- repeated-run iterative and eigensolver handle workflows through
+  `bench_iterative_reuse` and `bench_eigs_reuse`;
+- dispatch-backed CSR LU and CSC Cholesky/LDL^T paths that avoid linked-list
+  pointer chasing on large matrix workloads.
 
-The CSC working-format kernel for Cholesky uses contiguous column
-storage with a dense scatter-gather workspace, eliminating linked-list
-pointer chasing in the column sweep (`cmod` + `cdiv`).  Sprint 18
-Days 6-10 added a **batched supernodal path** (external cmod + dense
-Cholesky factor + dense triangular panel solve) on top of the scalar
-kernel.  On SuiteSparse SPD matrices (3-repeat one-shot factor, AMD
-reorder included on all paths):
-
-| Matrix        |    n   |   nnz(A)  | Linked-list factor | CSC scalar | CSC supernodal | Speedup (scalar / sn) |
-|---------------|-------:|----------:|-------------------:|-----------:|---------------:|----------------------:|
-| nos4.mtx      |    100 |       594 |     0.46 ms |    0.42 ms |      0.38 ms | **1.09× / 1.22×** |
-| bcsstk04.mtx  |    132 |     3,648 |     3.12 ms |    2.67 ms |      3.09 ms | **1.16× / 1.01×** |
-| bcsstk14.mtx  |  1,806 |    63,454 |   364.29 ms |  208.82 ms |    152.83 ms | **1.74× / 2.38×** |
-| s3rmt3m3.mtx  |  5,357 |   207,123 |  4018.41 ms | 1914.53 ms |   1179.41 ms | **2.10× / 3.41×** |
-| Kuu.mtx       |  7,102 |   340,200 |  3147.78 ms | 4112.76 ms |   1416.64 ms |   0.77× / **2.22×** |
-| Pres_Poisson  | 14,822 |   715,804 | 46003.69 ms |17597.98 ms |  10580.68 ms | **2.61× / 4.35×** |
-
-Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
-within double-precision round-off (≤ 2e-13) on every matrix above.
-Numbers are 3-repeat averages measured with
-`./build/bench_chol_csc --repeat 3`; full details in
-[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
-and the raw Day 12 capture in
-[`docs/planning/EPIC_2/SPRINT_18/bench_day12.txt`](docs/planning/EPIC_2/SPRINT_18/bench_day12.txt).
-
-The scalar-CSC speedup climbs from 1.09× at n = 100 to 2.61× at
-n = 14 822 — consistent with linked-list pointer-chasing overhead
-growing faster than contiguous column traversal.  The supernodal
-path adds another 1.2–2.9× on top of scalar on every non-trivial
-matrix (exception: bcsstk04, where supernode-detection overhead
-eats the batched dense-block win).  Kuu's scalar regression (0.77×)
-is localised to the `shift_columns_right_of` packing cost in drop-
-tolerance pruning; the supernodal path pre-allocates the full
-sym_L pattern and sidesteps the shifts, landing 2.22× ahead.
-
-The table above is the **one-shot** case: AMD reordering runs on
-every factor call on all paths.  In the analyze-once / factor-many
-workflow (`sparse_analyze` + `sparse_factor_numeric`, Sprint 14) the
-AMD cost is amortized across many numeric refactorizations with the
-same pattern, and the CSC kernel's speedup over the linked-list
-kernel is larger because only the numeric factor time remains in
-the comparison.
-
-That repeated-run CSC story stays intentionally simple on the Cholesky side:
-
-- AUTO picks linked-list vs CSC by size
-- forcing CSC means the CSC backend directly
-- the highest-signal repeated-run proof surfaces are:
-  - `bench_refactor`
-  - default SPD mode in `bench_refactor_csc`
-- the family-local large-`n` analysis-backed CSC helper route stays owned by:
-  - `tests/test_chol_csc.c`
-- the public one-shot vs explicit repeated-run parity/error-path contract stays
-  owned by:
-  - `tests/test_integration.c`
-  - including the large-`n` same-pattern LDL^T lifecycle oracle that now
-    mirrors the one-shot CSC-backed LDL^T lane
-- the bounded seeded generative follow-through for the same large-`n`
-  CSC-backed lifecycle lane stays owned by:
-  - `tests/test_fuzz.c`
-  - including the large-`n` LDL^T CSC lifecycle property lane
-- examples and benchmark surfaces stay intentionally outside that regression
-  ownership split:
-  - `example_analysis` teaches the repeated-run workflow
-  - `bench_refactor` / `bench_refactor_csc` prove retained workflow and
-    performance behavior
-  - they do not replace the test-owned oracle/property lanes above
-
-**Transparent dispatch (Sprint 18 Day 11).**
-`sparse_cholesky_factor_opts(mat, opts)` now routes through the CSC
-supernodal kernel whenever `mat->rows >= SPARSE_CSC_THRESHOLD`
-(default `100` in `include/sparse_matrix.h`), writing the factor
-back into `mat` via `chol_csc_writeback_to_sparse`.  Callers do not
-need to select a backend — the numbers above are what the public
-entry point delivers.  `sparse_cholesky_opts_t::backend`
-(`SPARSE_CHOL_BACKEND_AUTO` / `LINKED_LIST` / `CSC`) forces a path
-for tests; `used_csc_path` reports which branch ran.  Smaller
-matrices may see a slight slowdown from CSC conversion cost and are
-left on the linked-list path.  The maintained benchmark proof surface
-`bench_chol_csc` now also reports `csc_scalar_path`,
-`csc_supernodal_path`, `csc_supernodal_dense_kernel`, and
-`csc_supernodal_panel_solver`; on the
-default build those identify the current Sprint 64 backend-aware
-supernodal lane as `scalar`, `supernodal`, `builtin`, and
-`batched_panel` respectively.  If that internal dense-kernel descriptor or one
-of its required callbacks cannot be resolved on the supernodal lane, the
-public error taxonomy now reports `SPARSE_ERR_BACKEND_CONTRACT`
-instead of collapsing that impossible internal seam into
-`SPARSE_ERR_BADARG`.
-
-### CSC LDL^T (Sprint 17 scaffolding + Sprint 18 native + Sprint 19 row-adj + supernodal)
-
-The CSC LDL^T path (`ldlt_csc_factor` + `ldlt_csc_solve`) was a
-wrapper in Sprint 17, replaced by a native column-by-column
-Bunch-Kaufman kernel in Sprint 18 (1×1 / 2×2 pivot blocks, α = (1 +
-√17) / 8 partial scan, symmetric swaps in packed CSC storage).
-Sprint 19 added a per-row adjacency index (`row_adj`) so the cmod
-inner loop iterates only contributing priors instead of `[0, step_k)`,
-plus a batched supernodal kernel (`ldlt_csc_eliminate_supernodal`)
-mirroring the Sprint 18 Cholesky batched path.  The **LL factor** and
-**CSC native** columns below run under the one-shot fair-comparison
-methodology (AMD inside the timed region on both sides).  The **CSC
-supernodal** column is measured by `bench_ldlt_csc --supernodal`,
-which uses an analyze-once / pre-permuted pipeline: a scalar pre-pass
-resolves the BK permutation + pivot_size once up front, and each timed
-repetition reuses those cached decisions and measures only the
-pre-permuted conversion + supernodal factor.  The supernodal speedup
-is therefore a steady-state analyze-once / factor-many number — it is
-not directly comparable to the LL / CSC native one-shot columns (and
-is correspondingly higher than a like-for-like one-shot comparison
-would show).
-
-| Matrix       |    n  |  nnz(A)  | LL factor  | CSC native | CSC supernodal (analyze-once) | Speedup (native one-shot / supernodal analyze-once) |
-|--------------|------:|---------:|-----------:|-----------:|------------------------------:|----------------------------------------------------:|
-| nos4.mtx     |   100 |      594 |    0.38 ms |    0.29 ms |                       0.14 ms |                                1.29× / **2.62×**    |
-| bcsstk04.mtx |   132 |    3,648 |    3.76 ms |    2.16 ms |                       1.23 ms |                            **1.74×** / **3.05×**    |
-| bcsstk14.mtx | 1,806 |   63,454 |  493.74 ms |  140.59 ms |                      72.29 ms |                            **3.51×** / **6.83×**    |
-
-The Sprint 19 Day 9 row-adjacency index improved the native scalar
-LDL^T kernel from Sprint 18's 2.45× on bcsstk14 to 3.51× by removing
-the per-step prior-column scan from the cmod inner loop.  The
-batched supernodal LDL^T (`--supernodal` mode) lifts that further to
-6.83× on bcsstk14 by delegating supernode diagonal blocks to a
-dense LDL^T primitive and solving panel rows en masse.  Residuals
-match across paths to round-off.
-
-Sprint 53 tightened the public LDL^T CSC interpretation beyond that
-historical Sprint 19 snapshot:
-
-- `sparse_ldlt_factor_opts(...)`
-  - still gives callers the same one-shot AUTO / forced-backend interface
-- forcing CSC now means the CSC **pipeline**, not a blanket promise that the
-  batched completion path wins every indefinite input
-- the scalar Bunch-Kaufman pre-pass remains the authoritative indefinite
-  permutation-resolution step
-- once that CSC pipeline is selected, completion may:
-  - retain the batched path
-  - or fall back to the resolved scalar-prepass factor when the batched path
-    rejects the cached pivot pattern
-
-That layering is intentionally different from Cholesky's simpler CSC story.
-Both families have size-based AUTO dispatch, but LDL^T keeps the extra
-indefinite permutation-resolution layer because symmetric indefinite CSC
-completion is not just "Cholesky with a different dense kernel."
-
-Sprint 53 also added a bounded indefinite repeated-run proof surface:
-
-- `bench_refactor_csc --indefinite-kkt`
-  - measures the public repeated-run LDL^T path against the direct
-    resolved-analysis CSC completion path on a same-pattern KKT workload
-  - closes at round-off residuals on both sides after the Sprint 53
-    permutation-contract fix
-
-So the current compact public interpretation is:
-
-- Cholesky CSC dispatch
-  - simpler size-based linked-list vs CSC selection
-- LDL^T CSC dispatch
-  - size-based outer selection plus the scalar BK pre-pass and CSC-pipeline
-    completion rules above
-- repeated-run benchmark proof
-  - benchmark-local source of truth lives in `benchmarks/README.md`
-  - default `bench_refactor_csc` mode covers SPD / Cholesky
-  - `--indefinite-kkt` covers LDL^T on the bounded same-pattern KKT workload
-  - benchmark proof stays distinct from the test-owned LDL^T oracle/property
-    lanes in `tests/test_integration.c` and `tests/test_fuzz.c`
-
-End-of-sprint snapshot in `docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`
-covers all three benchmarks (`bench_chol_csc`, `bench_ldlt_csc`, and
-the new `bench_refactor_csc` analyze-once / factor-many harness)
-with detailed Sprint 18 → Sprint 19 deltas.
-
-**Complexity:**
-- Partial pivoting: O(nnz) per elimination step — strongly preferred for banded/structured matrices
-- Complete pivoting: O(n²) per elimination step due to submatrix search — better numerical stability but much slower
-- Solve: O(nnz_LU) for forward/backward substitution
-- SpMV: O(nnz)
-- Block SpMV: O(nnz × nrhs) with improved cache locality
+Use `make bench-canonical-report` for one bounded local snapshot of the
+maintained benchmark surface. Treat emitted benchmark rows as branch-local
+measurement artifacts, not portable performance guarantees.
 
 ## Thread Safety
 
@@ -831,227 +668,45 @@ The library is safe for concurrent use under the following contract:
   precision only. This is bounded preparation for later widening, not a claim
   of complex or broad generic-scalar support today.
 
-## Testing
+## Testing and Quality
 
-The maintained default regression surface currently registers **53** test
-binaries in CTest. Coverage is a separate supplemental signal: the Linux
-coverage job enforces an **80%** line-coverage threshold on `src/` for the
-default instrumented test run, not for every opt-in test path automatically.
-
-- Sparse matrix data structure, norms, symmetry, transpose (53 tests)
-- LU factorization, solve, condition estimation (37 tests)
-- Matrix Market I/O with errno validation (22 tests)
-- Known reference matrices (15 tests)
-- Vector utilities, SpMV, iterative refinement (24 tests)
-- Edge cases, tolerance hardening, and factored-state validation (54 tests)
-- Integration tests (7 tests)
-- Matrix arithmetic — scale and add (23 tests)
-- SuiteSparse real-world matrix validation (10 tests)
-- Reordering — RCM, AMD, permutation (38 tests)
-- Cholesky factorization and solve (21 tests)
-- CSR/CSC conversion (11 tests)
-- Sparse matrix-matrix multiply (14 tests)
-- Thread safety (8 tests)
-- Sprint 4 cross-feature integration (5 tests)
-- Iterative solvers — CG, GMRES, matrix-free, SuiteSparse (76 tests)
-- ILU(0) and ILUT preconditioners (34 tests)
-- Parallel SpMV (12 tests)
-- Sprint 5 cross-feature integration (14 tests)
-- Sparse QR — Householder, least-squares, rank, null space, economy, sparse-mode (71 tests)
-- Sprint 6 cross-feature integration (7 tests)
-- Dense utilities — Givens, eigensolvers, tridiag QR (34 tests)
-- Bidiagonal reduction (12 tests)
-- SVD — full, partial, rank-deficient, condition number, pseudoinverse, low-rank (91 tests)
-- Sprint 8 cross-feature integration (7 tests)
-- Fuzz and property-based tests (25 tests)
-- CSR LU — conversion, elimination, dense blocks, block solve, coverage gaps (53 tests)
-- Block solvers — block SpMV, block CG, block GMRES (15 tests)
-- Sprint 10 cross-feature integration (14 tests)
-- Sprint 11 tolerance, factored-state, and version integration (6 tests)
-- LDL^T factorization — Bunch-Kaufman pivoting, 2x2 blocks, reordering, KKT systems (72 tests)
-- Sprint 12 LDL^T cross-feature integration (8 tests)
-- IC(0) incomplete Cholesky — factor, solve, CG preconditioning, SuiteSparse (27 tests)
-- MINRES solver — SPD, indefinite, preconditioned, block, robustness (43 tests)
-- Sprint 13 IC(0) + MINRES cross-feature integration (14 tests)
-- CSC Cholesky — alloc/convert/eliminate/solve, symbolic path, supernode detection, dense primitives, analysis-backed CSC parity (145 tests)
-- CSC LDL^T — alloc/convert/eliminate/solve, Bunch-Kaufman 1×1/2×2, linked-list cross-check, inertia, supernodal follow-through (96 tests)
+The default local regression path is:
 
 ```bash
-make test          # run all tests
-make smoke         # quick smoke test
-make sanitize      # UBSan (undefined behavior)
-make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
-make sanitize-all  # both ASan + UBSan
-make tsan          # TSan (thread sanitizer) for concurrent tests
-make coverage      # line coverage report for the default active test surface; fails if < 80%
+make test
 ```
 
-### Test Category Policy
+Common focused quality commands are:
 
-The default regression surface is the set of tests registered with plain
-`RUN_TEST(...)` in each `tests/test_*.c` binary. Those tests must pass under
-ordinary `make test` and `ctest`.
+```bash
+make smoke
+make lint
+make quality-review
+make quality-review-full
+make sanitize
+make asan
+make tsan
+make coverage
+```
 
-The test framework also supports two explicit opt-in categories for live
-non-default checks:
+The test framework also supports opt-in non-default coverage when fixture size,
+runtime, or intentionally non-default behavior makes a check unsuitable for the
+ordinary default suite:
 
 ```bash
 SPARSE_TEST_SLOW=1 make test
 SPARSE_TEST_EXPERIMENTAL=1 make test
-```
-
-- `RUN_TEST_SLOW(...)` is for current supported behavior whose only default-path
-  problem is runtime or fixture cost.
-- `RUN_TEST_EXPERIMENTAL(...)` is for current live behavior on intentionally
-  non-default paths that still must pass when enabled.
-- Some suite-local opt-in surfaces also remain valid where a wrapper category is
-  not the right fit. The current maintained example is the large-matrix
-  SuiteSparse path in `tests/test_suitesparse.c`, enabled with:
-
-```bash
 SPARSE_TEST_LARGE=1 make test
 ```
 
-That path is live supported test coverage when enabled; it is simply not part
-of the default regression run because of fixture/runtime cost.
+Use `make quality-review-full` for the strongest local reviewed baseline. For
+exact wrapper expansion, dead-code workflow meaning, warning authority, and
+cross-platform reviewed/staged interpretation, use the
+[Maintainer Guide](docs/maintainer_guide.md) and the executable targets in the
+`Makefile`.
 
-Historical measurements, retired targets, and old sprint evidence do not stay in
-normal suite files as commented-out `RUN_TEST(...)` entries. Preserve that
-material in `docs/planning/` artifacts instead of shipping dormant test
-scaffolding that overstates current CI coverage.
-
-### Dead-Code Workflow
-
-The dead-code workflow is intentionally separate from `make lint` and
-`make test`:
-
-```bash
-make deadcode
-make deadcode-report
-make deadcode-check
-```
-
-- `make deadcode` refreshes `build/deadcode-cmake/compile_commands.json`, then
-  runs the raw `cppcheck` and `xunused` passes and refreshes the raw evidence
-  under `build/deadcode/`
-- `make deadcode-report` regenerates those artifacts and writes:
-  - `build/deadcode/report.md`
-  - `build/deadcode/report.tsv`
-- `make deadcode-check` verifies the report-completeness invariants:
-  the report exists, every `xunused` finding was categorized, and the
-  coverage-gap section is present
-
-Prerequisites:
-
-- `cppcheck` must be installed and on `PATH`
-- `xunused` must be installed and on `PATH`
-
-For repository-wide interpretation of the dead-code evidence, completeness
-gate, and maintainer cleanup rules, use the
-[Maintainer Guide](docs/maintainer_guide.md). Operationally, run the
-`deadcode*` targets serially because they share `build/deadcode-cmake` and
-`build/deadcode/`. Current platform disposition:
-
-- Linux keeps the dead-code workflow in the enforced quality surface
-- macOS keeps dead-code staged pending fresh measurement
-- Windows keeps dead-code staged rather than claiming reviewed parity it does
-  not yet enforce
-
-### Reviewed Local Quality Path
-
-Reviewed local wrappers sit above the existing direct quality commands:
-
-```bash
-make quality-review-compile
-make quality-review
-make quality-review-full
-make quality-review-cmake-compile
-make quality-review-cmake
-```
-
-- `quality-review-compile` / `quality-review` are the reviewed Makefile path
-- `quality-review-full` is the strongest local reviewed baseline command
-- `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
-  CMake parity path for clean rebuild + `ctest -N` + full `ctest`
-- the CMake wrappers are additive; they do **not** replace the
-  Makefile-authoritative formatter, static-analysis, or dead-code checks
-- for exact wrapper expansion, rerun guidance, and maintainer-policy
-  interpretation, use `make <target>` and the
-  [Maintainer Guide](docs/maintainer_guide.md)
-
-### Cross-Platform CI Contract
-
-| Platform | Enforced | Staged | Supplemental / Excluded |
-|--------|---------|---------|---------------------------|
-| Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
-| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; supplemental static-first Make install/uninstall + `pkg-config` verification |
-| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` (so the bounded Sprint 68 property/fuzz lifecycle lane remains outside the reviewed Windows subset); no separate reviewed install-validation lane beyond the CMake-first consumer story |
-
-Use the table above as the compact operator map for enforced, staged, and
-supplemental/excluded boundaries. For repository-wide interpretation of those
-claims, use the [Maintainer Guide](docs/maintainer_guide.md).
-
-### Quality Readiness Checklist
-
-Use this checklist for a concise release/readiness pass:
-
-- repository-wide warning evidence still uses:
-  - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
-- strongest local reviewed baseline still passes:
-  - `make quality-review-full`
-- dead-code evidence refresh and completeness gate still pass:
-  - `make deadcode-report`
-  - `make deadcode-check`
-- reviewed CMake parity still passes when that claim matters:
-  - `ctest -N --test-dir build/quality-review-cmake`
-  - `make quality-review-cmake`
-- remaining staged quality/platform limits stay explicit:
-  - serialized dead-code execution remains the current operational limit
-  - macOS dead-code remains staged pending measurement
-  - Windows reviewed-wrapper parity and dead-code remain staged
-- docs/examples/header usage stays aligned with shipped behavior
-- enforced/staged/excluded platform boundaries still match the
-  `Cross-Platform CI Contract` table above
-
-### Maintainer References
-
-For repository-wide quality-contract interpretation, dead-code meaning,
-documentation ownership, and stable maintainer norms, use the
-[Maintainer Guide](docs/maintainer_guide.md).
-
-For the Sprint 30 authoritative warning-baseline and rebuild references used by
-that guide, see:
-
-- [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
-- [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
-
-Keep README maintainer notes concise and prefer the guide over repeating policy
-or `Makefile` target-help detail here.
-
-Tree-mutating local modes are a separate operator category:
-
-- `make sanitize`
-- `make asan`
-- `make sanitize-all`
-- `make tsan`
-- `make omp`
-- `make coverage`
-- `make coverage-lcov`
-- `make coverage-gcovr`
-
-These targets intentionally rebuild the shared tree in an alternate mode. When
-returning to the normal direct or reviewed path, use:
-
-```bash
-make clean
-```
-
-**Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
-```bash
-CC=gcc-14 make asan
-CC=/opt/homebrew/opt/llvm/bin/clang make asan
-```
-On Linux, `make asan` works with the default compiler.
+Historical measurements, retired targets, and old sprint evidence belong in
+`docs/planning/` artifacts, not in the README front door.
 
 ## Project Structure
 
@@ -1088,46 +743,32 @@ linalg_sparse_orthogonal/
 
 ## Installation
 
-See [INSTALL.md](INSTALL.md) for detailed instructions covering Linux, macOS, and Windows. Quick summary:
+Use [INSTALL.md](INSTALL.md) for platform-specific setup, staged installs,
+downstream consumer workflows, and install-surface validation. Quick local
+summary:
 
 ```bash
 # Makefile
 make && make test && make install PREFIX=/usr/local
 
 # CMake
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build && cmake --install build
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build
+cmake --install build
 ```
 
-After installation, downstream projects can use `pkg-config` or
-`find_package(Sparse)` against the same installed static package surface:
+After installation, downstream projects can use either `pkg-config` or
+`find_package(Sparse)` against the maintained static package surface:
 
-- **pkg-config:** `pkg-config --cflags --libs sparse`
-- **CMake:** `find_package(Sparse REQUIRED)`, then
+- `pkg-config --cflags --libs sparse`
+- `find_package(Sparse REQUIRED)` plus
   `target_link_libraries(... Sparse::sparse_lu_ortho)`
-
-The maintained package surface is intentionally static-first:
-
-- Unix-like installs produce a static archive such as `libsparse_lu_ortho.a`
-- Windows/MSVC installs produce the corresponding static `.lib`
-- the exported CMake target and `pkg-config` metadata both describe that same
-  static archive surface
-- version metadata is single-sourced from `VERSION`
-- the exported CMake package version file is exact-version only
-- this is a real install/export contract, not a broad shared-library or
-  dynamic-ABI guarantee
-
-Focused local proof for that package surface stays explicit:
-
-- `bash tests/test_install.sh` proves the Unix-side Make install/uninstall +
-  `pkg-config` path
-- `bash tests/test_cmake_install.sh` proves the Unix-side CMake install/export
-  + `find_package(Sparse)` path
-- macOS CI carries a narrower supplemental Make install/`pkg-config` check
-- Windows remains the reviewed CMake-first consumer story rather than a
-  separate reviewed install-validation lane
 
 ## Documentation
 
+- [Tutorial](docs/tutorial.md) — fuller user walkthrough for repeated-run and API workflows
+- [Examples](examples/README.md) — shipped example binaries and local usage references
+- [Benchmarks](benchmarks/README.md) — benchmark commands, CSV fields, and measurement interpretation
 - [Algorithm Description](docs/algorithm.md) — data structure, LU algorithm, complexity analysis
 - [Matrix Market Format](docs/matrix_market.md) — supported features and limitations
 - [Maintainer Guide](docs/maintainer_guide.md) — repository-wide quality-contract interpretation and documentation ownership

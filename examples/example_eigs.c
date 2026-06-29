@@ -1,7 +1,7 @@
 /*
  * example_eigs.c — Compute symmetric eigenpairs with sparse_eigs_sym.
  *
- * Demonstrates three high-signal symmetric eigensolver workflows:
+ * Demonstrates three representative symmetric eigensolver workflows:
  *
  *   (a) Five largest eigenvalues of a small SPD SuiteSparse matrix
  *       (nos4.mtx, n = 100) — the typical "modal analysis" query.
@@ -13,7 +13,7 @@
  *       (n = 132, cond ≈ 5e6) k = 3 SMALLEST — vanilla LOBPCG
  *       saturates the iteration cap on this fixture; with the
  *       IC(0) factor plugged in via opts->precond, the same problem
- *       converges in dramatically fewer iterations.
+ *       converges in fewer iterations.
  *
  * Each demo prints a per-pair residual check
  * (||A*v - lambda*v|| / (|lambda| * ||v||)) confirming each returned
@@ -130,9 +130,9 @@ int main(void) {
            (int)res.iterations);
     printf("  Reported residual_norm (Wu/Simon): %.3e\n", res.residual_norm);
 
-    /* Check each pair against the eigen-equation (self-validating —
-     * the solver's Wu/Simon bound and this direct check should agree
-     * to within round-off for a converged run). */
+    /* Check each pair against the eigen-equation. The solver's Wu/Simon bound
+     * and this direct residual should agree to within round-off for a
+     * converged run. */
     double *Av = NULL;
     if (example_malloc_array(n, sizeof(double), (void **)&Av) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");

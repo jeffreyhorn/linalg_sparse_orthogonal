@@ -418,7 +418,7 @@ static int bench_dispatch_for_matrix(const char *label, SparseMatrix *A, int rep
  * the bench can report the indefinite above-threshold AUTO path
  * without depending on an on-disk .mtx fixture.  Size 150 (top
  * 140×140 tridiagonal SPD, bottom 10×10 zero, identity-pattern
- * coupling) — matches `test_sprint20_integration.c`'s KKT fixture. */
+ * coupling) — matches `test_ldlt_backend_dispatch.c`'s KKT fixture. */
 static SparseMatrix *bench_build_kkt_150(void) {
     idx_t n_top = 140, n_bot = 10;
     idx_t n = n_top + n_bot;

@@ -14,9 +14,9 @@
  *
  * Conversion pipeline: SparseMatrix → LuCsr → eliminate → LuCsr → SparseMatrix
  *
- * @note The CSR working-format pattern from this file was extended in
- *       Sprint 17 to Cholesky (`src/sparse_chol_csc_internal.h`,
- *       *CSC* storage for column-oriented cdiv/cmod) and LDL^T
+ * @note The CSR working-format pattern from this file also appears in the
+ *       Cholesky (`src/sparse_chol_csc_internal.h`, *CSC* storage for
+ *       column-oriented cdiv/cmod) and LDL^T
  *       (`src/sparse_ldlt_csc_internal.h`).  The CSC variants use the
  *       same scatter-gather workspace and fill-in handling described
  *       below, but with column pointers instead of row pointers since

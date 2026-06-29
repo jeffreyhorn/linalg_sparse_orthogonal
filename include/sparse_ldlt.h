@@ -92,9 +92,8 @@ typedef struct {
 /**
  * @brief LDL^T numeric backend selector.
  *
- * Sprint 20 Days 4-6 add a transparent dispatch through
- * `sparse_ldlt_factor_opts` mirroring the Sprint 18 Cholesky
- * dispatch (`sparse_cholesky_opts_t::backend`).  Callers can leave
+ * `sparse_ldlt_factor_opts` provides transparent backend dispatch mirroring
+ * the Cholesky backend selector (`sparse_cholesky_opts_t::backend`). Callers can leave
  * the field at its zero-initialised default (`SPARSE_LDLT_BACKEND_AUTO`)
  * to let the library pick the kernel by matrix size, or force a
  * specific path for benchmarks / regression coverage.
@@ -103,7 +102,7 @@ typedef struct {
  *   CSC supernodal backend when `A->rows >= SPARSE_CSC_THRESHOLD`,
  *   otherwise the linked-list backend.
  * - `SPARSE_LDLT_BACKEND_LINKED_LIST`: always use the linked-list
- *   kernel regardless of dimension (the pre-Sprint-20 behaviour).
+ *   kernel regardless of dimension.
  * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC pipeline
  *   (`sparse_analyze` / scalar pre-pass resolution →
  *   `ldlt_csc_factor_with_resolved_analysis` → CSC→`sparse_ldlt_t`
@@ -123,19 +122,18 @@ typedef enum {
 /**
  * @brief Options for LDL^T factorization.
  *
- * @warning **ABI break in v2.1.0.**  Sprint 20 Day 4 added the
+ * @warning **ABI break in v2.1.0.**  The
  * `backend` and `used_csc_path` fields at the end of this struct,
  * changing its size relative to the v2.0.x version shipped through
- * Sprint 19.  Source-level compatibility is preserved: positional
+ * prior releases.  Source-level compatibility is preserved: positional
  * initialisers like `{SPARSE_REORDER_AMD, 0.0}` continue to compile
  * — the new trailing fields zero-init to `SPARSE_LDLT_BACKEND_AUTO`
  * and `NULL`.  Pre-compiled downstream binaries linked against
  * v2.0.x must be recompiled against v2.1.x because stack-allocating
  * the old struct would cause the new library to read past its end.
  *
- * @note **Transparent CSC dispatch (Sprint 20 Days 4-6).** Same
- * pattern as the Sprint 18 Cholesky dispatch.  See
- * `sparse_ldlt_backend_t` above for the per-value semantics.  The
+ * @note **Transparent CSC dispatch.** Same pattern as the Cholesky backend
+ * selector. See `sparse_ldlt_backend_t` above for the per-value semantics. The
  * optional `used_csc_path` output pointer reports the actual selected
  * numeric path: 1 when the CSC pipeline ran and 0 when the linked-list
  * backend ran.  That means a forced `SPARSE_LDLT_BACKEND_CSC` request
@@ -177,8 +175,7 @@ typedef struct {
     int *used_csc_path;            /**< Optional output: 1 if the CSC pipeline was selected
                                         (including the structural fallback to the scalar
                                         pre-pass factor), 0 if the linked-list kernel ran. */
-    /** Sprint 29 Day 6 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each Bunch-Kaufman pivot
+    /** Optional progress / cancellation callback.  Invoked at the top of each Bunch-Kaufman pivot
      *  iteration of the linked-list backend with `phase =
      *  "ldlt_factor"`, `step = k`, `total = n` (k advances by 1 for
      *  a 1x1 pivot or 2 for a 2x2 pivot).  Return 0 to continue;
@@ -188,9 +185,9 @@ typedef struct {
      *  modified by LDL^T (factorisation writes to a separate
      *  `ldlt_t` struct), so cancellation always leaves `A` bit-
      *  identical.  NULL (default) disables the callback.  Currently
-     *  only the linked-list backend emits progress; the CSC
-     *  supernodal backend's emissions land in a future sprint.
-     *  Trailing field for designated-init back-compat. */
+     *  only the linked-list backend emits progress; the CSC supernodal backend
+     *  does not emit progress events.  Trailing field for designated-init
+     *  compatibility. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

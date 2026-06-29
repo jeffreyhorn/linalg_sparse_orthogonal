@@ -61,9 +61,9 @@ typedef struct {
                                    ND is best on 2D / 3D PDE meshes, see
                                    sparse_reorder.h) */
     double tol;               /**< Pivot tolerance */
-    /** Sprint 29 Day 6 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each column-elimination
-     *  iteration with `phase = "lu_factor"`, `step = k`, `total = n`.
+    /** Optional progress / cancellation callback.  Invoked at the top of each
+     *  column-elimination iteration with `phase = "lu_factor"`, `step = k`,
+     *  `total = n`.
      *  Return 0 to continue; non-zero cancels the factorisation —
      *  the library frees intermediate state and returns
      *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step > 0` leaves
@@ -75,12 +75,9 @@ typedef struct {
      *  path factor a temporary reordered working copy and only publish
      *  back on success, so cancellation leaves the caller-owned matrix
      *  in its original coordinate space.  NULL (default) disables the
-     *  callback — Sprint 28 behaviour bit-identical,
-     *  zero overhead.  See `sparse_progress_cb_t` in `sparse_types.h`
-     *  for the generic callback contract and
-     *  `docs/maintainer_guide.md` for the broader maintainer-policy
-     *  interpretation.  Trailing field for designated-init
-     *  back-compat. */
+     *  callback with zero overhead.  See `sparse_progress_cb_t` in
+     *  `sparse_types.h` for the generic callback contract.  Trailing field for
+     *  designated-init compatibility. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

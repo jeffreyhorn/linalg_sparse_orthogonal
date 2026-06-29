@@ -215,7 +215,7 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  * `ldlt_csc_from_sparse` initialiser silently drops those fill rows
  * and produces an incorrect factor — the residual symptom documented
  * in the Sprint 19 indefinite-scope NOTE in
- * `tests/test_sprint19_integration.c`.
+ * `tests/test_direct_csc_regression.c`.
  *
  * `analysis->type` must be `SPARSE_FACTOR_LDLT` or
  * `SPARSE_FACTOR_CHOLESKY`: `sparse_analyze`'s symbolic pipeline

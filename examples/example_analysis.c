@@ -10,9 +10,9 @@
  *   6. Refactor numerically (no re-analysis)
  *   7. Solve the updated system
  *
- * This pattern is critical for nonlinear solvers, time-stepping codes,
- * and optimization loops that solve many systems with the same structure
- * but different values.
+ * This pattern is useful for nonlinear solvers, time-stepping codes, and
+ * optimization loops that solve many systems with the same structure but
+ * different values.
  *
  * The important public contract boundary is:
  *   - reuse preserves symbolic/permutation setup
@@ -20,8 +20,8 @@
  *   - later matrices must keep the same sparsity pattern
  *
  * This example therefore rebuilds a fresh matrix with the same pattern and
- * new values on each iteration, which is the safest high-signal usage pattern
- * for callers.
+ * new values on each iteration, which keeps the reuse contract visible for
+ * callers.
  *
  * Build:
  *   cc -O2 -Iinclude -o example_analysis examples/example_analysis.c \

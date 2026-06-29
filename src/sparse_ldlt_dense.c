@@ -211,11 +211,10 @@ static sparse_err_t s64_external_ldlt_dense_factor(double *A, double *D, double 
     double growth_bound = 1.0 / (100.0 * eff_tol);
     double max_growth = 0.0;
 
-    if ((size_t)n > SIZE_MAX / sizeof(int))
-        return SPARSE_ERR_ALLOC;
-    int *ipiv = malloc((size_t)n * sizeof(int));
-    if (!ipiv)
-        return SPARSE_ERR_ALLOC;
+    int *ipiv = NULL;
+    sparse_err_t alloc_err = sparse_malloc_idx_array(n, sizeof(int), (void **)&ipiv);
+    if (alloc_err != SPARSE_OK)
+        return alloc_err;
 
     char uplo = 'L';
     int lwork = -1;
@@ -232,14 +231,11 @@ static sparse_err_t s64_external_ldlt_dense_factor(double *A, double *D, double 
         return SPARSE_ERR_PIVOT_REJECTED;
     }
     int lwork_int = (int)work_query;
-    if ((size_t)lwork_int > SIZE_MAX / sizeof(double)) {
+    double *work = NULL;
+    alloc_err = sparse_malloc_array((size_t)lwork_int, sizeof(double), (void **)&work);
+    if (alloc_err != SPARSE_OK) {
         free(ipiv);
-        return SPARSE_ERR_ALLOC;
-    }
-    double *work = malloc((size_t)lwork_int * sizeof(double));
-    if (!work) {
-        free(ipiv);
-        return SPARSE_ERR_ALLOC;
+        return alloc_err;
     }
 
     s64_ldlt_ext_dsytrf(&uplo, &n_blas, A, &lda_blas, ipiv, work, &lwork_int, &info);

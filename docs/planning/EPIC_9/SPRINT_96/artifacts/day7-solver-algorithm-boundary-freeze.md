@@ -115,7 +115,7 @@ If Day 8 keeps local block defaults, those defaults must match the current
 scalar CG default values:
 
 - `max_iter = 1000`
-- `tol = 1e-8`
+- `tol = 1e-10`
 - `atol = 0.0`
 - `restart = 0`
 

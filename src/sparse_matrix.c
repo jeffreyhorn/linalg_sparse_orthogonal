@@ -69,11 +69,15 @@ static sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt,
     int rc = 0;
     if (!stream || !fmt)
         return SPARSE_ERR_NULL;
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
     errno = 0;
     rc = vfprintf(stream, fmt, ap);
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
     if (rc < 0) {
         sparse_set_errno_(errno != 0 ? errno : EIO);
         return SPARSE_ERR_IO;

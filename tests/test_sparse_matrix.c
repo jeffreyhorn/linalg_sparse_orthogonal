@@ -1091,7 +1091,8 @@ static void test_print_surfaces_width_aware_smoke(void) {
     ASSERT_ERR(sparse_insert(A, 0, 1, 2.5), SPARSE_OK);
     ASSERT_ERR(sparse_insert(A, 1, 2, -4.0), SPARSE_OK);
 
-    FILE *fp = tmpfile();
+    const char *path = tf_tmp("sparse_matrix_print_surfaces_width_aware_smoke.txt");
+    FILE *fp = fopen(path, "w+b");
     ASSERT_NOT_NULL(fp);
     if (!fp) {
         sparse_free(A);
@@ -1128,6 +1129,7 @@ static void test_print_surfaces_width_aware_smoke(void) {
     ASSERT_NOT_NULL(strstr(buf, "-4.0000"));
 
     fclose(fp);
+    remove(path);
     sparse_free(A);
 }
 

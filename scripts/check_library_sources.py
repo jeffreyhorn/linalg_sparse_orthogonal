@@ -36,7 +36,7 @@ def read_manifest() -> list[str]:
         if not stripped or stripped.startswith("#"):
             continue
         path = normalize_path(stripped)
-        if not re.fullmatch(r"src/[A-Za-z0-9_./-]+\.c", path):
+        if not re.fullmatch(r"src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.c", path):
             raise CheckError(f"{MANIFEST.relative_to(ROOT)}:{lineno}: invalid source path: {stripped}")
         sources.append(path)
     return sources

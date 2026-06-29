@@ -218,8 +218,8 @@ Interpretation:
 - treat any future shared-library or wider ABI claim as a separate product
   contract with its own validation and platform ownership
 - keep platform truth explicit: Linux is still the strongest reviewed source of
-  truth, macOS remains narrower with supplemental install validation, and
-  Windows remains the reviewed CMake subset and install-consumer lane
+  truth, macOS remains narrower with supplemental static-first install
+  confidence, and Windows remains the reviewed CMake-first consumer subset
 
 Focused install/package regression ownership:
 
@@ -540,7 +540,7 @@ Current maintained proof ownership after Sprint 79 Day 6:
   - they do not replace the family-local, public oracle, or property ownership
     above
 
-Current platform-confidence interpretation after Sprint 68 Day 11:
+Current platform-confidence interpretation:
 
 - Linux and macOS still exercise the full `test_fuzz` binary in their direct
   `make test` / reviewed local paths, so the bounded seeded generative

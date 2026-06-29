@@ -43,6 +43,13 @@ else
     fail "static library not found at $PREFIX/lib/libsparse_lu_ortho.a"
 fi
 
+SHARED_ARTIFACTS=$(find "$PREFIX/lib" "$PREFIX/bin" \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' -o -name '*.dll' \) 2>/dev/null || true)
+if [ -z "$SHARED_ARTIFACTS" ]; then
+    pass "no shared-library artifacts installed"
+else
+    fail "unexpected shared-library artifacts installed: $SHARED_ARTIFACTS"
+fi
+
 HEADER_COUNT=$(find "$PREFIX/include/sparse" -name '*.h' 2>/dev/null | wc -l | tr -d ' ')
 # Count source headers plus the generated sparse_version.h
 EXPECTED_HEADERS=$(( $(ls "$ROOT_DIR/include/"*.h 2>/dev/null | wc -l | tr -d ' ') + 1 ))

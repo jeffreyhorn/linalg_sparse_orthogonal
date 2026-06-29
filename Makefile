@@ -544,6 +544,10 @@ lint: build/include/sparse_version.h tooling-build
 .PHONY: check
 check: format-check lint test
 
+.PHONY: source-list-check
+source-list-check:
+	@python3 scripts/check_library_sources.py
+
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the
@@ -558,13 +562,15 @@ QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 .PHONY: quality-review-compile
 quality-review-compile:
 	@echo "quality-review-compile: reviewed compile-quality path"
-	@echo "quality-review-compile: rerun failing phases directly with 'make format-check' or 'make lint'"
+	@echo "quality-review-compile: rerun failing phases directly with 'make format-check', 'make source-list-check', or 'make lint'"
 	@echo "quality-review-compile: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
 	@echo "== quality-review-compile: format-check =="
 	@$(MAKE) format-check
+	@echo "== quality-review-compile: source-list-check =="
+	@$(MAKE) source-list-check
 	@echo "== quality-review-compile: lint =="
 	@$(MAKE) lint
-	@echo "quality-review-compile: passed (format-check + lint)"
+	@echo "quality-review-compile: passed (format-check + source-list-check + lint)"
 
 .PHONY: quality-review
 quality-review:

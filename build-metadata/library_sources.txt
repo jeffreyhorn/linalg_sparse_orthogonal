@@ -1,0 +1,46 @@
+# Library source manifest for sparse_lu_ortho.
+#
+# Keep this list in the same reviewed order as Makefile LIB_SRCS and
+# CMakeLists.txt add_library(sparse_lu_ortho STATIC ...).
+src/sparse_types.c
+src/sparse_matrix.c
+src/sparse_factor_state_internal.c
+src/sparse_alloc_internal.c
+src/sparse_lu.c
+src/sparse_vector.c
+src/sparse_reorder.c
+src/sparse_cholesky.c
+src/sparse_csr.c
+src/sparse_iterative.c
+src/sparse_iterative_block.c
+src/sparse_iterative_minres.c
+src/sparse_iterative_workspace_internal.c
+src/sparse_ilu.c
+src/sparse_qr.c
+src/sparse_dense.c
+src/sparse_bidiag.c
+src/sparse_svd.c
+src/sparse_svd_partial.c
+src/sparse_lu_csr.c
+src/sparse_ldlt.c
+src/sparse_ic.c
+src/sparse_etree.c
+src/sparse_analysis.c
+src/sparse_colamd.c
+src/sparse_chol_csc.c
+src/sparse_chol_csc_supernodal.c
+src/sparse_ldlt_dense.c
+src/sparse_ldlt_csc.c
+src/sparse_ldlt_csc_supernodal.c
+src/sparse_eigs_workspace_internal.c
+src/sparse_eigs_lobpcg.c
+src/sparse_eigs_thick_restart.c
+src/sparse_eigs.c
+src/sparse_graph_core.c
+src/sparse_graph_coarsen.c
+src/sparse_graph_bisect.c
+src/sparse_graph_refine.c
+src/sparse_graph_separator.c
+src/sparse_graph.c
+src/sparse_reorder_nd.c
+src/sparse_reorder_amd_qg.c

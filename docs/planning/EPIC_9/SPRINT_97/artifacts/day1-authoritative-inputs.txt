@@ -1,0 +1,80 @@
+Sprint 97 Day 1 authoritative inputs
+====================================
+
+Project-plan scope
+------------------
+
+- docs/planning/EPIC_9/PROJECT_PLAN.md, section:
+  "Sprint 97: Build, Packaging & Cross-Platform Product Convergence Phase 4"
+- Sprint 97 goal:
+  Reduce build/workflow duplication, sharpen the long-term package surface,
+  and improve cross-platform product maturity without fake parity.
+- Sprint 97 project-plan items:
+  1. Build-Topology Audit
+  2. Convergence Architecture Design
+  3. Source-List/Workflow Reduction Batch
+  4. Package-Surface Decision Batch
+  5. Consumer/Workflow Follow-Through
+  6. Cross-Platform Truth Calibration
+  7. Validation and Closeout
+
+Prior-sprint context
+--------------------
+
+- Sprint 90 package/platform claim fence
+- Sprint 92 backend/package work
+- Sprint 95 public narrative and workflow coherence cleanup
+- Sprint 96 maintainability closeout and merged source/test ownership changes
+- docs/planning/EPIC_9/SPRINT_97/PLAN.md, Day 1:
+  "Sprint 97 Scope & Build Topology Baseline"
+
+Live build and package surfaces inspected
+-----------------------------------------
+
+- Makefile
+- CMakeLists.txt
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+- tests/test_install.sh
+- tests/test_cmake_install.sh
+- README.md
+- INSTALL.md
+
+Measured live tree counts
+-------------------------
+
+- src/*.c: 42
+- src/*.h: 18
+- tests/test_*.c: 54
+- tests/*.h: 5
+- benchmarks/*.c: 16
+- examples/*.c: 12
+- include/*.h: 18
+
+Current proof and package observations
+--------------------------------------
+
+- CMake library output is explicitly static-first through
+  `add_library(sparse_lu_ortho STATIC ...)`.
+- CMake prints an explicit status message when `BUILD_SHARED_LIBS=ON` is
+  requested, preserving the static archive package contract.
+- README and INSTALL both describe the maintained package surface as
+  static-first rather than broad shared-library parity.
+- Windows CI is a reviewed CMake-first consumer subset and currently expects
+  51 registered CTest tests.
+- Windows CI explicitly excludes `test_threads`, `test_sprint4_integration`,
+  and `test_fuzz`.
+- macOS CI enforces the Apple Clang reviewed path, includes a supplemental
+  Homebrew GCC direct build/test leg, and has a supplemental Make
+  install/pkg-config proof job.
+- `tests/test_install.sh` validates Make install, installed headers, static
+  archive, pkg-config output, and downstream pkg-config consumers.
+- `tests/test_cmake_install.sh` validates CMake install, config/export files,
+  `find_package(Sparse)`, example builds, and version compatibility.
+
+Day 1 validation note
+---------------------
+
+Day 1 changed planning documentation only. No source, header, build-system,
+workflow, or script validation beyond documentation hygiene is required.

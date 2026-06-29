@@ -7,8 +7,8 @@ string(STRIP "${SPARSE_VERSION_STRING_FILE}" SPARSE_VERSION_STRING_FILE)
 
 project(linalg_sparse_orthogonal VERSION ${SPARSE_VERSION_STRING_FILE} LANGUAGES C)
 
-# The maintained Sprint 66 package surface is static-first. Keep that explicit
-# in the configure path so `BUILD_SHARED_LIBS=ON` is not mistaken for an active
+# The maintained package surface is static-first. Keep that explicit in the
+# configure path so `BUILD_SHARED_LIBS=ON` is not mistaken for an active
 # shared-library packaging contract.
 if(BUILD_SHARED_LIBS)
     message(STATUS

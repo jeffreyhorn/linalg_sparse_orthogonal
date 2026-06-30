@@ -1,3 +1,10 @@
+/* _POSIX_C_SOURCE 200809L: needed for `popen` / `pclose` used by the
+ * external dense-reference helper. Must be defined before any system header is
+ * included so glibc's `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 17 tests for the CSC working format for LDL^T.
  *

@@ -1,0 +1,102 @@
+Sprint 99 Day 1 authoritative inputs
+====================================
+
+Project-plan scope
+------------------
+
+- docs/planning/EPIC_9/PROJECT_PLAN.md, section:
+  "Sprint 99: Final Integration, Competitive Calibration & Epic 9 Closeout"
+- Sprint 99 goal:
+  Re-audit the repo against the Epic 9 target, land one final bounded fix
+  batch only if evidence justifies it, and close Epic 9 from a validated
+  baseline.
+- Sprint 99 project-plan items:
+  1. End-State Re-audit
+  2. Final Competitive Comparison Sweep
+  3. Final Fix Decision
+  4. Final Bounded Fix Batch
+  5. Residual Queue Finalization
+  6. Full Validation/Reporting Sweep
+  7. Sprint/Epic Closeout Package
+- docs/planning/EPIC_9/SPRINT_99/PLAN.md, Day 1:
+  "Sprint 99 Scope & Closeout Baseline"
+
+Claim fence and target-state inputs
+-----------------------------------
+
+- docs/planning/EPIC_9/SPRINT_90/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day5-competitive-target-and-product-contract-design.md
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day6-comparison-and-measurement-contract-design.md
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day7-non-goal-and-risk-fence.md
+- docs/planning/EPIC_9/SPRINT_90/artifacts/day14-closeout-and-handoff.md
+
+Completed Epic 9 sprint close states
+------------------------------------
+
+- docs/planning/EPIC_9/SPRINT_91/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_92/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_93/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_94/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_95/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_96/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_97/RETROSPECTIVE.md
+- docs/planning/EPIC_9/SPRINT_98/RETROSPECTIVE.md
+
+Immediate Sprint 99 handoff inputs
+----------------------------------
+
+- docs/planning/EPIC_9/SPRINT_98/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_9/SPRINT_98/artifacts/day13-validation-and-residual-queue.md
+- docs/planning/EPIC_9/SPRINT_98/artifacts/day12-ci-support-surface-alignment.md
+- docs/planning/EPIC_9/SPRINT_98/artifacts/day9-runtime-fill-comparison-closeout.md
+- docs/planning/EPIC_9/SPRINT_98/artifacts/day6-correctness-expansion-closeout.md
+
+Current closeout workstreams
+----------------------------
+
+- End-state re-audit:
+  Re-read original Epic 9 contradiction classes against the live tree.
+- Final competitive comparison sweep:
+  Execute correctness, runtime/fill, package, usability, workflow, and support
+  evidence checks selected by the Sprint 99 scope freeze.
+- Final fix decision:
+  Decide whether any live contradiction blocks truthful Epic 9 closeout.
+- Final bounded fix batch:
+  Land implementation or support fixes only inside the written fix boundary.
+- Residual queue finalization:
+  Separate post-Epic-9 carry-forward work from deliberate non-claims and
+  already-resolved items.
+- Full validation/reporting sweep:
+  Rebuild the strongest reviewed, install/export, example, consumer, and
+  reporting baseline.
+- Sprint/Epic closeout package:
+  Write Sprint 99 retrospective, Epic 9 retrospective, and handoff package
+  from the validated baseline.
+
+Current validation expectations
+-------------------------------
+
+- Planning/docs-only artifacts:
+  - `git diff --check`
+  - trailing-whitespace scan on touched Sprint 99 planning files
+- `.c` or `.h` changes:
+  - `make format && make lint && make test`
+- Script, benchmark, or generated-report changes:
+  - focused touched command
+  - relevant benchmark/report command
+  - full source validation if C/header files are touched
+- Build, CMake, install/export, or workflow changes:
+  - local reviewed equivalent where available
+  - CI remains final proof for platform-specific workflow syntax
+- Final closeout validation candidates:
+  - strongest reviewed local quality baseline
+  - install/export proof scripts
+  - representative examples and CMake consumer checks
+  - benchmark/reporting commands selected by the comparison scope
+
+Day 1 validation note
+---------------------
+
+Day 1 changed planning documentation only. No source, header, build-system,
+workflow, benchmark, script, or test validation beyond documentation hygiene is
+required.

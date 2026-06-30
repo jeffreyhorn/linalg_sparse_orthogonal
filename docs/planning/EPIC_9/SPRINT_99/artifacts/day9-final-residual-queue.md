@@ -12,9 +12,9 @@ already-resolved items.
 | Classification | Count | Meaning |
 |---|---:|---|
 | post-Epic-9 carry-forward | 8 | real future work, but not a Sprint 99 closeout blocker |
-| deliberate non-claim | 9 | scope intentionally not claimed by Epic 9 |
+| deliberate non-claim | 10 | scope intentionally not claimed by Epic 9 |
 | unsupported claim to remove | 0 | no live positive unsupported claim found by Day 4-5 scans |
-| already resolved | 9 | completed by Sprints 90-99 evidence package |
+| already resolved | 12 | completed by Sprints 90-99 evidence package |
 
 ## Post-Epic-9 Carry-Forward Queue
 

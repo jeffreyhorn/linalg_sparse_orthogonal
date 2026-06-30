@@ -1,0 +1,79 @@
+Sprint 100 Day 1 Authoritative Inputs
+=====================================
+
+Primary sprint plan inputs:
+- docs/planning/EPIC_10/PROJECT_PLAN.md
+  - Sprint 100: Epic 10 Baseline, State-of-the-Art Target & Evidence Contract
+  - project-plan estimate: 166 hours
+  - items:
+    1. Baseline Quality Recheck
+    2. State-of-the-Art Definition
+    3. Residual Queue Conversion
+    4. Evidence Templates
+    5. Baseline Metrics Artifact
+    6. Public Claim Audit
+    7. Sprint Closeout
+- docs/planning/EPIC_10/SPRINT_100/PLAN.md
+  - day-by-day execution plan
+  - total estimate: 166 hours
+  - maximum single-day estimate: 12 hours
+
+Epic 10 planning inputs:
+- docs/planning/EPIC_10/reviews/review-codex-2026-06-30.md
+  - full code review of efficiency, maintainability, usability,
+    documentation, coherence, test coverage, and state-of-the-art readiness
+  - key conclusion: serious, well-validated sparse C library, but not yet
+    state of the art compared with mature ecosystem libraries
+- docs/planning/EPIC_10/reviews/todo-codex-2026-06-30.md
+  - gap-closure sequence
+  - guiding rule: earn product claims with implementation, oracle evidence,
+    maintainable ownership, and user-facing clarity
+
+Epic 9 carry-forward inputs:
+- docs/planning/EPIC_9/EPIC_9_RETROSPECTIVE.md
+  - final Epic 9 validation anchor and residual queue
+- docs/planning/EPIC_9/POST_EPIC_9_HANDOFF.md
+  - validated post-Epic-9 baseline
+  - carry-forward queue
+  - non-claims to preserve
+  - validation rules for future work
+- docs/planning/EPIC_9/SPRINT_99/artifacts/day9-final-residual-queue.md
+  - final residual queue feeding Epic 10
+- docs/planning/EPIC_9/SPRINT_99/artifacts/day12-closeout-evidence-package.md
+  - final closeout evidence package
+
+Current validated baseline inherited from Epic 9 handoff:
+- make quality-review-full passed
+- Makefile/CMake test-count parity: 54/54
+- full CTest: 54 passed, 0 failed
+- bash tests/test_install.sh: 14 passed, 0 failed
+- bash tests/test_cmake_install.sh: 16 passed, 0 failed, 0 skipped
+- make examples: 12 example binaries built
+- representative examples executed successfully:
+  - ./build/example_basic_solve
+  - ./build/example_ldlt
+  - ./build/example_eigs
+  - ./build/example_svd_lowrank
+- make bench-reorder-sprint86 passed
+- make bench-canonical-report passed
+
+Non-claims inherited into Sprint 100:
+- full compressed-first replacement of the linked-list shell
+- broad complex support
+- broad mixed-precision maturity
+- broad backend-neutral acceleration maturity
+- shared-library-first package contract
+- dynamic ABI guarantee
+- symmetric Linux/macOS/Windows reviewed parity
+- Windows Makefile parity or install-validation lane
+- portable timing superiority or universal reorder/fill superiority
+- every-solver-family external correctness comparison
+
+Day 1 interpretation:
+- Sprint 100 must convert these inputs into a baseline, target, claim map,
+  and evidence contract.
+- Sprint 100 must not treat inherited non-claims as failures unless Epic 10
+  explicitly chooses to earn and validate one of them.
+- Implementation sprints should not start until the claim and evidence shape
+  is visible.
+

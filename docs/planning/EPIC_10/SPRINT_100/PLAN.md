@@ -8,7 +8,8 @@ Sprint 100 section of `docs/planning/EPIC_10/PROJECT_PLAN.md`.
 
 **Starting Point:** Sprint 100 begins from:
 - merged Epic 9 closeout and PR #113
-- the Epic 9 retrospective, residual queue, and post-epic handoff
+- the Epic 9 retrospective, residual queue, and
+  `docs/planning/EPIC_9/POST_EPIC_9_HANDOFF.md`
 - the Epic 10 Codex review and gap-closure todo
 - a repository with strong reviewed quality surfaces but remaining product,
   comparison, packaging, and maintainability gaps
@@ -223,7 +224,8 @@ map
 **Time estimate:** 12 hours
 
 ### Tasks
-1. Re-read Epic 9 residuals, non-claims, and post-epic handoff material.
+1. Re-read Epic 9 residuals, non-claims, and
+   `docs/planning/EPIC_9/POST_EPIC_9_HANDOFF.md`.
 2. Map each residual to a Sprint 100-109 candidate owner.
 3. Assign risk levels and evidence requirements to each residual.
 4. Separate residuals that are in scope from deliberate Epic 10 non-goals.
@@ -437,4 +439,3 @@ clean documentation and evidence state
 - all Sprint 100 artifacts are present and internally consistent
 - validation requirements are satisfied or explicitly blocked
 - Sprint 101 can start from a clear compressed-first product-model baseline
-

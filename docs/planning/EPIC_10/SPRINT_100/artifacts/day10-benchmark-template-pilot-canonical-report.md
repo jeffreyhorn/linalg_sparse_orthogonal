@@ -48,7 +48,7 @@ Disallowed broader claim:
 
 | fixture | source | dimensions | nnz | class | reason selected |
 |---|---|---:|---:|---|---|
-| `nos4.mtx` | `tests/data/suitesparse/nos4.mtx` | 100 | documented by Matrix Market fixture | SuiteSparse SPD | fixed compact direct/Cholesky canonical fixture |
+| `nos4.mtx` | `tests/data/suitesparse/nos4.mtx` | 100 | 347 | SuiteSparse SPD | fixed compact direct/Cholesky canonical fixture |
 | iterative reuse defaults | `bench_iterative_reuse` internal construction | benchmark-defined | benchmark-defined | public iterative handle reuse | maintained reuse workflow measurement |
 | eigensolver reuse defaults | `bench_eigs_reuse` internal construction | benchmark-defined | benchmark-defined | public eigensolver handle reuse | maintained reuse workflow measurement |
 

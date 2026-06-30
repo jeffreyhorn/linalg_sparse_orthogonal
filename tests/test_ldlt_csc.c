@@ -1,3 +1,10 @@
+/* _POSIX_C_SOURCE 200809L: needed for `popen` / `pclose` used by the
+ * external dense-reference helper. Must be defined before any system header is
+ * included so glibc's `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 17 tests for the CSC working format for LDL^T.
  *
@@ -24,6 +31,14 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
+
+#ifdef _WIN32
+#define tf_popen _popen
+#define tf_pclose _pclose
+#else
+#define tf_popen popen
+#define tf_pclose pclose
+#endif
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Test helpers
@@ -1431,6 +1446,179 @@ static double s20_solve_residual(LdltCsc *F, const SparseMatrix *A_ref) {
     return res;
 }
 
+static int read_ldlt_external_dense_reference_solution(const char *fixture_key, double *x_out,
+                                                       idx_t n, char *reason, size_t reason_cap) {
+    if (!fixture_key || !x_out || !reason || reason_cap == 0)
+        return -1;
+
+    char cmd[256];
+    int written = snprintf(cmd, sizeof(cmd),
+                           "python3 tests/ldlt_external_dense_reference.py \"%s\"", fixture_key);
+    if (written < 0 || (size_t)written >= sizeof(cmd)) {
+        snprintf(reason, reason_cap, "external LDLT reference command overflow");
+        return -1;
+    }
+
+    FILE *pipe = tf_popen(cmd, "r");
+    if (!pipe) {
+        snprintf(reason, reason_cap, "python3 pipe open failed");
+        return 0;
+    }
+
+    char line[256];
+    if (!fgets(line, sizeof(line), pipe)) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "external LDLT reference produced no output");
+        return -1;
+    }
+
+    if (strncmp(line, "SKIP ", 5) == 0) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "%s", line + 5);
+        size_t len = strlen(reason);
+        if (len > 0 && reason[len - 1] == '\n')
+            reason[len - 1] = '\0';
+        return 0;
+    }
+    if (strncmp(line, "ERROR ", 6) == 0) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "%s", line + 6);
+        size_t len = strlen(reason);
+        if (len > 0 && reason[len - 1] == '\n')
+            reason[len - 1] = '\0';
+        return -1;
+    }
+
+    idx_t got_n = -1;
+    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
+        tf_pclose(pipe);
+        snprintf(reason, reason_cap, "external LDLT reference returned invalid dimension header");
+        return -1;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        if (!fgets(line, sizeof(line), pipe)) {
+            tf_pclose(pipe);
+            snprintf(reason, reason_cap,
+                     "external LDLT reference truncated at entry %" SPARSE_PRIDX, i);
+            return -1;
+        }
+        char *end = NULL;
+        x_out[i] = strtod(line, &end);
+        if (end == line) {
+            tf_pclose(pipe);
+            snprintf(reason, reason_cap,
+                     "external LDLT reference parse failure at entry %" SPARSE_PRIDX, i);
+            return -1;
+        }
+    }
+
+    if (tf_pclose(pipe) != 0) {
+        snprintf(reason, reason_cap, "external LDLT reference exited non-zero");
+        return -1;
+    }
+    return 1;
+}
+
+static void assert_ldlt_external_dense_reference(const char *fixture_key,
+                                                 SparseMatrix *(*build_fixture)(void), double tol) {
+#ifdef _WIN32
+    (void)fixture_key;
+    (void)build_fixture;
+    (void)tol;
+    SKIP_TEST("external dense reference helper is not enabled on Windows");
+#else
+    SparseMatrix *A = build_fixture();
+    ASSERT_NOT_NULL(A);
+    idx_t n = sparse_rows(A);
+
+    double *x_true = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *b_perm = malloc((size_t)n * sizeof(double));
+    double *x_perm = calloc((size_t)n, sizeof(double));
+    double *x = calloc((size_t)n, sizeof(double));
+    double *x_ref = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_true);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(b_perm);
+    ASSERT_NOT_NULL(x_perm);
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(x_ref);
+
+    for (idx_t i = 0; i < n; i++)
+        x_true[i] = (double)(i + 1);
+    sparse_matvec(A, x_true, b);
+
+    LdltCsc *F1 = NULL;
+    LdltCsc *F2 = NULL;
+    SparseMatrix *A_perm = NULL;
+    ASSERT_TRUE(s20_two_pass_indefinite_factor(A, &F1, &F2, &A_perm));
+
+    for (idx_t i_new = 0; i_new < n; i_new++)
+        b_perm[i_new] = b[F1->perm[i_new]];
+
+    REQUIRE_OK(ldlt_csc_solve(F2, b_perm, x_perm));
+    for (idx_t i_new = 0; i_new < n; i_new++)
+        x[F1->perm[i_new]] = x_perm[i_new];
+
+    char reason[256];
+    int ref_status =
+        read_ldlt_external_dense_reference_solution(fixture_key, x_ref, n, reason, sizeof(reason));
+    if (ref_status == 0) {
+        free(x_true);
+        free(b);
+        free(b_perm);
+        free(x_perm);
+        free(x);
+        free(x_ref);
+        ldlt_csc_free(F1);
+        ldlt_csc_free(F2);
+        sparse_free(A_perm);
+        sparse_free(A);
+        SKIP_TEST(reason);
+    }
+    if (ref_status < 0) {
+        free(x_true);
+        free(b);
+        free(b_perm);
+        free(x_perm);
+        free(x);
+        free(x_ref);
+        ldlt_csc_free(F1);
+        ldlt_csc_free(F2);
+        sparse_free(A_perm);
+        sparse_free(A);
+        TF_FAIL_("external LDLT reference failed: %s", reason);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double diff = fabs(x[i] - x_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+        ASSERT_NEAR(x[i], x_ref[i], tol);
+        ASSERT_NEAR(x[i], x_true[i], tol);
+    }
+
+    double rel = rel_residual(A, x, b);
+    printf("    external LDLT dense ref %s: n=%d, max|x-x_ref|=%.3e, rel_residual=%.3e\n",
+           fixture_key, (int)n, max_diff, rel);
+    ASSERT_TRUE(rel < tol);
+
+    free(x_true);
+    free(b);
+    free(b_perm);
+    free(x_perm);
+    free(x);
+    free(x_ref);
+    ldlt_csc_free(F1);
+    ldlt_csc_free(F2);
+    sparse_free(A_perm);
+    sparse_free(A);
+#endif
+}
+
 /* Note on comparison semantics.  `ldlt_csc_factor_state_matches`
  * requires identical `col_ptr` and `row_idx` between two factors.
  * For heuristic-vs-analysis factor comparisons on indefinite fill
@@ -1580,6 +1768,14 @@ static void test_s20_supernodal_heuristic_vs_with_analysis_residuals(void) {
     sparse_analysis_free(&an);
     sparse_free(A);
     sparse_free(A_perm);
+}
+
+static void test_s98_external_dense_reference_kkt_5x5(void) {
+    assert_ldlt_external_dense_reference("kkt5", build_kkt_5x5, 1e-10);
+}
+
+static void test_s98_external_dense_reference_kkt_10x10(void) {
+    assert_ldlt_external_dense_reference("kkt10", build_kkt_10x10, 1e-10);
 }
 
 /* Sprint 53 Day 7: the shared analysis-aware CSC completion helper must
@@ -3598,6 +3794,8 @@ int main(void) {
     RUN_TEST(test_s20_supernodal_with_analysis_kkt_10x10);
     RUN_TEST(test_s20_supernodal_with_analysis_random_indefinite_30x30);
     RUN_TEST(test_s20_supernodal_heuristic_vs_with_analysis_residuals);
+    RUN_TEST(test_s98_external_dense_reference_kkt_5x5);
+    RUN_TEST(test_s98_external_dense_reference_kkt_10x10);
     RUN_TEST(test_s53_with_analysis_invalid_min_size_rejected);
 
     /* permutation */

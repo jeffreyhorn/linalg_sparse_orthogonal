@@ -16,6 +16,8 @@ Use this tutorial after the README when you want the fuller learning path:
 
 Start with the smallest public path that matches the problem:
 
+- use `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when
+  coefficients already arrive as caller-owned compressed sparse data
 - use the one-shot LU, Cholesky, LDL^T, QR, iterative, SVD, or eigensolver
   entry points for most occasional solves
 - move to the explicit repeated-run direct lifecycle only when the sparsity
@@ -63,6 +65,7 @@ Include the headers you need:
 
 ```c
 #include "sparse_matrix.h"   // Core matrix operations
+#include "sparse_csr.h"      // CSR/CSC conversion and compressed construction
 #include "sparse_lu.h"       // LU factorization
 #include "sparse_cholesky.h" // Cholesky factorization (SPD matrices)
 #include "sparse_qr.h"       // QR factorization
@@ -73,9 +76,9 @@ Include the headers you need:
 
 ---
 
-## 1. Creating and Manipulating Sparse Matrices
+## 1. Choosing a Matrix Construction Path
 
-### Creating a Matrix
+### Mutable Construction for Small Hand-Written Matrices
 
 ```c
 #include "sparse_matrix.h"
@@ -98,6 +101,14 @@ idx_t rows = sparse_rows(A);  // 5
 idx_t cols = sparse_cols(A);  // 5
 idx_t nnz  = sparse_nnz(A);  // 4
 ```
+
+If your matrix already exists as CSR or CSC arrays, build the same public
+matrix shell from that compressed input instead of inserting entries one at a
+time. `sparse_create_from_csr(...)` and `sparse_create_from_csc(...)` validate
+and copy caller-owned arrays, so the caller keeps ownership of those arrays
+and the returned `SparseMatrix *` is freed with `sparse_free(...)`. Use
+`sparse_from_csr(...)` or `sparse_from_csc(...)` when the call site needs an
+explicit `sparse_err_t` diagnostic.
 
 ### Loading from Matrix Market Files
 

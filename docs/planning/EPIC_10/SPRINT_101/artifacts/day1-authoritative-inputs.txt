@@ -1,0 +1,62 @@
+# Sprint 101 Day 1 Authoritative Inputs
+
+Primary Sprint 101 plan:
+- docs/planning/EPIC_10/SPRINT_101/PLAN.md
+- docs/planning/EPIC_10/PROJECT_PLAN.md
+  - Section: Sprint 101: Compressed-First Product Model & Storage Front Door
+
+Sprint 100 required inputs:
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day6-state-of-the-art-target.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day8-claim-dependency-model.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day12-public-claim-audit.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day13-sprint100-handoff-package.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day13-claim-non-goal-register.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day14-closeout-and-validation.md
+- docs/planning/EPIC_10/SPRINT_100/RETROSPECTIVE.md
+
+Sprint 101 project-plan items:
+- Item 1: Storage Surface Audit
+- Item 2: Compressed-First API Design
+- Item 3: Constructor and Import Batch
+- Item 4: Lifecycle and Ownership Batch
+- Item 5: Compatibility Path Documentation
+- Item 6: Regression Proof
+- Item 7: Validation and Closeout
+
+Initial source and public surface candidates for Days 2-3:
+- include/sparse_matrix.h
+- include/sparse_csr.h
+- include/sparse_analysis.h
+- include/sparse_lu.h
+- include/sparse_lu_csr.h
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- include/sparse_qr.h
+- include/sparse_iterative.h
+- include/sparse_eigs.h
+- include/sparse_svd.h
+- src/sparse_matrix.c
+- src/sparse_csr.c
+- src/sparse_lu_csr.c
+- src/sparse_analysis.c
+- README.md
+- docs/tutorial.md
+- examples/README.md
+- examples/example_basic_solve.c
+- examples/example_analysis.c
+
+Validation authorities:
+- Makefile
+- CMakeLists.txt
+- scripts/check_library_sources.py
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day2-reviewed-quality-baseline.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day4-source-test-maintainability-metrics.md
+
+Non-goal guardrails inherited from Sprint 100:
+- do not claim full replacement of the mutable linked-list shell
+- do not claim broad state-of-the-art replacement status
+- do not claim every-solver-family external validation
+- do not claim portable performance superiority
+- do not claim shared-library or ABI maturity
+- do not claim broad complex or mixed-precision maturity
+- do not claim symmetric platform parity

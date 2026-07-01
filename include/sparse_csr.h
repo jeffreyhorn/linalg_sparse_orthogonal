@@ -61,17 +61,18 @@ typedef struct {
 sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr);
 
 /**
- * @brief Create a SparseMatrix from CSR format through the compressed-first
- *        public entry path.
+ * @brief Create a SparseMatrix from CSR format through the simple
+ *        compressed-first public entry path.
  *
  * This is the simplest public constructor for callers that already own CSR
- * data. It preserves the same physical-index-space semantics as the broader
- * matrix shell, but does not require the caller to start from
+ * data. It validates and copies the CSR contents into a new public
+ * `SparseMatrix` shell, preserving the same physical-index-space semantics
+ * as the broader matrix API without requiring the caller to start from
  * `sparse_create()` and incremental insertion.
  *
  * @param csr  Input CSR structure (not modified).
- * @return A new SparseMatrix on success, or NULL on invalid input or
- *         allocation failure.
+ * @return A new caller-owned SparseMatrix on success, or NULL on invalid
+ *         input or allocation failure.
  *
  * @note Use `sparse_from_csr()` when the caller needs an explicit
  *       `sparse_err_t` result.
@@ -79,7 +80,12 @@ sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr);
 SparseMatrix *sparse_create_from_csr(const SparseCsr *csr);
 
 /**
- * @brief Create an orthogonal linked-list matrix from CSR format.
+ * @brief Create a SparseMatrix from CSR format with explicit diagnostics.
+ *
+ * This is the diagnostic compressed-first constructor for callers that need
+ * a `sparse_err_t` result instead of the simple constructor's NULL-on-failure
+ * contract. The input CSR arrays are not adopted or modified; the returned
+ * matrix is an independent caller-owned `SparseMatrix`.
  *
  * @param csr      Input CSR structure (not modified).
  * @param[out] mat Pointer to receive the new SparseMatrix. Caller must free
@@ -104,17 +110,18 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat);
 sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc);
 
 /**
- * @brief Create a SparseMatrix from CSC format through the compressed-first
- *        public entry path.
+ * @brief Create a SparseMatrix from CSC format through the simple
+ *        compressed-first public entry path.
  *
  * This is the simplest public constructor for callers that already own CSC
- * data. It preserves the same physical-index-space semantics as the broader
- * matrix shell, but does not require the caller to start from
+ * data. It validates and copies the CSC contents into a new public
+ * `SparseMatrix` shell, preserving the same physical-index-space semantics
+ * as the broader matrix API without requiring the caller to start from
  * `sparse_create()` and incremental insertion.
  *
  * @param csc  Input CSC structure (not modified).
- * @return A new SparseMatrix on success, or NULL on invalid input or
- *         allocation failure.
+ * @return A new caller-owned SparseMatrix on success, or NULL on invalid
+ *         input or allocation failure.
  *
  * @note Use `sparse_from_csc()` when the caller needs an explicit
  *       `sparse_err_t` result.
@@ -122,7 +129,12 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc);
 SparseMatrix *sparse_create_from_csc(const SparseCsc *csc);
 
 /**
- * @brief Create an orthogonal linked-list matrix from CSC format.
+ * @brief Create a SparseMatrix from CSC format with explicit diagnostics.
+ *
+ * This is the diagnostic compressed-first constructor for callers that need
+ * a `sparse_err_t` result instead of the simple constructor's NULL-on-failure
+ * contract. The input CSC arrays are not adopted or modified; the returned
+ * matrix is an independent caller-owned `SparseMatrix`.
  *
  * @param csc      Input CSC structure (not modified).
  * @param[out] mat Pointer to receive the new SparseMatrix. Caller must free

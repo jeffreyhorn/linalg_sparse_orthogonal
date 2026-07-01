@@ -1,4 +1,6 @@
+#include "sparse_cholesky.h"
 #include "sparse_csr.h"
+#include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
@@ -166,6 +168,117 @@ static void test_create_from_csr_entry_path(void) {
     sparse_free(A);
 }
 
+static void test_csr_diagnostic_constructor_rejects_bad_inputs(void) {
+    idx_t row_ptr_good[] = {0, 1};
+    idx_t col_idx_good[] = {0};
+    double values_good[] = {2.0};
+    SparseCsr good = {
+        .rows = 1,
+        .cols = 1,
+        .nnz = 1,
+        .row_ptr = row_ptr_good,
+        .col_idx = col_idx_good,
+        .values = values_good,
+    };
+    SparseMatrix *mat = NULL;
+
+    ASSERT_ERR(sparse_from_csr(NULL, &mat), SPARSE_ERR_NULL);
+    ASSERT_NULL(mat);
+    ASSERT_ERR(sparse_from_csr(&good, NULL), SPARSE_ERR_NULL);
+
+    SparseCsr bad_shape = good;
+    bad_shape.rows = -1;
+    ASSERT_ERR(sparse_from_csr(&bad_shape, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+    ASSERT_NULL(sparse_create_from_csr(&bad_shape));
+
+    SparseCsr bad_nnz = good;
+    bad_nnz.nnz = -1;
+    ASSERT_ERR(sparse_from_csr(&bad_nnz, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    SparseCsr missing_row_ptr = good;
+    missing_row_ptr.row_ptr = NULL;
+    ASSERT_ERR(sparse_from_csr(&missing_row_ptr, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    SparseCsr missing_col_idx = good;
+    missing_col_idx.col_idx = NULL;
+    ASSERT_ERR(sparse_from_csr(&missing_col_idx, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_ptr_nonzero_start[] = {1, 1};
+    SparseCsr bad_start = good;
+    bad_start.row_ptr = row_ptr_nonzero_start;
+    ASSERT_ERR(sparse_from_csr(&bad_start, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_ptr_nonmonotonic[] = {0, 2, 1};
+    SparseCsr bad_monotonic = good;
+    bad_monotonic.rows = 2;
+    bad_monotonic.nnz = 1;
+    bad_monotonic.row_ptr = row_ptr_nonmonotonic;
+    ASSERT_ERR(sparse_from_csr(&bad_monotonic, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_ptr_bad_end[] = {0, 0};
+    SparseCsr bad_end = good;
+    bad_end.row_ptr = row_ptr_bad_end;
+    ASSERT_ERR(sparse_from_csr(&bad_end, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_idx_oob[] = {1};
+    SparseCsr bad_index = good;
+    bad_index.col_idx = col_idx_oob;
+    ASSERT_ERR(sparse_from_csr(&bad_index, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_ptr_two[] = {0, 2};
+    idx_t col_idx_duplicate[] = {0, 0};
+    double values_two[] = {1.0, 2.0};
+    SparseCsr bad_duplicate = {
+        .rows = 1,
+        .cols = 2,
+        .nnz = 2,
+        .row_ptr = row_ptr_two,
+        .col_idx = col_idx_duplicate,
+        .values = values_two,
+    };
+    ASSERT_ERR(sparse_from_csr(&bad_duplicate, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_idx_unsorted[] = {1, 0};
+    SparseCsr bad_unsorted = bad_duplicate;
+    bad_unsorted.col_idx = col_idx_unsorted;
+    ASSERT_ERR(sparse_from_csr(&bad_unsorted, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+}
+
+static void test_csr_constructor_copies_caller_owned_arrays(void) {
+    idx_t row_ptr[] = {0, 2};
+    idx_t col_idx[] = {0, 1};
+    double values[] = {4.0, -1.0};
+    SparseCsr csr = {
+        .rows = 1,
+        .cols = 2,
+        .nnz = 2,
+        .row_ptr = row_ptr,
+        .col_idx = col_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_from_csr(&csr, &A), SPARSE_OK);
+    ASSERT_NOT_NULL(A);
+
+    col_idx[0] = 1;
+    values[0] = 99.0;
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 1), -1.0, 0.0);
+
+    sparse_free(A);
+}
+
 /* NULL inputs → proper error codes */
 static void test_csr_null(void) {
     SparseCsr *csr;
@@ -269,6 +382,117 @@ static void test_create_from_csc_entry_path(void) {
     ASSERT_NEAR(sparse_get_phys(A, 1, 1), 5.0, 0.0);
     ASSERT_NEAR(sparse_get_phys(A, 2, 0), 7.0, 0.0);
     ASSERT_NEAR(sparse_get_phys(A, 2, 2), 9.0, 0.0);
+
+    sparse_free(A);
+}
+
+static void test_csc_diagnostic_constructor_rejects_bad_inputs(void) {
+    idx_t col_ptr_good[] = {0, 1};
+    idx_t row_idx_good[] = {0};
+    double values_good[] = {2.0};
+    SparseCsc good = {
+        .rows = 1,
+        .cols = 1,
+        .nnz = 1,
+        .col_ptr = col_ptr_good,
+        .row_idx = row_idx_good,
+        .values = values_good,
+    };
+    SparseMatrix *mat = NULL;
+
+    ASSERT_ERR(sparse_from_csc(NULL, &mat), SPARSE_ERR_NULL);
+    ASSERT_NULL(mat);
+    ASSERT_ERR(sparse_from_csc(&good, NULL), SPARSE_ERR_NULL);
+
+    SparseCsc bad_shape = good;
+    bad_shape.cols = -1;
+    ASSERT_ERR(sparse_from_csc(&bad_shape, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+    ASSERT_NULL(sparse_create_from_csc(&bad_shape));
+
+    SparseCsc bad_nnz = good;
+    bad_nnz.nnz = -1;
+    ASSERT_ERR(sparse_from_csc(&bad_nnz, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    SparseCsc missing_col_ptr = good;
+    missing_col_ptr.col_ptr = NULL;
+    ASSERT_ERR(sparse_from_csc(&missing_col_ptr, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    SparseCsc missing_row_idx = good;
+    missing_row_idx.row_idx = NULL;
+    ASSERT_ERR(sparse_from_csc(&missing_row_idx, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_ptr_nonzero_start[] = {1, 1};
+    SparseCsc bad_start = good;
+    bad_start.col_ptr = col_ptr_nonzero_start;
+    ASSERT_ERR(sparse_from_csc(&bad_start, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_ptr_nonmonotonic[] = {0, 2, 1};
+    SparseCsc bad_monotonic = good;
+    bad_monotonic.cols = 2;
+    bad_monotonic.nnz = 1;
+    bad_monotonic.col_ptr = col_ptr_nonmonotonic;
+    ASSERT_ERR(sparse_from_csc(&bad_monotonic, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_ptr_bad_end[] = {0, 0};
+    SparseCsc bad_end = good;
+    bad_end.col_ptr = col_ptr_bad_end;
+    ASSERT_ERR(sparse_from_csc(&bad_end, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_idx_oob[] = {1};
+    SparseCsc bad_index = good;
+    bad_index.row_idx = row_idx_oob;
+    ASSERT_ERR(sparse_from_csc(&bad_index, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t col_ptr_two[] = {0, 2};
+    idx_t row_idx_duplicate[] = {0, 0};
+    double values_two[] = {1.0, 2.0};
+    SparseCsc bad_duplicate = {
+        .rows = 2,
+        .cols = 1,
+        .nnz = 2,
+        .col_ptr = col_ptr_two,
+        .row_idx = row_idx_duplicate,
+        .values = values_two,
+    };
+    ASSERT_ERR(sparse_from_csc(&bad_duplicate, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+
+    idx_t row_idx_unsorted[] = {1, 0};
+    SparseCsc bad_unsorted = bad_duplicate;
+    bad_unsorted.row_idx = row_idx_unsorted;
+    ASSERT_ERR(sparse_from_csc(&bad_unsorted, &mat), SPARSE_ERR_BADARG);
+    ASSERT_NULL(mat);
+}
+
+static void test_csc_constructor_copies_caller_owned_arrays(void) {
+    idx_t col_ptr[] = {0, 1, 2};
+    idx_t row_idx[] = {0, 0};
+    double values[] = {4.0, -1.0};
+    SparseCsc csc = {
+        .rows = 1,
+        .cols = 2,
+        .nnz = 2,
+        .col_ptr = col_ptr,
+        .row_idx = row_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_from_csc(&csc, &A), SPARSE_OK);
+    ASSERT_NOT_NULL(A);
+
+    row_idx[0] = 1;
+    values[0] = 99.0;
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 1), -1.0, 0.0);
 
     sparse_free(A);
 }
@@ -388,6 +612,58 @@ static void test_csr_csc_transpose(void) {
     sparse_free(AT);
 }
 
+static void test_compressed_constructed_matrix_enters_lu_solve(void) {
+    idx_t row_ptr[] = {0, 2, 4};
+    idx_t col_idx[] = {0, 1, 0, 1};
+    double values[] = {4.0, 1.0, 2.0, 3.0};
+    SparseCsr csr = {
+        .rows = 2,
+        .cols = 2,
+        .nnz = 4,
+        .row_ptr = row_ptr,
+        .col_idx = col_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = sparse_create_from_csr(&csr);
+    ASSERT_NOT_NULL(A);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {1.0, 1.0};
+    double x[] = {0.0, 0.0};
+    ASSERT_ERR(sparse_lu_solve(A, b, x), SPARSE_OK);
+    ASSERT_NEAR(x[0], 0.2, 1e-12);
+    ASSERT_NEAR(x[1], 0.2, 1e-12);
+
+    sparse_free(A);
+}
+
+static void test_csc_constructed_matrix_enters_cholesky_solve(void) {
+    idx_t col_ptr[] = {0, 2, 4};
+    idx_t row_idx[] = {0, 1, 0, 1};
+    double values[] = {4.0, 1.0, 1.0, 3.0};
+    SparseCsc csc = {
+        .rows = 2,
+        .cols = 2,
+        .nnz = 4,
+        .col_ptr = col_ptr,
+        .row_idx = row_idx,
+        .values = values,
+    };
+
+    SparseMatrix *A = sparse_create_from_csc(&csc);
+    ASSERT_NOT_NULL(A);
+    ASSERT_ERR(sparse_cholesky_factor(A), SPARSE_OK);
+
+    double b[] = {1.0, 1.0};
+    double x[] = {0.0, 0.0};
+    ASSERT_ERR(sparse_cholesky_solve(A, b, x), SPARSE_OK);
+    ASSERT_NEAR(x[0], 2.0 / 11.0, 1e-12);
+    ASSERT_NEAR(x[1], 3.0 / 11.0, 1e-12);
+
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -401,12 +677,16 @@ int main(void) {
     RUN_TEST(test_csr_empty);
     RUN_TEST(test_csr_dense);
     RUN_TEST(test_create_from_csr_entry_path);
+    RUN_TEST(test_csr_diagnostic_constructor_rejects_bad_inputs);
+    RUN_TEST(test_csr_constructor_copies_caller_owned_arrays);
     RUN_TEST(test_csr_null);
 
     /* CSC */
     RUN_TEST(test_csc_known);
     RUN_TEST(test_csc_roundtrip);
     RUN_TEST(test_create_from_csc_entry_path);
+    RUN_TEST(test_csc_diagnostic_constructor_rejects_bad_inputs);
+    RUN_TEST(test_csc_constructor_copies_caller_owned_arrays);
     RUN_TEST(test_csc_null);
 
     /* SuiteSparse validation */
@@ -415,6 +695,10 @@ int main(void) {
 
     /* Transpose relationship */
     RUN_TEST(test_csr_csc_transpose);
+
+    /* Bounded solver entry proof */
+    RUN_TEST(test_compressed_constructed_matrix_enters_lu_solve);
+    RUN_TEST(test_csc_constructed_matrix_enters_cholesky_solve);
 
     TEST_SUITE_END();
 }

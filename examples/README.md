@@ -8,6 +8,9 @@ Use this file as the compact next-step map after the README front door.
 
 - **Want the smallest first success?**
   - Run `./build/example_basic_solve`.
+- **Already have CSR or CSC arrays?**
+  - Run `./build/example_compressed_input` for compressed construction into
+    the normal public matrix shell.
 - **Need the repeated-run direct lifecycle?**
   - Run `./build/example_analysis`.
 - **Need a one-shot iterative workflow?**
@@ -84,6 +87,29 @@ Next step after this example:
 - stay on the one-shot direct path for small or occasional solves
 - move to `example_analysis` when the sparsity pattern is stable across many
   value changes
+
+### Compressed Input: example_compressed_input
+
+Build the same kind of public matrix shell from caller-owned CSR arrays, then
+use the normal one-shot LU workflow. This is the smallest shipped reference
+for callers whose data already lives in compressed sparse storage.
+
+The example demonstrates that CSR arrays are validated and copied, not
+adopted. After construction, the returned matrix is freed with
+`sparse_free(...)`, while the caller still owns the original compressed arrays.
+
+```bash
+./build/example_compressed_input
+```
+
+Next step after this example:
+
+- use `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when
+  `NULL` on invalid input is enough
+- use `sparse_from_csr(...)` or `sparse_from_csc(...)` when the call site needs
+  explicit `sparse_err_t` diagnostics
+- move to `example_analysis` when repeated same-pattern direct solves are the
+  reason to manage analysis and factor objects explicitly
 
 ### Repeated-Run Direct: example_analysis
 

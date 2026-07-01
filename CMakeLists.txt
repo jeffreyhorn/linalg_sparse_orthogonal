@@ -327,6 +327,9 @@ target_link_libraries(example_analysis PRIVATE sparse_lu_ortho)
 add_executable(example_basic_solve examples/example_basic_solve.c)
 target_link_libraries(example_basic_solve PRIVATE sparse_lu_ortho)
 
+add_executable(example_compressed_input examples/example_compressed_input.c)
+target_link_libraries(example_compressed_input PRIVATE sparse_lu_ortho)
+
 add_executable(example_minnorm examples/example_minnorm.c)
 target_link_libraries(example_minnorm PRIVATE sparse_lu_ortho)
 

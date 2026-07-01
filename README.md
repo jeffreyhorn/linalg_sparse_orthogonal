@@ -194,8 +194,12 @@ See [INSTALL.md](INSTALL.md) for detailed cross-platform instructions.
 
 ## Quick Start
 
-Use this path if you want one successful direct solve before learning the
-repeated-run direct lifecycle or iterative/eigensolver surfaces.
+Use this path if you want one successful direct solve from a tiny hand-written
+matrix before learning the repeated-run direct lifecycle or
+iterative/eigensolver surfaces. If your coefficients already exist as CSR or
+CSC arrays, skip incremental insertion and start from
+`sparse_create_from_csr(...)`, `sparse_create_from_csc(...)`, or the
+diagnostic `sparse_from_csr/csc` constructors instead.
 
 ```c
 #include "sparse_matrix.h"
@@ -257,7 +261,11 @@ one-shot direct entry path is now:
 
 That keeps the linked-list shell as the mutable compatibility owner, but it
 avoids forcing compressed-input callers to think of incremental shell mutation
-as their natural starting point.
+as their natural starting point. The constructor copies the compressed arrays;
+the caller still owns and may later change or free those arrays without
+changing the returned matrix. Use `sparse_from_csr(...)` or
+`sparse_from_csc(...)` when call-site error handling needs an explicit
+`sparse_err_t` diagnostic instead of a `NULL` constructor result.
 
 ### Iterative Solver Example
 
@@ -590,7 +598,7 @@ remain one-shot compatibility surfaces.
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
 - `sparse_to_csr(mat, &csr)` / `sparse_create_from_csr(csr)` — CSR export and compressed-first construction; free exported storage with `sparse_csr_free(csr)`
 - `sparse_to_csc(mat, &csc)` / `sparse_create_from_csc(csc)` — CSC export and compressed-first construction; free exported storage with `sparse_csc_free(csc)`
-- `sparse_from_csr(csr, &mat)` / `sparse_from_csc(csc, &mat)` — retained compatibility wrappers when you need explicit `sparse_err_t` import status
+- `sparse_from_csr(csr, &mat)` / `sparse_from_csc(csc, &mat)` — diagnostic compressed-first constructors when you need explicit `sparse_err_t` import status; on success the caller owns the returned `SparseMatrix`, and the input arrays remain caller-owned
 - `sparse_errno()` — retrieve system errno after I/O failure
 
 All functions return `sparse_err_t` error codes (except accessors that return values directly). See `sparse_strerror()` for human-readable error messages.

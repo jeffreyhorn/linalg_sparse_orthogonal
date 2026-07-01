@@ -1337,6 +1337,8 @@ static SparseMatrix *build_kkt_scaled_10x10(void) {
     const double coupling_vals[8] = {1.0, 0.125, -2.0, 0.25, 0.5, -0.375, 3.0, 0.5};
 
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < 6; i++) {
         sparse_insert(A, i, i, diag[i]);
         if (i > 0) {

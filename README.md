@@ -199,7 +199,8 @@ matrix before learning the repeated-run direct lifecycle or
 iterative/eigensolver surfaces. If your coefficients already exist as CSR or
 CSC arrays, skip incremental insertion and start from
 `sparse_create_from_csr(...)`, `sparse_create_from_csc(...)`, or the
-diagnostic `sparse_from_csr/csc` constructors instead.
+diagnostic `sparse_from_csr(...)` and `sparse_from_csc(...)` constructors
+instead.
 
 ```c
 #include "sparse_matrix.h"

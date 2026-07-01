@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dense reference solves for bounded external LDLT differential tests."""
+"""Dense reference solves for bounded external LU differential tests."""
 
 from __future__ import annotations
 
@@ -7,66 +7,30 @@ import sys
 from typing import List, Tuple
 
 
-def build_kkt5() -> List[List[float]]:
-    n = 5
-    a = [[0.0 for _ in range(n)] for _ in range(n)]
-    for i in range(3):
-        a[i][i] = 4.0
-    a[0][3] = 1.0
-    a[3][0] = 1.0
-    a[1][4] = 1.0
-    a[4][1] = 1.0
-    return a
-
-
-def build_kkt10() -> List[List[float]]:
-    n = 10
-    a = [[0.0 for _ in range(n)] for _ in range(n)]
-    for i in range(6):
-        a[i][i] = 6.0
-        if i > 0:
-            a[i][i - 1] = -1.0
-            a[i - 1][i] = -1.0
-    for j in range(4):
-        a[6 + j][j] = 1.0
-        a[j][6 + j] = 1.0
-    return a
-
-
-def build_kkt_scaled_10() -> List[List[float]]:
-    n = 10
-    a = [[0.0 for _ in range(n)] for _ in range(n)]
-    diag = [8.0, 10.0, 12.0, 14.0, 16.0, 18.0]
-    offdiag = [-1.0, -1.25, -1.5, -1.75, -2.0]
-    for i, value in enumerate(diag):
-        a[i][i] = value
-        if i > 0:
-            a[i][i - 1] = offdiag[i - 1]
-            a[i - 1][i] = offdiag[i - 1]
-
-    couplings = [
-        (6, 0, 1.0),
-        (6, 4, 0.125),
-        (7, 1, -2.0),
-        (7, 5, 0.25),
-        (8, 2, 0.5),
-        (8, 4, -0.375),
-        (9, 3, 3.0),
-        (9, 5, 0.5),
+def build_lu_nonsym_square_5() -> List[List[float]]:
+    return [
+        [4.0, -1.0, 0.0, 2.0, 0.5],
+        [1.5, 5.0, -2.0, 0.0, 1.0],
+        [0.0, 2.0, 6.0, -1.0, 0.0],
+        [3.0, 0.0, 1.0, 7.0, -2.0],
+        [-1.0, 0.5, 0.0, 2.0, 8.0],
     ]
-    for row, col, value in couplings:
-        a[row][col] = value
-        a[col][row] = value
-    return a
+
+
+def build_lu_singular_square_4() -> List[List[float]]:
+    return [
+        [1.0, 2.0, -1.0, 0.0],
+        [2.0, 4.0, -2.0, 0.0],
+        [0.0, 1.0, 3.0, 1.0],
+        [1.0, 0.0, 0.5, -1.0],
+    ]
 
 
 def fixture_matrix(name: str) -> List[List[float]]:
-    if name == "kkt5":
-        return build_kkt5()
-    if name == "kkt10":
-        return build_kkt10()
-    if name == "ldlt_kkt_scaled_10":
-        return build_kkt_scaled_10()
+    if name == "lu_nonsym_square_5":
+        return build_lu_nonsym_square_5()
+    if name == "lu_singular_square_4":
+        return build_lu_singular_square_4()
     raise ValueError(f"unknown fixture {name}")
 
 

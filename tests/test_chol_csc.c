@@ -21,6 +21,8 @@
 #include "sparse_reorder.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+#include "test_solver_helpers.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -33,14 +35,6 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
-
-#ifdef _WIN32
-#define tf_popen _popen
-#define tf_pclose _pclose
-#else
-#define tf_popen popen
-#define tf_pclose pclose
-#endif
 
 /* ═══════════════════════════════════════════════════════════════════════
  * alloc / free smoke tests
@@ -1656,65 +1650,8 @@ static int read_external_dense_reference_solution(const char *matrix_path, doubl
         return -1;
     }
 
-    FILE *pipe = tf_popen(cmd, "r");
-    if (!pipe) {
-        snprintf(reason, reason_cap, "python3 pipe open failed");
-        return 0;
-    }
-
-    char line[256];
-    if (!fgets(line, sizeof(line), pipe)) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "external dense reference produced no output");
-        return -1;
-    }
-
-    if (strncmp(line, "SKIP ", 5) == 0) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "%s", line + 5);
-        size_t len = strlen(reason);
-        if (len > 0 && reason[len - 1] == '\n')
-            reason[len - 1] = '\0';
-        return 0;
-    }
-    if (strncmp(line, "ERROR ", 6) == 0) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "%s", line + 6);
-        size_t len = strlen(reason);
-        if (len > 0 && reason[len - 1] == '\n')
-            reason[len - 1] = '\0';
-        return -1;
-    }
-
-    idx_t got_n = -1;
-    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "external dense reference returned invalid dimension header");
-        return -1;
-    }
-
-    for (idx_t i = 0; i < n; i++) {
-        if (!fgets(line, sizeof(line), pipe)) {
-            tf_pclose(pipe);
-            snprintf(reason, reason_cap,
-                     "external dense reference truncated at entry %" SPARSE_PRIDX, i);
-            return -1;
-        }
-        char *end = NULL;
-        x_out[i] = strtod(line, &end);
-        if (end == line) {
-            tf_pclose(pipe);
-            snprintf(reason, reason_cap,
-                     "external dense reference parse failure at entry %" SPARSE_PRIDX, i);
-            return -1;
-        }
-    }
-
-    if (tf_pclose(pipe) != 0) {
-        snprintf(reason, reason_cap, "external dense reference exited non-zero");
-        return -1;
-    }
-    return 1;
+    return (int)tf_read_external_reference_vector(cmd, "external dense reference", x_out, n, reason,
+                                                  reason_cap);
 }
 
 static void assert_cholesky_external_dense_reference(const char *matrix_path,

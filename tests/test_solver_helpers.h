@@ -70,4 +70,94 @@ static inline double tf_block_relative_residual_l2(const SparseMatrix *A, const 
     return worst;
 }
 
+#ifdef TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+
+#include <stdio.h>
+#include <string.h>
+
+#ifdef _WIN32
+#define tf_external_ref_popen _popen
+#define tf_external_ref_pclose _pclose
+#else
+#define tf_external_ref_popen popen
+#define tf_external_ref_pclose pclose
+#endif
+
+typedef enum {
+    TF_EXTERNAL_REFERENCE_ERROR = -1,
+    TF_EXTERNAL_REFERENCE_SKIP = 0,
+    TF_EXTERNAL_REFERENCE_OK = 1
+} tf_external_reference_status_t;
+
+static inline void tf_external_reference_copy_reason(char *reason, size_t reason_cap,
+                                                     const char *text) {
+    if (!reason || reason_cap == 0)
+        return;
+    snprintf(reason, reason_cap, "%s", text ? text : "");
+    size_t len = strlen(reason);
+    if (len > 0 && reason[len - 1] == '\n')
+        reason[len - 1] = '\0';
+}
+
+static inline tf_external_reference_status_t
+tf_read_external_reference_vector(const char *cmd, const char *label, double *x_out, idx_t n,
+                                  char *reason, size_t reason_cap) {
+    if (!cmd || !label || !x_out || !reason || reason_cap == 0)
+        return TF_EXTERNAL_REFERENCE_ERROR;
+
+    FILE *pipe = tf_external_ref_popen(cmd, "r");
+    if (!pipe) {
+        snprintf(reason, reason_cap, "python3 pipe open failed");
+        return TF_EXTERNAL_REFERENCE_SKIP;
+    }
+
+    char line[256];
+    if (!fgets(line, sizeof(line), pipe)) {
+        tf_external_ref_pclose(pipe);
+        snprintf(reason, reason_cap, "%s produced no output", label);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    if (strncmp(line, "SKIP ", 5) == 0) {
+        tf_external_ref_pclose(pipe);
+        tf_external_reference_copy_reason(reason, reason_cap, line + 5);
+        return TF_EXTERNAL_REFERENCE_SKIP;
+    }
+    if (strncmp(line, "ERROR ", 6) == 0) {
+        tf_external_ref_pclose(pipe);
+        tf_external_reference_copy_reason(reason, reason_cap, line + 6);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    idx_t got_n = -1;
+    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
+        tf_external_ref_pclose(pipe);
+        snprintf(reason, reason_cap, "%s returned invalid dimension header", label);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        if (!fgets(line, sizeof(line), pipe)) {
+            tf_external_ref_pclose(pipe);
+            snprintf(reason, reason_cap, "%s truncated at entry %" SPARSE_PRIDX, label, i);
+            return TF_EXTERNAL_REFERENCE_ERROR;
+        }
+        char *end = NULL;
+        x_out[i] = strtod(line, &end);
+        if (end == line) {
+            tf_external_ref_pclose(pipe);
+            snprintf(reason, reason_cap, "%s parse failure at entry %" SPARSE_PRIDX, label, i);
+            return TF_EXTERNAL_REFERENCE_ERROR;
+        }
+    }
+
+    if (tf_external_ref_pclose(pipe) != 0) {
+        snprintf(reason, reason_cap, "%s exited non-zero", label);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+    return TF_EXTERNAL_REFERENCE_OK;
+}
+
+#endif
+
 #endif

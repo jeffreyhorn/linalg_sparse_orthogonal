@@ -102,6 +102,13 @@ Start with the smallest surface that matches your real workload:
 
 - **One-shot direct solve:** use LU, Cholesky, LDL^T, or QR when you are
   solving once or only occasionally.
+  - Use LU for general square systems; singular systems report
+    `SPARSE_ERR_SINGULAR`.
+  - Use Cholesky for symmetric positive-definite systems; non-SPD systems
+    report `SPARSE_ERR_NOT_SPD`.
+  - Use LDL^T for symmetric indefinite systems where the LDL^T API is the
+    natural model.
+  - Use QR for rectangular or rank-deficient least-squares workflows.
 - **Compressed-first one-shot direct entry:** use
   `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when your
   matrix already lives in compressed sparse storage and you want a one-shot
@@ -133,6 +140,13 @@ When to widen beyond the first examples:
 
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
+
+Direct-solver correctness evidence is family-local. Current maintained
+external dense-reference lanes cover Cholesky CSC SPD fixtures, LDL^T CSC
+indefinite KKT fixtures, and one linked-list LU nonsymmetric fixture plus one
+LU singular expected-failure fixture. Treat those as bounded regression
+evidence, not a claim that every direct solver family has complete external
+oracle coverage or direct CSR/CSC public solve APIs.
 
 ## Building
 

@@ -103,8 +103,12 @@ static inline void tf_external_reference_copy_reason(char *reason, size_t reason
 static inline tf_external_reference_status_t
 tf_read_external_reference_vector(const char *cmd, const char *label, double *x_out, idx_t n,
                                   char *reason, size_t reason_cap) {
-    if (!cmd || !label || !x_out || !reason || reason_cap == 0)
+    if (!reason || reason_cap == 0)
         return TF_EXTERNAL_REFERENCE_ERROR;
+    if (!cmd || !label || !x_out) {
+        snprintf(reason, reason_cap, "external reference invalid arguments");
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
 
     FILE *pipe = tf_external_ref_popen(cmd, "r");
     if (!pipe) {

@@ -154,8 +154,12 @@ static SparseMatrix *make_lu_singular_square_4(void) {
 
 static int read_lu_external_dense_reference_solution(const char *fixture_key, double *x_out,
                                                      idx_t n, char *reason, size_t reason_cap) {
-    if (!fixture_key || !x_out || !reason || reason_cap == 0)
+    if (!reason || reason_cap == 0)
         return -1;
+    if (!fixture_key || !x_out) {
+        snprintf(reason, reason_cap, "external LU reference invalid arguments");
+        return -1;
+    }
 
     if (strcmp(fixture_key, "lu_nonsym_square_5") != 0 &&
         strcmp(fixture_key, "lu_singular_square_4") != 0) {
@@ -560,6 +564,21 @@ static void test_s102_singular_lu_square_4_expected_failure(void) {
     ASSERT_NOT_NULL(A);
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
+}
+
+static void test_s102_external_dense_reference_lu_singular_square_4_expected_failure(void) {
+#ifdef _WIN32
+    SKIP_TEST("external LU dense reference helper is not enabled on Windows");
+#else
+    double x_ref[4] = {0};
+    char reason[256];
+    int ref_status = read_lu_external_dense_reference_solution("lu_singular_square_4", x_ref, 4,
+                                                               reason, sizeof(reason));
+    if (ref_status == 0)
+        SKIP_TEST(reason);
+    ASSERT_TRUE(ref_status == (int)TF_EXTERNAL_REFERENCE_ERROR);
+    ASSERT_TRUE(reason[0] != '\0');
+#endif
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1006,6 +1025,7 @@ int main(void) {
     RUN_TEST(test_singular_rank_deficient);
     RUN_TEST(test_singular_zero_row);
     RUN_TEST(test_s102_singular_lu_square_4_expected_failure);
+    RUN_TEST(test_s102_external_dense_reference_lu_singular_square_4_expected_failure);
 
     /* Error paths */
     RUN_TEST(test_lu_null_matrix);

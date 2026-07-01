@@ -131,10 +131,20 @@ tf_read_external_reference_vector(const char *cmd, const char *label, double *x_
     }
 
     idx_t got_n = -1;
-    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
+    int consumed = 0;
+    if (sscanf(line, "OK %" SPARSE_SCNIDX "%n", &got_n, &consumed) != 1 || got_n != n) {
         tf_external_ref_pclose(pipe);
         snprintf(reason, reason_cap, "%s returned invalid dimension header", label);
         return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+    const char *header_end = line + consumed;
+    while (*header_end != '\0') {
+        if (!isspace((unsigned char)*header_end)) {
+            tf_external_ref_pclose(pipe);
+            snprintf(reason, reason_cap, "%s trailing data in dimension header", label);
+            return TF_EXTERNAL_REFERENCE_ERROR;
+        }
+        header_end++;
     }
 
     for (idx_t i = 0; i < n; i++) {

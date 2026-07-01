@@ -72,6 +72,7 @@ static inline double tf_block_relative_residual_l2(const SparseMatrix *A, const 
 
 #ifdef TF_ENABLE_EXTERNAL_REFERENCE_HELPER
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -148,6 +149,14 @@ tf_read_external_reference_vector(const char *cmd, const char *label, double *x_
             tf_external_ref_pclose(pipe);
             snprintf(reason, reason_cap, "%s parse failure at entry %" SPARSE_PRIDX, label, i);
             return TF_EXTERNAL_REFERENCE_ERROR;
+        }
+        while (*end != '\0') {
+            if (!isspace((unsigned char)*end)) {
+                tf_external_ref_pclose(pipe);
+                snprintf(reason, reason_cap, "%s trailing data at entry %" SPARSE_PRIDX, label, i);
+                return TF_EXTERNAL_REFERENCE_ERROR;
+            }
+            end++;
         }
     }
 

@@ -15,6 +15,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
@@ -156,9 +157,15 @@ static int read_lu_external_dense_reference_solution(const char *fixture_key, do
     if (!fixture_key || !x_out || !reason || reason_cap == 0)
         return -1;
 
+    if (strcmp(fixture_key, "lu_nonsym_square_5") != 0 &&
+        strcmp(fixture_key, "lu_singular_square_4") != 0) {
+        snprintf(reason, reason_cap, "unsupported external LU reference fixture key");
+        return -1;
+    }
+
     char cmd[256];
-    int written = snprintf(cmd, sizeof(cmd), "python3 tests/lu_external_dense_reference.py \"%s\"",
-                           fixture_key);
+    int written =
+        snprintf(cmd, sizeof(cmd), "python3 tests/lu_external_dense_reference.py %s", fixture_key);
     if (written < 0 || (size_t)written >= sizeof(cmd)) {
         snprintf(reason, reason_cap, "external LU reference command overflow");
         return -1;

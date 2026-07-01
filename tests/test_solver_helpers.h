@@ -170,6 +170,18 @@ tf_read_external_reference_vector(const char *cmd, const char *label, double *x_
         }
     }
 
+    while (fgets(line, sizeof(line), pipe)) {
+        const char *extra = line;
+        while (*extra != '\0') {
+            if (!isspace((unsigned char)*extra)) {
+                tf_external_ref_pclose(pipe);
+                snprintf(reason, reason_cap, "%s produced trailing output", label);
+                return TF_EXTERNAL_REFERENCE_ERROR;
+            }
+            extra++;
+        }
+    }
+
     if (tf_external_ref_pclose(pipe) != 0) {
         snprintf(reason, reason_cap, "%s exited non-zero", label);
         return TF_EXTERNAL_REFERENCE_ERROR;

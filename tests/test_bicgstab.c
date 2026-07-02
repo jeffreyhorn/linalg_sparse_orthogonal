@@ -964,7 +964,7 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     ASSERT_TRUE(gmres_result.converged);
 
     double res_bicg = tf_relative_residual_l2(A_bicg, b, x_bicg, n, HUGE_VAL);
-    double res_gmres = tf_relative_residual_l2(A_bicg, b, x_gmres, n, HUGE_VAL);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, HUGE_VAL);
     printf("    s103 steam1: BiCGSTAB+ILU iters=%d res=%.3e, GMRES(30)+ILU iters=%d "
            "res=%.3e\n",
            (int)bicg_result.iterations, res_bicg, (int)gmres_result.iterations, res_gmres);

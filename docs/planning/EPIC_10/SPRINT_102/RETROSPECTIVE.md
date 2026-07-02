@@ -4,9 +4,8 @@
 **Duration:** 14 days (Days 1-14 landed on branch `sprint-102`)
 **Status:** Complete
 
-> Note: this retrospective is stored at the requested path
-> `docs/planning/EPIC_10/SPRINT_99/RETROSPECTIVE.md`. The sprint artifacts it
-> summarizes live under `docs/planning/EPIC_10/SPRINT_102/`.
+> Note: this retrospective is stored with the Sprint 102 planning artifacts at
+> `docs/planning/EPIC_10/SPRINT_102/RETROSPECTIVE.md`.
 
 ## Definition Of Done Checklist
 

@@ -773,7 +773,7 @@ static void test_bicgstab_vs_gmres_steam1(void) {
                        &gmres_result);
 
     double res_bicg = tf_relative_residual_l2(A_bicg, b, x_bicg, n, HUGE_VAL);
-    double res_gmres = tf_relative_residual_l2(A_bicg, b, x_gmres, n, HUGE_VAL);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, HUGE_VAL);
     printf("    steam1: BiCGSTAB iters=%d res=%.3e, GMRES(30) iters=%d res=%.3e\n",
            (int)bicg_result.iterations, res_bicg, (int)gmres_result.iterations, res_gmres);
 
@@ -832,6 +832,207 @@ static void test_bicgstab_vs_gmres_tridiag(void) {
     free(x_gmres);
     sparse_free(A_bicg);
     sparse_free(A_gmres);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 103 iterative comparison batch
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static SparseMatrix *build_s103_bicgstab_nonsym_known_5(double x_true[5], double b[5]) {
+    SparseMatrix *A = sparse_create(5, 5);
+    if (!A)
+        return NULL;
+
+    const double vals[5][5] = {{10.0, 1.0, 0.0, 0.0, -1.0},
+                               {-2.0, 10.0, 1.0, 0.0, 0.0},
+                               {0.0, -2.0, 10.0, 1.0, 0.0},
+                               {0.0, 0.0, -2.0, 10.0, 1.0},
+                               {1.0, 0.0, 0.0, -2.0, 10.0}};
+    const double target[5] = {1.0, -1.0, 2.0, -2.0, 3.0};
+    for (idx_t i = 0; i < 5; i++) {
+        x_true[i] = target[i];
+        b[i] = 0.0;
+        for (idx_t j = 0; j < 5; j++) {
+            if (vals[i][j] != 0.0)
+                sparse_insert(A, i, j, vals[i][j]);
+            b[i] += vals[i][j] * x_true[j];
+        }
+    }
+    return A;
+}
+
+static void test_s103_bicgstab_nonsym_known_5_lu_reference(void) {
+    double x_true[5];
+    double b[5];
+    SparseMatrix *A = build_s103_bicgstab_nonsym_known_5(x_true, b);
+    ASSERT_NOT_NULL(A);
+    SparseMatrix *A_lu = build_s103_bicgstab_nonsym_known_5(x_true, b);
+    ASSERT_NOT_NULL(A_lu);
+    if (!A || !A_lu) {
+        sparse_free(A_lu);
+        sparse_free(A);
+        return;
+    }
+
+    double x_bicgstab[5] = {0};
+    double x_lu[5] = {0};
+    sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-12, .verbose = 0};
+    sparse_iter_result_t result;
+
+    REQUIRE_OK(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-12));
+    REQUIRE_OK(sparse_lu_solve(A_lu, b, x_lu));
+
+    sparse_err_t err = sparse_solve_bicgstab(A, b, x_bicgstab, &opts, NULL, NULL, &result);
+    ASSERT_ERR(err, SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    double rel_res = tf_relative_residual_l2(A, b, x_bicgstab, 5, HUGE_VAL);
+    printf("    s103 bicgstab_nonsym_known_5: iters=%d, rel_res=%.3e\n", (int)result.iterations,
+           rel_res);
+    ASSERT_TRUE(rel_res < 1e-10);
+    for (idx_t i = 0; i < 5; i++) {
+        ASSERT_NEAR(x_bicgstab[i], x_true[i], 1e-8);
+        ASSERT_NEAR(x_bicgstab[i], x_lu[i], 1e-8);
+    }
+
+    sparse_free(A_lu);
+    sparse_free(A);
+}
+
+static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
+    SparseMatrix *A_bicg = NULL;
+    SparseMatrix *A_gmres = NULL;
+    ASSERT_ERR(sparse_load_mm(&A_bicg, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A_gmres, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    if (!A_bicg || !A_gmres) {
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+    idx_t n = sparse_rows(A_bicg);
+    ASSERT_EQ(n, 240);
+
+    double *x_true = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_true);
+    ASSERT_NOT_NULL(b);
+    if (!x_true || !b) {
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_true[i] = (double)(i + 1);
+    compute_rhs(A_bicg, x_true, b);
+
+    sparse_ilu_t ilu_bicg, ilu_gmres;
+    memset(&ilu_bicg, 0, sizeof(ilu_bicg));
+    memset(&ilu_gmres, 0, sizeof(ilu_gmres));
+    sparse_err_t err = sparse_ilu_factor(A_bicg, &ilu_bicg);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+    err = sparse_ilu_factor(A_gmres, &ilu_gmres);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_ilu_free(&ilu_bicg);
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+
+    double *x_bicg = calloc((size_t)n, sizeof(double));
+    double *x_gmres = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_bicg);
+    ASSERT_NOT_NULL(x_gmres);
+    if (!x_bicg || !x_gmres) {
+        sparse_ilu_free(&ilu_bicg);
+        sparse_ilu_free(&ilu_gmres);
+        free(x_true);
+        free(b);
+        free(x_bicg);
+        free(x_gmres);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+
+    sparse_iter_opts_t bicg_opts = {.max_iter = 2000, .tol = 1e-6, .verbose = 0};
+    sparse_gmres_opts_t gmres_opts = {.max_iter = 2000, .restart = 30, .tol = 1e-6, .verbose = 0};
+    sparse_iter_result_t bicg_result;
+    sparse_iter_result_t gmres_result;
+
+    sparse_err_t bicg_err = sparse_solve_bicgstab(A_bicg, b, x_bicg, &bicg_opts, sparse_ilu_precond,
+                                                  &ilu_bicg, &bicg_result);
+    sparse_err_t gmres_err = sparse_solve_gmres(A_gmres, b, x_gmres, &gmres_opts,
+                                                sparse_ilu_precond, &ilu_gmres, &gmres_result);
+    ASSERT_ERR(bicg_err, SPARSE_OK);
+    ASSERT_ERR(gmres_err, SPARSE_OK);
+    ASSERT_TRUE(bicg_result.converged);
+    ASSERT_TRUE(gmres_result.converged);
+
+    double res_bicg = tf_relative_residual_l2(A_bicg, b, x_bicg, n, HUGE_VAL);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, HUGE_VAL);
+    printf("    s103 steam1: BiCGSTAB+ILU iters=%d res=%.3e, GMRES(30)+ILU iters=%d "
+           "res=%.3e\n",
+           (int)bicg_result.iterations, res_bicg, (int)gmres_result.iterations, res_gmres);
+    ASSERT_TRUE(res_bicg < 1e-4);
+    ASSERT_TRUE(res_gmres < 1e-4);
+
+    sparse_ilu_free(&ilu_bicg);
+    sparse_ilu_free(&ilu_gmres);
+    free(x_true);
+    free(b);
+    free(x_bicg);
+    free(x_gmres);
+    sparse_free(A_bicg);
+    sparse_free(A_gmres);
+}
+
+static void test_s103_bicgstab_small_budget_expected_nonconvergence(void) {
+    idx_t n = 50;
+    SparseMatrix *A = build_unsym_tridiag(n, 4.0, -1.0, -2.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double *b = calloc((size_t)n, sizeof(double));
+    double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    if (!b || !x) {
+        free(b);
+        free(x);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)(i + 1));
+
+    sparse_iter_opts_t opts = {.max_iter = 1, .tol = 1e-14, .verbose = 0};
+    sparse_iter_result_t result;
+    sparse_err_t err = sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, &result);
+
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
+    printf("    s103 small-budget BiCGSTAB: err=%d, converged=%d, iters=%d, rel_res=%.3e\n", err,
+           result.converged, (int)result.iterations, rel_res);
+    ASSERT_ERR(err, SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isfinite(rel_res));
+    ASSERT_TRUE(rel_res >= 0.0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1549,6 +1750,11 @@ int main(void) {
     /* BiCGSTAB vs GMRES comparison */
     RUN_TEST(test_bicgstab_vs_gmres_steam1);
     RUN_TEST(test_bicgstab_vs_gmres_tridiag);
+
+    /* Sprint 103 iterative comparison batch */
+    RUN_TEST(test_s103_bicgstab_nonsym_known_5_lu_reference);
+    RUN_TEST(test_s103_bicgstab_steam1_ilu_vs_gmres30_reference);
+    RUN_TEST(test_s103_bicgstab_small_budget_expected_nonconvergence);
 
     /* Numerical hardening */
     RUN_TEST(test_bicgstab_nan_inf_detection);

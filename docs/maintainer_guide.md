@@ -342,6 +342,46 @@ Interpretation:
 - Any new external oracle lane needs a family-local boundary artifact before
   implementation, then a validation artifact before public wording changes.
 
+## Sprint 103 Iterative, Spectral, and SVD Evidence Boundary Snapshot
+
+Sprint 103 added bounded comparison evidence for iterative, eigensolver, and
+SVD workflows. These lanes improve residual, orthogonality, rank, and
+convergence-profile confidence for named fixtures. They do not establish broad
+external package parity.
+
+| Family / lane | Public guidance level | Maintained evidence owner | Evidence boundary | Residual / quality interpretation | Non-claims |
+|---|---|---|---|---|---|
+| BiCGSTAB nonsymmetric convergence | Use as a Krylov option for nonsymmetric systems where residual convergence is checked by the caller | `tests/test_bicgstab.c` | deterministic known-solution solve checked against LU, internal GMRES(30)+ILU comparison on `steam1`, and one declared non-convergence budget boundary | relative residuals are fixture-local solve-quality checks; the GMRES comparison is an internal consistency cross-check, not an external oracle | no PETSc, SciPy, Trilinos, or broad nonsymmetric parity claim; no portable iteration-count or performance claim |
+| LOBPCG closed-form and preconditioned fixtures | Use for symmetric eigenvalue workflows that can tolerate fixture-local Ritz residual interpretation | `tests/test_eigs_lobpcg.c` | closed-form Laplacian eigenvalues with vector orthogonality plus `bcsstk04` LDLT-versus-IC(0) residual/orthogonality comparison | Ritz residuals and `result.residual_norm` are local quality criteria for the requested eigenpairs; preconditioner deltas are descriptive except where the fixture asserts a threshold | no ARPACK, SciPy, PETSc, Trilinos, or broad eigensolver parity claim; no portable preconditioner superiority claim |
+| Thick-restart exact diagonal fixture | Use as bounded regression evidence for restarted symmetric eigenvalue extraction | `tests/test_eigs_thick_restart.c` | exact diagonal eigenvalue fixture with Ritz residual, orthogonality, and bounded peak-basis checks | residuals are checked against exact diagonal eigenpairs; grow-`m` agreement elsewhere remains internal comparison evidence | no ARPACK parity claim; no broad memory, restart, or performance claim beyond the named bounded-basis fixture |
+| SVD deterministic rank and full-UV fixture | Use for singular-value, reconstruction, orthogonality, and rank-threshold confidence on deterministic fixtures | `tests/test_svd.c` | exact diagonal singular values `{9, 5, 2, 1e-9, 0, 0}`, full-mode reconstruction residual, U/Vt orthogonality, and explicit rank thresholds | reconstruction residual and orthogonality are separately computed test metrics; rank evidence is tied to the declared tolerances `1e-10` and `1e-8` | no LAPACK, NumPy, SciPy, or broad SVD parity claim; no external dense SVD helper lane |
+
+Evidence-type interpretation:
+
+- external dense-reference evidence remains limited to the Sprint 102
+  direct-solver lanes listed above
+- deterministic fixture evidence means expected values are constructed inside
+  the project and checked directly by the owning test
+- internal consistency evidence means one project solver or configuration is
+  compared with another project solver or configuration
+- residual and orthogonality evidence is a named-fixture quality criterion, not
+  a substitute for external package parity
+- absent means Sprint 103 did not add an external helper-backed comparison lane
+  for that family
+
+Documentation wording rules:
+
+- prefer "bounded", "named fixture", "deterministic fixture", and "internal
+  consistency cross-check" when describing Sprint 103 evidence
+- avoid "external parity", "ecosystem parity", "state of the art proof", or
+  broad package-comparison wording unless a future sprint adds and validates a
+  maintained helper-backed lane
+- treat iterative solver iteration counts as fixture-local diagnostics unless
+  a test artifact defines an explicit threshold
+- use `result.residual_norm` carefully: iterative solvers report solve
+  residuals, eigensolvers report Ritz residual summaries, and SVD reconstruction
+  residuals are test-computed metrics rather than a public SVD result field
+
 ## Sprint 98 Assurance Topology Snapshot
 
 Sprint 98 widened assurance evidence in two bounded lanes and audited coverage

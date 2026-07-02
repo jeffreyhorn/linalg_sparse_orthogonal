@@ -105,6 +105,25 @@ static void assert_lobpcg_ritz_residuals(const SparseMatrix *A, const sparse_eig
     free(Av);
 }
 
+static void assert_lobpcg_orthogonality(const double *vecs, idx_t n, idx_t k, double tol) {
+    double max_err = 0.0;
+    for (idx_t a = 0; a < k; a++) {
+        for (idx_t b = 0; b < k; b++) {
+            double dot = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                dot += vecs[(size_t)a * (size_t)n + (size_t)i] *
+                       vecs[(size_t)b * (size_t)n + (size_t)i];
+            double expect = (a == b) ? 1.0 : 0.0;
+            double err = fabs(dot - expect);
+            if (err > max_err)
+                max_err = err;
+        }
+    }
+    if (max_err > tol)
+        TF_FAIL_("LOBPCG orthogonality max |V^T V - I| = %.3e > tol=%.3e", max_err, tol);
+    tf_asserts++;
+}
+
 /* ─── Test 1: orthonormalize_block on a 4-column dense input ────────
  *
  * Build a 6 × 4 column-major matrix; run the helper; assert that the
@@ -285,6 +304,64 @@ static void test_lobpcg_laplacian_tridiag_smallest(void) {
         ASSERT_NEAR(vals[j], lam, 1e-7);
     }
     assert_lobpcg_ritz_residuals(A, &res, k, vecs, 1e-7);
+    free(vals);
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Sprint 103 Day 9: claim-owned LOBPCG evidence on a generated
+ * Laplacian fixture.  This repeats the closed-form eigenvalue
+ * reference with explicit per-pair residual and orthogonality gates
+ * so residual quality and basis quality are separated from the
+ * convergence-status assertion. */
+static void test_s103_lobpcg_laplacian30_smallest4_claim(void) {
+    const idx_t n = 30;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    const idx_t k = 4;
+    double *vals = calloc((size_t)k, sizeof(double));
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(vecs);
+    if (!vals || !vecs) {
+        free(vals);
+        free(vecs);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 250,
+    };
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vals);
+        free(vecs);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+
+    for (idx_t j = 0; j < k; j++) {
+        double expected = 2.0 - 2.0 * cos((double)(j + 1) * M_PI / (double)(n + 1));
+        ASSERT_NEAR(vals[j], expected, 1e-7);
+    }
+    assert_lobpcg_ritz_residuals(A, &res, k, vecs, 1e-7);
+    assert_lobpcg_orthogonality(vecs, n, k, 1e-8);
+    printf("    s103 LOBPCG laplacian30: iters=%td, residual=%.3e\n", (ptrdiff_t)res.iterations,
+           res.residual_norm);
+
     free(vals);
     free(vecs);
     sparse_free(A);
@@ -634,6 +711,8 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     SparseMatrix *A = NULL;
     REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
     ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     sparse_ilu_t ic = {0};
     sparse_ldlt_t ldlt = {0};
@@ -641,12 +720,26 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     idx_t k = 3;
+    idx_t n = sparse_rows(A);
     double v_ic[3] = {0}, v_ldlt[3] = {0};
-    sparse_eigs_t r_ic = {.eigenvalues = v_ic};
-    sparse_eigs_t r_ldlt = {.eigenvalues = v_ldlt};
+    double *vecs_ic = calloc((size_t)n * (size_t)k, sizeof(double));
+    double *vecs_ldlt = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs_ic);
+    ASSERT_NOT_NULL(vecs_ldlt);
+    if (!vecs_ic || !vecs_ldlt) {
+        free(vecs_ic);
+        free(vecs_ldlt);
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t r_ic = {.eigenvalues = v_ic, .eigenvectors = vecs_ic};
+    sparse_eigs_t r_ldlt = {.eigenvalues = v_ldlt, .eigenvectors = vecs_ldlt};
     sparse_eigs_opts_t opts_ic = {
         .which = SPARSE_EIGS_SMALLEST,
         .tol = 1e-8,
+        .compute_vectors = 1,
         .reorthogonalize = 1,
         .backend = SPARSE_EIGS_BACKEND_LOBPCG,
         .max_iterations = 200,
@@ -657,8 +750,26 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     opts_ldlt.precond = ldlt_precond_adapter;
     opts_ldlt.precond_ctx = &ldlt;
 
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_ic, &r_ic));
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_ldlt, &r_ldlt));
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts_ic, &r_ic);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vecs_ic);
+        free(vecs_ldlt);
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
+    err = sparse_eigs_sym(A, k, &opts_ldlt, &r_ldlt);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vecs_ic);
+        free(vecs_ldlt);
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(r_ic.n_converged, k);
     ASSERT_EQ(r_ldlt.n_converged, k);
     /* LDL^T strictly faster than IC(0) — at least 2× on this fixture
@@ -668,7 +779,16 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     /* Same eigenvalues to 1e-6 (both converge to A's true spectrum). */
     for (idx_t j = 0; j < k; j++)
         ASSERT_NEAR(v_ic[j], v_ldlt[j], 1e-6);
+    assert_lobpcg_ritz_residuals(A, &r_ic, k, vecs_ic, 1e-6);
+    assert_lobpcg_ritz_residuals(A, &r_ldlt, k, vecs_ldlt, 1e-6);
+    assert_lobpcg_orthogonality(vecs_ic, n, k, 1e-7);
+    assert_lobpcg_orthogonality(vecs_ldlt, n, k, 1e-7);
+    printf("    s103 bcsstk04 LOBPCG: IC(0) iters=%td res=%.3e, LDLT iters=%td res=%.3e\n",
+           (ptrdiff_t)r_ic.iterations, r_ic.residual_norm, (ptrdiff_t)r_ldlt.iterations,
+           r_ldlt.residual_norm);
 
+    free(vecs_ic);
+    free(vecs_ldlt);
     sparse_ic_free(&ic);
     sparse_ldlt_free(&ldlt);
     sparse_free(A);
@@ -1161,6 +1281,7 @@ int main(void) {
     RUN_TEST(test_lobpcg_diagonal_k3_largest);
     RUN_TEST(test_lobpcg_diagonal_k3_smallest);
     RUN_TEST(test_lobpcg_laplacian_tridiag_smallest);
+    RUN_TEST(test_s103_lobpcg_laplacian30_smallest4_claim);
     RUN_TEST(test_lobpcg_nos4_k5_largest);
 
     /* Day 8 determinism + stability. */

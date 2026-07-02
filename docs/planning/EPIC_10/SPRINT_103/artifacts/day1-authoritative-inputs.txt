@@ -1,0 +1,33 @@
+Sprint 103 Day 1 authoritative inputs
+=====================================
+
+Project-plan section:
+- docs/planning/EPIC_10/PROJECT_PLAN.md
+- Section: "Sprint 103: Iterative, Eigensolver & SVD External Comparison"
+- Source lines requested by the sprint planning prompt: 124-154
+
+Sprint plan:
+- docs/planning/EPIC_10/SPRINT_103/PLAN.md
+- Day 1: "Sprint 103 Scope & Comparison Baseline"
+
+Inherited comparison discipline:
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day9-solver-comparison-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/solver-comparison-evidence-template.md
+
+Immediate handoff from previous sprint:
+- docs/planning/EPIC_10/SPRINT_102/artifacts/day14-closeout-and-handoff.md
+
+Sprint 103 project-plan items:
+- Solver Family Audit, 18 hours
+- Convergence Fixture Design, 26 hours
+- Iterative Oracle Batch, 34 hours
+- Eigensolver Oracle Batch, 30 hours
+- SVD Comparison Follow-Through, 18 hours
+- Reporting and Docs, 20 hours
+- Validation and Closeout, 22 hours
+
+Sprint 103 deliverables:
+- stronger iterative/eigensolver/SVD comparison artifacts
+- reusable convergence fixture taxonomy
+- clearer residual and convergence reporting
+- explicit external-parity non-claims where evidence remains bounded

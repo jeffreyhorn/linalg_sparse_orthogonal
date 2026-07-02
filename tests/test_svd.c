@@ -2460,6 +2460,104 @@ static void test_svd_full_u_v_reconstruction(void) {
     sparse_free(A);
 }
 
+/* Sprint 103 Day 11: claim-owned SVD diagonal/rank/full-UV evidence.
+ *
+ * Fixture key: svd_diag6_rank_threshold_claim.
+ * Taxonomy: spd-diag-separated / rank-sensitive.
+ *
+ * The diagonal spectrum is exact, so this test separates singular-value
+ * agreement, reconstruction residual, U/Vt orthogonality, and rank-threshold
+ * behavior instead of treating a successful SVD call as one broad proof. */
+static void test_s103_svd_diag6_rank_threshold_claim(void) {
+    const idx_t n = 6;
+    const double diag[6] = {9.0, 5.0, 2.0, 1e-9, 0.0, 0.0};
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        if (diag[i] != 0.0)
+            sparse_insert(A, i, i, diag[i]);
+    }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(svd.m, n);
+    ASSERT_EQ(svd.n, n);
+    ASSERT_EQ(svd.k, n);
+    ASSERT_TRUE(svd.U != NULL);
+    ASSERT_TRUE(svd.Vt != NULL);
+    if (!svd.U || !svd.Vt) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_NEAR(svd.sigma[0], 9.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 5.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 2.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[3], 1e-9, 1e-12);
+    ASSERT_TRUE(svd.sigma[4] < 1e-12);
+    ASSERT_TRUE(svd.sigma[5] < 1e-12);
+
+    double u_orth = orthogonality_error(svd.U, n, n);
+    ASSERT_TRUE(u_orth < 1e-10);
+
+    double vt_orth = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double dot = 0.0;
+            for (idx_t c = 0; c < n; c++)
+                dot += svd.Vt[(size_t)c * (size_t)n + (size_t)i] *
+                       svd.Vt[(size_t)c * (size_t)n + (size_t)j];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            vt_orth += d * d;
+        }
+    }
+    vt_orth = sqrt(vt_orth);
+    ASSERT_TRUE(vt_orth < 1e-10);
+
+    double frob_resid_sq = 0.0;
+    double frob_a_sq = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double recon = 0.0;
+            for (idx_t s = 0; s < svd.k; s++) {
+                recon += svd.sigma[s] * svd.U[(size_t)s * (size_t)n + (size_t)i] *
+                         svd.Vt[(size_t)j * (size_t)n + (size_t)s];
+            }
+            double a_ij = sparse_get(A, i, j);
+            double d = a_ij - recon;
+            frob_resid_sq += d * d;
+            frob_a_sq += a_ij * a_ij;
+        }
+    }
+    double rel_resid =
+        sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+    ASSERT_TRUE(rel_resid < 1e-10);
+
+    idx_t rank = -1;
+    REQUIRE_OK(sparse_svd_rank(A, 1e-10, &rank));
+    ASSERT_EQ(rank, 4);
+    REQUIRE_OK(sparse_svd_rank(A, 1e-8, &rank));
+    ASSERT_EQ(rank, 3);
+
+    fprintf(stderr,
+            "    s103 SVD diag6: rel_recon=%.3e, U_orth=%.3e, Vt_orth=%.3e, rank(1e-10)=%d, "
+            "rank(1e-8)=%d\n",
+            rel_resid, u_orth, vt_orth, 4, 3);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
 /* NULL and bad args */
 static void test_lowrank_sparse_errors(void) {
     SparseMatrix *out = NULL;
@@ -2749,6 +2847,7 @@ int main(void) {
     /* Sprint 29 Day 3: full-mode SVD (Item 2) — economy=0 lit up. */
     RUN_TEST(test_svd_full_u_v_orthonormality);
     RUN_TEST(test_svd_full_u_v_reconstruction);
+    RUN_TEST(test_s103_svd_diag6_rank_threshold_claim);
     /* Sprint 29 Day 4 Item 2 close — economy mode bit-identical to Sprint 28. */
     RUN_TEST(test_svd_full_u_v_economy_mode_unchanged);
 

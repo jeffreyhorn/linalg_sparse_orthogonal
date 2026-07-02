@@ -1,240 +1,242 @@
-# Sprint 102 Retrospective
+# Sprint 103 Retrospective
 
-**Sprint:** 102 - Direct Solver Robustness & External Oracle Expansion
-**Duration:** 14 days (Days 1-14 landed on branch `sprint-102`)
+**Sprint:** 103 - Iterative, Eigensolver & SVD External Comparisons
+**Duration:** 14 days (Days 1-14 landed on branch `sprint-103`)
 **Status:** Complete
 
 > Note: this retrospective is stored at the requested path
 > `docs/planning/EPIC_10/SPRINT_99/RETROSPECTIVE.md`. The sprint artifacts it
-> summarizes live under `docs/planning/EPIC_10/SPRINT_102/`.
+> summarizes live under `docs/planning/EPIC_10/SPRINT_103/`.
 
 ## Definition Of Done Checklist
 
-- [x] Sprint 102 started from the Epic 10 project-plan scope and Sprint 100/101
-      evidence handoff.
-- [x] direct solver evidence gaps were audited across Cholesky, LDLT, LU, QR,
-      SVD, and direct dispatch.
-- [x] fixture taxonomy rules were defined before adding oracle coverage.
-- [x] expected-success, expected-failure, unsupported, and non-claim states
-      were separated before implementation.
-- [x] the external-reference parsing boundary was extracted into
-      `tests/test_solver_helpers.h`.
-- [x] Cholesky CSC and LDLT CSC external-reference consumers were migrated to
-      the shared parser without changing their family-local proof ownership.
-- [x] LDLT CSC gained the `ldlt_kkt_scaled_10` external dense-reference lane.
-- [x] linked-list LU gained the `lu_nonsym_square_5` external dense-reference
-      lane.
-- [x] linked-list LU gained deterministic singular expected-failure coverage
-      for `lu_singular_square_4`.
-- [x] public and maintainer documentation now state direct-solver selection and
-      trust boundaries without broad solver-family overclaims.
-- [x] earned, deferred, and non-claim states were reconciled against the Day 3
-      fixture taxonomy and Sprint 100 evidence template.
+- [x] Sprint 103 started from the Epic 10 project-plan scope and Sprint 102
+      direct-solver evidence boundary.
+- [x] iterative, eigensolver, thick-restart, LOBPCG, and SVD comparison gaps
+      were audited before implementation.
+- [x] solver-family evidence was ranked by user impact, comparison weakness,
+      numerical risk, and validation cost.
+- [x] convergence fixture taxonomy and helper/reporting boundaries were
+      frozen before code changes.
+- [x] BiCGSTAB received bounded deterministic and internal-consistency
+      comparison evidence.
+- [x] LOBPCG received closed-form Laplacian residual/orthogonality evidence
+      and a fixture-local preconditioner comparison on `bcsstk04`.
+- [x] thick-restart eigensolver evidence gained an exact diagonal fixture with
+      residual, orthogonality, and bounded peak-basis checks.
+- [x] SVD received a deterministic full-UV, reconstruction, orthogonality, and
+      rank-threshold fixture.
+- [x] maintainer documentation now distinguishes deterministic fixture
+      evidence, direct-solver cross-checks, internal consistency, residual and
+      orthogonality quality evidence, external dense-reference lanes, and
+      absent external package parity.
+- [x] every implemented comparison has a maintained test owner, artifact trail,
+      validation record, and explicit non-claim boundary.
 - [x] final validation passed:
-  - `python3 tests/ldlt_external_dense_reference.py ldlt_kkt_scaled_10`
-  - `python3 tests/lu_external_dense_reference.py lu_nonsym_square_5`
-  - `python3 tests/lu_external_dense_reference.py lu_singular_square_4`
-    as an expected helper failure
-  - `make build/test_ldlt_csc build/test_sparse_lu`
-  - `./build/test_ldlt_csc`
-  - `./build/test_sparse_lu`
-  - `make format`
-  - `make lint`
-  - `make test`
+  - `make format && make lint && make test`
   - `git diff --check`
-  - trailing-whitespace scans
-- [x] Sprint 103 handoff requirements, residual queue, and closeout artifacts
-      were recorded explicitly.
+  - trailing-whitespace scan across touched Sprint 103 code and documentation
+- [x] Sprint 104 prerequisites, deferred work, and external-helper risks were
+      recorded explicitly.
 
 ## What Went Well
 
-1. **The sprint started with evidence design instead of fixture sprawl.**
-   Day 2 and Day 3 separated solver families, fixture classes, expected
-   outcomes, failure modes, and non-claims before new tests landed. That made
-   the later LDLT and LU implementation work easier to bound.
+1. **The sprint followed the Day 2 evidence ranking.**
+   BiCGSTAB was the highest-risk iterative gap and landed first. LOBPCG and
+   thick-restart followed as the highest-value spectral lanes, and SVD waited
+   until the spectral residual and orthogonality pattern was established.
 
-2. **The helper extraction stayed appropriately small.**
-   `tests/test_solver_helpers.h` now owns only the shared external-reference
-   vector parsing contract. Cholesky, LDLT, and LU still own their fixtures,
-   solver calls, tolerances, residual checks, and claim boundaries locally.
+2. **The implementation stayed bounded to existing test owners.**
+   The new comparison evidence landed in `tests/test_bicgstab.c`,
+   `tests/test_eigs_lobpcg.c`, `tests/test_eigs_thick_restart.c`, and
+   `tests/test_svd.c`. No public headers, library sources, Makefiles, CMake
+   files, or external helpers were widened for Sprint 103.
 
-3. **LDLT CSC gained a higher-value external fixture without widening claims.**
-   `ldlt_kkt_scaled_10` adds a scaled indefinite KKT lane with
-   `max|x - x_ref| = 8.882e-15` and `rel_residual = 1.692e-17`, while the
-   docs keep the claim tied to the named fixture.
+3. **BiCGSTAB gained a useful nonsymmetric evidence set.**
+   Sprint 103 added a deterministic known-solution fixture checked against LU,
+   a `steam1` BiCGSTAB+ILU versus GMRES(30)+ILU internal comparison, and an
+   expected non-convergence budget boundary.
 
-4. **LU received both positive and failure-mode oracle evidence.**
-   `lu_nonsym_square_5` proves one deterministic nonsymmetric solve against an
-   external dense reference, and `lu_singular_square_4` proves deterministic
-   singular handling through `SPARSE_ERR_SINGULAR`.
+4. **Spectral evidence now separates value, residual, and basis quality.**
+   LOBPCG and thick-restart tests check eigenvalue agreement separately from
+   Ritz residuals and orthogonality. The thick-restart diagonal fixture also
+   avoids treating grow-`m` parity as independent proof.
 
-5. **Public wording now matches evidence.**
-   README, tutorial, and maintainer-guide updates describe LU, Cholesky,
-   LDL^T, and QR selection rules while preserving explicit boundaries around
-   external oracle coverage.
+5. **SVD evidence inherited the same discipline.**
+   The SVD follow-through checks exact singular values, full-mode
+   reconstruction residual, U/Vt orthogonality, and rank thresholds as separate
+   criteria on one deterministic fixture.
 
-6. **The final reconciliation is concrete.**
-   Day 13 ties each earned claim to named tests, helpers, fixtures, metrics,
-   and validation commands. It also leaves Sprint 103 with explicit next-lane
-   prerequisites.
+6. **Claim boundaries were documented before closeout.**
+   `docs/maintainer_guide.md` now gives future public-documentation edits a
+   source of truth for residual interpretation and non-claims around PETSc,
+   SciPy, Trilinos, ARPACK, LAPACK, NumPy, and broad ecosystem parity.
 
-7. **The full code-touch gate passed before closeout.**
-   The branch reran `make format && make lint && make test` after the C/header
-   changes, so Sprint 102 closes from current validation rather than relying on
-   partial focused checks.
+7. **The full code-touch gate passed twice late in the sprint.**
+   Day 13 reconciled evidence after `make format && make lint && make test`,
+   and Day 14 reran the same full gate before closeout. Both runs ended with
+   `All tests passed.`
 
 ## What Didn't Go Well
 
-1. **The oracle coverage remains intentionally narrow.**
-   Sprint 102 improved selected direct-solver evidence, but it did not create
-   broad external oracle coverage across all solver families.
+1. **No external helper-backed package parity landed.**
+   Sprint 103 intentionally stayed with deterministic fixtures, direct-solver
+   cross-checks, and internal consistency. That keeps the evidence reliable,
+   but external PETSc/SciPy/Trilinos/ARPACK/LAPACK/NumPy comparison remains
+   future work.
 
-2. **QR and SVD stayed deferred.**
-   Day 2 identified QR and SVD as meaningful remaining gaps, but the sprint
-   correctly spent its implementation capacity on LDLT CSC and linked-list LU.
+2. **Several solver families remain documentation or taxonomy candidates.**
+   MINRES and CG were ranked lower because existing coverage is stronger, but
+   they still need consolidated convergence-profile artifacts if later public
+   wording depends on them.
 
-3. **LU CSR did not receive external dense-reference proof.**
-   The first LU oracle lane stayed on linked-list LU to keep the scope bounded.
-   LU CSR needs a separate fixture, tolerance, and helper decision.
+3. **The grow-`m` eigensolver still lacks its own close comparison artifact.**
+   Day 12 documented general residual rules, but no grow-`m`-specific external
+   or deterministic follow-through was added in this sprint.
 
-4. **The public matrix shell remains the solver entry center.**
-   Sprint 102 did not add direct public CSR/CSC solver APIs. That remains a
-   non-claim even though Sprint 101 improved compressed-input construction.
+4. **Iteration counts need repeated guardrails.**
+   LOBPCG and BiCGSTAB tests report useful local iteration counts, but Sprint
+   103 artifacts repeatedly need to state that these are fixture-local
+   diagnostics rather than portable performance claims.
 
-5. **The branch accumulated a dense artifact package.**
-   The Day 14 artifact index and closeout help, but maintainers should start
-   with the Day 3, Day 13, and Day 14 summaries instead of reading every daily
-   artifact sequentially.
+5. **The requested retrospective path is historical, not semantic.**
+   The retrospective is stored under `SPRINT_99` by request, while all Sprint
+   103 artifacts live under `SPRINT_103`. The note at the top of this file is
+   necessary to avoid future navigation confusion.
 
 ## Final Metrics
 
 ### Validation
 
-| Metric | Sprint 102 close state |
+| Metric | Sprint 103 close state |
 |---|---:|
-| full branch-level gate | `make format`, `make lint`, and `make test` passed |
-| focused LDLT CSC binary | `99` tests, `0` failures, `2318` assertions |
-| focused linked-list LU binary | `39` tests, `0` failures, `144` assertions |
-| LDLT scaled KKT max solution error | `8.882e-15` |
-| LDLT scaled KKT relative residual | `1.692e-17` |
-| LU nonsymmetric max solution error | `8.882e-16` |
-| LU nonsymmetric residual | `3.553e-15` |
-| LU singular fixture status | `SPARSE_ERR_SINGULAR` in C; helper `ERROR` status |
+| full branch-level gate | `make format && make lint && make test` passed |
+| final test summary | `All tests passed.` |
+| focused BiCGSTAB binary after implementation | `61` tests, `0` failures, `466` assertions |
+| focused LOBPCG binary after implementation | `27` tests, `0` failures, `247` assertions |
+| focused thick-restart binary after implementation | `21` tests, `0` failures, `285` assertions |
+| focused SVD binary after implementation | `98` tests, `0` failures, `1093` assertions |
 | diff hygiene | `git diff --check` passed |
-| trailing-whitespace scans | passed on touched code, docs, and Sprint 102 planning files |
+| trailing-whitespace scans | passed on touched Sprint 103 code and documentation |
 
-### Sprint 102 Artifact Package
+### Sprint 103 Artifact Package
 
-| Metric | Sprint 102 close state |
+| Metric | Sprint 103 close state |
 |---|---:|
-| total artifact files under `SPRINT_102/artifacts/` | `16` |
-| baseline/audit/taxonomy artifacts | `3` |
-| helper boundary/extraction/closeout artifacts | `3` |
-| CSC oracle artifacts | `3` |
-| LU/general solver oracle artifacts | `2` |
-| guidance, validation, closeout, and index artifacts | `5` |
+| total artifact files under `SPRINT_103/artifacts/` | `15` |
+| baseline/audit/taxonomy artifacts | `4` |
+| iterative design/implementation/closeout artifacts | `3` |
+| eigensolver design/implementation/closeout artifacts | `3` |
+| SVD/documentation/reconciliation/closeout artifacts | `5` |
+| working-notes line count at closeout | `907` |
 
 Notes:
 
-- baseline, audit, and taxonomy artifacts:
+- baseline, audit, taxonomy, and helper-boundary artifacts:
   - `day1-authoritative-inputs.txt`
   - `day1-scope-baseline.md`
-  - `day2-direct-solver-gap-audit.md`
-  - `day3-fixture-taxonomy.md`
-- helper artifacts:
-  - `day4-oracle-helper-boundary.md`
-  - `day5-oracle-helper-extraction.md`
-  - `day6-helper-closeout-and-rerank.md`
-- CSC oracle artifacts:
-  - `day7-csc-oracle-boundary.md`
-  - `day8-csc-oracle-expansion-batch.md`
-  - `day9-csc-closeout-and-general-rerank.md`
-- LU/general solver artifacts:
-  - `day10-general-solver-oracle-boundary.md`
-  - `day11-general-solver-oracle-expansion-batch.md`
-- guidance, validation, and closeout artifacts:
-  - `day12-direct-solver-guidance-update.md`
+  - `day2-solver-family-comparison-audit.md`
+  - `day3-convergence-fixture-taxonomy.md`
+  - `day4-helper-reporting-boundary.md`
+- iterative artifacts:
+  - `day5-iterative-oracle-batch-design.md`
+  - `day6-iterative-oracle-batch-implementation.md`
+  - `day7-iterative-closeout-and-rerank.md`
+- spectral and SVD artifacts:
+  - `day8-eigensolver-oracle-batch-design.md`
+  - `day9-eigensolver-oracle-batch-implementation.md`
+  - `day10-spectral-closeout-and-svd-scope.md`
+  - `day11-svd-comparison-follow-through.md`
+- documentation, reconciliation, and closeout artifacts:
+  - `day12-reporting-and-documentation-update.md`
   - `day13-validation-and-evidence-reconciliation.md`
   - `day14-closeout-and-handoff.md`
-  - `day14-artifact-index.md`
 
-### Landed Product Surface
+### Landed Evidence Surface
 
-| Metric | Sprint 102 close state |
+| Metric | Sprint 103 close state |
 |---|---:|
-| shared helper header updated | `tests/test_solver_helpers.h` |
-| external dense-reference helper added | `tests/lu_external_dense_reference.py` |
-| external dense-reference helper expanded | `tests/ldlt_external_dense_reference.py` |
-| focused direct-solver test files updated | `tests/test_chol_csc.c`, `tests/test_ldlt_csc.c`, `tests/test_sparse_lu.c` |
-| public documentation files updated | `README.md`, `docs/tutorial.md`, `docs/maintainer_guide.md` |
-| new external-reference positive fixture lanes | `2` |
-| new deterministic expected-failure fixture lanes | `1` |
+| focused C test files updated | `4` |
+| maintainer documentation files updated | `1` |
+| new BiCGSTAB comparison lanes | `3` |
+| new or strengthened LOBPCG comparison lanes | `2` |
+| new thick-restart deterministic fixture lanes | `1` |
+| new SVD deterministic rank/full-UV fixture lanes | `1` |
+| external package helper lanes added | `0` |
 
 ## Residual Deferred Debt
 
 Most important carry-forward work:
 
-- QR external dense least-squares or rank oracle lane
-- SVD external dense singular-value, rank, reconstruction, or pseudoinverse
-  oracle lane
-- LU CSR external dense-reference coverage
-- direct CSC dispatch oracle reuse rules beyond family-backed routing checks
-- public comparison wording for Sprint 103 and later, tied to the Sprint 102
-  trust-boundary table
-- direct solver benchmark or performance sentinel work, if future claims need
-  timing evidence
+- external-helper policy for iterative, eigensolver, and SVD oracle lanes
+- BiCGSTAB external helper-backed comparison after helper policy is frozen
+- LOBPCG or thick-restart external spectral oracle after ARPACK/SciPy-style
+  scope is bounded
+- SVD external LAPACK/NumPy/SciPy comparison, starting with singular values and
+  rank before full vector parity
+- MINRES consolidated comparison artifact
+- CG convergence-profile consumer lane
+- grow-`m` eigensolver residual narrative and comparison artifact
+- benchmark or iteration-count claims only after a future competitive
+  calibration sprint owns them
 
 Still consciously constrained rather than silently solved:
 
-- no direct public CSR/CSC solver APIs
-- no broad external oracle coverage for every direct solver
-- no QR or SVD external dense-reference lane
-- no LU CSR external oracle coverage
-- no portable performance superiority claim
-- no broad SuiteSparse/PETSc/Trilinos parity or replacement claim
-- no broad state-of-the-art solver superiority claim
+- no broad PETSc, SciPy, Trilinos, ARPACK, LAPACK, NumPy, or package-wide
+  parity
+- no claim that internal solver comparisons are independent external oracles
+- no portable iteration-count or runtime superiority claim
+- no broad nonsymmetric iterative proof from one BiCGSTAB batch
+- no broad eigensolver proof from one LOBPCG and one thick-restart batch
+- no broad SVD correctness proof from one deterministic full-UV fixture
+- no external helper availability, skip, version, or CI-role contract
+- no public wording beyond maintained test-owner and artifact evidence
 
-Not carried forward as unresolved Sprint 102 debt:
+Not carried forward as unresolved Sprint 103 debt:
 
-- direct solver gap audit
+- solver-family comparison audit
 - fixture taxonomy
-- external-reference parser extraction
-- Cholesky CSC and LDLT CSC migration to the shared parser
-- LDLT CSC scaled KKT external-reference lane
-- linked-list LU nonsymmetric external-reference lane
-- linked-list LU singular expected-failure lane
-- direct-solver trust-boundary documentation
-- final validation and evidence reconciliation
-- Sprint 103 handoff requirements
+- helper/reporting boundary
+- BiCGSTAB deterministic and internal-consistency comparison batch
+- LOBPCG residual and orthogonality comparison batch
+- thick-restart exact diagonal comparison batch
+- SVD diagonal rank/full-UV comparison
+- maintainer evidence-boundary documentation
+- validation and evidence reconciliation
+- closeout and Sprint 104 handoff
 
 ## Key Deliverables
 
-- [PLAN.md](../SPRINT_102/PLAN.md)
-- [WORKING_NOTES.md](../SPRINT_102/WORKING_NOTES.md)
-- [day2-direct-solver-gap-audit.md](../SPRINT_102/artifacts/day2-direct-solver-gap-audit.md)
-- [day3-fixture-taxonomy.md](../SPRINT_102/artifacts/day3-fixture-taxonomy.md)
-- [day4-oracle-helper-boundary.md](../SPRINT_102/artifacts/day4-oracle-helper-boundary.md)
-- [day5-oracle-helper-extraction.md](../SPRINT_102/artifacts/day5-oracle-helper-extraction.md)
-- [day7-csc-oracle-boundary.md](../SPRINT_102/artifacts/day7-csc-oracle-boundary.md)
-- [day8-csc-oracle-expansion-batch.md](../SPRINT_102/artifacts/day8-csc-oracle-expansion-batch.md)
-- [day10-general-solver-oracle-boundary.md](../SPRINT_102/artifacts/day10-general-solver-oracle-boundary.md)
-- [day11-general-solver-oracle-expansion-batch.md](../SPRINT_102/artifacts/day11-general-solver-oracle-expansion-batch.md)
-- [day12-direct-solver-guidance-update.md](../SPRINT_102/artifacts/day12-direct-solver-guidance-update.md)
-- [day13-validation-and-evidence-reconciliation.md](../SPRINT_102/artifacts/day13-validation-and-evidence-reconciliation.md)
-- [day14-closeout-and-handoff.md](../SPRINT_102/artifacts/day14-closeout-and-handoff.md)
-- [day14-artifact-index.md](../SPRINT_102/artifacts/day14-artifact-index.md)
+- [PLAN.md](../SPRINT_103/PLAN.md)
+- [WORKING_NOTES.md](../SPRINT_103/WORKING_NOTES.md)
+- [day1-scope-baseline.md](../SPRINT_103/artifacts/day1-scope-baseline.md)
+- [day2-solver-family-comparison-audit.md](../SPRINT_103/artifacts/day2-solver-family-comparison-audit.md)
+- [day3-convergence-fixture-taxonomy.md](../SPRINT_103/artifacts/day3-convergence-fixture-taxonomy.md)
+- [day4-helper-reporting-boundary.md](../SPRINT_103/artifacts/day4-helper-reporting-boundary.md)
+- [day5-iterative-oracle-batch-design.md](../SPRINT_103/artifacts/day5-iterative-oracle-batch-design.md)
+- [day6-iterative-oracle-batch-implementation.md](../SPRINT_103/artifacts/day6-iterative-oracle-batch-implementation.md)
+- [day7-iterative-closeout-and-rerank.md](../SPRINT_103/artifacts/day7-iterative-closeout-and-rerank.md)
+- [day8-eigensolver-oracle-batch-design.md](../SPRINT_103/artifacts/day8-eigensolver-oracle-batch-design.md)
+- [day9-eigensolver-oracle-batch-implementation.md](../SPRINT_103/artifacts/day9-eigensolver-oracle-batch-implementation.md)
+- [day10-spectral-closeout-and-svd-scope.md](../SPRINT_103/artifacts/day10-spectral-closeout-and-svd-scope.md)
+- [day11-svd-comparison-follow-through.md](../SPRINT_103/artifacts/day11-svd-comparison-follow-through.md)
+- [day12-reporting-and-documentation-update.md](../SPRINT_103/artifacts/day12-reporting-and-documentation-update.md)
+- [day13-validation-and-evidence-reconciliation.md](../SPRINT_103/artifacts/day13-validation-and-evidence-reconciliation.md)
+- [day14-closeout-and-handoff.md](../SPRINT_103/artifacts/day14-closeout-and-handoff.md)
+- [Sprint 103 maintainer evidence boundary](../../../maintainer_guide.md)
 
 ## Bottom Line
 
-Sprint 102 achieved its goal:
+Sprint 103 achieved its goal:
 
-- direct-solver oracle work now has explicit fixture taxonomy and evidence
-  rules
-- Cholesky CSC, LDLT CSC, and linked-list LU share external-reference vector
-  parsing without losing family-local proof ownership
-- LDLT CSC and linked-list LU gained named external dense-reference evidence
-- linked-list LU gained deterministic singular expected-failure evidence
-- public documentation now matches bounded direct-solver trust levels
+- iterative, spectral, and SVD comparison gaps were audited and ranked before
+  implementation
+- BiCGSTAB, LOBPCG, thick-restart, and SVD received bounded maintained
+  comparison evidence
+- residual, orthogonality, reconstruction, rank, and expected non-convergence
+  criteria are documented by fixture and owner
+- maintainer documentation now prevents broad external-parity overclaims
 - final validation passed before closeout
-- Sprint 103 receives QR, SVD, LU CSR, and comparison work as explicit future
-  evidence, not as implied Sprint 102 claims
+- Sprint 104 receives external-helper policy, oracle independence, and
+  package-parity comparison work as explicit future prerequisites, not implied
+  Sprint 103 claims

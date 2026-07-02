@@ -376,6 +376,62 @@ static sparse_err_t test_op_matvec(const void *ctx, idx_t n, const double *x, do
     return sparse_matvec((const SparseMatrix *)ctx, x, y);
 }
 
+static SparseMatrix *build_diag_thick_restart(idx_t n, const double *diag) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, diag[i]);
+    return A;
+}
+
+static void assert_thick_restart_ritz_residuals(const SparseMatrix *A, const sparse_eigs_t *result,
+                                                idx_t k, const double *vecs, double tol) {
+    idx_t n = sparse_rows(A);
+    double *Av = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(Av);
+    if (!Av)
+        return;
+    for (idx_t j = 0; j < k; j++) {
+        const double *v = vecs + (size_t)j * (size_t)n;
+        sparse_matvec(A, v, Av);
+        double num = 0.0, den = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double r = Av[i] - result->eigenvalues[j] * v[i];
+            num += r * r;
+            den += v[i] * v[i];
+        }
+        double lambda_abs = fabs(result->eigenvalues[j]);
+        double anchor = (lambda_abs > 0.0 ? lambda_abs : 1.0) * (sqrt(den) > 0.0 ? sqrt(den) : 1.0);
+        double rel = sqrt(num) / anchor;
+        if (rel > tol) {
+            TF_FAIL_("thick-restart Ritz pair %td: lambda=%.15g, rel-residual=%.3e > tol=%.3e",
+                     (ptrdiff_t)j, result->eigenvalues[j], rel, tol);
+        }
+        tf_asserts++;
+    }
+    free(Av);
+}
+
+static void assert_thick_restart_orthogonality(const double *vecs, idx_t n, idx_t k, double tol) {
+    double max_err = 0.0;
+    for (idx_t a = 0; a < k; a++) {
+        for (idx_t b = 0; b < k; b++) {
+            double dot = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                dot += vecs[(size_t)a * (size_t)n + (size_t)i] *
+                       vecs[(size_t)b * (size_t)n + (size_t)i];
+            double expect = (a == b) ? 1.0 : 0.0;
+            double err = fabs(dot - expect);
+            if (err > max_err)
+                max_err = err;
+        }
+    }
+    if (max_err > tol)
+        TF_FAIL_("thick-restart orthogonality max |V^T V - I| = %.3e > tol=%.3e", max_err, tol);
+    tf_asserts++;
+}
+
 /* Empty-state path of `lanczos_thick_restart_iterate`: with a NULL
  * state pointer the iterator must produce bit-for-bit identical
  * output to `lanczos_iterate` on the same fixture.  Exercises the
@@ -1123,6 +1179,53 @@ static void test_thick_restart_single_phase_matches_grow_m(void) {
     sparse_free(A);
 }
 
+/* Sprint 103 Day 9: exact-reference thick-restart claim.  This
+ * fixture does not use grow-m parity as the oracle: the diagonal
+ * spectrum is exact, and the returned vectors must independently
+ * satisfy Ritz residual and orthogonality gates. */
+static void test_s103_thick_restart_diag12_largest4_claim(void) {
+    const idx_t n = 12;
+    double diag[12];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag_thick_restart(n, diag);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    const idx_t k = 4;
+    double vals[4] = {0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+        .max_iterations = 120,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(vals[j], (double)(n - j), 1e-10);
+    assert_thick_restart_ritz_residuals(A, &res, k, vecs, 1e-10);
+    assert_thick_restart_orthogonality(vecs, n, k, 1e-10);
+    ASSERT_TRUE(res.peak_basis_size <= 24);
+    printf("    s103 thick-restart diag12: iters=%td, residual=%.3e, peak_basis=%td\n",
+           (ptrdiff_t)res.iterations, res.residual_norm, (ptrdiff_t)res.peak_basis_size);
+
+    free(vecs);
+    sparse_free(A);
+}
+
 /* ─── Runner ────────────────────────────────────────────────────── */
 
 int main(void) {
@@ -1156,6 +1259,9 @@ int main(void) {
     RUN_TEST(test_thick_restart_kkt_nearest_sigma_parity);
     RUN_TEST(test_thick_restart_locked_progress_monotone);
     RUN_TEST(test_thick_restart_single_phase_matches_grow_m);
+
+    /* Sprint 103 exact-reference spectral claim. */
+    RUN_TEST(test_s103_thick_restart_diag12_largest4_claim);
 
     TEST_SUITE_END();
 }

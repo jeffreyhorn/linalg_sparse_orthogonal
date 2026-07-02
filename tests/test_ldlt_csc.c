@@ -21,6 +21,8 @@
 #include "sparse_reorder.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+#include "test_solver_helpers.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -31,14 +33,6 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
-
-#ifdef _WIN32
-#define tf_popen _popen
-#define tf_pclose _pclose
-#else
-#define tf_popen popen
-#define tf_pclose pclose
-#endif
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Test helpers
@@ -1331,6 +1325,34 @@ static SparseMatrix *build_kkt_10x10(void) {
     return A;
 }
 
+/* Scaled 10x10 KKT fixture for the Sprint 102 external dense-reference lane:
+ * SPD top block H with moderate diagonal/off-diagonal scaling plus a 4x6
+ * full-rank coupling block with mixed magnitudes and signs. */
+static SparseMatrix *build_kkt_scaled_10x10(void) {
+    const idx_t n = 10;
+    const double diag[6] = {8.0, 10.0, 12.0, 14.0, 16.0, 18.0};
+    const double offdiag[5] = {-1.0, -1.25, -1.5, -1.75, -2.0};
+    const idx_t coupling_rows[8] = {6, 6, 7, 7, 8, 8, 9, 9};
+    const idx_t coupling_cols[8] = {0, 4, 1, 5, 2, 4, 3, 5};
+    const double coupling_vals[8] = {1.0, 0.125, -2.0, 0.25, 0.5, -0.375, 3.0, 0.5};
+
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, i, diag[i]);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, offdiag[i - 1]);
+            sparse_insert(A, i - 1, i, offdiag[i - 1]);
+        }
+    }
+    for (idx_t k = 0; k < 8; k++) {
+        sparse_insert(A, coupling_rows[k], coupling_cols[k], coupling_vals[k]);
+        sparse_insert(A, coupling_cols[k], coupling_rows[k], coupling_vals[k]);
+    }
+    return A;
+}
+
 /* Day 3 workflow helper: run the Option D two-pass factor on `A`
  * and populate *F1_out (scalar reference) and *F2_out (batched via
  * the new shim).  Caller owns F1, F2, and A_perm on success and
@@ -1459,65 +1481,8 @@ static int read_ldlt_external_dense_reference_solution(const char *fixture_key, 
         return -1;
     }
 
-    FILE *pipe = tf_popen(cmd, "r");
-    if (!pipe) {
-        snprintf(reason, reason_cap, "python3 pipe open failed");
-        return 0;
-    }
-
-    char line[256];
-    if (!fgets(line, sizeof(line), pipe)) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "external LDLT reference produced no output");
-        return -1;
-    }
-
-    if (strncmp(line, "SKIP ", 5) == 0) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "%s", line + 5);
-        size_t len = strlen(reason);
-        if (len > 0 && reason[len - 1] == '\n')
-            reason[len - 1] = '\0';
-        return 0;
-    }
-    if (strncmp(line, "ERROR ", 6) == 0) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "%s", line + 6);
-        size_t len = strlen(reason);
-        if (len > 0 && reason[len - 1] == '\n')
-            reason[len - 1] = '\0';
-        return -1;
-    }
-
-    idx_t got_n = -1;
-    if (sscanf(line, "OK %" SPARSE_SCNIDX, &got_n) != 1 || got_n != n) {
-        tf_pclose(pipe);
-        snprintf(reason, reason_cap, "external LDLT reference returned invalid dimension header");
-        return -1;
-    }
-
-    for (idx_t i = 0; i < n; i++) {
-        if (!fgets(line, sizeof(line), pipe)) {
-            tf_pclose(pipe);
-            snprintf(reason, reason_cap,
-                     "external LDLT reference truncated at entry %" SPARSE_PRIDX, i);
-            return -1;
-        }
-        char *end = NULL;
-        x_out[i] = strtod(line, &end);
-        if (end == line) {
-            tf_pclose(pipe);
-            snprintf(reason, reason_cap,
-                     "external LDLT reference parse failure at entry %" SPARSE_PRIDX, i);
-            return -1;
-        }
-    }
-
-    if (tf_pclose(pipe) != 0) {
-        snprintf(reason, reason_cap, "external LDLT reference exited non-zero");
-        return -1;
-    }
-    return 1;
+    return (int)tf_read_external_reference_vector(cmd, "external LDLT reference", x_out, n, reason,
+                                                  reason_cap);
 }
 
 static void assert_ldlt_external_dense_reference(const char *fixture_key,
@@ -1776,6 +1741,10 @@ static void test_s98_external_dense_reference_kkt_5x5(void) {
 
 static void test_s98_external_dense_reference_kkt_10x10(void) {
     assert_ldlt_external_dense_reference("kkt10", build_kkt_10x10, 1e-10);
+}
+
+static void test_s102_external_dense_reference_scaled_kkt_10x10(void) {
+    assert_ldlt_external_dense_reference("ldlt_kkt_scaled_10", build_kkt_scaled_10x10, 1e-10);
 }
 
 /* Sprint 53 Day 7: the shared analysis-aware CSC completion helper must
@@ -3796,6 +3765,7 @@ int main(void) {
     RUN_TEST(test_s20_supernodal_heuristic_vs_with_analysis_residuals);
     RUN_TEST(test_s98_external_dense_reference_kkt_5x5);
     RUN_TEST(test_s98_external_dense_reference_kkt_10x10);
+    RUN_TEST(test_s102_external_dense_reference_scaled_kkt_10x10);
     RUN_TEST(test_s53_with_analysis_invalid_min_size_rejected);
 
     /* permutation */

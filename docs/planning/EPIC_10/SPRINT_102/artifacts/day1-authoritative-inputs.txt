@@ -1,0 +1,42 @@
+# Sprint 102 Day 1 Authoritative Inputs
+
+Primary project-plan input:
+
+- docs/planning/EPIC_10/PROJECT_PLAN.md
+  - Section: Sprint 102: Direct Solver Robustness & External Oracle Expansion
+  - Lines requested by task: 90-120
+
+Sprint 102 execution plan:
+
+- docs/planning/EPIC_10/SPRINT_102/PLAN.md
+
+Sprint 100 evidence-contract inputs:
+
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day9-solver-comparison-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/solver-comparison-evidence-template.md
+
+Sprint 101 handoff and claim-boundary inputs:
+
+- docs/planning/EPIC_10/SPRINT_101/artifacts/day13-validation-and-reconciliation.md
+- docs/planning/EPIC_10/SPRINT_101/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_10/SPRINT_101/RETROSPECTIVE.md
+
+Relevant Sprint 100 reusable templates for later Sprint 102 checks:
+
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/coverage-evidence-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/performance-sentinel-template.md
+
+Validation baseline for Day 1:
+
+- Day 1 touches planning documentation only.
+- Required hygiene:
+  - git diff --check
+  - rg -n "[ \t]+$" docs/planning/EPIC_10/SPRINT_102
+
+Non-claim baseline inherited by Sprint 102:
+
+- no direct CSR/CSC solver API claim
+- no broad compressed parity claim
+- no portable performance superiority claim
+- no broad state-of-the-art replacement claim
+- no mutable SparseMatrix deprecation claim

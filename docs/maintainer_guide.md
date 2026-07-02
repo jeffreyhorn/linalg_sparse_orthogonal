@@ -292,10 +292,17 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
   - maintained proof stays family-local to the direct-family SPD Cholesky path
 - `tests/test_ldlt_csc.c` and `tests/ldlt_external_dense_reference.py` own the
   bounded LDLT CSC maintained external differential lane:
-  - deterministic indefinite KKT solves on `kkt5` and `kkt10`
+  - deterministic indefinite KKT solves on `kkt5`, `kkt10`, and
+    `ldlt_kkt_scaled_10`
   - external-process dense reference solutions emitted by fixture key
   - maintained proof stays family-local to LDLT CSC solve correctness for these
     deterministic fixtures
+- `tests/test_sparse_lu.c` and `tests/lu_external_dense_reference.py` own the
+  bounded linked-list LU maintained external differential lane:
+  - deterministic nonsymmetric solve comparison on `lu_nonsym_square_5`
+  - deterministic singular expected-failure coverage on `lu_singular_square_4`
+  - maintained proof stays family-local to linked-list LU solve correctness and
+    singular detection for these deterministic fixtures
 
 Interpretation:
 
@@ -308,8 +315,32 @@ Interpretation:
   differential proof
 - do not present the LDLT CSC lane as broad indefinite ecosystem parity,
   external factorization parity, or proof of pivot/CSC-layout internals
+- do not present the linked-list LU lane as LU CSR external coverage, direct
+  compressed-format LU API coverage, or broad nonsymmetric ecosystem parity
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
+
+## Sprint 102 Direct Solver Trust Boundary Snapshot
+
+Sprint 102 widened direct-solver oracle evidence in two bounded lanes and
+refreshed the direct-solver public guidance boundary.
+
+| Family / lane | Public guidance level | Maintained evidence owner | Trust boundary | Non-claims |
+|---|---|---|---|---|
+| Cholesky CSC SPD | Use for SPD systems; non-SPD reports `SPARSE_ERR_NOT_SPD` | `tests/test_chol_csc.c` plus `tests/chol_external_dense_reference.py` | named SPD Matrix Market fixtures checked against an external-process dense reference | no broad non-SPD recovery claim; no full backend parity claim from examples or benchmarks |
+| LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
+| Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c` plus `tests/lu_external_dense_reference.py` | deterministic nonsymmetric `lu_nonsym_square_5` solve and singular `lu_singular_square_4` expected failure | no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
+| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c` | internal invariants, rank, residual, and public scalar seam coverage | no Sprint 102 external dense least-squares oracle lane |
+| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c` | internal reconstruction, rank, condition, and partial-SVD coverage | no Sprint 102 external dense SVD oracle lane |
+
+Interpretation:
+
+- README and tutorial wording may mention direct-solver selection and failure
+  behavior, but must keep external-oracle confidence tied to named test owners.
+- Future Sprint 103 comparison work should reuse this table as a wording input
+  before making public comparative claims.
+- Any new external oracle lane needs a family-local boundary artifact before
+  implementation, then a validation artifact before public wording changes.
 
 ## Sprint 98 Assurance Topology Snapshot
 

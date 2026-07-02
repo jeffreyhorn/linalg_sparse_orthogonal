@@ -1,9 +1,21 @@
+/* _POSIX_C_SOURCE 200809L: needed for `popen` / `pclose` used by the
+ * external dense-reference helper. Must be defined before any system header is
+ * included so glibc's `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+#include "test_solver_helpers.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
@@ -108,6 +120,65 @@ static SparseMatrix *make_tridiag(idx_t n) {
     return m;
 }
 
+static SparseMatrix *make_lu_nonsym_square_5(void) {
+    static const double vals[5][5] = {
+        {4.0, -1.0, 0.0, 2.0, 0.5}, {1.5, 5.0, -2.0, 0.0, 1.0}, {0.0, 2.0, 6.0, -1.0, 0.0},
+        {3.0, 0.0, 1.0, 7.0, -2.0}, {-1.0, 0.5, 0.0, 2.0, 8.0},
+    };
+    SparseMatrix *m = sparse_create(5, 5);
+    if (!m)
+        return NULL;
+    for (idx_t i = 0; i < 5; i++)
+        for (idx_t j = 0; j < 5; j++)
+            if (vals[i][j] != 0.0)
+                sparse_insert(m, i, j, vals[i][j]);
+    return m;
+}
+
+static SparseMatrix *make_lu_singular_square_4(void) {
+    static const double vals[4][4] = {
+        {1.0, 2.0, -1.0, 0.0},
+        {2.0, 4.0, -2.0, 0.0},
+        {0.0, 1.0, 3.0, 1.0},
+        {1.0, 0.0, 0.5, -1.0},
+    };
+    SparseMatrix *m = sparse_create(4, 4);
+    if (!m)
+        return NULL;
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 4; j++)
+            if (vals[i][j] != 0.0)
+                sparse_insert(m, i, j, vals[i][j]);
+    return m;
+}
+
+static int read_lu_external_dense_reference_solution(const char *fixture_key, double *x_out,
+                                                     idx_t n, char *reason, size_t reason_cap) {
+    if (!reason || reason_cap == 0)
+        return -1;
+    if (!fixture_key || !x_out) {
+        snprintf(reason, reason_cap, "external LU reference invalid arguments");
+        return -1;
+    }
+
+    if (strcmp(fixture_key, "lu_nonsym_square_5") != 0 &&
+        strcmp(fixture_key, "lu_singular_square_4") != 0) {
+        snprintf(reason, reason_cap, "unsupported external LU reference fixture key");
+        return -1;
+    }
+
+    char cmd[256];
+    int written =
+        snprintf(cmd, sizeof(cmd), "python3 tests/lu_external_dense_reference.py %s", fixture_key);
+    if (written < 0 || (size_t)written >= sizeof(cmd)) {
+        snprintf(reason, reason_cap, "external LU reference command overflow");
+        return -1;
+    }
+
+    return (int)tf_read_external_reference_vector(cmd, "external LU reference", x_out, n, reason,
+                                                  reason_cap);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Known solutions
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -191,6 +262,66 @@ static void test_solve_4x4(void) {
     ASSERT_TRUE(res >= 0.0);
     ASSERT_NEAR(res, 0.0, 1e-12);
     sparse_free(A);
+}
+
+static void test_s102_external_dense_reference_lu_nonsym_square_5(void) {
+#ifdef _WIN32
+    SKIP_TEST("external LU dense reference helper is not enabled on Windows");
+#else
+    const idx_t n = 5;
+    SparseMatrix *A = make_lu_nonsym_square_5();
+    ASSERT_NOT_NULL(A);
+
+    double x_true[5];
+    double b[5];
+    double x[5] = {0};
+    double x_ref[5] = {0};
+    for (idx_t i = 0; i < n; i++)
+        x_true[i] = (double)(i + 1);
+    sparse_matvec(A, x_true, b);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    REQUIRE_OK(sparse_lu_factor(LU, SPARSE_PIVOT_COMPLETE, 1e-12));
+    REQUIRE_OK(sparse_lu_solve(LU, b, x));
+
+    char reason[256];
+    int ref_status = read_lu_external_dense_reference_solution("lu_nonsym_square_5", x_ref, n,
+                                                               reason, sizeof(reason));
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_SKIP) {
+        sparse_free(LU);
+        sparse_free(A);
+        SKIP_TEST(reason);
+    }
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_ERROR) {
+        sparse_free(LU);
+        sparse_free(A);
+        TF_FAIL_("external LU reference failed: %s", reason);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double diff = fabs(x[i] - x_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+        ASSERT_NEAR(x[i], x_ref[i], 1e-10);
+        ASSERT_NEAR(x[i], x_true[i], 1e-10);
+    }
+
+    double Ax[5] = {0};
+    sparse_matvec(A, x, Ax);
+    for (idx_t i = 0; i < n; i++)
+        Ax[i] -= b[i];
+    double residual = vec_norminf(Ax, n);
+    printf("    external LU dense ref lu_nonsym_square_5: n=%d, max|x-x_ref|=%.3e, "
+           "residual=%.3e\n",
+           (int)n, max_diff, residual);
+    ASSERT_TRUE(residual < 1e-10);
+
+    sparse_free(LU);
+    sparse_free(A);
+#endif
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -426,6 +557,28 @@ static void test_singular_zero_row(void) {
 
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
+}
+
+static void test_s102_singular_lu_square_4_expected_failure(void) {
+    SparseMatrix *A = make_lu_singular_square_4();
+    ASSERT_NOT_NULL(A);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
+    sparse_free(A);
+}
+
+static void test_s102_external_dense_reference_lu_singular_square_4_expected_failure(void) {
+#ifdef _WIN32
+    SKIP_TEST("external LU dense reference helper is not enabled on Windows");
+#else
+    double x_ref[4] = {0};
+    char reason[256];
+    int ref_status = read_lu_external_dense_reference_solution("lu_singular_square_4", x_ref, 4,
+                                                               reason, sizeof(reason));
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    ASSERT_TRUE(ref_status == (int)TF_EXTERNAL_REFERENCE_ERROR);
+    ASSERT_TRUE(reason[0] != '\0');
+#endif
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -850,6 +1003,7 @@ int main(void) {
     RUN_TEST(test_solve_2x2);
     RUN_TEST(test_solve_3x3);
     RUN_TEST(test_solve_4x4);
+    RUN_TEST(test_s102_external_dense_reference_lu_nonsym_square_5);
 
     /* Special matrices */
     RUN_TEST(test_lu_identity);
@@ -870,6 +1024,8 @@ int main(void) {
     RUN_TEST(test_singular_zero_matrix);
     RUN_TEST(test_singular_rank_deficient);
     RUN_TEST(test_singular_zero_row);
+    RUN_TEST(test_s102_singular_lu_square_4_expected_failure);
+    RUN_TEST(test_s102_external_dense_reference_lu_singular_square_4_expected_failure);
 
     /* Error paths */
     RUN_TEST(test_lu_null_matrix);

@@ -178,6 +178,10 @@ Treat LU as a one-shot direct entry point on a fresh matrix or a fresh
 `sparse_copy()` of the original coefficients. If you need analyze-once /
 factor-many reuse, move to the explicit repeated-run direct lifecycle in
 `example_analysis.c` instead of repeatedly re-entering the one-shot LU path.
+The maintained external dense-reference LU evidence currently covers a bounded
+nonsymmetric square fixture and a deterministic singular expected-failure
+fixture; keep treating wider LU assurance as test-owned rather than as a broad
+solver-family claim.
 
 ### Cholesky Factorization
 
@@ -213,6 +217,17 @@ For one-shot Cholesky, keep using a fresh matrix or a fresh `sparse_copy()` of
 the original coefficients when you still need the original matrix view later.
 That keeps the mutation/cancellation caveats local to the working factor copy
 instead of the caller's last original view.
+
+Maintained external dense-reference evidence for this family is bounded to the
+CSC-backed SPD Cholesky lanes and their named regression fixtures.
+
+### LDL^T Factorization
+
+Use LDL^T for symmetric indefinite systems where Bunch-Kaufman pivoting and
+inertia reporting are the right model. The current maintained external
+dense-reference evidence for LDL^T is bounded to CSC-backed deterministic KKT
+fixtures, including the scaled Sprint 102 KKT lane. That evidence supports the
+named fixture family; it is not a broad external factorization-parity claim.
 
 ### QR Factorization
 

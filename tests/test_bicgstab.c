@@ -1008,7 +1008,7 @@ static void test_s103_bicgstab_small_budget_expected_nonconvergence(void) {
     double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    s103 small-budget BiCGSTAB: err=%d, converged=%d, iters=%d, rel_res=%.3e\n", err,
            result.converged, (int)result.iterations, rel_res);
-    ASSERT_TRUE(err == SPARSE_ERR_NOT_CONVERGED || !result.converged);
+    ASSERT_ERR(err, SPARSE_ERR_NOT_CONVERGED);
     ASSERT_FALSE(result.converged);
     ASSERT_TRUE(isfinite(rel_res));
     ASSERT_TRUE(rel_res >= 0.0);

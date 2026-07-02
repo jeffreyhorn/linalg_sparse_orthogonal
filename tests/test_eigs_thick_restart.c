@@ -380,8 +380,10 @@ static SparseMatrix *build_diag_thick_restart(idx_t n, const double *diag) {
     SparseMatrix *A = sparse_create(n, n);
     if (!A)
         return NULL;
-    for (idx_t i = 0; i < n; i++)
-        sparse_insert(A, i, i, diag[i]);
+    for (idx_t i = 0; i < n; i++) {
+        if (diag[i] != 0.0)
+            sparse_insert(A, i, i, diag[i]);
+    }
     return A;
 }
 

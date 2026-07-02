@@ -2545,14 +2545,16 @@ static void test_s103_svd_diag6_rank_threshold_claim(void) {
 
     idx_t rank = -1;
     REQUIRE_OK(sparse_svd_rank(A, 1e-10, &rank));
-    ASSERT_EQ(rank, 4);
+    idx_t rank_1e10 = rank;
+    ASSERT_EQ(rank_1e10, 4);
     REQUIRE_OK(sparse_svd_rank(A, 1e-8, &rank));
-    ASSERT_EQ(rank, 3);
+    idx_t rank_1e8 = rank;
+    ASSERT_EQ(rank_1e8, 3);
 
     fprintf(stderr,
-            "    s103 SVD diag6: rel_recon=%.3e, U_orth=%.3e, Vt_orth=%.3e, rank(1e-10)=%d, "
-            "rank(1e-8)=%d\n",
-            rel_resid, u_orth, vt_orth, 4, 3);
+            "    s103 SVD diag6: rel_recon=%.3e, U_orth=%.3e, Vt_orth=%.3e, "
+            "rank(1e-10)=%" SPARSE_PRIDX ", rank(1e-8)=%" SPARSE_PRIDX "\n",
+            rel_resid, u_orth, vt_orth, rank_1e10, rank_1e8);
 
     sparse_svd_free(&svd);
     sparse_free(A);

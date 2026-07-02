@@ -868,6 +868,11 @@ static void test_s103_bicgstab_nonsym_known_5_lu_reference(void) {
     ASSERT_NOT_NULL(A);
     SparseMatrix *A_lu = build_s103_bicgstab_nonsym_known_5(x_true, b);
     ASSERT_NOT_NULL(A_lu);
+    if (!A || !A_lu) {
+        sparse_free(A_lu);
+        sparse_free(A);
+        return;
+    }
 
     double x_bicgstab[5] = {0};
     double x_lu[5] = {0};
@@ -899,6 +904,11 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     SparseMatrix *A_gmres = NULL;
     ASSERT_ERR(sparse_load_mm(&A_bicg, SS_DIR "/steam1.mtx"), SPARSE_OK);
     ASSERT_ERR(sparse_load_mm(&A_gmres, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    if (!A_bicg || !A_gmres) {
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
     idx_t n = sparse_rows(A_bicg);
     ASSERT_EQ(n, 240);
 
@@ -906,6 +916,13 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     double *b = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_true);
     ASSERT_NOT_NULL(b);
+    if (!x_true || !b) {
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         x_true[i] = (double)(i + 1);
     compute_rhs(A_bicg, x_true, b);
@@ -920,6 +937,17 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     double *x_gmres = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_bicg);
     ASSERT_NOT_NULL(x_gmres);
+    if (!x_bicg || !x_gmres) {
+        sparse_ilu_free(&ilu_bicg);
+        sparse_ilu_free(&ilu_gmres);
+        free(x_true);
+        free(b);
+        free(x_bicg);
+        free(x_gmres);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
 
     sparse_iter_opts_t bicg_opts = {.max_iter = 2000, .tol = 1e-6, .verbose = 0};
     sparse_gmres_opts_t gmres_opts = {.max_iter = 2000, .restart = 30, .tol = 1e-6, .verbose = 0};
@@ -957,11 +985,19 @@ static void test_s103_bicgstab_small_budget_expected_nonconvergence(void) {
     idx_t n = 50;
     SparseMatrix *A = build_unsym_tridiag(n, 4.0, -1.0, -2.0);
     ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double *b = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
+    if (!b || !x) {
+        free(b);
+        free(x);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = sin((double)(i + 1));
 

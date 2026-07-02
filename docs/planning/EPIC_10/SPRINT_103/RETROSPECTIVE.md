@@ -4,9 +4,8 @@
 **Duration:** 14 days (Days 1-14 landed on branch `sprint-103`)
 **Status:** Complete
 
-> Note: this retrospective is stored at the requested path
-> `docs/planning/EPIC_10/SPRINT_99/RETROSPECTIVE.md`. The sprint artifacts it
-> summarizes live under `docs/planning/EPIC_10/SPRINT_103/`.
+> Note: this retrospective is stored with the Sprint 103 planning artifacts at
+> `docs/planning/EPIC_10/SPRINT_103/RETROSPECTIVE.md`.
 
 ## Definition Of Done Checklist
 
@@ -99,10 +98,9 @@
    103 artifacts repeatedly need to state that these are fixture-local
    diagnostics rather than portable performance claims.
 
-5. **The requested retrospective path is historical, not semantic.**
-   The retrospective is stored under `SPRINT_99` by request, while all Sprint
-   103 artifacts live under `SPRINT_103`. The note at the top of this file is
-   necessary to avoid future navigation confusion.
+5. **The retrospective now lives with its Sprint 103 artifacts.**
+   The retrospective is stored under `SPRINT_103`, matching the Sprint 103 plan,
+   working notes, and artifacts after the path correction.
 
 ## Final Metrics
 

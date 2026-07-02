@@ -394,7 +394,13 @@ static void assert_thick_restart_ritz_residuals(const SparseMatrix *A, const spa
         return;
     for (idx_t j = 0; j < k; j++) {
         const double *v = vecs + (size_t)j * (size_t)n;
-        sparse_matvec(A, v, Av);
+        sparse_err_t rc = sparse_matvec(A, v, Av);
+        if (rc != SPARSE_OK) {
+            TF_FAIL_("sparse_matvec failed for thick-restart Ritz pair %td: %d (%s)", (ptrdiff_t)j,
+                     (int)rc, sparse_strerror(rc));
+            free(Av);
+            return;
+        }
         double num = 0.0, den = 0.0;
         for (idx_t i = 0; i < n; i++) {
             double r = Av[i] - result->eigenvalues[j] * v[i];

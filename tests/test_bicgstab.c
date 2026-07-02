@@ -773,7 +773,7 @@ static void test_bicgstab_vs_gmres_steam1(void) {
                        &gmres_result);
 
     double res_bicg = tf_relative_residual_l2(A_bicg, b, x_bicg, n, HUGE_VAL);
-    double res_gmres = tf_relative_residual_l2(A_bicg, b, x_gmres, n, HUGE_VAL);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, HUGE_VAL);
     printf("    steam1: BiCGSTAB iters=%d res=%.3e, GMRES(30) iters=%d res=%.3e\n",
            (int)bicg_result.iterations, res_bicg, (int)gmres_result.iterations, res_gmres);
 

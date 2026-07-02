@@ -318,6 +318,8 @@ static void test_s103_lobpcg_laplacian30_smallest4_claim(void) {
     const idx_t n = 30;
     SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
     ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     const idx_t k = 4;
     double *vals = calloc((size_t)k, sizeof(double));
@@ -702,6 +704,8 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     SparseMatrix *A = NULL;
     REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
     ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     sparse_ilu_t ic = {0};
     sparse_ldlt_t ldlt = {0};

@@ -288,12 +288,12 @@ static void test_s102_external_dense_reference_lu_nonsym_square_5(void) {
     char reason[256];
     int ref_status = read_lu_external_dense_reference_solution("lu_nonsym_square_5", x_ref, n,
                                                                reason, sizeof(reason));
-    if (ref_status == 0) {
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_SKIP) {
         sparse_free(LU);
         sparse_free(A);
         SKIP_TEST(reason);
     }
-    if (ref_status < 0) {
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_ERROR) {
         sparse_free(LU);
         sparse_free(A);
         TF_FAIL_("external LU reference failed: %s", reason);
@@ -574,7 +574,7 @@ static void test_s102_external_dense_reference_lu_singular_square_4_expected_fai
     char reason[256];
     int ref_status = read_lu_external_dense_reference_solution("lu_singular_square_4", x_ref, 4,
                                                                reason, sizeof(reason));
-    if (ref_status == 0)
+    if (ref_status == (int)TF_EXTERNAL_REFERENCE_SKIP)
         SKIP_TEST(reason);
     ASSERT_TRUE(ref_status == (int)TF_EXTERNAL_REFERENCE_ERROR);
     ASSERT_TRUE(reason[0] != '\0');

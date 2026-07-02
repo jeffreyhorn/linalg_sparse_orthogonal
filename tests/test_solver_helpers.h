@@ -96,8 +96,10 @@ static inline void tf_external_reference_copy_reason(char *reason, size_t reason
         return;
     snprintf(reason, reason_cap, "%s", text ? text : "");
     size_t len = strlen(reason);
-    if (len > 0 && reason[len - 1] == '\n')
+    while (len > 0 && (reason[len - 1] == '\n' || reason[len - 1] == '\r')) {
         reason[len - 1] = '\0';
+        len--;
+    }
 }
 
 static inline tf_external_reference_status_t

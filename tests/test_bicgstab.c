@@ -930,8 +930,25 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     sparse_ilu_t ilu_bicg, ilu_gmres;
     memset(&ilu_bicg, 0, sizeof(ilu_bicg));
     memset(&ilu_gmres, 0, sizeof(ilu_gmres));
-    REQUIRE_OK(sparse_ilu_factor(A_bicg, &ilu_bicg));
-    REQUIRE_OK(sparse_ilu_factor(A_gmres, &ilu_gmres));
+    sparse_err_t err = sparse_ilu_factor(A_bicg, &ilu_bicg);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
+    err = sparse_ilu_factor(A_gmres, &ilu_gmres);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_ilu_free(&ilu_bicg);
+        free(x_true);
+        free(b);
+        sparse_free(A_bicg);
+        sparse_free(A_gmres);
+        return;
+    }
 
     double *x_bicg = calloc((size_t)n, sizeof(double));
     double *x_gmres = calloc((size_t)n, sizeof(double));

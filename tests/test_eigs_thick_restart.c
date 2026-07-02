@@ -1218,7 +1218,13 @@ static void test_s103_thick_restart_diag12_largest4_claim(void) {
         .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
         .max_iterations = 120,
     };
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vecs);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(res.n_converged, k);
     ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
 

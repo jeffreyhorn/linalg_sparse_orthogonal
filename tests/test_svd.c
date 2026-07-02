@@ -2544,10 +2544,22 @@ static void test_s103_svd_diag6_rank_threshold_claim(void) {
     ASSERT_TRUE(rel_resid < 1e-10);
 
     idx_t rank = -1;
-    REQUIRE_OK(sparse_svd_rank(A, 1e-10, &rank));
+    err = sparse_svd_rank(A, 1e-10, &rank);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
     idx_t rank_1e10 = rank;
     ASSERT_EQ(rank_1e10, 4);
-    REQUIRE_OK(sparse_svd_rank(A, 1e-8, &rank));
+    err = sparse_svd_rank(A, 1e-8, &rank);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
     idx_t rank_1e8 = rank;
     ASSERT_EQ(rank_1e8, 3);
 

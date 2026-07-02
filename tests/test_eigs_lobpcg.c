@@ -342,7 +342,14 @@ static void test_s103_lobpcg_laplacian30_smallest4_claim(void) {
         .backend = SPARSE_EIGS_BACKEND_LOBPCG,
         .max_iterations = 250,
     };
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vals);
+        free(vecs);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(res.n_converged, k);
     ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
 
@@ -743,8 +750,26 @@ static void test_lobpcg_ldlt_beats_ic0_on_bcsstk04(void) {
     opts_ldlt.precond = ldlt_precond_adapter;
     opts_ldlt.precond_ctx = &ldlt;
 
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_ic, &r_ic));
-    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_ldlt, &r_ldlt));
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts_ic, &r_ic);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vecs_ic);
+        free(vecs_ldlt);
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
+    err = sparse_eigs_sym(A, k, &opts_ldlt, &r_ldlt);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(vecs_ic);
+        free(vecs_ldlt);
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(r_ic.n_converged, k);
     ASSERT_EQ(r_ldlt.n_converged, k);
     /* LDL^T strictly faster than IC(0) — at least 2× on this fixture

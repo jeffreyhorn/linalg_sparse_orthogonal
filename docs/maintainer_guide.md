@@ -491,6 +491,46 @@ Current maintained proof ownership after Sprint 73 Day 12:
   - `bench_reorder` and `bench_amd_qg` remain benchmark/reporting context
   - they do not replace the focused proof owners above
 
+## OpenMP and Runtime-Control Model
+
+OpenMP support is intentionally narrower than the broader `SPARSE_*`
+compatibility environment-variable story.
+
+Current interpretation:
+
+- serial builds remain the default product path
+- `SPARSE_OPENMP` is a compile-time build option, not a runtime policy object
+- the library does not expose a public thread-pool, per-call thread limit, or
+  `sparse_set_num_threads` API
+- OpenMP team size, affinity, and nested-parallelism behavior remain owned by
+  the OpenMP runtime (`OMP_NUM_THREADS`, vendor runtime settings, and caller
+  process configuration)
+- `SPARSE_MUTEX` is a separate matrix-mutation safety build option and should
+  not be described as OpenMP runtime control
+- graph/reorder `_Thread_local` overrides are internal scope mechanisms; they
+  protect concurrent calls but do not form a public thread-control surface
+
+Current OpenMP implementation owners:
+
+- `src/sparse_matrix.c` owns row-parallel linked-list SpMV and block SpMV
+- `src/sparse_eigs.c` owns inner-axis MGS reorthogonalization for Lanczos
+  paths, gated by `SPARSE_EIGS_OMP_REORTH_MIN_N`
+- solver, SVD, and graph paths may reach OpenMP indirectly through SpMV or
+  eigensolver calls; do not add outer OpenMP regions without a fresh
+  nested-parallelism and oversubscription validation plan
+
+Validation interpretation:
+
+- docs-only runtime wording changes need docs hygiene
+- any `.c` or `.h` OpenMP/runtime cleanup, including comments beside pragma
+  owners, should run `make format && make lint && make test`
+- behavior changes to OpenMP scheduling or thresholds also need focused OpenMP
+  validation and eigensolver/SVD owner tests where relevant
+- do not silently translate `SPARSE_*` compatibility env vars into OpenMP
+  thread counts
+- do not promote thread-local internal override scopes into public runtime
+  controls in user-facing docs
+
 ## Documentation Ownership Rules
 
 Sprint 48 exists because too much maintainer policy drifted into user-facing
@@ -797,6 +837,20 @@ Current threshold-free reporting surface:
   - should stay limited to the canonical maintained surface unless a later
     sprint proves a wider report remains cheap and stable
 
+Current bounded local sentinel bundle:
+
+- `make performance-sentinels`
+  - writes structured output under:
+    - `build/bench-reports/sentinels/`
+  - records branch, commit, platform, compiler, build mode,
+    `OMP_NUM_THREADS`, `SPARSE_CHOL_DENSE_BACKEND`, and
+    `SPARSE_LDLT_DENSE_BACKEND`
+  - treats S5 as the existing hard `wall-check` threshold gate
+  - treats S2 Cholesky CSC rows as threshold-free report context only
+  - should not add new hard timing thresholds without a fresh local-baseline
+    or same-worktree comparison design
+  - should not be described as portable performance evidence
+
 Ownership split:
 
 - benchmark binaries own the emitted fields and their semantics
@@ -810,6 +864,8 @@ Interpretation:
 - do not widen the canonical maintained performance surface casually
 - do not turn the runtime lane into threshold-heavy pseudo-governance
 - do not reinterpret `bench-canonical-report` as a pass/fail portability claim
+- do not reinterpret `performance-sentinels` as a broader timing proof; its
+  only hard timing gate is the existing wall-check lane
 - do not reinterpret the Sprint 98 reorder/fill artifact as a replacement for
   the canonical maintained performance surface or as a portable timing claim
 - do not let exploratory benchmark breadth blur the smaller claim-bearing

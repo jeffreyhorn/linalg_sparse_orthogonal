@@ -189,6 +189,42 @@ This is intentionally not a pass/fail timing gate:
   - the target name is historical; treat the current output as branch-local
     evidence for the bounded ND lane, not as a canonical benchmark claim
 
+For bounded local regression sentinels, use:
+
+- `make performance-sentinels`
+
+That target writes a compact bundle under:
+
+- `build/bench-reports/sentinels/`
+
+with these artifacts:
+
+- `sentinels.tsv`
+  - structured rows for each sentinel metric
+  - includes command, build mode, `OMP_NUM_THREADS`, fixture, metric, value,
+    baseline, threshold, and notes
+- `manifest.txt`
+  - git commit and branch when available
+  - platform and compiler string
+  - `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND`
+  - exact sentinel commands
+- `wall_check.txt`
+  - raw output from the existing thresholded `wall-check` lane
+- `bench_chol_csc_nos4.csv`
+  - raw threshold-free Cholesky CSC row used for backend-aware local context
+
+Interpret the bundle narrowly:
+
+- S5 wraps the existing `make wall-check` threshold gate and may fail the
+  target.
+- S2 captures `bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1` as
+  threshold-free report context only.
+- Missing binaries, fixtures, or baselines are reported as explicit skip rows
+  where practical; skips are not passes.
+- The bundle is local regression evidence, not a portable timing guarantee.
+- Timing rows are meaningful only with the recorded backend request/fallback
+  context and OpenMP runtime settings.
+
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:
 

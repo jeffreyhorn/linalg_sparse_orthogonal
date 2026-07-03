@@ -1000,7 +1000,9 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const sparse_scalar_t *x, sp
 
     /* Walk each physical row, accumulate y[logical_row].
      * Each row writes to a distinct y[log_i], so rows are independent
-     * and safe to parallelize without synchronization. */
+     * and safe to parallelize without synchronization. The library does
+     * not set an OpenMP thread count here; callers should use the OpenMP
+     * runtime (for example OMP_NUM_THREADS) when SPARSE_OPENMP is enabled. */
 #ifdef SPARSE_OPENMP
 #pragma omp parallel for schedule(dynamic, 64)
 #endif
@@ -1049,7 +1051,9 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const sparse_scalar_t 
     size_t sc = (size_t)mat->cols;
 
     /* Walk each row once, update all nrhs columns.
-     * Each row writes to distinct Y positions, so parallelization is safe. */
+     * Each row writes to distinct Y positions, so parallelization is safe.
+     * Thread count remains owned by the OpenMP runtime, matching
+     * sparse_matvec() above. */
 #ifdef SPARSE_OPENMP
 #pragma omp parallel for schedule(dynamic, 64)
 #endif

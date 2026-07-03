@@ -752,6 +752,27 @@ static void test_supernodal_dense_backend_external_env_contract(void) {
     }
 }
 
+static void test_supernodal_dense_backend_invalid_env_falls_back_to_builtin(void) {
+    tf_unsetenv("SPARSE_CHOL_DENSE_BACKEND");
+    if (tf_setenv("SPARSE_CHOL_DENSE_BACKEND", "not-a-real-backend") != 0)
+        SKIP_TEST("setenv SPARSE_CHOL_DENSE_BACKEND=not-a-real-backend failed");
+
+    const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
+    tf_unsetenv("SPARSE_CHOL_DENSE_BACKEND");
+
+    ASSERT_NOT_NULL(kernels);
+    if (!kernels)
+        return;
+    ASSERT_NOT_NULL(kernels->name);
+    ASSERT_NOT_NULL(kernels->factor);
+    ASSERT_NOT_NULL(kernels->solve_lower);
+    ASSERT_NOT_NULL(kernels->solve_panel);
+    if (!kernels->name || !kernels->factor || !kernels->solve_lower || !kernels->solve_panel)
+        return;
+
+    ASSERT_TRUE(strcmp(kernels->name, "builtin") == 0);
+}
+
 /* ─── ldlt_dense_factor (Bunch-Kaufman on column-major storage) ─── */
 
 /* Reconstruct A from factored L, D, D_offdiag, pivot_size and check
@@ -2388,6 +2409,7 @@ static void run_supernodal_dense_tests(void) {
     RUN_TEST(test_supernodal_dense_backend_builtin_env_contract);
     RUN_TEST(test_supernodal_dense_backend_accelerate_env_contract);
     RUN_TEST(test_supernodal_dense_backend_external_env_contract);
+    RUN_TEST(test_supernodal_dense_backend_invalid_env_falls_back_to_builtin);
 
     /* ldlt_dense_factor (BK on column-major) cross-checks */
     RUN_TEST(test_ldlt_dense_factor_arg_checks);

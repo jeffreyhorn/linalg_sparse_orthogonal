@@ -320,6 +320,7 @@ BENCH_CANONICAL_REPORT_BINS = $(BUILDDIR)/bench_refactor_csc \
                               $(BUILDDIR)/bench_eigs_reuse
 BENCH_CANONICAL_REPORT_DIR = $(BUILDDIR)/bench-reports/canonical
 BENCH_CANONICAL_REPORT_LABEL ?=
+PERFORMANCE_SENTINEL_DIR = $(BUILDDIR)/bench-reports/sentinels
 .PHONY: bench-fast
 bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@for b in $(BENCH_FAST_BINS); do \
@@ -351,6 +352,17 @@ bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
 		"$(BUILDDIR)/bench_chol_csc" \
 		"$(BUILDDIR)/bench_iterative_reuse" \
 		"$(BUILDDIR)/bench_eigs_reuse"
+
+# Bounded local performance sentinels.  Hard pass/fail behavior is limited to
+# the existing wall-check lane; Cholesky CSC rows are threshold-free local
+# report context under build/bench-reports/sentinels/.
+.PHONY: performance-sentinels
+performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
+	@scripts/performance_sentinels.sh "$(PERFORMANCE_SENTINEL_DIR)" \
+		"$(BUILDDIR)/bench_chol_csc" \
+		"$(BUILDDIR)/bench_amd_qg" \
+		"$(BUILDDIR)/bench_reorder" \
+		docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt
 
 # Benchmark SuiteSparse matrices (both pivoting modes)
 .PHONY: bench-suitesparse

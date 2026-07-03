@@ -1,0 +1,82 @@
+Sprint 104 Day 1 Authoritative Inputs
+=====================================
+
+Branch
+------
+
+- sprint-104
+
+Primary project-plan source
+---------------------------
+
+- docs/planning/EPIC_10/PROJECT_PLAN.md
+- Section: "Sprint 104: Performance Backend & Parallel Runtime Modernization"
+- Lines reviewed in current working tree: 158-189
+
+Sprint 104 project-plan goal
+----------------------------
+
+Establish a durable backend and runtime contract for builtin dense kernels,
+optional acceleration, OpenMP behavior, and bounded local regression evidence.
+
+Sprint 104 project-plan items
+-----------------------------
+
+1. Backend Consumer Audit
+   - Profile dense backend consumers, fallback paths, and optional acceleration
+     points across direct and decomposition families.
+   - Estimate: 20 hours
+
+2. Runtime Contract Design
+   - Define runtime expectations for builtin kernels, optional backends,
+     OpenMP, nested parallelism, and observability.
+   - Estimate: 30 hours
+
+3. Backend Descriptor Batch
+   - Refine or extend the backend descriptor and selection surface without
+     weakening builtin fallback truth.
+   - Estimate: 32 hours
+
+4. OpenMP and Threading Cleanup
+   - Reduce confusing thread-local/global override behavior and document
+     remaining runtime controls.
+   - Estimate: 24 hours
+
+5. Performance Sentinel Batch
+   - Add bounded local regression sentinels for hot paths without claiming
+     portable timing superiority.
+   - Estimate: 22 hours
+
+6. Benchmark Reporting Alignment
+   - Reconcile benchmark docs, scripts, and artifacts with the refined
+     backend/runtime contract.
+   - Estimate: 18 hours
+
+7. Validation and Closeout
+   - Run required checks, compare benchmark artifacts, and close Sprint 104.
+   - Estimate: 22 hours
+
+Sprint 104 expected deliverables
+--------------------------------
+
+- clearer backend descriptor and runtime selection contract
+- documented builtin fallback and optional acceleration behavior
+- bounded local performance regression sentinels
+- benchmark wording aligned with actual evidence
+
+Prior sprint inputs reviewed
+----------------------------
+
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day10-benchmark-coverage-performance-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/benchmark-interpretation-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/templates/performance-sentinel-template.md
+- docs/planning/EPIC_10/SPRINT_100/artifacts/day13-claim-non-goal-register.md
+- docs/planning/EPIC_10/SPRINT_102/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_10/SPRINT_103/artifacts/day14-closeout-and-handoff.md
+
+Day 1 outputs
+-------------
+
+- docs/planning/EPIC_10/SPRINT_104/WORKING_NOTES.md
+- docs/planning/EPIC_10/SPRINT_104/artifacts/day1-authoritative-inputs.txt
+- docs/planning/EPIC_10/SPRINT_104/artifacts/day1-runtime-baseline.md

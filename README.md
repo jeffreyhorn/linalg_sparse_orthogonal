@@ -137,6 +137,9 @@ When to widen beyond the first examples:
 - tests own regression, oracle, and property guarantees
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
   benchmark surface and is intentionally not a pass/fail timing gate
+- `make performance-sentinels` writes a local sentinel bundle: its hard
+  pass/fail behavior is limited to the existing wall-check lane, while
+  Cholesky CSC rows are threshold-free measurement context
 
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
@@ -179,6 +182,7 @@ make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
+make performance-sentinels  # local sentinel bundle: wall-check hard gate + threshold-free Cholesky CSC context
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
@@ -648,7 +652,10 @@ Current benchmark surfaces cover:
 
 Use `make bench-canonical-report` for one bounded local snapshot of the
 maintained benchmark surface. Treat emitted benchmark rows as branch-local
-measurement artifacts, not portable performance guarantees.
+measurement artifacts, not portable performance guarantees. Use
+`make performance-sentinels` when you need the bounded local sentinel bundle:
+it reports the existing hard `wall-check` gate plus threshold-free Cholesky CSC
+backend context under the current backend and thread settings.
 
 ## Thread Safety
 

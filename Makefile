@@ -356,9 +356,11 @@ bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
 # Bounded local performance sentinels.  Hard pass/fail behavior is limited to
 # the existing wall-check lane; Cholesky CSC rows are threshold-free local
 # report context under build/bench-reports/sentinels/.
+PERFORMANCE_SENTINEL_BUILD_MODE = $(if $(findstring -DSPARSE_OPENMP,$(CFLAGS)),openmp,)
 .PHONY: performance-sentinels
 performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
-	@scripts/performance_sentinels.sh "$(PERFORMANCE_SENTINEL_DIR)" \
+	@SPARSE_SENTINEL_BUILD_MODE="$(PERFORMANCE_SENTINEL_BUILD_MODE)" \
+		scripts/performance_sentinels.sh "$(PERFORMANCE_SENTINEL_DIR)" \
 		"$(BUILDDIR)/bench_chol_csc" \
 		"$(BUILDDIR)/bench_amd_qg" \
 		"$(BUILDDIR)/bench_reorder" \

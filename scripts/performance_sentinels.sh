@@ -25,12 +25,52 @@ manifest_txt="$report_dir/manifest.txt"
 wall_output="$report_dir/wall_check.txt"
 chol_output="$report_dir/bench_chol_csc_nos4.csv"
 
+detect_openmp_runtime() {
+    local binary="$1"
+
+    if [ ! -x "$binary" ]; then
+        return 1
+    fi
+
+    if command -v otool >/dev/null 2>&1; then
+        if otool -L "$binary" 2>/dev/null | grep -Eiq 'lib(omp|gomp|iomp)'; then
+            return 0
+        fi
+    fi
+
+    if command -v ldd >/dev/null 2>&1; then
+        if ldd "$binary" 2>/dev/null | grep -Eiq 'lib(omp|gomp|iomp)'; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+detect_build_mode() {
+    local binary
+
+    if [ -n "${SPARSE_SENTINEL_BUILD_MODE:-}" ]; then
+        printf '%s\n' "$SPARSE_SENTINEL_BUILD_MODE"
+        return 0
+    fi
+
+    for binary in "$bench_chol_csc" "$bench_amd_qg" "$bench_reorder"; do
+        if detect_openmp_runtime "$binary"; then
+            printf 'openmp\n'
+            return 0
+        fi
+    done
+
+    printf 'serial\n'
+}
+
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 platform="$(uname -a 2>/dev/null || echo unknown)"
 cc_version="$(${CC:-cc} --version 2>/dev/null | head -n 1 || echo unknown)"
-build_mode="${SPARSE_SENTINEL_BUILD_MODE:-serial}"
+build_mode="$(detect_build_mode)"
 omp_num_threads="${OMP_NUM_THREADS:-unset}"
 chol_dense_backend="${SPARSE_CHOL_DENSE_BACKEND:-unset}"
 ldlt_dense_backend="${SPARSE_LDLT_DENSE_BACKEND:-unset}"

@@ -119,7 +119,8 @@ else
     fi
 fi
 
-cat > "$manifest_txt" <<EOF
+{
+cat <<EOF
 performance-sentinels
 generated_at_utc=$timestamp_utc
 report_dir=$report_dir
@@ -139,20 +140,33 @@ commands:
 artifacts:
 - $(basename "$report_tsv")
 - $(basename "$manifest_txt")
-- $(basename "$wall_output")
-- $(basename "$chol_output")
+EOF
+
+if [ -e "$wall_output" ]; then
+    echo "- $(basename "$wall_output")"
+fi
+if [ -e "$chol_output" ]; then
+    echo "- $(basename "$chol_output")"
+fi
+
+cat <<EOF
 
 notes:
 - S5 is the existing thresholded wall-check gate and may fail this script.
 - S2 is threshold-free local reporting; compare across local runs only.
 - This bundle is local regression evidence, not a portable performance claim.
 EOF
+} > "$manifest_txt"
 
 echo "performance-sentinels: wrote $report_dir"
 echo "  - $(basename "$report_tsv")"
 echo "  - $(basename "$manifest_txt")"
-echo "  - $(basename "$wall_output")"
-echo "  - $(basename "$chol_output")"
+if [ -e "$wall_output" ]; then
+    echo "  - $(basename "$wall_output")"
+fi
+if [ -e "$chol_output" ]; then
+    echo "  - $(basename "$chol_output")"
+fi
 
 if [ "$wall_status" = "fail" ]; then
     exit 1

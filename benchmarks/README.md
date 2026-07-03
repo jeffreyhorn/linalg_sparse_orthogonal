@@ -209,9 +209,10 @@ with these artifacts:
   - `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND`
   - exact sentinel commands
 - `wall_check.txt`
-  - raw output from the existing thresholded `wall-check` lane
+  - raw output from the existing thresholded `wall-check` lane when that lane
+    runs
 - `bench_chol_csc_nos4.csv`
-  - raw threshold-free Cholesky CSC row used for backend-aware local context
+  - raw threshold-free Cholesky CSC row when the S2 lane runs
 
 Interpret the bundle narrowly:
 

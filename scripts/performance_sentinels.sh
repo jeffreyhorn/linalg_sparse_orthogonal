@@ -132,9 +132,9 @@ fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"
 if [ ! -x "$bench_chol_csc" ]; then
-    append_row "S2" "skip" "$chol_cmd" "nos4" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_chol_csc_missing"
+    append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_chol_csc_missing"
 elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
-    append_row "S2" "skip" "$chol_cmd" "nos4" "bench_chol_csc" "n/a" "n/a" "n/a" "fixture_missing"
+    append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "fixture_missing"
 else
     if "$bench_chol_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$chol_output"; then
         awk -F, -v cmd="$chol_cmd" \
@@ -157,7 +157,7 @@ else
             }
         ' "$chol_output" >> "$report_tsv"
     else
-        append_row "S2" "skip" "$chol_cmd" "nos4" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_run_failed"
+        append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_run_failed"
     fi
 fi
 

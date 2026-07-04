@@ -44,7 +44,8 @@ timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 platform_string="$(uname -a 2>/dev/null || true)"
-compiler_string="$("${CC:-cc}" --version 2>/dev/null | sed -n '1p' || true)"
+read -r -a compiler_cmd <<< "${CC:-cc}"
+compiler_string="$("${compiler_cmd[@]}" --version 2>/dev/null | sed -n '1p' || true)"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -135,6 +136,10 @@ validate_reorder_csv() {
 }
 
 write_index_header
+
+if [ "$supplemental" = "0" ]; then
+    rm -f "$reorder_all_csv" "$amd_qg_csv"
+fi
 
 "$test_graph" > "$graph_out"
 append_index_row "G3" "pass" "reviewed" "$test_graph" "$(basename "$graph_out")" "graph partition, separator, generated-family structural tests"

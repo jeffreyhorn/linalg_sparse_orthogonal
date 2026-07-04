@@ -226,6 +226,57 @@ Interpret the bundle narrowly:
 - Timing rows are meaningful only with the recorded backend request/fallback
   context and OpenMP runtime settings.
 
+For bounded large-matrix reorder and graph guardrails, use:
+
+- `make large-matrix-guardrails`
+
+That target writes a compact bundle under:
+
+- `build/bench-reports/large-matrix-guardrails/`
+
+with these default artifacts:
+
+- `index.tsv`
+  - one row per guardrail lane
+  - reviewed lanes `G1` through `G4` should report `pass`
+  - supplemental lanes `S1` and `S2` report `skip` unless explicitly enabled
+- `manifest.txt`
+  - branch, commit, platform, compiler, timestamp, and supplemental-mode flag
+- `test_reorder_amd_qg.txt`
+  - reviewed qg-AMD wrapper and `banded-n10000-bw5` structural guardrail
+- `test_reorder_nd.txt`
+  - reviewed ND generated-family, named-matrix, policy, and residual coverage
+- `test_graph.txt`
+  - reviewed graph partition, separator, generated-family, and determinism
+    coverage
+- `bench_reorder_sprint86.csv`
+  - bounded two-fixture reorder/fill slice for `bcsstk14` and `Pres_Poisson`
+  - the `sprint86` label is historical; read it as the current named
+    two-fixture slice
+
+Supplemental report mode is opt-in:
+
+```sh
+SPARSE_LARGE_GUARDRAILS_SUPPLEMENTAL=1 make large-matrix-guardrails
+```
+
+Supplemental mode adds threshold-free local reports for:
+
+- `bench_reorder --skip-factor`
+- `bench_amd_qg --skip-bitset`
+
+Interpret this bundle narrowly:
+
+- `G1` through `G3` are structural test lanes; they own pass/fail invariants
+  through their test binaries, not through benchmark timing.
+- `G4` validates the bounded `bench_reorder` CSV shape and structural fill
+  rows; `nnz_L` is the primary fill field, while `reorder_ms` remains local
+  timing context.
+- `S1` and `S2` are useful maintainer reports, but they are not reviewed
+  quality gates unless a future sprint defines a separate baseline contract.
+- No max-RSS row in this bundle should be compared across platforms as a
+  pass/fail memory claim.
+
 The two refactor benchmarks remain the strongest benchmark-side adoption
 surfaces for the public repeated-run direct lifecycle:
 

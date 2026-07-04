@@ -638,6 +638,31 @@ Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is b
 - The Pres_Poisson default-path **0.923× ratio** is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), 11 (multi-pass FM at the finest level), Sprint 26 Day 5 (`nd_base_threshold 32 → 96`), Sprint 27 Day 2 (`SPARSE_ND_COARSENING heavy_edge → hcc` with Kuu-safe degree-CV-fall-through), and Sprint 27 Day 3 (`nd_base_threshold 96 → 128`).  PLAN.md's literal **≤ 0.85× target across Sprints 24-28 remained UNMET** (6 consecutive sprints; current default 0.923× = 7.3pp from target; per-sprint trajectory: 0.952× → 0.942× → 0.922× → 0.9217× → 0.9226× → 0.9226×).  Sprint 27's structural-pipeline-level interventions all REGRESSED Pres_Poisson on the headline fixture (Item 4 annealing FM +2.2-3.1pp, Item 5 root-spectral +2.3pp, Item 6 thick-restart FM +4.7-11.5pp).  Sprint 28's non-pipeline-level pivot (`SPARSE_SUPERNODAL_POSTORDER=on` — Liu 1990 post-permutation acting on the elimination tree AFTER the multilevel pipeline) is bit-equivalent to the default on Pres_Poisson nnz_L by symmetric-permutation invariance — the only intervention that can act AFTER the pipeline produces a 0pp delta on the metric.  **The literal 0.85× target is formally RETIRED with Sprint 28's empirical evidence** (Day 12 cross-corpus matrix; `headline_summary.md` "Sprint 28 Verdict on the Literal 0.85× Pres_Poisson Target — RETIRED").  Sprint 29+ may revisit ONLY with fundamentally different machinery: METIS C library interop (defer to production METIS rather than the in-house multilevel pipeline), geometric mesh-aware ordering with first-class coordinate API (rejected Sprint 27 Day 9; Laplacian-spectral coordinates regress +2.3pp), or hybrid AMD-then-ND-on-separators.  None budgeted for Sprint 29.
 - **Wall time on Pres_Poisson is ~10 s** under Sprint 27 production defaults (Sprint 25 baseline was ~38 s; cumulative -73.5 % across Sprints 26-27).  Reductions: Sprint 26 Day 5 t=96 flip cut to ~12 s (-67.9 % vs Sprint 25); Sprint 27 Day 2 HCC default flip to ~8.8 s (-77 %); Sprint 27 Day 3 t=128 flip held wall at the new floor.  See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md` and `hcc_kuu_diagnosis.md` for per-flip wall measurements.
 
+### Reorder/fill reporting interpretation
+
+Reorder and graph reports keep structural, runtime, and guardrail evidence
+separate. Read them with these boundaries:
+
+- `nnz_L`, `nnz_R`, `nnz_LU`, `fill_ratio`, `bandwidth`, and
+  `separator_size` are structural context for a named fixture and ordering.
+  A lower value is not a universal solver-quality claim unless the row names
+  the baseline and fixture class being compared.
+- `reorder_ms`, `factor_ms`, and command wall time are local timing context.
+  They depend on host, compiler, build mode, backend, and thread settings.
+  Only `make wall-check` currently uses documented timing baselines as a hard
+  pass/fail regression gate.
+- `peak_rss_mb` is a platform-local memory proxy. It is useful for before /
+  after investigation on one machine, not for cross-platform pass/fail claims.
+- `make large-matrix-guardrails` is the current bounded structural guardrail
+  bundle for qg-AMD, ND, graph partitioning, and the two-fixture reorder CSV
+  slice. It writes artifacts under
+  `build/bench-reports/large-matrix-guardrails/`.
+- Supplemental large-matrix reports are opt-in:
+  `SPARSE_LARGE_GUARDRAILS_SUPPLEMENTAL=1 make large-matrix-guardrails`.
+  They add threshold-free `bench_reorder --skip-factor` and
+  `bench_amd_qg --skip-bitset` context; they are not new reviewed quality
+  gates.
+
 ### Performance regression gates
 
 Sprint 24 Day 1 added a `make wall-check` target driven by

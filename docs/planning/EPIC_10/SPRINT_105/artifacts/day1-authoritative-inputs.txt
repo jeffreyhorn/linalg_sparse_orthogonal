@@ -1,0 +1,84 @@
+Sprint 105 Day 1 Authoritative Inputs
+======================================
+
+Primary project-plan scope
+--------------------------
+
+docs/planning/EPIC_10/PROJECT_PLAN.md
+  Section: Sprint 105: Reordering, Graph & Large-Matrix Scalability
+  Lines requested by task: 193-223
+
+Sprint 105 plan
+---------------
+
+docs/planning/EPIC_10/SPRINT_105/PLAN.md
+  Day 1: Sprint 105 Scope & Scalability Baseline
+  Day 2: Reorder and Graph Surface Audit
+  Day 3: Fill and Fixture Contract Design
+  Day 4: Evidence Boundary and Matrix Selection
+  Day 5: Reorder/Fill Reporting Batch 1
+  Day 6: Named-Matrix Evidence Expansion
+  Day 7: Generated Graph Family Expansion
+  Day 8: Large-Matrix Guardrail Design
+  Day 9: Scalability Guardrail Implementation
+  Day 10: Graph/Reorder Ownership Cleanup
+  Day 11: Reporting and Documentation Alignment
+  Day 12: Integrated Evidence Reconciliation
+  Day 13: Final Fix Batch and Validation Sweep
+  Day 14: Sprint 105 Closeout and Handoff
+
+Sprint 100 evidence and claim inputs
+------------------------------------
+
+docs/planning/EPIC_10/SPRINT_100/artifacts/day10-benchmark-coverage-performance-template.md
+  Defines benchmark, coverage, and performance artifact requirements:
+  exact command, fixture or source scope, machine/compiler/backend/thread
+  context, emitted metrics and units, artifact paths, thresholds or
+  report-only status, reviewed versus supplemental status, reset
+  requirements, unsupported cases, and explicit non-claims.
+
+docs/planning/EPIC_10/SPRINT_100/artifacts/templates/benchmark-interpretation-template.md
+  Provides the reusable structure for interpreting benchmark and report
+  outputs. Sprint 105 should reuse its separation between local timing,
+  fill, memory, residual or correctness context, unsupported rows, and
+  output artifacts.
+
+docs/planning/EPIC_10/SPRINT_100/artifacts/templates/performance-sentinel-template.md
+  Provides the reusable structure for thresholded runtime sentinels. Sprint
+  105 should use this only if it adds a thresholded guardrail, not for
+  threshold-free fill or runtime reports.
+
+docs/planning/EPIC_10/SPRINT_100/artifacts/day13-claim-non-goal-register.md
+  Keeps "reorder/fill and graph evidence is clearer" as a Sprint 105
+  candidate claim. Required evidence includes named fixtures, fill metric
+  contract, and local timing caveats.
+
+Sprint 104 handoff inputs
+-------------------------
+
+docs/planning/EPIC_10/SPRINT_104/artifacts/day14-closeout-and-handoff.md
+  Hands Sprint 105 these constraints:
+  - preserve benchmark/sentinel claim boundaries when touching reordering,
+    graph, or large-matrix benchmark evidence;
+  - treat local timing as command/fixture/backend/thread-context evidence,
+    not portable performance proof;
+  - keep performance-sentinel hard-fail behavior limited to S5 unless a
+    future baseline design justifies additional thresholds;
+  - check POSIX CMake registration and Windows expected CTest count explicitly
+    when adding tests;
+  - keep OpenMP ownership wording near new parallel regions or benchmark
+    interpretation;
+  - do not widen optional dense backend language without tests, docs, and
+    platform-scope updates.
+
+docs/planning/EPIC_10/SPRINT_104/RETROSPECTIVE.md
+  Reinforces that generated benchmark metadata can drift into overclaiming,
+  local sentinel expansion remains incomplete by design, Windows count
+  discipline remains manual, and optional/OpenMP evidence remains bounded.
+
+Day 1 output files
+------------------
+
+docs/planning/EPIC_10/SPRINT_105/WORKING_NOTES.md
+docs/planning/EPIC_10/SPRINT_105/artifacts/day1-authoritative-inputs.txt
+docs/planning/EPIC_10/SPRINT_105/artifacts/day1-scalability-baseline.md

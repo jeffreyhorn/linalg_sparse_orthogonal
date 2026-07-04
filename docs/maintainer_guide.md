@@ -851,6 +851,30 @@ Current bounded local sentinel bundle:
     or same-worktree comparison design
   - should not be described as portable performance evidence
 
+Current large-matrix structural guardrail bundle:
+
+- `make large-matrix-guardrails`
+  - writes structured output under:
+    - `build/bench-reports/large-matrix-guardrails/`
+  - records branch, commit, platform, compiler, timestamp, and whether
+    supplemental mode was enabled
+  - default reviewed lanes:
+    - `G1`: `build/test_reorder_amd_qg`
+    - `G2`: `build/test_reorder_nd`
+    - `G3`: `build/test_graph`
+    - `G4`: `build/bench_reorder --sprint86-slice --skip-factor`
+  - default supplemental lanes:
+    - `S1`: `build/bench_reorder --skip-factor`
+    - `S2`: `build/bench_amd_qg --skip-bitset`
+  - keeps `S1` and `S2` as explicit `skip` rows unless
+    `SPARSE_LARGE_GUARDRAILS_SUPPLEMENTAL=1` is set
+  - treats `G1` through `G3` as structural test guardrails, not benchmark
+    timing claims
+  - treats `G4` as bounded CSV-shape and fill-report evidence for
+    `bcsstk14` and `Pres_Poisson`
+  - should not add new hard timing, max-RSS, or full numeric-factor thresholds
+    without a fresh baseline and machine-class design
+
 Ownership split:
 
 - benchmark binaries own the emitted fields and their semantics
@@ -868,6 +892,9 @@ Interpretation:
   only hard timing gate is the existing wall-check lane
 - do not reinterpret the Sprint 98 reorder/fill artifact as a replacement for
   the canonical maintained performance surface or as a portable timing claim
+- do not reinterpret `large-matrix-guardrails` as broad large-matrix
+  performance proof; its reviewed lanes are structural and bounded, and its
+  supplemental lanes are opt-in reports
 - do not let exploratory benchmark breadth blur the smaller claim-bearing
   maintained surface
 

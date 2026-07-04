@@ -1,4 +1,5 @@
 #include "sparse_lu_csr.h"
+#include "sparse_lu_csr_internal.h"
 #include "sparse_matrix_internal.h"
 
 #include <math.h>
@@ -144,47 +145,6 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
     return SPARSE_OK;
 }
 
-/* ─── Grow CSR arrays ────────────────────────────────────────────────── */
-
-static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
-    if (needed < 0)
-        return SPARSE_ERR_ALLOC;
-    if (needed <= csr->capacity)
-        return SPARSE_OK;
-    /* Grow by at least 50% or to needed, whichever is larger.
-     * Guard against idx_t overflow in the addition. */
-    idx_t new_cap;
-    if (csr->capacity > IDX_MAX - csr->capacity / 2)
-        new_cap = IDX_MAX;
-    else
-        new_cap = csr->capacity + csr->capacity / 2;
-    if (new_cap < needed)
-        new_cap = needed;
-    /* Guard size_t overflow for realloc byte count */
-    if ((size_t)new_cap > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-
-    idx_t *new_col = realloc(csr->col_idx, (size_t)new_cap * sizeof(idx_t));
-    if (!new_col)
-        return SPARSE_ERR_ALLOC;
-    /* Don't update csr->col_idx yet — if values realloc fails we need to
-     * keep the struct consistent.  new_col is valid either way (realloc
-     * frees the old block on success), so stash it and commit both below. */
-
-    double *new_val = realloc(csr->values, (size_t)new_cap * sizeof(double));
-    if (!new_val) {
-        /* col_idx was already reallocated (old pointer freed by realloc),
-         * so we must still record new_col to avoid a dangling pointer. */
-        csr->col_idx = new_col;
-        return SPARSE_ERR_ALLOC;
-    }
-
-    csr->col_idx = new_col;
-    csr->values = new_val;
-    csr->capacity = new_cap;
-    return SPARSE_OK;
-}
-
 /* ─── Dense LU factorization (dgetrf-style) ──────────────────────────── */
 
 sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv, double tol) {
@@ -282,37 +242,6 @@ sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *i
         b[i] = (b[i] - sum) / u_ii;
     }
 
-    return SPARSE_OK;
-}
-
-/* ─── CSR structural validation ──────────────────────────────────────── */
-
-/**
- * Validate LuCsr structural invariants:
- * - row_ptr[0] == 0
- * - row_ptr is monotone non-decreasing
- * - row_ptr[n] == csr->nnz
- * - csr->nnz <= csr->capacity
- * - all col_idx values in [0, n)
- */
-static sparse_err_t lu_csr_validate(const LuCsr *csr) {
-    idx_t n = csr->n;
-    if (csr->nnz < 0 || csr->capacity < 0 || csr->nnz > csr->capacity)
-        return SPARSE_ERR_BADARG;
-    if (!csr->row_ptr || !csr->col_idx || !csr->values)
-        return SPARSE_ERR_NULL;
-    if (csr->row_ptr[0] != 0)
-        return SPARSE_ERR_BADARG;
-    for (idx_t i = 0; i < n; i++) {
-        if (csr->row_ptr[i] < 0 || csr->row_ptr[i] > csr->row_ptr[i + 1])
-            return SPARSE_ERR_BADARG;
-    }
-    if (csr->row_ptr[n] != csr->nnz)
-        return SPARSE_ERR_BADARG;
-    for (idx_t p = 0; p < csr->nnz; p++) {
-        if (csr->col_idx[p] < 0 || csr->col_idx[p] >= n)
-            return SPARSE_ERR_BADARG;
-    }
     return SPARSE_OK;
 }
 

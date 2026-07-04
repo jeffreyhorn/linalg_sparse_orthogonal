@@ -49,6 +49,7 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_graph_fixtures.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -140,49 +141,8 @@ static void test_graph_from_sparse_null_args(void) {
     sparse_free(A);
 }
 
-/* ─── Day 2 helpers: build synthetic graph fixtures ────────────────── */
+/* ─── Day 2 helpers: graph-local weighted edge mutation ────────────── */
 
-/* Build the symmetric adjacency graph of the 2D `r × c` grid (vertices
- * indexed in row-major order; each vertex connects to its 4-neighbours
- * where they exist).  All edges have unit weight; no vwgt set. */
-static SparseMatrix *make_grid_2d(idx_t r, idx_t c) {
-    SparseMatrix *A = sparse_create(r * c, r * c);
-    for (idx_t i = 0; i < r; i++) {
-        for (idx_t j = 0; j < c; j++) {
-            idx_t v = i * c + j;
-            sparse_insert(A, v, v, 1.0); /* placeholder diagonal */
-            if (j + 1 < c) {
-                sparse_insert(A, v, v + 1, 1.0);
-                sparse_insert(A, v + 1, v, 1.0);
-            }
-            if (i + 1 < r) {
-                sparse_insert(A, v, v + c, 1.0);
-                sparse_insert(A, v + c, v, 1.0);
-            }
-        }
-    }
-    return A;
-}
-
-/* Build a 1D path graph: n vertices with edges (0-1), (1-2), ..., (n-2)-(n-1).
- * Self-loops included as placeholders; no vwgt. */
-static SparseMatrix *make_path_1d(idx_t n) {
-    SparseMatrix *A = sparse_create(n, n);
-    for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 1.0);
-        if (i + 1 < n) {
-            sparse_insert(A, i, i + 1, 1.0);
-            sparse_insert(A, i + 1, i, 1.0);
-        }
-    }
-    return A;
-}
-
-/* Build two K_k cliques (vertices 0..k-1 and k..2k-1) joined by a
- * single bridge edge (0, k).  The bridge is given the heaviest edge
- * weight (10×) by injecting that pattern into the resulting graph
- * after the from_sparse step, since SparseMatrix doesn't carry edge
- * weights.  The test then heavy-edge-matches against this graph. */
 static void overwrite_edge_weight(sparse_graph_t *G, idx_t u, idx_t v, idx_t new_wt) {
     if (!G->ewgt) {
         G->ewgt = malloc((size_t)G->xadj[G->n] * sizeof(idx_t));
@@ -199,30 +159,6 @@ static void overwrite_edge_weight(sparse_graph_t *G, idx_t u, idx_t v, idx_t new
         if (G->adjncy[k] == u)
             G->ewgt[k] = new_wt;
     }
-}
-
-static SparseMatrix *make_two_cliques_with_bridge(idx_t k) {
-    SparseMatrix *A = sparse_create(2 * k, 2 * k);
-    /* Clique 1: vertices 0..k-1 */
-    for (idx_t i = 0; i < k; i++) {
-        sparse_insert(A, i, i, 1.0);
-        for (idx_t j = i + 1; j < k; j++) {
-            sparse_insert(A, i, j, 1.0);
-            sparse_insert(A, j, i, 1.0);
-        }
-    }
-    /* Clique 2: vertices k..2k-1 */
-    for (idx_t i = k; i < 2 * k; i++) {
-        sparse_insert(A, i, i, 1.0);
-        for (idx_t j = i + 1; j < 2 * k; j++) {
-            sparse_insert(A, i, j, 1.0);
-            sparse_insert(A, j, i, 1.0);
-        }
-    }
-    /* Bridge edge (0, k) */
-    sparse_insert(A, 0, (idx_t)k, 1.0);
-    sparse_insert(A, (idx_t)k, 0, 1.0);
-    return A;
 }
 
 /* Build a graph whose smaller side has the larger boundary while the
@@ -266,7 +202,7 @@ static SparseMatrix *make_asymmetric_boundary_graph(void) {
 /* ─── Day 2: heavy-edge-matching coarsener tests ───────────────────── */
 
 static void test_coarsen_5x5_grid_halves_in_one_step(void) {
-    SparseMatrix *A = make_grid_2d(5, 5);
+    SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
@@ -310,7 +246,7 @@ static void test_coarsen_5x5_grid_halves_again_in_two_steps(void) {
      * coarsening passes (the hierarchy builder's small-enough
      * threshold of MAX(20, n/100) = 20 stops after one level on
      * n = 25, so we can't use it for this check). */
-    SparseMatrix *A = make_grid_2d(5, 5);
+    SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
@@ -358,7 +294,7 @@ static void test_hierarchy_build_5x5_grid(void) {
      * n > 13.  HCC behaviour on small regular grids is intentional
      * and exercised by the Sprint 25 `test_hcc_match_selection_grid`
      * test; this test stays scoped to HEM. */
-    SparseMatrix *A = make_grid_2d(5, 5);
+    SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
@@ -391,7 +327,7 @@ static void test_hierarchy_build_5x5_grid(void) {
 }
 
 static void test_coarsen_1d_path_halves(void) {
-    SparseMatrix *A = make_path_1d(20);
+    SparseMatrix *A = tf_make_path_1d(20);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
@@ -430,7 +366,7 @@ static void test_coarsen_prefers_heaviest_edge(void) {
      * never-collapses probability to (2/3)^16 ≈ 0.001, vanishingly
      * small flake risk. */
     const idx_t k = 3;
-    SparseMatrix *A = make_two_cliques_with_bridge(k);
+    SparseMatrix *A = tf_make_two_cliques_with_bridge(k);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
     overwrite_edge_weight(&G, 0, k, 10);
@@ -480,7 +416,7 @@ static void test_hcc_match_selection_grid(void) {
      *      Day 2's diagnostic measured 12/25 cmap entries differ on
      *      the 5x5 grid; this assertion pins ≥ 1 entry differs to
      *      avoid over-constraining the test. */
-    SparseMatrix *A = make_grid_2d(5, 5);
+    SparseMatrix *A = tf_make_grid_2d(5, 5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -606,7 +542,7 @@ static void test_coarsen_is_deterministic(void) {
      * and the same cmap on every call.  This is the contract
      * `sparse_graph_partition` will rely on so nested-dissection's
      * recursion produces stable permutations. */
-    SparseMatrix *A = make_grid_2d(6, 6);
+    SparseMatrix *A = tf_make_grid_2d(6, 6);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
@@ -651,7 +587,7 @@ static void test_graph_subgraph_argument_validation(void) {
 }
 
 static void test_graph_subgraph_path_slice(void) {
-    SparseMatrix *A = make_path_1d(5);
+    SparseMatrix *A = tf_make_path_1d(5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     sparse_graph_t parent = {0};
@@ -692,84 +628,10 @@ static void test_graph_subgraph_path_slice(void) {
  * Sprint 22 Day 4 — uncoarsening + vertex-separator extraction.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Build the symmetric adjacency graph of a `d × d × d` 3D mesh
- * (6-connected: each vertex has up to 6 axis-aligned neighbours). */
-static SparseMatrix *make_mesh_3d(idx_t d) {
-    SparseMatrix *A = sparse_create(d * d * d, d * d * d);
-    if (!A)
-        return NULL;
-    for (idx_t z = 0; z < d; z++) {
-        for (idx_t y = 0; y < d; y++) {
-            for (idx_t x = 0; x < d; x++) {
-                idx_t v = x + y * d + z * d * d;
-                sparse_insert(A, v, v, 1.0); /* placeholder diagonal */
-                if (x + 1 < d) {
-                    sparse_insert(A, v, v + 1, 1.0);
-                    sparse_insert(A, v + 1, v, 1.0);
-                }
-                if (y + 1 < d) {
-                    sparse_insert(A, v, v + d, 1.0);
-                    sparse_insert(A, v + d, v, 1.0);
-                }
-                if (z + 1 < d) {
-                    sparse_insert(A, v, v + d * d, 1.0);
-                    sparse_insert(A, v + d * d, v, 1.0);
-                }
-            }
-        }
-    }
-    return A;
-}
-
-/* Verify the partition invariant: no edge connects a side-0 vertex
- * to a side-1 vertex.  Every cut edge must route through a separator
- * vertex (`part[i] == 2`). */
-static int check_partition_invariant(const sparse_graph_t *G, const idx_t *part) {
-    for (idx_t i = 0; i < G->n; i++) {
-        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
-            idx_t j = G->adjncy[k];
-            int p_i = (int)part[i];
-            int p_j = (int)part[j];
-            if ((p_i == 0 && p_j == 1) || (p_i == 1 && p_j == 0))
-                return 0;
-        }
-    }
-    return 1;
-}
-
-/* Count vertices per side. */
-static void count_partition_sides(const sparse_graph_t *G, const idx_t *part, idx_t *n0, idx_t *n1,
-                                  idx_t *nsep) {
-    *n0 = 0;
-    *n1 = 0;
-    *nsep = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        if (part[i] == 0)
-            (*n0)++;
-        else if (part[i] == 1)
-            (*n1)++;
-        else if (part[i] == 2)
-            (*nsep)++;
-    }
-}
-
-static void count_bipartition_sides(const sparse_graph_t *G, const idx_t *part, idx_t *n0,
-                                    idx_t *n1) {
-    *n0 = 0;
-    *n1 = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
-        if (part[i] == 0)
-            (*n0)++;
-        else
-            (*n1)++;
-    }
-}
-
 /* ─── 10×10 grid: separator ≈ 10 (one row/column) ─────────────────── */
 
 static void test_partition_10x10_grid(void) {
-    SparseMatrix *A = make_grid_2d(10, 10);
+    SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -785,11 +647,11 @@ static void test_partition_10x10_grid(void) {
     ASSERT_TRUE(sep <= 12);
 
     /* No part-0 / part-1 cross-edges. */
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     /* Balanced sides ±20% of (n - sep) ≈ 88. */
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 100);
     ASSERT_EQ(nsep, sep);
     idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
@@ -1170,7 +1032,7 @@ static void test_spectral_bisection_lanczos_failure(void) {
 }
 
 static void test_bisect_forced_gggp_small_graph(void) {
-    SparseMatrix *A = make_path_1d(8);
+    SparseMatrix *A = tf_make_path_1d(8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1189,7 +1051,7 @@ static void test_bisect_forced_gggp_small_graph(void) {
     REQUIRE_OK(rc);
 
     idx_t n0 = 0, n1 = 0;
-    count_bipartition_sides(&G, part, &n0, &n1);
+    tf_count_bipartition_sides(&G, part, &n0, &n1);
     ASSERT_EQ(n0 + n1, 8);
     ASSERT_EQ(n0, 4);
     ASSERT_EQ(n1, 4);
@@ -1199,7 +1061,7 @@ static void test_bisect_forced_gggp_small_graph(void) {
 }
 
 static void test_bisect_forced_brute_large_graph_falls_back_to_gggp(void) {
-    SparseMatrix *A = make_path_1d(41);
+    SparseMatrix *A = tf_make_path_1d(41);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1221,7 +1083,7 @@ static void test_bisect_forced_brute_large_graph_falls_back_to_gggp(void) {
     REQUIRE_OK(rc);
 
     idx_t n0 = 0, n1 = 0;
-    count_bipartition_sides(&G, part_forced, &n0, &n1);
+    tf_count_bipartition_sides(&G, part_forced, &n0, &n1);
     ASSERT_EQ(n0 + n1, 41);
     ASSERT_TRUE(n0 >= 20 && n1 >= 20);
 
@@ -1257,7 +1119,7 @@ static void test_fm_intermediate_passes_smoke(void) {
         return;
     }
 
-    SparseMatrix *A = make_grid_2d(10, 10);
+    SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1277,10 +1139,10 @@ static void test_fm_intermediate_passes_smoke(void) {
      * partition must be valid regardless of pass count. */
     ASSERT_TRUE(sep >= 5);
     ASSERT_TRUE(sep <= 12);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 100);
     ASSERT_EQ(nsep, sep);
     idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
@@ -1370,9 +1232,9 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     }
     coarsening_env_set = 1;
 
-    A = make_grid_2d(30, 30);
+    A = tf_make_grid_2d(30, 30);
     if (!A) {
-        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        TF_FAIL_("tf_make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
         goto cleanup;
     }
     sparse_err_t rc = sparse_graph_from_sparse(A, &G);
@@ -1395,7 +1257,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
         TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
         goto cleanup;
     }
-    if (!check_partition_invariant(&G, part_baseline)) {
+    if (!tf_check_partition_invariant(&G, part_baseline)) {
         TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
         goto cleanup;
     }
@@ -1417,7 +1279,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
         TF_FAIL_("sparse_graph_partition(fifo run #1): rc=%d", (int)rc);
         goto cleanup;
     }
-    if (!check_partition_invariant(&G, part_fifo1)) {
+    if (!tf_check_partition_invariant(&G, part_fifo1)) {
         TF_FAIL_("fifo run #1 partition invariant failed (n=%d)", (int)G.n);
         goto cleanup;
     }
@@ -1501,9 +1363,9 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
     }
     coarsening_env_set = 1;
 
-    A = make_mesh_3d(5);
+    A = tf_make_mesh_3d(5);
     if (!A) {
-        TF_FAIL_("make_mesh_3d(%d) returned NULL (OOM)", 5);
+        TF_FAIL_("tf_make_mesh_3d(%d) returned NULL (OOM)", 5);
         goto cleanup;
     }
     sparse_err_t rc = sparse_graph_from_sparse(A, &G);
@@ -1527,7 +1389,7 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
         TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
         goto cleanup;
     }
-    if (!check_partition_invariant(&G, part_baseline)) {
+    if (!tf_check_partition_invariant(&G, part_baseline)) {
         TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
         goto cleanup;
     }
@@ -1554,7 +1416,7 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
         TF_FAIL_("sparse_graph_partition(gain_noise_formal #1): rc=%d", (int)rc);
         goto cleanup;
     }
-    if (!check_partition_invariant(&G, part_gnf1)) {
+    if (!tf_check_partition_invariant(&G, part_gnf1)) {
         TF_FAIL_("gain_noise_formal #1 partition invariant failed (n=%d)", (int)G.n);
         goto cleanup;
     }
@@ -1781,9 +1643,9 @@ cleanup:
  * (n=125) so the test runs in ms.
  */
 static void test_finest_fm_ensemble_deterministic(void) {
-    SparseMatrix *A = make_mesh_3d(5);
+    SparseMatrix *A = tf_make_mesh_3d(5);
     if (!A) {
-        TF_FAIL_("make_mesh_3d(%d) returned NULL (OOM)", 5);
+        TF_FAIL_("tf_make_mesh_3d(%d) returned NULL (OOM)", 5);
         return;
     }
     sparse_graph_t G = {0};
@@ -1837,7 +1699,7 @@ cleanup:
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
-    SparseMatrix *A = make_mesh_3d(5);
+    SparseMatrix *A = tf_make_mesh_3d(5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1852,7 +1714,7 @@ static void test_partition_5x5x5_mesh(void) {
     ASSERT_TRUE(sep >= 10);
     ASSERT_TRUE(sep <= 30);
 
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     /* 3-way split.  Smaller-side vertex-separator extraction can
      * amplify edge-partition imbalance: a 60-65 edge cut becomes a
@@ -1860,7 +1722,7 @@ static void test_partition_5x5x5_mesh(void) {
      * the non-separator vertices).  Both sides must be non-empty so
      * the recursive ND has work to do on each. */
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 125);
     ASSERT_TRUE(n0 > 0);
     ASSERT_TRUE(n1 > 0);
@@ -1875,7 +1737,7 @@ static void test_partition_5x5x5_mesh(void) {
 /* ─── Two K10 cliques + bridge: separator = 1 (the bridge) ────────── */
 
 static void test_partition_two_k10_with_bridge(void) {
-    SparseMatrix *A = make_two_cliques_with_bridge(10);
+    SparseMatrix *A = tf_make_two_cliques_with_bridge(10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1891,12 +1753,12 @@ static void test_partition_two_k10_with_bridge(void) {
     ASSERT_TRUE(sep >= 1);
     ASSERT_TRUE(sep <= 2);
 
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     /* Both K10 sides survive intact (modulo the bridge endpoint
      * lifted into the separator). */
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 20);
     ASSERT_TRUE(n0 >= 9);
     ASSERT_TRUE(n1 >= 9);
@@ -1913,7 +1775,7 @@ static void test_edge_to_vertex_separator_smaller_side(void) {
      * (15 vertices).  Tied weights → smaller_side defaults to 0.
      * The boundary on side 0 is column 2 (5 vertices); after the
      * smaller-side lift, those 5 land in the separator. */
-    SparseMatrix *A = make_grid_2d(5, 6);
+    SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -1928,11 +1790,11 @@ static void test_edge_to_vertex_separator_smaller_side(void) {
     REQUIRE_OK(graph_edge_separator_to_vertex_separator(&G, part));
 
     /* No part-0 / part-1 cross-edges. */
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     /* Boundary on side 0 (column 2) is now the separator (5 vertices). */
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(nsep, 5);
     ASSERT_EQ(n0, 10); /* columns 0, 1 */
     ASSERT_EQ(n1, 15); /* columns 3, 4, 5 */
@@ -1960,10 +1822,10 @@ static void test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boun
     env_set = 1;
 
     REQUIRE_OK(graph_edge_separator_to_vertex_separator(&G, part));
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     idx_t n0 = 0, n1 = 0, nsep = 0;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(nsep, 1);
     ASSERT_EQ(n0, 4);
     ASSERT_EQ(n1, 5);
@@ -2027,42 +1889,13 @@ static void test_edge_to_vertex_separator_null_args(void) {
  * Sprint 22 Day 3 — coarsest-graph bisection + FM refinement.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Compute the cut weight of a 2-way partition (mirrors the static
- * helper in `src/sparse_graph.c`). */
-static idx_t compute_cut(const sparse_graph_t *G, const idx_t *part) {
-    idx_t cut = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
-            idx_t j = G->adjncy[k];
-            if (j <= i)
-                continue;
-            if (part[i] != part[j])
-                cut += G->ewgt ? G->ewgt[k] : 1;
-        }
-    }
-    return cut;
-}
-
-/* Sum of side-0 vs side-1 vertex weights (NULL vwgt → uniform 1). */
-static void compute_side_weights(const sparse_graph_t *G, const idx_t *part, idx_t *w0, idx_t *w1) {
-    *w0 = 0;
-    *w1 = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        idx_t w = G->vwgt ? G->vwgt[i] : 1;
-        if (part[i] == 0)
-            *w0 += w;
-        else
-            *w1 += w;
-    }
-}
-
 /* ─── Brute-force bisection on a known 8-vertex path graph ─────────── */
 
 static void test_bisect_brute_force_path_n8(void) {
     /* Path 0-1-2-3-4-5-6-7 (n=8, 7 edges, all weight 1).  The
      * minimum-cut balanced bisection cuts edge (3, 4) — cut = 1.
      * Any non-contiguous balanced split crosses 3+ edges. */
-    SparseMatrix *A = make_path_1d(8);
+    SparseMatrix *A = tf_make_path_1d(8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2071,11 +1904,11 @@ static void test_bisect_brute_force_path_n8(void) {
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
 
     /* Cut equals the analytical minimum (1). */
-    ASSERT_EQ(compute_cut(&G, part), 1);
+    ASSERT_EQ(tf_compute_cut(&G, part), 1);
 
     /* Partition is balanced (4-4 split on uniform weights). */
     idx_t w0 = 0, w1 = 0;
-    compute_side_weights(&G, part, &w0, &w1);
+    tf_compute_side_weights(&G, part, &w0, &w1);
     ASSERT_EQ(w0, 4);
     ASSERT_EQ(w1, 4);
 
@@ -2115,7 +1948,7 @@ static void test_bisect_brute_force_two_triangles(void) {
     idx_t part[6] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
 
-    ASSERT_EQ(compute_cut(&G, part), 0); /* perfectly separable */
+    ASSERT_EQ(tf_compute_cut(&G, part), 0); /* perfectly separable */
 
     /* Each clique ended up on a single side. */
     ASSERT_EQ(part[0], part[1]);
@@ -2135,7 +1968,7 @@ static void test_bisect_gggp_5x6_grid(void) {
      * 2-way partition; we don't insist on optimality (Day 4's per-
      * level FM refines what GGGP starts from), only that the result
      * is a valid partition with both sides populated. */
-    SparseMatrix *A = make_grid_2d(5, 6);
+    SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2146,7 +1979,7 @@ static void test_bisect_gggp_5x6_grid(void) {
 
     /* Both sides populated. */
     idx_t w0 = 0, w1 = 0;
-    compute_side_weights(&G, part, &w0, &w1);
+    tf_compute_side_weights(&G, part, &w0, &w1);
     ASSERT_TRUE(w0 > 0);
     ASSERT_TRUE(w1 > 0);
     ASSERT_EQ(w0 + w1, 30);
@@ -2154,7 +1987,7 @@ static void test_bisect_gggp_5x6_grid(void) {
     /* Cut is finite and reasonable: a connected 5×6 grid has minimum
      * cut 5 (cleanest column split); GGGP usually sits in [5, 12]
      * before refinement.  Allow up to 20 — Day 4 FM will refine. */
-    idx_t cut = compute_cut(&G, part);
+    idx_t cut = tf_compute_cut(&G, part);
     ASSERT_TRUE(cut <= 20);
 
     sparse_graph_free(&G);
@@ -2167,7 +2000,7 @@ static void test_fm_reduces_checkerboard_cut(void) {
     /* 5×6 grid with a checkerboard initial partition (every edge
      * endpoint has opposite parity, so every edge is cut — 49/49).
      * FM should drop this dramatically. */
-    SparseMatrix *A = make_grid_2d(5, 6);
+    SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2179,11 +2012,11 @@ static void test_fm_reduces_checkerboard_cut(void) {
             part[r * 6 + c] = (r + c) & 1;
         }
     }
-    idx_t init_cut = compute_cut(&G, part);
+    idx_t init_cut = tf_compute_cut(&G, part);
     ASSERT_EQ(init_cut, 49); /* every grid edge is cross-cut */
 
     REQUIRE_OK(graph_refine_fm(&G, part));
-    idx_t final_cut = compute_cut(&G, part);
+    idx_t final_cut = tf_compute_cut(&G, part);
 
     /* FM should at least halve the cut on this fixture.  Single-pass
      * FM doesn't reach the optimum (5) — Day 4's per-level FM
@@ -2198,7 +2031,7 @@ static void test_fm_reduces_checkerboard_cut(void) {
 
     /* Vertex-weight balance preserved (or improved): |w0 - w1| ≤ tol. */
     idx_t w0 = 0, w1 = 0;
-    compute_side_weights(&G, part, &w0, &w1);
+    tf_compute_side_weights(&G, part, &w0, &w1);
     idx_t imbal = w0 > w1 ? w0 - w1 : w1 - w0;
     ASSERT_TRUE(imbal <= 4); /* well under the 5%×30 + max_vwgt=2 = 3.5 budget */
 
@@ -2213,7 +2046,7 @@ static void test_fm_optimal_partition_no_regress(void) {
      * pass FM can take negative-gain moves, so the rollback-on-
      * regress logic is what guarantees we don't degrade an already-
      * optimal input. */
-    SparseMatrix *A = make_grid_2d(5, 6);
+    SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2224,11 +2057,11 @@ static void test_fm_optimal_partition_no_regress(void) {
             part[r * 6 + c] = c < 3 ? 0 : 1;
         }
     }
-    idx_t init_cut = compute_cut(&G, part);
+    idx_t init_cut = tf_compute_cut(&G, part);
     ASSERT_EQ(init_cut, 5);
 
     REQUIRE_OK(graph_refine_fm(&G, part));
-    idx_t final_cut = compute_cut(&G, part);
+    idx_t final_cut = tf_compute_cut(&G, part);
 
     /* Cut never increases: rollback restores the best state seen. */
     ASSERT_TRUE(final_cut <= init_cut);
@@ -2244,17 +2077,17 @@ static void test_bisect_then_fm_5x6_grid(void) {
      * `graph_refine_fm`.  Day 4 will replay this composition at every
      * uncoarsening level; this Day-3 smoke test verifies the two
      * routines hand off cleanly. */
-    SparseMatrix *A = make_grid_2d(5, 6);
+    SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
     idx_t part[30] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
-    idx_t after_bisect = compute_cut(&G, part);
+    idx_t after_bisect = tf_compute_cut(&G, part);
 
     REQUIRE_OK(graph_refine_fm(&G, part));
-    idx_t after_fm = compute_cut(&G, part);
+    idx_t after_fm = tf_compute_cut(&G, part);
 
     /* FM never makes the cut worse than the bisection start. */
     ASSERT_TRUE(after_fm <= after_bisect);
@@ -2283,7 +2116,7 @@ static void test_bisect_n41_uses_gggp(void) {
      * when the multilevel coarsening saturates).  Verify a 41-vertex
      * path produces a valid balanced 2-way partition with cut = 1
      * (the natural mid-path cut). */
-    SparseMatrix *A = make_path_1d(41);
+    SparseMatrix *A = tf_make_path_1d(41);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2291,13 +2124,13 @@ static void test_bisect_n41_uses_gggp(void) {
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
     /* Both sides non-empty; cut is small (single-cut path). */
     idx_t w0 = 0, w1 = 0;
-    compute_side_weights(&G, part, &w0, &w1);
+    tf_compute_side_weights(&G, part, &w0, &w1);
     ASSERT_TRUE(w0 > 0);
     ASSERT_TRUE(w1 > 0);
     ASSERT_EQ(w0 + w1, 41);
     /* GGGP may not produce the absolute minimum cut, but on a path it
      * should still be small (< 10% of the edges). */
-    ASSERT_TRUE(compute_cut(&G, part) <= 4);
+    ASSERT_TRUE(tf_compute_cut(&G, part) <= 4);
     sparse_graph_free(&G);
     sparse_free(A);
 }
@@ -2393,7 +2226,7 @@ static void test_partition_n2_one_edge(void) {
     /* A single 0-1 edge can't be left as a part-0/part-1 cross edge,
      * so the smaller-side convention must lift at least one endpoint
      * into the separator. */
-    SparseMatrix *A = make_path_1d(2);
+    SparseMatrix *A = tf_make_path_1d(2);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2402,7 +2235,7 @@ static void test_partition_n2_one_edge(void) {
     idx_t sep = 99;
     REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
 
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
     ASSERT_TRUE(sep >= 1 && sep <= 2);
 
     sparse_graph_free(&G);
@@ -2426,10 +2259,10 @@ static void test_partition_empty_graph_n10(void) {
 
     /* All n vertices accounted for; both sides non-empty. */
     idx_t n0, n1, nsep;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 10);
     ASSERT_EQ(nsep, 0);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2455,7 +2288,7 @@ static void test_partition_complete_k20(void) {
      * vertices on the smaller side). */
     ASSERT_TRUE(sep >= 5);
     ASSERT_TRUE(sep <= 15);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2478,7 +2311,7 @@ static void test_partition_bipartite_k_10_10(void) {
 
     ASSERT_TRUE(sep >= 5);
     ASSERT_TRUE(sep <= 11);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2491,7 +2324,7 @@ static void test_partition_determinism_10x10_grid(void) {
      * its input: same graph → same partition + sep on every call.
      * The seed is hardcoded inside the routine (currently 0); two
      * back-to-back calls must produce a bit-identical partition. */
-    SparseMatrix *A = make_grid_2d(10, 10);
+    SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2514,7 +2347,7 @@ static void test_partition_determinism_two_cliques(void) {
     /* Same determinism contract on a structured fixture (two K_10
      * cliques + bridge) so we cover both regular and irregular
      * graphs. */
-    SparseMatrix *A = make_two_cliques_with_bridge(10);
+    SparseMatrix *A = tf_make_two_cliques_with_bridge(10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
@@ -2567,7 +2400,7 @@ static void run_suitesparse_partition_smoke(const char *path, idx_t expected_n) 
     ASSERT_TRUE(sep < G.n);
     /* Partition invariant: no part-0 / part-1 cross-edges.  The
      * fundamental correctness check at scale. */
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
     double ms = (double)(t1 - t0) * 1000.0 / (double)CLOCKS_PER_SEC;
     printf("    %s (n=%d): sep=%d, %.1f ms\n", path, (int)G.n, (int)sep, ms);
@@ -2590,7 +2423,7 @@ static void test_partition_bcsstk14_smoke(void) {
  * recovers sep > 0 (HEM works on bcsstk14 per Sprint 22 baseline).
  *
  * Test contract: under `SPARSE_ND_COARSENING=hcc`, partitioning
- * bcsstk14 produces sep > 0 + check_partition_invariant passes (i.e.
+ * bcsstk14 produces sep > 0 + tf_check_partition_invariant passes (i.e.
  * the partition is well-formed).  Pin via the same assertions as the
  * default-strategy `test_partition_bcsstk14_smoke`; the only
  * difference is the env-var override. */
@@ -2639,7 +2472,7 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
            (int)sep);
     ASSERT_TRUE(sep > 0);
     ASSERT_TRUE(sep < G.n);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
 
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSENING");
@@ -2682,9 +2515,9 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
     idx_t *part_fixed = NULL;
     int env_set = 0;
 
-    A = make_grid_2d(30, 30);
+    A = tf_make_grid_2d(30, 30);
     if (!A) {
-        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        TF_FAIL_("tf_make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
         goto cleanup;
     }
     sparse_err_t rc = sparse_graph_from_sparse(A, &G);
@@ -2772,9 +2605,9 @@ static void test_partition_fifo_balanced_boundary_smoke(void) {
     }
     sep_env_set = 1;
 
-    A = make_grid_2d(10, 10);
+    A = tf_make_grid_2d(10, 10);
     if (!A) {
-        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 10, 10);
+        TF_FAIL_("tf_make_grid_2d(%d, %d) returned NULL (OOM)", 10, 10);
         goto cleanup;
     }
     sparse_err_t rc = sparse_graph_from_sparse(A, &G);
@@ -2796,12 +2629,12 @@ static void test_partition_fifo_balanced_boundary_smoke(void) {
         goto cleanup;
     }
 
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(tf_check_partition_invariant(&G, part));
     ASSERT_TRUE(sep >= 5);
     ASSERT_TRUE(sep <= 15);
 
     idx_t n0 = 0, n1 = 0, nsep = 0;
-    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    tf_count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 100);
     ASSERT_EQ(nsep, sep);
     ASSERT_TRUE(n0 >= 30);

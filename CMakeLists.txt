@@ -100,11 +100,13 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_iterative_workspace_internal.c
     src/sparse_ilu.c
     src/sparse_qr.c
+    src/sparse_qr_householder.c
     src/sparse_dense.c
     src/sparse_bidiag.c
     src/sparse_svd.c
     src/sparse_svd_partial.c
     src/sparse_lu_csr.c
+    src/sparse_lu_csr_struct.c
     src/sparse_ldlt.c
     src/sparse_ic.c
     src/sparse_etree.c
@@ -114,6 +116,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_chol_csc_supernodal.c
     src/sparse_ldlt_dense.c
     src/sparse_ldlt_csc.c
+    src/sparse_ldlt_csc_rowadj.c
     src/sparse_ldlt_csc_supernodal.c
     src/sparse_eigs_workspace_internal.c
     src/sparse_eigs_lobpcg.c

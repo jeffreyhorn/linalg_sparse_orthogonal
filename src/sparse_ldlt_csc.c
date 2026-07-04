@@ -12,11 +12,14 @@
  *
  * - the native CSC LDL^T elimination kernel
  * - the linked-list compatibility wrapper path used by tests and A/B benches
- * - row-adjacency support for sparse cmod updates
  * - the scalar solve path
  * - the CSC call site for the dense LDL^T primitive owned by
  *   `src/sparse_ldlt_dense.c`
  * - top-level orchestration for the batched supernodal LDL^T path
+ *
+ * Row-adjacency support for sparse cmod updates is owned by
+ * `src/sparse_ldlt_csc_rowadj.c` and declared through the private
+ * LDLT CSC internal contract.
  *
  * The batched supernodal path mirrors the Cholesky CSC structure but adds one
  * LDL^T-specific rule: a 2x2 pivot block is atomic and cannot be split across
@@ -122,39 +125,6 @@ sparse_err_t ldlt_csc_alloc(idx_t n, idx_t initial_nnz, LdltCsc **out) {
     }
 
     *out = m;
-    return SPARSE_OK;
-}
-
-/* ─── Row-adjacency append ───────────────────────────────────────── */
-
-sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col) {
-    if (!F)
-        return SPARSE_ERR_NULL;
-    if (row < 0 || row >= F->n || col < 0 || col >= F->n)
-        return SPARSE_ERR_BADARG;
-
-    idx_t cap = F->row_adj_cap[row];
-    idx_t count = F->row_adj_count[row];
-    if (count >= cap) {
-        /* Geometric growth (2×), starting at 4 for first-touch rows so
-         * short row-adjacency lists don't pay a per-append reallocation
-         * when the fill pattern is modest. */
-        idx_t new_cap = 4;
-        if (cap > 0) {
-            if (cap > IDX_MAX / 2)
-                return SPARSE_ERR_ALLOC;
-            new_cap = cap * 2;
-        }
-        if ((size_t)new_cap > SIZE_MAX / sizeof(idx_t))
-            return SPARSE_ERR_ALLOC;
-        idx_t *resized = realloc(F->row_adj[row], (size_t)new_cap * sizeof(idx_t));
-        if (!resized)
-            return SPARSE_ERR_ALLOC;
-        F->row_adj[row] = resized;
-        F->row_adj_cap[row] = new_cap;
-    }
-    F->row_adj[row][count] = col;
-    F->row_adj_count[row] = count + 1;
     return SPARSE_OK;
 }
 
@@ -1151,33 +1121,7 @@ sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j) {
         F->perm[j] = tmp;
     }
 
-    /* ── Swap row-adjacency slots ───────────────────────────────────
-     *
-     * The swap σ = (i, j) renames row i ↔ row j in every factored
-     * column c ∈ [0, i).  `row_adj[i]` lists priors whose entries
-     * landed at row i BEFORE the swap; those entries now live at row
-     * j, and vice versa — so swap the two rows' entire adjacency
-     * lists (pointer, count, cap) in lockstep.
-     *
-     * Rows other than i and j are unaffected: column c may have had
-     * entries at other rows, but those rows' indices didn't change.
-     * Hence we only need to swap the two slots, not rebuild the
-     * whole index. */
-    if (F->row_adj) {
-        idx_t *tmp_ptr = F->row_adj[i];
-        F->row_adj[i] = F->row_adj[j];
-        F->row_adj[j] = tmp_ptr;
-    }
-    if (F->row_adj_count) {
-        idx_t tmp_cnt = F->row_adj_count[i];
-        F->row_adj_count[i] = F->row_adj_count[j];
-        F->row_adj_count[j] = tmp_cnt;
-    }
-    if (F->row_adj_cap) {
-        idx_t tmp_cap = F->row_adj_cap[i];
-        F->row_adj_cap[i] = F->row_adj_cap[j];
-        F->row_adj_cap[j] = tmp_cap;
-    }
+    ldlt_csc_row_adj_swap_slots(F, i, j);
 
     return SPARSE_OK;
 }
@@ -1513,29 +1457,6 @@ static void ldlt_csc_cmod_unified(const LdltCsc *F, idx_t col, idx_t step_k, dou
             dense[i] -= L->values[p] * ct;
         }
     }
-}
-
-/* Sprint 19 Day 9: populate `F->row_adj` for every prior column `col`
- * contributes to, by walking column `col`'s storage in `F->L` after
- * gather.  For each stored row `i > col`, append `col` to
- * `F->row_adj[i]`.  The diagonal entry (row == col) is skipped — a
- * column is not its own prior.
- *
- * Called once per column writeback in `ldlt_csc_eliminate_native`;
- * together with the row-adj-driven cmod this reproduces the linked-
- * list reference's sparse-row iteration without the O(step_k) scan. */
-static sparse_err_t ldlt_csc_populate_row_adj(LdltCsc *F, idx_t col) {
-    idx_t cstart = F->L->col_ptr[col];
-    idx_t cend = F->L->col_ptr[col + 1];
-    for (idx_t p = cstart; p < cend; p++) {
-        idx_t i = F->L->row_idx[p];
-        if (i > col) {
-            sparse_err_t err = ldlt_csc_row_adj_append(F, i, col);
-            if (err != SPARSE_OK)
-                return err;
-        }
-    }
-    return SPARSE_OK;
 }
 
 /* Clear the primary accumulator's touched entries.

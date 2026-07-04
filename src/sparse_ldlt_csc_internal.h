@@ -6,7 +6,8 @@
  * @brief CSC working format for LDL^T numeric factorization.
  *
  * Not part of the public API.  Used by sparse_ldlt_csc.c,
- * sparse_ldlt_csc_supernodal.c, and sparse_ldlt_dense.c.
+ * sparse_ldlt_csc_rowadj.c, sparse_ldlt_csc_supernodal.c, and
+ * sparse_ldlt_dense.c.
  *
  * ─── Design: LDL^T on top of the Cholesky CSC ──────────────────────────
  *
@@ -135,6 +136,24 @@ void ldlt_csc_free(LdltCsc *m);
  *         or col out of range), SPARSE_ERR_ALLOC.
  */
 sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col);
+
+/**
+ * Swap the row-adjacency slots for rows `i` and `j`.
+ *
+ * Used by the symmetric pivot-swap path after matrix storage and auxiliary
+ * arrays have been swapped.  A row-adjacency slot is keyed by row identity, so
+ * the pointer, count, and capacity entries must move together.
+ */
+void ldlt_csc_row_adj_swap_slots(LdltCsc *F, idx_t i, idx_t j);
+
+/**
+ * Populate row-adjacency entries for every below-diagonal row in column `col`.
+ *
+ * Called after a scalar or supernodal column writeback completes.  For each
+ * stored row `i > col`, appends `col` to `F->row_adj[i]` so later cmod steps
+ * can iterate only contributing prior columns.
+ */
+sparse_err_t ldlt_csc_populate_row_adj(LdltCsc *F, idx_t col);
 
 /**
  * Detect fundamental supernodes of `F->L` that also respect the 2×2

@@ -51,6 +51,7 @@
 #include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_graph_fixtures.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -62,8 +63,6 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
-
-/* ─── Fixture builders (shared shape with tests/test_graph.c) ─────── */
 
 /* ─── Cached SuiteSparse fixture copies for heavy ND proof families ─ */
 
@@ -101,8 +100,8 @@ static void tf_nd_release_cached_fixtures(void) {
 }
 
 /* Helper: insert into A and free + return non-OK on failure.
- * Used by make_grid_2d / make_path_1d so a partial allocation
- * surfaces as a NULL fixture rather than a silently-incomplete one. */
+ * Used by make_spd_synth so a partial allocation surfaces as a NULL fixture
+ * rather than a silently-incomplete one. */
 #define INSERT_OR_FAIL(A_, r_, c_, v_)                                                             \
     do {                                                                                           \
         if (sparse_insert((A_), (r_), (c_), (v_)) != SPARSE_OK) {                                  \
@@ -110,41 +109,6 @@ static void tf_nd_release_cached_fixtures(void) {
             return NULL;                                                                           \
         }                                                                                          \
     } while (0)
-
-static SparseMatrix *make_grid_2d(idx_t r, idx_t c) {
-    SparseMatrix *A = sparse_create(r * c, r * c);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < r; i++) {
-        for (idx_t j = 0; j < c; j++) {
-            idx_t v = i * c + j;
-            INSERT_OR_FAIL(A, v, v, 1.0);
-            if (j + 1 < c) {
-                INSERT_OR_FAIL(A, v, v + 1, 1.0);
-                INSERT_OR_FAIL(A, v + 1, v, 1.0);
-            }
-            if (i + 1 < r) {
-                INSERT_OR_FAIL(A, v, v + c, 1.0);
-                INSERT_OR_FAIL(A, v + c, v, 1.0);
-            }
-        }
-    }
-    return A;
-}
-
-static SparseMatrix *make_path_1d(idx_t n) {
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < n; i++) {
-        INSERT_OR_FAIL(A, i, i, 1.0);
-        if (i + 1 < n) {
-            INSERT_OR_FAIL(A, i, i + 1, 1.0);
-            INSERT_OR_FAIL(A, i + 1, i, 1.0);
-        }
-    }
-    return A;
-}
 
 /* ─── Wall-clock timer ────────────────────────────────────────────── */
 
@@ -192,7 +156,7 @@ static int is_valid_permutation(const idx_t *perm, idx_t n) {
 /* ─── 4×4 grid: valid permutation + separator-last ─────────────────── */
 
 static void test_nd_4x4_grid_valid_permutation(void) {
-    SparseMatrix *A = make_grid_2d(4, 4);
+    SparseMatrix *A = tf_make_grid_2d(4, 4);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* Force ND to actually partition this fixture: with the default
@@ -270,7 +234,7 @@ cleanup:
 /* ─── 10×10 grid: ND fill matches-or-tightens AMD fill ────────────── */
 
 static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
-    SparseMatrix *A = make_grid_2d(10, 10);
+    SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* AMD baseline.  Capture rc and route every failure path through
@@ -362,7 +326,7 @@ cleanup:
 /* ─── 1D path: ND doesn't beat AMD but must produce a valid perm ──── */
 
 static void test_nd_1d_path_n20_valid_permutation(void) {
-    SparseMatrix *A = make_path_1d(20);
+    SparseMatrix *A = tf_make_path_1d(20);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     idx_t perm[20] = {0};
@@ -1257,9 +1221,9 @@ cleanup:
 }
 
 static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
-    SparseMatrix *A = make_grid_2d(30, 30);
+    SparseMatrix *A = tf_make_grid_2d(30, 30);
     if (!A) {
-        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        TF_FAIL_("tf_make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
         return;
     }
 
@@ -1587,7 +1551,7 @@ static void test_nd_determinism_public_api(void) {
     /* `sparse_reorder_nd` must be a pure function of its input.
      * Run it twice on a non-trivial fixture and compare the
      * resulting permutations bit-for-bit. */
-    SparseMatrix *A = make_grid_2d(8, 8);
+    SparseMatrix *A = tf_make_grid_2d(8, 8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     idx_t perm1[64] = {0};

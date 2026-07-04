@@ -25,6 +25,8 @@ manifest_txt="$report_dir/manifest.txt"
 wall_output="$report_dir/wall_check.txt"
 chol_output="$report_dir/bench_chol_csc_nos4.csv"
 
+rm -f "$wall_output" "$chol_output"
+
 detect_openmp_runtime() {
     local binary="$1"
 
@@ -96,11 +98,11 @@ append_row() {
 wall_status="skip"
 wall_note="not_run"
 if [ ! -x "$bench_amd_qg" ]; then
-    append_row "S5" "skip" "make wall-check" "wall-check" "wall_check" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
+    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
 elif [ ! -x "$bench_reorder" ]; then
-    append_row "S5" "skip" "make wall-check" "wall-check" "wall_check" "n/a" "n/a" "n/a" "bench_reorder_missing"
+    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "bench_reorder_missing"
 elif [ ! -r "$wall_baseline" ]; then
-    append_row "S5" "skip" "make wall-check" "wall-check" "wall_check" "n/a" "n/a" "n/a" "baseline_missing"
+    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "baseline_missing"
 else
     if scripts/wall_check.sh "$bench_amd_qg" "$bench_reorder" "$wall_baseline" > "$wall_output" 2>&1; then
         wall_status="pass"

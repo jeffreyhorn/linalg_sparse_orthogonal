@@ -43,6 +43,8 @@ amd_qg_csv="$report_dir/bench_amd_qg_skip_bitset.csv"
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+platform_string="$(uname -a 2>/dev/null || true)"
+compiler_string="$("${CC:-cc}" --version 2>/dev/null | sed -n '1p' || true)"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -51,6 +53,12 @@ if [ -z "$git_branch" ]; then
     git_branch="unknown"
 elif [ "$git_branch" = "HEAD" ]; then
     git_branch="detached"
+fi
+if [ -z "$platform_string" ]; then
+    platform_string="unknown"
+fi
+if [ -z "$compiler_string" ]; then
+    compiler_string="unknown"
 fi
 
 require_executable() {
@@ -159,6 +167,8 @@ generated_at_utc=$timestamp_utc
 report_dir=$report_dir
 git_commit=$git_commit
 git_branch=$git_branch
+platform=$platform_string
+compiler=$compiler_string
 supplemental=$supplemental
 
 reviewed_lanes:

@@ -689,6 +689,13 @@ factor), so it's cheap to invoke at every day-by-day commit, and
 catches the single-day step-change that the corpus-scale closing-
 bench would otherwise only surface days later.
 
+Sprint 104 adds `make performance-sentinels` as a maintainer convenience
+bundle around this gate. The bundle keeps `wall-check` as the only hard
+pass/fail timing lane and adds threshold-free Cholesky CSC backend-aware
+context under `build/bench-reports/sentinels/`. Treat those additional rows as
+local measurement context under the recorded backend and OpenMP runtime
+settings, not as portable performance evidence.
+
 The baseline file commits its values in a `KEY=VALUE_MS`
 key-value format with `#`-prefixed comment blocks documenting
 which day landed each baseline and what the previous values were.
@@ -1225,6 +1232,12 @@ sparse_qr_factor_opts(A, &opts, &qr);
 
 When compiled with `-DSPARSE_OPENMP`, the sparse matrix-vector product `sparse_matvec()` is parallelized using OpenMP.
 
+The library does not expose a public thread-pool, per-call thread limit, or
+`sparse_set_num_threads`-style API. Thread count and affinity remain owned by
+the OpenMP runtime; set `OMP_NUM_THREADS` or other OpenMP runtime variables
+outside the library when running an OpenMP build. Serial builds remain the
+default and do not require OpenMP headers or runtime libraries.
+
 ### Implementation
 
 ```c
@@ -1246,6 +1259,9 @@ for (log_i = 0; log_i < nrows; log_i++) {
 - The linked-list row traversal is inherently less cache-friendly than CSR-based SpMV
 - Small matrices (n < 200) see no benefit due to thread overhead
 - Speedup is best on larger matrices (n > 1000) with balanced row lengths
+- Solver and eigensolver callers may invoke SpMV internally; avoid adding outer
+  OpenMP regions around those calls unless the application owns the resulting
+  nested-parallelism and oversubscription policy.
 
 ## Symbolic Analysis and Numeric Refactorization
 

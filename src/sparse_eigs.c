@@ -86,6 +86,10 @@ double s29_eigs_now_s(void) {
  * overhead would exceed the parallel work.  The clause is a
  * zero-cost no-op in serial builds (the whole pragma is
  * `#ifdef SPARSE_OPENMP`-gated out).
+ * The library intentionally does not call `omp_set_num_threads`
+ * or translate any `SPARSE_*` setting into an OpenMP team size;
+ * callers keep normal OpenMP runtime ownership through variables
+ * such as `OMP_NUM_THREADS`.
  *
  * Serial builds are bit-for-bit identical to the inline MGS body
  * this helper replaced.  Centralising the kernel keeps the standard

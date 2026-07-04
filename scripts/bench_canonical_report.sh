@@ -56,10 +56,10 @@ fi
 
 cat > "$index_tsv" <<EOF
 surface	category	report_label	generated_at_utc	git_commit	git_branch	artifact	relative_path	command
-canonical	proof	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_refactor_csc	$(basename "$refactor_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	proof	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_chol_csc	$(basename "$chol_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	proof	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_iterative_reuse	$(basename "$iter_csv")	default
-canonical	proof	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_eigs_reuse	$(basename "$eigs_csv")	default
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_refactor_csc	$(basename "$refactor_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_chol_csc	$(basename "$chol_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_iterative_reuse	$(basename "$iter_csv")	default
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_eigs_reuse	$(basename "$eigs_csv")	default
 EOF
 
 cat > "$manifest_txt" <<EOF
@@ -71,7 +71,7 @@ git_commit=$git_commit
 git_branch=$git_branch
 
 surface=canonical
-category=proof
+category=measurement
 
 bench_refactor_csc=tests/data/suitesparse/nos4.mtx --repeat 1 -> $(basename "$refactor_csv")
 bench_chol_csc=tests/data/suitesparse/nos4.mtx --repeat 1 -> $(basename "$chol_csv")

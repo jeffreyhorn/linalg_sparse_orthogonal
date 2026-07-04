@@ -2850,6 +2850,34 @@ static void test_ldlt_dense_backend_external_env_contract(void) {
     tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
 }
 
+static void test_ldlt_dense_backend_invalid_env_falls_back_to_builtin(void) {
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+    if (tf_setenv("SPARSE_LDLT_DENSE_BACKEND", "not-a-real-backend") != 0)
+        SKIP_TEST("SPARSE_LDLT_DENSE_BACKEND could not be set");
+
+    ASSERT_TRUE(strcmp(ldlt_dense_factor_backend_name(), "builtin") == 0);
+
+    double A[] = {
+        4.0, 1.0, 0.5, 1.0, 3.0, 0.25, 0.5, 0.25, 2.0,
+    };
+    double D[3] = {0.0, 0.0, 0.0};
+    double D_offdiag[3] = {0.0, 0.0, 0.0};
+    idx_t pivot_size[3] = {0, 0, 0};
+
+    REQUIRE_OK(ldlt_dense_factor_selected(A, D, D_offdiag, pivot_size, 3, 3, 0.0, NULL));
+    ASSERT_EQ(pivot_size[0], 1);
+    ASSERT_EQ(pivot_size[1], 1);
+    ASSERT_EQ(pivot_size[2], 1);
+    ASSERT_NEAR(A[0], 1.0, 1e-12);
+    ASSERT_NEAR(A[4], 1.0, 1e-12);
+    ASSERT_NEAR(A[8], 1.0, 1e-12);
+    ASSERT_NEAR(D_offdiag[0], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[1], 0.0, 0.0);
+    ASSERT_NEAR(D_offdiag[2], 0.0, 0.0);
+
+    tf_unsetenv("SPARSE_LDLT_DENSE_BACKEND");
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2968,6 +2996,7 @@ int main(void) {
     RUN_TEST(test_ldlt_dense_backend_accelerate_env_contract);
     RUN_TEST(test_ldlt_dense_backend_accelerate_accepts_noperm_2x2);
     RUN_TEST(test_ldlt_dense_backend_external_env_contract);
+    RUN_TEST(test_ldlt_dense_backend_invalid_env_falls_back_to_builtin);
 
     /* Free/cleanup */
     RUN_TEST(test_ldlt_free_zeroed);

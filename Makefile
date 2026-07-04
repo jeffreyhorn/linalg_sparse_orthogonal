@@ -321,6 +321,7 @@ BENCH_CANONICAL_REPORT_BINS = $(BUILDDIR)/bench_refactor_csc \
 BENCH_CANONICAL_REPORT_DIR = $(BUILDDIR)/bench-reports/canonical
 BENCH_CANONICAL_REPORT_LABEL ?=
 PERFORMANCE_SENTINEL_DIR = $(BUILDDIR)/bench-reports/sentinels
+LARGE_MATRIX_GUARDRAIL_DIR = $(BUILDDIR)/bench-reports/large-matrix-guardrails
 .PHONY: bench-fast
 bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
 	@for b in $(BENCH_FAST_BINS); do \
@@ -365,6 +366,22 @@ performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_amd_qg $(BUI
 		"$(BUILDDIR)/bench_amd_qg" \
 		"$(BUILDDIR)/bench_reorder" \
 		docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt
+
+# Deterministic large-matrix structural guardrails.  Reviewed lanes run by
+# default; supplemental threshold-free report lanes are opt-in with
+# SPARSE_LARGE_GUARDRAILS_SUPPLEMENTAL=1.
+.PHONY: large-matrix-guardrails
+large-matrix-guardrails: $(BUILDDIR)/test_graph \
+                         $(BUILDDIR)/test_reorder_nd \
+                         $(BUILDDIR)/test_reorder_amd_qg \
+                         $(BUILDDIR)/bench_reorder \
+                         $(BUILDDIR)/bench_amd_qg
+	@scripts/large_matrix_guardrails.sh "$(LARGE_MATRIX_GUARDRAIL_DIR)" \
+		"$(BUILDDIR)/test_graph" \
+		"$(BUILDDIR)/test_reorder_nd" \
+		"$(BUILDDIR)/test_reorder_amd_qg" \
+		"$(BUILDDIR)/bench_reorder" \
+		"$(BUILDDIR)/bench_amd_qg"
 
 # Benchmark SuiteSparse matrices (both pivoting modes)
 .PHONY: bench-suitesparse

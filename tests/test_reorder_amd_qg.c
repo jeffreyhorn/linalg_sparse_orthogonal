@@ -1,29 +1,19 @@
 /*
- * Sprint 22 Days 11-12 — quotient-graph AMD wrapper-delegation
- * + production-swap tests.
+ * Quotient-graph AMD proof owner.
  *
- * Day 11 shipped the full quotient-graph elimination loop in
- * `src/sparse_reorder_amd_qg.c`; Day 12 deleted the old bitset
- * implementation and rewrote `sparse_reorder_amd` to forward
- * directly to `sparse_reorder_amd_qg`.  As a result, the public
- * wrapper and the internal helper now share a single code path.
+ * The public `sparse_reorder_amd` wrapper is expected to delegate directly to
+ * the internal quotient-graph implementation.  This suite owns that contract:
  *
- * The "parity" tests below therefore no longer cross two separate
- * implementations — they pin the post-Day-12 contract instead:
+ *   - argument validation for the internal entry point;
+ *   - bit-identical wrapper/helper permutations on selected SuiteSparse
+ *     fixtures;
+ *   - identical symbolic-Cholesky fill through both entry points; and
+ *   - a large regular banded stress fixture that would be unsuitable for the
+ *     retired bitset implementation.
  *
- *   - the public `sparse_reorder_amd` wrapper delegates correctly
- *     (bit-identical permutations on the SuiteSparse corpus), and
- *   - the resulting symbolic-Cholesky fill matches between the two
- *     entry points (a sanity check that the wrapper isn't doing
- *     anything beyond calling through).
- *
- * Cross-implementation parity against the deleted bitset still runs
- * out-of-tree as a one-shot capture in `benchmarks/bench_amd_qg.c`,
- * which embeds the bitset as a test-local helper.  That bench was
- * the Day-13 evidence used to retire the bitset; this in-tree test
- * suite now guards delegation, NULL/shape contracts, and the
- * 10 000×10 000 stress fixture that was the Day-12 swap's
- * acceptance gate.
+ * Historical bitset comparison remains isolated in `benchmarks/bench_amd_qg.c`
+ * as a benchmark/reporting foil.  These tests are the maintained in-tree
+ * delegation and structural guardrail surface.
  */
 
 #include "sparse_analysis.h"
@@ -42,13 +32,8 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
-/* ─── Day 10 stub-contract retire ─────────────────────────────────── */
-
-/* The Day-10 "stub returns BADARG" test is removed now that the
- * implementation lands.  NULL / non-square argument validation
- * stays — those checks live ahead of the elimination loop and the
- * tests pin them to the same contract as the bitset
- * sparse_reorder_amd. */
+/* Argument validation lives before the elimination loop and should match the
+ * public wrapper contract. */
 
 static void test_amd_qg_null_args(void) {
     SparseMatrix *A = sparse_create(1, 1);
@@ -113,10 +98,9 @@ static idx_t symbolic_cholesky_nnz_with_perm(const SparseMatrix *A, const idx_t 
 
 /* ─── Wrapper delegation: public sparse_reorder_amd vs internal qg ── */
 
-/* Post-Day-12, the public wrapper and the internal helper share one
- * code path.  This compare therefore expects bit-identical
- * permutations and identical symbolic-Cholesky fill — anything else
- * means the wrapper has drifted from straight delegation. */
+/* The public wrapper and the internal helper should share one code path.  This
+ * compare therefore expects bit-identical permutations and identical
+ * symbolic-Cholesky fill. */
 static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, path);
@@ -190,15 +174,11 @@ static void test_amd_qg_delegation_bcsstk14(void) {
     compare_wrapper_vs_qg("bcsstk14", SS_DIR "/bcsstk14.mtx");
 }
 
-/* ─── Day 12 stress test: 10 000 × 10 000 banded matrix ──────────── */
+/* ─── Large regular banded stress fixture ─────────────────────────── */
 
-/* The bitset AMD's O(n²/64) memory at n = 10 000 is 12.5 MB just for
- * the bitset, with O(n²/64 · n) = 125 G ops in the per-pivot merge —
- * the bench would have taken minutes.  The quotient-graph version
- * scales linearly in nnz; the test confirms it completes well inside
- * the plan's 5 s budget on a banded fixture.  This is the
- * "structurally regular but n past the bitset's reach" check that
- * Day 12 is meant to surface. */
+/* This is the maintained "large regular input" guardrail for qg-AMD.  The
+ * banded matrix keeps nnz linear in n while still exercising an input size
+ * that is inappropriate for dense bitset-style adjacency. */
 static void test_amd_stress_10k_banded(void) {
     /* Banded with bandwidth 5: each row has ≤ 11 nonzeros (5 above,
      * 5 below, 1 diagonal).  nnz ≈ 11 · n = 110 000, comfortably
@@ -246,11 +226,9 @@ static void test_amd_stress_10k_banded(void) {
 
     printf("    AMD on 10 000×10 000 banded (nnz=%d): %.2f s\n", (int)sparse_nnz(A), secs);
 
-    /* Plan completion criterion: < 5 s.  On the linked-list backend
-     * `sparse_build_adj` itself takes the bulk of the time (it
-     * walks the slab pool); the AMD elimination loop is only a
-     * fraction.  We assert 30 s as a generous ceiling — anything
-     * above this means the swap regressed asymptotic behaviour. */
+    /* The linked-list matrix backend makes `sparse_build_adj` the dominant
+     * cost on this fixture.  Keep the ceiling broad: this is a structural
+     * regression guard, not a portable timing benchmark. */
     ASSERT_TRUE(secs < 30.0);
 
     free(perm);
@@ -260,8 +238,7 @@ static void test_amd_stress_10k_banded(void) {
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN(
-        "Sprint 22 Days 11-12: quotient-graph AMD wrapper delegation + production swap");
+    TEST_SUITE_BEGIN("quotient-graph AMD wrapper delegation and large-input guardrail");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);

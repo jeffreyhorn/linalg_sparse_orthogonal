@@ -16,7 +16,8 @@ sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
         new_cap = csr->capacity + csr->capacity / 2;
     if (new_cap < needed)
         new_cap = needed;
-    if ((size_t)new_cap > SIZE_MAX / sizeof(double))
+    const size_t max_elem_size = sizeof(idx_t) > sizeof(double) ? sizeof(idx_t) : sizeof(double);
+    if ((uintmax_t)new_cap > (uintmax_t)SIZE_MAX / max_elem_size)
         return SPARSE_ERR_ALLOC;
 
     idx_t *new_col = realloc(csr->col_idx, (size_t)new_cap * sizeof(idx_t));

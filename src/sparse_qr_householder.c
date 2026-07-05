@@ -13,7 +13,7 @@
 #include <time.h>
 
 /* Sprint 29 Day 7 (Item 4): progress / cancel wiring. */
-double s29_qr_now_s(void) {
+double sparse_qr_now_s(void) {
     struct timespec ts;
 #ifdef _WIN32
     timespec_get(&ts, TIME_UTC);

@@ -617,7 +617,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
 
     sparse_progress_cb_t qr_progress_cb = opts ? opts->progress_cb : NULL;
     void *qr_progress_user = opts ? opts->progress_user : NULL;
-    double qr_phase_start_s = qr_progress_cb ? s29_qr_now_s() : 0.0;
+    double qr_phase_start_s = qr_progress_cb ? sparse_qr_now_s() : 0.0;
 
     for (idx_t step = 0; step < k; step++) {
         /* Sprint 29 Day 7: progress + cancel check at top of each
@@ -632,7 +632,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
                 .phase = "qr_factor",
                 .step = step,
                 .total = k,
-                .elapsed_s = s29_qr_now_s() - qr_phase_start_s,
+                .elapsed_s = sparse_qr_now_s() - qr_phase_start_s,
             };
             if (qr_progress_cb(&p, qr_progress_user) != 0) {
                 free(hv);

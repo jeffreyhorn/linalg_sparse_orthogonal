@@ -4,7 +4,7 @@
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 
-double s29_qr_now_s(void);
+double sparse_qr_now_s(void);
 
 double sparse_qr_householder_compute(const double *x, double *v, idx_t len);
 void sparse_qr_householder_apply(const double *v, double beta, double *y, idx_t len);

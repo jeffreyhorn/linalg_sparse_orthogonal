@@ -30,7 +30,7 @@ sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col) {
                 return SPARSE_ERR_ALLOC;
             new_cap = cap * 2;
         }
-        if ((size_t)new_cap > SIZE_MAX / sizeof(idx_t))
+        if ((uintmax_t)new_cap > (uintmax_t)SIZE_MAX / sizeof(idx_t))
             return SPARSE_ERR_ALLOC;
         idx_t *resized = realloc(F->row_adj[row], (size_t)new_cap * sizeof(idx_t));
         if (!resized)

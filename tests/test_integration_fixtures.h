@@ -8,7 +8,7 @@
 
 typedef struct {
     idx_t n_calls;
-    idx_t cancel_after_step; /* return non-zero when step == cancel_after_step; -1 = never */
+    idx_t cancel_after_step; /* return non-zero when step >= cancel_after_step; -1 = never */
     idx_t last_step;
     idx_t last_total;
     const char *last_phase;

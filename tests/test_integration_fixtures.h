@@ -27,6 +27,15 @@ static int integration_progress_count_cb(const sparse_progress_t *p, void *user)
     return 0;
 }
 
+static int integration_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    if (sparse_insert(*A, row, col, value) != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
 /* Shared SPD fixture for integration paths that need LU, Cholesky, LDLT,
  * direct lifecycle, QR, eigensolver, or iterative solver progress proof.
  */
@@ -35,10 +44,13 @@ static SparseMatrix *integration_build_tridiag_spd(idx_t n) {
     if (!A)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 4.0);
+        if (!integration_insert_or_free(&A, i, i, 4.0))
+            return NULL;
         if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
+            if (!integration_insert_or_free(&A, i, i - 1, -1.0))
+                return NULL;
+            if (!integration_insert_or_free(&A, i - 1, i, -1.0))
+                return NULL;
         }
     }
     return A;
@@ -49,18 +61,30 @@ static SparseMatrix *integration_build_unsym_4x4(void) {
     if (!A)
         return NULL;
 
-    sparse_insert(A, 0, 0, 6.0);
-    sparse_insert(A, 0, 1, -1.0);
-    sparse_insert(A, 0, 3, 0.5);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 1, 1, 7.0);
-    sparse_insert(A, 1, 2, -1.0);
-    sparse_insert(A, 2, 1, 1.5);
-    sparse_insert(A, 2, 2, 8.0);
-    sparse_insert(A, 2, 3, -2.0);
-    sparse_insert(A, 3, 0, -0.5);
-    sparse_insert(A, 3, 2, 1.0);
-    sparse_insert(A, 3, 3, 5.0);
+    if (!integration_insert_or_free(&A, 0, 0, 6.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 0, 1, -1.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 0, 3, 0.5))
+        return NULL;
+    if (!integration_insert_or_free(&A, 1, 0, 2.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 1, 1, 7.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 1, 2, -1.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 2, 1, 1.5))
+        return NULL;
+    if (!integration_insert_or_free(&A, 2, 2, 8.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 2, 3, -2.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 3, 0, -0.5))
+        return NULL;
+    if (!integration_insert_or_free(&A, 3, 2, 1.0))
+        return NULL;
+    if (!integration_insert_or_free(&A, 3, 3, 5.0))
+        return NULL;
     return A;
 }
 
@@ -77,15 +101,20 @@ static SparseMatrix *integration_build_kkt(idx_t n_top, idx_t n_bot) {
     if (!A)
         return NULL;
     for (idx_t i = 0; i < n_top; i++) {
-        sparse_insert(A, i, i, 6.0);
+        if (!integration_insert_or_free(&A, i, i, 6.0))
+            return NULL;
         if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
+            if (!integration_insert_or_free(&A, i, i - 1, -1.0))
+                return NULL;
+            if (!integration_insert_or_free(&A, i - 1, i, -1.0))
+                return NULL;
         }
     }
     for (idx_t j = 0; j < n_bot; j++) {
-        sparse_insert(A, n_top + j, j, 1.0);
-        sparse_insert(A, j, n_top + j, 1.0);
+        if (!integration_insert_or_free(&A, n_top + j, j, 1.0))
+            return NULL;
+        if (!integration_insert_or_free(&A, j, n_top + j, 1.0))
+            return NULL;
     }
     return A;
 }

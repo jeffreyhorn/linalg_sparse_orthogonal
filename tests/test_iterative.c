@@ -98,6 +98,11 @@ static void compute_rhs(const SparseMatrix *A, const double *x_exact, double *b)
     sparse_matvec(A, x_exact, b);
 }
 
+static void fill_sequential_rhs(double *b, idx_t n) {
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * CG tests
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2344,17 +2349,10 @@ static sparse_err_t sparse_matvec_cb(const void *ctx, idx_t n, const double *x, 
 /* CG_mf matches CG on SPD tridiagonal */
 static void test_cg_mf_basic(void) {
     idx_t n = 20;
-    SparseMatrix *A = sparse_create(n, n);
+    SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 4.0);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1)
-            sparse_insert(A, i, i + 1, -1.0);
-    }
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x_cg = calloc((size_t)n, sizeof(double));
@@ -2369,8 +2367,7 @@ static void test_cg_mf_basic(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1);
+    fill_sequential_rhs(b, n);
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res_cg = {0}, res_mf = {0};
@@ -2498,8 +2495,7 @@ static void test_cg_mf_nos4(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1);
+    fill_sequential_rhs(b, n);
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_cg = {0}, res_mf = {0};
@@ -2537,17 +2533,10 @@ static void test_cg_mf_nos4(void) {
 /* GMRES_mf matches GMRES on unsymmetric tridiagonal */
 static void test_gmres_mf_basic(void) {
     idx_t n = 20;
-    SparseMatrix *A = sparse_create(n, n);
+    SparseMatrix *A = build_unsym_tridiag(n, 5.0, -2.0, -1.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 5.0);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1)
-            sparse_insert(A, i, i + 1, -2.0); /* unsymmetric */
-    }
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x_gm = calloc((size_t)n, sizeof(double));
@@ -2562,8 +2551,7 @@ static void test_gmres_mf_basic(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1);
+    fill_sequential_rhs(b, n);
 
     sparse_gmres_opts_t opts = {.max_iter = 200, .restart = 20, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res_gm = {0}, res_mf = {0};
@@ -2604,8 +2592,7 @@ static void test_gmres_mf_right_precond(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1);
+    fill_sequential_rhs(b, n);
 
     sparse_ilu_t ilu;
     sparse_err_t ferr = sparse_ilu_factor(A, &ilu);

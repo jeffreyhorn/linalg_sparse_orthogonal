@@ -76,6 +76,33 @@ static double gk_reconstruction_error(const SparseMatrix *A, const double *U, co
     return maxerr;
 }
 
+static SparseMatrix *make_svd_diag_matrix(idx_t rows, idx_t cols, const double *diag,
+                                          idx_t diag_len) {
+    SparseMatrix *A = sparse_create(rows, cols);
+    if (!A)
+        return NULL;
+
+    idx_t limit = rows < cols ? rows : cols;
+    if (diag_len < limit)
+        limit = diag_len;
+    for (idx_t i = 0; i < limit; i++) {
+        if (diag[i] != 0.0)
+            sparse_insert(A, i, i, diag[i]);
+    }
+    return A;
+}
+
+static SparseMatrix *make_svd_rank1_row_progression(idx_t rows, idx_t cols) {
+    SparseMatrix *A = sparse_create(rows, cols);
+    if (!A)
+        return NULL;
+
+    for (idx_t i = 0; i < rows; i++)
+        for (idx_t j = 0; j < cols; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+    return A;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Golub-Kahan extraction tests (Sprint 8 Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -592,15 +619,11 @@ static void test_bidiag_svd_k1(void) {
 
 /* SVD of diagonal: exact singular values */
 static void test_svd_diagonal_5x5(void) {
-    SparseMatrix *A = sparse_create(5, 5);
+    const double diag[5] = {7.0, -3.0, 5.0, 1.0, -9.0};
+    SparseMatrix *A = make_svd_diag_matrix(5, 5, diag, 5);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 7.0);
-    sparse_insert(A, 1, 1, -3.0);
-    sparse_insert(A, 2, 2, 5.0);
-    sparse_insert(A, 3, 3, 1.0);
-    sparse_insert(A, 4, 4, -9.0);
 
     sparse_svd_t svd;
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
@@ -667,14 +690,11 @@ static void test_svd_trace_invariant(void) {
 
 /* Rank-1 matrix: only one nonzero singular value */
 static void test_svd_rank1(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_svd_rank1_row_progression(4, 3);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
     /* rank-1: u*v^T where u=[1,2,3,4], v=[1,1,1] */
-    for (idx_t i = 0; i < 4; i++)
-        for (idx_t j = 0; j < 3; j++)
-            sparse_insert(A, i, j, (double)(i + 1));
 
     sparse_svd_t svd;
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
@@ -694,14 +714,11 @@ static void test_svd_rank1(void) {
 
 /* Rank-1 matrix with UV reconstruction */
 static void test_svd_rank1_uv(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_svd_rank1_row_progression(4, 3);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
     /* rank-1: u*v^T where u=[1,2,3,4], v=[1,1,1] */
-    for (idx_t i = 0; i < 4; i++)
-        for (idx_t j = 0; j < 3; j++)
-            sparse_insert(A, i, j, (double)(i + 1));
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
     sparse_svd_t svd;
@@ -1763,14 +1780,11 @@ static void test_pinv_rectangular(void) {
 
 /* Low-rank approximation: rank-k of diagonal */
 static void test_lowrank_diagonal(void) {
-    SparseMatrix *A = sparse_create(4, 4);
+    const double diag[4] = {10.0, 5.0, 2.0, 1.0};
+    SparseMatrix *A = make_svd_diag_matrix(4, 4, diag, 4);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 10.0);
-    sparse_insert(A, 1, 1, 5.0);
-    sparse_insert(A, 2, 2, 2.0);
-    sparse_insert(A, 3, 3, 1.0);
 
     double *lr = NULL;
     sparse_err_t err = sparse_svd_lowrank(A, 2, &lr);
@@ -1895,14 +1909,11 @@ static void test_lowrank_errors(void) {
 
 /* Diagonal rank-k: exact entries preserved */
 static void test_lowrank_sparse_diagonal(void) {
-    SparseMatrix *A = sparse_create(4, 4);
+    const double diag[4] = {10.0, 5.0, 2.0, 1.0};
+    SparseMatrix *A = make_svd_diag_matrix(4, 4, diag, 4);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 10.0);
-    sparse_insert(A, 1, 1, 5.0);
-    sparse_insert(A, 2, 2, 2.0);
-    sparse_insert(A, 3, 3, 1.0);
 
     SparseMatrix *out = NULL;
     sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.0, &out);
@@ -2614,13 +2625,11 @@ static void test_cond_identity(void) {
 
 /* Diagonal with known condition number */
 static void test_cond_diagonal(void) {
-    SparseMatrix *A = sparse_create(3, 3);
+    const double diag[3] = {100.0, 10.0, 1.0};
+    SparseMatrix *A = make_svd_diag_matrix(3, 3, diag, 3);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 100.0);
-    sparse_insert(A, 1, 1, 10.0);
-    sparse_insert(A, 2, 2, 1.0);
 
     sparse_err_t err;
     double c = sparse_cond(A, &err);
@@ -2685,13 +2694,12 @@ static void test_cond_1x1_zero(void) {
 
 /* Rectangular matrix: cond based on min(m,n) singular values */
 static void test_cond_rectangular(void) {
-    SparseMatrix *A = sparse_create(4, 2);
+    const double diag[2] = {3.0, 1.0};
+    SparseMatrix *A = make_svd_diag_matrix(4, 2, diag, 2);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
     /* A = [3 0; 0 1; 0 0; 0 0] → sigma = [3, 1], cond = 3 */
-    sparse_insert(A, 0, 0, 3.0);
-    sparse_insert(A, 1, 1, 1.0);
 
     sparse_err_t err;
     double c = sparse_cond(A, &err);
@@ -2704,13 +2712,11 @@ static void test_cond_rectangular(void) {
 
 /* Ill-conditioned matrix: large condition number */
 static void test_cond_ill_conditioned(void) {
-    SparseMatrix *A = sparse_create(3, 3);
+    const double diag[3] = {1e6, 1.0, 1e-6};
+    SparseMatrix *A = make_svd_diag_matrix(3, 3, diag, 3);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 1e6);
-    sparse_insert(A, 1, 1, 1.0);
-    sparse_insert(A, 2, 2, 1e-6);
 
     sparse_err_t err;
     double c = sparse_cond(A, &err);

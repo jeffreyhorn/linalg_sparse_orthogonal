@@ -75,11 +75,13 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_iterative_workspace_internal.c \
            $(SRCDIR)/sparse_ilu.c \
            $(SRCDIR)/sparse_qr.c \
+           $(SRCDIR)/sparse_qr_householder.c \
            $(SRCDIR)/sparse_dense.c \
            $(SRCDIR)/sparse_bidiag.c \
            $(SRCDIR)/sparse_svd.c \
            $(SRCDIR)/sparse_svd_partial.c \
            $(SRCDIR)/sparse_lu_csr.c \
+           $(SRCDIR)/sparse_lu_csr_struct.c \
            $(SRCDIR)/sparse_ldlt.c \
            $(SRCDIR)/sparse_ic.c \
            $(SRCDIR)/sparse_etree.c \
@@ -89,6 +91,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_chol_csc_supernodal.c \
            $(SRCDIR)/sparse_ldlt_dense.c \
            $(SRCDIR)/sparse_ldlt_csc.c \
+           $(SRCDIR)/sparse_ldlt_csc_rowadj.c \
            $(SRCDIR)/sparse_ldlt_csc_supernodal.c \
            $(SRCDIR)/sparse_eigs_workspace_internal.c \
            $(SRCDIR)/sparse_eigs_lobpcg.c \

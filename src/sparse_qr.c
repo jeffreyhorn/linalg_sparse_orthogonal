@@ -1,129 +1,14 @@
-/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
-#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
-// NOLINTNEXTLINE(bugprone-reserved-identifier)
-#define _POSIX_C_SOURCE 199309L
-#endif
-
 #include "sparse_qr.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
+#include "sparse_qr_internal.h"
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-
-/* Sprint 29 Day 7 (Item 4): progress / cancel wiring. */
-static double s29_qr_now_s(void) {
-    struct timespec ts;
-#ifdef _WIN32
-    timespec_get(&ts, TIME_UTC);
-#else
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-#endif
-    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Householder reflection helpers
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/**
- * Compute Householder vector v and scalar beta such that
- * (I - beta*v*v^T)*x = ||x||*e_1.
- *
- * On entry: x[0..len-1] is the input vector.
- * On exit:  v[0..len-1] is the Householder vector (v[0] = 1 implicitly
- *           for the standard form, but we store the full vector).
- *           beta is the scalar such that H = I - beta*v*v^T.
- *
- * Returns beta. If x is zero, returns beta=0 (no reflection needed).
- */
-static double householder_compute(const double *x, double *v, idx_t len) {
-    if (len <= 0)
-        return 0.0;
-
-    /* Copy x into v */
-    memcpy(v, x, (size_t)len * sizeof(double));
-
-    double sigma = 0.0;
-    for (idx_t i = 1; i < len; i++)
-        sigma += v[i] * v[i];
-
-    if (sigma == 0.0 && v[0] >= 0.0) {
-        /* x is already a non-negative multiple of e_1 — no reflection needed */
-        return 0.0;
-    }
-
-    double xnorm = sqrt(v[0] * v[0] + sigma);
-
-    /* v[0] += sign(x[0]) * ||x|| */
-    if (v[0] >= 0.0)
-        v[0] += xnorm;
-    else
-        v[0] -= xnorm;
-
-    /* beta = 2 / (v^T * v) */
-    double vtv = v[0] * v[0] + sigma;
-    if (vtv == 0.0)
-        return 0.0;
-
-    return 2.0 / vtv;
-}
-
-/**
- * Apply Householder reflection (I - beta*v*v^T) to vector y in-place.
- * y = y - beta * v * (v^T * y)
- *
- * v has length len, y has length len.
- */
-static void householder_apply(const double *v, double beta, double *y, idx_t len) {
-    if (beta == 0.0)
-        return;
-
-    /* Compute v^T * y */
-    double vty = 0.0;
-    for (idx_t i = 0; i < len; i++)
-        vty += v[i] * y[i];
-
-    /* y = y - beta * (v^T * y) * v */
-    double scale = beta * vty;
-    for (idx_t i = 0; i < len; i++)
-        y[i] -= scale * v[i];
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Sparse column utilities for column-by-column QR
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/**
- * Extract column `col` of sparse matrix A into a dense vector of length m.
- * The dense vector must be pre-zeroed by the caller.
- * Uses column headers for efficient traversal.
- */
-static void sparse_extract_column(const SparseMatrix *A, idx_t col, double *dense) {
-    Node *nd = A->col_headers[col];
-    while (nd) {
-        dense[nd->row] = nd->value;
-        nd = nd->down;
-    }
-}
-
-/**
- * Apply Householder reflection (I - beta*v*v^T) to a dense column vector
- * starting at index `start`. v has length (m - start), dense has length m.
- * Only dense[start..m-1] is modified.
- */
-static void householder_apply_to_column(const double *v, double beta, double *dense, idx_t start,
-                                        idx_t m) {
-    if (beta == 0.0)
-        return;
-    idx_t len = m - start;
-    householder_apply(v, beta, &dense[start], len);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * QR factorization — factorization, solve, rank, and nullspace routines
@@ -352,8 +237,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
              * Use dense_col for one, dense_col2 for the other. */
             memset(dense_col, 0, m_size * sizeof(double));
             memset(dense_col2, 0, m_size * sizeof(double));
-            sparse_extract_column(W, step, dense_col);
-            sparse_extract_column(W, best, dense_col2);
+            sparse_qr_extract_column(W, step, dense_col);
+            sparse_qr_extract_column(W, best, dense_col2);
 
             /* Remove old column entries */
             for (idx_t i = 0; i < m; i++) {
@@ -401,7 +286,7 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
 
         /* Extract column step into dense vector */
         memset(dense_col, 0, (size_t)m * sizeof(double));
-        sparse_extract_column(W, step, dense_col);
+        sparse_qr_extract_column(W, step, dense_col);
 
         /* Compute Householder from entries step..m-1 */
         idx_t col_len = m - step;
@@ -410,12 +295,12 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
             status = SPARSE_ERR_ALLOC;
             goto cleanup_colwise;
         }
-        double beta = householder_compute(&dense_col[step], hv, col_len);
+        double beta = sparse_qr_householder_compute(&dense_col[step], hv, col_len);
         betas[step] = beta;
         vecs[step] = hv;
 
         /* Apply Householder to column step */
-        householder_apply_to_column(hv, beta, dense_col, step, m);
+        sparse_qr_householder_apply_to_column(hv, beta, dense_col, step, m);
 
         /* Write R entries from this column (row step and above-diagonal entries).
          * Drop off-diagonal entries negligible relative to the diagonal.
@@ -434,8 +319,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         /* Apply Householder to remaining columns step+1..n-1 */
         for (idx_t j = step + 1; j < n; j++) {
             memset(dense_col2, 0, (size_t)m * sizeof(double));
-            sparse_extract_column(W, j, dense_col2);
-            householder_apply_to_column(hv, beta, dense_col2, step, m);
+            sparse_qr_extract_column(W, j, dense_col2);
+            sparse_qr_householder_apply_to_column(hv, beta, dense_col2, step, m);
 
             /* Write back modified column to W.
              * Clear entries with row >= step by traversing col_headers once
@@ -732,7 +617,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
 
     sparse_progress_cb_t qr_progress_cb = opts ? opts->progress_cb : NULL;
     void *qr_progress_user = opts ? opts->progress_user : NULL;
-    double qr_phase_start_s = qr_progress_cb ? s29_qr_now_s() : 0.0;
+    double qr_phase_start_s = qr_progress_cb ? sparse_qr_now_s() : 0.0;
 
     for (idx_t step = 0; step < k; step++) {
         /* Sprint 29 Day 7: progress + cancel check at top of each
@@ -747,7 +632,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
                 .phase = "qr_factor",
                 .step = step,
                 .total = k,
-                .elapsed_s = s29_qr_now_s() - qr_phase_start_s,
+                .elapsed_s = sparse_qr_now_s() - qr_phase_start_s,
             };
             if (qr_progress_cb(&p, qr_progress_user) != 0) {
                 free(hv);
@@ -803,7 +688,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         }
 
         /* Compute Householder vector for column step (below diagonal) */
-        double beta = householder_compute(col_ptr, hv, col_len);
+        double beta = sparse_qr_householder_compute(col_ptr, hv, col_len);
         betas[step] = beta;
 
         /* Store Householder vector */
@@ -822,7 +707,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         memcpy(vecs[step], hv, (size_t)col_len * sizeof(double));
 
         /* Apply Householder to column step (produces R diagonal and zeros below) */
-        householder_apply(hv, beta, col_ptr, col_len);
+        sparse_qr_householder_apply(hv, beta, col_ptr, col_len);
 
         /* Apply Householder to remaining columns step+1..n-1.
          * This must happen before the rank-deficiency check so that
@@ -830,7 +715,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
          * when we break early. */
         for (idx_t j = step + 1; j < n; j++) {
             double *cj = &W[(size_t)j * (size_t)m + (size_t)step];
-            householder_apply(hv, beta, cj, col_len);
+            sparse_qr_householder_apply(hv, beta, cj, col_len);
         }
 
         /* Check R diagonal: if tiny after reflection, this column is numerically
@@ -928,7 +813,7 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
             if (qr->betas[i] == 0.0)
                 continue;
             idx_t len = m - i;
-            householder_apply(qr->v_vectors[i], qr->betas[i], &y[i], len);
+            sparse_qr_householder_apply(qr->v_vectors[i], qr->betas[i], &y[i], len);
         }
     } else {
         /* Q^T*x = H_{k-1} * ... * H_1 * H_0 * x (apply in reverse order) */
@@ -936,7 +821,7 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
             if (qr->betas[i] == 0.0)
                 continue;
             idx_t len = m - i;
-            householder_apply(qr->v_vectors[i], qr->betas[i], &y[i], len);
+            sparse_qr_householder_apply(qr->v_vectors[i], qr->betas[i], &y[i], len);
         }
     }
 

@@ -543,6 +543,10 @@ swap permutes rows i and j across every factored column).  Storage
 overhead is bounded by `n · avg_fill` ≈ 2× L's capacity — geometric
 2× growth keeps amortised append O(1).
 
+The row-adjacency implementation is isolated in
+`src/sparse_ldlt_csc_rowadj.c`; `src/sparse_ldlt_csc.c` owns the numeric
+cmod and pivot logic that consumes the index.
+
 ## Condition Number Estimation
 
 `sparse_lu_condest()` estimates the 1-norm condition number `κ₁(A) = ‖A‖₁ · ‖A⁻¹‖₁` using the Hager/Higham algorithm (Hager 1984, Higham 2000).

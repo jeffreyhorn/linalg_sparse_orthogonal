@@ -651,6 +651,14 @@ Current maintained proof ownership after Sprint 79 Day 6:
   - Kuu scalar CSC regression
   - row-adjacency structural checks
   - supernodal LDL^T scalar/batched parity
+- `src/sparse_ldlt_csc_rowadj.c` owns the private LDL^T CSC row-adjacency
+  helper seam:
+  - append growth and argument checks remain covered directly in
+    `tests/test_ldlt_csc.c`
+  - row-adjacency slot swapping is covered directly in `tests/test_ldlt_csc.c`
+    and indirectly through symmetric-swap/native-elimination proof paths
+  - SuiteSparse row-adjacency structural correctness remains covered in
+    `tests/test_direct_csc_regression.c`
 - `tests/test_ldlt_backend_dispatch.c` owns the public LDL^T backend selector
   and AUTO/forced dispatch proof surface
 - `tests/test_integration.c` owns the public one-shot vs explicit repeated-run
@@ -679,6 +687,46 @@ Current maintained proof ownership after Sprint 79 Day 6:
   - `bench_chol_csc` proves the maintained backend/path measurement surface
   - they do not replace the family-local, public oracle, or property ownership
     above
+
+Sprint 106 maintainability ownership additions:
+
+- `src/sparse_qr_householder.c` owns the private QR Householder kernel seam:
+  - Householder vector construction and application live here rather than in
+    the broad QR factorization owner
+  - sparse-mode column extraction and column-sliced Householder application
+    also live here because they are part of the same QR-local transformation
+    responsibility
+  - declarations remain private in `src/sparse_qr_internal.h`; do not promote
+    these helpers to public headers without a separate API-design review
+- `src/sparse_lu_csr_struct.c` owns LU CSR structural storage mechanics:
+  - row storage growth and insertion helpers should grow here instead of
+    adding more structural code to `src/sparse_lu_csr.c`
+  - numeric elimination, solve, and factor orchestration stay in
+    `src/sparse_lu_csr.c`
+  - declarations remain private in `src/sparse_lu_csr_internal.h`
+- the LDLT CSC row-adjacency seam remains in `src/sparse_ldlt_csc_rowadj.c`;
+  future row-adjacency allocation, append, growth, or swap mechanics should
+  stay with that owner unless the change is a numeric elimination concern
+- test fixture/helper ownership is now deliberately split:
+  - `tests/test_graph_fixtures.h` owns reusable graph/reorder synthetic graph
+    builders, partition counters, cut helpers, and partition invariant checks
+  - `tests/test_direct_solver_helpers.h` owns direct-solver assertion and
+    residual helpers that are not family-specific public API checks
+  - `tests/test_integration_fixtures.h` owns integration progress-callback
+    counters and matrix fixtures used across direct, QR, iterative, and
+    eigensolver workflow tests
+- keep test helpers header-only unless there is a measured compile-time,
+  ownership, or reuse reason to create a compiled test support target; a
+  compiled helper would require explicit Make/CMake registration and reviewed
+  CTest-surface reconciliation
+- do not grow giant proof owners with reusable setup code when a Sprint 106
+  helper already owns the fixture family; keep call sites readable by using
+  helper names that include the family or workflow intent
+- large source extraction should keep the same three-surface follow-through:
+  `Makefile` `LIB_SRCS`, `CMakeLists.txt` `add_library(...)`, and
+  `build-metadata/library_sources.txt`; run
+  `python3 scripts/check_library_sources.py` after any new library source
+  owner is added
 
 Current platform-confidence interpretation:
 

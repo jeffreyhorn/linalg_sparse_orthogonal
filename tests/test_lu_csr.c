@@ -3,6 +3,7 @@
 #include "sparse_matrix.h"
 #include "sparse_matrix_internal.h" /* for direct struct access in permutation test */
 #include "sparse_types.h"
+#include "test_direct_solver_helpers.h"
 #include "test_framework.h"
 #include <math.h>
 #include <stdio.h>
@@ -12,26 +13,6 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Helper: compare two SparseMatrices entry-by-entry (identity perms)
- * ═══════════════════════════════════════════════════════════════════════ */
-
-static void assert_matrices_equal(const SparseMatrix *A, const SparseMatrix *B, double tol) {
-    ASSERT_EQ(A->rows, B->rows);
-    ASSERT_EQ(A->cols, B->cols);
-    for (idx_t i = 0; i < A->rows; i++) {
-        for (idx_t j = 0; j < A->cols; j++) {
-            double a = sparse_get(A, i, j);
-            double b = sparse_get(B, i, j);
-            if (fabs(a - b) > tol) {
-                TF_FAIL_("Entry (%d,%d): %.15g vs %.15g, diff=%.3e > tol=%.3e", (int)i, (int)j, a,
-                         b, fabs(a - b), tol);
-            }
-            tf_asserts++;
-        }
-    }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Test: NULL / error argument handling
@@ -92,7 +73,7 @@ static void test_lu_csr_identity(void) {
     ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
     ASSERT_NOT_NULL(B);
 
-    assert_matrices_equal(A, B, 1e-15);
+    tf_assert_sparse_matrices_equal(A, B, 1e-15);
 
     sparse_free(A);
     sparse_free(B);
@@ -137,7 +118,7 @@ static void test_lu_csr_dense_5x5(void) {
     /* Round-trip */
     SparseMatrix *B = NULL;
     ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
-    assert_matrices_equal(A, B, 1e-15);
+    tf_assert_sparse_matrices_equal(A, B, 1e-15);
 
     sparse_free(A);
     sparse_free(B);
@@ -189,7 +170,7 @@ static void test_lu_csr_1x1(void) {
 
     SparseMatrix *B = NULL;
     ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
-    assert_matrices_equal(A, B, 1e-15);
+    tf_assert_sparse_matrices_equal(A, B, 1e-15);
 
     sparse_free(A);
     sparse_free(B);
@@ -337,7 +318,7 @@ static void test_lu_csr_suitesparse_orsirr1(void) {
     ASSERT_EQ(B->nnz, A->nnz);
 
     /* Spot-check: verify all entries match */
-    assert_matrices_equal(A, B, 1e-15);
+    tf_assert_sparse_matrices_equal(A, B, 1e-15);
 
     sparse_free(A);
     sparse_free(B);
@@ -377,7 +358,7 @@ static void test_lu_csr_tridiagonal(void) {
     /* Round-trip */
     SparseMatrix *B = NULL;
     ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
-    assert_matrices_equal(A, B, 1e-15);
+    tf_assert_sparse_matrices_equal(A, B, 1e-15);
 
     sparse_free(A);
     sparse_free(B);
@@ -387,64 +368,6 @@ static void test_lu_csr_tridiagonal(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Elimination tests
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/*
- * Helper: extract L and U from a factored LuCsr and verify P*A = L*U.
- * L is unit lower triangular (diag=1, below diag from CSR).
- * U is upper triangular (diag and above from CSR).
- * piv_perm[k] = original row that ended up in position k.
- */
-static void verify_lu_factorization(const SparseMatrix *A_orig, const LuCsr *lu, const idx_t *piv,
-                                    double tol_check) {
-    idx_t n = lu->n;
-
-    /* Build dense L, U from factored CSR */
-    double *L = calloc((size_t)n * (size_t)n, sizeof(double));
-    double *U = calloc((size_t)n * (size_t)n, sizeof(double));
-    ASSERT_NOT_NULL(L);
-    ASSERT_NOT_NULL(U);
-
-    /* Unit diagonal for L */
-    for (idx_t i = 0; i < n; i++)
-        L[i * n + i] = 1.0;
-
-    for (idx_t i = 0; i < n; i++) {
-        for (idx_t p = lu->row_ptr[i]; p < lu->row_ptr[i + 1]; p++) {
-            idx_t j = lu->col_idx[p];
-            double v = lu->values[p];
-            if (j < i)
-                L[i * n + j] = v; /* L entry (below diagonal) */
-            else
-                U[i * n + j] = v; /* U entry (diagonal and above) */
-        }
-    }
-
-    /* Compute L*U (dense) */
-    double *LU = calloc((size_t)n * (size_t)n, sizeof(double));
-    ASSERT_NOT_NULL(LU);
-    for (idx_t i = 0; i < n; i++)
-        for (idx_t j = 0; j < n; j++)
-            for (idx_t k = 0; k < n; k++)
-                LU[i * n + j] += L[i * n + k] * U[k * n + j];
-
-    /* Compare L*U with P*A (permuted rows of A) */
-    for (idx_t i = 0; i < n; i++) {
-        idx_t orig_row = piv[i];
-        for (idx_t j = 0; j < n; j++) {
-            double a_val = sparse_get(A_orig, orig_row, j);
-            double lu_val = LU[i * n + j];
-            if (fabs(a_val - lu_val) > tol_check) {
-                TF_FAIL_("P*A vs L*U mismatch at (%d,%d): P*A=%.15g, L*U=%.15g, diff=%.3e", (int)i,
-                         (int)j, a_val, lu_val, fabs(a_val - lu_val));
-            }
-            tf_asserts++;
-        }
-    }
-
-    free(L);
-    free(U);
-    free(LU);
-}
 
 /* Test: 3×3 known LU factorization */
 static void test_lu_csr_eliminate_3x3(void) {
@@ -480,7 +403,7 @@ static void test_lu_csr_eliminate_3x3(void) {
         return;
     }
 
-    verify_lu_factorization(A, csr, piv, 1e-12);
+    tf_verify_lu_csr_factorization(A, csr, piv, 1e-12);
 
     sparse_free(A);
     lu_csr_free(csr);
@@ -517,7 +440,7 @@ static void test_lu_csr_eliminate_5x5_solve(void) {
     ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
 
     /* Verify P*A = L*U */
-    verify_lu_factorization(A, csr, piv, 1e-10);
+    tf_verify_lu_csr_factorization(A, csr, piv, 1e-10);
 
     /* Manual forward/backward substitution using the CSR L\U factors.
      * pb = P*b */
@@ -593,7 +516,7 @@ static void test_lu_csr_eliminate_diagonal(void) {
     for (idx_t i = 0; i < n; i++)
         ASSERT_EQ(piv[i], i);
 
-    verify_lu_factorization(A, csr, piv, 1e-14);
+    tf_verify_lu_csr_factorization(A, csr, piv, 1e-14);
 
     sparse_free(A);
     lu_csr_free(csr);
@@ -617,7 +540,7 @@ static void test_lu_csr_eliminate_tridiag(void) {
     idx_t piv[10];
     ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
 
-    verify_lu_factorization(A, csr, piv, 1e-10);
+    tf_verify_lu_csr_factorization(A, csr, piv, 1e-10);
 
     /* Tridiagonal with diag-dominant: no pivoting needed */
     for (idx_t i = 0; i < n; i++)
@@ -647,7 +570,7 @@ static void test_lu_csr_eliminate_needs_pivot(void) {
     ASSERT_EQ(piv[0], 1);
     ASSERT_EQ(piv[1], 0);
 
-    verify_lu_factorization(A, csr, piv, 1e-14);
+    tf_verify_lu_csr_factorization(A, csr, piv, 1e-14);
 
     sparse_free(A);
     lu_csr_free(csr);
@@ -675,22 +598,6 @@ static void test_lu_csr_eliminate_singular(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 3: Integration tests — lu_csr_solve / lu_csr_factor_solve
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Helper: compute ||A*x - b||_inf */
-static double residual_norminf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    if (!r)
-        return HUGE_VAL;
-    sparse_matvec(A, x, r);
-    double mx = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double d = fabs(r[i] - b[i]);
-        if (d > mx)
-            mx = d;
-    }
-    free(r);
-    return mx;
-}
 
 /* Test: lu_csr_solve null args */
 static void test_lu_csr_solve_null(void) {
@@ -734,7 +641,7 @@ static void test_lu_csr_factor_solve_tridiag(void) {
         ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
 
     /* Residual should be small */
-    double res = residual_norminf(A, x_csr, b, n);
+    double res = tf_sparse_residual_norminf(A, x_csr, b, n);
     ASSERT_TRUE(res < 1e-10);
 
     sparse_free(A);
@@ -767,7 +674,7 @@ static void test_lu_csr_factor_solve_dense(void) {
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
 
-    double res = residual_norminf(A, x_csr, b, n);
+    double res = tf_sparse_residual_norminf(A, x_csr, b, n);
     ASSERT_TRUE(res < 1e-10);
 
     sparse_free(A);
@@ -807,8 +714,8 @@ static void test_lu_csr_factor_solve_orsirr1(void) {
 
     /* Both residuals should be small (solutions may differ due to different
      * pivoting order, but residuals should both be near machine precision) */
-    double res_csr = residual_norminf(A, x_csr, b, n);
-    double res_ll = residual_norminf(A, x_ll, b, n);
+    double res_csr = tf_sparse_residual_norminf(A, x_csr, b, n);
+    double res_ll = tf_sparse_residual_norminf(A, x_ll, b, n);
     printf("    orsirr_1 residuals: CSR=%.3e  LL=%.3e\n", res_csr, res_ll);
     ASSERT_TRUE(res_csr < 1e-6);
     ASSERT_TRUE(res_ll < 1e-6);
@@ -839,7 +746,7 @@ static void test_lu_csr_factor_solve_steam1(void) {
 
     ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-12), SPARSE_OK);
 
-    double res = residual_norminf(A, x, b, n);
+    double res = tf_sparse_residual_norminf(A, x, b, n);
     printf("    steam1 residual: %.3e\n", res);
     ASSERT_TRUE(res < 1e-6);
 
@@ -1196,7 +1103,7 @@ static void test_block_eliminate_block_diagonal(void) {
         ASSERT_NEAR(x_block[i], x_plain[i], 1e-10);
 
     /* Residual should be small */
-    double res = residual_norminf(A, x_block, b_vec, n);
+    double res = tf_sparse_residual_norminf(A, x_block, b_vec, n);
     ASSERT_TRUE(res < 1e-10);
 
     sparse_free(A);
@@ -1240,8 +1147,8 @@ static void test_block_eliminate_mixed(void) {
     ASSERT_ERR(lu_csr_factor_solve(A, b_vec, x_plain, 1e-12), SPARSE_OK);
 
     /* Both residuals should be small */
-    double res_block = residual_norminf(A, x_block, b_vec, n);
-    double res_plain = residual_norminf(A, x_plain, b_vec, n);
+    double res_block = tf_sparse_residual_norminf(A, x_block, b_vec, n);
+    double res_plain = tf_sparse_residual_norminf(A, x_plain, b_vec, n);
     ASSERT_TRUE(res_block < 1e-10);
     ASSERT_TRUE(res_plain < 1e-10);
 
@@ -1309,7 +1216,7 @@ static void test_block_near_singular_fallback(void) {
 
     if (err == SPARSE_OK) {
         ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
-        double res = residual_norminf(A, x_block, b, n);
+        double res = tf_sparse_residual_norminf(A, x_block, b, n);
         ASSERT_TRUE(res < 1e-8);
     }
     /* If singular, that's also acceptable — the matrix may genuinely be singular
@@ -1360,8 +1267,8 @@ static void test_block_at_boundary(void) {
     /* Plain */
     ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
 
-    double res_block = residual_norminf(A, x_block, b, n);
-    double res_plain = residual_norminf(A, x_plain, b, n);
+    double res_block = tf_sparse_residual_norminf(A, x_block, b, n);
+    double res_plain = tf_sparse_residual_norminf(A, x_plain, b, n);
     ASSERT_TRUE(res_block < 1e-10);
     ASSERT_TRUE(res_plain < 1e-10);
 
@@ -1400,7 +1307,7 @@ static void test_block_zero_pivot(void) {
     ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
     ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
 
-    double res = residual_norminf(A, x, b, n);
+    double res = tf_sparse_residual_norminf(A, x, b, n);
     ASSERT_TRUE(res < 1e-10);
 
     lu_csr_free(csr);
@@ -1442,8 +1349,8 @@ static void test_block_suitesparse_orsirr1(void) {
     /* Plain */
     ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
 
-    double res_block = residual_norminf(A, x_block, b, n);
-    double res_plain = residual_norminf(A, x_plain, b, n);
+    double res_block = tf_sparse_residual_norminf(A, x_block, b, n);
+    double res_plain = tf_sparse_residual_norminf(A, x_plain, b, n);
     printf("    orsirr_1 block: res=%.3e  plain: res=%.3e\n", res_block, res_plain);
     ASSERT_TRUE(res_block < 1e-6);
     ASSERT_TRUE(res_plain < 1e-6);
@@ -1480,7 +1387,7 @@ static void test_block_suitesparse_steam1(void) {
     ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
     free(piv);
 
-    double res = residual_norminf(A, x, b, n);
+    double res = tf_sparse_residual_norminf(A, x, b, n);
     printf("    steam1 block: res=%.3e\n", res);
     ASSERT_TRUE(res < 1e-6);
 
@@ -1608,7 +1515,7 @@ static void test_block_solve_residual(void) {
 
     /* Check ||A*X(:,k) - B(:,k)|| for each k */
     for (idx_t k = 0; k < nrhs; k++) {
-        double res = residual_norminf(A, &X[n * k], &B[n * k], n);
+        double res = tf_sparse_residual_norminf(A, &X[n * k], &B[n * k], n);
         ASSERT_TRUE(res < 1e-10);
     }
 
@@ -1667,7 +1574,7 @@ static void test_csr_block_solve_3_rhs(void) {
 
     /* Check residuals */
     for (idx_t k = 0; k < nrhs; k++) {
-        double res = residual_norminf(A, &X_block[n * k], &B[n * k], n);
+        double res = tf_sparse_residual_norminf(A, &X_block[n * k], &B[n * k], n);
         ASSERT_TRUE(res < 1e-10);
     }
 

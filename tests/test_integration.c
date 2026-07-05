@@ -10,6 +10,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_integration_fixtures.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -441,145 +442,17 @@ static void test_error_recovery(void) {
  *   - default-NULL-callback path is bit-identical to Sprint 28.
  * ═══════════════════════════════════════════════════════════════════════ */
 
-typedef struct {
-    idx_t n_calls;
-    idx_t cancel_after_step; /* return non-zero when step == cancel_after_step; -1 = never */
-    idx_t last_step;
-    idx_t last_total;
-    const char *last_phase;
-    double last_elapsed_s;
-} progress_counter_t;
-
-static int progress_count_cb(const sparse_progress_t *p, void *user) {
-    progress_counter_t *ctx = (progress_counter_t *)user;
-    ctx->n_calls++;
-    ctx->last_step = p->step;
-    ctx->last_total = p->total;
-    ctx->last_phase = p->phase;
-    ctx->last_elapsed_s = p->elapsed_s;
-    if (ctx->cancel_after_step >= 0 && p->step >= ctx->cancel_after_step)
-        return 1;
-    return 0;
-}
-
-/* Build a 100x100 SPD tridiagonal: diag = 4, sub/super = -1.
- * Diagonally dominant + symmetric → factorable by LU, Cholesky, LDL^T. */
-static SparseMatrix *build_tridiag_spd(idx_t n) {
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 4.0);
-        if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
-        }
-    }
-    return A;
-}
-
-static SparseMatrix *build_unsym_4x4(void) {
-    SparseMatrix *A = sparse_create(4, 4);
-    if (!A)
-        return NULL;
-
-    sparse_insert(A, 0, 0, 6.0);
-    sparse_insert(A, 0, 1, -1.0);
-    sparse_insert(A, 0, 3, 0.5);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 1, 1, 7.0);
-    sparse_insert(A, 1, 2, -1.0);
-    sparse_insert(A, 2, 1, 1.5);
-    sparse_insert(A, 2, 2, 8.0);
-    sparse_insert(A, 2, 3, -2.0);
-    sparse_insert(A, 3, 0, -0.5);
-    sparse_insert(A, 3, 2, 1.0);
-    sparse_insert(A, 3, 3, 5.0);
-    return A;
-}
-
-/* KKT-style saddle-point indefinite matrix:
- *   [ H    B^T ]
- *   [ B    0   ]
- * H is `n_top`×`n_top` tridiagonal SPD (diag 6, off-diag -1).
- * B = [I_k | 0] where k = n_bot. This keeps the system symmetric,
- * indefinite, and nonsingular for n_top >= n_bot. */
-static SparseMatrix *build_kkt(idx_t n_top, idx_t n_bot) {
-    idx_t n = n_top + n_bot;
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < n_top; i++) {
-        sparse_insert(A, i, i, 6.0);
-        if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
-        }
-    }
-    for (idx_t j = 0; j < n_bot; j++) {
-        sparse_insert(A, n_top + j, j, 1.0);
-        sparse_insert(A, j, n_top + j, 1.0);
-    }
-    return A;
-}
-
-static void perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, idx_t n_bot, double scale) {
-    for (idx_t i = 0; i < n_top; i++) {
-        double diag = 6.0 + scale * (double)((i % 7) - 3);
-        ASSERT_EQ(sparse_set(A, i, i, diag), SPARSE_OK);
-        if (i > 0) {
-            double offdiag = -1.0 - 0.1 * scale * (double)(i % 3);
-            ASSERT_EQ(sparse_set(A, i, i - 1, offdiag), SPARSE_OK);
-            ASSERT_EQ(sparse_set(A, i - 1, i, offdiag), SPARSE_OK);
-        }
-    }
-
-    for (idx_t j = 0; j < n_bot; j++) {
-        double coupling = 1.0 + 0.05 * scale * (double)((j % 5) - 2);
-        ASSERT_EQ(sparse_set(A, n_top + j, j, coupling), SPARSE_OK);
-        ASSERT_EQ(sparse_set(A, j, n_top + j, coupling), SPARSE_OK);
-    }
-}
-
-static SparseMatrix *build_from_csr_constructor(const SparseMatrix *src) {
-    SparseCsr *csr = NULL;
-    SparseMatrix *out = NULL;
-
-    if (!src)
-        return NULL;
-    if (sparse_to_csr(src, &csr) != SPARSE_OK)
-        return NULL;
-
-    out = sparse_create_from_csr(csr);
-    sparse_csr_free(csr);
-    return out;
-}
-
-static SparseMatrix *build_from_csc_constructor(const SparseMatrix *src) {
-    SparseCsc *csc = NULL;
-    SparseMatrix *out = NULL;
-
-    if (!src)
-        return NULL;
-    if (sparse_to_csc(src, &csc) != SPARSE_OK)
-        return NULL;
-
-    out = sparse_create_from_csc(csc);
-    sparse_csc_free(csc);
-    return out;
-}
-
 static void test_progress_cb_lu_emits(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_lu_opts_t opts = {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_NONE,
         .tol = 1e-12,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_OK);
@@ -593,7 +466,7 @@ static void test_progress_cb_lu_emits(void) {
 
 static void test_progress_cb_lu_cancel(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* Snapshot the original matrix entries to verify bit-identity
@@ -601,12 +474,12 @@ static void test_progress_cb_lu_cancel(void) {
     SparseMatrix *A_orig = sparse_copy(A);
     REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_lu_opts_t opts = {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_NONE,
         .tol = 1e-12,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
@@ -634,18 +507,18 @@ static void test_progress_cb_lu_cancel(void) {
 
 static void test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     SparseMatrix *A_orig = sparse_copy(A);
     REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_lu_opts_t opts = {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_AMD,
         .tol = 1e-12,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
@@ -687,7 +560,7 @@ static void test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix(v
 static void
 test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     sparse_lu_opts_t factor_opts = {
@@ -720,7 +593,7 @@ test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_fac
 
 static void test_lu_invalid_reorder_opts_preserve_existing_reordered_factor(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     sparse_lu_opts_t factor_opts = {
@@ -752,7 +625,7 @@ static void test_lu_invalid_reorder_opts_preserve_existing_reordered_factor(void
 
 static void test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     SparseMatrix *A_orig = sparse_copy(A);
@@ -801,16 +674,16 @@ static void test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry(
 
 static void test_progress_cb_cholesky_emits_cancel(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* Emit: count all callbacks, force linked-list backend so the
      * per-column scalar emission path runs. */
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_NONE,
         .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_OK);
@@ -824,13 +697,13 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
      * matrix bit-identical to entry — only the lower triangle is
      * preserved.  The contract is "factor returns SPARSE_ERR_CANCELLED
      * + factored=0" rather than full unmodified-input. */
-    A = build_tridiag_spd(n);
+    A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx2 = {.cancel_after_step = 0};
     sparse_cholesky_opts_t opts2 = {
         .reorder = SPARSE_REORDER_NONE,
         .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx2,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts2), SPARSE_ERR_CANCELLED);
@@ -848,18 +721,18 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
 
 static void test_progress_cb_cholesky_csc_emits(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     double b[100];
     double x[100];
     int used_csc = 0;
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_NONE,
         .backend = SPARSE_CHOL_BACKEND_CSC,
         .used_csc_path = &used_csc,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_OK);
@@ -879,17 +752,17 @@ static void test_progress_cb_cholesky_csc_emits(void) {
 
 static void test_progress_cb_cholesky_cancel_after_reorder_preserves_original_matrix(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     SparseMatrix *A_orig = sparse_copy(A);
     REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_AMD,
         .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
@@ -930,7 +803,7 @@ static void test_progress_cb_cholesky_cancel_after_reorder_preserves_original_ma
 
 static void test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_original_matrix(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     SparseMatrix *A_orig = NULL;
     double b[100];
     double x[100];
@@ -940,12 +813,12 @@ static void test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_orig
     A_orig = sparse_copy(A);
     REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    progress_counter_t ctx = {.cancel_after_step = 3};
+    integration_progress_counter_t ctx = {.cancel_after_step = 3};
     sparse_cholesky_opts_t opts = {
         .reorder = SPARSE_REORDER_AMD,
         .backend = SPARSE_CHOL_BACKEND_CSC,
         .used_csc_path = &used_csc,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
@@ -992,7 +865,7 @@ static void test_progress_cb_cholesky_csc_cancel_before_writeback_preserves_orig
 static void
 test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     sparse_cholesky_opts_t factor_opts = {
@@ -1064,7 +937,7 @@ static void test_cholesky_reordered_not_spd_preserves_original_matrix(void) {
 
 static void test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry(void) {
     const idx_t n = 120;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     SparseMatrix *A_orig = sparse_copy(A);
@@ -1111,7 +984,7 @@ static void test_cholesky_invalid_backend_preserves_original_matrix_and_allows_r
 
 static void test_progress_cb_ldlt_emits_cancel(void) {
     const idx_t n = 100;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     /* Emit: count, force linked-list backend.  LDL^T may use 2x2
@@ -1119,14 +992,14 @@ static void test_progress_cb_ldlt_emits_cancel(void) {
      * advances k by 1 or 2).  For our diagonally-dominant
      * tridiagonal SPD all pivots are 1x1 and we get exactly n
      * emissions, but the contract is "emissions ≤ n" generically. */
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_ldlt_t ldlt = {0};
     sparse_ldlt_opts_t opts = {
         .reorder = SPARSE_REORDER_NONE,
         .tol = 0.0,
         .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
         .used_csc_path = NULL,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     ASSERT_EQ(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_OK);
@@ -1139,14 +1012,14 @@ static void test_progress_cb_ldlt_emits_cancel(void) {
      * ldlt_t struct), so cancel-at-step-0 leaves A bit-identical. */
     SparseMatrix *A_orig = sparse_copy(A);
     REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx2 = {.cancel_after_step = 0};
     sparse_ldlt_t ldlt2 = {0};
     sparse_ldlt_opts_t opts2 = {
         .reorder = SPARSE_REORDER_NONE,
         .tol = 0.0,
         .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
         .used_csc_path = NULL,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx2,
     };
     ASSERT_EQ(sparse_ldlt_factor_opts(A, &opts2, &ldlt2), SPARSE_ERR_CANCELLED);
@@ -1166,8 +1039,8 @@ static void test_progress_cb_ldlt_emits_cancel(void) {
  * as the no-opts (sparse_lu_factor) entry point. */
 static void test_progress_cb_null_default_unchanged(void) {
     const idx_t n = 50;
-    SparseMatrix *A1 = build_tridiag_spd(n);
-    SparseMatrix *A2 = build_tridiag_spd(n);
+    SparseMatrix *A1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A2 = integration_build_tridiag_spd(n);
     REQUIRE_OK(A1 && A2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     ASSERT_EQ(sparse_lu_factor(A1, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
@@ -1200,8 +1073,8 @@ static void test_progress_cb_null_default_unchanged(void) {
 
 static void test_cholesky_default_wrapper_matches_default_opts(void) {
     const idx_t n = 50;
-    SparseMatrix *A1 = build_tridiag_spd(n);
-    SparseMatrix *A2 = build_tridiag_spd(n);
+    SparseMatrix *A1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A2 = integration_build_tridiag_spd(n);
     double *b = NULL;
     double *x1 = NULL;
     double *x2 = NULL;
@@ -1241,8 +1114,8 @@ static void test_cholesky_default_wrapper_matches_default_opts(void) {
 
 static void test_ldlt_default_wrapper_matches_default_opts(void) {
     const idx_t n = 50;
-    SparseMatrix *A1 = build_tridiag_spd(n);
-    SparseMatrix *A2 = build_tridiag_spd(n);
+    SparseMatrix *A1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A2 = integration_build_tridiag_spd(n);
     sparse_ldlt_t ldlt1 = {0};
     sparse_ldlt_t ldlt2 = {0};
     double *b = NULL;
@@ -1287,8 +1160,8 @@ static void test_ldlt_default_wrapper_matches_default_opts(void) {
 
 static void test_lu_factor_opts_matches_explicit_analysis_path(void) {
     const idx_t n = 50;
-    SparseMatrix *A_opts = build_tridiag_spd(n);
-    SparseMatrix *A_analysis = build_tridiag_spd(n);
+    SparseMatrix *A_opts = integration_build_tridiag_spd(n);
+    SparseMatrix *A_analysis = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *b = NULL;
@@ -1334,8 +1207,8 @@ static void test_lu_factor_opts_matches_explicit_analysis_path(void) {
 }
 
 static void test_create_from_csr_enters_one_shot_lu_workflow(void) {
-    SparseMatrix *A_src = build_unsym_4x4();
-    SparseMatrix *A_ctor = build_from_csr_constructor(A_src);
+    SparseMatrix *A_src = integration_build_unsym_4x4();
+    SparseMatrix *A_ctor = integration_build_from_csr_constructor(A_src);
     double x_exact[4] = {1.0, -2.0, 0.5, 3.0};
     double b[4] = {0.0, 0.0, 0.0, 0.0};
     double x[4] = {0.0, 0.0, 0.0, 0.0};
@@ -1366,8 +1239,8 @@ static void test_create_from_csr_enters_one_shot_lu_workflow(void) {
 
 static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
     const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 100);
-    SparseMatrix *A_opts = build_tridiag_spd(n);
-    SparseMatrix *A_analysis = build_tridiag_spd(n);
+    SparseMatrix *A_opts = integration_build_tridiag_spd(n);
+    SparseMatrix *A_analysis = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     int used_csc_path = 0;
@@ -1416,8 +1289,8 @@ static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
 
 static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
     const idx_t n = 200;
-    SparseMatrix *A_opts = build_tridiag_spd(n);
-    SparseMatrix *A_analysis = build_tridiag_spd(n);
+    SparseMatrix *A_opts = integration_build_tridiag_spd(n);
+    SparseMatrix *A_analysis = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     sparse_ldlt_t ldlt = {0};
@@ -1467,8 +1340,8 @@ static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
 }
 
 static void test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt(void) {
-    SparseMatrix *A_opts = build_kkt(/*n_top=*/140, /*n_bot=*/10);
-    SparseMatrix *A_analysis = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A_opts = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A_analysis = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     sparse_ldlt_t ldlt = {0};
@@ -1526,8 +1399,8 @@ static void test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt(
 }
 
 static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt(void) {
-    SparseMatrix *A1 = build_kkt(/*n_top=*/140, /*n_bot=*/10);
-    SparseMatrix *A2 = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A1 = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A2 = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
@@ -1538,7 +1411,7 @@ static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt(void
     const idx_t n = 150;
 
     REQUIRE_OK(A1 && A2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    perturb_kkt_values_in_place(A2, /*n_top=*/140, /*n_bot=*/10, /*scale=*/0.2);
+    integration_perturb_kkt_values_in_place(A2, /*n_top=*/140, /*n_bot=*/10, /*scale=*/0.2);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_LDLT,
@@ -1584,8 +1457,8 @@ static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt(void
 }
 
 static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd(void) {
-    SparseMatrix *A1 = build_kkt(/*n_top=*/140, /*n_bot=*/10);
-    SparseMatrix *A2 = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A1 = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A2 = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
@@ -1596,7 +1469,7 @@ static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd(
     const idx_t n = 150;
 
     REQUIRE_OK(A1 && A2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    perturb_kkt_values_in_place(A2, /*n_top=*/140, /*n_bot=*/10, /*scale=*/0.2);
+    integration_perturb_kkt_values_in_place(A2, /*n_top=*/140, /*n_bot=*/10, /*scale=*/0.2);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_LDLT,
@@ -1643,7 +1516,7 @@ static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd(
 
 static void
 test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd(void) {
-    SparseMatrix *A_good = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A_good = integration_build_kkt(/*n_top=*/140, /*n_bot=*/10);
     SparseMatrix *A_bad = NULL;
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
@@ -1695,7 +1568,7 @@ test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_
 
 static void test_public_lifecycle_solve_rejects_zeroed_factors(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *b = NULL;
@@ -1727,9 +1600,9 @@ static void test_public_lifecycle_solve_rejects_zeroed_factors(void) {
 
 static void test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserves_factors(void) {
     const idx_t n = 4;
-    SparseMatrix *A_good = build_tridiag_spd(n);
-    SparseMatrix *A_lu = build_unsym_4x4();
-    SparseMatrix *A_other_n = build_tridiag_spd(5);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
+    SparseMatrix *A_lu = integration_build_unsym_4x4();
+    SparseMatrix *A_other_n = integration_build_tridiag_spd(5);
     sparse_analysis_t good_analysis = {0};
     sparse_analysis_t lu_analysis = {0};
     sparse_analysis_t other_n_analysis = {0};
@@ -1778,7 +1651,7 @@ static void test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserve
 
 static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     const idx_t n = 40;
-    SparseMatrix *A = build_tridiag_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact1 = NULL;
@@ -1855,8 +1728,8 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
 
 static void test_public_lifecycle_refactor_accepts_zeroed_factors(void) {
     const idx_t n = 50;
-    SparseMatrix *A1 = build_tridiag_spd(n);
-    SparseMatrix *A2 = build_tridiag_spd(n);
+    SparseMatrix *A1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A2 = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
@@ -1910,9 +1783,9 @@ static void test_public_lifecycle_refactor_accepts_zeroed_factors(void) {
 }
 
 static void test_public_lifecycle_refactor_rejects_mismatched_existing_factors(void) {
-    SparseMatrix *A_lu = build_unsym_4x4();
-    SparseMatrix *A_spd = build_tridiag_spd(4);
-    SparseMatrix *A_spd_new = build_tridiag_spd(4);
+    SparseMatrix *A_lu = integration_build_unsym_4x4();
+    SparseMatrix *A_spd = integration_build_tridiag_spd(4);
+    SparseMatrix *A_spd_new = integration_build_tridiag_spd(4);
     sparse_analysis_t lu_analysis = {0};
     sparse_analysis_t chol_analysis = {0};
     sparse_factors_t factors = {0};
@@ -1952,7 +1825,7 @@ static void test_public_lifecycle_refactor_rejects_mismatched_existing_factors(v
 
 static void test_public_lifecycle_refactor_preserves_old_factors_on_failure(void) {
     const idx_t n = 40;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
@@ -1999,7 +1872,7 @@ static void test_public_lifecycle_refactor_preserves_old_factors_on_failure(void
 
 static void test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_factors(void) {
     const idx_t n = 40;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
@@ -2047,7 +1920,7 @@ static void test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_f
 
 static void test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure(void) {
     const idx_t n = 120;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
@@ -2096,7 +1969,7 @@ static void test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on
 static void
 test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_factors(void) {
     const idx_t n = 120;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
@@ -2145,7 +2018,7 @@ test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_
 
 static void test_public_lifecycle_refactor_failure_allows_retry(void) {
     const idx_t n = 40;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     SparseMatrix *A_retry = NULL;
     sparse_analysis_t analysis = {0};
@@ -2217,7 +2090,7 @@ static void test_public_lifecycle_refactor_failure_allows_retry(void) {
 
 static void test_public_lifecycle_cholesky_csc_refactor_failure_allows_retry(void) {
     const idx_t n = 120;
-    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_good = integration_build_tridiag_spd(n);
     SparseMatrix *A_bad = NULL;
     SparseMatrix *A_retry = NULL;
     sparse_analysis_t analysis = {0};
@@ -2292,7 +2165,7 @@ static void test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd(void) {
     const idx_t n_top = 140;
     const idx_t n_bot = 10;
     const idx_t n = n_top + n_bot;
-    SparseMatrix *A_good = build_kkt(n_top, n_bot);
+    SparseMatrix *A_good = integration_build_kkt(n_top, n_bot);
     SparseMatrix *A_bad = NULL;
     SparseMatrix *A_retry = NULL;
     sparse_analysis_t analysis = {0};
@@ -2332,11 +2205,11 @@ static void test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd(void) {
     sparse_matvec(A_good, x_exact_old, b_old);
 
     A_bad = sparse_copy(A_good);
-    A_retry = build_kkt(n_top, n_bot);
+    A_retry = integration_build_kkt(n_top, n_bot);
     REQUIRE_OK(A_bad && A_retry ? SPARSE_OK : SPARSE_ERR_ALLOC);
     ASSERT_EQ(sparse_set(A_bad, 0, n_top, 0.0), SPARSE_OK);
     ASSERT_EQ(sparse_set(A_bad, n_top, 0, 0.0), SPARSE_OK);
-    perturb_kkt_values_in_place(A_retry, n_top, n_bot, 0.35);
+    integration_perturb_kkt_values_in_place(A_retry, n_top, n_bot, 0.35);
     sparse_matvec(A_retry, x_exact_retry, b_retry);
 
     ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_BADARG);
@@ -2366,12 +2239,12 @@ static void test_public_lifecycle_ldlt_refactor_failure_allows_retry_amd(void) {
 
 static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(void) {
     const idx_t n = 120;
-    SparseMatrix *A_base = build_tridiag_spd(n);
-    SparseMatrix *A_refactor1 = build_tridiag_spd(n);
-    SparseMatrix *A_refactor2 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot0 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot1 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot2 = build_tridiag_spd(n);
+    SparseMatrix *A_base = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor2 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot0 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot2 = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
@@ -2501,12 +2374,12 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
 static void
 test_public_lifecycle_constructor_built_csc_refactor_same_pattern_matches_one_shot_cholesky(void) {
     const idx_t n = (idx_t)(SPARSE_CSC_THRESHOLD + 20);
-    SparseMatrix *A_base_src = build_tridiag_spd(n);
-    SparseMatrix *A_refactor1_src = build_tridiag_spd(n);
-    SparseMatrix *A_refactor2_src = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot0_src = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot1_src = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot2_src = build_tridiag_spd(n);
+    SparseMatrix *A_base_src = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor1_src = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor2_src = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot0_src = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot1_src = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot2_src = integration_build_tridiag_spd(n);
     SparseMatrix *A_base = NULL;
     SparseMatrix *A_refactor1 = NULL;
     SparseMatrix *A_refactor2 = NULL;
@@ -2542,12 +2415,12 @@ test_public_lifecycle_constructor_built_csc_refactor_same_pattern_matches_one_sh
         ASSERT_EQ(sparse_set(A_one_shot2_src, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
     }
 
-    A_base = build_from_csc_constructor(A_base_src);
-    A_refactor1 = build_from_csc_constructor(A_refactor1_src);
-    A_refactor2 = build_from_csc_constructor(A_refactor2_src);
-    A_one_shot0 = build_from_csc_constructor(A_one_shot0_src);
-    A_one_shot1 = build_from_csc_constructor(A_one_shot1_src);
-    A_one_shot2 = build_from_csc_constructor(A_one_shot2_src);
+    A_base = integration_build_from_csc_constructor(A_base_src);
+    A_refactor1 = integration_build_from_csc_constructor(A_refactor1_src);
+    A_refactor2 = integration_build_from_csc_constructor(A_refactor2_src);
+    A_one_shot0 = integration_build_from_csc_constructor(A_one_shot0_src);
+    A_one_shot1 = integration_build_from_csc_constructor(A_one_shot1_src);
+    A_one_shot2 = integration_build_from_csc_constructor(A_one_shot2_src);
 
     REQUIRE_OK(A_base && A_refactor1 && A_refactor2 && A_one_shot0 && A_one_shot1 && A_one_shot2
                    ? SPARSE_OK
@@ -2661,12 +2534,12 @@ test_public_lifecycle_constructor_built_csc_refactor_same_pattern_matches_one_sh
 
 static void test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc_cholesky(void) {
     const idx_t n = 40;
-    SparseMatrix *A_base = build_tridiag_spd(n);
-    SparseMatrix *A_refactor1 = build_tridiag_spd(n);
-    SparseMatrix *A_refactor2 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot0 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot1 = build_tridiag_spd(n);
-    SparseMatrix *A_one_shot2 = build_tridiag_spd(n);
+    SparseMatrix *A_base = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_refactor2 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot0 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot1 = integration_build_tridiag_spd(n);
+    SparseMatrix *A_one_shot2 = integration_build_tridiag_spd(n);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     double *x_exact = NULL;
@@ -2800,12 +2673,12 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_ldlt(vo
     const idx_t n_top = (idx_t)(SPARSE_CSC_THRESHOLD + 12);
     const idx_t n_bot = 8;
     const idx_t n = n_top + n_bot;
-    SparseMatrix *A_base = build_kkt(n_top, n_bot);
-    SparseMatrix *A_refactor1 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_refactor2 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot0 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot1 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot2 = build_kkt(n_top, n_bot);
+    SparseMatrix *A_base = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_refactor1 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_refactor2 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot0 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot1 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot2 = integration_build_kkt(n_top, n_bot);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     sparse_ldlt_t ldlt0 = {0};
@@ -2830,10 +2703,10 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_ldlt(vo
                    : SPARSE_ERR_ALLOC);
     ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
 
-    perturb_kkt_values_in_place(A_refactor1, n_top, n_bot, 0.2);
-    perturb_kkt_values_in_place(A_refactor2, n_top, n_bot, 0.45);
-    perturb_kkt_values_in_place(A_one_shot1, n_top, n_bot, 0.2);
-    perturb_kkt_values_in_place(A_one_shot2, n_top, n_bot, 0.45);
+    integration_perturb_kkt_values_in_place(A_refactor1, n_top, n_bot, 0.2);
+    integration_perturb_kkt_values_in_place(A_refactor2, n_top, n_bot, 0.45);
+    integration_perturb_kkt_values_in_place(A_one_shot1, n_top, n_bot, 0.2);
+    integration_perturb_kkt_values_in_place(A_one_shot2, n_top, n_bot, 0.45);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_LDLT,
@@ -2945,12 +2818,12 @@ static void test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc
     const idx_t n_top = 30;
     const idx_t n_bot = 10;
     const idx_t n = n_top + n_bot;
-    SparseMatrix *A_base = build_kkt(n_top, n_bot);
-    SparseMatrix *A_refactor1 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_refactor2 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot0 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot1 = build_kkt(n_top, n_bot);
-    SparseMatrix *A_one_shot2 = build_kkt(n_top, n_bot);
+    SparseMatrix *A_base = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_refactor1 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_refactor2 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot0 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot1 = integration_build_kkt(n_top, n_bot);
+    SparseMatrix *A_one_shot2 = integration_build_kkt(n_top, n_bot);
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     sparse_ldlt_t ldlt0 = {0};
@@ -2975,10 +2848,10 @@ static void test_public_lifecycle_refactor_small_same_pattern_matches_forced_csc
                    : SPARSE_ERR_ALLOC);
     ASSERT_TRUE(n < SPARSE_CSC_THRESHOLD);
 
-    perturb_kkt_values_in_place(A_refactor1, n_top, n_bot, 0.2);
-    perturb_kkt_values_in_place(A_refactor2, n_top, n_bot, 0.45);
-    perturb_kkt_values_in_place(A_one_shot1, n_top, n_bot, 0.2);
-    perturb_kkt_values_in_place(A_one_shot2, n_top, n_bot, 0.45);
+    integration_perturb_kkt_values_in_place(A_refactor1, n_top, n_bot, 0.2);
+    integration_perturb_kkt_values_in_place(A_refactor2, n_top, n_bot, 0.45);
+    integration_perturb_kkt_values_in_place(A_one_shot1, n_top, n_bot, 0.2);
+    integration_perturb_kkt_values_in_place(A_one_shot2, n_top, n_bot, 0.45);
 
     sparse_analysis_opts_t analysis_opts = {
         .factor_type = SPARSE_FACTOR_LDLT,
@@ -3101,7 +2974,7 @@ static void test_progress_cb_strerror(void) {
  *   - cancellation returns SPARSE_ERR_CANCELLED.
  *   - default-NULL-callback path is bit-identical to Sprint 28.
  *
- * Each routine uses the same `progress_count_cb` helper + a fresh
+ * Each routine uses the same `integration_progress_count_cb` helper + a fresh
  * counter context.  Cancel tests set `cancel_after_step = 0` to fire
  * at the first emission, returning SPARSE_ERR_CANCELLED with the
  * library having done at most negligible work. */
@@ -3115,10 +2988,10 @@ static void test_progress_cb_qr_emits_cancel(void) {
             if (i == j || (i + j) % 7 == 0)
                 sparse_insert(A, i, j, (double)(i + j + 1));
 
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_qr_opts_t opts = {
         .reorder = SPARSE_REORDER_NONE,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_qr_t qr = {0};
@@ -3129,10 +3002,10 @@ static void test_progress_cb_qr_emits_cancel(void) {
     sparse_qr_free(&qr);
 
     /* Cancel at step 0. */
-    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx2 = {.cancel_after_step = 0};
     sparse_qr_opts_t opts2 = {
         .reorder = SPARSE_REORDER_NONE,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx2,
     };
     sparse_qr_t qr2 = {0};
@@ -3142,24 +3015,9 @@ static void test_progress_cb_qr_emits_cancel(void) {
     sparse_free(A);
 }
 
-/* Build n×n SPD diagonally-dominant matrix for CG-class solvers. */
-static SparseMatrix *build_solver_spd(idx_t n) {
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 4.0);
-        if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
-        }
-    }
-    return A;
-}
-
 static void test_progress_cb_cg_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
@@ -3169,11 +3027,11 @@ static void test_progress_cb_cg_emits_cancel(void) {
         x[i] = 0.0;
     }
 
-    progress_counter_t ctx = {.cancel_after_step = -1};
+    integration_progress_counter_t ctx = {.cancel_after_step = -1};
     sparse_iter_opts_t opts = {
         .max_iter = 200,
         .tol = 1e-10,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_solve_cg(A, b, x, &opts, NULL, NULL, NULL);
@@ -3184,11 +3042,11 @@ static void test_progress_cb_cg_emits_cancel(void) {
     /* Cancel: reset x, set cancel at step 0. */
     for (idx_t i = 0; i < n; i++)
         x[i] = 0.0;
-    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx2 = {.cancel_after_step = 0};
     sparse_iter_opts_t opts2 = {
         .max_iter = 200,
         .tol = 1e-10,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx2,
     };
     rc = sparse_solve_cg(A, b, x, &opts2, NULL, NULL, NULL);
@@ -3202,7 +3060,7 @@ static void test_progress_cb_cg_emits_cancel(void) {
 
 static void test_progress_cb_gmres_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
@@ -3212,13 +3070,13 @@ static void test_progress_cb_gmres_emits_cancel(void) {
         x[i] = 0.0;
     }
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_gmres_opts_t opts = {
         .max_iter = 200,
         .restart = 30,
         .tol = 1e-10,
         .precond_side = SPARSE_PRECOND_LEFT,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, NULL);
@@ -3233,7 +3091,7 @@ static void test_progress_cb_gmres_emits_cancel(void) {
 
 static void test_progress_cb_minres_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
@@ -3243,11 +3101,11 @@ static void test_progress_cb_minres_emits_cancel(void) {
         x[i] = 0.0;
     }
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_iter_opts_t opts = {
         .max_iter = 200,
         .tol = 1e-10,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_solve_minres(A, b, x, &opts, NULL, NULL, NULL);
@@ -3262,7 +3120,7 @@ static void test_progress_cb_minres_emits_cancel(void) {
 
 static void test_progress_cb_bicgstab_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
@@ -3272,11 +3130,11 @@ static void test_progress_cb_bicgstab_emits_cancel(void) {
         x[i] = 0.0;
     }
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_iter_opts_t opts = {
         .max_iter = 200,
         .tol = 1e-10,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, NULL);
@@ -3291,18 +3149,18 @@ static void test_progress_cb_bicgstab_emits_cancel(void) {
 
 static void test_progress_cb_lanczos_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     double vals[3] = {0, 0, 0};
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_eigs_t res = {.eigenvalues = vals};
     sparse_eigs_opts_t opts = {
         .which = SPARSE_EIGS_LARGEST,
         .tol = 1e-10,
         .reorthogonalize = 1,
         .backend = SPARSE_EIGS_BACKEND_LANCZOS,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_eigs_sym(A, 3, &opts, &res);
@@ -3315,14 +3173,14 @@ static void test_progress_cb_lanczos_emits_cancel(void) {
 
 static void test_progress_cb_lobpcg_emits_cancel(void) {
     const idx_t n = 50;
-    SparseMatrix *A = build_solver_spd(n);
+    SparseMatrix *A = integration_build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     idx_t k = 3;
     double vals[3] = {0, 0, 0};
     double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
     REQUIRE_OK(vecs ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    progress_counter_t ctx = {.cancel_after_step = 0};
+    integration_progress_counter_t ctx = {.cancel_after_step = 0};
     sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
     sparse_eigs_opts_t opts = {
         .which = SPARSE_EIGS_LARGEST,
@@ -3331,7 +3189,7 @@ static void test_progress_cb_lobpcg_emits_cancel(void) {
         .compute_vectors = 1,
         .backend = SPARSE_EIGS_BACKEND_LOBPCG,
         .block_size = k,
-        .progress_cb = progress_count_cb,
+        .progress_cb = integration_progress_count_cb,
         .progress_user = &ctx,
     };
     sparse_err_t rc = sparse_eigs_sym(A, k, &opts, &res);

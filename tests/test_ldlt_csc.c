@@ -182,6 +182,41 @@ static void test_row_adj_append_arg_checks(void) {
     ldlt_csc_free(F);
 }
 
+static void test_row_adj_swap_slots_moves_whole_row_state(void) {
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(8, 1, &F));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 2, 0));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 2, 1));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 6, 0));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 6, 3));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 6, 5));
+
+    idx_t *row2_before = F->row_adj[2];
+    idx_t row2_count_before = F->row_adj_count[2];
+    idx_t row2_cap_before = F->row_adj_cap[2];
+    idx_t *row6_before = F->row_adj[6];
+    idx_t row6_count_before = F->row_adj_count[6];
+    idx_t row6_cap_before = F->row_adj_cap[6];
+
+    ldlt_csc_row_adj_swap_slots(F, 2, 6);
+
+    ASSERT_TRUE(F->row_adj[2] == row6_before);
+    ASSERT_EQ(F->row_adj_count[2], row6_count_before);
+    ASSERT_EQ(F->row_adj_cap[2], row6_cap_before);
+    ASSERT_EQ(F->row_adj[2][0], 0);
+    ASSERT_EQ(F->row_adj[2][1], 3);
+    ASSERT_EQ(F->row_adj[2][2], 5);
+
+    ASSERT_TRUE(F->row_adj[6] == row2_before);
+    ASSERT_EQ(F->row_adj_count[6], row2_count_before);
+    ASSERT_EQ(F->row_adj_cap[6], row2_cap_before);
+    ASSERT_EQ(F->row_adj[6][0], 0);
+    ASSERT_EQ(F->row_adj[6][1], 1);
+
+    ldlt_csc_row_adj_swap_slots(NULL, 0, 1);
+    ldlt_csc_free(F);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 19 Day 10: 2×2-aware supernode detection
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -3730,6 +3765,7 @@ int main(void) {
     RUN_TEST(test_row_adj_append_preserves_order);
     RUN_TEST(test_row_adj_geometric_growth);
     RUN_TEST(test_row_adj_append_arg_checks);
+    RUN_TEST(test_row_adj_swap_slots_moves_whole_row_state);
     /* Sprint 19 Day 10: 2×2-aware supernode detection */
     RUN_TEST(test_detect_supernodes_dense_all_1x1);
     RUN_TEST(test_detect_supernodes_dense_with_2x2);

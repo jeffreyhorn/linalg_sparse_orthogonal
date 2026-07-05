@@ -1,0 +1,87 @@
+Sprint 106 Day 1 Authoritative Inputs
+======================================
+
+Primary project-plan scope
+--------------------------
+
+docs/planning/EPIC_10/PROJECT_PLAN.md
+  Section: Sprint 106: Large-Source & Giant-Test Maintainability Phase 7
+  Lines requested by task: 227-257
+
+Sprint 106 plan
+---------------
+
+docs/planning/EPIC_10/SPRINT_106/PLAN.md
+  Day 1: Sprint 106 Scope & Maintainability Baseline
+  Day 2: Extraction Target Re-rank
+  Day 3: LDLT/CSC Extraction Boundary
+  Day 4: LDLT/CSC Extraction Batch
+  Day 5: LDLT/CSC Test and Oracle Follow-Through
+  Day 6: LU/QR/Eigs/Iterative Extraction Boundary
+  Day 7: Secondary Source Extraction Batch 1
+  Day 8: Secondary Source Extraction Batch 2
+  Day 9: Giant-Test Fixture Boundary
+  Day 10: Direct and Graph Fixture Extraction
+  Day 11: Integration and Oracle Fixture Extraction
+  Day 12: Source-List and CMake Parity Reconciliation
+  Day 13: Maintainer Guidance and Metrics Update
+  Day 14: Validation and Sprint Closeout
+
+Sprint 100 hotspot and source-list inputs
+-----------------------------------------
+
+docs/planning/EPIC_10/SPRINT_100/artifacts/day4-source-test-maintainability-metrics.md
+  Establishes the Epic 10 maintainability baseline. It identifies
+  `tests/test_ldlt_csc.c` as the largest test owner, `src/sparse_ldlt_csc.c`
+  as the largest implementation owner, and source membership drift as a
+  standing risk because the manifest, Makefile, CMake, and checker must remain
+  synchronized.
+
+Sprint 102 direct-solver inputs
+-------------------------------
+
+docs/planning/EPIC_10/SPRINT_102/artifacts/day14-closeout-and-handoff.md
+  Records the direct-solver oracle baseline, shared external-reference parser,
+  LDLT CSC scaled-KKT lane, linked-list LU external-reference lanes, and
+  residual QR, SVD, LU CSR, and dispatch oracle work. Sprint 106 should reuse
+  existing helper direction and avoid weakening the fixture-named evidence
+  model.
+
+Sprint 103 comparison inputs
+----------------------------
+
+docs/planning/EPIC_10/SPRINT_103/artifacts/day14-closeout-and-handoff.md
+  Records bounded iterative, eigensolver, and SVD comparison evidence and
+  defers broader external parity. Sprint 106 source extraction in these
+  families must preserve evidence boundaries and test ownership.
+
+Sprint 104 runtime and build-scope inputs
+-----------------------------------------
+
+docs/planning/EPIC_10/SPRINT_104/artifacts/day14-closeout-and-handoff.md
+  Records backend/runtime claim boundaries, source and test validation
+  expectations, POSIX CMake registration discipline, and Windows reviewed
+  subset constraints. Sprint 106 must keep build and reviewed test surfaces
+  exact when extraction changes source or test membership.
+
+Sprint 105 reorder/graph inputs
+-------------------------------
+
+docs/planning/EPIC_10/SPRINT_105/artifacts/day14-closeout-and-handoff.md
+  Hands Sprint 106 graph/reorder residual cleanup candidates, guardrail
+  boundaries, and Make/CMake registration discipline. Remaining history-heavy
+  owners include `tests/test_graph.c`, `tests/test_reorder_nd.c`,
+  `src/sparse_graph.c`, and `src/sparse_reorder_nd.c`.
+
+docs/planning/EPIC_10/SPRINT_105/RETROSPECTIVE.md
+  Reinforces that graph/reorder ownership cleanup was intentionally narrow,
+  supplemental large-matrix evidence remains opt-in, and future work should
+  keep reviewed structural lanes, supplemental reports, local-only timing, and
+  non-claims visibly separated.
+
+Day 1 output files
+------------------
+
+docs/planning/EPIC_10/SPRINT_106/WORKING_NOTES.md
+docs/planning/EPIC_10/SPRINT_106/artifacts/day1-authoritative-inputs.txt
+docs/planning/EPIC_10/SPRINT_106/artifacts/day1-maintainability-baseline.md

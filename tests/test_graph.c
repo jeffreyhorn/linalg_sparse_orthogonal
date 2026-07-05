@@ -60,6 +60,12 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
+static sparse_err_t tf_graph_from_fixture(const SparseMatrix *A, sparse_graph_t *G) {
+    if (!A)
+        return SPARSE_ERR_ALLOC;
+    return sparse_graph_from_sparse(A, G);
+}
+
 /* ─── graph_from_sparse / graph_free round-trip ───────────────────── */
 
 static void test_graph_from_sparse_nos4_round_trip(void) {
@@ -204,7 +210,7 @@ static SparseMatrix *make_asymmetric_boundary_graph(void) {
 static void test_coarsen_5x5_grid_halves_in_one_step(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t coarse = {0};
     idx_t cmap[25] = {0};
@@ -248,7 +254,7 @@ static void test_coarsen_5x5_grid_halves_again_in_two_steps(void) {
      * n = 25, so we can't use it for this check). */
     SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t c1 = {0};
     idx_t cmap1[25] = {0};
@@ -296,7 +302,7 @@ static void test_hierarchy_build_5x5_grid(void) {
      * test; this test stays scoped to HEM. */
     SparseMatrix *A = tf_make_grid_2d(5, 5);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv failed)\n");
@@ -329,7 +335,7 @@ static void test_hierarchy_build_5x5_grid(void) {
 static void test_coarsen_1d_path_halves(void) {
     SparseMatrix *A = tf_make_path_1d(20);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t coarse = {0};
     idx_t cmap[20] = {0};
@@ -368,7 +374,7 @@ static void test_coarsen_prefers_heaviest_edge(void) {
     const idx_t k = 3;
     SparseMatrix *A = tf_make_two_cliques_with_bridge(k);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     overwrite_edge_weight(&G, 0, k, 10);
 
     int bridge_collapsed = 0;
@@ -419,7 +425,7 @@ static void test_hcc_match_selection_grid(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t hcc1 = {0}, hcc2 = {0}, hem = {0};
     idx_t cmap_hcc1[25] = {0}, cmap_hcc2[25] = {0}, cmap_hem[25] = {0};
@@ -494,7 +500,7 @@ static void test_hcc_match_selection_irregular(void) {
         sparse_insert(A, k, 0, -1.0);
     }
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t c1 = {0}, c2 = {0};
     idx_t cmap1[4] = {0}, cmap2[4] = {0};
@@ -544,7 +550,7 @@ static void test_coarsen_is_deterministic(void) {
      * recursion produces stable permutations. */
     SparseMatrix *A = tf_make_grid_2d(6, 6);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     sparse_graph_t c1 = {0};
     sparse_graph_t c2 = {0};
@@ -591,7 +597,7 @@ static void test_graph_subgraph_path_slice(void) {
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     sparse_graph_t parent = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &parent));
+    REQUIRE_OK(tf_graph_from_fixture(A, &parent));
     ASSERT_EQ(parent.n, 5);
 
     const idx_t keep[3] = {1, 2, 3};
@@ -634,7 +640,7 @@ static void test_partition_10x10_grid(void) {
     SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 100);
 
     idx_t part[100] = {0};
@@ -692,7 +698,7 @@ static void test_spectral_bisection_eigenvalue_ordering(void) {
     sparse_insert(A, 4, 4, 1.0);
 
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 5);
 
     /* Day 6 invariant: Laplacian builds; rows sum to zero. */
@@ -796,7 +802,7 @@ static void test_spectral_bisection_gggp_fallback(void) {
         sparse_insert(A, k, 0, -1.0);
     }
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[11] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
@@ -852,7 +858,7 @@ static void test_spectral_bisection_n1(void) {
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_insert(A, 0, 0, 1.0);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 1);
 
     idx_t part[1] = {99}; /* sentinel */
@@ -882,7 +888,7 @@ static void test_spectral_bisection_n2(void) {
     sparse_insert(A, 0, 1, -1.0);
     sparse_insert(A, 1, 0, -1.0);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 2);
 
     idx_t part[2] = {99, 99}; /* sentinels */
@@ -937,7 +943,7 @@ static void test_spectral_bisection_disconnected(void) {
     sparse_insert(A, 3, 5, -1.0);
     sparse_insert(A, 5, 3, -1.0);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 6);
 
     idx_t part[6] = {0};
@@ -1009,7 +1015,7 @@ static void test_spectral_bisection_lanczos_failure(void) {
     sparse_insert(A, 3, 3, 2.0);
     sparse_insert(A, 4, 4, 1.0);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[5] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
@@ -1035,7 +1041,7 @@ static void test_bisect_forced_gggp_small_graph(void) {
     SparseMatrix *A = tf_make_path_1d(8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 8);
 
     if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "gggp") != 0) {
@@ -1064,7 +1070,7 @@ static void test_bisect_forced_brute_large_graph_falls_back_to_gggp(void) {
     SparseMatrix *A = tf_make_path_1d(41);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 41);
 
     idx_t part_default[41] = {0};
@@ -1122,7 +1128,7 @@ static void test_fm_intermediate_passes_smoke(void) {
     SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 100);
 
     idx_t part[100] = {0};
@@ -1702,7 +1708,7 @@ static void test_partition_5x5x5_mesh(void) {
     SparseMatrix *A = tf_make_mesh_3d(5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 125);
 
     idx_t *part = calloc((size_t)G.n, sizeof(idx_t));
@@ -1740,7 +1746,7 @@ static void test_partition_two_k10_with_bridge(void) {
     SparseMatrix *A = tf_make_two_cliques_with_bridge(10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 20);
 
     idx_t part[20] = {0};
@@ -1778,7 +1784,7 @@ static void test_edge_to_vertex_separator_smaller_side(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[30] = {0};
     for (idx_t r = 0; r < 5; r++) {
@@ -1812,7 +1818,7 @@ static void test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boun
     int env_set = 0;
 
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[10] = {0, 0, 0, 0, 1, 1, 1, 1, 1, 1};
     if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "balanced_boundary") != 0) {
@@ -1856,7 +1862,7 @@ static void test_partition_singleton(void) {
     SparseMatrix *A = sparse_create(1, 1);
     ASSERT_NOT_NULL(A);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     idx_t part[1] = {99};
     idx_t sep = 99;
     REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
@@ -1898,7 +1904,7 @@ static void test_bisect_brute_force_path_n8(void) {
     SparseMatrix *A = tf_make_path_1d(8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[8] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
@@ -1943,7 +1949,7 @@ static void test_bisect_brute_force_two_triangles(void) {
     sparse_insert(A, 5, 4, 1.0);
 
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[6] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
@@ -1971,7 +1977,7 @@ static void test_bisect_gggp_5x6_grid(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 30);
 
     idx_t part[30] = {0};
@@ -2003,7 +2009,7 @@ static void test_fm_reduces_checkerboard_cut(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     ASSERT_EQ(G.n, 30);
 
     idx_t part[30] = {0};
@@ -2049,7 +2055,7 @@ static void test_fm_optimal_partition_no_regress(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[30] = {0};
     for (idx_t r = 0; r < 5; r++) {
@@ -2080,7 +2086,7 @@ static void test_bisect_then_fm_5x6_grid(void) {
     SparseMatrix *A = tf_make_grid_2d(5, 6);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[30] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
@@ -2102,7 +2108,7 @@ static void test_bisect_singleton(void) {
     SparseMatrix *A = sparse_create(1, 1);
     ASSERT_NOT_NULL(A);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     idx_t part[1] = {7}; /* sentinel — must be overwritten */
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
     ASSERT_EQ(part[0], 0);
@@ -2119,7 +2125,7 @@ static void test_bisect_n41_uses_gggp(void) {
     SparseMatrix *A = tf_make_path_1d(41);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     idx_t part[41] = {0};
     REQUIRE_OK(graph_bisect_coarsest(&G, part));
     /* Both sides non-empty; cut is small (single-cut path). */
@@ -2204,7 +2210,7 @@ static void test_partition_n1_singleton(void) {
     SparseMatrix *A = sparse_create(1, 1);
     ASSERT_NOT_NULL(A);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[1] = {99};
     idx_t sep = 99;
@@ -2229,7 +2235,7 @@ static void test_partition_n2_one_edge(void) {
     SparseMatrix *A = tf_make_path_1d(2);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[2] = {99, 99};
     idx_t sep = 99;
@@ -2248,7 +2254,7 @@ static void test_partition_empty_graph_n10(void) {
     SparseMatrix *A = make_empty_graph(10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[10] = {0};
     idx_t sep = 0;
@@ -2277,7 +2283,7 @@ static void test_partition_complete_k20(void) {
     SparseMatrix *A = make_complete_graph(20);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[20] = {0};
     idx_t sep = 0;
@@ -2303,7 +2309,7 @@ static void test_partition_bipartite_k_10_10(void) {
     SparseMatrix *A = make_bipartite_complete(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part[20] = {0};
     idx_t sep = 0;
@@ -2327,7 +2333,7 @@ static void test_partition_determinism_10x10_grid(void) {
     SparseMatrix *A = tf_make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part1[100] = {0};
     idx_t part2[100] = {0};
@@ -2350,7 +2356,7 @@ static void test_partition_determinism_two_cliques(void) {
     SparseMatrix *A = tf_make_two_cliques_with_bridge(10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
 
     idx_t part1[20] = {0};
     idx_t part2[20] = {0};
@@ -2382,7 +2388,7 @@ static void run_suitesparse_partition_smoke(const char *path, idx_t expected_n) 
     }
 
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    REQUIRE_OK(tf_graph_from_fixture(A, &G));
     if (expected_n > 0)
         ASSERT_EQ(G.n, expected_n);
 

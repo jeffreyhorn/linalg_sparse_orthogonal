@@ -2287,8 +2287,6 @@ static void test_svd_full_u_v_orthonormality(void) {
     const idx_t m = 16, n_cols = 8;
     SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    if (!A)
-        return;
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
     sparse_svd_t svd;
@@ -2366,8 +2364,6 @@ static void test_svd_full_u_v_economy_mode_unchanged(void) {
     const idx_t m = 16, n_cols = 8;
     SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    if (!A)
-        return;
 
     sparse_svd_opts_t econ_opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t econ;
@@ -2443,8 +2439,6 @@ static void test_svd_full_u_v_reconstruction(void) {
     const idx_t m = 16, n_cols = 8;
     SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    if (!A)
-        return;
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
     sparse_svd_t svd;

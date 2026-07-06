@@ -1,4 +1,4 @@
-# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-110 (Epic 10)
+# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-111 (Epic 10)
 
 Epic 10 turns the post-Epic-9 library into a more product-grade sparse linear
 algebra system. The goal is not to declare the project state of the art by
@@ -296,7 +296,47 @@ public API or install-header expansion.
 
 ---
 
-## Sprint 108: API Usability, Documentation & Example Coherence
+## Sprint 108: Residual Proof-Owner & Source Boundary Follow-Through
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Convert Sprint 107's residual deferred debt into bounded follow-through
+work for remaining proof-owner cleanup and source-owner boundary planning without
+duplicating completed Sprint 107 helper extractions or changing public support
+surfaces opportunistically.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 107 residual-debt retrospective and boundary artifacts complete
+- QR, iterative, SVD, and LDLT CSC helper extractions from Sprint 107 merged
+- `src/sparse_eigs.c` and `src/sparse_matrix.c` deferral contracts available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Proof-Owner Boundary Refresh | Re-rank the remaining large proof owners after Sprint 107, explicitly excluding already-completed row-adjacency, QR small-fixture, iterative matrix-free, and SVD diagonal/rank-1 cleanup. | 14 |
+| 2 | LDLT CSC Oracle Helper Follow-Through | Extract at most one additional named assertion, residual, or oracle helper from `tests/test_ldlt_csc.c`, keeping direct-solver proof intent and failure localization visible. | 24 |
+| 3 | QR Fixture Follow-Through | Extract only safe generated-fixture, tall/economy, diagonal/singleton, or SuiteSparse exact-RHS setup from `tests/test_qr.c` after preserving visible solve, rank, reconstruction, and refinement assertions. | 26 |
+| 4 | Iterative Convergence Boundary Cleanup | Perform one bounded `tests/test_iterative.c` cleanup pass that preserves solver options, restart values, preconditioner setup, convergence results, and direct comparisons at call sites. | 24 |
+| 5 | SVD Oracle and Reconstruction Boundary Cleanup | Create a dedicated validation lane for remaining `tests/test_svd.c` rank, oracle, reconstruction, pseudoinverse, low-rank, partial-SVD, and condition-number proof logic, then extract only one safe helper family. | 28 |
+| 6 | Eigensolver Source Feasibility Plan | Prepare a source-list, Make/CMake, and cross-backend validation plan for a future `src/sparse_eigs.c` extraction, focused on dense Jacobi feasibility or grow-m refinement boundaries without landing the split unless the plan proves low risk. | 22 |
+| 7 | Matrix Shell Public-Behavior Review | Review `src/sparse_matrix.c` public behavior, private-header dependencies, allocation/state ownership, and compatibility constraints so any future shell extraction has explicit prerequisites. | 18 |
+| 8 | Validation and Closeout | Run required checks, verify no public API/install-header or reviewed test-count drift, update maintainability metrics, and close Sprint 108. | 12 |
+
+### Deliverables
+
+- refreshed residual proof-owner boundary artifact
+- one bounded additional LDLT CSC proof helper if the boundary remains low risk
+- focused QR, iterative, and SVD residual cleanup artifacts and changes
+- eigensolver source extraction feasibility plan
+- matrix shell public-behavior and private-header dependency review
+- validation and maintainability closeout
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 109: API Usability, Documentation & Example Coherence
 
 **Duration:** 14 days (~166 hours)
 **Goal:** Make the project easier to adopt by giving users a concise
@@ -307,7 +347,7 @@ actual product contracts.
 
 - Sprint 101 compressed-first workflow stable
 - Sprint 102-105 solver and benchmark evidence available
-- Sprint 107 residual maintainability cleanup complete enough that docs do not describe unstable proof-owner layouts
+- Sprint 108 residual maintainability cleanup complete enough that docs do not describe unstable proof-owner layouts
 
 ### Items
 
@@ -319,7 +359,7 @@ actual product contracts.
 | 4 | Error and Ownership Docs | Tighten public header and guide wording for ownership, zero/default options, errors, and runtime behavior. | 24 |
 | 5 | Benchmark Interpretation Docs | Make local benchmark and comparison artifact interpretation clear without overclaiming portability. | 18 |
 | 6 | Maintainer/User Split Cleanup | Move maintainer-only proof language away from adoption surfaces where practical. | 22 |
-| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 108. | 26 |
+| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 109. | 26 |
 
 ### Deliverables
 
@@ -332,7 +372,7 @@ actual product contracts.
 
 ---
 
-## Sprint 109: Packaging, ABI & Cross-Platform Validation Expansion
+## Sprint 110: Packaging, ABI & Cross-Platform Validation Expansion
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen packaging and platform support truth, including an
@@ -341,7 +381,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 ### Prerequisites from Previous Sprints
 
 - Sprint 100 platform and package evidence template complete
-- Sprint 108 user-facing docs ready to describe support tiers accurately
+- Sprint 109 user-facing docs ready to describe support tiers accurately
 
 ### Items
 
@@ -353,7 +393,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 | 4 | Platform Tier Contract | Define Linux, macOS, and Windows support tiers, reviewed checks, exclusions, and non-claims. | 24 |
 | 5 | Windows/macOS Follow-Through | Move any practical Windows or macOS exclusions into reviewed parity, or document why they remain staged. | 28 |
 | 6 | Packaging Docs | Update install, README, CMake, pkg-config, and maintainer docs to match final package/platform truth. | 18 |
-| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 109. | 22 |
+| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 110. | 22 |
 
 ### Deliverables
 
@@ -366,7 +406,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 
 ---
 
-## Sprint 110: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 111: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -375,7 +415,7 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-109 complete
+- Sprints 100-110 complete
 - final comparison, benchmark, package, platform, and maintainability artifacts available
 
 ### Items
@@ -387,7 +427,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 110 Retrospective | Create Sprint 110 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 111 Retrospective | Create Sprint 111 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -395,7 +435,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 110 retrospective
+- Sprint 111 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -414,7 +454,8 @@ truthful earned claims and residuals.
 | 105 | Reordering, Graph & Large-Matrix Scalability | 168 |
 | 106 | Large-Source & Giant-Test Maintainability Phase 7 | 168 |
 | 107 | Residual Maintainability Debt & Proof-Owner Cleanup | 168 |
-| 108 | API Usability, Documentation & Example Coherence | 166 |
-| 109 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
-| 110 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **1,840** |
+| 108 | Residual Proof-Owner & Source Boundary Follow-Through | 168 |
+| 109 | API Usability, Documentation & Example Coherence | 166 |
+| 110 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
+| 111 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,008** |

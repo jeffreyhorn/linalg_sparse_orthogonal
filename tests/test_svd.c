@@ -115,6 +115,23 @@ static SparseMatrix *make_svd_rank1_row_progression(idx_t rows, idx_t cols) {
     return A;
 }
 
+static SparseMatrix *make_svd_full_uv_fixture_16x8(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    if (!A)
+        return NULL;
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            if (!svd_insert_or_free(&A, i, j, v))
+                return NULL;
+        }
+    }
+    return A;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Golub-Kahan extraction tests (Sprint 8 Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2268,17 +2285,8 @@ static void test_sparse_svd_lowrank_outer_product_corpus_safety(void) {
  * RNG — the test is reproducible across platforms). */
 static void test_svd_full_u_v_orthonormality(void) {
     const idx_t m = 16, n_cols = 8;
-    SparseMatrix *A = sparse_create(m, n_cols);
+    SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-
-    /* Deterministic dense fill — varied magnitudes / signs to give all
-     * 8 singular values nonzero spread. */
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < n_cols; j++) {
-            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
-                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
-            sparse_insert(A, i, j, v);
-        }
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
     sparse_svd_t svd;
@@ -2354,16 +2362,8 @@ static void test_svd_full_u_v_orthonormality(void) {
  * same input produces the same permutation either way. */
 static void test_svd_full_u_v_economy_mode_unchanged(void) {
     const idx_t m = 16, n_cols = 8;
-    SparseMatrix *A = sparse_create(m, n_cols);
+    SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-
-    /* Same deterministic dense fill as the full-mode tests. */
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < n_cols; j++) {
-            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
-                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
-            sparse_insert(A, i, j, v);
-        }
 
     sparse_svd_opts_t econ_opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t econ;
@@ -2437,15 +2437,8 @@ static void test_svd_full_u_v_economy_mode_unchanged(void) {
  * Same 16×8 fixture as `test_svd_full_u_v_orthonormality`. */
 static void test_svd_full_u_v_reconstruction(void) {
     const idx_t m = 16, n_cols = 8;
-    SparseMatrix *A = sparse_create(m, n_cols);
+    SparseMatrix *A = make_svd_full_uv_fixture_16x8();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < n_cols; j++) {
-            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
-                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
-            sparse_insert(A, i, j, v);
-        }
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
     sparse_svd_t svd;

@@ -336,7 +336,49 @@ surfaces opportunistically.
 
 ---
 
-## Sprint 109: API Usability, Documentation & Example Coherence
+## Sprint 109: Residual Source Boundary & Proof-Owner Debt Closeout
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Convert Sprint 108's residual deferred debt into one bounded
+implementation/source-boundary pass without duplicating completed Sprint 108
+helpers, broadening public support surfaces, or hiding proof logic in the
+remaining giant tests.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 108 retrospective and residual-debt closeout artifacts complete
+- Sprint 108 LDLT CSC, QR, iterative, and SVD helper follow-through merged
+- Sprint 108 eigensolver feasibility and matrix-shell public-behavior reviews
+  available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Debt Intake and Dependency Ordering | Re-read Sprint 108 residual debt, explicitly exclude completed Sprint 108 helpers, and order eigensolver, matrix-shell, and giant-test work so no later item is required by an earlier one. | 12 |
+| 2 | Eigensolver Dense Jacobi Source Boundary | Revalidate the `s21_dense_sym_jacobi` split candidate, define the private source owner, Make/CMake/manifest updates, and focused `test_eigs`, `test_eigs_thick_restart`, `test_eigs_lobpcg`, and `test_sprint29_integration` gates before code moves. | 20 |
+| 3 | Eigensolver Dense Jacobi Extraction | If Item 2 proves low risk, move only `s21_dense_sym_jacobi` into a private dense spectral helper source with source-list parity and no public header or CTest registration drift; otherwise publish a no-split deferral artifact. | 28 |
+| 4 | Eigensolver Behavior-Sensitive Boundary Audit | Audit grow-m refinement, dispatch/defaults, handle/workspace glue, shift-invert, and shared Lanczos kernels, adding behavior evidence and explicit no-go conditions before any future movement. | 24 |
+| 5 | Matrix Shell Candidate Boundary Contract | Choose one future `src/sparse_matrix.c` public-behavior owner, document private-header dependencies, source-list requirements, focused public behavior tests, and solver-smoke gates without moving matrix-shell code unless the boundary is independently low risk. | 24 |
+| 6 | Giant-Test Proof-Owner Cleanup Pass | Perform one additional bounded helper-family cleanup across `tests/test_ldlt_csc.c`, `tests/test_qr.c`, `tests/test_iterative.c`, or `tests/test_svd.c`, preserving proof assertions and avoiding new compiled helper targets. | 32 |
+| 7 | Validation, Metrics, and Residual Closeout | Run required checks for touched files, verify no public API/install-header/source-list/helper-target/CTest drift, capture maintainability metrics, and publish residuals for the shifted downstream sprints. | 28 |
+
+### Deliverables
+
+- Sprint 108 residual-debt intake and dependency-ordering artifact
+- eigensolver dense Jacobi source-boundary artifact and optional private helper
+  extraction
+- eigensolver grow-m/refinement/dispatch/handle/shared-kernel audit artifact
+- matrix-shell public-behavior source-boundary contract
+- one bounded giant-test proof-owner cleanup pass if the boundary remains low
+  risk
+- validation, metrics, and residual closeout
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 110: API Usability, Documentation & Example Coherence
 
 **Duration:** 14 days (~166 hours)
 **Goal:** Make the project easier to adopt by giving users a concise
@@ -347,7 +389,8 @@ actual product contracts.
 
 - Sprint 101 compressed-first workflow stable
 - Sprint 102-105 solver and benchmark evidence available
-- Sprint 108 residual maintainability cleanup complete enough that docs do not describe unstable proof-owner layouts
+- Sprint 109 residual source-boundary and proof-owner cleanup complete enough
+  that docs do not describe unstable proof-owner layouts
 
 ### Items
 
@@ -359,7 +402,7 @@ actual product contracts.
 | 4 | Error and Ownership Docs | Tighten public header and guide wording for ownership, zero/default options, errors, and runtime behavior. | 24 |
 | 5 | Benchmark Interpretation Docs | Make local benchmark and comparison artifact interpretation clear without overclaiming portability. | 18 |
 | 6 | Maintainer/User Split Cleanup | Move maintainer-only proof language away from adoption surfaces where practical. | 22 |
-| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 109. | 26 |
+| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 110. | 26 |
 
 ### Deliverables
 
@@ -372,7 +415,7 @@ actual product contracts.
 
 ---
 
-## Sprint 110: Packaging, ABI & Cross-Platform Validation Expansion
+## Sprint 111: Packaging, ABI & Cross-Platform Validation Expansion
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen packaging and platform support truth, including an
@@ -381,7 +424,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 ### Prerequisites from Previous Sprints
 
 - Sprint 100 platform and package evidence template complete
-- Sprint 109 user-facing docs ready to describe support tiers accurately
+- Sprint 110 user-facing docs ready to describe support tiers accurately
 
 ### Items
 
@@ -393,7 +436,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 | 4 | Platform Tier Contract | Define Linux, macOS, and Windows support tiers, reviewed checks, exclusions, and non-claims. | 24 |
 | 5 | Windows/macOS Follow-Through | Move any practical Windows or macOS exclusions into reviewed parity, or document why they remain staged. | 28 |
 | 6 | Packaging Docs | Update install, README, CMake, pkg-config, and maintainer docs to match final package/platform truth. | 18 |
-| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 110. | 22 |
+| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 111. | 22 |
 
 ### Deliverables
 
@@ -406,7 +449,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 
 ---
 
-## Sprint 111: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 112: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -415,7 +458,7 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-110 complete
+- Sprints 100-111 complete
 - final comparison, benchmark, package, platform, and maintainability artifacts available
 
 ### Items
@@ -427,7 +470,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 111 Retrospective | Create Sprint 111 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 112 Retrospective | Create Sprint 112 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -435,7 +478,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 111 retrospective
+- Sprint 112 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -455,7 +498,8 @@ truthful earned claims and residuals.
 | 106 | Large-Source & Giant-Test Maintainability Phase 7 | 168 |
 | 107 | Residual Maintainability Debt & Proof-Owner Cleanup | 168 |
 | 108 | Residual Proof-Owner & Source Boundary Follow-Through | 168 |
-| 109 | API Usability, Documentation & Example Coherence | 166 |
-| 110 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
-| 111 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,008** |
+| 109 | Residual Source Boundary & Proof-Owner Debt Closeout | 168 |
+| 110 | API Usability, Documentation & Example Coherence | 166 |
+| 111 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
+| 112 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,176** |

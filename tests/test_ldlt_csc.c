@@ -1506,8 +1506,8 @@ static double s20_solve_residual(LdltCsc *F, const SparseMatrix *A_ref) {
 static void assert_s20_solve_residual_below(const char *label, LdltCsc *F,
                                             const SparseMatrix *A_ref, double tol) {
     double residual = s20_solve_residual(F, A_ref);
-    if (residual >= tol) {
-        TF_FAIL_("%s solve residual %.15g >= tol %.15g", label, residual, tol);
+    if (!isfinite(residual) || !(residual < tol)) {
+        TF_FAIL_("%s solve residual %.15g is not finite or below tol %.15g", label, residual, tol);
     }
     tf_asserts++;
 }

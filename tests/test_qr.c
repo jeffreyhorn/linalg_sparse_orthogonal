@@ -23,6 +23,32 @@ static double assert_qr_true_residual_below(const char *label, const SparseMatri
                                             const double *b, const double *x, idx_t m,
                                             double reported_residual, double tol);
 
+static int make_qr_exact_rhs(const SparseMatrix *A, idx_t x_len, idx_t b_len, double **x_exact_out,
+                             double **b_out) {
+    if (!x_exact_out || !b_out)
+        return 0;
+    *x_exact_out = NULL;
+    *b_out = NULL;
+
+    double *x_exact = malloc((size_t)x_len * sizeof(double));
+    double *b = malloc((size_t)b_len * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        return 0;
+    }
+
+    for (idx_t i = 0; i < x_len; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    *x_exact_out = x_exact;
+    *b_out = b;
+    return 1;
+}
+
 static int qr_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
     sparse_err_t err = sparse_insert(*A, row, col, value);
     ASSERT_ERR(err, SPARSE_OK);
@@ -1263,19 +1289,12 @@ static void test_qr_solve_nos4(void) {
         return;
     idx_t n = sparse_rows(A);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
-    if (!x_exact || !b) {
-        free(x_exact);
-        free(b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     /* QR solve */
     sparse_qr_t qr;
@@ -1373,13 +1392,11 @@ static void test_qr_bcsstk04(void) {
     assert_qr_reconstruction_below("bcsstk04 reconstruction", A, &qr, 1e-6);
 
     /* Solve */
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
-    if (!x_exact || !b || !x) {
+    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b) || !x) {
         free(x_exact);
         free(b);
         free(x);
@@ -1387,9 +1404,6 @@ static void test_qr_bcsstk04(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
@@ -1424,13 +1438,11 @@ static void test_qr_west0067(void) {
     printf("    west0067: rank=%d\n", (int)qr.rank);
 
     /* Solve */
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
-    if (!x_exact || !b || !x) {
+    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b) || !x) {
         free(x_exact);
         free(b);
         free(x);
@@ -1438,9 +1450,6 @@ static void test_qr_west0067(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
@@ -1462,19 +1471,12 @@ static void test_qr_vs_lu(void) {
         return;
     idx_t n = sparse_rows(A);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
-    if (!x_exact || !b) {
-        free(x_exact);
-        free(b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     /* QR solve */
     sparse_qr_t qr;
@@ -1559,13 +1561,11 @@ static void test_qr_tall_synthetic(void) {
     assert_qr_reconstruction_below("50x20 reconstruction", A, &qr, 1e-10);
 
     /* Least-squares: construct b = A * x_exact + noise */
-    double *x_exact = malloc((size_t)nc * sizeof(double));
-    double *b = malloc((size_t)m * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = malloc((size_t)nc * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
-    if (!x_exact || !b || !x) {
+    if (!make_qr_exact_rhs(A, nc, m, &x_exact, &b) || !x) {
         free(x_exact);
         free(b);
         free(x);
@@ -1573,9 +1573,6 @@ static void test_qr_tall_synthetic(void) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < nc; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
@@ -1897,15 +1894,9 @@ static void test_qr_reorder_nos4_fillin(void) {
            nnz_none > 0 ? (double)nnz_amd / (double)nnz_none : 0.0);
 
     /* Both should produce correct solutions */
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
-    if (x_exact && b) {
-        for (idx_t i = 0; i < n; i++)
-            x_exact[i] = (double)(i + 1);
-        sparse_matvec(A, x_exact, b);
-
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
         double *x = malloc((size_t)n * sizeof(double));
         ASSERT_NOT_NULL(x);
         if (x) {
@@ -2994,19 +2985,12 @@ static void test_qr_refine_nos4(void) {
         return;
     idx_t n = sparse_rows(A);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
-    if (!x_exact || !b) {
-        free(x_exact);
-        free(b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
         sparse_free(A);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);

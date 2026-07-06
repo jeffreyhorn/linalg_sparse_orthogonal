@@ -94,6 +94,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_ldlt_csc_rowadj.c \
            $(SRCDIR)/sparse_ldlt_csc_supernodal.c \
            $(SRCDIR)/sparse_eigs_workspace_internal.c \
+           $(SRCDIR)/sparse_eigs_dense_internal.c \
            $(SRCDIR)/sparse_eigs_lobpcg.c \
            $(SRCDIR)/sparse_eigs_thick_restart.c \
            $(SRCDIR)/sparse_eigs.c \

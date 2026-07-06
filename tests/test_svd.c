@@ -76,6 +76,17 @@ static double gk_reconstruction_error(const SparseMatrix *A, const double *U, co
     return maxerr;
 }
 
+static int svd_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    sparse_err_t err = sparse_insert(*A, row, col, value);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
 static SparseMatrix *make_svd_diag_matrix(idx_t rows, idx_t cols, const double *diag,
                                           idx_t diag_len) {
     SparseMatrix *A = sparse_create(rows, cols);
@@ -86,8 +97,8 @@ static SparseMatrix *make_svd_diag_matrix(idx_t rows, idx_t cols, const double *
     if (diag_len < limit)
         limit = diag_len;
     for (idx_t i = 0; i < limit; i++) {
-        if (diag[i] != 0.0)
-            sparse_insert(A, i, i, diag[i]);
+        if (diag[i] != 0.0 && !svd_insert_or_free(&A, i, i, diag[i]))
+            return NULL;
     }
     return A;
 }
@@ -99,7 +110,8 @@ static SparseMatrix *make_svd_rank1_row_progression(idx_t rows, idx_t cols) {
 
     for (idx_t i = 0; i < rows; i++)
         for (idx_t j = 0; j < cols; j++)
-            sparse_insert(A, i, j, (double)(i + 1));
+            if (!svd_insert_or_free(&A, i, j, (double)(i + 1)))
+                return NULL;
     return A;
 }
 

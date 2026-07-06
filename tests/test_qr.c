@@ -23,19 +23,28 @@ static double assert_qr_true_residual_below(const char *label, const SparseMatri
                                             const double *b, const double *x, idx_t m,
                                             double reported_residual, double tol);
 
+static int qr_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    sparse_err_t err = sparse_insert(*A, row, col, value);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
 static SparseMatrix *make_qr_small_banded_4x3(int include_tail) {
     SparseMatrix *A = sparse_create(4, 3);
     if (!A)
         return NULL;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
-    sparse_insert(A, 1, 1, 3.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 2, 4.0);
-    sparse_insert(A, 3, 0, 1.0);
-    if (include_tail)
-        sparse_insert(A, 3, 2, 2.0);
+    if (!qr_insert_or_free(&A, 0, 0, 2.0) || !qr_insert_or_free(&A, 0, 1, 1.0) ||
+        !qr_insert_or_free(&A, 1, 0, 1.0) || !qr_insert_or_free(&A, 1, 1, 3.0) ||
+        !qr_insert_or_free(&A, 1, 2, 1.0) || !qr_insert_or_free(&A, 2, 2, 4.0) ||
+        !qr_insert_or_free(&A, 3, 0, 1.0))
+        return NULL;
+    if (include_tail && !qr_insert_or_free(&A, 3, 2, 2.0))
+        return NULL;
     return A;
 }
 
@@ -43,18 +52,15 @@ static SparseMatrix *make_qr_duplicate_column_4x3(double duplicate_scale) {
     SparseMatrix *A = sparse_create(4, 3);
     if (!A)
         return NULL;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-    sparse_insert(A, 0, 2, duplicate_scale);
-    sparse_insert(A, 1, 2, duplicate_scale * 2.0);
-    sparse_insert(A, 2, 2, duplicate_scale * 3.0);
-    sparse_insert(A, 3, 2, duplicate_scale * 4.0);
+    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
+        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
+        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
+        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
+        !qr_insert_or_free(&A, 0, 2, duplicate_scale) ||
+        !qr_insert_or_free(&A, 1, 2, duplicate_scale * 2.0) ||
+        !qr_insert_or_free(&A, 2, 2, duplicate_scale * 3.0) ||
+        !qr_insert_or_free(&A, 3, 2, duplicate_scale * 4.0))
+        return NULL;
     return A;
 }
 
@@ -62,18 +68,15 @@ static SparseMatrix *make_qr_near_duplicate_4x3(double perturbation) {
     SparseMatrix *A = sparse_create(4, 3);
     if (!A)
         return NULL;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-    sparse_insert(A, 0, 2, 1.0 + perturbation);
-    sparse_insert(A, 1, 2, 2.0 + perturbation);
-    sparse_insert(A, 2, 2, 3.0 + perturbation);
-    sparse_insert(A, 3, 2, 4.0 + perturbation);
+    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
+        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
+        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
+        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
+        !qr_insert_or_free(&A, 0, 2, 1.0 + perturbation) ||
+        !qr_insert_or_free(&A, 1, 2, 2.0 + perturbation) ||
+        !qr_insert_or_free(&A, 2, 2, 3.0 + perturbation) ||
+        !qr_insert_or_free(&A, 3, 2, 4.0 + perturbation))
+        return NULL;
     return A;
 }
 

@@ -1,4 +1,4 @@
-# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-111 (Epic 10)
+# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-113 (Epic 10)
 
 Epic 10 turns the post-Epic-9 library into a more product-grade sparse linear
 algebra system. The goal is not to declare the project state of the art by
@@ -47,7 +47,7 @@ govern implementation work across Epic 10.
 - post-Epic-9 baseline artifact
 - Epic 10 state-of-the-art target and non-goal fence
 - evidence templates for comparisons, benchmarks, packaging, and platform tiers
-- claim map for Sprints 101-109
+- claim map for Sprints 101-113
 
 **Total estimate:** ~166 hours
 
@@ -378,7 +378,49 @@ remaining giant tests.
 
 ---
 
-## Sprint 110: API Usability, Documentation & Example Coherence
+## Sprint 110: Residual Matrix I/O, Behavior Owners & Proof-Owner Follow-Through
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Convert Sprint 109 residual deferred debt into dependency-ordered
+implementation and proof-owner follow-through without duplicating dense Jacobi
+extraction, Matrix Market owner selection, QR exact-RHS cleanup, or completed
+validation/drift work.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 109 retrospective and residual-debt closeout artifacts complete
+- dense Jacobi extraction merged with source-list parity and focused validation
+- Sprint 109 eigensolver behavior-sensitive no-go conditions available
+- Sprint 109 Matrix Market future-owner contract available
+- Sprint 109 QR exact-RHS cleanup merged and excluded from duplicate work
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Intake and Duplicate-Work Fence | Re-read Sprint 109 residual deferred debt, explicitly exclude dense Jacobi extraction, Matrix Market owner selection, QR exact-RHS cleanup, and validation closeout, then order matrix, eigensolver, and proof-owner follow-through so prerequisites come first. | 14 |
+| 2 | Matrix Builder Ownership Decision | Decide whether `SparseBuildEntry` and `sparse_matrix_build_from_entries` become a private builder source or remain in the central matrix shell, documenting public behavior, copy/transpose, load, and private-header implications before any Matrix Market movement. | 24 |
+| 3 | Matrix Market Source Split Follow-Through | If Item 2 proves a low-risk private builder path, move Matrix Market load/save behavior toward `src/sparse_matrix_io.c` with Make/CMake/manifest parity, focused matrix tests, and solver-smoke fixture lanes; otherwise publish a no-split deferral artifact. | 32 |
+| 4 | Behavior-Sensitive Eigensolver Owner Validation | Select at most one eigensolver behavior owner beyond dense Jacobi, such as defaults, dispatch, workspace, refinement, or shift-invert, and either validate a narrow private movement or publish a no-move contract with direct tests and no public-header drift. | 30 |
+| 5 | Direct and Iterative Proof-Owner Cleanup Batch | Perform one bounded QR sequential RHS, LDLT CSC oracle, or per-solver iterative exact-RHS cleanup family while preserving least-squares, refinement, oracle, convergence, and residual proof values at call sites. | 28 |
+| 6 | SVD Proof-Loop Boundary Cleanup | Review SVD storage-layout, stride, rank, orthogonality, and reconstruction proof loops, then extract only one safe setup helper family or explicitly defer if proof visibility would be weakened. | 20 |
+| 7 | Validation, Metrics, and Residual Handoff | Run required checks for touched code, test, build, and docs surfaces; verify no public API, install-header, helper-target, or reviewed CTest drift; update metrics and publish downstream residuals. | 20 |
+
+### Deliverables
+
+- Sprint 109 residual-debt intake and duplicate-work exclusion artifact
+- matrix builder ownership decision and optional Matrix Market source split
+- focused matrix and solver-smoke validation for any Matrix Market movement
+- behavior-sensitive eigensolver owner validation or no-move contract
+- one bounded proof-owner cleanup batch across QR, LDLT CSC, or iterative tests
+- SVD proof-loop boundary artifact and optional cleanup
+- validation, metrics, and downstream residual handoff
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 111: API Usability, Documentation & Example Coherence
 
 **Duration:** 14 days (~166 hours)
 **Goal:** Make the project easier to adopt by giving users a concise
@@ -389,8 +431,8 @@ actual product contracts.
 
 - Sprint 101 compressed-first workflow stable
 - Sprint 102-105 solver and benchmark evidence available
-- Sprint 109 residual source-boundary and proof-owner cleanup complete enough
-  that docs do not describe unstable proof-owner layouts
+- Sprint 110 residual matrix I/O, eigensolver behavior-owner, and proof-owner
+  follow-through complete enough that docs do not describe unstable layouts
 
 ### Items
 
@@ -402,7 +444,7 @@ actual product contracts.
 | 4 | Error and Ownership Docs | Tighten public header and guide wording for ownership, zero/default options, errors, and runtime behavior. | 24 |
 | 5 | Benchmark Interpretation Docs | Make local benchmark and comparison artifact interpretation clear without overclaiming portability. | 18 |
 | 6 | Maintainer/User Split Cleanup | Move maintainer-only proof language away from adoption surfaces where practical. | 22 |
-| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 110. | 26 |
+| 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 111. | 26 |
 
 ### Deliverables
 
@@ -415,7 +457,7 @@ actual product contracts.
 
 ---
 
-## Sprint 111: Packaging, ABI & Cross-Platform Validation Expansion
+## Sprint 112: Packaging, ABI & Cross-Platform Validation Expansion
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen packaging and platform support truth, including an
@@ -424,7 +466,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 ### Prerequisites from Previous Sprints
 
 - Sprint 100 platform and package evidence template complete
-- Sprint 110 user-facing docs ready to describe support tiers accurately
+- Sprint 111 user-facing docs ready to describe support tiers accurately
 
 ### Items
 
@@ -436,7 +478,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 | 4 | Platform Tier Contract | Define Linux, macOS, and Windows support tiers, reviewed checks, exclusions, and non-claims. | 24 |
 | 5 | Windows/macOS Follow-Through | Move any practical Windows or macOS exclusions into reviewed parity, or document why they remain staged. | 28 |
 | 6 | Packaging Docs | Update install, README, CMake, pkg-config, and maintainer docs to match final package/platform truth. | 18 |
-| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 111. | 22 |
+| 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 112. | 22 |
 
 ### Deliverables
 
@@ -449,7 +491,7 @@ explicit decision on static-first versus shared-library/ABI proof.
 
 ---
 
-## Sprint 112: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 113: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -458,7 +500,7 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-111 complete
+- Sprints 100-112 complete
 - final comparison, benchmark, package, platform, and maintainability artifacts available
 
 ### Items
@@ -470,7 +512,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 112 Retrospective | Create Sprint 112 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 113 Retrospective | Create Sprint 113 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -478,7 +520,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 112 retrospective
+- Sprint 113 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -499,7 +541,8 @@ truthful earned claims and residuals.
 | 107 | Residual Maintainability Debt & Proof-Owner Cleanup | 168 |
 | 108 | Residual Proof-Owner & Source Boundary Follow-Through | 168 |
 | 109 | Residual Source Boundary & Proof-Owner Debt Closeout | 168 |
-| 110 | API Usability, Documentation & Example Coherence | 166 |
-| 111 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
-| 112 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,176** |
+| 110 | Residual Matrix I/O, Behavior Owners & Proof-Owner Follow-Through | 168 |
+| 111 | API Usability, Documentation & Example Coherence | 166 |
+| 112 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
+| 113 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,344** |

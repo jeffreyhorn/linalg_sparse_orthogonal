@@ -2308,6 +2308,8 @@ static void assert_row_adj_matches_l_pattern(const LdltCsc *F, idx_t row) {
     for (idx_t e = 0; e < F->row_adj_count[row]; e++) {
         idx_t c = F->row_adj[row][e];
         ASSERT_TRUE(c >= 0 && c < row);
+        for (idx_t prev = 0; prev < e; prev++)
+            ASSERT_TRUE(F->row_adj[row][prev] != c);
         int found = 0;
         idx_t cs = F->L->col_ptr[c];
         idx_t ce = F->L->col_ptr[c + 1];

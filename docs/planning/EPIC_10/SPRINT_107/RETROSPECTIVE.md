@@ -80,11 +80,6 @@
    have crossed comparison-critical or public compatibility behavior. The
    correct outcome was deferral, but it means the source-owner debt remains.
 
-4. **No implementation source extraction landed.**
-   The sprint deliberately documented source-owner deferrals instead of moving
-   code whose behavior was still tied to comparison evidence or public
-   compatibility contracts.
-
 ## Final Metrics
 
 ### Validation

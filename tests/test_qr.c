@@ -23,15 +23,49 @@ static double assert_qr_true_residual_below(const char *label, const SparseMatri
                                             const double *b, const double *x, idx_t m,
                                             double reported_residual, double tol);
 
+static int qr_idx_count_bytes(idx_t count, size_t elem_size, size_t *bytes) {
+    if (!bytes || count < 0 || elem_size == 0)
+        return 0;
+    if ((uintmax_t)count > (uintmax_t)SIZE_MAX)
+        return 0;
+
+    size_t count_size = (size_t)count;
+    if (count_size > SIZE_MAX / elem_size)
+        return 0;
+
+    *bytes = count_size * elem_size;
+    return 1;
+}
+
 static int make_qr_exact_rhs(const SparseMatrix *A, idx_t x_len, idx_t b_len, double **x_exact_out,
                              double **b_out) {
     if (!x_exact_out || !b_out)
         return 0;
     *x_exact_out = NULL;
     *b_out = NULL;
+    if (!A) {
+        ASSERT_NOT_NULL(A);
+        return 0;
+    }
+    if (x_len != sparse_cols(A)) {
+        ASSERT_EQ(x_len, sparse_cols(A));
+        return 0;
+    }
+    if (b_len != sparse_rows(A)) {
+        ASSERT_EQ(b_len, sparse_rows(A));
+        return 0;
+    }
 
-    double *x_exact = malloc((size_t)x_len * sizeof(double));
-    double *b = malloc((size_t)b_len * sizeof(double));
+    size_t x_bytes = 0;
+    size_t b_bytes = 0;
+    if (!qr_idx_count_bytes(x_len, sizeof(double), &x_bytes) ||
+        !qr_idx_count_bytes(b_len, sizeof(double), &b_bytes)) {
+        ASSERT_TRUE(0);
+        return 0;
+    }
+
+    double *x_exact = malloc(x_bytes);
+    double *b = malloc(b_bytes);
     ASSERT_NOT_NULL(x_exact);
     ASSERT_NOT_NULL(b);
     if (!x_exact || !b) {
@@ -42,7 +76,13 @@ static int make_qr_exact_rhs(const SparseMatrix *A, idx_t x_len, idx_t b_len, do
 
     for (idx_t i = 0; i < x_len; i++)
         x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
+    sparse_err_t mv_err = sparse_matvec(A, x_exact, b);
+    ASSERT_ERR(mv_err, SPARSE_OK);
+    if (mv_err != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        return 0;
+    }
 
     *x_exact_out = x_exact;
     *b_out = b;

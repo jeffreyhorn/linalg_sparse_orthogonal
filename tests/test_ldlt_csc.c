@@ -2302,9 +2302,9 @@ static void assert_row_adj_matches_l_pattern(const LdltCsc *F, idx_t row) {
     }
     ASSERT_EQ(F->row_adj_count[row], expected_count);
 
-    /* Every entry in row_adj[row] must point to a column < row where row is
-     * actually stored.  Duplicates inflate the count equality above, so this
-     * also rules them out. */
+    /* Every entry in row_adj[row] must be unique and point to a column < row
+     * where row is actually stored; together with the count check, this proves
+     * row_adj[row] is exactly the L-pattern predecessor set. */
     for (idx_t e = 0; e < F->row_adj_count[row]; e++) {
         idx_t c = F->row_adj[row][e];
         ASSERT_TRUE(c >= 0 && c < row);

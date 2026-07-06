@@ -23,6 +23,63 @@ static double assert_qr_true_residual_below(const char *label, const SparseMatri
                                             const double *b, const double *x, idx_t m,
                                             double reported_residual, double tol);
 
+static int qr_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    sparse_err_t err = sparse_insert(*A, row, col, value);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
+static SparseMatrix *make_qr_small_banded_4x3(int include_tail) {
+    SparseMatrix *A = sparse_create(4, 3);
+    if (!A)
+        return NULL;
+    if (!qr_insert_or_free(&A, 0, 0, 2.0) || !qr_insert_or_free(&A, 0, 1, 1.0) ||
+        !qr_insert_or_free(&A, 1, 0, 1.0) || !qr_insert_or_free(&A, 1, 1, 3.0) ||
+        !qr_insert_or_free(&A, 1, 2, 1.0) || !qr_insert_or_free(&A, 2, 2, 4.0) ||
+        !qr_insert_or_free(&A, 3, 0, 1.0))
+        return NULL;
+    if (include_tail && !qr_insert_or_free(&A, 3, 2, 2.0))
+        return NULL;
+    return A;
+}
+
+static SparseMatrix *make_qr_duplicate_column_4x3(double duplicate_scale) {
+    SparseMatrix *A = sparse_create(4, 3);
+    if (!A)
+        return NULL;
+    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
+        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
+        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
+        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
+        !qr_insert_or_free(&A, 0, 2, duplicate_scale) ||
+        !qr_insert_or_free(&A, 1, 2, duplicate_scale * 2.0) ||
+        !qr_insert_or_free(&A, 2, 2, duplicate_scale * 3.0) ||
+        !qr_insert_or_free(&A, 3, 2, duplicate_scale * 4.0))
+        return NULL;
+    return A;
+}
+
+static SparseMatrix *make_qr_near_duplicate_4x3(double perturbation) {
+    SparseMatrix *A = sparse_create(4, 3);
+    if (!A)
+        return NULL;
+    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
+        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
+        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
+        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
+        !qr_insert_or_free(&A, 0, 2, 1.0 + perturbation) ||
+        !qr_insert_or_free(&A, 1, 2, 2.0 + perturbation) ||
+        !qr_insert_or_free(&A, 2, 2, 3.0 + perturbation) ||
+        !qr_insert_or_free(&A, 3, 2, 4.0 + perturbation))
+        return NULL;
+    return A;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -331,17 +388,10 @@ static void test_qr_rejects_factored_matrix_reuse(void) {
 
 /* Q application: Q*Q^T*x = x */
 static void test_q_roundtrip(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_small_banded_4x3(0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
-    sparse_insert(A, 1, 1, 3.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 2, 4.0);
-    sparse_insert(A, 3, 0, 1.0);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -494,25 +544,10 @@ static void test_qr_wide(void) {
 
 /* Rank-deficient: duplicate columns → rank < n */
 static void test_qr_rank_deficient(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_duplicate_column_4x3(2.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    /* Column 2 = 2 * Column 0, so rank should be 2 */
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-
-    sparse_insert(A, 0, 2, 2.0); /* 2 * col0 */
-    sparse_insert(A, 1, 2, 4.0);
-    sparse_insert(A, 2, 2, 6.0);
-    sparse_insert(A, 3, 2, 8.0);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -639,25 +674,10 @@ static void test_qr_rank_1(void) {
 
 /* Nearly singular: one column is almost a multiple of another */
 static void test_qr_nearly_singular(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_near_duplicate_4x3(1e-12);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    /* col0 and col2 are nearly identical */
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-
-    sparse_insert(A, 0, 2, 1.0 + 1e-12); /* col2 ≈ col0 */
-    sparse_insert(A, 1, 2, 2.0 + 1e-12);
-    sparse_insert(A, 2, 2, 3.0 + 1e-12);
-    sparse_insert(A, 3, 2, 4.0 + 1e-12);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -925,18 +945,10 @@ static void test_q_transpose_b(void) {
 
 /* Apply Q to multiple vectors (simulating block operation) */
 static void test_q_apply_multiple(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_small_banded_4x3(1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
-    sparse_insert(A, 1, 1, 3.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 2, 4.0);
-    sparse_insert(A, 3, 0, 1.0);
-    sparse_insert(A, 3, 2, 2.0);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -1190,23 +1202,10 @@ static void test_qr_solve_analytical(void) {
 
 /* Rank-deficient system: extra column is duplicate */
 static void test_qr_solve_rank_deficient(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_duplicate_column_4x3(1.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    /* col0 = [1,2,3,4], col1 = [5,6,7,8], col2 = col0 (duplicate) */
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-    sparse_insert(A, 0, 2, 1.0);
-    sparse_insert(A, 1, 2, 2.0);
-    sparse_insert(A, 2, 2, 3.0);
-    sparse_insert(A, 3, 2, 4.0);
 
     double b[4] = {1.0, 2.0, 3.0, 4.0};
 
@@ -1660,22 +1659,10 @@ static void test_rank_1_nullspace(void) {
 
 /* Known null space: col2 = col0, so [1, 0, -1] is in null space */
 static void test_known_nullspace(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_duplicate_column_4x3(1.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 2, 0, 3.0);
-    sparse_insert(A, 3, 0, 4.0);
-    sparse_insert(A, 0, 1, 5.0);
-    sparse_insert(A, 1, 1, 6.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 3, 1, 8.0);
-    sparse_insert(A, 0, 2, 1.0); /* col2 = col0 */
-    sparse_insert(A, 1, 2, 2.0);
-    sparse_insert(A, 2, 2, 3.0);
-    sparse_insert(A, 3, 2, 4.0);
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -2342,18 +2329,10 @@ static void test_economy_nos4(void) {
 
 /* Sparse-mode QR matches dense-mode on small matrix */
 static void test_sparse_mode_basic(void) {
-    SparseMatrix *A = sparse_create(4, 3);
+    SparseMatrix *A = make_qr_small_banded_4x3(1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
-    sparse_insert(A, 1, 1, 3.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 2, 4.0);
-    sparse_insert(A, 3, 0, 1.0);
-    sparse_insert(A, 3, 2, 2.0);
 
     double b[4] = {1.0, 2.0, 3.0, 4.0};
 
@@ -2926,7 +2905,7 @@ static void test_qr_refine_ill_conditioned(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    /* Near-singular: col2 ≈ col0 + small perturbation */
+    /* Near-singular: col2 ~= col0 + small perturbation */
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 1, 2.0);
     sparse_insert(A, 0, 2, 1.0 + 1e-8);

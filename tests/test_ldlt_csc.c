@@ -2288,6 +2288,41 @@ static void test_eliminate_matches_linked_list_random_indefinite(void) {
     ASSERT_EQ(divergences, 0);
 }
 
+static void assert_row_adj_matches_l_pattern(const LdltCsc *F, idx_t row) {
+    idx_t expected_count = 0;
+    for (idx_t c = 0; c < row; c++) {
+        idx_t cs = F->L->col_ptr[c];
+        idx_t ce = F->L->col_ptr[c + 1];
+        for (idx_t p = cs; p < ce; p++) {
+            if (F->L->row_idx[p] == row) {
+                expected_count++;
+                break;
+            }
+        }
+    }
+    ASSERT_EQ(F->row_adj_count[row], expected_count);
+
+    /* Every entry in row_adj[row] must be unique and point to a column < row
+     * where row is actually stored; together with the count check, this proves
+     * row_adj[row] is exactly the L-pattern predecessor set. */
+    for (idx_t e = 0; e < F->row_adj_count[row]; e++) {
+        idx_t c = F->row_adj[row][e];
+        ASSERT_TRUE(c >= 0 && c < row);
+        for (idx_t prev = 0; prev < e; prev++)
+            ASSERT_TRUE(F->row_adj[row][prev] != c);
+        int found = 0;
+        idx_t cs = F->L->col_ptr[c];
+        idx_t ce = F->L->col_ptr[c + 1];
+        for (idx_t p = cs; p < ce; p++) {
+            if (F->L->row_idx[p] == row) {
+                found = 1;
+                break;
+            }
+        }
+        ASSERT_TRUE(found);
+    }
+}
+
 /* Sprint 19 Day 9 cross-check: after `ldlt_csc_eliminate_native`
  * finishes, `F->row_adj[r]` must list *exactly* the set of columns
  * `c < r` where `L[r, c] != 0`.  Sweeping 20 random indefinite
@@ -2326,42 +2361,10 @@ static void test_row_adj_matches_reference(void) {
             continue;
         }
 
-        /* Build the reference `expected_adj[r]` by walking L column-
-         * major: for every stored `L[i, c]` with `i > c`, the column
-         * `c` is a prior of row `i`. */
-        for (idx_t r = 0; r < n; r++) {
-            idx_t expected_count = 0;
-            for (idx_t c = 0; c < r; c++) {
-                idx_t cs = F->L->col_ptr[c];
-                idx_t ce = F->L->col_ptr[c + 1];
-                for (idx_t p = cs; p < ce; p++) {
-                    if (F->L->row_idx[p] == r) {
-                        expected_count++;
-                        break;
-                    }
-                }
-            }
-            ASSERT_EQ(F->row_adj_count[r], expected_count);
-
-            /* Every entry in row_adj[r] must point to a column < r
-             * where row r is actually stored.  Duplicates would
-             * inflate `expected_count` above, so the count equality
-             * also rules them out. */
-            for (idx_t e = 0; e < F->row_adj_count[r]; e++) {
-                idx_t c = F->row_adj[r][e];
-                ASSERT_TRUE(c >= 0 && c < r);
-                int found = 0;
-                idx_t cs = F->L->col_ptr[c];
-                idx_t ce = F->L->col_ptr[c + 1];
-                for (idx_t p = cs; p < ce; p++) {
-                    if (F->L->row_idx[p] == r) {
-                        found = 1;
-                        break;
-                    }
-                }
-                ASSERT_TRUE(found);
-            }
-        }
+        /* Build the reference view by walking L column-major: for every stored
+         * L[i, c] with i > c, c is a prior of row i. */
+        for (idx_t r = 0; r < n; r++)
+            assert_row_adj_matches_l_pattern(F, r);
 
         ldlt_csc_free(F);
         sparse_free(A);

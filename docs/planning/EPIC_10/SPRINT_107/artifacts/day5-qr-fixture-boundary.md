@@ -32,7 +32,7 @@ hiding solver assertions:
 |---|---|---|
 | 3x3 full-rank dense-ish matrix | `test_qr_reconstruction`, `test_qr_reorder_none` | safe later, not first batch because values differ by proof |
 | 4x3 duplicate-column rank-deficient matrix | `test_qr_rank_deficient`, `test_qr_solve_rank_deficient`, `test_known_nullspace` | safe if named as duplicate-column fixture, but rank/nullspace assertions must stay inline |
-| 4x3 near-duplicate ill-conditioned matrix | `test_qr_nearly_singular`, `test_qr_refine_ill_conditioned` | safe builder, but refinement expectations stay inline |
+| 4x3 near-duplicate ill-conditioned matrix | `test_qr_nearly_singular`; `test_qr_refine_ill_conditioned` requires a different base progression | safe first-batch builder only for `test_qr_nearly_singular`; keep refinement setup inline |
 | 4x3/4x4 small banded solve matrix | `test_q_roundtrip`, `test_q_apply_multiple`, `test_sparse_mode_basic`, `test_rank_full`, `test_qr_reorder_amd_solve` | best first batch; repeated direct `sparse_insert` setup with local proof assertions afterward |
 | diagonal matrix | `test_qr_diagonal`, `test_sparse_mode_diagonal`, `test_qr_refine_zero_iter`, `test_rank_explicit_tol` | safe later, but different diagonal values should remain explicit unless the builder accepts values |
 | single row / single column | `test_qr_single_row`, `test_qr_single_col`, `test_sparse_mode_single_row`, `test_sparse_mode_single_col` | safe later, but tiny enough to defer |
@@ -84,10 +84,14 @@ Use the selected builders only where they preserve readability:
 | `make_qr_duplicate_column_4x3(1.0)` | `test_qr_solve_rank_deficient`, `test_known_nullspace` |
 | `make_qr_duplicate_column_4x3(2.0)` | `test_qr_rank_deficient` |
 | `make_qr_near_duplicate_4x3(1e-12)` | `test_qr_nearly_singular` |
-| `make_qr_near_duplicate_4x3(1e-8)` | `test_qr_refine_ill_conditioned` |
 
 Do not broaden Day 6 beyond these call sites unless the exact same fixture is
 already obvious and the proof assertion remains inline.
+
+`test_qr_refine_ill_conditioned` is intentionally excluded from the selected
+Day 6 batch because its near-duplicate fixture uses a different base
+progression from `make_qr_near_duplicate_4x3`; keeping it inline preserves the
+refinement proof setup.
 
 ## Inline-Proof Preservation Rules
 

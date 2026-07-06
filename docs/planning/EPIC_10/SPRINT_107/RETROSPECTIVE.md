@@ -4,11 +4,11 @@
 **Duration:** 14 days (Days 1-14 landed on branch `sprint-107`)
 **Status:** Complete
 
-## Definition Of Done Checklist
+## Definition of Done Checklist
 
 - [x] Sprint 107 started from Sprint 106 residual deferred debt and the updated
       Epic 10 project plan.
-- [x] the residual owner queue was re-ranked from live repository evidence
+- [x] The residual owner queue was re-ranked from live repository evidence
       before extraction work started.
 - [x] `tests/test_ldlt_csc.c` received one narrow row-adjacency proof helper
       after a dedicated boundary artifact.
@@ -80,10 +80,10 @@
    have crossed comparison-critical or public compatibility behavior. The
    correct outcome was deferral, but it means the source-owner debt remains.
 
-4. **The requested retrospective path is not the natural Sprint 107 path.**
-   This retrospective is stored at `docs/planning/EPIC_10/SPRINT_99/` per the
-   closeout request, while the Sprint 107 plan, notes, and artifacts live under
-   `docs/planning/EPIC_10/SPRINT_107/`.
+4. **No implementation source extraction landed.**
+   The sprint deliberately documented source-owner deferrals instead of moving
+   code whose behavior was still tied to comparison evidence or public
+   compatibility contracts.
 
 ## Final Metrics
 
@@ -202,19 +202,19 @@ Not carried forward as unresolved Sprint 107 debt:
 
 ## Key Deliverables
 
-- [SPRINT_107/PLAN.md](../SPRINT_107/PLAN.md)
-- [SPRINT_107/WORKING_NOTES.md](../SPRINT_107/WORKING_NOTES.md)
-- [day1-residual-debt-intake.md](../SPRINT_107/artifacts/day1-residual-debt-intake.md)
-- [day2-residual-boundary-rerank.md](../SPRINT_107/artifacts/day2-residual-boundary-rerank.md)
-- [day3-ldlt-csc-proof-boundary.md](../SPRINT_107/artifacts/day3-ldlt-csc-proof-boundary.md)
-- [day4-ldlt-csc-proof-helper-extraction.md](../SPRINT_107/artifacts/day4-ldlt-csc-proof-helper-extraction.md)
-- [day5-qr-fixture-boundary.md](../SPRINT_107/artifacts/day5-qr-fixture-boundary.md)
-- [day6-qr-fixture-cleanup.md](../SPRINT_107/artifacts/day6-qr-fixture-cleanup.md)
-- [day7-iterative-fixture-boundary.md](../SPRINT_107/artifacts/day7-iterative-fixture-boundary.md)
-- [day8-iterative-fixture-cleanup.md](../SPRINT_107/artifacts/day8-iterative-fixture-cleanup.md)
-- [day9-svd-proof-owner-boundary.md](../SPRINT_107/artifacts/day9-svd-proof-owner-boundary.md)
-- [day10-svd-proof-owner-cleanup.md](../SPRINT_107/artifacts/day10-svd-proof-owner-cleanup.md)
-- [day11-eigensolver-source-boundary.md](../SPRINT_107/artifacts/day11-eigensolver-source-boundary.md)
-- [day12-eigensolver-source-deferral.md](../SPRINT_107/artifacts/day12-eigensolver-source-deferral.md)
-- [day13-central-matrix-shell-deferral-contract.md](../SPRINT_107/artifacts/day13-central-matrix-shell-deferral-contract.md)
-- [day14-validation-metrics-closeout.md](../SPRINT_107/artifacts/day14-validation-metrics-closeout.md)
+- [PLAN.md](./PLAN.md)
+- [WORKING_NOTES.md](./WORKING_NOTES.md)
+- [day1-residual-debt-intake.md](./artifacts/day1-residual-debt-intake.md)
+- [day2-residual-boundary-rerank.md](./artifacts/day2-residual-boundary-rerank.md)
+- [day3-ldlt-csc-proof-boundary.md](./artifacts/day3-ldlt-csc-proof-boundary.md)
+- [day4-ldlt-csc-proof-helper-extraction.md](./artifacts/day4-ldlt-csc-proof-helper-extraction.md)
+- [day5-qr-fixture-boundary.md](./artifacts/day5-qr-fixture-boundary.md)
+- [day6-qr-fixture-cleanup.md](./artifacts/day6-qr-fixture-cleanup.md)
+- [day7-iterative-fixture-boundary.md](./artifacts/day7-iterative-fixture-boundary.md)
+- [day8-iterative-fixture-cleanup.md](./artifacts/day8-iterative-fixture-cleanup.md)
+- [day9-svd-proof-owner-boundary.md](./artifacts/day9-svd-proof-owner-boundary.md)
+- [day10-svd-proof-owner-cleanup.md](./artifacts/day10-svd-proof-owner-cleanup.md)
+- [day11-eigensolver-source-boundary.md](./artifacts/day11-eigensolver-source-boundary.md)
+- [day12-eigensolver-source-deferral.md](./artifacts/day12-eigensolver-source-deferral.md)
+- [day13-central-matrix-shell-deferral-contract.md](./artifacts/day13-central-matrix-shell-deferral-contract.md)
+- [day14-validation-metrics-closeout.md](./artifacts/day14-validation-metrics-closeout.md)

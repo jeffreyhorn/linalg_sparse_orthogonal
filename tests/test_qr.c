@@ -80,6 +80,26 @@ static SparseMatrix *make_qr_near_duplicate_4x3(double perturbation) {
     return A;
 }
 
+static SparseMatrix *make_qr_tall_diagonal_dominant(idx_t m, idx_t n_cols, double diag_value,
+                                                    double offdiag_value,
+                                                    int include_lower_neighbor) {
+    SparseMatrix *A = sparse_create(m, n_cols);
+    if (!A)
+        return NULL;
+
+    idx_t band_rows = (m < n_cols) ? m : n_cols;
+    for (idx_t i = 0; i < band_rows; i++) {
+        if (!qr_insert_or_free(&A, i, i, diag_value))
+            return NULL;
+        if (i + 1 < n_cols && !qr_insert_or_free(&A, i, i + 1, offdiag_value))
+            return NULL;
+        if (include_lower_neighbor && i > 0 && !qr_insert_or_free(&A, i, i - 1, offdiag_value))
+            return NULL;
+    }
+
+    return A;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1939,19 +1959,10 @@ static void test_qr_reorder_none(void) {
 /* Economy QR solve matches full QR solve on tall-skinny matrix */
 static void test_economy_solve_tall(void) {
     idx_t m = 50, nc = 10;
-    SparseMatrix *A = sparse_create(m, nc);
+    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    /* Diag-dominant tall matrix */
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t j = 0; j < nc; j++) {
-            if (i == j)
-                sparse_insert(A, i, j, 10.0);
-            else if (i < nc && (j == i + 1 || j == i - 1))
-                sparse_insert(A, i, j, 1.0);
-        }
-    }
 
     double *b = malloc((size_t)m * sizeof(double));
     ASSERT_NOT_NULL(b);
@@ -2536,18 +2547,10 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
 /* Sparse-mode: tall-skinny 50×10 */
 static void test_sparse_mode_tall(void) {
     idx_t m = 50, nc = 10;
-    SparseMatrix *A = sparse_create(m, nc);
+    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t j = 0; j < nc; j++) {
-            if (i == j)
-                sparse_insert(A, i, j, 10.0);
-            else if (i < nc && (j == i + 1 || j == i - 1))
-                sparse_insert(A, i, j, 1.0);
-        }
-    }
     compare_dense_sparse_qr(A, "50x10");
     sparse_free(A);
 }
@@ -3045,16 +3048,10 @@ static void test_qr_refine_nos4(void) {
 /* Overdetermined least-squares: refinement on tall system */
 static void test_qr_refine_overdetermined(void) {
     idx_t m = 20, nc = 5;
-    SparseMatrix *A = sparse_create(m, nc);
+    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 5.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < nc; j++)
-            if (i == j)
-                sparse_insert(A, i, j, 5.0);
-            else if (abs(i - j) <= 1 && i < nc)
-                sparse_insert(A, i, j, 1.0);
 
     double *b = malloc((size_t)m * sizeof(double));
     ASSERT_NOT_NULL(b);

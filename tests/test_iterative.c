@@ -91,6 +91,39 @@ static SparseMatrix *build_laplacian_2d(idx_t m) {
     return A;
 }
 
+static SparseMatrix *build_scaled_unsym_tridiag_with_diag_inv(idx_t n, double diag_base,
+                                                              double diag_step, double upper,
+                                                              double lower, double **diag_inv_out) {
+    if (!diag_inv_out)
+        return NULL;
+    *diag_inv_out = NULL;
+
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+
+    double *diag_inv = malloc((size_t)n * sizeof(double));
+    if (!diag_inv) {
+        sparse_free(A);
+        return NULL;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        double d = diag_base + diag_step * (double)i;
+        if (sparse_insert(A, i, i, d) != SPARSE_OK ||
+            (i > 0 && sparse_insert(A, i, i - 1, lower) != SPARSE_OK) ||
+            (i < n - 1 && sparse_insert(A, i, i + 1, upper) != SPARSE_OK)) {
+            free(diag_inv);
+            sparse_free(A);
+            return NULL;
+        }
+        diag_inv[i] = 1.0 / d;
+    }
+
+    *diag_inv_out = diag_inv;
+    return A;
+}
+
 /**
  * Compute b = A*x_exact for generating test RHS with known solution.
  */
@@ -1085,24 +1118,14 @@ static void test_cg_null_result(void) {
 /* Right-preconditioned GMRES with diagonal preconditioner on tridiag */
 static void test_gmres_right_precond_diag(void) {
     idx_t n = 20;
-    SparseMatrix *A = sparse_create(n, n);
+    double *diag_inv = NULL;
+    SparseMatrix *A = build_scaled_unsym_tridiag_with_diag_inv(n, 2.0, 3.0, 1.5, -1.0, &diag_inv);
     ASSERT_NOT_NULL(A);
-    if (!A)
-        return;
-    double *diag_inv = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(diag_inv);
-    if (!diag_inv) {
+    if (!A || !diag_inv) {
+        free(diag_inv);
         sparse_free(A);
         return;
-    }
-    for (idx_t i = 0; i < n; i++) {
-        double d = 2.0 + 3.0 * (double)i;
-        sparse_insert(A, i, i, d);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1)
-            sparse_insert(A, i, i + 1, 1.5);
-        diag_inv[i] = 1.0 / d;
     }
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -1814,16 +1837,14 @@ static void test_gmres_small_krylov(void) {
 static void test_gmres_diagonal_preconditioner(void) {
     idx_t n = 20;
     /* Poorly scaled unsymmetric tridiagonal */
-    SparseMatrix *A = sparse_create(n, n);
-    double *diag_inv = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++) {
-        double d = 2.0 + 3.0 * (double)i; /* 2, 5, 8, ..., 59 */
-        sparse_insert(A, i, i, d);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1)
-            sparse_insert(A, i, i + 1, 1.5);
-        diag_inv[i] = 1.0 / d;
+    double *diag_inv = NULL;
+    SparseMatrix *A = build_scaled_unsym_tridiag_with_diag_inv(n, 2.0, 3.0, 1.5, -1.0, &diag_inv);
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(diag_inv);
+    if (!A || !diag_inv) {
+        free(diag_inv);
+        sparse_free(A);
+        return;
     }
 
     double *x_exact = malloc((size_t)n * sizeof(double));

@@ -1503,6 +1503,15 @@ static double s20_solve_residual(LdltCsc *F, const SparseMatrix *A_ref) {
     return res;
 }
 
+static void assert_s20_solve_residual_below(const char *label, LdltCsc *F,
+                                            const SparseMatrix *A_ref, double tol) {
+    double residual = s20_solve_residual(F, A_ref);
+    if (residual >= tol) {
+        TF_FAIL_("%s solve residual %.15g >= tol %.15g", label, residual, tol);
+    }
+    tf_asserts++;
+}
+
 static int read_ldlt_external_dense_reference_solution(const char *fixture_key, double *x_out,
                                                        idx_t n, char *reason, size_t reason_cap) {
     if (!fixture_key || !x_out || !reason || reason_cap == 0)
@@ -1648,7 +1657,7 @@ static void test_s20_supernodal_with_analysis_kkt_5x5(void) {
 
     REQUIRE_OK(ldlt_csc_validate(F2));
     ASSERT_TRUE(ldlt_csc_factor_state_matches(F1, F2, 1e-10));
-    ASSERT_TRUE(s20_solve_residual(F2, A_perm) < 1e-10);
+    assert_s20_solve_residual_below("kkt_5x5 with-analysis", F2, A_perm, 1e-10);
 
     ldlt_csc_free(F1);
     ldlt_csc_free(F2);
@@ -1669,7 +1678,7 @@ static void test_s20_supernodal_with_analysis_kkt_10x10(void) {
     ASSERT_TRUE(s20_two_pass_indefinite_factor(A, &F1, &F2, &A_perm));
 
     REQUIRE_OK(ldlt_csc_validate(F2));
-    ASSERT_TRUE(s20_solve_residual(F2, A_perm) < 1e-10);
+    assert_s20_solve_residual_below("kkt_10x10 with-analysis", F2, A_perm, 1e-10);
 
     ldlt_csc_free(F1);
     ldlt_csc_free(F2);
@@ -1701,7 +1710,7 @@ static void test_s20_supernodal_with_analysis_random_indefinite_30x30(void) {
     }
 
     REQUIRE_OK(ldlt_csc_validate(F2));
-    ASSERT_TRUE(s20_solve_residual(F2, A_perm) < 1e-10);
+    assert_s20_solve_residual_below("random_indefinite_30x30 with-analysis", F2, A_perm, 1e-10);
 
     ldlt_csc_free(F1);
     ldlt_csc_free(F2);
@@ -1760,8 +1769,8 @@ static void test_s20_supernodal_heuristic_vs_with_analysis_residuals(void) {
         F_after->pivot_size[k] = F_pre->pivot_size[k];
     REQUIRE_OK(ldlt_csc_eliminate_supernodal(F_after, /*min_size=*/2));
 
-    double res_after = s20_solve_residual(F_after, A_perm);
-    ASSERT_TRUE(res_after < 1e-10);
+    assert_s20_solve_residual_below("kkt_10x10 analysis residual after path", F_after, A_perm,
+                                    1e-10);
 
     ldlt_csc_free(F_pre);
     ldlt_csc_free(F_after);

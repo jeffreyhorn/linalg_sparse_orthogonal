@@ -537,7 +537,58 @@ integration and closeout.
 
 ---
 
-## Sprint 114: Residual Package Platform Parity & ABI Productization Decision
+## Sprint 114: Residual Eigensolver, Direct/Iterative & SVD Proof-Owner Follow-Through
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Convert Sprint 113's residual proof-owner debt into dependency-ordered
+follow-through batches, proving eigensolver movement prerequisites before any
+source split and cleaning up direct/iterative and SVD proof owners without
+introducing broad abstractions or public-support drift.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 113 grow-m behavior proof, eigensolver no-move contract, and
+  proof-owner residual queue complete
+- Sprint 113 LDLT CSC, SVD partial-vector, metrics, and validation artifacts
+  available as examples for narrow proof-owner cleanup
+- Sprint 113 non-claims available for broad eigensolver source movement,
+  cross-solver proof abstraction, SVD proof abstraction, public API changes,
+  helper target changes, source-list changes, and reviewed CTest membership
+  changes
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Proof-Owner Intake and Duplicate Fence | Re-read Sprint 113 residual deferred debt, exclude work already completed by Sprint 113, and publish a dependency-ordered follow-through map that preserves no-claim boundaries. | 8 |
+| 2 | Lanczos Iterate Behavior Proof | Add direct proof for `lanczos_iterate_op` behavior across basic, thick-restart, and LOBPCG-adjacent dispatch paths before moving any shared eigensolver owner. | 18 |
+| 3 | Repeated and Clustered Ritz Selection Proof | Add repeated/clustered spectrum proof before moving Ritz selection logic, keeping ownership narrow and evidence tied to existing eigensolver surfaces. | 18 |
+| 4 | Ritz Vector Lifting and Publication Boundary Proof | Add Ritz vector lifting proof before extracting shared vector-publication helpers, including publication-boundary checks that preserve current caller contracts. | 18 |
+| 5 | Partial-Result Publication Exhaustion Proof | Add partial-result publication proof after `m_cap` exhaustion so bounded iteration exits publish only the documented amount of converged state. | 16 |
+| 6 | Shift-Invert Grow-M Conversion Proof | Add shift-invert grow-m conversion proof before changing source ownership, preserving the Sprint 113 grow-m behavior evidence contract. | 18 |
+| 7 | Eigensolver Source Movement Decision or Narrow Movement | Revisit eigensolver source movement only after one safe owner is proven; either perform one narrow movement with source-list and validation proof or publish a continued no-move decision. | 20 |
+| 8 | Direct/Iterative Exact-RHS Cleanup Batch | Clean up QR sequential RHS setup plus CG preconditioner-specific, GMRES, BiCGSTAB, and MINRES exact-RHS setup without attempting a broad direct/iterative oracle abstraction unless common ownership is proven. | 26 |
+| 9 | SVD Proof-Owner Cleanup Batch | Split SVD reconstruction helper movement by storage contract, split U/Vt orthogonality helper movement by economy/full leading-dimension convention, preserve Moore-Penrose product dimension proof, and clean up dense low-rank, sparse low-rank, and condition-number proof loops. | 18 |
+| 10 | Validation, Metrics, and Non-Claim Handoff | Run required checks for touched C sources, tests, docs, and scripts; update proof-owner metrics; and hand off remaining no-claims to package, adoption, and final closeout work. | 8 |
+
+### Deliverables
+
+- residual proof-owner intake and duplicate-work exclusion artifact
+- direct Lanczos behavior proof for basic, thick-restart, and LOBPCG-adjacent
+  dispatch paths
+- repeated/clustered Ritz selection proof
+- Ritz vector lifting and partial-result publication proof
+- shift-invert grow-m conversion proof
+- eigensolver source movement or continued no-move decision artifact
+- direct/iterative exact-RHS cleanup batch
+- SVD proof-owner cleanup batch
+- validation, metrics, and non-claim handoff artifact
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 115: Residual Package Platform Parity & ABI Productization Decision
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Resolve Sprint 112's package/platform deferred debt in dependency
@@ -554,6 +605,8 @@ ABI/package-manager product claims remain future contracts.
 - Sprint 113 residual behavior and proof-owner closeout complete enough to
   avoid introducing package/platform claims that conflict with final behavior
   evidence
+- Sprint 114 residual proof-owner follow-through complete enough to preserve
+  package/platform no-claim boundaries
 
 ### Items
 
@@ -585,7 +638,7 @@ ABI/package-manager product claims remain future contracts.
 
 ---
 
-## Sprint 115: Adoption Surface Residual QA & Claim Guardrails
+## Sprint 116: Adoption Surface Residual QA & Claim Guardrails
 
 **Duration:** 14 days (~56 hours)
 **Goal:** Close Sprint 111's residual adoption-surface debt before final Epic
@@ -600,7 +653,10 @@ audience boundaries, and keeping performance/support claims evidence-bounded.
   support-tier wording in adoption docs
 - Sprint 113 residual behavior and proof-owner closeout complete enough that
   final documentation does not advertise unproven internals
-- Sprint 114 package/platform residual decisions complete enough that adoption
+- Sprint 114 residual proof-owner follow-through complete enough that adoption
+  docs do not advertise unproven behavior, proof-owner, or helper-abstraction
+  claims
+- Sprint 115 package/platform residual decisions complete enough that adoption
   docs do not advertise unreviewed install, platform, ABI, or package-manager
   claims
 
@@ -629,7 +685,7 @@ audience boundaries, and keeping performance/support claims evidence-bounded.
 
 ---
 
-## Sprint 116: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 117: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -638,11 +694,12 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-115 complete
+- Sprints 100-116 complete
 - final comparison, benchmark, package, platform, maintainability, and residual
   proof-owner artifacts available
-- Sprint 114 package/platform residual decisions complete
-- Sprint 115 adoption-surface residual QA and claim guardrails complete
+- Sprint 114 residual proof-owner follow-through complete
+- Sprint 115 package/platform residual decisions complete
+- Sprint 116 adoption-surface residual QA and claim guardrails complete
 
 ### Items
 
@@ -653,7 +710,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 116 Retrospective | Create Sprint 116 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 117 Retrospective | Create Sprint 117 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -661,7 +718,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 116 retrospective
+- Sprint 117 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -686,7 +743,8 @@ truthful earned claims and residuals.
 | 111 | API Usability, Documentation & Example Coherence | 168 |
 | 112 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
 | 113 | Residual Behavior & Proof-Owner Closeout | 168 |
-| 114 | Residual Package Platform Parity & ABI Productization Decision | 168 |
-| 115 | Adoption Surface Residual QA & Claim Guardrails | 56 |
-| 116 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,738** |
+| 114 | Residual Eigensolver, Direct/Iterative & SVD Proof-Owner Follow-Through | 168 |
+| 115 | Residual Package Platform Parity & ABI Productization Decision | 168 |
+| 116 | Adoption Surface Residual QA & Claim Guardrails | 56 |
+| 117 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,906** |

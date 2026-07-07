@@ -33,12 +33,14 @@ int main(void) {
 
     idx_t n = sparse_rows(A);
     if (n != sparse_cols(A)) {
-        fprintf(stderr, "Loaded matrix is not square: %d x %d\n", (int)n, (int)sparse_cols(A));
+        fprintf(stderr, "Loaded matrix is not square: %" SPARSE_PRIDX " x %" SPARSE_PRIDX "\n", n,
+                sparse_cols(A));
         sparse_free(A);
         return 1;
     }
 
-    printf("Loaded %s: %d x %d, nnz = %d\n", path, (int)n, (int)sparse_cols(A), (int)sparse_nnz(A));
+    printf("Loaded %s: %" SPARSE_PRIDX " x %" SPARSE_PRIDX ", nnz = %" SPARSE_PRIDX "\n", path, n,
+           sparse_cols(A), sparse_nnz(A));
 
     double *x_exact = NULL;
     double *b = NULL;

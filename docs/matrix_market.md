@@ -110,8 +110,10 @@ The following Matrix Market features are **not** supported:
 Attempting to load an unsupported format returns `SPARSE_ERR_PARSE`.
 
 Comment lines beginning with `%` between the header and size line are skipped.
-Inputs still need a parseable size line and exactly `nnz` parseable data lines
-in the expected positions.
+Inputs still need a parseable size line followed by exactly `nnz` parseable
+data entries in the expected order. The data section is whitespace-delimited;
+blank lines are harmless, but `%` comment lines after the size line are not
+supported.
 
 ## File Format Reference
 

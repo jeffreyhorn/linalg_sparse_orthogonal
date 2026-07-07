@@ -65,7 +65,7 @@ void pool_free_all(NodePool *pool) {
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
-static sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt, va_list ap) {
+sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt, va_list ap) {
     int rc = 0;
     if (!stream || !fmt)
         return SPARSE_ERR_NULL;
@@ -85,7 +85,7 @@ static sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt,
     return SPARSE_OK;
 }
 
-static sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...) {
+sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...) {
     sparse_err_t err;
     va_list ap;
     va_start(ap, fmt);
@@ -94,7 +94,7 @@ static sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, 
     return err;
 }
 
-static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
+Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
     Node *n = pool_alloc(&mat->pool);
     if (!n)
         return NULL;
@@ -104,120 +104,6 @@ static Node *make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
     n->right = NULL;
     n->down = NULL;
     return n;
-}
-
-typedef struct {
-    idx_t row;
-    idx_t col;
-    sparse_scalar_t value;
-    idx_t order;
-} SparseBuildEntry;
-
-static int sparse_build_entry_cmp(const void *lhs, const void *rhs) {
-    const SparseBuildEntry *a = lhs;
-    const SparseBuildEntry *b = rhs;
-    if (a->row < b->row)
-        return -1;
-    if (a->row > b->row)
-        return 1;
-    if (a->col < b->col)
-        return -1;
-    if (a->col > b->col)
-        return 1;
-    if (a->order < b->order)
-        return -1;
-    if (a->order > b->order)
-        return 1;
-    return 0;
-}
-
-static sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols,
-                                                     SparseBuildEntry *entries, idx_t nentries,
-                                                     int entries_sorted, SparseMatrix **mat_out) {
-    Node **row_tails = NULL;
-    Node **col_tails = NULL;
-    SparseMatrix *mat = NULL;
-    sparse_err_t err = SPARSE_OK;
-
-    if (!mat_out)
-        return SPARSE_ERR_NULL;
-    *mat_out = NULL;
-    if (nentries < 0)
-        return SPARSE_ERR_ALLOC;
-    if (!entries && nentries > 0)
-        return SPARSE_ERR_NULL;
-
-    mat = sparse_create(rows, cols);
-    if (!mat)
-        return SPARSE_ERR_ALLOC;
-    if (nentries == 0) {
-        *mat_out = mat;
-        return SPARSE_OK;
-    }
-
-    if (!entries_sorted) {
-        size_t qsort_count = 0;
-        if (sparse_idx_to_size_checked(nentries, &qsort_count)) {
-            sparse_free(mat);
-            return SPARSE_ERR_ALLOC;
-        }
-        qsort(entries, qsort_count, sizeof(*entries), sparse_build_entry_cmp);
-    }
-
-    if (sparse_calloc_idx_array(rows, sizeof(Node *), (void **)&row_tails) != SPARSE_OK ||
-        sparse_calloc_idx_array(cols, sizeof(Node *), (void **)&col_tails) != SPARSE_OK) {
-        err = SPARSE_ERR_ALLOC;
-        goto fail;
-    }
-
-    for (idx_t pos = 0; pos < nentries;) {
-        idx_t row = entries[pos].row;
-        idx_t col = entries[pos].col;
-        sparse_scalar_t value = entries[pos].value;
-        idx_t next = pos + 1;
-
-        while (next < nentries && entries[next].row == row && entries[next].col == col) {
-            value = entries[next].value;
-            next++;
-        }
-
-        if (row < 0 || row >= rows || col < 0 || col >= cols) {
-            err = SPARSE_ERR_BOUNDS;
-            goto fail;
-        }
-        if (value != 0.0) {
-            Node *node = make_node(mat, row, col, value);
-            if (!node) {
-                err = SPARSE_ERR_ALLOC;
-                goto fail;
-            }
-            if (row_tails[row])
-                row_tails[row]->right = node;
-            else
-                mat->row_headers[row] = node;
-            row_tails[row] = node;
-
-            if (col_tails[col])
-                col_tails[col]->down = node;
-            else
-                mat->col_headers[col] = node;
-            col_tails[col] = node;
-            mat->nnz++;
-        }
-
-        pos = next;
-    }
-
-    free(row_tails);
-    free(col_tails);
-    *mat_out = mat;
-    return SPARSE_OK;
-
-fail:
-    free(row_tails);
-    free(col_tails);
-    sparse_free(mat);
-    return err;
 }
 
 static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat) {
@@ -490,7 +376,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scala
     }
 
     /* Create a new node */
-    Node *node = make_node(mat, row, col, val);
+    Node *node = sparse_matrix_make_node(mat, row, col, val);
     if (!node) {
         SPARSE_UNLOCK(mat);
         return SPARSE_ERR_ALLOC;
@@ -1074,198 +960,6 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const sparse_scalar_t 
         }
     }
 
-    return SPARSE_OK;
-}
-
-/* ─── Matrix Market I/O ──────────────────────────────────────────────── */
-
-sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {
-    if (!mat || !filename)
-        return SPARSE_ERR_NULL;
-
-    FILE *fp = fopen(filename, "w");
-    if (!fp) {
-        sparse_set_errno_(errno);
-        return SPARSE_ERR_IO;
-    }
-
-    if (sparse_stream_printf_checked(fp, "%%%%MatrixMarket matrix coordinate real general\n") !=
-            SPARSE_OK ||
-        sparse_stream_printf_checked(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %" SPARSE_PRIDX "\n",
-                                     mat->rows, mat->cols, mat->nnz) != SPARSE_OK) {
-        fclose(fp);
-        return SPARSE_ERR_IO;
-    }
-
-    for (idx_t log_i = 0; log_i < mat->rows; log_i++) {
-        idx_t phys_i = mat->row_perm[log_i];
-        Node *node = mat->row_headers[phys_i];
-        while (node) {
-            idx_t log_j = mat->inv_col_perm[node->col];
-            if (sparse_stream_printf_checked(fp, "%" SPARSE_PRIDX " %" SPARSE_PRIDX " %.15g\n",
-                                             log_i + 1, log_j + 1, node->value) != SPARSE_OK) {
-                fclose(fp);
-                return SPARSE_ERR_IO;
-            }
-            node = node->right;
-        }
-    }
-
-    if (fclose(fp) != 0) {
-        sparse_set_errno_(errno);
-        return SPARSE_ERR_IO;
-    }
-    sparse_set_errno_(0);
-    return SPARSE_OK;
-}
-
-sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename) {
-    SparseBuildEntry *entries = NULL;
-    if (!mat_out || !filename)
-        return SPARSE_ERR_NULL;
-    *mat_out = NULL;
-
-    FILE *fp = fopen(filename, "r");
-    if (!fp) {
-        sparse_set_errno_(errno);
-        return SPARSE_ERR_IO;
-    }
-
-    char line[1024];
-    if (!fgets(line, (int)sizeof(line), fp)) {
-        if (ferror(fp)) {
-            sparse_set_errno_(errno);
-            fclose(fp);
-            return SPARSE_ERR_IO;
-        }
-        fclose(fp);
-        return SPARSE_ERR_PARSE; /* empty file */
-    }
-
-    if (strstr(line, "MatrixMarket") == NULL || strstr(line, "coordinate") == NULL) {
-        fclose(fp);
-        return SPARSE_ERR_PARSE;
-    }
-
-    /* Detect symmetric and pattern-only formats from the header */
-    int is_symmetric = (strstr(line, "symmetric") != NULL);
-    int is_pattern = (strstr(line, "pattern") != NULL);
-
-    /* Skip comment lines */
-    while (fgets(line, (int)sizeof(line), fp)) {
-        if (line[0] != '%')
-            break;
-    }
-
-    idx_t m, n, nnz_file;
-    if (sscanf(line, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &m, &n, &nnz_file) !=
-        3) {
-        fclose(fp);
-        return SPARSE_ERR_PARSE;
-    }
-    if (m < 0 || n < 0 || nnz_file < 0 || (is_symmetric && m != n)) {
-        fclose(fp);
-        return SPARSE_ERR_PARSE;
-    }
-
-    size_t nnz_file_count = 0;
-    size_t triplet_capacity = 0;
-    if (sparse_idx_to_size_checked(nnz_file, &nnz_file_count) ||
-        sparse_size_mul_overflow(nnz_file_count, is_symmetric ? 2U : 1U, &triplet_capacity)) {
-        fclose(fp);
-        return SPARSE_ERR_ALLOC;
-    }
-    if (sparse_malloc_array(triplet_capacity, sizeof(*entries), (void **)&entries) != SPARSE_OK) {
-        fclose(fp);
-        return SPARSE_ERR_ALLOC;
-    }
-
-    size_t entry_count = 0;
-    for (idx_t k = 0; k < nnz_file; k++) {
-        idx_t i, j;
-        sparse_scalar_t v = 1.0; /* default for pattern matrices */
-        if (is_pattern) {
-            if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX, &i, &j) != 2) {
-                sparse_err_t ioerr =
-                    ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
-                free(entries);
-                fclose(fp);
-                return ioerr;
-            }
-        } else {
-            if (fscanf(fp, "%" SPARSE_SCNIDX " %" SPARSE_SCNIDX " %lf", &i, &j, &v) != 3) {
-                sparse_err_t ioerr =
-                    ferror(fp) ? (sparse_set_errno_(errno), SPARSE_ERR_IO) : SPARSE_ERR_PARSE;
-                free(entries);
-                fclose(fp);
-                return ioerr;
-            }
-        }
-        if (i <= 0 || j <= 0) {
-            free(entries);
-            fclose(fp);
-            return SPARSE_ERR_PARSE;
-        }
-        i--; /* 1-based -> 0-based */
-        j--;
-        if (i >= m || j >= n) {
-            free(entries);
-            fclose(fp);
-            return SPARSE_ERR_PARSE;
-        }
-        {
-            idx_t order = 0;
-            if (entry_count >= triplet_capacity ||
-                sparse_size_to_idx_checked(entry_count, &order)) {
-                free(entries);
-                fclose(fp);
-                return SPARSE_ERR_ALLOC;
-            }
-            entries[entry_count++] = (SparseBuildEntry){
-                .row = i,
-                .col = j,
-                .value = v,
-                .order = order,
-            };
-            /* For symmetric matrices, also insert the mirror entry */
-            if (is_symmetric && i != j) {
-                if (entry_count >= triplet_capacity ||
-                    sparse_size_to_idx_checked(entry_count, &order)) {
-                    free(entries);
-                    fclose(fp);
-                    return SPARSE_ERR_ALLOC;
-                }
-                entries[entry_count++] = (SparseBuildEntry){
-                    .row = j,
-                    .col = i,
-                    .value = v,
-                    .order = order,
-                };
-            }
-        }
-    }
-
-    if (fclose(fp) != 0) {
-        sparse_set_errno_(errno);
-        free(entries);
-        return SPARSE_ERR_IO;
-    }
-
-    idx_t entry_count_idx = 0;
-    if (sparse_size_to_idx_checked(entry_count, &entry_count_idx)) {
-        free(entries);
-        return SPARSE_ERR_ALLOC;
-    }
-
-    SparseMatrix *mat = NULL;
-    sparse_err_t build_err = sparse_matrix_build_from_entries(m, n, entries, entry_count_idx,
-                                                              /*entries_sorted=*/0, &mat);
-    free(entries);
-    if (build_err != SPARSE_OK)
-        return build_err;
-
-    sparse_set_errno_(0);
-    *mat_out = mat;
     return SPARSE_OK;
 }
 

@@ -131,6 +131,54 @@ static void compute_rhs(const SparseMatrix *A, const double *x_exact, double *b)
     sparse_matvec(A, x_exact, b);
 }
 
+typedef double (*iter_exact_rhs_value_fn)(idx_t i, const void *ctx);
+
+static double iter_exact_rhs_sequential(idx_t i, const void *ctx) {
+    (void)ctx;
+    return (double)(i + 1);
+}
+
+static double iter_exact_rhs_sin_scale(idx_t i, const void *ctx) {
+    const double *scale = (const double *)ctx;
+    return sin((double)(i + 1) * *scale);
+}
+
+static int make_iterative_exact_rhs(const SparseMatrix *A, idx_t n,
+                                    iter_exact_rhs_value_fn value_fn, const void *ctx,
+                                    double **x_exact_out, double **b_out) {
+    if (!A || n < 0 || !value_fn || !x_exact_out || !b_out)
+        return 0;
+
+    *x_exact_out = NULL;
+    *b_out = NULL;
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        return 0;
+    }
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = value_fn(i, ctx);
+    compute_rhs(A, x_exact, b);
+
+    *x_exact_out = x_exact;
+    *b_out = b;
+    return 1;
+}
+
+static int require_iterative_exact_rhs(const SparseMatrix *A, idx_t n,
+                                       iter_exact_rhs_value_fn value_fn, const void *ctx,
+                                       double **x_exact_out, double **b_out) {
+    if (make_iterative_exact_rhs(A, n, value_fn, ctx, x_exact_out, b_out))
+        return 1;
+
+    TF_FAIL_("%s", "failed to allocate iterative exact-RHS fixture");
+    return 0;
+}
+
 static void fill_sequential_rhs(double *b, idx_t n) {
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
@@ -244,12 +292,13 @@ static void test_cg_laplacian_2d(void) {
     SparseMatrix *A = build_laplacian_2d(m);
 
     /* x_exact = [1, 2, ..., n] */
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result;
@@ -272,14 +321,14 @@ static void test_cg_initial_guess(void) {
     SparseMatrix *A = build_spd_tridiag(10, 4.0, -1.0);
     idx_t n = 10;
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x_zero = calloc((size_t)n, sizeof(double));
     double *x_close = malloc((size_t)n * sizeof(double));
-
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
 
     /* Slightly perturbed initial guess */
     for (idx_t i = 0; i < n; i++)
@@ -353,12 +402,14 @@ static void test_cg_large_tridiag(void) {
     idx_t n = 50;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    double scale = 0.1;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sin_scale, &scale, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = sin((double)(i + 1) * 0.1);
-    compute_rhs(A, x_exact, b);
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t result;
@@ -381,12 +432,13 @@ static void test_cg_max_iter_exceeded(void) {
     idx_t n = 20;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
 
     /* Only allow 2 iterations on a 20×20 system — not enough */
     sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-14, .verbose = 0};
@@ -548,12 +600,13 @@ static void test_cg_nos4(void) {
     ASSERT_EQ(n, 100);
 
     /* Generate RHS from known solution x_exact = [1, 2, ..., n] */
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result;
@@ -581,12 +634,13 @@ static void test_cg_bcsstk04(void) {
     idx_t n = sparse_rows(A);
     ASSERT_EQ(n, 132);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
 
     sparse_iter_opts_t opts = {.max_iter = 1000, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result;
@@ -610,11 +664,12 @@ static void test_cg_suitesparse_initial_guess(void) {
     sparse_load_mm(&A, SS_DIR "/nos4.mtx");
     idx_t n = sparse_rows(A);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
 
@@ -651,11 +706,13 @@ static void test_cg_suitesparse_initial_guess(void) {
 static void test_cg_tight_tolerance(void) {
     idx_t n = 30;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = sin((double)(i + 1) * 0.2);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    double scale = 0.2;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sin_scale, &scale, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     /* Tight tolerance */
     double *x_tight = calloc((size_t)n, sizeof(double));
@@ -687,11 +744,12 @@ static void test_cg_tight_tolerance(void) {
 static void test_cg_loose_tolerance(void) {
     idx_t n = 50;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     double *x = calloc((size_t)n, sizeof(double));
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-4, .verbose = 0};
@@ -713,11 +771,12 @@ static void test_cg_loose_tolerance(void) {
 static void test_cg_residual_accuracy(void) {
     idx_t n = 15;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     /* Run CG with different max_iter limits and verify residual decreases */
     double prev_residual = 1e30;

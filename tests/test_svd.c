@@ -115,6 +115,21 @@ static SparseMatrix *make_svd_rank1_row_progression(idx_t rows, idx_t cols) {
     return A;
 }
 
+static SparseMatrix *make_svd_rank_deficient_colpair_5x4(void) {
+    SparseMatrix *A = sparse_create(5, 4);
+    if (!A)
+        return NULL;
+
+    for (idx_t i = 0; i < 5; i++) {
+        if (!svd_insert_or_free(&A, i, 0, (double)(i + 1)) ||
+            !svd_insert_or_free(&A, i, 1, (double)(i + 1)) ||
+            !svd_insert_or_free(&A, i, 2, (double)(i * 2 + 1)) ||
+            !svd_insert_or_free(&A, i, 3, (double)(i * 2 + 1)))
+            return NULL;
+    }
+    return A;
+}
+
 static SparseMatrix *make_svd_full_uv_fixture_16x8(void) {
     const idx_t m = 16, n_cols = 8;
     SparseMatrix *A = sparse_create(m, n_cols);
@@ -1445,17 +1460,11 @@ static void test_svd_west0067(void) {
 
 /* SVD rank matches QR rank on rank-deficient matrix */
 static void test_svd_rank_vs_qr(void) {
-    SparseMatrix *A = sparse_create(5, 4);
+    SparseMatrix *A = make_svd_rank_deficient_colpair_5x4();
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
     /* col1 = col0, col3 = col2 → rank 2 */
-    for (idx_t i = 0; i < 5; i++) {
-        sparse_insert(A, i, 0, (double)(i + 1));
-        sparse_insert(A, i, 1, (double)(i + 1));
-        sparse_insert(A, i, 2, (double)(i * 2 + 1));
-        sparse_insert(A, i, 3, (double)(i * 2 + 1));
-    }
 
     /* SVD rank: count sigma > tol */
     sparse_svd_t svd;
@@ -1564,16 +1573,10 @@ static void test_svd_rank_full(void) {
 /* SVD rank: rank-deficient matrix */
 static void test_svd_rank_deficient(void) {
     /* 5×4 with col0=col1, col2=col3 → rank 2 */
-    SparseMatrix *A = sparse_create(5, 4);
+    SparseMatrix *A = make_svd_rank_deficient_colpair_5x4();
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < 5; i++) {
-        sparse_insert(A, i, 0, (double)(i + 1));
-        sparse_insert(A, i, 1, (double)(i + 1));
-        sparse_insert(A, i, 2, (double)(i * 2 + 1));
-        sparse_insert(A, i, 3, (double)(i * 2 + 1));
-    }
 
     idx_t rank;
     sparse_err_t err = sparse_svd_rank(A, 0.0, &rank);

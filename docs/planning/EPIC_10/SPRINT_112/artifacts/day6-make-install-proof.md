@@ -19,7 +19,7 @@ bash tests/test_install.sh
 | field | value |
 |---|---|
 | repository root | `$REPO_ROOT` |
-| staged prefix | temporary `mktemp` directory under `/var/folders/.../sparse.*` |
+| staged prefix | temporary `mktemp` directory under `$TMPDIR` or the platform default temp directory |
 | version under test | `2.2.0` |
 | package tier | static-first |
 | cleanup rule | script `trap` removes temp directory; `make uninstall` validates installed artifact removal before exit |

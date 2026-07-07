@@ -17,31 +17,32 @@
 - [x] The support-tier decision was made explicitly: preserve the maintained
       static-first package tier and keep shared-library packaging and dynamic
       ABI compatibility as non-claims.
-- [x] install/export proof was refreshed for the selected package tier:
+- [x] Install/export proof was refreshed for the selected package tier:
   - `bash tests/test_install.sh` passed with 14 passed, 0 failed.
   - `bash tests/test_cmake_install.sh` passed with 16 passed, 0 failed,
     0 skipped.
-- [x] downstream consumer proof confirmed installed pkg-config and CMake
+- [x] Downstream consumer proof confirmed installed pkg-config and CMake
       consumers use public installed headers only.
 - [x] Linux, macOS, and Windows support tiers were separated into reviewed,
       supplemental, staged, local-only, and unsupported lanes.
 - [x] Windows stayed bounded to the reviewed MSVC CMake-first subset, with
       `test_threads`, `test_sprint4_integration`, and `test_fuzz` still
       staged.
-- [x] macOS stayed bounded to the reviewed Apple Clang lane plus supplemental
-      Homebrew GCC and static-first Make install/`pkg-config` confidence.
-- [x] maintainer documentation now carries the Sprint 112 package/platform
+- [x] The macOS scope stayed bounded to the reviewed Apple Clang lane plus
+      supplemental Homebrew GCC and static-first Make install/`pkg-config`
+      confidence.
+- [x] Maintainer documentation now carries the Sprint 112 package/platform
       proof snapshot while README and INSTALL remain concise adoption surfaces.
-- [x] final validation passed:
+- [x] Final validation passed:
   - `bash tests/test_install.sh`
   - `bash tests/test_cmake_install.sh`
   - `git diff --check`
   - trailing-whitespace scans over touched docs and Sprint 112 artifacts
   - local relative Markdown link checks
-- [x] no `.c`, `.h`, build-system, package metadata, workflow, public API,
+- [x] No `.c`, `.h`, build-system, package metadata, workflow, public API,
       install-header, helper-target, or reviewed CTest-scope drift was
       introduced.
-- [x] residual deferred debt is dependency-ordered for Sprint 113 or later.
+- [x] Residual deferred debt is dependency-ordered for Sprint 113 or later.
 
 ## What Went Well
 

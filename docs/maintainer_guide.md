@@ -232,6 +232,31 @@ Focused install/package regression ownership:
 - Windows does not currently claim a separate reviewed install-validation lane;
   it keeps the reviewed CMake subset plus the CMake-first consumer story
 
+Sprint 112 package/platform proof snapshot:
+
+- the selected package tier remains static-first; shared-library packaging and
+  dynamic ABI compatibility remain explicit non-claims
+- local Make install proof passed through static archive install, 19 installed
+  headers, `sparse.pc`, pkg-config compile/link/run consumers, and uninstall
+  cleanup
+- local CMake install/export proof passed through static archive install,
+  19 installed headers, `SparseConfig.cmake`, `SparseConfigVersion.cmake`,
+  `SparseTargets.cmake`, exact-version package behavior, mismatched-version
+  rejection, pkg-config version reporting, and installed CMake consumer
+  configure/build/run
+- Linux remains the strongest reviewed source of truth; install scripts are
+  local Unix-side package proof unless promoted to reviewed CI lanes
+- macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC and
+  Make install/`pkg-config` confidence; local CMake install/export proof does
+  not become reviewed macOS install/export parity
+- Windows keeps the reviewed MSVC CMake-first subset with 51 registered CTest
+  tests; `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain
+  staged exclusions
+- do not infer shared-library support, ABI stability, package-manager support,
+  runtime-loader behavior, Windows Makefile parity, Windows install-validation
+  parity, or macOS full install/export parity from the Sprint 112 package
+  evidence
+
 ## Capability Surface Ownership
 
 Sprint 74 moved the highest-value bounded capability seams without widening the

@@ -1,4 +1,4 @@
-# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-115 (Epic 10)
+# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-116 (Epic 10)
 
 Epic 10 turns the post-Epic-9 library into a more product-grade sparse linear
 algebra system. The goal is not to declare the project state of the art by
@@ -537,7 +537,55 @@ integration and closeout.
 
 ---
 
-## Sprint 114: Adoption Surface Residual QA & Claim Guardrails
+## Sprint 114: Residual Package Platform Parity & ABI Productization Decision
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Resolve Sprint 112's package/platform deferred debt in dependency
+order by deciding which local install proofs should become reviewed lanes,
+which Windows and macOS exclusions can move toward parity, and which broader
+ABI/package-manager product claims remain future contracts.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 112 static-first package support decision complete
+- Sprint 112 local Make install and CMake install/export proof available
+- Sprint 112 Linux, macOS, and Windows platform-tier contract complete
+- Sprint 112 Windows and macOS staged-exclusion decisions available
+- Sprint 113 residual behavior and proof-owner closeout complete enough to
+  avoid introducing package/platform claims that conflict with final behavior
+  evidence
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Package/Platform Intake | Re-read Sprint 112 residual deferred debt, explicitly exclude completed package audit, support-tier decision, Make/CMake proof, platform-tier contract, Windows/macOS follow-through, docs alignment, and closeout work, then order remaining package/platform work by dependency. | 10 |
+| 2 | Linux Install Proof CI Promotion Decision | Decide whether `tests/test_install.sh` and `tests/test_cmake_install.sh` should remain local Unix-side proof or become reviewed Linux CI lanes; if promoted, add the narrow reviewed lane and document ownership, otherwise publish a no-promotion contract. | 16 |
+| 3 | macOS CMake Install/Export Parity Follow-Through | Add or explicitly defer a reviewed macOS CMake install/export lane before claiming full macOS install/export parity, preserving the Sprint 112 boundary if CI proof is not added. | 24 |
+| 4 | Windows Install-Validation Lane Follow-Through | Design, add, or explicitly defer a reviewed Windows install-validation lane with `cmake --install`, installed target lookup, and downstream compile/link/run proof under MSVC before claiming Windows installed-package support. | 26 |
+| 5 | Windows Thread and Fuzz Portability Decision | Audit `test_threads`, `test_sprint4_integration`, and `test_fuzz` portability; add one bounded Windows-native proof owner only if low risk, otherwise publish staged-exclusion contracts for Windows thread and fuzz/property coverage. | 28 |
+| 6 | macOS Backend and Toolchain Follow-Through | Review macOS coverage backend stability, Homebrew GCC version assumptions, and macOS TSan feasibility; promote only evidence-backed lanes and otherwise preserve documented non-claims. | 18 |
+| 7 | Shared-Library and Dynamic ABI Product Contract Decision | Decide whether shared-library/dynamic ABI support belongs in Epic 10 closeout or a future epic; document required build rules, package metadata, runtime-loader proof, symbol policy, versioning policy, and platform ownership before any public claim. | 26 |
+| 8 | Package-Manager Support Decision | Decide whether package-manager support should remain future work or gain a bounded proof plan; document required recipes and install/consumer proof for Homebrew, vcpkg, distro, or Windows package-manager paths before any claim. | 12 |
+| 9 | Validation and Package/Platform Handoff | Run required checks for touched CI, build, docs, and scripts; verify no unsupported package/platform claim was introduced; hand off final package/platform truth to adoption QA and Epic closeout. | 8 |
+
+### Deliverables
+
+- Sprint 112 residual-debt intake and duplicate-work exclusion artifact
+- Linux install-proof CI promotion or no-promotion contract
+- macOS CMake install/export parity proof or deferral artifact
+- Windows install-validation lane proof or deferral artifact
+- Windows thread/fuzz portability decision
+- macOS coverage, GCC, and TSan follow-through artifact
+- shared-library/dynamic ABI product-contract decision
+- package-manager support decision
+- validation and package/platform handoff artifact
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 115: Adoption Surface Residual QA & Claim Guardrails
 
 **Duration:** 14 days (~56 hours)
 **Goal:** Close Sprint 111's residual adoption-surface debt before final Epic
@@ -552,6 +600,9 @@ audience boundaries, and keeping performance/support claims evidence-bounded.
   support-tier wording in adoption docs
 - Sprint 113 residual behavior and proof-owner closeout complete enough that
   final documentation does not advertise unproven internals
+- Sprint 114 package/platform residual decisions complete enough that adoption
+  docs do not advertise unreviewed install, platform, ABI, or package-manager
+  claims
 
 ### Items
 
@@ -578,7 +629,7 @@ audience boundaries, and keeping performance/support claims evidence-bounded.
 
 ---
 
-## Sprint 115: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 116: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -587,10 +638,11 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-114 complete
+- Sprints 100-115 complete
 - final comparison, benchmark, package, platform, maintainability, and residual
   proof-owner artifacts available
-- Sprint 114 adoption-surface residual QA and claim guardrails complete
+- Sprint 114 package/platform residual decisions complete
+- Sprint 115 adoption-surface residual QA and claim guardrails complete
 
 ### Items
 
@@ -601,7 +653,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 115 Retrospective | Create Sprint 115 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 116 Retrospective | Create Sprint 116 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -609,7 +661,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 115 retrospective
+- Sprint 116 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -634,6 +686,7 @@ truthful earned claims and residuals.
 | 111 | API Usability, Documentation & Example Coherence | 168 |
 | 112 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
 | 113 | Residual Behavior & Proof-Owner Closeout | 168 |
-| 114 | Adoption Surface Residual QA & Claim Guardrails | 56 |
-| 115 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,570** |
+| 114 | Residual Package Platform Parity & ABI Productization Decision | 168 |
+| 115 | Adoption Surface Residual QA & Claim Guardrails | 56 |
+| 116 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,738** |

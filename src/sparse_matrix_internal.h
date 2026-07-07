@@ -2,8 +2,9 @@
 #define SPARSE_MATRIX_INTERNAL_H
 
 /*
- * Private header: internal struct definitions for sparse_matrix.c and
- * sparse_lu.c. NOT part of the public API.
+ * Private header: internal sparse matrix storage, builder, and stream helper
+ * definitions shared by sparse matrix implementation owners and selected
+ * solver internals. NOT part of the public API.
  */
 
 #include "sparse_errno_internal.h"

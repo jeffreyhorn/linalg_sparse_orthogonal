@@ -7,6 +7,7 @@
 #include "test_framework.h"
 #include "test_solver_helpers.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -151,6 +152,9 @@ static int make_iterative_exact_rhs(const SparseMatrix *A, idx_t n,
 
     *x_exact_out = NULL;
     *b_out = NULL;
+
+    if ((uintmax_t)n > SIZE_MAX / sizeof(double))
+        return 0;
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));

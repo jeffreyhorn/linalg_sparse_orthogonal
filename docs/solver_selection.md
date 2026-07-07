@@ -13,7 +13,7 @@ performance measurement, use [`benchmarks/README.md`](../benchmarks/README.md).
 | Starting point | Use this public path | Ownership and cleanup |
 |---|---|---|
 | Caller-owned CSR arrays | `sparse_create_from_csr(...)` for simple construction, or `sparse_from_csr(...)` for explicit `sparse_err_t` diagnostics. | Input arrays remain caller-owned. The returned `SparseMatrix *` is independent and is freed with `sparse_free(...)`. |
-| Caller-owned CSC arrays | `sparse_create_from_csc(...)` or `sparse_from_csc(...)`. | Input arrays remain caller-owned. The returned matrix is independent. |
+| Caller-owned CSC arrays | `sparse_create_from_csc(...)` or `sparse_from_csc(...)`. | Input arrays remain caller-owned. The returned `SparseMatrix *` is independent and is freed with `sparse_free(...)`. |
 | Matrix Market file | `sparse_load_mm(...)`. | The loaded matrix is caller-owned and freed with `sparse_free(...)`. I/O failures expose system errno through `sparse_errno()`. |
 | Small hand-written matrix | `sparse_create(...)` plus `sparse_insert(...)`. | This is best for small examples and tests, not for bulk imported data. |
 | Existing matrix shell | Public copy, export, transpose, matrix operation, and solver APIs. | Factorization may mutate working matrices, so use `sparse_copy(...)` when you still need the original coefficients. |

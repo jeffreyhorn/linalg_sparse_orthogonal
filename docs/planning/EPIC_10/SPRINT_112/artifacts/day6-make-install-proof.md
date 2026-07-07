@@ -18,7 +18,7 @@ bash tests/test_install.sh
 
 | field | value |
 |---|---|
-| repository root | `/Users/jeff/experiments/linalg_sparse_orthogonal` |
+| repository root | `$REPO_ROOT` |
 | staged prefix | temporary `mktemp` directory under `/var/folders/.../sparse.*` |
 | version under test | `2.2.0` |
 | package tier | static-first |

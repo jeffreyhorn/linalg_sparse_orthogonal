@@ -14,7 +14,7 @@
       consumers, versioning, exact-package behavior, README, INSTALL,
       maintainer docs, and CI workflow comments were audited before support
       claims changed.
-- [x] the support-tier decision was made explicitly: preserve the maintained
+- [x] The support-tier decision was made explicitly: preserve the maintained
       static-first package tier and keep shared-library packaging and dynamic
       ABI compatibility as non-claims.
 - [x] install/export proof was refreshed for the selected package tier:

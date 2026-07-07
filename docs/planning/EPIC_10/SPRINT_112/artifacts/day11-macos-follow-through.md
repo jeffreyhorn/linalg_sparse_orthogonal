@@ -11,7 +11,7 @@ package non-claims.
 
 | Surface | Observed value |
 |---|---|
-| Kernel | `Darwin yog-sothoth 24.6.0` |
+| Kernel | `Darwin 24.6.0` |
 | macOS | `15.7.3` (`24G419`) |
 | Default C compiler | Apple Clang `11.0.0` from Command Line Tools |
 | CMake | `4.3.2` |

@@ -1529,6 +1529,49 @@ static int read_ldlt_external_dense_reference_solution(const char *fixture_key, 
                                                   reason_cap);
 }
 
+typedef struct {
+    SparseMatrix *A;
+    LdltCsc *F1;
+    LdltCsc *F2;
+    SparseMatrix *A_perm;
+    double *x_true;
+    double *b;
+    double *b_perm;
+    double *x_perm;
+    double *x;
+    double *x_ref;
+} ldlt_external_dense_reference_state_t;
+
+static void ldlt_external_dense_reference_state_free(ldlt_external_dense_reference_state_t *state) {
+    if (!state)
+        return;
+    free(state->x_true);
+    free(state->b);
+    free(state->b_perm);
+    free(state->x_perm);
+    free(state->x);
+    free(state->x_ref);
+    ldlt_csc_free(state->F1);
+    ldlt_csc_free(state->F2);
+    sparse_free(state->A_perm);
+    sparse_free(state->A);
+}
+
+static int ldlt_external_dense_reference_state_alloc(ldlt_external_dense_reference_state_t *state,
+                                                     idx_t n) {
+    if (!state || n < 0)
+        return 0;
+
+    state->x_true = malloc((size_t)n * sizeof(double));
+    state->b = malloc((size_t)n * sizeof(double));
+    state->b_perm = malloc((size_t)n * sizeof(double));
+    state->x_perm = calloc((size_t)n, sizeof(double));
+    state->x = calloc((size_t)n, sizeof(double));
+    state->x_ref = calloc((size_t)n, sizeof(double));
+
+    return state->x_true && state->b && state->b_perm && state->x_perm && state->x && state->x_ref;
+}
+
 static void assert_ldlt_external_dense_reference(const char *fixture_key,
                                                  SparseMatrix *(*build_fixture)(void), double tol) {
 #ifdef _WIN32
@@ -1537,94 +1580,70 @@ static void assert_ldlt_external_dense_reference(const char *fixture_key,
     (void)tol;
     SKIP_TEST("external dense reference helper is not enabled on Windows");
 #else
-    SparseMatrix *A = build_fixture();
-    ASSERT_NOT_NULL(A);
-    idx_t n = sparse_rows(A);
+    ldlt_external_dense_reference_state_t state = {0};
+    state.A = build_fixture();
+    ASSERT_NOT_NULL(state.A);
+    if (!state.A)
+        return;
 
-    double *x_true = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    double *b_perm = malloc((size_t)n * sizeof(double));
-    double *x_perm = calloc((size_t)n, sizeof(double));
-    double *x = calloc((size_t)n, sizeof(double));
-    double *x_ref = calloc((size_t)n, sizeof(double));
-    ASSERT_NOT_NULL(x_true);
-    ASSERT_NOT_NULL(b);
-    ASSERT_NOT_NULL(b_perm);
-    ASSERT_NOT_NULL(x_perm);
-    ASSERT_NOT_NULL(x);
-    ASSERT_NOT_NULL(x_ref);
+    idx_t n = sparse_rows(state.A);
+    if (!ldlt_external_dense_reference_state_alloc(&state, n)) {
+        ldlt_external_dense_reference_state_free(&state);
+        TF_FAIL_("%s", "failed to allocate external LDLT reference fixture");
+        return;
+    }
 
     for (idx_t i = 0; i < n; i++)
-        x_true[i] = (double)(i + 1);
-    sparse_matvec(A, x_true, b);
+        state.x_true[i] = (double)(i + 1);
+    sparse_matvec(state.A, state.x_true, state.b);
 
-    LdltCsc *F1 = NULL;
-    LdltCsc *F2 = NULL;
-    SparseMatrix *A_perm = NULL;
-    ASSERT_TRUE(s20_two_pass_indefinite_factor(A, &F1, &F2, &A_perm));
+    int factored = s20_two_pass_indefinite_factor(state.A, &state.F1, &state.F2, &state.A_perm);
+    ASSERT_TRUE(factored);
+    if (!factored) {
+        ldlt_external_dense_reference_state_free(&state);
+        return;
+    }
 
     for (idx_t i_new = 0; i_new < n; i_new++)
-        b_perm[i_new] = b[F1->perm[i_new]];
+        state.b_perm[i_new] = state.b[state.F1->perm[i_new]];
 
-    REQUIRE_OK(ldlt_csc_solve(F2, b_perm, x_perm));
+    sparse_err_t solve_err = ldlt_csc_solve(state.F2, state.b_perm, state.x_perm);
+    ASSERT_ERR(solve_err, SPARSE_OK);
+    if (solve_err != SPARSE_OK) {
+        ldlt_external_dense_reference_state_free(&state);
+        return;
+    }
     for (idx_t i_new = 0; i_new < n; i_new++)
-        x[F1->perm[i_new]] = x_perm[i_new];
+        state.x[state.F1->perm[i_new]] = state.x_perm[i_new];
 
     char reason[256];
-    int ref_status =
-        read_ldlt_external_dense_reference_solution(fixture_key, x_ref, n, reason, sizeof(reason));
+    int ref_status = read_ldlt_external_dense_reference_solution(fixture_key, state.x_ref, n,
+                                                                 reason, sizeof(reason));
     if (ref_status == 0) {
-        free(x_true);
-        free(b);
-        free(b_perm);
-        free(x_perm);
-        free(x);
-        free(x_ref);
-        ldlt_csc_free(F1);
-        ldlt_csc_free(F2);
-        sparse_free(A_perm);
-        sparse_free(A);
+        ldlt_external_dense_reference_state_free(&state);
         SKIP_TEST(reason);
     }
     if (ref_status < 0) {
-        free(x_true);
-        free(b);
-        free(b_perm);
-        free(x_perm);
-        free(x);
-        free(x_ref);
-        ldlt_csc_free(F1);
-        ldlt_csc_free(F2);
-        sparse_free(A_perm);
-        sparse_free(A);
+        ldlt_external_dense_reference_state_free(&state);
         TF_FAIL_("external LDLT reference failed: %s", reason);
         return;
     }
 
     double max_diff = 0.0;
     for (idx_t i = 0; i < n; i++) {
-        double diff = fabs(x[i] - x_ref[i]);
+        double diff = fabs(state.x[i] - state.x_ref[i]);
         if (diff > max_diff)
             max_diff = diff;
-        ASSERT_NEAR(x[i], x_ref[i], tol);
-        ASSERT_NEAR(x[i], x_true[i], tol);
+        ASSERT_NEAR(state.x[i], state.x_ref[i], tol);
+        ASSERT_NEAR(state.x[i], state.x_true[i], tol);
     }
 
-    double rel = rel_residual(A, x, b);
+    double rel = rel_residual(state.A, state.x, state.b);
     printf("    external LDLT dense ref %s: n=%d, max|x-x_ref|=%.3e, rel_residual=%.3e\n",
            fixture_key, (int)n, max_diff, rel);
     ASSERT_TRUE(rel < tol);
 
-    free(x_true);
-    free(b);
-    free(b_perm);
-    free(x_perm);
-    free(x);
-    free(x_ref);
-    ldlt_csc_free(F1);
-    ldlt_csc_free(F2);
-    sparse_free(A_perm);
-    sparse_free(A);
+    ldlt_external_dense_reference_state_free(&state);
 #endif
 }
 

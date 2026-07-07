@@ -547,6 +547,44 @@ static void test_partial_svd_vectors_ortho(void) {
     sparse_free(A);
 }
 
+static int partial_svd_max_av_residual(const SparseMatrix *A, const sparse_svd_t *svd, idx_t k,
+                                       double *max_resid) {
+    if (!A || !svd || !max_resid)
+        return 0;
+
+    double *Av = calloc((size_t)svd->m, sizeof(double));
+    double *v = calloc((size_t)svd->n, sizeof(double));
+    ASSERT_NOT_NULL(Av);
+    ASSERT_NOT_NULL(v);
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        return 0;
+    }
+
+    *max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < svd->n; j++)
+            v[j] = svd->Vt[(size_t)j * (size_t)k + (size_t)s];
+
+        memset(Av, 0, (size_t)svd->m * sizeof(double));
+        sparse_matvec(A, v, Av);
+
+        double resid = 0.0;
+        for (idx_t i = 0; i < svd->m; i++) {
+            double diff = Av[i] - svd->sigma[s] * svd->U[(size_t)s * (size_t)svd->m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > *max_resid)
+            *max_resid = resid;
+    }
+
+    free(Av);
+    free(v);
+    return 1;
+}
+
 static void test_partial_svd_vectors_Av(void) {
     SparseMatrix *A = sparse_create(8, 8);
     ASSERT_NOT_NULL(A);
@@ -566,40 +604,15 @@ static void test_partial_svd_vectors_Av(void) {
     sparse_err_t err = sparse_svd_partial(A, k, &opts, &svd);
     ASSERT_EQ(err, SPARSE_OK);
 
-    double *Av = calloc((size_t)svd.m, sizeof(double));
-    double *v = calloc((size_t)svd.n, sizeof(double));
-    ASSERT_NOT_NULL(Av);
-    ASSERT_NOT_NULL(v);
-    if (!Av || !v) {
-        free(Av);
-        free(v);
+    double max_resid = 0.0;
+    if (!partial_svd_max_av_residual(A, &svd, k, &max_resid)) {
         sparse_svd_free(&svd);
         sparse_free(A);
         return;
     }
-
-    double max_resid = 0.0;
-    for (idx_t s = 0; s < k; s++) {
-        for (idx_t j = 0; j < svd.n; j++)
-            v[j] = svd.Vt[(size_t)j * (size_t)k + (size_t)s];
-
-        memset(Av, 0, (size_t)svd.m * sizeof(double));
-        sparse_matvec(A, v, Av);
-
-        double resid = 0.0;
-        for (idx_t i = 0; i < svd.m; i++) {
-            double diff = Av[i] - svd.sigma[s] * svd.U[(size_t)s * (size_t)svd.m + (size_t)i];
-            resid += diff * diff;
-        }
-        resid = sqrt(resid);
-        if (resid > max_resid)
-            max_resid = resid;
-    }
     printf("    partial SVD A*v ≈ sigma*u: max_resid=%.2e\n", max_resid);
     ASSERT_TRUE(max_resid < 1e-6);
 
-    free(Av);
-    free(v);
     sparse_svd_free(&svd);
     sparse_free(A);
 }
@@ -858,36 +871,15 @@ static void test_partial_svd_vectors_wide(void) {
     ASSERT_TRUE(fabs(svd.sigma[0] - 5.0) < 0.1);
     ASSERT_TRUE(fabs(svd.sigma[1] - 4.0) < 0.1);
 
-    double *Av = calloc((size_t)svd.m, sizeof(double));
-    double *v = calloc((size_t)svd.n, sizeof(double));
-    if (!Av || !v) {
-        free(Av);
-        free(v);
+    double max_resid = 0.0;
+    if (!partial_svd_max_av_residual(A, &svd, k, &max_resid)) {
         sparse_svd_free(&svd);
         sparse_free(A);
-        ASSERT_NOT_NULL(Av);
         return;
-    }
-    double max_resid = 0.0;
-    for (idx_t s = 0; s < k; s++) {
-        for (idx_t j = 0; j < svd.n; j++)
-            v[j] = svd.Vt[(size_t)j * (size_t)k + (size_t)s];
-        memset(Av, 0, (size_t)svd.m * sizeof(double));
-        sparse_matvec(A, v, Av);
-        double resid = 0.0;
-        for (idx_t i = 0; i < svd.m; i++) {
-            double diff = Av[i] - svd.sigma[s] * svd.U[(size_t)s * (size_t)svd.m + (size_t)i];
-            resid += diff * diff;
-        }
-        resid = sqrt(resid);
-        if (resid > max_resid)
-            max_resid = resid;
     }
     printf("    wide 4x8 partial vectors: max_resid=%.2e\n", max_resid);
     ASSERT_TRUE(max_resid < 1e-6);
 
-    free(Av);
-    free(v);
     sparse_svd_free(&svd);
     sparse_free(A);
 }

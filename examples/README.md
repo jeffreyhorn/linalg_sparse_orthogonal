@@ -11,12 +11,23 @@ Use this file as the compact next-step map after the README front door.
 - **Already have CSR or CSC arrays?**
   - Run `./build/example_compressed_input` for compressed construction into
     the normal public matrix shell.
+- **Need to choose a solver workflow first?**
+  - Use the [solver-selection guide](../docs/solver_selection.md), then return
+    here for the matching runnable example.
 - **Need the repeated-run direct lifecycle?**
   - Run `./build/example_analysis`.
 - **Need a one-shot iterative workflow?**
   - Run `./build/example_iterative`.
+- **Need QR least-squares or minimum-norm behavior?**
+  - Run `./build/example_least_squares` or `./build/example_minnorm`.
+- **Need symmetric-indefinite direct solve behavior?**
+  - Run `./build/example_ldlt`.
 - **Need the symmetric eigensolver workflow?**
   - Run `./build/example_eigs`.
+- **Need SVD, low-rank, or condition-number behavior?**
+  - Run `./build/example_svd_lowrank` or `./build/example_condition`.
+- **Need to load and use a Matrix Market file?**
+  - Run `./build/example_matrix_market` from the project root.
 - **Need an installed downstream-consumer example instead of a local build-tree example?**
   - Use `examples/cmake_example/` and the install flow in
     [INSTALL.md](../INSTALL.md).
@@ -55,12 +66,14 @@ repeated runs, not replacements for the small one-shot examples here:
 The public repeated-run handle surface intentionally does not broaden to
 `BiCGSTAB` or block iterative workflows.
 
-For the broader user-facing workflow behind those matrix-state rules, use the
+For the broader user-facing workflow behind those matrix-state rules, start
+with the [solver-selection guide](../docs/solver_selection.md), then use the
 [tutorial](../docs/tutorial.md) and the relevant public headers under
-[`include/`](../include/). This file stays focused on example-local behavior
-and entry points. Use [benchmarks/README](../benchmarks/README.md) for
-measurement workflows and the [Maintainer Guide](../docs/maintainer_guide.md)
-for quality-policy interpretation.
+[`include/`](../include/) when you need deeper API detail. This file stays
+focused on example-local behavior and entry points. Use
+[benchmarks/README](../benchmarks/README.md) for measurement workflows and the
+[Maintainer Guide](../docs/maintainer_guide.md) for quality-policy
+interpretation.
 
 For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
@@ -90,12 +103,12 @@ Next step after this example:
 
 ### Compressed Input: example_compressed_input
 
-Build the same kind of public matrix shell from caller-owned CSR arrays, then
-use the normal one-shot LU workflow. This is the smallest shipped reference
-for callers whose data already lives in compressed sparse storage.
+Build the same kind of public matrix shell from caller-owned CSR or CSC arrays,
+then use the normal one-shot LU workflow. This is the smallest shipped
+reference for callers whose data already lives in compressed sparse storage.
 
-The example demonstrates that CSR arrays are validated and copied, not
-adopted. After construction, the returned matrix is freed with
+The example demonstrates that CSR and CSC arrays are validated and copied, not
+adopted. After construction, each returned matrix is freed with
 `sparse_free(...)`, while the caller still owns the original compressed arrays.
 
 ```bash
@@ -110,6 +123,20 @@ Next step after this example:
   explicit `sparse_err_t` diagnostics
 - move to `example_analysis` when repeated same-pattern direct solves are the
   reason to manage analysis and factor objects explicitly
+
+### Symmetric Indefinite Direct: example_ldlt
+
+Solve a small KKT-style symmetric indefinite system with LDL^T. Demonstrates
+Bunch-Kaufman factorization, inertia reporting, AMD fill-reducing ordering,
+iterative refinement, and condition number estimation.
+
+Use this when the problem is square and symmetric but not positive-definite.
+For SPD systems, start with Cholesky instead. For rectangular or rank-sensitive
+systems, use the QR examples below.
+
+```bash
+./build/example_ldlt
+```
 
 ### Repeated-Run Direct: example_analysis
 
@@ -161,12 +188,46 @@ public API path `sparse_qr_solve_minnorm()`, documented in the
 ./build/example_least_squares
 ```
 
+### Underdetermined Minimum-Norm: example_minnorm
+
+Solve an underdetermined system with the public minimum-2-norm QR path. This is
+the companion to `example_least_squares` for cases where there are fewer
+equations than unknowns and the minimum-norm solution is the desired answer.
+
+```bash
+./build/example_minnorm
+```
+
+### Reorder / Fill: example_colamd
+
+Compute a COLAMD column ordering for an unsymmetric matrix, compare natural
+versus COLAMD LU fill, and use COLAMD with QR factorization. This example is
+the local teaching route for column ordering; symmetric fill-reducing
+workflows use RCM, AMD, or ND through the reorder and analysis APIs described
+in the solver-selection guide.
+
+```bash
+./build/example_colamd
+```
+
 ### SVD / Low-Rank: example_svd_lowrank
 
-Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows the singular value spectrum, condition number, rank estimation at different tolerances, and compression ratios for various ranks.
+Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows
+the singular value spectrum, condition number, rank estimation at different
+tolerances, and compression ratios for various ranks.
 
 ```bash
 ./build/example_svd_lowrank
+```
+
+### Condition Number: example_condition
+
+Compare well-conditioned, ill-conditioned, and singular systems with
+`sparse_cond(...)` and a small one-shot LU solve. Use this example when you
+need the conditioning workflow rather than the full low-rank SVD workflow.
+
+```bash
+./build/example_condition
 ```
 
 ### One-Shot Iterative: example_iterative
@@ -181,6 +242,41 @@ the public iterative-handle path now covers `CG`, `GMRES`, and `MINRES`.
 
 ```bash
 ./build/example_iterative
+```
+
+### IC(0), CG, and MINRES: example_ic_minres
+
+Demonstrate IC(0)-preconditioned CG on an SPD system and MINRES on symmetric
+indefinite systems. This is the strongest local example for matching
+preconditioner assumptions to iterative solver assumptions.
+
+```bash
+./build/example_ic_minres
+```
+
+### Matrix-Free Iterative: example_matrix_free
+
+Solve with GMRES using a custom matrix-vector callback instead of forming a
+stored sparse matrix. Use this route for structured operators where a public
+matrix shell is not the natural starting point.
+
+```bash
+./build/example_matrix_free
+```
+
+### Matrix Market Load/Use: example_matrix_market
+
+Load `tests/data/tridiagonal_20.mtx` with `sparse_load_mm(...)`, build a
+right-hand side from the loaded matrix, solve through the normal one-shot LU
+workflow, and free the loaded matrix with `sparse_free(...)`. Run this example
+from the project root so the test-data path resolves.
+
+This example treats Matrix Market as public load/use functions, not as a
+separate public Matrix I/O module or builder API. I/O failures report
+`SPARSE_ERR_IO` and expose the captured system errno through `sparse_errno()`.
+
+```bash
+./build/example_matrix_market
 ```
 
 ### One-Shot Symmetric Eigensolver: example_eigs

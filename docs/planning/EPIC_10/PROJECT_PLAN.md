@@ -1,4 +1,4 @@
-# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-114 (Epic 10)
+# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-115 (Epic 10)
 
 Epic 10 turns the post-Epic-9 library into a more product-grade sparse linear
 algebra system. The goal is not to declare the project state of the art by
@@ -537,7 +537,48 @@ integration and closeout.
 
 ---
 
-## Sprint 114: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 114: Adoption Surface Residual QA & Claim Guardrails
+
+**Duration:** 14 days (~56 hours)
+**Goal:** Close Sprint 111's residual adoption-surface debt before final Epic
+10 integration by validating external documentation references, preserving
+audience boundaries, and keeping performance/support claims evidence-bounded.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 111 solver-selection, Matrix Market, benchmark, README, tutorial, and
+  example documentation complete
+- Sprint 112 package/platform support truth complete enough to avoid stale
+  support-tier wording in adoption docs
+- Sprint 113 residual behavior and proof-owner closeout complete enough that
+  final documentation does not advertise unproven internals
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | External Reference Link QA | Network-check external Matrix Market, SuiteSparse, benchmark, package, and related reference URLs used by adoption-facing documentation; replace, fence, or remove stale links. | 10 |
+| 2 | README Quality and CI Boundary Pass | Review README quality, CI, support-tier, and evidence wording so it remains compact and does not become a maintainer handbook. | 8 |
+| 3 | Benchmark Documentation Scanability Pass | Review `benchmarks/README.md` live lane names, report mechanics, interpretation entry points, and indexes; split, index, or clarify only if users can no longer scan the document easily. | 10 |
+| 4 | Algorithm Reference Positioning Review | Review `docs/algorithm.md` only as needed to decide whether it remains technical background or needs public reference/adoption cleanup. | 8 |
+| 5 | Performance Wording Evidence Pass | Audit README, solver-selection guide, benchmark docs, and final support wording so performance language stays tied to measured local evidence and avoids universal speed claims. | 10 |
+| 6 | Adoption Non-Claims Checklist | Verify no public Matrix I/O module, public builder API, shared-library/ABI, expanded platform-support, universal benchmark, or maintainer-proof-first adoption claim was introduced. | 6 |
+| 7 | Validation and Handoff | Run documentation hygiene checks, capture residual QA artifacts, and hand off any remaining claim-boundary work to final Epic 10 integration. | 4 |
+
+### Deliverables
+
+- external-reference QA artifact
+- compact README quality/CI boundary pass
+- benchmark scanability and indexing decision
+- algorithm-reference positioning decision
+- evidence-bounded performance wording pass
+- adoption non-claims checklist for final Epic closeout
+
+**Total estimate:** ~56 hours
+
+---
+
+## Sprint 115: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -546,9 +587,10 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-113 complete
+- Sprints 100-114 complete
 - final comparison, benchmark, package, platform, maintainability, and residual
   proof-owner artifacts available
+- Sprint 114 adoption-surface residual QA and claim guardrails complete
 
 ### Items
 
@@ -559,7 +601,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 114 Retrospective | Create Sprint 114 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 115 Retrospective | Create Sprint 115 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -567,7 +609,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 114 retrospective
+- Sprint 115 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -592,5 +634,6 @@ truthful earned claims and residuals.
 | 111 | API Usability, Documentation & Example Coherence | 168 |
 | 112 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
 | 113 | Residual Behavior & Proof-Owner Closeout | 168 |
-| 114 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,514** |
+| 114 | Adoption Surface Residual QA & Claim Guardrails | 56 |
+| 115 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,570** |

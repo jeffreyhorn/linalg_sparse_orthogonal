@@ -10,7 +10,9 @@ deeper support surfaces only when you actually need them.
 - **Want a first successful solve quickly?**
   - Build locally with `make`, then use the one-shot direct quick start below.
 - **Need to choose the right solver workflow first?**
-  - Jump to [Choose a Workflow](#choose-a-workflow).
+  - Jump to [Choose a Workflow](#choose-a-workflow), then use
+    [docs/solver_selection.md](docs/solver_selection.md) for the fuller
+    decision tree and example handoff.
 - **Need install or downstream-consumer setup?**
   - Use [Installation](#installation) for the compact package summary, then
     [INSTALL.md](INSTALL.md) for platform-specific detail.
@@ -81,7 +83,10 @@ deeper support surfaces only when you actually need them.
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors, quick R-diagonal estimator from QR
 
 ### I/O & Interop
-- **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
+- **Matrix Market I/O** — load and save `.mtx` files through
+  `sparse_load_mm(...)` and `sparse_save_mm(...)`; see
+  [docs/matrix_market.md](docs/matrix_market.md) for the exact supported
+  coordinate formats, duplicate-entry behavior, ownership, and errno contract
 - **CSR/CSC export plus compressed-first construction** — convert to/from compressed sparse row/column formats and enter the one-shot direct workflow directly from caller-owned compressed data
 
 ### Quality
@@ -128,12 +133,15 @@ Start from these shipped references:
 
 - `example_basic_solve` for the smallest one-shot direct path
 - `example_analysis` for the analyze-once / factor-many direct lifecycle
+- [docs/solver_selection.md](docs/solver_selection.md) for matrix-format and
+  solver-family selection
 - [docs/tutorial.md](docs/tutorial.md) for the fuller repeated-run direct flow
 
 When to widen beyond the first examples:
 
 - examples teach the API workflow
-- benchmarks prove the retained workflow/performance story
+- benchmarks measure retained workflow/performance behavior on the current
+  machine, compiler, dependency, fixture, and configuration
 - tests own regression, oracle, and property guarantees
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
   benchmark surface and is intentionally not a pass/fail timing gate
@@ -144,12 +152,9 @@ When to widen beyond the first examples:
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
 
-Direct-solver correctness evidence is family-local. Current maintained
-external dense-reference lanes cover Cholesky CSC SPD fixtures, LDL^T CSC
-indefinite KKT fixtures, and one linked-list LU nonsymmetric fixture plus one
-LU singular expected-failure fixture. Treat those as bounded regression
-evidence, not a claim that every direct solver family has complete external
-oracle coverage or direct CSR/CSC public solve APIs.
+For direct-solver evidence boundaries and current test ownership, use the
+[Maintainer Guide](docs/maintainer_guide.md). The README keeps the adoption
+path focused on choosing and running supported public workflows.
 
 ## Building
 

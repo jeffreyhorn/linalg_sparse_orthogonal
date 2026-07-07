@@ -2,15 +2,18 @@
 #define SPARSE_MATRIX_INTERNAL_H
 
 /*
- * Private header: internal struct definitions for sparse_matrix.c and
- * sparse_lu.c. NOT part of the public API.
+ * Private header: internal sparse matrix storage, builder, and stream helper
+ * definitions shared by sparse matrix implementation owners and selected
+ * solver internals. NOT part of the public API.
  */
 
 #include "sparse_errno_internal.h"
 #include "sparse_matrix.h" /* picks up SPARSE_NODES_PER_SLAB, SPARSE_DROP_TOL */
 #include <float.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdatomic.h>
+#include <stdio.h>
 
 /*
  * Thread safety invariants:
@@ -198,12 +201,26 @@ typedef struct SparseMatrix {
 #endif
 } SparseMatrix;
 
+typedef struct {
+    idx_t row;
+    idx_t col;
+    sparse_scalar_t value;
+    idx_t order;
+} SparseBuildEntry;
+
 /*
  * Internal pool operations (used by sparse_matrix.c and sparse_lu.c)
  */
 Node *pool_alloc(NodePool *pool);
 void pool_release(NodePool *pool, Node *node);
 void pool_free_all(NodePool *pool);
+Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v);
+
+sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuildEntry *entries,
+                                              idx_t nentries, int entries_sorted,
+                                              SparseMatrix **mat_out);
+sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt, va_list ap);
+sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...);
 
 sparse_err_t sparse_factor_state_bind_lu(SparseMatrix *mat);
 sparse_err_t sparse_factor_state_bind_cholesky(SparseMatrix *mat);

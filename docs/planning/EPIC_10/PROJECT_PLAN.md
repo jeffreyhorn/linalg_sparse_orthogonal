@@ -1,4 +1,4 @@
-# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-113 (Epic 10)
+# Project Plan: Product-Grade Sparse Linear Algebra Maturity & Competitive Calibration -- Sprints 100-114 (Epic 10)
 
 Epic 10 turns the post-Epic-9 library into a more product-grade sparse linear
 algebra system. The goal is not to declare the project state of the art by
@@ -422,10 +422,10 @@ validation/drift work.
 
 ## Sprint 111: API Usability, Documentation & Example Coherence
 
-**Duration:** 14 days (~166 hours)
+**Duration:** 14 days (~168 hours)
 **Goal:** Make the project easier to adopt by giving users a concise
-compressed-first path, solver-selection guidance, and examples that match the
-actual product contracts.
+compressed-first path, solver-selection guidance, Matrix Market behavior
+documentation, and examples that match the actual product contracts.
 
 ### Prerequisites from Previous Sprints
 
@@ -433,6 +433,8 @@ actual product contracts.
 - Sprint 102-105 solver and benchmark evidence available
 - Sprint 110 residual matrix I/O, eigensolver behavior-owner, and proof-owner
   follow-through complete enough that docs do not describe unstable layouts
+- Sprint 110 Matrix builder and Matrix Market I/O split validated without
+  creating a public Matrix I/O module or public builder API
 
 ### Items
 
@@ -441,7 +443,7 @@ actual product contracts.
 | 1 | User Journey Audit | Audit README, tutorial, examples, install docs, benchmark docs, and public headers from a first-time user perspective. | 18 |
 | 2 | Solver Selection Guide | Create a concise guide for matrix format, direct solve, iterative solve, eigen solve, decomposition reuse, and reorder/fill workflows. | 28 |
 | 3 | Compressed-First Example Batch | Update or add minimal robust examples that start from CSR/CSC workflows. | 30 |
-| 4 | Error and Ownership Docs | Tighten public header and guide wording for ownership, zero/default options, errors, and runtime behavior. | 24 |
+| 4 | Matrix Market Behavior and Ownership Docs | Tighten public header and guide wording for ownership, zero/default options, Matrix Market duplicate-entry last-write behavior, final-zero elision, pattern handling, symmetric expansion, errno behavior, and runtime behavior without claiming a public Matrix I/O module or public builder API. | 26 |
 | 5 | Benchmark Interpretation Docs | Make local benchmark and comparison artifact interpretation clear without overclaiming portability. | 18 |
 | 6 | Maintainer/User Split Cleanup | Move maintainer-only proof language away from adoption surfaces where practical. | 22 |
 | 7 | Validation and Closeout | Run doc/example checks, capture artifacts, and close Sprint 111. | 26 |
@@ -450,10 +452,11 @@ actual product contracts.
 
 - concise solver-selection and matrix-format guide
 - compressed-first examples for common workflows
-- clearer ownership, error, runtime, and benchmark documentation
+- clearer Matrix Market behavior, ownership, error, runtime, and benchmark
+  documentation without public builder or public Matrix I/O module claims
 - public docs separated more cleanly from maintainer proof language
 
-**Total estimate:** ~166 hours
+**Total estimate:** ~168 hours
 
 ---
 
@@ -467,16 +470,19 @@ explicit decision on static-first versus shared-library/ABI proof.
 
 - Sprint 100 platform and package evidence template complete
 - Sprint 111 user-facing docs ready to describe support tiers accurately
+- Sprint 110 no-public-header-drift result available as package and platform
+  baseline evidence, without implying shared-library/ABI support or broader
+  Windows coverage
 
 ### Items
 
 | Item # | Item Name | Item Description | Estimate (in hours) |
 |---|---|---|---:|
 | 1 | Package Surface Audit | Audit Make install, CMake install/export, pkg-config, examples, downstream consumers, versioning, and exact-package behavior. | 20 |
-| 2 | ABI Support Decision | Decide whether to add shared-library/ABI-version proof in Epic 10 or preserve static-first as the explicit support tier. | 24 |
+| 2 | ABI Support Decision | Decide whether to add shared-library/ABI-version proof in Epic 10 or preserve static-first as the explicit support tier, explicitly using Sprint 110 no-public-header-drift evidence without overclaiming ABI stability. | 24 |
 | 3 | Install/Consumer Proof Batch | Strengthen install/export and downstream consumer validation based on the support-tier decision. | 32 |
 | 4 | Platform Tier Contract | Define Linux, macOS, and Windows support tiers, reviewed checks, exclusions, and non-claims. | 24 |
-| 5 | Windows/macOS Follow-Through | Move any practical Windows or macOS exclusions into reviewed parity, or document why they remain staged. | 28 |
+| 5 | Windows/macOS Follow-Through | Move any practical Windows or macOS exclusions into reviewed parity, or document why they remain staged without inferring broader coverage from Sprint 110's unchanged public headers. | 28 |
 | 6 | Packaging Docs | Update install, README, CMake, pkg-config, and maintainer docs to match final package/platform truth. | 18 |
 | 7 | Validation and Closeout | Run required checks, archive platform/package artifacts, and close Sprint 112. | 22 |
 
@@ -491,7 +497,47 @@ explicit decision on static-first versus shared-library/ABI proof.
 
 ---
 
-## Sprint 113: Final Integration, Competitive Calibration & Epic 10 Closeout
+## Sprint 113: Residual Behavior & Proof-Owner Closeout
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Resolve Sprint 110's remaining behavior-sensitive eigensolver and
+proof-owner residuals in bounded, evidence-first batches before final Epic 10
+integration and closeout.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 110 eigensolver handle/workspace no-move contract complete
+- Sprint 110 direct/iterative and SVD proof-owner residual queues available
+- Sprint 111 public documentation does not depend on unstable internal source
+  ownership
+- Sprint 112 package/platform support truth complete enough to avoid public
+  support-surface drift
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Intake and Boundary Refresh | Re-read Sprint 110 residual deferred debt, explicitly exclude completed Matrix builder, Matrix I/O, CG exact-RHS, SVD rank-deficient setup, and handle/workspace validation work, then order eigensolver and proof-owner residuals by dependency. | 16 |
+| 2 | Eigensolver Behavior Owner Proof Batch | Select one behavior-sensitive eigensolver owner, such as defaults/options, backend dispatch, grow-m sizing, refinement budgets, shift-invert setup, shared Lanczos kernels, or public handle/workspace movement, and add direct owner-specific tests before any source movement. | 30 |
+| 3 | Eigensolver Source Movement or No-Move Contract | If Item 2 proves a low-risk owner, perform one narrow private source movement with source-list, Make/CMake, CTest, and behavior parity; otherwise publish a no-move contract with explicit future proof requirements. | 26 |
+| 4 | Direct and Iterative Proof-Owner Cleanup | Perform one bounded cleanup across QR sequential RHS setup, LDLT CSC external dense-reference oracle cleanup, CG preconditioner-specific exact-RHS setup, GMRES exact-RHS setup, BiCGSTAB exact-RHS setup, or MINRES exact-RHS setup while keeping proof values visible. | 34 |
+| 5 | SVD Proof-Owner Cleanup | Perform one bounded cleanup across SVD reconstruction, U/Vt orthogonality, Moore-Penrose products, dense or sparse low-rank residuals, partial-SVD vector/residual checks, or condition-number proof logic after a fresh proof-boundary artifact. | 28 |
+| 6 | Proof-Owner Metrics and Non-Claims | Capture before/after file metrics, identify remaining proof-owner non-claims, and document why broad cross-solver or broad SVD proof abstractions remain unsupported unless directly proven. | 14 |
+| 7 | Validation and Closeout | Run required checks for touched code, test, build, and docs surfaces; verify no public API/install-header/helper-target/reviewed CTest drift; close Sprint 113 with residuals for final Epic integration. | 20 |
+
+### Deliverables
+
+- refreshed Sprint 110 residual-debt boundary artifact
+- direct eigensolver behavior-owner tests and movement or no-move contract
+- one bounded direct/iterative proof-owner cleanup
+- one bounded SVD proof-owner cleanup
+- proof-owner metrics, non-claims, and validation closeout
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 114: Final Integration, Competitive Calibration & Epic 10 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Integrate Epic 10 outcomes, validate all reviewed surfaces, compare
@@ -500,8 +546,9 @@ truthful earned claims and residuals.
 
 ### Prerequisites from Previous Sprints
 
-- Sprints 100-112 complete
-- final comparison, benchmark, package, platform, and maintainability artifacts available
+- Sprints 100-113 complete
+- final comparison, benchmark, package, platform, maintainability, and residual
+  proof-owner artifacts available
 
 ### Items
 
@@ -512,7 +559,7 @@ truthful earned claims and residuals.
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
 | 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
-| 6 | Sprint 113 Retrospective | Create Sprint 113 closeout notes and retrospective from artifacts and working notes. | 20 |
+| 6 | Sprint 114 Retrospective | Create Sprint 114 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 
 ### Deliverables
@@ -520,7 +567,7 @@ truthful earned claims and residuals.
 - final Epic 10 validation package
 - competitive calibration against the state-of-the-art target
 - unsupported-claim cleanup
-- Sprint 113 retrospective
+- Sprint 114 retrospective
 - Epic 10 retrospective and post-epic handoff queue
 
 **Total estimate:** ~164 hours
@@ -542,7 +589,8 @@ truthful earned claims and residuals.
 | 108 | Residual Proof-Owner & Source Boundary Follow-Through | 168 |
 | 109 | Residual Source Boundary & Proof-Owner Debt Closeout | 168 |
 | 110 | Residual Matrix I/O, Behavior Owners & Proof-Owner Follow-Through | 168 |
-| 111 | API Usability, Documentation & Example Coherence | 166 |
+| 111 | API Usability, Documentation & Example Coherence | 168 |
 | 112 | Packaging, ABI & Cross-Platform Validation Expansion | 168 |
-| 113 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
-| **Total** | | **2,344** |
+| 113 | Residual Behavior & Proof-Owner Closeout | 168 |
+| 114 | Final Integration, Competitive Calibration & Epic 10 Closeout | 164 |
+| **Total** | | **2,514** |

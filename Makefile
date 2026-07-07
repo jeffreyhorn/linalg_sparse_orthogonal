@@ -62,6 +62,8 @@ BUILDDIR = build
 # Library sources
 LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_matrix.c \
+           $(SRCDIR)/sparse_matrix_build_internal.c \
+           $(SRCDIR)/sparse_matrix_io.c \
            $(SRCDIR)/sparse_factor_state_internal.c \
            $(SRCDIR)/sparse_alloc_internal.c \
            $(SRCDIR)/sparse_lu.c \

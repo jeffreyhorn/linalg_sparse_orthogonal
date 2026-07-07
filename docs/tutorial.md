@@ -10,7 +10,11 @@ Use this tutorial after the README when you want the fuller learning path:
 2. choose a one-shot solve or repeated-run lifecycle;
 3. validate return codes and output;
 4. move to examples, benchmarks, headers, or install docs when you need the
-   owner surface for that next step.
+   next level of detail.
+
+For a compact decision tree before you start coding, use the
+[solver-selection guide](solver_selection.md). For runnable examples, use
+[`examples/README.md`](../examples/README.md).
 
 ### Choose a Workflow First
 
@@ -116,11 +120,21 @@ explicit `sparse_err_t` diagnostic.
 SparseMatrix *A = NULL;
 sparse_err_t err = sparse_load_mm(&A, "matrix.mtx");
 if (err != SPARSE_OK) {
-    // Handle error
+    fprintf(stderr, "Load failed: %s\n", sparse_strerror(err));
+    if (err == SPARSE_ERR_IO) {
+        fprintf(stderr, "system errno: %d\n", sparse_errno());
+    }
+    return 1;
 }
 // ... use A ...
 sparse_free(A);
 ```
+
+Loaded Matrix Market matrices are caller-owned `SparseMatrix` objects. Free
+them with `sparse_free(...)`. The public Matrix Market surface is
+`sparse_load_mm(...)` and `sparse_save_mm(...)`; format details, duplicate
+handling, pattern defaults, symmetric expansion, and errno behavior live in
+[matrix_market.md](matrix_market.md).
 
 ### Matrix Operations
 
@@ -178,10 +192,6 @@ Treat LU as a one-shot direct entry point on a fresh matrix or a fresh
 `sparse_copy()` of the original coefficients. If you need analyze-once /
 factor-many reuse, move to the explicit repeated-run direct lifecycle in
 `example_analysis.c` instead of repeatedly re-entering the one-shot LU path.
-The maintained external dense-reference LU evidence currently covers a bounded
-nonsymmetric square fixture and a deterministic singular expected-failure
-fixture; keep treating wider LU assurance as test-owned rather than as a broad
-solver-family claim.
 
 ### Cholesky Factorization
 
@@ -218,16 +228,12 @@ the original coefficients when you still need the original matrix view later.
 That keeps the mutation/cancellation caveats local to the working factor copy
 instead of the caller's last original view.
 
-Maintained external dense-reference evidence for this family is bounded to the
-CSC-backed SPD Cholesky lanes and their named regression fixtures.
-
 ### LDL^T Factorization
 
 Use LDL^T for symmetric indefinite systems where Bunch-Kaufman pivoting and
-inertia reporting are the right model. The current maintained external
-dense-reference evidence for LDL^T is bounded to CSC-backed deterministic KKT
-fixtures, including the scaled Sprint 102 KKT lane. That evidence supports the
-named fixture family; it is not a broad external factorization-parity claim.
+inertia reporting are the right model. For stable-pattern repeated direct
+solves, use the same explicit analysis/factor/refactor lifecycle described for
+Cholesky rather than treating one-shot factorization as a hidden reuse path.
 
 ### QR Factorization
 
@@ -235,8 +241,8 @@ For rectangular or rank-deficient systems. Use the original matrix view here:
 QR expects an unfactored, unreordered matrix with identity permutations.
 If the matrix may already have been factored or reordered elsewhere, start
 from a fresh `sparse_copy()` of the original coefficients before calling QR.
-For the repository-wide documentation-ownership and lifecycle-policy boundary
-behind this rule, see the [Maintainer Guide](maintainer_guide.md).
+For the broader solver-selection context behind this rule, see the
+[solver-selection guide](solver_selection.md).
 
 ```c
 #include "sparse_qr.h"

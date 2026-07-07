@@ -503,14 +503,17 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * @brief Load a matrix from a Matrix Market file.
  *
  * Supports coordinate format with real, pattern, or integer value types,
- * and general or symmetric symmetry. Symmetric matrices have their lower
- * triangle mirrored to the upper triangle. Pattern matrices use value 1.0.
- * The imported coordinates are then bulk-built into the mutable matrix shell
- * while preserving the existing visible API contract.
+ * and general or symmetric symmetry. Symmetric off-diagonal entries are
+ * mirrored in the returned matrix, and symmetric inputs must be square.
+ * Pattern matrices use value 1.0. Duplicate coordinates are resolved by
+ * last entry in file order, and a final value of 0.0 is omitted from stored
+ * sparse entries.
  *
  * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
  * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.
- * Format errors (bad header, dimension mismatch) return SPARSE_ERR_PARSE.
+ * Format errors (bad header, malformed dimensions/data, unsupported format,
+ * out-of-range coordinates, zero coordinates, or rectangular symmetric
+ * input) return SPARSE_ERR_PARSE.
  *
  * @param[out] mat_out  Pointer to receive the loaded matrix. Set to NULL on error.
  *                      The caller must free the matrix with sparse_free().

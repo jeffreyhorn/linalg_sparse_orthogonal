@@ -357,6 +357,9 @@ target_link_libraries(example_least_squares PRIVATE sparse_lu_ortho)
 add_executable(example_matrix_free examples/example_matrix_free.c)
 target_link_libraries(example_matrix_free PRIVATE sparse_lu_ortho)
 
+add_executable(example_matrix_market examples/example_matrix_market.c)
+target_link_libraries(example_matrix_market PRIVATE sparse_lu_ortho)
+
 add_executable(example_svd_lowrank examples/example_svd_lowrank.c)
 target_link_libraries(example_svd_lowrank PRIVATE sparse_lu_ortho)
 

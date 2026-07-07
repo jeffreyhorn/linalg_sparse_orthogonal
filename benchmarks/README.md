@@ -10,6 +10,56 @@ route, [examples/README](../examples/README.md) for API adoption examples, and
 the [Maintainer Guide](../docs/maintainer_guide.md) for reviewed-baseline and
 proof-owner interpretation.
 
+## Reading Benchmark Results
+
+Benchmarks are local measurement tools. They help answer questions like:
+
+- is this branch faster or slower than another branch on the same machine?
+- does a repeated-run workflow reduce setup cost for this fixture?
+- did a backend, reorder, or preconditioner choice change local runtime,
+  iteration count, fill, residual, or selected path?
+
+They do not prove portable performance across machines, compilers, operating
+systems, BLAS or dense-kernel backends, OpenMP runtimes, thread counts, matrix
+corpora, or build options. Treat timing columns as comparable only when the
+environment and command line are recorded or intentionally held fixed.
+
+When reading CSV rows:
+
+- identify the workload first: matrix, dimensions, fixture family, solver,
+  backend, reorder, preconditioner, and scenario fields define the comparison
+  cell
+- use residual, status, convergence, iteration, fill, and path columns before
+  interpreting timing columns
+- compare timing rows across branches only when build mode, compiler, backend
+  request/selection, `OMP_NUM_THREADS`, matrix corpus, and repeat count are
+  aligned
+- treat generated `manifest.txt` and `index.tsv` files as the source of
+  command, branch, commit, compiler/platform, artifact, and label context
+- keep examples as the learning path and tests as correctness owners; benchmark
+  CSVs are measurement artifacts
+
+Recommended handoff from API adoption:
+
+| Need | Start here | Read as |
+|---|---|---|
+| Learn the API workflow | `examples/README.md` | runnable usage, not timing evidence |
+| Choose a solver family | `docs/solver_selection.md` | problem-shape guidance |
+| Capture the maintained local benchmark surface | `make bench-canonical-report` | threshold-free branch-local CSV bundle |
+| Check bounded local sentinel behavior | `make performance-sentinels` | local sentinel report plus the existing `wall-check` gate |
+| Investigate a specific backend or algorithm | individual `bench_*` binary | focused local measurement |
+| Validate correctness or public contract | `make test` and focused tests | regression/oracle/property evidence |
+
+The practical workflow is:
+
+1. Pick the API route from the README, solver-selection guide, or examples.
+2. Run the smallest relevant benchmark or report target.
+3. Save the emitted CSV plus manifest/index context.
+4. Compare against a second run only after checking that workload and
+   environment fields still line up.
+5. Treat differences as local evidence that may justify follow-up profiling,
+   not as a universal performance ranking.
+
 ## Compile-only gate
 
 Routine local quality checks should now catch benchmark/example compile

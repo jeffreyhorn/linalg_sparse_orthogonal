@@ -30,6 +30,11 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
+/* M_PI is not part of C11, so define it locally for strict libc builds. */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 /* Build a diagonal SparseMatrix from the given diag array. */
 static SparseMatrix *build_diag(idx_t n, const double *diag) {
     SparseMatrix *A = sparse_create(n, n);
@@ -81,6 +86,9 @@ typedef struct {
     char phases[8][16];
     idx_t cancel_after_step;
 } growm_progress_record_t;
+
+static void assert_ritz_residuals(const SparseMatrix *A, const sparse_eigs_t *result, idx_t k,
+                                  const double *vecs, double tol);
 
 static int growm_progress_record_cb(const sparse_progress_t *p, void *user) {
     growm_progress_record_t *record = (growm_progress_record_t *)user;
@@ -296,6 +304,36 @@ static void test_tridiag_spd_matches_dense(void) {
     ASSERT_EQ(result.n_converged, 3);
     for (idx_t j = 0; j < 3; j++)
         ASSERT_NEAR(vals[j], ref_largest[j], 1e-9);
+
+    sparse_free(A);
+}
+
+static void test_clustered_largest_ritz_selection_public_values(void) {
+    const idx_t n = 8;
+    const idx_t k = 3;
+    const double diag[8] = {10.0, 9.99999, 9.99998, 8.5, 7.0, 5.0, 3.0, 1.0};
+    const double expected[3] = {10.0, 9.99999, 9.99998};
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals[3] = {0.0, 0.0, 0.0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = n,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(result.n_converged, k);
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(vals[j], expected[j], 1e-7);
+    ASSERT_TRUE(vals[0] >= vals[1]);
+    ASSERT_TRUE(vals[1] >= vals[2]);
+    ASSERT_TRUE(vals[2] > 8.5);
 
     sparse_free(A);
 }
@@ -523,6 +561,48 @@ static void test_growm_retry_progress_steps_accumulate_iterations(void) {
     }
     ASSERT_TRUE(result.iterations >= progress.steps[recorded - 1]);
 
+    sparse_free(A);
+}
+
+static void test_growm_lanczos_iterate_op_public_behavior(void) {
+    const idx_t n = 64;
+    const idx_t k = 2;
+    const idx_t explicit_max_iterations = 64;
+    const idx_t expected_peak_basis_size = 64;
+    SparseMatrix *A = build_shifted_tridiag(n);
+    ASSERT_NOT_NULL(A);
+
+    double vals[2] = {0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t result = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .max_iterations = explicit_max_iterations,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(result.n_requested, k);
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
+    ASSERT_TRUE(result.iterations >= k);
+    /* iterations is cumulative across grow-m retries; max_iterations caps each
+     * individual Lanczos run through peak_basis_size. */
+    ASSERT_TRUE(result.iterations >= expected_peak_basis_size);
+    ASSERT_TRUE(result.residual_norm <= 1e-12);
+    ASSERT_TRUE(vals[0] >= vals[1]);
+    assert_ritz_residuals(A, &result, k, vecs, 1e-8);
+
+    free(vecs);
     sparse_free(A);
 }
 
@@ -985,6 +1065,318 @@ static void assert_ritz_residuals(const SparseMatrix *A, const sparse_eigs_t *re
         tf_asserts++;
     }
     free(Av);
+}
+
+static void assert_eigs_vectors_orthonormal(const double *vecs, idx_t n, idx_t k, double tol) {
+    double max_err = 0.0;
+    for (idx_t a = 0; a < k; a++) {
+        for (idx_t b = 0; b < k; b++) {
+            double dot = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                dot += vecs[(size_t)a * (size_t)n + (size_t)i] *
+                       vecs[(size_t)b * (size_t)n + (size_t)i];
+            double expect = (a == b) ? 1.0 : 0.0;
+            double err = fabs(dot - expect);
+            if (err > max_err)
+                max_err = err;
+        }
+    }
+    if (max_err > tol)
+        TF_FAIL_("eigs vector orthogonality max |V^T V - I| = %.3e > tol=%.3e", max_err, tol);
+    tf_asserts++;
+}
+
+/* Sprint 114 Day 7: grow-m vector publication on a non-diagonal
+ * fixture.  This pins the public result shape around
+ * `s20_lift_ritz_vectors` without moving the helper. */
+static void test_s114_growm_vector_lift_public_boundary(void) {
+    const idx_t n = 30;
+    const idx_t k = 4;
+    SparseMatrix *A = build_laplacian_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double vals[4] = {0.0, 0.0, 0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = n,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_TRUE(res.iterations > 0);
+    ASSERT_TRUE(res.residual_norm <= 1e-12);
+
+    for (idx_t j = 0; j < k; j++) {
+        double expected = 2.0 - 2.0 * cos((double)(n - j) * M_PI / (double)(n + 1));
+        ASSERT_NEAR(vals[j], expected, 1e-10);
+    }
+    assert_ritz_residuals(A, &res, k, vecs, 1e-10);
+    assert_eigs_vectors_orthonormal(vecs, n, k, 1e-10);
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Sprint 114 Day 7: shift-invert uses transformed Ritz values but
+ * publishes original-space vectors.  Keep sigma and expected values
+ * visible so the proof remains a public contract check. */
+static void test_s114_shift_invert_vector_publication_boundary(void) {
+    const idx_t n = 12;
+    const idx_t k = 3;
+    const double sigma = 2.0;
+    SparseMatrix *A = build_laplacian_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double vals[3] = {0.0, 0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = sigma,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = n,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_TRUE(res.iterations > 0);
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_TRUE(isfinite(vals[j]));
+    assert_ritz_residuals(A, &res, k, vecs, 1e-8);
+    assert_eigs_vectors_orthonormal(vecs, n, k, 1e-9);
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Sprint 114 Day 7: partial publication leaves caller-owned slots
+ * beyond the requested range untouched and only asks callers to
+ * consume [0, n_converged). */
+static void test_s114_growm_partial_vector_publication_sentinel_boundary(void) {
+    const idx_t n = 80;
+    const idx_t k = 3;
+    const double val_sentinel = -777.0;
+    const double vec_sentinel = 12345.0;
+    SparseMatrix *A = build_shifted_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double vals[4] = {val_sentinel, val_sentinel, val_sentinel, val_sentinel};
+    double *vecs = malloc((size_t)n * (size_t)(k + 1) * sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n * (k + 1); i++)
+        vecs[i] = vec_sentinel;
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-18,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = 16, /* min(2*k + 10, n): valid but deliberately tight */
+    };
+
+    ASSERT_ERR(sparse_eigs_sym(A, k, &opts, &res), SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_TRUE(res.n_converged >= 1);
+    ASSERT_TRUE(res.n_converged <= k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_TRUE(res.iterations > 0);
+    for (idx_t j = 0; j < res.n_converged; j++) {
+        ASSERT_TRUE(isfinite(vals[j]));
+        double norm_sq = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            norm_sq +=
+                vecs[(size_t)j * (size_t)n + (size_t)i] * vecs[(size_t)j * (size_t)n + (size_t)i];
+        ASSERT_TRUE(norm_sq > 0.0);
+    }
+    ASSERT_TRUE(vals[k] == val_sentinel);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_TRUE(vecs[(size_t)k * (size_t)n + (size_t)i] == vec_sentinel);
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Sprint 114 Day 8: explicit `m_cap` exhaustion proof.  With
+ * k = 3 and max_iterations = 16, grow-m starts at m_init = m_cap =
+ * min(3*k + 30, max_iterations), performs exactly one bounded
+ * Lanczos run, fails the intentionally impossible tolerance, and
+ * publishes the best final-phase Ritz state without writing outside
+ * the caller's requested result range. */
+static void test_s114_mcap_exhaustion_publishes_bounded_partial_result(void) {
+    const idx_t n = 80;
+    const idx_t k = 3;
+    const idx_t m_cap = 16; /* min valid explicit max_iterations: 2*k + 10 */
+    const double tol = 1e-18;
+    const double val_sentinel = -9191.0;
+    const double vec_sentinel = 424242.0;
+    SparseMatrix *A = build_shifted_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double vals[5] = {val_sentinel, val_sentinel, val_sentinel, val_sentinel, val_sentinel};
+    double *vecs = malloc((size_t)n * (size_t)(k + 2) * sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n * (k + 2); i++)
+        vecs[i] = vec_sentinel;
+
+    growm_progress_record_t progress = {.cancel_after_step = -1};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = tol,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = m_cap,
+        .progress_cb = growm_progress_record_cb,
+        .progress_user = &progress,
+    };
+
+    ASSERT_ERR(sparse_eigs_sym(A, k, &opts, &res), SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(res.peak_basis_size, m_cap);
+    ASSERT_EQ(res.iterations, m_cap);
+    ASSERT_TRUE(isfinite(res.residual_norm));
+    ASSERT_TRUE(res.residual_norm > tol);
+    ASSERT_EQ(progress.n_calls, 1);
+    ASSERT_EQ(progress.steps[0], 0);
+    ASSERT_TRUE(strcmp(progress.phases[0], "lanczos") == 0);
+
+    for (idx_t j = 0; j < k; j++) {
+        ASSERT_TRUE(isfinite(vals[j]));
+        if (j > 0)
+            ASSERT_TRUE(vals[j - 1] >= vals[j]);
+        double norm_sq = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double v = vecs[(size_t)j * (size_t)n + (size_t)i];
+            ASSERT_TRUE(isfinite(v));
+            norm_sq += v * v;
+        }
+        ASSERT_TRUE(norm_sq > 0.0);
+    }
+    ASSERT_TRUE(vals[k] == val_sentinel);
+    ASSERT_TRUE(vals[k + 1] == val_sentinel);
+    for (idx_t col = k; col < k + 2; col++)
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_TRUE(vecs[(size_t)col * (size_t)n + (size_t)i] == vec_sentinel);
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Sprint 114 Day 9: shift-invert grow-m conversion proof.  This
+ * fixture keeps sigma, the transformed-theta interpretation, and the
+ * expected original-space eigenvalues visible at the call site. */
+static void test_s114_shift_invert_growm_conversion_nearest_sigma(void) {
+    const idx_t n = 24;
+    const idx_t k = 4;
+    const idx_t m_cap = n;
+    const double sigma = 1.37;
+    const double tol = 1e-11;
+    SparseMatrix *A = build_laplacian_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double expected[4] = {
+        2.0 - 2.0 * cos(10.0 * M_PI / (double)(n + 1)),
+        2.0 - 2.0 * cos(9.0 * M_PI / (double)(n + 1)),
+        2.0 - 2.0 * cos(11.0 * M_PI / (double)(n + 1)),
+        2.0 - 2.0 * cos(8.0 * M_PI / (double)(n + 1)),
+    };
+    double expected_theta_abs[4];
+    for (idx_t j = 0; j < k; j++)
+        expected_theta_abs[j] = fabs(1.0 / (expected[j] - sigma));
+
+    double vals[4] = {0.0, 0.0, 0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    growm_progress_record_t progress = {.cancel_after_step = -1};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = sigma,
+        .tol = tol,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = m_cap,
+        .progress_cb = growm_progress_record_cb,
+        .progress_user = &progress,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(res.peak_basis_size, m_cap);
+    ASSERT_EQ(res.iterations, m_cap);
+    ASSERT_TRUE(res.residual_norm <= tol);
+    ASSERT_EQ(progress.n_calls, 1);
+    ASSERT_EQ(progress.steps[0], 0);
+    ASSERT_TRUE(strcmp(progress.phases[0], "lanczos") == 0);
+
+    for (idx_t j = 0; j < k; j++) {
+        double theta_abs = fabs(1.0 / (vals[j] - sigma));
+        ASSERT_TRUE(isfinite(vals[j]));
+        ASSERT_NEAR(vals[j], expected[j], 1e-10);
+        ASSERT_NEAR(theta_abs, expected_theta_abs[j], 1e-8);
+        if (j > 0) {
+            ASSERT_TRUE(fabs(vals[j - 1] - sigma) <= fabs(vals[j] - sigma) + 1e-12);
+            ASSERT_TRUE(expected_theta_abs[j - 1] >= expected_theta_abs[j]);
+        }
+    }
+    assert_ritz_residuals(A, &res, k, vecs, 1e-9);
+    assert_eigs_vectors_orthonormal(vecs, n, k, 1e-9);
+
+    free(vecs);
+    sparse_free(A);
 }
 
 /* Build a KKT-style saddle-point indefinite matrix:
@@ -1718,12 +2110,19 @@ int main(void) {
     RUN_TEST(test_eigs_public_scalar_alias);
     RUN_TEST(test_non_symmetric_rejected);
     RUN_TEST(test_tridiag_spd_matches_dense);
+    RUN_TEST(test_clustered_largest_ritz_selection_public_values);
+    RUN_TEST(test_s114_growm_vector_lift_public_boundary);
+    RUN_TEST(test_s114_shift_invert_vector_publication_boundary);
+    RUN_TEST(test_s114_growm_partial_vector_publication_sentinel_boundary);
+    RUN_TEST(test_s114_mcap_exhaustion_publishes_bounded_partial_result);
+    RUN_TEST(test_s114_shift_invert_growm_conversion_nearest_sigma);
     RUN_TEST(test_bad_args);
     RUN_TEST(test_public_handle_growm_prepare_reuse_and_growth);
     RUN_TEST(test_growm_default_capacity_pins_peak_basis_size);
     RUN_TEST(test_growm_explicit_capacity_pins_peak_basis_size);
     RUN_TEST(test_growm_too_small_explicit_iteration_budget_rejected);
     RUN_TEST(test_growm_retry_progress_steps_accumulate_iterations);
+    RUN_TEST(test_growm_lanczos_iterate_op_public_behavior);
     RUN_TEST(test_growm_retry_boundary_cancellation_exits_cleanly);
     RUN_TEST(test_public_handle_prepare_and_reuse);
     RUN_TEST(test_public_handle_validation_and_on_demand);

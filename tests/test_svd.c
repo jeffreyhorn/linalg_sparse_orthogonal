@@ -348,6 +348,148 @@ static double orthogonality_error(const double *Q, idx_t rows, idx_t cols) {
     return maxerr;
 }
 
+static double svd_vt_row_orthogonality_error(const double *Vt, idx_t rows, idx_t cols, idx_t ld) {
+    double frob_err_sq = 0.0;
+    for (idx_t i = 0; i < rows; i++) {
+        for (idx_t j = 0; j < rows; j++) {
+            double dot = 0.0;
+            for (idx_t c = 0; c < cols; c++)
+                dot +=
+                    Vt[(size_t)c * (size_t)ld + (size_t)i] * Vt[(size_t)c * (size_t)ld + (size_t)j];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            frob_err_sq += d * d;
+        }
+    }
+    return sqrt(frob_err_sq);
+}
+
+static double svd_reconstruction_max_error(const SparseMatrix *A, const sparse_svd_t *svd,
+                                           idx_t u_ld, idx_t vt_ld) {
+    double max_err = 0.0;
+    for (idx_t i = 0; i < sparse_rows(A); i++) {
+        for (idx_t j = 0; j < sparse_cols(A); j++) {
+            double recon = 0.0;
+            for (idx_t s = 0; s < svd->k; s++)
+                recon += svd->sigma[s] * svd->U[(size_t)s * (size_t)u_ld + (size_t)i] *
+                         svd->Vt[(size_t)j * (size_t)vt_ld + (size_t)s];
+            double e = fabs(sparse_get(A, i, j) - recon);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    return max_err;
+}
+
+static double svd_reconstruction_rel_frobenius(const SparseMatrix *A, const sparse_svd_t *svd,
+                                               idx_t u_ld, idx_t vt_ld) {
+    double frob_resid_sq = 0.0;
+    double frob_a_sq = 0.0;
+    for (idx_t i = 0; i < sparse_rows(A); i++) {
+        for (idx_t j = 0; j < sparse_cols(A); j++) {
+            double recon = 0.0;
+            for (idx_t s = 0; s < svd->k; s++)
+                recon += svd->sigma[s] * svd->U[(size_t)s * (size_t)u_ld + (size_t)i] *
+                         svd->Vt[(size_t)j * (size_t)vt_ld + (size_t)s];
+            double a_ij = sparse_get(A, i, j);
+            double d = a_ij - recon;
+            frob_resid_sq += d * d;
+            frob_a_sq += a_ij * a_ij;
+        }
+    }
+    return sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+}
+
+static double svd_pinv_first_moore_penrose_error(const SparseMatrix *A, const double *pinv, idx_t m,
+                                                 idx_t n_cols) {
+    double *B = calloc((size_t)m * (size_t)m, sizeof(double));
+    if (!B)
+        return HUGE_VAL;
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < n_cols; p++)
+                sum += sparse_get(A, i, p) * pinv[(size_t)j * (size_t)n_cols + (size_t)p];
+            B[(size_t)j * (size_t)m + (size_t)i] = sum;
+        }
+    }
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < m; p++)
+                sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
+            double e = fabs(sum - sparse_get(A, i, j));
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+
+    free(B);
+    return max_err;
+}
+
+static double svd_dense_lowrank_frobenius_error(const SparseMatrix *A, const double *dense,
+                                                idx_t rows, idx_t cols, idx_t dense_ld) {
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < rows; i++) {
+        for (idx_t j = 0; j < cols; j++) {
+            double diff = sparse_get(A, i, j) - dense[(size_t)j * (size_t)dense_ld + (size_t)i];
+            frob_sq += diff * diff;
+        }
+    }
+    return sqrt(frob_sq);
+}
+
+static double svd_sparse_dense_frobenius_diff(const SparseMatrix *sp, const double *dense,
+                                              idx_t rows, idx_t cols, idx_t dense_ld) {
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < rows; i++) {
+        for (idx_t j = 0; j < cols; j++) {
+            double d_val = dense[(size_t)j * (size_t)dense_ld + (size_t)i];
+            double diff = d_val - sparse_get(sp, i, j);
+            frob_sq += diff * diff;
+        }
+    }
+    return sqrt(frob_sq);
+}
+
+static double svd_sparse_sparse_rel_frobenius_diff(const SparseMatrix *baseline,
+                                                   const SparseMatrix *candidate, idx_t rows,
+                                                   idx_t cols) {
+    double frob_diff_sq = 0.0;
+    double frob_base_sq = 0.0;
+    for (idx_t i = 0; i < rows; i++) {
+        for (idx_t j = 0; j < cols; j++) {
+            double base_val = sparse_get(baseline, i, j);
+            double candidate_val = sparse_get(candidate, i, j);
+            double diff = base_val - candidate_val;
+            frob_diff_sq += diff * diff;
+            frob_base_sq += base_val * base_val;
+        }
+    }
+    return sqrt(frob_base_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_base_sq) : sqrt(frob_diff_sq);
+}
+
+static void assert_svd_cond_near(const SparseMatrix *A, double expected, double tol,
+                                 const char *label) {
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(%s) = %.2e\n", label, c);
+    ASSERT_NEAR(c, expected, tol);
+}
+
+static void assert_svd_cond_inf(const SparseMatrix *A, const char *label) {
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(%s) = %f\n", label, c);
+    ASSERT_TRUE(isinf(c) && c > 0.0);
+}
+
 /* Helper: extract U/V and check reconstruction + orthogonality */
 static void validate_gk(const SparseMatrix *A, const char *name) {
     idx_t m = sparse_rows(A);
@@ -547,19 +689,8 @@ static void test_svd_with_uv(void) {
         return;
     }
 
-    /* Verify U*diag(sigma)*Vt ≈ A */
-    double maxerr = 0.0;
-    for (idx_t i = 0; i < 4; i++) {
-        for (idx_t j = 0; j < 3; j++) {
-            double val = 0.0;
-            for (idx_t p = 0; p < 3; p++)
-                val += svd.U[(size_t)p * 4 + (size_t)i] * svd.sigma[p] *
-                       svd.Vt[(size_t)j * 3 + (size_t)p];
-            double e = fabs(sparse_get_phys(A, i, j) - val);
-            if (e > maxerr)
-                maxerr = e;
-        }
-    }
+    /* Verify U*diag(sigma)*Vt ≈ A.  Economy storage: U ld=4, Vt ld=k=3. */
+    double maxerr = svd_reconstruction_max_error(A, &svd, 4, 3);
     printf("    SVD 4x3 with UV: recon=%.3e, sigma=[%.3f, %.3f, %.3f]\n", maxerr, svd.sigma[0],
            svd.sigma[1], svd.sigma[2]);
     /* Reconstruction should be tight now that bulge chase and 2x2 SVD are fixed */
@@ -769,22 +900,9 @@ static void test_svd_rank1_uv(void) {
     sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
     ASSERT_EQ(err, SPARSE_OK);
 
-    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt
-     * Vt is stored column-major: Vt[j * k + r] = (V^T)_{r,j} */
-    double max_err = 0.0;
     idx_t k = svd.k;
-    for (idx_t i = 0; i < 4; i++) {
-        for (idx_t j = 0; j < 3; j++) {
-            double sum = 0.0;
-            for (idx_t s = 0; s < k; s++)
-                sum += svd.U[(size_t)s * 4 + (size_t)i] * svd.sigma[s] *
-                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
-            double expected = (double)(i + 1);
-            double e = fabs(sum - expected);
-            if (e > max_err)
-                max_err = e;
-        }
-    }
+    /* Economy storage: U ld=4, Vt ld=k. */
+    double max_err = svd_reconstruction_max_error(A, &svd, 4, k);
     printf("    SVD rank-1 UV reconstruction error: %.2e\n", max_err);
     ASSERT_TRUE(max_err < 1e-8);
 
@@ -992,20 +1110,9 @@ static void test_svd_rank2_dense(void) {
     ASSERT_TRUE(svd.sigma[2] < 1e-10);
     ASSERT_TRUE(svd.sigma[3] < 1e-10);
 
-    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt */
-    double max_err = 0.0;
     idx_t k = svd.k;
-    for (idx_t i = 0; i < 5; i++) {
-        for (idx_t j = 0; j < 4; j++) {
-            double sum = 0.0;
-            for (idx_t s = 0; s < k; s++)
-                sum += svd.U[(size_t)s * 5 + (size_t)i] * svd.sigma[s] *
-                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
-            double e = fabs(sum - rows[i][j]);
-            if (e > max_err)
-                max_err = e;
-        }
-    }
+    /* Economy storage: U ld=5, Vt ld=k. */
+    double max_err = svd_reconstruction_max_error(A, &svd, 5, k);
     printf("    SVD rank-2 dense UV reconstruction error: %.2e\n", max_err);
     ASSERT_TRUE(max_err < 1e-8);
 
@@ -1699,44 +1806,13 @@ static void test_pinv_moore_penrose(void) {
         return;
     }
 
-    /* pinv is nc×m column-major: pinv[col*nc + row] */
-    /* Verify A * A^+ * A ≈ A.
-     * Step 1: compute B = A * pinv (m×nc * nc×m = m×m) using sparse_get + dense mult
-     * Step 2: compute C = B * A (m×m * m×nc = m×nc), compare to A */
-
-    /* Compute A * pinv as dense m×m */
-    double *B = calloc((size_t)m * (size_t)m, sizeof(double));
-    ASSERT_NOT_NULL(B);
-    if (!B) {
-        free(pinv_data);
-        sparse_free(A);
-        return;
-    }
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t j = 0; j < m; j++) {
-            double sum = 0.0;
-            for (idx_t p = 0; p < nc; p++)
-                sum += sparse_get(A, i, p) * pinv_data[(size_t)j * (size_t)nc + (size_t)p];
-            B[(size_t)j * (size_t)m + (size_t)i] = sum;
-        }
-    }
-
-    /* Compute (A * pinv) * A and compare to A */
-    double max_err = 0.0;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t j = 0; j < nc; j++) {
-            double sum = 0.0;
-            for (idx_t p = 0; p < m; p++)
-                sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
-            double e = fabs(sum - sparse_get(A, i, j));
-            if (e > max_err)
-                max_err = e;
-        }
-    }
+    /* pinv is nc×m column-major: pinv[col*nc + row].
+     * The helper preserves the first Moore-Penrose dimensions:
+     * A(m×nc) * A+(nc×m) * A(m×nc) -> A(m×nc). */
+    double max_err = svd_pinv_first_moore_penrose_error(A, pinv_data, m, nc);
     printf("    Moore-Penrose ||A*A^+*A - A||_max = %.3e\n", max_err);
     ASSERT_TRUE(max_err < 1e-10);
 
-    free(B);
     free(pinv_data);
     sparse_free(A);
 }
@@ -1776,36 +1852,11 @@ static void test_pinv_rectangular(void) {
 
     /* pinv is nc×m = 2×3 column-major.
      * Verify A * A^+ * A ≈ A (first Moore-Penrose condition).
-     * Compute B = A * pinv (m×nc * nc×m = m×m), then C = B * A (m×m * m×nc = m×nc). */
-    double *B = calloc((size_t)m * (size_t)m, sizeof(double));
-    ASSERT_NOT_NULL(B);
-    if (!B) {
-        free(pinv_data);
-        sparse_free(A);
-        return;
-    }
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < m; j++) {
-            double sum = 0.0;
-            for (idx_t p = 0; p < nc; p++)
-                sum += sparse_get(A, i, p) * pinv_data[(size_t)j * (size_t)nc + (size_t)p];
-            B[(size_t)j * (size_t)m + (size_t)i] = sum;
-        }
-
-    double max_err = 0.0;
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < nc; j++) {
-            double sum = 0.0;
-            for (idx_t p = 0; p < m; p++)
-                sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
-            double e = fabs(sum - sparse_get(A, i, j));
-            if (e > max_err)
-                max_err = e;
-        }
+     * A(m×nc) * A+(nc×m) * A(m×nc) -> A(m×nc). */
+    double max_err = svd_pinv_first_moore_penrose_error(A, pinv_data, m, nc);
     printf("    rectangular pinv ||A*A^+*A - A||_max = %.3e\n", max_err);
     ASSERT_TRUE(max_err < 1e-10);
 
-    free(B);
     free(pinv_data);
     sparse_free(A);
 }
@@ -1839,13 +1890,7 @@ static void test_lowrank_diagonal(void) {
     ASSERT_NEAR(lr[3 * 4 + 3], 0.0, 1e-10);
 
     /* ||A - A_k||_F = sqrt(2^2 + 1^2) = sqrt(5) */
-    double frob_err = 0.0;
-    for (idx_t i = 0; i < 4; i++)
-        for (idx_t j = 0; j < 4; j++) {
-            double diff = sparse_get(A, i, j) - lr[(size_t)j * 4 + (size_t)i];
-            frob_err += diff * diff;
-        }
-    frob_err = sqrt(frob_err);
+    double frob_err = svd_dense_lowrank_frobenius_error(A, lr, 4, 4, 4);
     printf("    lowrank(2) diag: ||A - A_k||_F = %.6f (expected %.6f)\n", frob_err, sqrt(5.0));
     ASSERT_NEAR(frob_err, sqrt(5.0), 1e-10);
 
@@ -1900,13 +1945,7 @@ static void test_lowrank_error_bound(void) {
         expected_sq += svd.sigma[i] * svd.sigma[i];
     double expected = sqrt(expected_sq);
 
-    double actual_sq = 0.0;
-    for (idx_t i = 0; i < n; i++)
-        for (idx_t j = 0; j < n; j++) {
-            double diff = sparse_get(A, i, j) - lr[(size_t)j * (size_t)n + (size_t)i];
-            actual_sq += diff * diff;
-        }
-    double actual = sqrt(actual_sq);
+    double actual = svd_dense_lowrank_frobenius_error(A, lr, n, n, n);
 
     printf("    lowrank(%d) tridiag: ||A-A_k||_F = %.6f, expected = %.6f\n", (int)rank_k, actual,
            expected);
@@ -2021,17 +2060,8 @@ static void test_lowrank_sparse_vs_dense(void) {
     err = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &sp);
     ASSERT_EQ(err, SPARSE_OK);
 
-    /* ||sparse - dense||_F should be bounded by number of dropped entries * drop_tol */
-    double frob_sq = 0.0;
-    for (idx_t i = 0; i < 5; i++) {
-        for (idx_t j = 0; j < 5; j++) {
-            double d_val = dense[(size_t)j * 5 + (size_t)i]; /* col-major */
-            double s_val = sparse_get(sp, i, j);
-            double diff = d_val - s_val;
-            frob_sq += diff * diff;
-        }
-    }
-    double frob = sqrt(frob_sq);
+    /* Dense low-rank is 5×5 column-major. */
+    double frob = svd_sparse_dense_frobenius_diff(sp, dense, 5, 5, 5);
     printf("    sparse vs dense lowrank diff: %.2e (tol*sqrt(mn)=%.2e)\n", frob,
            drop_tol * sqrt(25.0));
     ASSERT_TRUE(frob < drop_tol * sqrt(25.0));
@@ -2057,14 +2087,8 @@ static void test_lowrank_sparse_rank1(void) {
     ASSERT_EQ(err, SPARSE_OK);
     ASSERT_NOT_NULL(out);
 
-    double max_err = 0.0;
-    for (idx_t i = 0; i < 3; i++) {
-        for (idx_t j = 0; j < 3; j++) {
-            double e = fabs(sparse_get(out, i, j) - (double)(i + 1));
-            if (e > max_err)
-                max_err = e;
-        }
-    }
+    double max_err = svd_sparse_dense_frobenius_diff(
+        out, (const double[]){1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0}, 3, 3, 3);
     printf("    rank-1 sparse lowrank error: %.2e\n", max_err);
     ASSERT_TRUE(max_err < 1e-8);
 
@@ -2156,20 +2180,7 @@ static void test_sparse_svd_lowrank_outer_product_matches_dense(void) {
         return;
     }
 
-    /* Frobenius residual: ||A_off - A_on||_F / ||A_off||_F. */
-    double frob_diff_sq = 0.0;
-    double frob_off_sq = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        for (idx_t j = 0; j < n; j++) {
-            double off_val = sparse_get(A_off, i, j);
-            double on_val = sparse_get(A_on, i, j);
-            double diff = off_val - on_val;
-            frob_diff_sq += diff * diff;
-            frob_off_sq += off_val * off_val;
-        }
-    }
-    double rel_residual =
-        sqrt(frob_off_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_off_sq) : sqrt(frob_diff_sq);
+    double rel_residual = svd_sparse_sparse_rel_frobenius_diff(A_off, A_on, n, n);
 
     fprintf(stderr, "    outer-product vs dense: ||A_off - A_on||_F / ||A_off||_F = %.3e\n",
             rel_residual);
@@ -2250,19 +2261,7 @@ static void test_sparse_svd_lowrank_outer_product_corpus_safety(void) {
             /* Frobenius residual across the entire m×n_cols matrix.
              * `sparse_get` returns 0.0 for missing entries which is the
              * correct semantic for the residual computation. */
-            double frob_diff_sq = 0.0;
-            double frob_off_sq = 0.0;
-            for (idx_t i = 0; i < m; i++) {
-                for (idx_t j = 0; j < n_cols; j++) {
-                    double off_val = sparse_get(A_off, i, j);
-                    double on_val = sparse_get(A_on, i, j);
-                    double diff = off_val - on_val;
-                    frob_diff_sq += diff * diff;
-                    frob_off_sq += off_val * off_val;
-                }
-            }
-            double rel_residual = sqrt(frob_off_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_off_sq)
-                                                          : sqrt(frob_diff_sq);
+            double rel_residual = svd_sparse_sparse_rel_frobenius_diff(A_off, A_on, m, n_cols);
             fprintf(stderr, "    %s k=%d: rel_residual = %.3e\n", names[fi], (int)rank_k,
                     rel_residual);
             ASSERT_TRUE(rel_residual < 1e-10);
@@ -2323,21 +2322,9 @@ static void test_svd_full_u_v_orthonormality(void) {
     fprintf(stderr, "    full U (16x16) ||U^T U - I||_F = %.3e\n", u_orth_err);
     ASSERT_TRUE(u_orth_err < 1e-10);
 
-    /* Vt is n×n column-major.  Check ||Vt·Vt^T - I_n||_F (rows of Vt
-     * are orthonormal). */
-    double v_orth_err = 0.0;
-    for (idx_t i = 0; i < n_cols; i++) {
-        for (idx_t j = 0; j < n_cols; j++) {
-            double dot = 0.0;
-            for (idx_t c = 0; c < n_cols; c++)
-                dot += svd.Vt[(size_t)c * (size_t)n_cols + (size_t)i] *
-                       svd.Vt[(size_t)c * (size_t)n_cols + (size_t)j];
-            double target = (i == j) ? 1.0 : 0.0;
-            double d = dot - target;
-            v_orth_err += d * d;
-        }
-    }
-    v_orth_err = sqrt(v_orth_err);
+    /* Vt is n×n column-major with full-mode leading dimension n_cols.
+     * Check ||Vt·Vt^T - I_n||_F (rows of Vt are orthonormal). */
+    double v_orth_err = svd_vt_row_orthogonality_error(svd.Vt, n_cols, n_cols, n_cols);
     fprintf(stderr, "    full Vt (8x8)  ||Vt Vt^T - I||_F = %.3e\n", v_orth_err);
     ASSERT_TRUE(v_orth_err < 1e-10);
 
@@ -2452,26 +2439,8 @@ static void test_svd_full_u_v_reconstruction(void) {
         return;
     }
 
-    idx_t k = svd.k;
-    /* Reconstruct A_recon[i, j] = sum_{s=0..k-1} sigma[s] · U[i, s] · Vt[s, j].
-     * Full-mode storage: U leading dim m, Vt leading dim n_cols. */
-    double frob_resid_sq = 0.0;
-    double frob_a_sq = 0.0;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t j = 0; j < n_cols; j++) {
-            double recon = 0.0;
-            for (idx_t s = 0; s < k; s++) {
-                recon += svd.sigma[s] * svd.U[(size_t)s * (size_t)m + (size_t)i] *
-                         svd.Vt[(size_t)j * (size_t)n_cols + (size_t)s];
-            }
-            double a_ij = sparse_get(A, i, j);
-            double d = a_ij - recon;
-            frob_resid_sq += d * d;
-            frob_a_sq += a_ij * a_ij;
-        }
-    }
-    double rel_resid =
-        sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+    /* Full-mode storage: U leading dim m, Vt leading dim n_cols. */
+    double rel_resid = svd_reconstruction_rel_frobenius(A, &svd, m, n_cols);
     fprintf(stderr, "    full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = %.3e\n", rel_resid);
     ASSERT_TRUE(rel_resid < 1e-10);
 
@@ -2528,38 +2497,10 @@ static void test_s103_svd_diag6_rank_threshold_claim(void) {
     double u_orth = orthogonality_error(svd.U, n, n);
     ASSERT_TRUE(u_orth < 1e-10);
 
-    double vt_orth = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        for (idx_t j = 0; j < n; j++) {
-            double dot = 0.0;
-            for (idx_t c = 0; c < n; c++)
-                dot += svd.Vt[(size_t)c * (size_t)n + (size_t)i] *
-                       svd.Vt[(size_t)c * (size_t)n + (size_t)j];
-            double target = (i == j) ? 1.0 : 0.0;
-            double d = dot - target;
-            vt_orth += d * d;
-        }
-    }
-    vt_orth = sqrt(vt_orth);
+    double vt_orth = svd_vt_row_orthogonality_error(svd.Vt, n, n, n);
     ASSERT_TRUE(vt_orth < 1e-10);
 
-    double frob_resid_sq = 0.0;
-    double frob_a_sq = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        for (idx_t j = 0; j < n; j++) {
-            double recon = 0.0;
-            for (idx_t s = 0; s < svd.k; s++) {
-                recon += svd.sigma[s] * svd.U[(size_t)s * (size_t)n + (size_t)i] *
-                         svd.Vt[(size_t)j * (size_t)n + (size_t)s];
-            }
-            double a_ij = sparse_get(A, i, j);
-            double d = a_ij - recon;
-            frob_resid_sq += d * d;
-            frob_a_sq += a_ij * a_ij;
-        }
-    }
-    double rel_resid =
-        sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+    double rel_resid = svd_reconstruction_rel_frobenius(A, &svd, n, n);
     ASSERT_TRUE(rel_resid < 1e-10);
 
     idx_t rank = -1;
@@ -2623,10 +2564,7 @@ static void test_cond_identity(void) {
     for (idx_t i = 0; i < 4; i++)
         sparse_insert(A, i, i, 1.0);
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    ASSERT_NEAR(c, 1.0, 1e-10);
+    assert_svd_cond_near(A, 1.0, 1e-10, "identity4");
 
     sparse_free(A);
 }
@@ -2639,11 +2577,7 @@ static void test_cond_diagonal(void) {
     if (!A)
         return;
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    printf("    cond(diag(100,10,1)) = %.2f\n", c);
-    ASSERT_NEAR(c, 100.0, 1e-8);
+    assert_svd_cond_near(A, 100.0, 1e-8, "diag(100,10,1)");
 
     sparse_free(A);
 }
@@ -2659,11 +2593,7 @@ static void test_cond_singular(void) {
         for (idx_t j = 0; j < 3; j++)
             sparse_insert(A, i, j, 1.0);
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    printf("    cond(rank-1 3x3) = %f\n", c);
-    ASSERT_TRUE(isinf(c) && c > 0.0);
+    assert_svd_cond_inf(A, "rank-1 3x3");
 
     sparse_free(A);
 }
@@ -2676,10 +2606,7 @@ static void test_cond_1x1(void) {
         return;
     sparse_insert(A, 0, 0, 42.0);
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    ASSERT_NEAR(c, 1.0, 1e-10);
+    assert_svd_cond_near(A, 1.0, 1e-10, "1x1 nonzero");
 
     sparse_free(A);
 }
@@ -2692,10 +2619,7 @@ static void test_cond_1x1_zero(void) {
         return;
     /* No entries → zero matrix */
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    ASSERT_TRUE(isinf(c) && c > 0.0);
+    assert_svd_cond_inf(A, "1x1 zero");
 
     sparse_free(A);
 }
@@ -2709,11 +2633,7 @@ static void test_cond_rectangular(void) {
         return;
     /* A = [3 0; 0 1; 0 0; 0 0] → sigma = [3, 1], cond = 3 */
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    printf("    cond(4x2 diag(3,1)) = %.2f\n", c);
-    ASSERT_NEAR(c, 3.0, 1e-8);
+    assert_svd_cond_near(A, 3.0, 1e-8, "4x2 diag(3,1)");
 
     sparse_free(A);
 }
@@ -2726,11 +2646,7 @@ static void test_cond_ill_conditioned(void) {
     if (!A)
         return;
 
-    sparse_err_t err;
-    double c = sparse_cond(A, &err);
-    ASSERT_EQ(err, SPARSE_OK);
-    printf("    cond(diag(1e6,1,1e-6)) = %.2e\n", c);
-    ASSERT_NEAR(c, 1e12, 1e6); /* 1e6 / 1e-6 = 1e12 */
+    assert_svd_cond_near(A, 1e12, 1e6, "diag(1e6,1,1e-6)"); /* 1e6 / 1e-6 = 1e12 */
 
     sparse_free(A);
 }

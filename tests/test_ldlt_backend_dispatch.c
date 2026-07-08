@@ -892,6 +892,42 @@ static void test_s20_day10_eigs_sym_wide_spectrum(void) {
     sparse_free(A);
 }
 
+/* Sprint 114 Day 5: repeated Ritz values are a selector contract, not
+ * a public scalar-Lanczos multiplicity claim.  The theta array is already
+ * sorted exactly as tridiag_qr_eigenpairs returns it, so the selector's
+ * repeated-value ordering can be asserted by index. */
+static void test_s114_select_indices_repeated_largest_smallest(void) {
+    const double theta[8] = {-4.0, -4.0, -1.0, 0.5, 0.5, 2.0, 2.0, 9.0};
+    idx_t sel[4] = {-1, -1, -1, -1};
+
+    ASSERT_EQ(s20_select_indices(theta, 8, SPARSE_EIGS_LARGEST, 4, sel), 4);
+    ASSERT_EQ(sel[0], 7);
+    ASSERT_EQ(sel[1], 6);
+    ASSERT_EQ(sel[2], 5);
+    ASSERT_EQ(sel[3], 4);
+
+    sel[0] = sel[1] = sel[2] = sel[3] = -1;
+    ASSERT_EQ(s20_select_indices(theta, 8, SPARSE_EIGS_SMALLEST, 3, sel), 3);
+    ASSERT_EQ(sel[0], 0);
+    ASSERT_EQ(sel[1], 1);
+    ASSERT_EQ(sel[2], 2);
+    ASSERT_EQ(sel[3], -1);
+}
+
+/* Sprint 114 Day 5: NEAREST_SIGMA consumes shift-invert Ritz values by
+ * largest |theta|.  Equal magnitudes preserve the current implementation
+ * contract: the right endpoint wins because the selector uses `>`, not `>=`. */
+static void test_s114_select_indices_nearest_sigma_equal_magnitude_ties(void) {
+    const double theta[6] = {-5.0, -3.0, -1.0, 1.0, 3.0, 5.0};
+    idx_t sel[4] = {-1, -1, -1, -1};
+
+    ASSERT_EQ(s20_select_indices(theta, 6, SPARSE_EIGS_NEAREST_SIGMA, 4, sel), 4);
+    ASSERT_EQ(sel[0], 5);
+    ASSERT_EQ(sel[1], 0);
+    ASSERT_EQ(sel[2], 4);
+    ASSERT_EQ(sel[3], 1);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -930,6 +966,10 @@ int main(void) {
     RUN_TEST(test_s20_day10_eigs_sym_largest);
     RUN_TEST(test_s20_day10_eigs_sym_smallest_trivial);
     RUN_TEST(test_s20_day10_eigs_sym_wide_spectrum);
+
+    /* Sprint 114 Day 5 — repeated/clustered Ritz selector proof */
+    RUN_TEST(test_s114_select_indices_repeated_largest_smallest);
+    RUN_TEST(test_s114_select_indices_nearest_sigma_equal_magnitude_ties);
 
     TEST_SUITE_END();
 }

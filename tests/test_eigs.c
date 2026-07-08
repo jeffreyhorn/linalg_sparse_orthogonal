@@ -57,6 +57,45 @@ static SparseMatrix *build_laplacian_tridiag(idx_t n) {
     return A;
 }
 
+/* Build a shifted tridiagonal matrix of dimension n:
+ * diag = 4, sub/super = -1.  Used by grow-m retry tests because
+ * the spectrum is deterministic while convergence is not exact at
+ * the first small Lanczos basis for very tight tolerances. */
+static SparseMatrix *build_shifted_tridiag(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+typedef struct {
+    idx_t n_calls;
+    idx_t steps[8];
+    char phases[8][16];
+    idx_t cancel_after_step;
+} growm_progress_record_t;
+
+static int growm_progress_record_cb(const sparse_progress_t *p, void *user) {
+    growm_progress_record_t *record = (growm_progress_record_t *)user;
+    idx_t slot = record->n_calls;
+    if (slot < (idx_t)(sizeof(record->steps) / sizeof(record->steps[0]))) {
+        record->steps[slot] = p->step;
+        snprintf(record->phases[slot], sizeof(record->phases[slot]), "%s",
+                 p->phase ? p->phase : "");
+    }
+    record->n_calls++;
+    if (record->cancel_after_step >= 0 && p->step >= record->cancel_after_step)
+        return 1;
+    return 0;
+}
+
 /* ─────────────────────────────────────────────────────────────────────
  * Test 1: LARGEST on diag(1..10) — PLAN Day 11 smoke test #1
  * ───────────────────────────────────────────────────────────────────── */
@@ -357,6 +396,161 @@ static void test_public_handle_growm_prepare_reuse_and_growth(void) {
     sparse_eigs_handle_free(&handle);
     sparse_free(A_small);
     sparse_free(A_large);
+}
+
+static void test_growm_default_capacity_pins_peak_basis_size(void) {
+    const idx_t n = 12;
+    const idx_t k = 2;
+    const idx_t expected_peak_basis_size = 12;
+    double diag[12];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals[2] = {0.0, 0.0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = 0,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
+    ASSERT_NEAR(vals[0], 12.0, 1e-9);
+    ASSERT_NEAR(vals[1], 11.0, 1e-9);
+
+    sparse_free(A);
+}
+
+static void test_growm_explicit_capacity_pins_peak_basis_size(void) {
+    const idx_t n = 64;
+    const idx_t k = 1;
+    const idx_t explicit_max_iterations = 24;
+    const idx_t expected_peak_basis_size = 24;
+    double diag[64];
+    diag[0] = 64.0;
+    for (idx_t i = 1; i < n; i++)
+        diag[i] = 1.0;
+
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals[1] = {0.0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = explicit_max_iterations,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
+    ASSERT_NEAR(vals[0], 64.0, 1e-9);
+
+    sparse_free(A);
+}
+
+static void test_growm_too_small_explicit_iteration_budget_rejected(void) {
+    const idx_t n = 16;
+    const idx_t k = 3;
+    const idx_t rejected_max_iterations = 15;
+    double diag[16];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals[3] = {0.0, 0.0, 0.0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = rejected_max_iterations,
+    };
+
+    ASSERT_ERR(sparse_eigs_sym(A, k, &opts, &result), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+static void test_growm_retry_progress_steps_accumulate_iterations(void) {
+    const idx_t n = 64;
+    const idx_t k = 2;
+    const idx_t explicit_max_iterations = 64;
+    const idx_t expected_peak_basis_size = 64;
+    SparseMatrix *A = build_shifted_tridiag(n);
+    ASSERT_NOT_NULL(A);
+
+    double vals[2] = {0.0, 0.0};
+    growm_progress_record_t progress = {.cancel_after_step = -1};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-30,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = explicit_max_iterations,
+        .progress_cb = growm_progress_record_cb,
+        .progress_user = &progress,
+    };
+
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
+    ASSERT_TRUE(progress.n_calls >= 2);
+    ASSERT_TRUE(progress.phases[0][0] != '\0');
+    if (progress.phases[0][0] != '\0')
+        ASSERT_TRUE(strcmp(progress.phases[0], "lanczos") == 0);
+    ASSERT_EQ(progress.steps[0], 0);
+    idx_t recorded = progress.n_calls;
+    if (recorded > (idx_t)(sizeof(progress.steps) / sizeof(progress.steps[0])))
+        recorded = (idx_t)(sizeof(progress.steps) / sizeof(progress.steps[0]));
+    for (idx_t i = 1; i < recorded; i++) {
+        ASSERT_TRUE(progress.phases[i][0] != '\0');
+        if (progress.phases[i][0] != '\0')
+            ASSERT_TRUE(strcmp(progress.phases[i], "lanczos") == 0);
+        ASSERT_TRUE(progress.steps[i] > progress.steps[i - 1]);
+    }
+    ASSERT_TRUE(result.iterations >= progress.steps[recorded - 1]);
+
+    sparse_free(A);
+}
+
+static void test_growm_retry_boundary_cancellation_exits_cleanly(void) {
+    const idx_t n = 64;
+    const idx_t k = 2;
+    const idx_t explicit_max_iterations = 64;
+    SparseMatrix *A = build_shifted_tridiag(n);
+    ASSERT_NOT_NULL(A);
+
+    double vals[2] = {0.0, 0.0};
+    growm_progress_record_t progress = {.cancel_after_step = 1};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-30,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = explicit_max_iterations,
+        .progress_cb = growm_progress_record_cb,
+        .progress_user = &progress,
+    };
+
+    ASSERT_ERR(sparse_eigs_sym(A, k, &opts, &result), SPARSE_ERR_CANCELLED);
+    ASSERT_TRUE(progress.n_calls >= 2);
+    ASSERT_EQ(progress.steps[0], 0);
+    ASSERT_TRUE(progress.steps[1] > 0);
+
+    sparse_free(A);
 }
 
 static void test_public_handle_prepare_and_reuse(void) {
@@ -1526,6 +1720,11 @@ int main(void) {
     RUN_TEST(test_tridiag_spd_matches_dense);
     RUN_TEST(test_bad_args);
     RUN_TEST(test_public_handle_growm_prepare_reuse_and_growth);
+    RUN_TEST(test_growm_default_capacity_pins_peak_basis_size);
+    RUN_TEST(test_growm_explicit_capacity_pins_peak_basis_size);
+    RUN_TEST(test_growm_too_small_explicit_iteration_budget_rejected);
+    RUN_TEST(test_growm_retry_progress_steps_accumulate_iterations);
+    RUN_TEST(test_growm_retry_boundary_cancellation_exits_cleanly);
     RUN_TEST(test_public_handle_prepare_and_reuse);
     RUN_TEST(test_public_handle_validation_and_on_demand);
     RUN_TEST(test_public_handle_thick_restart_prepare_reuse_and_growth);

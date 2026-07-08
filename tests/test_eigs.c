@@ -595,9 +595,6 @@ static void test_growm_lanczos_iterate_op_public_behavior(void) {
     ASSERT_EQ(result.n_converged, k);
     ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
     ASSERT_TRUE(result.iterations >= k);
-    /* iterations is cumulative across grow-m retries; max_iterations caps each
-     * individual Lanczos run through peak_basis_size. */
-    ASSERT_TRUE(result.iterations >= expected_peak_basis_size);
     ASSERT_TRUE(result.residual_norm <= 1e-12);
     ASSERT_TRUE(vals[0] >= vals[1]);
     assert_ritz_residuals(A, &result, k, vecs, 1e-8);

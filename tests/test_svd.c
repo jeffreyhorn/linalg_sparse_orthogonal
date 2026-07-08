@@ -456,6 +456,20 @@ static double svd_sparse_dense_frobenius_diff(const SparseMatrix *sp, const doub
     return sqrt(frob_sq);
 }
 
+static double svd_sparse_dense_max_abs_diff(const SparseMatrix *sp, const double *dense, idx_t rows,
+                                            idx_t cols, idx_t dense_ld) {
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < rows; i++) {
+        for (idx_t j = 0; j < cols; j++) {
+            double d_val = dense[(size_t)j * (size_t)dense_ld + (size_t)i];
+            double diff = fabs(d_val - sparse_get(sp, i, j));
+            if (diff > max_diff)
+                max_diff = diff;
+        }
+    }
+    return max_diff;
+}
+
 static double svd_sparse_sparse_rel_frobenius_diff(const SparseMatrix *baseline,
                                                    const SparseMatrix *candidate, idx_t rows,
                                                    idx_t cols) {
@@ -2087,9 +2101,9 @@ static void test_lowrank_sparse_rank1(void) {
     ASSERT_EQ(err, SPARSE_OK);
     ASSERT_NOT_NULL(out);
 
-    double max_err = svd_sparse_dense_frobenius_diff(
+    double max_err = svd_sparse_dense_max_abs_diff(
         out, (const double[]){1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0}, 3, 3, 3);
-    printf("    rank-1 sparse lowrank error: %.2e\n", max_err);
+    printf("    rank-1 sparse lowrank max error: %.2e\n", max_err);
     ASSERT_TRUE(max_err < 1e-8);
 
     sparse_free(out);

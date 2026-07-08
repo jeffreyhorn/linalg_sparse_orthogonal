@@ -586,6 +586,24 @@ introducing broad abstractions or public-support drift.
 
 **Total estimate:** ~168 hours
 
+### Sprint 114 Residual Deferral Decision
+
+Sprint 114 residuals are intentionally split rather than moved wholesale into
+Sprint 115:
+
+- Package/platform validation residuals feed Sprint 115 because they affect
+  public package, ABI, Windows, CMake parity, install-header, and adoption
+  claims.
+- Adoption/support wording residuals feed Sprint 116 when they affect public
+  claims.
+- Eigensolver private-owner movement, direct/iterative oracle abstraction, and
+  broad SVD proof-helper abstraction are deferred to Sprint 117 residual queue
+  review and post-Epic handoff unless Sprint 117 explicitly promotes one item.
+
+These items are not forgotten work. They are deferred because Sprint 114 did
+not prove a narrow movement owner that can be changed without source-list,
+CMake, reviewed CTest, Windows count, and rollback evidence.
+
 ---
 
 ## Sprint 115: Residual Package Platform Parity & ABI Productization Decision
@@ -607,12 +625,15 @@ ABI/package-manager product claims remain future contracts.
   evidence
 - Sprint 114 residual proof-owner follow-through complete enough to preserve
   package/platform no-claim boundaries
+- Sprint 114 residual deferral decision available so Sprint 115 consumes only
+  package/platform-facing validation debt and does not inherit source-boundary
+  or broad helper-abstraction work
 
 ### Items
 
 | Item # | Item Name | Item Description | Estimate (in hours) |
 |---|---|---|---:|
-| 1 | Residual Package/Platform Intake | Re-read Sprint 112 residual deferred debt, explicitly exclude completed package audit, support-tier decision, Make/CMake proof, platform-tier contract, Windows/macOS follow-through, docs alignment, and closeout work, then order remaining package/platform work by dependency. | 10 |
+| 1 | Residual Package/Platform Intake | Re-read Sprint 112 residual deferred debt, explicitly exclude completed package audit, support-tier decision, Make/CMake proof, platform-tier contract, Windows/macOS follow-through, docs alignment, and closeout work, then order remaining package/platform work by dependency. | 8 |
 | 2 | Linux Install Proof CI Promotion Decision | Decide whether `tests/test_install.sh` and `tests/test_cmake_install.sh` should remain local Unix-side proof or become reviewed Linux CI lanes; if promoted, add the narrow reviewed lane and document ownership, otherwise publish a no-promotion contract. | 16 |
 | 3 | macOS CMake Install/Export Parity Follow-Through | Add or explicitly defer a reviewed macOS CMake install/export lane before claiming full macOS install/export parity, preserving the Sprint 112 boundary if CI proof is not added. | 24 |
 | 4 | Windows Install-Validation Lane Follow-Through | Design, add, or explicitly defer a reviewed Windows install-validation lane with `cmake --install`, installed target lookup, and downstream compile/link/run proof under MSVC before claiming Windows installed-package support. | 26 |
@@ -620,7 +641,8 @@ ABI/package-manager product claims remain future contracts.
 | 6 | macOS Backend and Toolchain Follow-Through | Review macOS coverage backend stability, Homebrew GCC version assumptions, and macOS TSan feasibility; promote only evidence-backed lanes and otherwise preserve documented non-claims. | 18 |
 | 7 | Shared-Library and Dynamic ABI Product Contract Decision | Decide whether shared-library/dynamic ABI support belongs in Epic 10 closeout or a future epic; document required build rules, package metadata, runtime-loader proof, symbol policy, versioning policy, and platform ownership before any public claim. | 26 |
 | 8 | Package-Manager Support Decision | Decide whether package-manager support should remain future work or gain a bounded proof plan; document required recipes and install/consumer proof for Homebrew, vcpkg, distro, or Windows package-manager paths before any claim. | 12 |
-| 9 | Validation and Package/Platform Handoff | Run required checks for touched CI, build, docs, and scripts; verify no unsupported package/platform claim was introduced; hand off final package/platform truth to adoption QA and Epic closeout. | 8 |
+| 9 | Sprint 114 Package/Platform Residual Intake | Consume Sprint 114's package/platform-facing residual only: verify package, ABI, Windows, CMake parity, install-header, and adoption claims remain fenced unless Sprint 115 adds reviewed evidence for those surfaces. Do not pull eigensolver source movement, broad direct/iterative oracle, or broad SVD abstraction work into Sprint 115. | 6 |
+| 10 | Validation and Package/Platform Handoff | Run required checks for touched CI, build, docs, and scripts; verify no unsupported package/platform claim was introduced; hand off final package/platform truth to adoption QA and Epic closeout. | 4 |
 
 ### Deliverables
 
@@ -632,6 +654,7 @@ ABI/package-manager product claims remain future contracts.
 - macOS coverage, GCC, and TSan follow-through artifact
 - shared-library/dynamic ABI product-contract decision
 - package-manager support decision
+- Sprint 114 package/platform residual intake and deferral-boundary artifact
 - validation and package/platform handoff artifact
 
 **Total estimate:** ~168 hours
@@ -709,7 +732,7 @@ truthful earned claims and residuals.
 | 2 | Full Validation Pass | Run the strongest reviewed quality, CMake parity, install/export, source-list, and supplemental evidence commands required by touched files. | 30 |
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
-| 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work. | 18 |
+| 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work, including Sprint 114's deferred eigensolver private-owner movement, direct/iterative oracle abstraction, and broad SVD proof-helper abstraction decisions unless one item is explicitly promoted during Sprint 117. | 18 |
 | 6 | Sprint 117 Retrospective | Create Sprint 117 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 

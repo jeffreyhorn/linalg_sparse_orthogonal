@@ -481,6 +481,48 @@ static void test_thick_restart_iterate_empty_state_matches_lanczos(void) {
     sparse_free(A);
 }
 
+static void test_thick_restart_iterate_tridiag_empty_state_matches_lanczos(void) {
+    const idx_t n = 8;
+    const idx_t m = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 3.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -0.25);
+            sparse_insert(A, i - 1, i, -0.25);
+        }
+    }
+
+    double v0[8] = {0.4, -0.2, 0.9, 0.1, -0.7, 0.3, 0.6, -0.5};
+    double V_ref[64] = {0};
+    double alpha_ref[8] = {0};
+    double beta_ref[8] = {0};
+    idx_t m_ref = 0;
+    REQUIRE_OK(
+        lanczos_iterate(A, v0, m, /*reorthogonalize=*/1, V_ref, alpha_ref, beta_ref, &m_ref));
+
+    double V_tr[64] = {0};
+    double alpha_tr[8] = {0};
+    double beta_tr[8] = {0};
+    idx_t m_tr = 0;
+    REQUIRE_OK(lanczos_thick_restart_iterate(test_op_matvec, A, n, v0, m, /*reorth=*/1,
+                                             /*state=*/NULL, V_tr, alpha_tr, beta_tr, &m_tr));
+
+    ASSERT_EQ(m_ref, m);
+    ASSERT_EQ(m_tr, m);
+    for (idx_t i = 0; i < n * m; i++)
+        ASSERT_NEAR(V_tr[i], V_ref[i], 1e-14);
+    for (idx_t i = 0; i < m; i++) {
+        ASSERT_NEAR(alpha_tr[i], alpha_ref[i], 1e-14);
+        ASSERT_NEAR(beta_tr[i], beta_ref[i], 1e-14);
+    }
+
+    sparse_free(A);
+}
+
 /* End-to-end convergence on a small SPD diagonal fixture.  The
  * thick-restart backend must produce the same k largest eigenvalues
  * as the grow-m path to 1e-10.  Exercises the full outer-loop
@@ -1240,6 +1282,56 @@ static void test_s103_thick_restart_diag12_largest4_claim(void) {
     sparse_free(A);
 }
 
+/* Sprint 114 Day 7: non-diagonal thick-restart publication boundary.
+ * This proves the public vector shape around the backend's
+ * `s20_lift_ritz_vectors(V, Y_arrow, ...)` call without extracting
+ * or sharing publication helpers. */
+static void test_s114_thick_restart_vector_publication_boundary(void) {
+    const idx_t n = 40;
+    const idx_t k = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 3.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -0.5);
+            sparse_insert(A, i - 1, i, -0.5);
+        }
+    }
+
+    double vals[4] = {0.0, 0.0, 0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-11,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+        .max_iterations = 120,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    ASSERT_TRUE(res.iterations > 0);
+    ASSERT_TRUE(res.residual_norm <= 1e-11);
+    assert_thick_restart_ritz_residuals(A, &res, k, vecs, 1e-9);
+    assert_thick_restart_orthogonality(vecs, n, k, 1e-9);
+
+    free(vecs);
+    sparse_free(A);
+}
+
 /* ─── Runner ────────────────────────────────────────────────────── */
 
 int main(void) {
@@ -1254,6 +1346,7 @@ int main(void) {
 
     /* Day 3: phase execution + outer loop + backend dispatch. */
     RUN_TEST(test_thick_restart_iterate_empty_state_matches_lanczos);
+    RUN_TEST(test_thick_restart_iterate_tridiag_empty_state_matches_lanczos);
     RUN_TEST(test_thick_restart_backend_converges_small);
     RUN_TEST(test_thick_restart_backend_smallest);
     RUN_TEST(test_thick_restart_matches_grow_m);
@@ -1276,6 +1369,9 @@ int main(void) {
 
     /* Sprint 103 exact-reference spectral claim. */
     RUN_TEST(test_s103_thick_restart_diag12_largest4_claim);
+
+    /* Sprint 114 vector-publication boundary proof. */
+    RUN_TEST(test_s114_thick_restart_vector_publication_boundary);
 
     TEST_SUITE_END();
 }

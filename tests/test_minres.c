@@ -7,6 +7,7 @@
 #include "test_framework.h"
 #include "test_solver_helpers.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,58 @@ static SparseMatrix *make_sym_indef_tridiag(idx_t n) {
         }
     }
     return A;
+}
+
+typedef double (*minres_exact_rhs_value_fn)(idx_t i, const void *ctx);
+
+static double minres_exact_rhs_sequential(idx_t i, const void *ctx) {
+    (void)ctx;
+    return (double)(i + 1);
+}
+
+static double minres_exact_rhs_sin_unit(idx_t i, const void *ctx) {
+    (void)ctx;
+    return sin((double)(i + 1));
+}
+
+static double minres_exact_rhs_scaled_sequential(idx_t i, const void *ctx) {
+    const idx_t *n = (const idx_t *)ctx;
+    return (double)(i + 1) / (double)(*n);
+}
+
+static int make_minres_exact_rhs(const SparseMatrix *A, idx_t n, minres_exact_rhs_value_fn value_fn,
+                                 const void *ctx, double **x_exact_out, double **b_out) {
+    if (!A || n < 0 || !value_fn || !x_exact_out || !b_out)
+        return 0;
+    *x_exact_out = NULL;
+    *b_out = NULL;
+    if ((uintmax_t)n > SIZE_MAX / sizeof(double))
+        return 0;
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        return 0;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = value_fn(i, ctx);
+    sparse_matvec(A, x_exact, b);
+
+    *x_exact_out = x_exact;
+    *b_out = b;
+    return 1;
+}
+
+static int require_minres_exact_rhs(const SparseMatrix *A, idx_t n,
+                                    minres_exact_rhs_value_fn value_fn, const void *ctx,
+                                    double **x_exact_out, double **b_out) {
+    if (make_minres_exact_rhs(A, n, value_fn, ctx, x_exact_out, b_out))
+        return 1;
+
+    TF_FAIL_("%s", "failed to allocate MINRES exact-RHS fixture");
+    return 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -133,12 +186,14 @@ static void test_minres_spd_tridiag(void) {
     idx_t n = 20;
     SparseMatrix *A = make_spd_tridiag(n);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
+    if (!require_minres_exact_rhs(A, n, minres_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res;
@@ -402,11 +457,12 @@ static void test_minres_precond_ic_spd(void) {
     idx_t n = 30;
     SparseMatrix *A = make_spd_tridiag(n);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(A, n, minres_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
 
@@ -450,11 +506,12 @@ static void test_minres_precond_ic_vs_cg(void) {
     idx_t n = 20;
     SparseMatrix *A = make_spd_tridiag(n);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = sin((double)(i + 1));
-    sparse_matvec(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(A, n, minres_exact_rhs_sin_unit, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_ilu_t ic;
     REQUIRE_OK(sparse_ic_factor(A, &ic));
@@ -494,11 +551,12 @@ static void test_minres_precond_jacobi_indefinite(void) {
     SparseMatrix *K = make_kkt(nh, nc);
     idx_t n = nh + nc;
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(K, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(K, n, minres_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(K);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
 
@@ -593,11 +651,12 @@ static void test_minres_precond_ic_banded(void) {
         }
     }
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1) / (double)n;
-    sparse_matvec(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(A, n, minres_exact_rhs_scaled_sequential, &n, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
 
@@ -919,11 +978,12 @@ static void test_minres_vs_ldlt_spd(void) {
     idx_t n = 10;
     SparseMatrix *A = make_spd_tridiag(n);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(A, n, minres_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     /* MINRES */
     double *x_minres = calloc((size_t)n, sizeof(double));
@@ -955,11 +1015,12 @@ static void test_minres_vs_ldlt_indefinite(void) {
     SparseMatrix *K = make_kkt(nh, nc);
     idx_t n = nh + nc;
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_matvec(K, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_minres_exact_rhs(K, n, minres_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(K);
+        return;
+    }
 
     /* MINRES */
     double *x_minres = calloc((size_t)n, sizeof(double));

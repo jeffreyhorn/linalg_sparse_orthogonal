@@ -513,11 +513,13 @@ static void test_cg_diagonal_preconditioner(void) {
         diag_inv[i] = 1.0 / d;
     }
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        free(diag_inv);
+        sparse_free(A);
+        return;
+    }
 
     diag_precond_t pc = {.diag_inv = diag_inv, .n = n};
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
@@ -559,11 +561,12 @@ static void test_cg_precond_laplacian(void) {
     idx_t n = m * m; /* 36×36 */
     SparseMatrix *A = build_laplacian_2d(m);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     /* Diagonal preconditioner: diag(A) = 4 for all entries */
     double *diag_inv = malloc((size_t)n * sizeof(double));
@@ -1625,12 +1628,15 @@ static void test_gmres_large_unsymmetric(void) {
             sparse_insert(A, i, i + 1, 2.0);
     }
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    const double x_scale = 0.3;
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = sin((double)(i + 1) * 0.3);
-    compute_rhs(A, x_exact, b);
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sin_scale, &x_scale, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     sparse_gmres_opts_t opts = {.max_iter = 200, .restart = 30, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t result;
@@ -1684,12 +1690,14 @@ static void test_gmres_max_iter_exceeded(void) {
             sparse_insert(A, i, i + 1, 2.0);
     }
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     /* Only allow 2 iterations with restart=2 */
     sparse_gmres_opts_t opts = {.max_iter = 2, .restart = 2, .tol = 1e-14, .verbose = 0};
@@ -1771,11 +1779,13 @@ static void test_gmres_restart_comparison(void) {
     idx_t n = 30;
     SparseMatrix *A = build_unsym_tridiag(n, 5.0, 2.0, -1.0);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = sin((double)(i + 1) * 0.2);
-    compute_rhs(A, x_exact, b);
+    const double x_scale = 0.2;
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sin_scale, &x_scale, &x_exact, &b)) {
+        sparse_free(A);
+        return;
+    }
 
     /* Small restart (5) */
     double *x_small = calloc((size_t)n, sizeof(double));
@@ -1910,11 +1920,13 @@ static void test_gmres_diagonal_preconditioner(void) {
         return;
     }
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    double *x_exact = NULL;
+    double *b = NULL;
+    if (!require_iterative_exact_rhs(A, n, iter_exact_rhs_sequential, NULL, &x_exact, &b)) {
+        free(diag_inv);
+        sparse_free(A);
+        return;
+    }
 
     diag_precond_t pc = {.diag_inv = diag_inv, .n = n};
     sparse_gmres_opts_t opts_unprec = {.max_iter = 200, .restart = 20, .tol = 1e-10, .verbose = 0};

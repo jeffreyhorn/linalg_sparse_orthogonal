@@ -6,6 +6,7 @@
 #include "test_framework.h"
 #include "test_solver_helpers.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -617,18 +618,54 @@ static void compute_rhs(const SparseMatrix *A, const double *x_exact, double *b)
     sparse_matvec(A, x_exact, b);
 }
 
+static int make_bicgstab_sequential_rhs(const SparseMatrix *A, idx_t n, double **x_exact_out,
+                                        double **b_out) {
+    if (!A || n < 0 || !x_exact_out || !b_out)
+        return 0;
+    *x_exact_out = NULL;
+    *b_out = NULL;
+    if ((uintmax_t)n > SIZE_MAX / sizeof(double))
+        return 0;
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        return 0;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    compute_rhs(A, x_exact, b);
+
+    *x_exact_out = x_exact;
+    *b_out = b;
+    return 1;
+}
+
+static int require_bicgstab_sequential_rhs(const SparseMatrix *A, idx_t n, double **x_exact_out,
+                                           double **b_out) {
+    if (make_bicgstab_sequential_rhs(A, n, x_exact_out, b_out))
+        return 1;
+
+    TF_FAIL_("%s", "failed to allocate BiCGSTAB exact-RHS fixture");
+    return 0;
+}
+
 static void test_bicgstab_west0067(void) {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
     idx_t n = sparse_rows(A);
     ASSERT_EQ(n, 67);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    if (!require_bicgstab_sequential_rhs(A, n, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     /* west0067 has zero diagonals so ILU(0) fails — use ILUT with pivoting
      * and heavy fill for a strong preconditioner */
@@ -667,12 +704,14 @@ static void test_bicgstab_steam1(void) {
     idx_t n = sparse_rows(A);
     ASSERT_EQ(n, 240);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    if (!require_bicgstab_sequential_rhs(A, n, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     /* ILU(0) preconditioned BiCGSTAB — steam1 is ill-conditioned (condest ~3e7) */
     sparse_ilu_t ilu;
@@ -706,12 +745,14 @@ static void test_bicgstab_orsirr_1(void) {
     idx_t n = sparse_rows(A);
     ASSERT_EQ(n, 1030);
 
-    double *x_exact = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
+    double *x_exact = NULL;
+    double *b = NULL;
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        x_exact[i] = (double)(i + 1);
-    compute_rhs(A, x_exact, b);
+    if (!require_bicgstab_sequential_rhs(A, n, &x_exact, &b)) {
+        free(x);
+        sparse_free(A);
+        return;
+    }
 
     sparse_ilu_t ilu;
     memset(&ilu, 0, sizeof(ilu));
@@ -912,20 +953,13 @@ static void test_s103_bicgstab_steam1_ilu_vs_gmres30_reference(void) {
     idx_t n = sparse_rows(A_bicg);
     ASSERT_EQ(n, 240);
 
-    double *x_true = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_true);
-    ASSERT_NOT_NULL(b);
-    if (!x_true || !b) {
-        free(x_true);
-        free(b);
+    double *x_true = NULL;
+    double *b = NULL;
+    if (!require_bicgstab_sequential_rhs(A_bicg, n, &x_true, &b)) {
         sparse_free(A_bicg);
         sparse_free(A_gmres);
         return;
     }
-    for (idx_t i = 0; i < n; i++)
-        x_true[i] = (double)(i + 1);
-    compute_rhs(A_bicg, x_true, b);
 
     sparse_ilu_t ilu_bicg, ilu_gmres;
     memset(&ilu_bicg, 0, sizeof(ilu_bicg));

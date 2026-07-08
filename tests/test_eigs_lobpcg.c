@@ -1092,6 +1092,56 @@ static void test_lobpcg_vs_lanczos_laplacian(void) {
     sparse_free(A);
 }
 
+static void test_lobpcg_adjacent_lanczos_public_result_parity(void) {
+    const idx_t n = 30;
+    const idx_t k = 4;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+
+    double vals_lobpcg[4] = {0};
+    double vals_lanczos[4] = {0};
+    double *vecs_lobpcg = calloc((size_t)n * (size_t)k, sizeof(double));
+    double *vecs_lanczos = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs_lobpcg);
+    ASSERT_NOT_NULL(vecs_lanczos);
+    if (!vecs_lobpcg || !vecs_lanczos) {
+        free(vecs_lobpcg);
+        free(vecs_lanczos);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t r_lobpcg = {.eigenvalues = vals_lobpcg, .eigenvectors = vecs_lobpcg};
+    sparse_eigs_t r_lanczos = {.eigenvalues = vals_lanczos, .eigenvectors = vecs_lanczos};
+    sparse_eigs_opts_t opts_lobpcg = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 200,
+    };
+    sparse_eigs_opts_t opts_lanczos = opts_lobpcg;
+    opts_lanczos.backend = SPARSE_EIGS_BACKEND_LANCZOS;
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_lobpcg, &r_lobpcg));
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_lanczos, &r_lanczos));
+    ASSERT_EQ(r_lobpcg.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+    ASSERT_EQ(r_lanczos.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    ASSERT_EQ(r_lobpcg.n_converged, k);
+    ASSERT_EQ(r_lanczos.n_converged, k);
+    ASSERT_TRUE(r_lobpcg.iterations > 0);
+    ASSERT_TRUE(r_lanczos.iterations > 0);
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(vals_lobpcg[j], vals_lanczos[j], 1e-7);
+    assert_lobpcg_ritz_residuals(A, &r_lobpcg, k, vecs_lobpcg, 1e-7);
+    assert_lobpcg_ritz_residuals(A, &r_lanczos, k, vecs_lanczos, 1e-7);
+
+    free(vecs_lobpcg);
+    free(vecs_lanczos);
+    sparse_free(A);
+}
+
 /* ─── Day 10 Test 4: AUTO dispatch — small n routes to grow-m. */
 static void test_lobpcg_auto_dispatch_small_n(void) {
     idx_t n = 30; /* below SPARSE_EIGS_THICK_RESTART_THRESHOLD */
@@ -1269,6 +1319,52 @@ static void test_lobpcg_block_size_zero_defaults(void) {
     sparse_free(A);
 }
 
+/* Sprint 114 Day 7: explicit LOBPCG publication with block_size > k.
+ * LOBPCG publishes vectors by copying X[:, j], not by Lanczos Ritz
+ * lifting, so this pins the public result shape separately. */
+static void test_s114_lobpcg_block_size_gt_k_vector_publication_boundary(void) {
+    const idx_t n = 30;
+    const idx_t k = 3;
+    const idx_t block_size = 5;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double vals[3] = {0.0, 0.0, 0.0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 200,
+        .block_size = block_size,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_requested, k);
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+    ASSERT_TRUE(res.iterations > 0);
+    for (idx_t j = 0; j < k; j++) {
+        double expected = 2.0 - 2.0 * cos((double)(j + 1) * M_PI / (double)(n + 1));
+        ASSERT_NEAR(vals[j], expected, 1e-7);
+    }
+    assert_lobpcg_ritz_residuals(A, &res, k, vecs, 1e-7);
+    assert_lobpcg_orthogonality(vecs, n, k, 1e-8);
+
+    free(vecs);
+    sparse_free(A);
+}
+
 int main(void) {
     TEST_SUITE_BEGIN("Sprint 21 Days 8-10 + 13 — LOBPCG full coverage + AUTO dispatch");
 
@@ -1304,6 +1400,7 @@ int main(void) {
     RUN_TEST(test_lobpcg_nearest_sigma_diagonal);
     RUN_TEST(test_lobpcg_nearest_sigma_kkt);
     RUN_TEST(test_lobpcg_vs_lanczos_laplacian);
+    RUN_TEST(test_lobpcg_adjacent_lanczos_public_result_parity);
     RUN_TEST(test_lobpcg_auto_dispatch_small_n);
     RUN_TEST(test_lobpcg_auto_dispatch_thick_restart);
     RUN_TEST(test_lobpcg_auto_dispatch_lobpcg);
@@ -1312,6 +1409,9 @@ int main(void) {
 
     /* Day 13 default-fallback contract. */
     RUN_TEST(test_lobpcg_block_size_zero_defaults);
+
+    /* Sprint 114 vector-publication boundary proof. */
+    RUN_TEST(test_s114_lobpcg_block_size_gt_k_vector_publication_boundary);
 
     TEST_SUITE_END();
 }

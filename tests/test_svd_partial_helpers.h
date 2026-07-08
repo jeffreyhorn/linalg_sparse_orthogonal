@@ -549,6 +549,9 @@ static void test_partial_svd_vectors_ortho(void) {
 
 static int partial_svd_max_av_residual(const SparseMatrix *A, const sparse_svd_t *svd, idx_t k,
                                        double *max_resid) {
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(svd);
+    ASSERT_NOT_NULL(max_resid);
     if (!A || !svd || !max_resid)
         return 0;
     ASSERT_NOT_NULL(svd->U);

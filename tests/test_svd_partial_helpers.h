@@ -549,7 +549,15 @@ static void test_partial_svd_vectors_ortho(void) {
 
 static int partial_svd_max_av_residual(const SparseMatrix *A, const sparse_svd_t *svd, idx_t k,
                                        double *max_resid) {
-    if (!A || !svd || !max_resid)
+    if (!A || !svd || !max_resid || !svd->U || !svd->Vt || !svd->sigma)
+        return 0;
+    if (svd->m <= 0 || svd->n <= 0 || svd->k <= 0)
+        return 0;
+
+    idx_t n_vecs = k;
+    if (n_vecs > svd->k)
+        n_vecs = svd->k;
+    if (n_vecs <= 0)
         return 0;
 
     double *Av = calloc((size_t)svd->m, sizeof(double));
@@ -563,9 +571,9 @@ static int partial_svd_max_av_residual(const SparseMatrix *A, const sparse_svd_t
     }
 
     *max_resid = 0.0;
-    for (idx_t s = 0; s < k; s++) {
+    for (idx_t s = 0; s < n_vecs; s++) {
         for (idx_t j = 0; j < svd->n; j++)
-            v[j] = svd->Vt[(size_t)j * (size_t)k + (size_t)s];
+            v[j] = svd->Vt[(size_t)j * (size_t)svd->k + (size_t)s];
 
         memset(Av, 0, (size_t)svd->m * sizeof(double));
         sparse_matvec(A, v, Av);

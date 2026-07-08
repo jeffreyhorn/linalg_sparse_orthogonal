@@ -78,7 +78,7 @@ static SparseMatrix *build_shifted_tridiag(idx_t n) {
 typedef struct {
     idx_t n_calls;
     idx_t steps[8];
-    const char *phases[8];
+    char phases[8][16];
     idx_t cancel_after_step;
 } growm_progress_record_t;
 
@@ -87,7 +87,8 @@ static int growm_progress_record_cb(const sparse_progress_t *p, void *user) {
     idx_t slot = record->n_calls;
     if (slot < (idx_t)(sizeof(record->steps) / sizeof(record->steps[0]))) {
         record->steps[slot] = p->step;
-        record->phases[slot] = p->phase;
+        snprintf(record->phases[slot], sizeof(record->phases[slot]), "%s",
+                 p->phase ? p->phase : "");
     }
     record->n_calls++;
     if (record->cancel_after_step >= 0 && p->step >= record->cancel_after_step)
@@ -507,16 +508,16 @@ static void test_growm_retry_progress_steps_accumulate_iterations(void) {
     ASSERT_EQ(result.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
     ASSERT_EQ(result.peak_basis_size, expected_peak_basis_size);
     ASSERT_TRUE(progress.n_calls >= 2);
-    ASSERT_NOT_NULL(progress.phases[0]);
-    if (progress.phases[0])
+    ASSERT_TRUE(progress.phases[0][0] != '\0');
+    if (progress.phases[0][0] != '\0')
         ASSERT_TRUE(strcmp(progress.phases[0], "lanczos") == 0);
     ASSERT_EQ(progress.steps[0], 0);
     idx_t recorded = progress.n_calls;
     if (recorded > (idx_t)(sizeof(progress.steps) / sizeof(progress.steps[0])))
         recorded = (idx_t)(sizeof(progress.steps) / sizeof(progress.steps[0]));
     for (idx_t i = 1; i < recorded; i++) {
-        ASSERT_NOT_NULL(progress.phases[i]);
-        if (progress.phases[i])
+        ASSERT_TRUE(progress.phases[i][0] != '\0');
+        if (progress.phases[i][0] != '\0')
             ASSERT_TRUE(strcmp(progress.phases[i], "lanczos") == 0);
         ASSERT_TRUE(progress.steps[i] > progress.steps[i - 1]);
     }

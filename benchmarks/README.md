@@ -10,6 +10,21 @@ route, [examples/README](../examples/README.md) for API adoption examples, and
 the [Maintainer Guide](../docs/maintainer_guide.md) for reviewed-baseline and
 proof-owner interpretation.
 
+## Quick Navigation
+
+| Need | Section |
+|---|---|
+| Read benchmark rows without overclaiming performance | [Reading Benchmark Results](#reading-benchmark-results) |
+| Compile benchmarks and examples without running long workloads | [Compile-only gate](#compile-only-gate) |
+| Find reorder benchmark coverage and COLAMD routing | [Reorder coverage](#reorder-coverage) |
+| Pick the benchmark family for a workflow | [Workflow groups](#workflow-groups) |
+| Understand canonical, runtime, and exploratory lanes | [Current maintained category split](#current-maintained-category-split) |
+| Capture threshold-free canonical reports | [Current maintained category split](#current-maintained-category-split) |
+| Capture bounded local sentinel reports | [Current maintained category split](#current-maintained-category-split) |
+| Capture large-matrix guardrail reports | [Current maintained category split](#current-maintained-category-split) |
+| Use the main solver-harness CLI | [bench_main](#bench_main) |
+| Use the symmetric eigensolver CLI and CSV schemas | [bench_eigs](#bench_eigs) |
+
 ## Reading Benchmark Results
 
 Benchmarks are local measurement tools. They help answer questions like:

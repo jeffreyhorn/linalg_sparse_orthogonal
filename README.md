@@ -167,7 +167,7 @@ make test
 
 Use `make tooling-build` when you want the example and benchmark binaries
 without running them yet. Use [INSTALL.md](INSTALL.md) when you need
-cross-platform install, downstream-consumer, or package-manager detail.
+cross-platform install, downstream-consumer, or install-support detail.
 
 ### With Make (recommended)
 

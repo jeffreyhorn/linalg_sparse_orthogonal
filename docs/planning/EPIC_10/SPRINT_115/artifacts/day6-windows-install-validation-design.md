@@ -54,7 +54,7 @@ A reviewed Windows install-validation lane should prove:
    cmake --install build --config Release
    ```
 4. Verify installed package shape:
-   - static library/import artifact expected for the static-first target;
+   - static `.lib` produced by the static-first MSVC build;
    - public headers under the install prefix;
    - `SparseConfig.cmake`;
    - `SparseConfigVersion.cmake`;

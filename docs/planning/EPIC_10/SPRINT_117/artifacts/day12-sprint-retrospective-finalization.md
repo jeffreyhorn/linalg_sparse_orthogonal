@@ -20,12 +20,12 @@ the Epic 10 retrospective source inventory for Day 13.
 
 | Metric | Value |
 |---|---:|
-| artifact files under `SPRINT_117/artifacts/` | `12` |
-| artifact lines | `1468` |
-| working notes lines | `361` |
+| artifact files under `SPRINT_117/artifacts/` | `14` |
+| artifact lines | `1795` |
+| working notes lines | `405` |
 | plan lines | `434` |
 | retrospective files | `1` |
-| retrospective lines | `210` |
+| retrospective lines | `212` |
 | changed `.c` files | `0` |
 | changed `.h` files | `0` |
 | changed Make/CMake/workflow/package/script files | `0` |

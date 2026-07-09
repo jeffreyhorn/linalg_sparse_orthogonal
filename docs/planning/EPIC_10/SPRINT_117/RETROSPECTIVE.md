@@ -118,12 +118,12 @@
 
 | Metric | Sprint 117 close state |
 |---|---:|
-| artifact files under `SPRINT_117/artifacts/` | `12` |
-| artifact lines | `1468` |
-| working notes lines | `361` |
+| artifact files under `SPRINT_117/artifacts/` | `14` |
+| artifact lines | `1795` |
+| working notes lines | `405` |
 | plan lines | `434` |
 | retrospective files | `1` |
-| retrospective lines | `210` |
+| retrospective lines | `212` |
 
 ## Claim And Comparison Outcomes
 

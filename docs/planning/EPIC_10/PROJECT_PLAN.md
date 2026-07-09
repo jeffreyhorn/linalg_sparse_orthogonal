@@ -732,7 +732,7 @@ truthful earned claims and residuals.
 | 2 | Full Validation Pass | Run the strongest reviewed quality, CMake parity, install/export, source-list, and supplemental evidence commands required by touched files. | 30 |
 | 3 | Final Comparison Package | Regenerate final solver, reorder, benchmark, coverage, and package artifacts for the epic. | 28 |
 | 4 | Unsupported Claim Cleanup | Remove, downgrade, or fence any public/support wording not backed by final evidence. | 20 |
-| 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work, including Sprint 114's deferred eigensolver private-owner movement, direct/iterative oracle abstraction, and broad SVD proof-helper abstraction decisions unless one item is explicitly promoted during Sprint 117. | 18 |
+| 5 | Residual Queue and Non-Claims | Publish the post-Epic-10 residual queue and explicit non-claims for future work, including Sprint 114's deferred eigensolver private-owner movement, direct/iterative oracle abstraction, and broad SVD proof-helper abstraction decisions plus Sprint 115's deferred package/platform decisions for Linux install CI promotion, macOS CMake install/export parity, Windows install-validation, Windows thread/fuzz/property parity, shared-library/dynamic ABI productization, and package-manager support unless one item is explicitly promoted during Sprint 117. | 18 |
 | 6 | Sprint 117 Retrospective | Create Sprint 117 closeout notes and retrospective from artifacts and working notes. | 20 |
 | 7 | Epic 10 Retrospective | Create the Epic 10 retrospective with earned claims, metrics, lessons, and carry-forward work. | 28 |
 

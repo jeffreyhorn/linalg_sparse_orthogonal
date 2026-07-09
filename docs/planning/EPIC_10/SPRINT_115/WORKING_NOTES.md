@@ -563,8 +563,10 @@ future contracts.
 ## Day 14 Notes
 
 - Reviewed all Sprint 115 artifacts and working notes.
-- Confirmed Sprint 115 touched only documentation under
-  `docs/planning/EPIC_10/SPRINT_115/`.
+- Confirmed Sprint 115 touched only planning documentation:
+  - `docs/planning/EPIC_10/SPRINT_115/`;
+  - `docs/planning/EPIC_10/PROJECT_PLAN.md` for the Sprint 117 residual-queue
+    follow-up.
 - Confirmed no CI workflow, build metadata, Makefile, CMake, script, source,
   header, package metadata, public API, install-header, helper-target, or
   reviewed CTest registration changes were made.

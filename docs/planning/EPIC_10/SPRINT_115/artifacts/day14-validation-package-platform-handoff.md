@@ -8,11 +8,13 @@ adoption QA and Sprint 117 Epic closeout.
 
 ## Touched Surface
 
-Sprint 115 touched only planning documentation under:
+Sprint 115 touched only planning documentation:
 
 - `docs/planning/EPIC_10/SPRINT_115/PLAN.md`
 - `docs/planning/EPIC_10/SPRINT_115/WORKING_NOTES.md`
 - `docs/planning/EPIC_10/SPRINT_115/artifacts/*.md`
+- `docs/planning/EPIC_10/PROJECT_PLAN.md` for the Sprint 117 residual-queue
+  follow-up.
 
 Sprint 115 did not change:
 

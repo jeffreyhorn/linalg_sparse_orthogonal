@@ -9,8 +9,8 @@ making package/ABI/platform decisions, and simplifying the adoption surface.
 
 This plan is based on:
 
-- `docs/planning/EPIC_11/reviews/review-codex-2026-07-09.md`
-- `docs/planning/EPIC_10/reviews/todo-codex-2026-07-09.md`
+- `reviews/review-codex-2026-07-09.md`
+- `reviews/todo-codex-2026-07-09.md`
 - `docs/planning/EPIC_10/EPIC_10_RETROSPECTIVE.md`
 - Sprint 117's final residual queue and explicit non-claim register
 - prior Epic retrospectives and carry-forward work
@@ -374,4 +374,3 @@ retrospective and post-epic handoff queue.
 - final handoff artifact
 
 **Total estimate:** ~164 hours
-

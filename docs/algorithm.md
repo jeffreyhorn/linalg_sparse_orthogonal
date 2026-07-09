@@ -1,5 +1,14 @@
 # Algorithm Description
 
+This document is technical background for data structures, algorithms,
+complexity, implementation tradeoffs, and historical measurement context. It
+is not the first-use adoption guide, install/support contract, package or ABI
+reference, or a portable performance guarantee. Start with
+[`README.md`](../README.md), [`docs/solver_selection.md`](solver_selection.md),
+[`examples/README.md`](../examples/README.md), and
+[`benchmarks/README.md`](../benchmarks/README.md) for adoption workflows,
+solver choice, runnable examples, and benchmark interpretation.
+
 ## Orthogonal Linked-List Data Structure
 
 The library stores sparse matrices in an **orthogonal linked-list** (also called a cross-linked list) representation. Each non-zero entry is a `Node` containing:
@@ -1180,7 +1189,7 @@ The callback solves Mz = r given input r and outputs z. Available preconditioner
 
 | Preconditioner | Function | Best for | Quality |
 |----------------|----------|----------|---------|
-| ILU(0) | `sparse_ilu_precond` | General matrices | Good (3-1000× speedup) |
+| ILU(0) | `sparse_ilu_precond` | General matrices | Workload-dependent acceleration; benchmark locally |
 | ILUT | `sparse_ilut_precond` | Matrices with zero diagonal | Better than ILU(0), tunable |
 | IC(0) | `sparse_ic_precond` | SPD matrices | Comparable to ILU(0), preserves symmetry |
 | Cholesky | Custom wrapper | SPD matrices | Exact (1 iteration) but expensive setup |

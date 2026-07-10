@@ -10,17 +10,29 @@
 
 #define PILOT_N 8
 
+static int insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    sparse_err_t err = sparse_insert(*A, row, col, value);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
 static SparseMatrix *build_spd_tridiag_fixture(void) {
     SparseMatrix *A = sparse_create(PILOT_N, PILOT_N);
     if (!A)
         return NULL;
 
     for (idx_t i = 0; i < PILOT_N; i++) {
-        sparse_insert(A, i, i, 4.0);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, -1.0);
-        if (i < PILOT_N - 1)
-            sparse_insert(A, i, i + 1, -1.0);
+        if (!insert_or_free(&A, i, i, 4.0))
+            return NULL;
+        if (i > 0 && !insert_or_free(&A, i, i - 1, -1.0))
+            return NULL;
+        if (i < PILOT_N - 1 && !insert_or_free(&A, i, i + 1, -1.0))
+            return NULL;
     }
     return A;
 }
@@ -72,9 +84,14 @@ static void test_spd_generated_rhs_lu_chol_qr_cg_agree(void) {
     SparseMatrix *A_lu = sparse_copy(A);
     ASSERT_NOT_NULL(A_lu);
     if (A_lu) {
-        ASSERT_ERR(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
-        ASSERT_ERR(sparse_lu_solve(A_lu, b, x_lu), SPARSE_OK);
-        assert_solver_solution("LU", A, b, x_exact, x_lu);
+        sparse_err_t factor_err = sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-12);
+        ASSERT_ERR(factor_err, SPARSE_OK);
+        if (factor_err == SPARSE_OK) {
+            sparse_err_t solve_err = sparse_lu_solve(A_lu, b, x_lu);
+            ASSERT_ERR(solve_err, SPARSE_OK);
+            if (solve_err == SPARSE_OK)
+                assert_solver_solution("LU", A, b, x_exact, x_lu);
+        }
         sparse_free(A_lu);
     }
 
@@ -82,9 +99,14 @@ static void test_spd_generated_rhs_lu_chol_qr_cg_agree(void) {
     SparseMatrix *A_chol = sparse_copy(A);
     ASSERT_NOT_NULL(A_chol);
     if (A_chol) {
-        ASSERT_ERR(sparse_cholesky_factor(A_chol), SPARSE_OK);
-        ASSERT_ERR(sparse_cholesky_solve(A_chol, b, x_chol), SPARSE_OK);
-        assert_solver_solution("Cholesky", A, b, x_exact, x_chol);
+        sparse_err_t factor_err = sparse_cholesky_factor(A_chol);
+        ASSERT_ERR(factor_err, SPARSE_OK);
+        if (factor_err == SPARSE_OK) {
+            sparse_err_t solve_err = sparse_cholesky_solve(A_chol, b, x_chol);
+            ASSERT_ERR(solve_err, SPARSE_OK);
+            if (solve_err == SPARSE_OK)
+                assert_solver_solution("Cholesky", A, b, x_exact, x_chol);
+        }
         sparse_free(A_chol);
     }
 
@@ -94,9 +116,12 @@ static void test_spd_generated_rhs_lu_chol_qr_cg_agree(void) {
     ASSERT_ERR(qr_err, SPARSE_OK);
     if (qr_err == SPARSE_OK) {
         double reported_residual = 0.0;
-        ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &reported_residual), SPARSE_OK);
-        assert_solver_solution("QR", A, b, x_exact, x_qr);
-        ASSERT_TRUE(reported_residual < 1e-10);
+        sparse_err_t solve_err = sparse_qr_solve(&qr, b, x_qr, &reported_residual);
+        ASSERT_ERR(solve_err, SPARSE_OK);
+        if (solve_err == SPARSE_OK) {
+            assert_solver_solution("QR", A, b, x_exact, x_qr);
+            ASSERT_TRUE(reported_residual < 1e-10);
+        }
         sparse_qr_free(&qr);
     }
 

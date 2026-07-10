@@ -8,12 +8,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
+    sparse_err_t err = sparse_insert(*A, row, col, value);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(*A);
+        *A = NULL;
+        return 0;
+    }
+    return 1;
+}
+
 static SparseMatrix *build_identity(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
     if (!A)
         return NULL;
-    for (idx_t i = 0; i < n; i++)
-        sparse_insert(A, i, i, 1.0);
+    for (idx_t i = 0; i < n; i++) {
+        if (!insert_or_free(&A, i, i, 1.0))
+            return NULL;
+    }
     return A;
 }
 
@@ -22,11 +35,12 @@ static SparseMatrix *build_unsym_tridiag(idx_t n, double diag, double upper, dou
     if (!A)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, diag);
-        if (i > 0)
-            sparse_insert(A, i, i - 1, lower);
-        if (i < n - 1)
-            sparse_insert(A, i, i + 1, upper);
+        if (!insert_or_free(&A, i, i, diag))
+            return NULL;
+        if (i > 0 && !insert_or_free(&A, i, i - 1, lower))
+            return NULL;
+        if (i < n - 1 && !insert_or_free(&A, i, i + 1, upper))
+            return NULL;
     }
     return A;
 }
@@ -245,7 +259,14 @@ static void test_block_bicgstab_preconditioned(void) {
 
     sparse_ilu_t ilu;
     memset(&ilu, 0, sizeof(ilu));
-    REQUIRE_OK(sparse_ilu_factor(A, &ilu));
+    sparse_err_t ilu_err = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ilu_err, SPARSE_OK);
+    if (ilu_err != SPARSE_OK) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result;

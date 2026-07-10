@@ -166,6 +166,12 @@ static double assert_qr_solve_true_residual_below(const char *label, const Spars
     return rr;
 }
 
+static int qr_solve_checked(const sparse_qr_t *qr, const double *b, double *x, double *residual) {
+    sparse_err_t err = sparse_qr_solve(qr, b, x, residual);
+    ASSERT_ERR(err, SPARSE_OK);
+    return err == SPARSE_OK;
+}
+
 static void test_qr_solve_square(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_NOT_NULL(A);
@@ -192,7 +198,11 @@ static void test_qr_solve_square(void) {
     }
     double x_qr[3];
     double res_qr;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &res_qr), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x_qr, &res_qr)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
@@ -238,7 +248,11 @@ static void test_qr_solve_overdetermined(void) {
 
     double x[3];
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     double rr = assert_qr_solve_true_residual_below("overdetermined 5x3", A, b, x, 5, res, 1.0);
     printf("    overdetermined 5x3: x=[%.3f, %.3f, %.3f]\n", x[0], x[1], x[2]);
@@ -271,7 +285,11 @@ static void test_qr_solve_analytical(void) {
 
     double x[1];
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     printf("    analytical LS: x=%.6f (expected 2.0), residual=%.3e\n", x[0], res);
     ASSERT_NEAR(x[0], 2.0, 1e-10);
@@ -301,7 +319,11 @@ static void test_qr_solve_rank_deficient(void) {
 
     double x[3];
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     double rr = assert_qr_solve_true_residual_below("rank-deficient solve", A, b, x, 4, res, 1.0);
     printf("    rank-deficient solve: rank=%d\n", (int)qr.rank);
@@ -349,7 +371,14 @@ static void test_qr_solve_nos4(void) {
         return;
     }
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x_qr, &res)) {
+        free(x_exact);
+        free(b);
+        free(x_qr);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     printf("    nos4 QR solve: rank=%d\n", (int)qr.rank);
     assert_qr_solve_true_residual_below("nos4 QR solve", A, b, x_qr, n, res, 1e-8);
@@ -382,7 +411,11 @@ static void test_qr_solve_null_residual(void) {
     }
 
     double x[2];
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, NULL), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, NULL)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     double rr = qr_solve_rel_residual(A, b, x, 2);
     ASSERT_TRUE(rr < 1e-10);
@@ -428,7 +461,14 @@ static void test_qr_bcsstk04(void) {
     }
 
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     assert_qr_solve_true_residual_below("bcsstk04 QR solve", A, b, x, n, res, 1e-4);
 
     free(x_exact);
@@ -472,7 +512,14 @@ static void test_qr_west0067(void) {
     }
 
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     assert_qr_solve_true_residual_below("west0067 QR solve", A, b, x, n, res, 1e-8);
 
     free(x_exact);
@@ -510,8 +557,14 @@ static void test_qr_vs_lu(void) {
     }
     double *x_qr = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_qr);
-    if (x_qr)
-        sparse_qr_solve(&qr, b, x_qr, NULL);
+    if (x_qr && !qr_solve_checked(&qr, b, x_qr, NULL)) {
+        free(x_exact);
+        free(b);
+        free(x_qr);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
@@ -588,7 +641,14 @@ static void test_qr_tall_synthetic(void) {
     }
 
     double res;
-    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    if (!qr_solve_checked(&qr, b, x, &res)) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     assert_qr_solve_true_residual_below("50x20 solve", A, b, x, m, res, 1e-8);
 
     free(x_exact);

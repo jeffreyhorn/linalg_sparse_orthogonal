@@ -171,7 +171,12 @@ static double qr_solve_rel_residual(const SparseMatrix *A, const double *b, cons
     double *r = malloc((size_t)m * sizeof(double));
     if (!r)
         return HUGE_VAL;
-    sparse_matvec(A, x, r);
+    sparse_err_t mv_err = sparse_matvec(A, x, r);
+    ASSERT_ERR(mv_err, SPARSE_OK);
+    if (mv_err != SPARSE_OK) {
+        free(r);
+        return HUGE_VAL;
+    }
     for (idx_t i = 0; i < m; i++)
         r[i] = b[i] - r[i];
     double rnorm = vec_norm2(r, m);

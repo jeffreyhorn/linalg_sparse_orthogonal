@@ -110,7 +110,25 @@ static SparseMatrix *make_qr_solve_duplicate_column_4x3(double duplicate_scale) 
 static double qr_solve_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *qr) {
     idx_t m = qr->m;
     idx_t n_cols = qr->n;
-    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
+    size_t m_size = 0;
+    if (m < 0 || (uintmax_t)m > (uintmax_t)SIZE_MAX) {
+        ASSERT_TRUE(0);
+        return HUGE_VAL;
+    }
+    m_size = (size_t)m;
+    if (m_size != 0 && m_size > SIZE_MAX / m_size) {
+        ASSERT_TRUE(0);
+        return HUGE_VAL;
+    }
+    size_t q_count = m_size * m_size;
+    size_t q_bytes = 0;
+    if (q_count > SIZE_MAX / sizeof(double)) {
+        ASSERT_TRUE(0);
+        return HUGE_VAL;
+    }
+    q_bytes = q_count * sizeof(double);
+
+    double *Q = malloc(q_bytes);
     if (!Q)
         return HUGE_VAL;
     sparse_err_t q_err = sparse_qr_form_q(qr, Q);
@@ -182,15 +200,12 @@ static void test_qr_solve_square(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 0, 2, 1.0);
-    sparse_insert(A, 1, 0, 4.0);
-    sparse_insert(A, 1, 1, 3.0);
-    sparse_insert(A, 1, 2, 3.0);
-    sparse_insert(A, 2, 0, 8.0);
-    sparse_insert(A, 2, 1, 7.0);
-    sparse_insert(A, 2, 2, 9.0);
+    if (!qr_solve_insert_or_free(&A, 0, 0, 2.0) || !qr_solve_insert_or_free(&A, 0, 1, 1.0) ||
+        !qr_solve_insert_or_free(&A, 0, 2, 1.0) || !qr_solve_insert_or_free(&A, 1, 0, 4.0) ||
+        !qr_solve_insert_or_free(&A, 1, 1, 3.0) || !qr_solve_insert_or_free(&A, 1, 2, 3.0) ||
+        !qr_solve_insert_or_free(&A, 2, 0, 8.0) || !qr_solve_insert_or_free(&A, 2, 1, 7.0) ||
+        !qr_solve_insert_or_free(&A, 2, 2, 9.0))
+        return;
 
     double b[3] = {1.0, 2.0, 3.0};
 
@@ -233,13 +248,11 @@ static void test_qr_solve_overdetermined(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 1, 1.0);
-    sparse_insert(A, 2, 2, 1.0);
-    sparse_insert(A, 3, 0, 1.0);
-    sparse_insert(A, 3, 1, 1.0);
-    sparse_insert(A, 4, 1, 1.0);
-    sparse_insert(A, 4, 2, 1.0);
+    if (!qr_solve_insert_or_free(&A, 0, 0, 1.0) || !qr_solve_insert_or_free(&A, 1, 1, 1.0) ||
+        !qr_solve_insert_or_free(&A, 2, 2, 1.0) || !qr_solve_insert_or_free(&A, 3, 0, 1.0) ||
+        !qr_solve_insert_or_free(&A, 3, 1, 1.0) || !qr_solve_insert_or_free(&A, 4, 1, 1.0) ||
+        !qr_solve_insert_or_free(&A, 4, 2, 1.0))
+        return;
 
     double b[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
 
@@ -275,8 +288,8 @@ static void test_qr_solve_analytical(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
+    if (!qr_solve_insert_or_free(&A, 0, 0, 1.0) || !qr_solve_insert_or_free(&A, 1, 0, 1.0))
+        return;
 
     double b[2] = {1.0, 3.0};
 
@@ -400,10 +413,9 @@ static void test_qr_solve_null_residual(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0);
-    sparse_insert(A, 1, 1, 3.0);
+    if (!qr_solve_insert_or_free(&A, 0, 0, 2.0) || !qr_solve_insert_or_free(&A, 0, 1, 1.0) ||
+        !qr_solve_insert_or_free(&A, 1, 0, 1.0) || !qr_solve_insert_or_free(&A, 1, 1, 3.0))
+        return;
 
     double b[2] = {5.0, 5.0};
 
@@ -615,8 +627,8 @@ static void test_qr_tall_synthetic(void) {
     for (idx_t i = 0; i < m; i++)
         for (idx_t j = 0; j < nc; j++) {
             double val = sin((double)(i + 1) * (double)(j + 1) * 0.3);
-            if (fabs(val) > 0.25)
-                sparse_insert(A, i, j, val);
+            if (fabs(val) > 0.25 && !qr_solve_insert_or_free(&A, i, j, val))
+                return;
         }
 
     sparse_qr_t qr;

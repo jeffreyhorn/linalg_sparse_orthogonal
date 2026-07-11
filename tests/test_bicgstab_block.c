@@ -45,6 +45,13 @@ static SparseMatrix *build_unsym_tridiag(idx_t n, double diag, double upper, dou
     return A;
 }
 
+static int require_allocs(const SparseMatrix *A, const double *B, const double *X) {
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(X);
+    return A && B && X;
+}
+
 static void test_block_bicgstab_null_inputs(void) {
     SparseMatrix *A = build_identity(3);
     double B[3] = {1, 2, 3}, X[3] = {0};
@@ -99,6 +106,12 @@ static void test_block_bicgstab_2rhs(void) {
 
     double *B = calloc(2 * (size_t)n, sizeof(double));
     double *X = calloc(2 * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) {
         B[i] = (double)(i + 1);
         B[i + n] = sin((double)(i + 1));
@@ -108,6 +121,12 @@ static void test_block_bicgstab_2rhs(void) {
     sparse_iter_result_t result;
     sparse_err_t err = sparse_bicgstab_solve_block(A, B, 2, X, &opts, NULL, NULL, &result);
     ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     for (int col = 0; col < 2; col++) {
@@ -129,6 +148,12 @@ static void test_block_bicgstab_4rhs(void) {
     idx_t nrhs = 4;
     double *B = calloc((size_t)nrhs * (size_t)n, sizeof(double));
     double *X = calloc((size_t)nrhs * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     for (idx_t j = 0; j < nrhs; j++)
         for (idx_t i = 0; i < n; i++)
             B[(size_t)i + (size_t)j * (size_t)n] = (double)(i + 1) * (double)(j + 1);
@@ -137,6 +162,12 @@ static void test_block_bicgstab_4rhs(void) {
     sparse_iter_result_t result;
     sparse_err_t err = sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, NULL, NULL, &result);
     ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     for (idx_t j = 0; j < nrhs; j++) {
@@ -159,6 +190,14 @@ static void test_block_bicgstab_matches_single_rhs(void) {
     double *B = calloc((size_t)nrhs * (size_t)n, sizeof(double));
     double *X_single = calloc((size_t)nrhs * (size_t)n, sizeof(double));
     double *X_block = calloc((size_t)nrhs * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X_single) || !X_block) {
+        ASSERT_NOT_NULL(X_block);
+        free(B);
+        free(X_single);
+        free(X_block);
+        sparse_free(A);
+        return;
+    }
     for (idx_t j = 0; j < nrhs; j++)
         for (idx_t i = 0; i < n; i++)
             B[(size_t)i + (size_t)j * (size_t)n] = (double)(i + j * n + 1);
@@ -168,11 +207,27 @@ static void test_block_bicgstab_matches_single_rhs(void) {
     for (idx_t j = 0; j < nrhs; j++) {
         const double *bj = B + (size_t)j * (size_t)n;
         double *xj = X_single + (size_t)j * (size_t)n;
-        sparse_solve_bicgstab(A, bj, xj, &opts, NULL, NULL, NULL);
+        sparse_err_t err = sparse_solve_bicgstab(A, bj, xj, &opts, NULL, NULL, NULL);
+        ASSERT_ERR(err, SPARSE_OK);
+        if (err != SPARSE_OK) {
+            free(B);
+            free(X_single);
+            free(X_block);
+            sparse_free(A);
+            return;
+        }
     }
 
     sparse_iter_result_t result;
-    sparse_bicgstab_solve_block(A, B, nrhs, X_block, &opts, NULL, NULL, &result);
+    sparse_err_t err = sparse_bicgstab_solve_block(A, B, nrhs, X_block, &opts, NULL, NULL, &result);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(B);
+        free(X_single);
+        free(X_block);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     for (idx_t j = 0; j < nrhs; j++)
@@ -192,6 +247,12 @@ static void test_block_bicgstab_mixed_convergence(void) {
 
     double *B = calloc(2 * (size_t)n, sizeof(double));
     double *X = calloc(2 * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
 
     B[0] = 1.0;
     for (idx_t i = 0; i < n; i++)
@@ -201,6 +262,12 @@ static void test_block_bicgstab_mixed_convergence(void) {
     sparse_iter_result_t result;
     sparse_err_t err = sparse_bicgstab_solve_block(A, B, 2, X, &opts, NULL, NULL, &result);
     ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     for (int col = 0; col < 2; col++) {
@@ -223,14 +290,38 @@ static void test_block_bicgstab_nrhs_1(void) {
     double *b = calloc((size_t)n, sizeof(double));
     double *x_single = calloc((size_t)n, sizeof(double));
     double *x_block = calloc((size_t)n, sizeof(double));
+    if (!require_allocs(A, b, x_single) || !x_block) {
+        ASSERT_NOT_NULL(x_block);
+        free(b);
+        free(x_single);
+        free(x_block);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
 
     sparse_iter_result_t r1, r2;
-    sparse_solve_bicgstab(A, b, x_single, &opts, NULL, NULL, &r1);
-    sparse_bicgstab_solve_block(A, b, 1, x_block, &opts, NULL, NULL, &r2);
+    sparse_err_t err1 = sparse_solve_bicgstab(A, b, x_single, &opts, NULL, NULL, &r1);
+    ASSERT_ERR(err1, SPARSE_OK);
+    if (err1 != SPARSE_OK) {
+        free(b);
+        free(x_single);
+        free(x_block);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t err2 = sparse_bicgstab_solve_block(A, b, 1, x_block, &opts, NULL, NULL, &r2);
+    ASSERT_ERR(err2, SPARSE_OK);
+    if (err2 != SPARSE_OK) {
+        free(b);
+        free(x_single);
+        free(x_block);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_TRUE(r1.converged);
     ASSERT_TRUE(r2.converged);
@@ -253,6 +344,12 @@ static void test_block_bicgstab_preconditioned(void) {
     idx_t nrhs = 2;
     double *B = calloc((size_t)nrhs * (size_t)n, sizeof(double));
     double *X = calloc((size_t)nrhs * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     for (idx_t j = 0; j < nrhs; j++)
         for (idx_t i = 0; i < n; i++)
             B[(size_t)i + (size_t)j * (size_t)n] = (double)(i + 1) * (double)(j + 1);
@@ -273,6 +370,13 @@ static void test_block_bicgstab_preconditioned(void) {
     sparse_err_t err =
         sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, sparse_ilu_precond, &ilu, &result);
     ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_ilu_free(&ilu);
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     for (idx_t j = 0; j < nrhs; j++) {
@@ -294,13 +398,27 @@ static void test_block_bicgstab_result_aggregation(void) {
     idx_t nrhs = 3;
     double *B = calloc((size_t)nrhs * (size_t)n, sizeof(double));
     double *X = calloc((size_t)nrhs * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     for (idx_t j = 0; j < nrhs; j++)
         for (idx_t i = 0; i < n; i++)
             B[(size_t)i + (size_t)j * (size_t)n] = (double)(i + 1) * (double)(j + 1);
 
     sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t block_result;
-    sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, NULL, NULL, &block_result);
+    sparse_err_t block_err =
+        sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, NULL, NULL, &block_result);
+    ASSERT_ERR(block_err, SPARSE_OK);
+    if (block_err != SPARSE_OK) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(block_result.converged);
 
     idx_t max_iters = 0;
@@ -308,8 +426,24 @@ static void test_block_bicgstab_result_aggregation(void) {
     for (idx_t j = 0; j < nrhs; j++) {
         double *bj = B + (size_t)j * (size_t)n;
         double *x_fresh = calloc((size_t)n, sizeof(double));
+        ASSERT_NOT_NULL(x_fresh);
+        if (!x_fresh) {
+            free(B);
+            free(X);
+            sparse_free(A);
+            return;
+        }
         sparse_iter_result_t col_result;
-        sparse_solve_bicgstab(A, bj, x_fresh, &opts, NULL, NULL, &col_result);
+        sparse_err_t col_err =
+            sparse_solve_bicgstab(A, bj, x_fresh, &opts, NULL, NULL, &col_result);
+        ASSERT_ERR(col_err, SPARSE_OK);
+        if (col_err != SPARSE_OK) {
+            free(x_fresh);
+            free(B);
+            free(X);
+            sparse_free(A);
+            return;
+        }
         if (col_result.iterations > max_iters)
             max_iters = col_result.iterations;
         if (col_result.residual_norm > max_res)
@@ -338,6 +472,12 @@ static void test_block_bicgstab_error_propagation(void) {
     SparseMatrix *A = build_unsym_tridiag(n, 4.0, -1.0, -2.0);
     double *B = calloc(2 * (size_t)n, sizeof(double));
     double *X = calloc(2 * (size_t)n, sizeof(double));
+    if (!require_allocs(A, B, X)) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) {
         B[(size_t)i] = 1.0;
         B[(size_t)i + (size_t)n] = 2.0;

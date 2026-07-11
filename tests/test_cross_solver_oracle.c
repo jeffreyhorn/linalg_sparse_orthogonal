@@ -128,7 +128,12 @@ static void test_spd_generated_rhs_lu_chol_qr_cg_agree(void) {
     double x_cg[PILOT_N] = {0.0};
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t cg_result;
-    ASSERT_ERR(sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &cg_result), SPARSE_OK);
+    sparse_err_t cg_err = sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &cg_result);
+    ASSERT_ERR(cg_err, SPARSE_OK);
+    if (cg_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(cg_result.converged);
     assert_solver_solution("CG", A, b, x_exact, x_cg);
 

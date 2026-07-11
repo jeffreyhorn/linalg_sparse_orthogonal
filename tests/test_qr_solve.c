@@ -113,7 +113,12 @@ static double qr_solve_reconstruction_error(const SparseMatrix *A, const sparse_
     double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
     if (!Q)
         return HUGE_VAL;
-    sparse_qr_form_q(qr, Q);
+    sparse_err_t q_err = sparse_qr_form_q(qr, Q);
+    ASSERT_ERR(q_err, SPARSE_OK);
+    if (q_err != SPARSE_OK) {
+        free(Q);
+        return HUGE_VAL;
+    }
 
     idx_t rrows = sparse_rows(qr->R);
     double maxerr = 0.0;

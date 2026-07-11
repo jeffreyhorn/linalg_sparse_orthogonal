@@ -57,6 +57,10 @@ static void test_block_bicgstab_null_inputs(void) {
     double B[3] = {1, 2, 3}, X[3] = {0};
     sparse_iter_result_t result;
 
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
     ASSERT_ERR(sparse_bicgstab_solve_block(NULL, B, 1, X, NULL, NULL, NULL, &result),
                SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_bicgstab_solve_block(A, NULL, 1, X, NULL, NULL, NULL, &result),
@@ -98,6 +102,7 @@ static void test_block_bicgstab_nrhs_negative(void) {
 
 static void test_block_bicgstab_nonsquare(void) {
     SparseMatrix *A = sparse_create(3, 4);
+    ASSERT_NOT_NULL(A);
     if (!A)
         return;
     double B[3] = {1, 2, 3}, X[4] = {0};

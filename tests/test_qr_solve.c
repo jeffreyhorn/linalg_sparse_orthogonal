@@ -168,7 +168,13 @@ static void assert_qr_solve_reconstruction_below(const char *label, const Sparse
 
 static double qr_solve_rel_residual(const SparseMatrix *A, const double *b, const double *x,
                                     idx_t m) {
-    double *r = malloc((size_t)m * sizeof(double));
+    size_t r_bytes = 0;
+    if (!qr_solve_idx_count_bytes(m, sizeof(double), &r_bytes)) {
+        ASSERT_TRUE(0);
+        return HUGE_VAL;
+    }
+
+    double *r = malloc(r_bytes);
     if (!r)
         return HUGE_VAL;
     sparse_err_t mv_err = sparse_matvec(A, x, r);

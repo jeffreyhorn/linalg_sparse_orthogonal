@@ -71,6 +71,10 @@ static void test_block_bicgstab_nrhs_zero(void) {
     double B[1] = {0}, X[1] = {0};
     sparse_iter_result_t result;
 
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
     sparse_err_t err = sparse_bicgstab_solve_block(A, B, 0, X, NULL, NULL, NULL, &result);
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
@@ -82,6 +86,10 @@ static void test_block_bicgstab_nrhs_negative(void) {
     SparseMatrix *A = build_identity(3);
     double B[1] = {0}, X[1] = {0};
     sparse_iter_result_t result;
+
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     ASSERT_ERR(sparse_bicgstab_solve_block(A, B, -1, X, NULL, NULL, NULL, &result),
                SPARSE_ERR_BADARG);

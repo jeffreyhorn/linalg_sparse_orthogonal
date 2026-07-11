@@ -83,47 +83,70 @@ static void test_spd_generated_rhs_lu_chol_qr_cg_agree(void) {
     double x_lu[PILOT_N] = {0.0};
     SparseMatrix *A_lu = sparse_copy(A);
     ASSERT_NOT_NULL(A_lu);
-    if (A_lu) {
-        sparse_err_t factor_err = sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-12);
-        ASSERT_ERR(factor_err, SPARSE_OK);
-        if (factor_err == SPARSE_OK) {
-            sparse_err_t solve_err = sparse_lu_solve(A_lu, b, x_lu);
-            ASSERT_ERR(solve_err, SPARSE_OK);
-            if (solve_err == SPARSE_OK)
-                assert_solver_solution("LU", A, b, x_exact, x_lu);
-        }
-        sparse_free(A_lu);
+    if (!A_lu) {
+        sparse_free(A);
+        return;
     }
+    sparse_err_t lu_factor_err = sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-12);
+    ASSERT_ERR(lu_factor_err, SPARSE_OK);
+    if (lu_factor_err != SPARSE_OK) {
+        sparse_free(A_lu);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t lu_solve_err = sparse_lu_solve(A_lu, b, x_lu);
+    ASSERT_ERR(lu_solve_err, SPARSE_OK);
+    if (lu_solve_err != SPARSE_OK) {
+        sparse_free(A_lu);
+        sparse_free(A);
+        return;
+    }
+    assert_solver_solution("LU", A, b, x_exact, x_lu);
+    sparse_free(A_lu);
 
     double x_chol[PILOT_N] = {0.0};
     SparseMatrix *A_chol = sparse_copy(A);
     ASSERT_NOT_NULL(A_chol);
-    if (A_chol) {
-        sparse_err_t factor_err = sparse_cholesky_factor(A_chol);
-        ASSERT_ERR(factor_err, SPARSE_OK);
-        if (factor_err == SPARSE_OK) {
-            sparse_err_t solve_err = sparse_cholesky_solve(A_chol, b, x_chol);
-            ASSERT_ERR(solve_err, SPARSE_OK);
-            if (solve_err == SPARSE_OK)
-                assert_solver_solution("Cholesky", A, b, x_exact, x_chol);
-        }
-        sparse_free(A_chol);
+    if (!A_chol) {
+        sparse_free(A);
+        return;
     }
+    sparse_err_t chol_factor_err = sparse_cholesky_factor(A_chol);
+    ASSERT_ERR(chol_factor_err, SPARSE_OK);
+    if (chol_factor_err != SPARSE_OK) {
+        sparse_free(A_chol);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t chol_solve_err = sparse_cholesky_solve(A_chol, b, x_chol);
+    ASSERT_ERR(chol_solve_err, SPARSE_OK);
+    if (chol_solve_err != SPARSE_OK) {
+        sparse_free(A_chol);
+        sparse_free(A);
+        return;
+    }
+    assert_solver_solution("Cholesky", A, b, x_exact, x_chol);
+    sparse_free(A_chol);
 
     double x_qr[PILOT_N] = {0.0};
     sparse_qr_t qr;
     sparse_err_t qr_err = sparse_qr_factor(A, &qr);
     ASSERT_ERR(qr_err, SPARSE_OK);
-    if (qr_err == SPARSE_OK) {
-        double reported_residual = 0.0;
-        sparse_err_t solve_err = sparse_qr_solve(&qr, b, x_qr, &reported_residual);
-        ASSERT_ERR(solve_err, SPARSE_OK);
-        if (solve_err == SPARSE_OK) {
-            assert_solver_solution("QR", A, b, x_exact, x_qr);
-            ASSERT_TRUE(reported_residual < 1e-10);
-        }
-        sparse_qr_free(&qr);
+    if (qr_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
     }
+    double reported_residual = 0.0;
+    sparse_err_t qr_solve_err = sparse_qr_solve(&qr, b, x_qr, &reported_residual);
+    ASSERT_ERR(qr_solve_err, SPARSE_OK);
+    if (qr_solve_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    assert_solver_solution("QR", A, b, x_exact, x_qr);
+    ASSERT_TRUE(reported_residual < 1e-10);
+    sparse_qr_free(&qr);
 
     double x_cg[PILOT_N] = {0.0};
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-12, .verbose = 0};

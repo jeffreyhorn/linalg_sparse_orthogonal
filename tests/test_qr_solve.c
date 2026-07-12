@@ -238,14 +238,31 @@ static void test_qr_solve_square(void) {
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
     double x_lu[3];
-    if (LU) {
-        ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
-        ASSERT_ERR(sparse_lu_solve(LU, b, x_lu), SPARSE_OK);
-        sparse_free(LU);
-
-        for (int i = 0; i < 3; i++)
-            ASSERT_NEAR(x_qr[i], x_lu[i], 1e-8);
+    if (!LU) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
     }
+    sparse_err_t lu_factor_err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+    ASSERT_ERR(lu_factor_err, SPARSE_OK);
+    if (lu_factor_err != SPARSE_OK) {
+        sparse_free(LU);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t lu_solve_err = sparse_lu_solve(LU, b, x_lu);
+    ASSERT_ERR(lu_solve_err, SPARSE_OK);
+    if (lu_solve_err != SPARSE_OK) {
+        sparse_free(LU);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_free(LU);
+
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x_qr[i], x_lu[i], 1e-8);
 
     assert_qr_solve_true_residual_below("square QR solve", A, b, x_qr, 3, res_qr, 1e-10);
     ASSERT_TRUE(res_qr < 1e-10);
@@ -585,7 +602,7 @@ static void test_qr_vs_lu(void) {
     }
     double *x_qr = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_qr);
-    if (x_qr && !qr_solve_checked(&qr, b, x_qr, NULL)) {
+    if (!x_qr || !qr_solve_checked(&qr, b, x_qr, NULL)) {
         free(x_exact);
         free(b);
         free(x_qr);
@@ -598,27 +615,55 @@ static void test_qr_vs_lu(void) {
     ASSERT_NOT_NULL(LU);
     double *x_lu = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_lu);
-    if (LU && x_lu) {
-        sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-        sparse_lu_solve(LU, b, x_lu);
+    if (!LU || !x_lu) {
+        free(x_exact);
+        free(b);
+        free(x_qr);
+        free(x_lu);
+        sparse_free(LU);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t lu_factor_err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+    ASSERT_ERR(lu_factor_err, SPARSE_OK);
+    if (lu_factor_err != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        free(x_qr);
+        free(x_lu);
+        sparse_free(LU);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_err_t lu_solve_err = sparse_lu_solve(LU, b, x_lu);
+    ASSERT_ERR(lu_solve_err, SPARSE_OK);
+    if (lu_solve_err != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        free(x_qr);
+        free(x_lu);
+        sparse_free(LU);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
     }
 
-    if (x_qr && x_lu) {
-        double rr_qr = qr_solve_rel_residual(A, b, x_qr, n);
-        double rr_lu = qr_solve_rel_residual(A, b, x_lu, n);
-        printf("    nos4 QR vs LU: qr_res=%.3e, lu_res=%.3e\n", rr_qr, rr_lu);
-        ASSERT_TRUE(rr_qr < 1e-8);
-        ASSERT_TRUE(rr_lu < 1e-8);
+    double rr_qr = qr_solve_rel_residual(A, b, x_qr, n);
+    double rr_lu = qr_solve_rel_residual(A, b, x_lu, n);
+    printf("    nos4 QR vs LU: qr_res=%.3e, lu_res=%.3e\n", rr_qr, rr_lu);
+    ASSERT_TRUE(rr_qr < 1e-8);
+    ASSERT_TRUE(rr_lu < 1e-8);
 
-        double maxdiff = 0.0;
-        for (idx_t i = 0; i < n; i++) {
-            double diff = fabs(x_qr[i] - x_lu[i]);
-            if (diff > maxdiff)
-                maxdiff = diff;
-        }
-        printf("    nos4 QR vs LU: max |diff| = %.3e\n", maxdiff);
-        ASSERT_TRUE(maxdiff < 1e-4);
+    double maxdiff = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double diff = fabs(x_qr[i] - x_lu[i]);
+        if (diff > maxdiff)
+            maxdiff = diff;
     }
+    printf("    nos4 QR vs LU: max |diff| = %.3e\n", maxdiff);
+    ASSERT_TRUE(maxdiff < 1e-4);
 
     free(x_exact);
     free(b);

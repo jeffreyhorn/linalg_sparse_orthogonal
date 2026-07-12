@@ -133,6 +133,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_omp.c \
             $(TESTDIR)/test_sprint5_integration.c \
             $(TESTDIR)/test_qr.c \
+            $(TESTDIR)/test_qr_solve.c \
             $(TESTDIR)/test_sprint6_integration.c \
             $(TESTDIR)/test_dense.c \
             $(TESTDIR)/test_bidiag.c \
@@ -151,6 +152,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_etree.c \
             $(TESTDIR)/test_colamd.c \
             $(TESTDIR)/test_bicgstab.c \
+            $(TESTDIR)/test_bicgstab_block.c \
+            $(TESTDIR)/test_cross_solver_oracle.c \
             $(TESTDIR)/test_stagnation.c \
             $(TESTDIR)/test_chol_csc.c \
             $(TESTDIR)/test_chol_csc_supernodal.c \

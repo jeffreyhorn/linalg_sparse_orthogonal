@@ -81,6 +81,10 @@ static void test_block_bicgstab_nrhs_zero(void) {
 
     sparse_err_t err = sparse_bicgstab_solve_block(A, B, 0, X, NULL, NULL, NULL, &result);
     ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(result.converged);
 
     sparse_free(A);

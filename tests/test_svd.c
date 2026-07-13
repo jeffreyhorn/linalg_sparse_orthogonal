@@ -2140,16 +2140,19 @@ static void test_lowrank_rectangular_dense_sparse_consistency(void) {
         return;
     }
 
+    double dense_err = tf_svd_dense_lowrank_frobenius_error(A, dense, 5, 7, 5);
+    double sparse_dense_diff = tf_svd_sparse_dense_frobenius_diff(sp, dense, 5, 7, 5);
+
     ASSERT_EQ(sparse_rows(sp), 5);
     ASSERT_EQ(sparse_cols(sp), 7);
-    ASSERT_NEAR(tf_svd_dense_lowrank_frobenius_error(A, dense, 5, 7, 5), 1.0, 1e-10);
-    ASSERT_NEAR(tf_svd_sparse_dense_frobenius_diff(sp, dense, 5, 7, 5), 0.0, 1e-10);
+    ASSERT_NEAR(dense_err, 1.0, 1e-10);
+    ASSERT_NEAR(sparse_dense_diff, 0.0, 1e-10);
     ASSERT_NEAR(sparse_get(sp, 0, 0), 8.0, 1e-10);
     ASSERT_NEAR(sparse_get(sp, 1, 1), 4.0, 1e-10);
     ASSERT_NEAR(sparse_get(sp, 2, 2), 2.0, 1e-10);
     ASSERT_NEAR(sparse_get(sp, 3, 3), 0.0, 1e-10);
-    printf(
-        "    rectangular lowrank dense/sparse: dense_err=1.000000, sparse_dense_diff=0.000e+00\n");
+    printf("    rectangular lowrank dense/sparse: dense_err=%.6f, sparse_dense_diff=%.3e\n",
+           dense_err, sparse_dense_diff);
 
     free(dense);
     sparse_free(sp);

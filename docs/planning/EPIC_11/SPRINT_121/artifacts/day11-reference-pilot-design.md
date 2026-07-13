@@ -5,7 +5,7 @@
 Day 11 designs one bounded external dense-reference comparison lane for Day 12
 implementation. The pilot compares singular values from this library's SVD
 against a small pure-Python dense reference on one deterministic rectangular
-rank-deficient fixture.
+full-column-rank fixture.
 
 This artifact is design-only. No C source, header, Makefile, CMake, CTest,
 workflow, package, benchmark, public API, or production source surfaces are
@@ -65,9 +65,9 @@ Matrix:
 [ 3.0   4.0   7.0   2.5 ]
 ```
 
-The last three rows are deterministic linear combinations of the first three
-rows, so the fixture is rectangular and rank deficient without using a
-diagonal-only spectrum.
+The rows are deterministic, mixed-sign, and non-diagonal while preserving full
+column rank, so the fixture exercises a rectangular dense shape without relying
+on a diagonal-only spectrum.
 
 Construction rules:
 
@@ -93,7 +93,7 @@ Construction rules:
 | Singular-value max absolute difference | `1e-8` | The fixture is small and moderately scaled, but the pure-Python Jacobi reference and library SVD use different dense arithmetic paths. |
 | Singular-value ordering | Descending order | Both reference and library should publish sorted singular values. |
 | Rank implication | Do not assert rank from external reference in this pilot | Rank threshold semantics remain owned by Day 8 rank fixtures and `sparse_svd_rank`. |
-| Vector/subspace agreement | Not checked | Singular vectors can differ by signs or basis choices in rank-deficient subspaces. |
+| Vector/subspace agreement | Not checked | Singular vectors can differ by signs, and this pilot intentionally stays limited to singular-value agreement rather than vector/subspace evidence. |
 | Runtime | No timing assertion | External helper runtime is not performance evidence. |
 
 ## Planned File And Build Impact

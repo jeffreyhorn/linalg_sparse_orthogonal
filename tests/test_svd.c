@@ -67,7 +67,8 @@ static int read_svd_external_reference_singular_values(const char *fixture_key, 
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
     if (strcmp(fixture_key, "svd_rect_fullrank_6x4") != 0) {
-        snprintf(reason, reason_cap, "unsupported external SVD reference fixture key");
+        snprintf(reason, reason_cap, "unsupported external SVD reference fixture key: %s",
+                 fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
 

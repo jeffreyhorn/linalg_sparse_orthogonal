@@ -5,7 +5,7 @@
 Day 12 implemented the bounded SVD external dense-reference pilot designed on
 Day 11. The pilot compares this library's full SVD singular values against a
 small pure-Python dense reference for one deterministic rectangular
-rank-deficient fixture.
+full-column-rank fixture.
 
 ## Scope
 
@@ -97,7 +97,7 @@ external SVD dense ref rect_fullrank_6x4: max |sigma-sigma_ref| = 6.217e-15
 | Case | Disposition | Reason |
 |---|---|---|
 | NumPy/SciPy/LAPACK invocation | Unsupported | The pilot intentionally avoids external numerical package dependencies and parity claims. |
-| Singular-vector or subspace comparison | Unsupported | Rank-deficient singular-vector bases are not unique. |
+| Singular-vector or subspace comparison | Unsupported | Singular vectors can differ by signs, and this pilot intentionally validates singular values only. |
 | Partial-SVD external comparison | Deferred | The current sprint owns one bounded full-SVD external singular-value pilot only. |
 | QR external comparison | Deferred | Day 9 already expanded deterministic QR least-squares proof coverage. |
 | SuiteSparse fixtures | Unsupported | The pilot stays small, deterministic, and fast. |

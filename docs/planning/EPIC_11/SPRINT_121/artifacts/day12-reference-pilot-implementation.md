@@ -22,7 +22,7 @@ rank-deficient fixture.
 Added `tests/svd_external_dense_reference.py`.
 
 - Uses only the Python standard library.
-- Builds the `svd_rect_rank3_6x4` fixture.
+- Builds the `svd_rect_fullrank_6x4` fixture.
 - Computes `A^T A`.
 - Diagonalizes the small symmetric Gram matrix with a bounded Jacobi
   iteration.
@@ -34,9 +34,9 @@ Updated `tests/test_svd.c`.
 
 - Enabled the existing `tf_read_external_reference_vector` helper for
   `test_svd`.
-- Added a local 6x4 fixture builder for `svd_rect_rank3_6x4`.
+- Added a local 6x4 fixture builder for `svd_rect_fullrank_6x4`.
 - Added `read_svd_external_reference_singular_values`.
-- Added `test_svd_external_dense_reference_rect_rank3_6x4`.
+- Added `test_svd_external_dense_reference_rect_fullrank_6x4`.
 - Registered the test in the existing `test_svd` executable.
 
 No Makefile, CMake, CTest registration, workflow, package, benchmark, public
@@ -46,7 +46,7 @@ API, or production source surfaces were changed.
 
 | Fixture | Symmetry | Definiteness | Rank | Conditioning/scaling | Sparsity pattern | Expected behavior |
 |---|---|---|---|---|---|---|
-| `svd_rect_rank3_6x4` | Nonsymmetric rectangular | Not applicable | 3 | Moderate scale, no extreme conditioning | Dense 6x4 | Library full SVD and pure-Python dense reference agree on the four singular values within `1e-8`. |
+| `svd_rect_fullrank_6x4` | Nonsymmetric rectangular | Not applicable | 4 | Moderate scale, no extreme conditioning | Dense 6x4 | Library full SVD and pure-Python dense reference agree on the four singular values within `1e-8`. |
 
 Matrix:
 
@@ -63,7 +63,7 @@ Matrix:
 
 | Oracle/reference | Invocation | Trust boundary | Skip/error handling |
 |---|---|---|---|
-| External pure-Python dense SVD reference | `python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4` | Independent dense arithmetic path for one small fixed fixture; not a LAPACK/SciPy/NumPy oracle and not a broad SVD correctness proof. | Missing `python3` skips through `tf_read_external_reference_vector`; helper `ERROR` output is a test failure; Windows skips explicitly. |
+| External pure-Python dense SVD reference | `python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4` | Independent dense arithmetic path for one small fixed fixture; not a LAPACK/SciPy/NumPy oracle and not a broad SVD correctness proof. | Missing `python3` skips through `tf_read_external_reference_vector`; helper `ERROR` output is a test failure; Windows skips explicitly. |
 | Library full SVD | `sparse_svd_compute(A, NULL, &svd)` | Product behavior under test. | Allocation or SVD failure is a test failure. |
 | Singular-value comparison | Max absolute difference across four singular values. | Bounded singular-value comparison only. | Difference above `1e-8` is a test failure. |
 
@@ -72,7 +72,7 @@ Matrix:
 Focused `test_svd` output included:
 
 ```text
-external SVD dense ref rect_rank3_6x4: max |sigma-sigma_ref| = 6.217e-15
+external SVD dense ref rect_fullrank_6x4: max |sigma-sigma_ref| = 6.217e-15
 ```
 
 `test_svd` result:
@@ -86,7 +86,7 @@ external SVD dense ref rect_rank3_6x4: max |sigma-sigma_ref| = 6.217e-15
 
 | Command | Required because | Reviewed/supplemental/local | Result |
 |---|---|---|---|
-| `python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4` | Direct helper smoke check | Local | Passed; emitted 4 singular values. |
+| `python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4` | Direct helper smoke check | Local | Passed; emitted 4 singular values. |
 | `make format` | `.c` file changed | Reviewed quality gate piece | Passed. |
 | `make build/test_svd && ./build/test_svd` | Focused SVD pilot proof | Reviewed focused validation | Passed. |
 | `make lint` | `.c` file changed | Reviewed quality gate piece | Passed. |

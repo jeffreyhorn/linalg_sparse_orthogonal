@@ -420,7 +420,8 @@ the SVD/QR/rank evidence candidates named in the project plan. It should not:
 - Designed one bounded external dense-reference comparison lane for Sprint 121
   Day 12 implementation.
 - Selected a full-SVD singular-value pilot over a deterministic 6x4 dense
-  rectangular rank-3 fixture with mixed signs and non-diagonal structure.
+  rectangular full-column-rank fixture with mixed signs and non-diagonal
+  structure.
 - Chose a pure-Python standard-library reference helper that computes
   eigenvalues of `A^T A` with a bounded symmetric Jacobi routine and returns
   sorted singular values; the design explicitly avoids NumPy, SciPy, LAPACK,
@@ -451,7 +452,7 @@ the SVD/QR/rank evidence candidates named in the project plan. It should not:
 
 - Implemented the Day 11 bounded SVD external dense-reference pilot.
 - Added `tests/svd_external_dense_reference.py`, a pure-Python
-  standard-library helper that builds `svd_rect_rank3_6x4`, computes `A^T A`,
+  standard-library helper that builds `svd_rect_fullrank_6x4`, computes `A^T A`,
   diagonalizes the small symmetric Gram matrix with a bounded Jacobi routine,
   and emits sorted singular values through the existing external-reference
   output protocol.
@@ -459,7 +460,7 @@ the SVD/QR/rank evidence candidates named in the project plan. It should not:
   build the 6x4 fixture locally, read the external singular values, run
   `sparse_svd_compute(A, NULL, &svd)`, and compare the four singular values
   with max absolute difference below `1e-8`.
-- Registered `test_svd_external_dense_reference_rect_rank3_6x4` in the
+- Registered `test_svd_external_dense_reference_rect_fullrank_6x4` in the
   existing `test_svd` executable, so Makefile, CMake, CTest registration,
   workflow, package, benchmark, public API, and production source surfaces
   were not changed.
@@ -470,7 +471,7 @@ the SVD/QR/rank evidence candidates named in the project plan. It should not:
 - Kept singular-vector, subspace, partial-SVD, low-rank, QR, SuiteSparse,
   performance, platform, ABI, package, and state-of-the-art claims out of the
   pilot.
-- Ran `python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4`; it
+- Ran `python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4`; it
   emitted 4 singular values.
 - Ran focused validation with `make format && make build/test_svd &&
   ./build/test_svd`; `test_svd` passed with 104 tests, 0 failures, 0 skips,
@@ -490,7 +491,7 @@ the SVD/QR/rank evidence candidates named in the project plan. It should not:
   QR, QR solve, rank-deficient, least-squares, pseudoinverse, low-rank,
   partial-SVD, and SVD external-reference proof-owner work.
 - Ran focused validation with `python3 tests/svd_external_dense_reference.py
-  svd_rect_rank3_6x4 && make build/test_qr build/test_qr_solve build/test_svd
+  svd_rect_fullrank_6x4 && make build/test_qr build/test_qr_solve build/test_svd
   && ./build/test_qr && ./build/test_qr_solve && ./build/test_svd`.
 - The Python SVD reference helper passed and emitted 4 singular values.
 - `test_qr` passed with 65 tests, 0 failures, 0 skips, and 603 assertions.

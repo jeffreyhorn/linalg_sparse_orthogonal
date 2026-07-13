@@ -8,7 +8,7 @@ import sys
 from typing import List
 
 
-def build_svd_rect_rank3_6x4() -> List[List[float]]:
+def build_svd_rect_fullrank_6x4() -> List[List[float]]:
     return [
         [3.0, -1.0, 0.0, 2.0],
         [0.0, 4.0, 1.0, -1.0],
@@ -20,8 +20,8 @@ def build_svd_rect_rank3_6x4() -> List[List[float]]:
 
 
 def fixture_matrix(name: str) -> List[List[float]]:
-    if name == "svd_rect_rank3_6x4":
-        return build_svd_rect_rank3_6x4()
+    if name == "svd_rect_fullrank_6x4":
+        return build_svd_rect_fullrank_6x4()
     raise ValueError(f"unknown fixture {name}")
 
 

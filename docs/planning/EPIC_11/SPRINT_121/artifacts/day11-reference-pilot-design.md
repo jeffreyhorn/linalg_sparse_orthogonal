@@ -27,7 +27,7 @@ changed by Day 11.
 | Field | Decision |
 |---|---|
 | Pilot name | Rectangular dense SVD external singular-value reference |
-| Fixture | Deterministic 6x4 dense rectangular matrix with rank 3 and mixed signs. |
+| Fixture | Deterministic 6x4 dense rectangular matrix with full column rank and mixed signs. |
 | Primary comparison | Full SVD singular values from `sparse_svd` against an external pure-Python dense reference. |
 | Reference model | Python script computes eigenvalues of `A^T A` with a bounded symmetric Jacobi iteration, then returns sorted square-rooted singular values. |
 | External dependency policy | Use only Python standard library; do not require NumPy, SciPy, LAPACK, or system BLAS. |
@@ -48,11 +48,11 @@ changed by Day 11.
 
 | Fixture | Symmetry | Definiteness | Rank | Conditioning/scaling | Sparsity pattern | Expected behavior |
 |---|---|---|---|---|---|---|
-| `svd_rect_rank3_6x4` | Nonsymmetric rectangular | Not applicable | 3 | Moderate scale, no extreme conditioning | Dense 6x4 | Library full SVD and pure-Python dense reference agree on the four singular values within the local tolerance. |
+| `svd_rect_fullrank_6x4` | Nonsymmetric rectangular | Not applicable | 4 | Moderate scale, no extreme conditioning | Dense 6x4 | Library full SVD and pure-Python dense reference agree on the four singular values within the local tolerance. |
 
 ## Matrix Construction
 
-Planned fixture key: `svd_rect_rank3_6x4`.
+Planned fixture key: `svd_rect_fullrank_6x4`.
 
 Matrix:
 
@@ -82,7 +82,7 @@ Construction rules:
 
 | Oracle/reference | Invocation | Trust boundary | Skip/error handling |
 |---|---|---|---|
-| External pure-Python dense SVD reference | `python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4` | Independent dense arithmetic path for one fixed small fixture; not a LAPACK/SciPy/NumPy oracle and not a broad SVD correctness proof. | Missing `python3` skips through `tf_read_external_reference_vector`; Python script `ERROR` output is a test failure; Windows skips explicitly. |
+| External pure-Python dense SVD reference | `python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4` | Independent dense arithmetic path for one fixed small fixture; not a LAPACK/SciPy/NumPy oracle and not a broad SVD correctness proof. | Missing `python3` skips through `tf_read_external_reference_vector`; Python script `ERROR` output is a test failure; Windows skips explicitly. |
 | Library full SVD | `sparse_svd(A, &svd, 0, 0)` | Product behavior under test. | Allocation or SVD failure is a test failure. |
 | Singular-value comparison | Max absolute difference over four singular values. | Bounded value comparison only; does not compare vectors, signs, subspace bases, performance, or low-rank optimality. | Difference above tolerance is a test failure. |
 
@@ -112,7 +112,7 @@ Construction rules:
 
 | Test | Purpose |
 |---|---|
-| `test_svd_external_dense_reference_rect_rank3_6x4` | Build the 6x4 rank-3 fixture, read four external singular values, run `sparse_svd`, and assert the max singular-value difference is below `1e-8`. |
+| `test_svd_external_dense_reference_rect_fullrank_6x4` | Build the 6x4 full-column-rank fixture, read four external singular values, run `sparse_svd`, and assert the max singular-value difference is below `1e-8`. |
 
 Do not add a broad SVD external-reference helper header from this single pilot.
 Keep the fixture key, Python command, Windows skip behavior, and tolerance

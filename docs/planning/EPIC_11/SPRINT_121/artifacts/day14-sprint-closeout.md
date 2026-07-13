@@ -57,7 +57,7 @@ external-reference evidence without changing product support claims.
 Focused Day 13 validation:
 
 ```sh
-python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4 && \
+python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4 && \
 make build/test_qr build/test_qr_solve build/test_svd && \
 ./build/test_qr && ./build/test_qr_solve && ./build/test_svd
 ```

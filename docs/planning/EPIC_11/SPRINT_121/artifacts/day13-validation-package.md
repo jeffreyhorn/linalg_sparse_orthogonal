@@ -23,7 +23,7 @@ focused solver suite and the required full C quality gate.
 Command:
 
 ```sh
-python3 tests/svd_external_dense_reference.py svd_rect_rank3_6x4 && \
+python3 tests/svd_external_dense_reference.py svd_rect_fullrank_6x4 && \
 make build/test_qr build/test_qr_solve build/test_svd && \
 ./build/test_qr && ./build/test_qr_solve && ./build/test_svd
 ```
@@ -32,7 +32,7 @@ Results:
 
 | Surface | Result |
 |---|---|
-| `tests/svd_external_dense_reference.py svd_rect_rank3_6x4` | Passed; emitted 4 singular values. |
+| `tests/svd_external_dense_reference.py svd_rect_fullrank_6x4` | Passed; emitted 4 singular values. |
 | `test_qr` | 65 tests, 0 failures, 0 skips, 603 assertions. |
 | `test_qr_solve` | 13 tests, 0 failures, 0 skips, 1014 assertions. |
 | `test_svd` | 104 tests, 0 failures, 0 skips, 1685 assertions. |

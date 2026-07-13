@@ -39,7 +39,7 @@
  * Helpers
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static SparseMatrix *build_svd_external_ref_rect_rank3_6x4(void) {
+static SparseMatrix *build_svd_external_ref_rect_fullrank_6x4(void) {
     static const double values[SVD_EXTERNAL_REF_ROWS][SVD_EXTERNAL_REF_COLS] = {
         {3.0, -1.0, 0.0, 2.0}, {0.0, 4.0, 1.0, -1.0},  {2.0, 0.0, 3.0, 0.5},
         {5.0, 3.0, 4.0, 1.5},  {-1.0, 5.0, 4.0, -0.5}, {3.0, 4.0, 7.0, 2.5},
@@ -66,7 +66,7 @@ static int read_svd_external_reference_singular_values(const char *fixture_key, 
         snprintf(reason, reason_cap, "external SVD reference invalid arguments");
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
-    if (strcmp(fixture_key, "svd_rect_rank3_6x4") != 0) {
+    if (strcmp(fixture_key, "svd_rect_fullrank_6x4") != 0) {
         snprintf(reason, reason_cap, "unsupported external SVD reference fixture key");
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
@@ -304,14 +304,14 @@ static void test_svd_basic_sigma(void) {
     sparse_free(A);
 }
 
-static void test_svd_external_dense_reference_rect_rank3_6x4(void) {
+static void test_svd_external_dense_reference_rect_fullrank_6x4(void) {
 #ifdef _WIN32
     SKIP_TEST("external SVD dense reference helper is not enabled on Windows");
 #else
     double sigma_ref[SVD_EXTERNAL_REF_COLS] = {0.0};
     char reason[256] = {0};
     int ref_status = read_svd_external_reference_singular_values(
-        "svd_rect_rank3_6x4", sigma_ref, SVD_EXTERNAL_REF_COLS, reason, sizeof(reason));
+        "svd_rect_fullrank_6x4", sigma_ref, SVD_EXTERNAL_REF_COLS, reason, sizeof(reason));
     if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
         SKIP_TEST(reason);
     if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
@@ -319,7 +319,7 @@ static void test_svd_external_dense_reference_rect_rank3_6x4(void) {
         return;
     }
 
-    SparseMatrix *A = build_svd_external_ref_rect_rank3_6x4();
+    SparseMatrix *A = build_svd_external_ref_rect_fullrank_6x4();
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -346,7 +346,8 @@ static void test_svd_external_dense_reference_rect_rank3_6x4(void) {
         if (diff > max_diff)
             max_diff = diff;
     }
-    printf("    external SVD dense ref rect_rank3_6x4: max |sigma-sigma_ref| = %.3e\n", max_diff);
+    printf("    external SVD dense ref rect_fullrank_6x4: max |sigma-sigma_ref| = %.3e\n",
+           max_diff);
     ASSERT_TRUE(max_diff < 1e-8);
 
     sparse_svd_free(&svd);
@@ -804,10 +805,9 @@ static void test_svd_rank2(void) {
     /* A = u1*v1^T + u2*v2^T where:
      * u1=[1,0,1,0,1], v1=[1,1,0,0,0]
      * u2=[0,1,0,1,0], v2=[0,0,1,1,0] */
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 1, 3, 1.0);
+    if (!tf_svd_insert_or_free(&A, 0, 0, 1.0) || !tf_svd_insert_or_free(&A, 0, 1, 1.0) ||
+        !tf_svd_insert_or_free(&A, 1, 2, 1.0) || !tf_svd_insert_or_free(&A, 1, 3, 1.0))
+        return;
     sparse_insert(A, 2, 0, 1.0);
     sparse_insert(A, 2, 1, 1.0);
     sparse_insert(A, 3, 2, 1.0);
@@ -1803,10 +1803,9 @@ static void test_pinv_underdetermined_minnorm_solution(void) {
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    sparse_insert(A, 0, 0, 1.0);
-    sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 1, 3, 1.0);
+    if (!tf_svd_insert_or_free(&A, 0, 0, 1.0) || !tf_svd_insert_or_free(&A, 0, 1, 1.0) ||
+        !tf_svd_insert_or_free(&A, 1, 2, 1.0) || !tf_svd_insert_or_free(&A, 1, 3, 1.0))
+        return;
 
     double *pinv_data = NULL;
     sparse_err_t err = sparse_pinv(A, 1e-12, &pinv_data);
@@ -2711,7 +2710,7 @@ int main(void) {
     RUN_TEST(test_gk_extract_tall);
     RUN_TEST(test_gk_extract_wide);
     RUN_TEST(test_svd_basic_sigma);
-    RUN_TEST(test_svd_external_dense_reference_rect_rank3_6x4);
+    RUN_TEST(test_svd_external_dense_reference_rect_fullrank_6x4);
 
     /* Golub-Kahan validation (Day 5) */
     RUN_TEST(test_gk_square_5x5);

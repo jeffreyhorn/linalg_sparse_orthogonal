@@ -1,4 +1,4 @@
-# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-127 (Epic 11)
+# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-128 (Epic 11)
 
 Epic 11 starts from the completed Epic 10 closeout. The library is broad,
 well-tested, and much more product-disciplined than it was before Epic 10, but
@@ -51,7 +51,7 @@ hardening cycle.
 - current product truth map
 - source/test hotspot metrics
 - refreshed evidence templates
-- Sprint 119-127 handoff requirements
+- Sprint 119-128 handoff requirements
 
 **Total estimate:** ~166 hours
 
@@ -162,7 +162,47 @@ with reusable helpers while keeping LAPACK/SciPy parity as a non-claim.
 
 ---
 
-## Sprint 122: Numerical Corpus, Coverage Architecture & Report Indexes
+## Sprint 122: SVD/QR External Oracle Residual Follow-Through
+
+**Duration:** 14 days (~166 hours)
+**Goal:** Convert Sprint 121's residual SVD, QR, partial-SVD, helper-ownership,
+and solver-selection claim gates into explicit owners before broader corpus,
+reporting, and adoption documentation work proceeds.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 121 SVD/QR/rank fixture taxonomy complete
+- Sprint 121 bounded SVD external-reference pilot and non-claim register
+  available
+- Sprint 120 fixture/oracle patterns available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Residual Oracle Dedupe and Owner Map | Convert Sprint 121 residual deferred debt into explicit SVD, QR, partial-SVD, helper, and documentation owners while confirming that completed audit, taxonomy, helper extraction, fixture expansion, and first SVD external-reference pilot work are not duplicated. | 16 |
+| 2 | Additional SVD External Fixture Decision | Decide whether to add more SVD external fixtures beyond `svd_rect_fullrank_6x4`; if accepted, design bounded fixture keys, tolerances, skip behavior, and failure interpretation without claiming LAPACK/SciPy/NumPy parity. | 28 |
+| 3 | QR External Dense-Reference Lane Design | Design a QR external dense-reference lane only after fixture size, tolerance, skip behavior, and failure semantics are explicit; implement or defer with an auditable rationale. | 30 |
+| 4 | Partial-SVD External Parity Design | Design partial-SVD external comparison separately from full-SVD parity, including vector/subspace, convergence, ordering, tolerance, and non-claim semantics. | 30 |
+| 5 | Helper Ownership Boundary Decisions | Revisit minimum-norm helper ownership migration and Bidiagonal/Golub-Kahan helper extraction boundaries, keeping specialized transpose/reconstruction semantics separate from general SVD helpers unless consolidation is proven safe. | 22 |
+| 6 | Solver-Selection Claim Gate | Define the evidence threshold required before public solver-selection wording may mention broader external or support-level evidence. | 18 |
+| 7 | Validation and Closeout | Run affected docs/script/focused checks, publish decisions, update non-claims, and hand residuals to the corpus/report and adoption sprints. | 22 |
+
+### Deliverables
+
+- Sprint 121 residual oracle owner map
+- SVD external fixture expansion decision
+- QR external dense-reference lane design or explicit deferral
+- partial-SVD external parity design or explicit deferral
+- helper ownership boundary decision package
+- solver-selection claim gate
+- validation and residual handoff package
+
+**Total estimate:** ~166 hours
+
+---
+
+## Sprint 123: Numerical Corpus, Coverage Architecture & Report Indexes
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Turn scattered numerical fixtures, coverage, benchmark, dead-code,
@@ -171,7 +211,7 @@ and guardrail outputs into a clearer recurring assurance architecture.
 ### Prerequisites from Previous Sprints
 
 - Sprint 118 templates complete
-- Sprint 120-121 oracle taxonomy decisions available
+- Sprint 120-122 oracle taxonomy and external-reference decisions available
 
 ### Items
 
@@ -197,7 +237,7 @@ and guardrail outputs into a clearer recurring assurance architecture.
 
 ---
 
-## Sprint 123: Performance Sentinel & Backend Runtime Governance
+## Sprint 124: Performance Sentinel & Backend Runtime Governance
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen local performance and backend/runtime governance without
@@ -205,7 +245,7 @@ turning local measurements into portable performance claims.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 122 report index model available
+- Sprint 123 report index model available
 - current benchmark and backend non-claims preserved
 
 ### Items
@@ -232,7 +272,7 @@ turning local measurements into portable performance claims.
 
 ---
 
-## Sprint 124: Package, ABI & Shared-Library Product Decision
+## Sprint 125: Package, ABI & Shared-Library Product Decision
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Decide whether Epic 11 adds shared-library/dynamic ABI support or
@@ -268,7 +308,7 @@ contract.
 
 ---
 
-## Sprint 125: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
+## Sprint 126: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Advance platform support where feasible and make Linux/macOS/Windows
@@ -276,7 +316,7 @@ install and staged validation tiers even more explicit.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 124 package/ABI decision complete
+- Sprint 125 package/ABI decision complete
 - current CI tier model preserved
 
 ### Items
@@ -303,7 +343,7 @@ install and staged validation tiers even more explicit.
 
 ---
 
-## Sprint 126: Adoption Surface Simplification & Documentation Productization
+## Sprint 127: Adoption Surface Simplification & Documentation Productization
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Simplify the adoption surface after Epic 10 by separating first-use
@@ -312,8 +352,8 @@ find.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 122 report index decisions available
-- Sprint 124-125 package/platform truth stable
+- Sprint 123 report index decisions available
+- Sprint 125-126 package/platform truth stable
 
 ### Items
 
@@ -339,7 +379,7 @@ find.
 
 ---
 
-## Sprint 127: Final Integration, Competitive Recalibration & Epic 11 Closeout
+## Sprint 128: Final Integration, Competitive Recalibration & Epic 11 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Validate Epic 11 outcomes, compare them against the state-of-the-art
@@ -348,7 +388,7 @@ retrospective and post-epic handoff queue.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 118-126 artifacts, validation, residuals, and support-surface
+- Sprint 118-127 artifacts, validation, residuals, and support-surface
   decisions complete
 - package/platform/ABI/adoption truth stable
 
@@ -362,14 +402,14 @@ retrospective and post-epic handoff queue.
 | 4 | Competitive Claim Recalibration | Compare final evidence against Epic 11 goals and current state-of-the-art non-claims. | 24 |
 | 5 | Unsupported-Claim Cleanup | Remove, downgrade, or fence unsupported public/support wording. | 20 |
 | 6 | Residual Queue Publication | Publish post-Epic-11 residuals, future-epic candidates, optional work, and explicit non-claims. | 20 |
-| 7 | Sprint and Epic Retrospectives | Write Sprint 127 and Epic 11 retrospectives plus final closeout handoff. | 30 |
+| 7 | Sprint and Epic Retrospectives | Write Sprint 128 and Epic 11 retrospectives plus final closeout handoff. | 30 |
 
 ### Deliverables
 
 - final validation package
 - final comparison and claim cleanup package
 - post-Epic-11 residual queue
-- Sprint 127 retrospective
+- Sprint 128 retrospective
 - Epic 11 retrospective
 - final handoff artifact
 

@@ -838,6 +838,59 @@ static void test_partial_svd_vectors_recon(void) {
     sparse_free(A);
 }
 
+static void test_partial_svd_vectors_rectangular_lowrank_recon(void) {
+    const idx_t m = 6, n_cols = 4, k = 2;
+    const double diag[4] = {9.0, 6.0, 3.0, 1.0};
+    SparseMatrix *A = tf_svd_make_diag_matrix(m, n_cols, diag, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_NOT_NULL(part.U);
+    ASSERT_NOT_NULL(part.Vt);
+    ASSERT_EQ(part.k, k);
+    ASSERT_EQ(part.m, m);
+    ASSERT_EQ(part.n, n_cols);
+
+    ASSERT_NEAR(part.sigma[0], 9.0, 1e-10);
+    ASSERT_NEAR(part.sigma[1], 6.0, 1e-10);
+
+    double max_resid = 0.0;
+    if (!partial_svd_max_av_residual(A, &part, k, &max_resid)) {
+        sparse_svd_free(&part);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_TRUE(max_resid < 1e-10);
+
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double approx = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                approx += part.U[(size_t)s * (size_t)m + (size_t)i] * part.sigma[s] *
+                          part.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double diff = sparse_get(A, i, j) - approx;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+    ASSERT_NEAR(frob, sqrt(10.0), 1e-10);
+    printf("    rectangular partial lowrank recon: ||A-A_k||_F=%.6f, Av_resid=%.2e\n", frob,
+           max_resid);
+
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
 static void test_partial_svd_vectors_k1(void) {
     SparseMatrix *A = sparse_create(5, 5);
     ASSERT_NOT_NULL(A);

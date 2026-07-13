@@ -4,6 +4,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_qr_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,154 +15,8 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
-static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *qr);
 static void assert_qr_reconstruction_below(const char *label, const SparseMatrix *A,
                                            const sparse_qr_t *qr, double tol);
-static double compute_rel_residual(const SparseMatrix *A, const double *b, const double *x,
-                                   idx_t m);
-
-static int qr_idx_count_bytes(idx_t count, size_t elem_size, size_t *bytes) {
-    if (!bytes || count < 0 || elem_size == 0)
-        return 0;
-    if ((uintmax_t)count > (uintmax_t)SIZE_MAX)
-        return 0;
-
-    size_t count_size = (size_t)count;
-    if (count_size > SIZE_MAX / elem_size)
-        return 0;
-
-    *bytes = count_size * elem_size;
-    return 1;
-}
-
-static int make_qr_exact_rhs(const SparseMatrix *A, idx_t x_len, idx_t b_len, double **x_exact_out,
-                             double **b_out) {
-    if (!x_exact_out || !b_out)
-        return 0;
-    *x_exact_out = NULL;
-    *b_out = NULL;
-    if (!A) {
-        ASSERT_NOT_NULL(A);
-        return 0;
-    }
-    if (x_len != sparse_cols(A)) {
-        ASSERT_EQ(x_len, sparse_cols(A));
-        return 0;
-    }
-    if (b_len != sparse_rows(A)) {
-        ASSERT_EQ(b_len, sparse_rows(A));
-        return 0;
-    }
-
-    size_t x_bytes = 0;
-    size_t b_bytes = 0;
-    if (!qr_idx_count_bytes(x_len, sizeof(double), &x_bytes) ||
-        !qr_idx_count_bytes(b_len, sizeof(double), &b_bytes)) {
-        ASSERT_TRUE(0);
-        return 0;
-    }
-
-    double *x_exact = malloc(x_bytes);
-    double *b = malloc(b_bytes);
-    ASSERT_NOT_NULL(x_exact);
-    ASSERT_NOT_NULL(b);
-    if (!x_exact || !b) {
-        free(x_exact);
-        free(b);
-        return 0;
-    }
-
-    for (idx_t i = 0; i < x_len; i++)
-        x_exact[i] = (double)(i + 1);
-    sparse_err_t mv_err = sparse_matvec(A, x_exact, b);
-    ASSERT_ERR(mv_err, SPARSE_OK);
-    if (mv_err != SPARSE_OK) {
-        free(x_exact);
-        free(b);
-        return 0;
-    }
-
-    *x_exact_out = x_exact;
-    *b_out = b;
-    return 1;
-}
-
-static int qr_insert_or_free(SparseMatrix **A, idx_t row, idx_t col, double value) {
-    sparse_err_t err = sparse_insert(*A, row, col, value);
-    ASSERT_ERR(err, SPARSE_OK);
-    if (err != SPARSE_OK) {
-        sparse_free(*A);
-        *A = NULL;
-        return 0;
-    }
-    return 1;
-}
-
-static SparseMatrix *make_qr_small_banded_4x3(int include_tail) {
-    SparseMatrix *A = sparse_create(4, 3);
-    if (!A)
-        return NULL;
-    if (!qr_insert_or_free(&A, 0, 0, 2.0) || !qr_insert_or_free(&A, 0, 1, 1.0) ||
-        !qr_insert_or_free(&A, 1, 0, 1.0) || !qr_insert_or_free(&A, 1, 1, 3.0) ||
-        !qr_insert_or_free(&A, 1, 2, 1.0) || !qr_insert_or_free(&A, 2, 2, 4.0) ||
-        !qr_insert_or_free(&A, 3, 0, 1.0))
-        return NULL;
-    if (include_tail && !qr_insert_or_free(&A, 3, 2, 2.0))
-        return NULL;
-    return A;
-}
-
-static SparseMatrix *make_qr_duplicate_column_4x3(double duplicate_scale) {
-    SparseMatrix *A = sparse_create(4, 3);
-    if (!A)
-        return NULL;
-    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
-        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
-        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
-        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
-        !qr_insert_or_free(&A, 0, 2, duplicate_scale) ||
-        !qr_insert_or_free(&A, 1, 2, duplicate_scale * 2.0) ||
-        !qr_insert_or_free(&A, 2, 2, duplicate_scale * 3.0) ||
-        !qr_insert_or_free(&A, 3, 2, duplicate_scale * 4.0))
-        return NULL;
-    return A;
-}
-
-static SparseMatrix *make_qr_near_duplicate_4x3(double perturbation) {
-    SparseMatrix *A = sparse_create(4, 3);
-    if (!A)
-        return NULL;
-    if (!qr_insert_or_free(&A, 0, 0, 1.0) || !qr_insert_or_free(&A, 1, 0, 2.0) ||
-        !qr_insert_or_free(&A, 2, 0, 3.0) || !qr_insert_or_free(&A, 3, 0, 4.0) ||
-        !qr_insert_or_free(&A, 0, 1, 5.0) || !qr_insert_or_free(&A, 1, 1, 6.0) ||
-        !qr_insert_or_free(&A, 2, 1, 7.0) || !qr_insert_or_free(&A, 3, 1, 8.0) ||
-        !qr_insert_or_free(&A, 0, 2, 1.0 + perturbation) ||
-        !qr_insert_or_free(&A, 1, 2, 2.0 + perturbation) ||
-        !qr_insert_or_free(&A, 2, 2, 3.0 + perturbation) ||
-        !qr_insert_or_free(&A, 3, 2, 4.0 + perturbation))
-        return NULL;
-    return A;
-}
-
-static SparseMatrix *make_qr_tall_diagonal_dominant(idx_t m, idx_t n_cols, double diag_value,
-                                                    double offdiag_value,
-                                                    int include_lower_neighbor) {
-    SparseMatrix *A = sparse_create(m, n_cols);
-    if (!A)
-        return NULL;
-
-    idx_t band_rows = (m < n_cols) ? m : n_cols;
-    for (idx_t i = 0; i < band_rows; i++) {
-        if (!qr_insert_or_free(&A, i, i, diag_value))
-            return NULL;
-        if (i + 1 < n_cols && !qr_insert_or_free(&A, i, i + 1, offdiag_value))
-            return NULL;
-        if (include_lower_neighbor && i > 0 && !qr_insert_or_free(&A, i, i - 1, offdiag_value))
-            return NULL;
-    }
-
-    return A;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
@@ -471,7 +326,7 @@ static void test_qr_rejects_factored_matrix_reuse(void) {
 
 /* Q application: Q*Q^T*x = x */
 static void test_q_roundtrip(void) {
-    SparseMatrix *A = make_qr_small_banded_4x3(0);
+    SparseMatrix *A = tf_qr_make_small_banded_4x3(0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -627,7 +482,7 @@ static void test_qr_wide(void) {
 
 /* Rank-deficient: duplicate columns → rank < n */
 static void test_qr_rank_deficient(void) {
-    SparseMatrix *A = make_qr_duplicate_column_4x3(2.0);
+    SparseMatrix *A = tf_qr_make_duplicate_column_4x3(2.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -689,39 +544,9 @@ static void test_qr_reconstruction_large(void) {
  * Edge cases and hardening (Day 6)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Helper: verify ||A - Q*R*P^T|| < tol */
-static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *qr) {
-    idx_t m = qr->m;
-    idx_t n_cols = qr->n;
-    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
-    if (!Q)
-        return HUGE_VAL;
-    sparse_qr_form_q(qr, Q);
-
-    idx_t rrows = sparse_rows(qr->R);
-    double maxerr = 0.0;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t jp = 0; jp < n_cols; jp++) {
-            double qr_val = 0.0;
-            for (idx_t kk = 0; kk < rrows; kk++) {
-                double q_ik = Q[(size_t)kk * (size_t)m + (size_t)i];
-                double r_kj = sparse_get_phys(qr->R, kk, jp);
-                qr_val += q_ik * r_kj;
-            }
-            idx_t orig_col = qr->col_perm[jp];
-            double a_val = sparse_get_phys(A, i, orig_col);
-            double diff = fabs(qr_val - a_val);
-            if (diff > maxerr)
-                maxerr = diff;
-        }
-    }
-    free(Q);
-    return maxerr;
-}
-
 static void assert_qr_reconstruction_below(const char *label, const SparseMatrix *A,
                                            const sparse_qr_t *qr, double tol) {
-    double recon_err = qr_reconstruction_error(A, qr);
+    double recon_err = tf_qr_reconstruction_max_error(A, qr);
     printf("    %s: %.3e\n", label, recon_err);
     ASSERT_TRUE(recon_err < tol);
 }
@@ -757,7 +582,7 @@ static void test_qr_rank_1(void) {
 
 /* Nearly singular: one column is almost a multiple of another */
 static void test_qr_nearly_singular(void) {
-    SparseMatrix *A = make_qr_near_duplicate_4x3(1e-12);
+    SparseMatrix *A = tf_qr_make_near_duplicate_4x3(1e-12);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -1028,7 +853,7 @@ static void test_q_transpose_b(void) {
 
 /* Apply Q to multiple vectors (simulating block operation) */
 static void test_q_apply_multiple(void) {
-    SparseMatrix *A = make_qr_small_banded_4x3(1);
+    SparseMatrix *A = tf_qr_make_small_banded_4x3(1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -1132,21 +957,6 @@ static void test_q_orthogonality_wide(void) {
  * Least-squares solver tests (Day 8)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Helper: compute ||b - A*x|| / ||b|| */
-static double compute_rel_residual(const SparseMatrix *A, const double *b, const double *x,
-                                   idx_t m) {
-    double *r = malloc((size_t)m * sizeof(double));
-    if (!r)
-        return HUGE_VAL;
-    sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < m; i++)
-        r[i] = b[i] - r[i];
-    double rnorm = vec_norm2(r, m);
-    double bnorm = vec_norm2(b, m);
-    free(r);
-    return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * Rank estimation and null-space tests (Day 10)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1238,7 +1048,7 @@ static void test_rank_1_nullspace(void) {
 
 /* Known null space: col2 = col0, so [1, 0, -1] is in null space */
 static void test_known_nullspace(void) {
-    SparseMatrix *A = make_qr_duplicate_column_4x3(1.0);
+    SparseMatrix *A = tf_qr_make_duplicate_column_4x3(1.0);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -1357,6 +1167,69 @@ static void test_rank_explicit_tol(void) {
     sparse_free(A);
 }
 
+static void test_qr_rank_dependent_row_fixture(void) {
+    SparseMatrix *A = tf_qr_make_dependent_row_4x3();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 2);
+    ASSERT_EQ(sparse_qr_rank(&qr, 0.0), 2);
+    assert_qr_reconstruction_below("dependent-row-rank-def", A, &qr, 1e-10);
+
+    idx_t ndim = -1;
+    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, NULL, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 1);
+    if (ndim == 1) {
+        double basis[3];
+        ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, basis, &ndim), SPARSE_OK);
+        double Av[4];
+        sparse_matvec(A, basis, Av);
+        double nrm = vec_norm2(Av, 4);
+        ASSERT_TRUE(nrm < 1e-10);
+        printf("    dependent-row rank fixture: rank=%d, null residual=%.3e\n", (int)qr.rank, nrm);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+static void test_qr_rank_diagonal_threshold_fixture(void) {
+    const double diag[4] = {1.0, 1e-8, 1e-12, 0.0};
+    SparseMatrix *A = tf_qr_make_diag_matrix(4, 4, diag, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t rank_1e14 = sparse_qr_rank(&qr, 1e-14);
+    idx_t rank_1e10 = sparse_qr_rank(&qr, 1e-10);
+    idx_t rank_1e6 = sparse_qr_rank(&qr, 1e-6);
+    ASSERT_EQ(rank_1e14, 3);
+    ASSERT_EQ(rank_1e10, 2);
+    ASSERT_EQ(rank_1e6, 1);
+    printf("    QR diag threshold fixture: rank(1e-14)=%d, rank(1e-10)=%d, rank(1e-6)=%d\n",
+           (int)rank_1e14, (int)rank_1e10, (int)rank_1e6);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Column reordering tests (Day 11)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1406,8 +1279,8 @@ static void test_qr_reorder_amd_solve(void) {
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
 
-    double res_none = compute_rel_residual(A, b, x_none, 4);
-    double res_amd = compute_rel_residual(A, b, x_amd, 4);
+    double res_none = tf_qr_relative_residual_l2(A, b, x_none, 4);
+    double res_amd = tf_qr_relative_residual_l2(A, b, x_amd, 4);
     printf("    AMD reorder solve: none_res=%.3e, amd_res=%.3e\n", res_none, res_amd);
     ASSERT_TRUE(res_none < 1e-10);
     ASSERT_TRUE(res_amd < 1e-10);
@@ -1458,12 +1331,12 @@ static void test_qr_reorder_nos4_fillin(void) {
     /* Both should produce correct solutions */
     double *x_exact = NULL;
     double *b = NULL;
-    if (make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
+    if (tf_qr_make_exact_rhs(A, n, n, &x_exact, &b)) {
         double *x = malloc((size_t)n * sizeof(double));
         ASSERT_NOT_NULL(x);
         if (x) {
             sparse_qr_solve(&qr_amd, b, x, NULL);
-            double rr = compute_rel_residual(A, b, x, n);
+            double rr = tf_qr_relative_residual_l2(A, b, x, n);
             ASSERT_TRUE(rr < 1e-8);
             free(x);
         }
@@ -1498,7 +1371,7 @@ static void test_qr_reorder_none(void) {
         return;
     }
 
-    double recon = qr_reconstruction_error(A, &qr);
+    double recon = tf_qr_reconstruction_max_error(A, &qr);
     ASSERT_TRUE(recon < 1e-10);
 
     sparse_qr_free(&qr);
@@ -1512,7 +1385,7 @@ static void test_qr_reorder_none(void) {
 /* Economy QR solve matches full QR solve on tall-skinny matrix */
 static void test_economy_solve_tall(void) {
     idx_t m = 50, nc = 10;
-    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
+    SparseMatrix *A = tf_qr_make_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -1893,7 +1766,7 @@ static void test_economy_nos4(void) {
 
 /* Sparse-mode QR matches dense-mode on small matrix */
 static void test_sparse_mode_basic(void) {
-    SparseMatrix *A = make_qr_small_banded_4x3(1);
+    SparseMatrix *A = tf_qr_make_small_banded_4x3(1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -2100,7 +1973,7 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
 /* Sparse-mode: tall-skinny 50×10 */
 static void test_sparse_mode_tall(void) {
     idx_t m = 50, nc = 10;
-    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
+    SparseMatrix *A = tf_qr_make_tall_diagonal_dominant(m, nc, 10.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -2252,7 +2125,7 @@ static void test_sparse_mode_reconstruction(void) {
         sparse_free(A);
         return;
     }
-    double recon_d = qr_reconstruction_error(A, &qr_d);
+    double recon_d = tf_qr_reconstruction_max_error(A, &qr_d);
 
     /* Sparse-mode reconstruction error */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
@@ -2264,7 +2137,7 @@ static void test_sparse_mode_reconstruction(void) {
         sparse_free(A);
         return;
     }
-    double recon_s = qr_reconstruction_error(A, &qr_s);
+    double recon_s = tf_qr_reconstruction_max_error(A, &qr_s);
 
     printf("    reconstruction nos4: dense=%.3e, sparse=%.3e\n", recon_d, recon_s);
     ASSERT_TRUE(recon_d < 1e-10);
@@ -2549,7 +2422,7 @@ static void test_qr_refine_nos4(void) {
 
     double *x_exact = NULL;
     double *b = NULL;
-    if (!make_qr_exact_rhs(A, n, n, &x_exact, &b)) {
+    if (!tf_qr_make_exact_rhs(A, n, n, &x_exact, &b)) {
         sparse_free(A);
         return;
     }
@@ -2594,7 +2467,7 @@ static void test_qr_refine_nos4(void) {
 /* Overdetermined least-squares: refinement on tall system */
 static void test_qr_refine_overdetermined(void) {
     idx_t m = 20, nc = 5;
-    SparseMatrix *A = make_qr_tall_diagonal_dominant(m, nc, 5.0, 1.0, 1);
+    SparseMatrix *A = tf_qr_make_tall_diagonal_dominant(m, nc, 5.0, 1.0, 1);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
@@ -2693,6 +2566,8 @@ int main(void) {
     RUN_TEST(test_known_nullspace);
     RUN_TEST(test_rank_rect_deficient);
     RUN_TEST(test_rank_explicit_tol);
+    RUN_TEST(test_qr_rank_dependent_row_fixture);
+    RUN_TEST(test_qr_rank_diagonal_threshold_fixture);
 
     /* Column reordering (Day 11) */
     RUN_TEST(test_qr_reorder_amd_solve);

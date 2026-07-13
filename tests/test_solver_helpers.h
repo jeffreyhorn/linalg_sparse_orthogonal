@@ -80,6 +80,8 @@ static inline double tf_block_relative_residual_l2(const SparseMatrix *A, const 
 #define tf_external_ref_popen _popen
 #define tf_external_ref_pclose _pclose
 #else
+extern FILE *popen(const char *command, const char *mode);
+extern int pclose(FILE *stream);
 #define tf_external_ref_popen popen
 #define tf_external_ref_pclose pclose
 #endif

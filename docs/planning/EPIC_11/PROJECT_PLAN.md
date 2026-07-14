@@ -1,4 +1,4 @@
-# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-128 (Epic 11)
+# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-129 (Epic 11)
 
 Epic 11 starts from the completed Epic 10 closeout. The library is broad,
 well-tested, and much more product-disciplined than it was before Epic 10, but
@@ -13,6 +13,7 @@ This plan is based on:
 - `reviews/todo-codex-2026-07-09.md`
 - `docs/planning/EPIC_10/EPIC_10_RETROSPECTIVE.md`
 - Sprint 117's final residual queue and explicit non-claim register
+- Sprint 122's residual deferred debt and explicit oracle non-claim register
 - prior Epic retrospectives and carry-forward work
 
 Each sprint remains 14 days and stays within the requested cap of 168 hours.
@@ -51,7 +52,7 @@ hardening cycle.
 - current product truth map
 - source/test hotspot metrics
 - refreshed evidence templates
-- Sprint 119-128 handoff requirements
+- Sprint 119-129 handoff requirements
 
 **Total estimate:** ~166 hours
 
@@ -202,7 +203,47 @@ reporting, and adoption documentation work proceeds.
 
 ---
 
-## Sprint 123: Numerical Corpus, Coverage Architecture & Report Indexes
+## Sprint 123: Residual SVD/QR Oracle, Helper & Claim Evidence Follow-Through
+
+**Duration:** 14 days (~166 hours)
+**Goal:** Promote Sprint 122's residual SVD, QR, partial-SVD, helper, and claim
+debt into bounded implementation or explicit deferral packages before corpus,
+report-index, performance, package, and adoption sprints consume the oracle
+truth.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 121 SVD/QR/rank fixture taxonomy complete
+- Sprint 122 bounded SVD, QR, and partial-SVD external oracle lanes available
+- Sprint 122 residual deferred debt and non-claim register available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Broader SVD External Fixture Matrix | Decide and implement or explicitly defer the next bounded SVD external fixture batch, including fixture taxonomy, reference trust model, vector/rank/pseudoinverse/low-rank semantics, tolerance policy, skip handling, and failure interpretation without claiming LAPACK, NumPy, or SciPy parity. | 26 |
+| 2 | QR External Behavior Evidence Batch | Add or explicitly defer QR external compatible, rank-deficient, underdetermined/minimum-norm, and Q/economy evidence behind behavior-specific fixtures, basis rules, tolerance rules, and preserved QR/minimum-norm ownership. | 28 |
+| 3 | Partial-SVD External Semantics Batch | Expand or explicitly defer partial-SVD external semantics beyond top-k values to vector, subspace, convergence-budget, repeated/clustered spectrum, rectangular, and rank-deficient behavior with sign/subspace and failure-interpretation rules. | 32 |
+| 4 | Minimum-Norm Helper Migration Decision | Revisit minimum-norm helper migration using behavior-specific helper names while preserving QR, COLAMD, SVD-pseudoinverse, refinement, fallback, and SuiteSparse scenario ownership. | 22 |
+| 5 | Bidiagonal/Golub-Kahan Helper Extraction Decision | Extract or explicitly defer Bidiagonal/Golub-Kahan helpers into a dedicated owner that preserves wide-transpose, implicit Householder reconstruction, explicit `U`/`V` reconstruction, and bidiagonal QR iteration semantics. | 24 |
+| 6 | Maintainer Evidence Table Refresh | Refresh maintainer evidence tables with Sprint 122 and Sprint 123 oracle lane ownership, trust boundaries, validation commands, and non-claims. | 16 |
+| 7 | Solver-Selection Claim Refresh Gate | Refresh public solver-selection wording only if the new evidence supports a user-facing claim; otherwise publish a no-update rationale and residual claim gates. | 18 |
+
+### Deliverables
+
+- broader SVD external fixture decision or bounded implementation
+- QR external behavior evidence decision or bounded implementation
+- partial-SVD external semantics decision or bounded implementation
+- minimum-norm helper migration decision package
+- Bidiagonal/Golub-Kahan helper extraction decision package
+- maintainer evidence-table refresh
+- solver-selection claim refresh or explicit no-update rationale
+
+**Total estimate:** ~166 hours
+
+---
+
+## Sprint 124: Numerical Corpus, Coverage Architecture & Report Indexes
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Turn scattered numerical fixtures, coverage, benchmark, dead-code,
@@ -211,7 +252,7 @@ and guardrail outputs into a clearer recurring assurance architecture.
 ### Prerequisites from Previous Sprints
 
 - Sprint 118 templates complete
-- Sprint 120-122 oracle taxonomy and external-reference decisions available
+- Sprint 120-123 oracle taxonomy and external-reference decisions available
 
 ### Items
 
@@ -237,7 +278,7 @@ and guardrail outputs into a clearer recurring assurance architecture.
 
 ---
 
-## Sprint 124: Performance Sentinel & Backend Runtime Governance
+## Sprint 125: Performance Sentinel & Backend Runtime Governance
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen local performance and backend/runtime governance without
@@ -245,7 +286,7 @@ turning local measurements into portable performance claims.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 123 report index model available
+- Sprint 124 report index model available
 - current benchmark and backend non-claims preserved
 
 ### Items
@@ -272,7 +313,7 @@ turning local measurements into portable performance claims.
 
 ---
 
-## Sprint 125: Package, ABI & Shared-Library Product Decision
+## Sprint 126: Package, ABI & Shared-Library Product Decision
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Decide whether Epic 11 adds shared-library/dynamic ABI support or
@@ -308,7 +349,7 @@ contract.
 
 ---
 
-## Sprint 126: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
+## Sprint 127: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Advance platform support where feasible and make Linux/macOS/Windows
@@ -316,7 +357,7 @@ install and staged validation tiers even more explicit.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 125 package/ABI decision complete
+- Sprint 126 package/ABI decision complete
 - current CI tier model preserved
 
 ### Items
@@ -343,7 +384,7 @@ install and staged validation tiers even more explicit.
 
 ---
 
-## Sprint 127: Adoption Surface Simplification & Documentation Productization
+## Sprint 128: Adoption Surface Simplification & Documentation Productization
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Simplify the adoption surface after Epic 10 by separating first-use
@@ -352,8 +393,8 @@ find.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 123 report index decisions available
-- Sprint 125-126 package/platform truth stable
+- Sprint 124 report index decisions available
+- Sprint 126-127 package/platform truth stable
 
 ### Items
 
@@ -379,7 +420,7 @@ find.
 
 ---
 
-## Sprint 128: Final Integration, Competitive Recalibration & Epic 11 Closeout
+## Sprint 129: Final Integration, Competitive Recalibration & Epic 11 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Validate Epic 11 outcomes, compare them against the state-of-the-art
@@ -388,7 +429,7 @@ retrospective and post-epic handoff queue.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 118-127 artifacts, validation, residuals, and support-surface
+- Sprint 118-128 artifacts, validation, residuals, and support-surface
   decisions complete
 - package/platform/ABI/adoption truth stable
 
@@ -402,14 +443,14 @@ retrospective and post-epic handoff queue.
 | 4 | Competitive Claim Recalibration | Compare final evidence against Epic 11 goals and current state-of-the-art non-claims. | 24 |
 | 5 | Unsupported-Claim Cleanup | Remove, downgrade, or fence unsupported public/support wording. | 20 |
 | 6 | Residual Queue Publication | Publish post-Epic-11 residuals, future-epic candidates, optional work, and explicit non-claims. | 20 |
-| 7 | Sprint and Epic Retrospectives | Write Sprint 128 and Epic 11 retrospectives plus final closeout handoff. | 30 |
+| 7 | Sprint and Epic Retrospectives | Write Sprint 129 and Epic 11 retrospectives plus final closeout handoff. | 30 |
 
 ### Deliverables
 
 - final validation package
 - final comparison and claim cleanup package
 - post-Epic-11 residual queue
-- Sprint 128 retrospective
+- Sprint 129 retrospective
 - Epic 11 retrospective
 - final handoff artifact
 

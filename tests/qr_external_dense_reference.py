@@ -23,9 +23,26 @@ def build_qr_overdetermined_incompatible_4x2() -> Tuple[List[List[float]], List[
     return a, b
 
 
+def build_qr_overdetermined_compatible_5x3() -> Tuple[List[List[float]], List[float]]:
+    a = [
+        [1.0, 0.0, 2.0],
+        [0.0, 1.0, -1.0],
+        [2.0, -1.0, 0.0],
+        [1.0, 1.0, 1.0],
+        [3.0, 0.0, -2.0],
+    ]
+    x_exact = [1.0, -2.0, 0.5]
+    b = []
+    for row in a:
+        b.append(sum(row[j] * x_exact[j] for j in range(3)))
+    return a, b
+
+
 def fixture_system(name: str) -> Tuple[List[List[float]], List[float]]:
     if name == "qr_overdetermined_incompatible_4x2":
         return build_qr_overdetermined_incompatible_4x2()
+    if name == "qr_overdetermined_compatible_5x3":
+        return build_qr_overdetermined_compatible_5x3()
     raise ValueError(f"unknown fixture {name}")
 
 
@@ -47,14 +64,29 @@ def gram_atb(a: List[List[float]], b: List[float]) -> List[float]:
     return [sum(a[r][j] * b[r] for r in range(rows)) for j in range(cols)]
 
 
-def solve_2x2(a: List[List[float]], b: List[float]) -> List[float]:
-    det = a[0][0] * a[1][1] - a[0][1] * a[1][0]
-    if abs(det) < 1e-14:
-        raise ValueError("singular normal-equation reference system")
-    return [
-        (b[0] * a[1][1] - a[0][1] * b[1]) / det,
-        (a[0][0] * b[1] - b[0] * a[1][0]) / det,
-    ]
+def solve_dense(a: List[List[float]], b: List[float]) -> List[float]:
+    n = len(a)
+    work = [row[:] + [b[i]] for i, row in enumerate(a)]
+
+    for col in range(n):
+        pivot = max(range(col, n), key=lambda row: abs(work[row][col]))
+        if abs(work[pivot][col]) < 1e-14:
+            raise ValueError("singular normal-equation reference system")
+        if pivot != col:
+            work[col], work[pivot] = work[pivot], work[col]
+
+        pivot_value = work[col][col]
+        for j in range(col, n + 1):
+            work[col][j] /= pivot_value
+
+        for row in range(n):
+            if row == col:
+                continue
+            factor = work[row][col]
+            for j in range(col, n + 1):
+                work[row][j] -= factor * work[col][j]
+
+    return [work[i][n] for i in range(n)]
 
 
 def residual_norm(a: List[List[float]], b: List[float], x: List[float]) -> float:
@@ -67,8 +99,8 @@ def residual_norm(a: List[List[float]], b: List[float], x: List[float]) -> float
 
 def least_squares_reference(name: str) -> List[float]:
     a, b = fixture_system(name)
-    x = solve_2x2(gram_ata(a), gram_atb(a, b))
-    return [x[0], x[1], residual_norm(a, b, x)]
+    x = solve_dense(gram_ata(a), gram_atb(a, b))
+    return x + [residual_norm(a, b, x)]
 
 
 def main(argv: List[str]) -> int:

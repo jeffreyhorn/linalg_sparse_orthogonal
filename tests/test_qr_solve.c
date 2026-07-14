@@ -48,7 +48,8 @@ static int read_qr_external_reference_least_squares(const char *fixture_key, dou
         snprintf(reason, reason_cap, "external QR reference invalid arguments");
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
-    if (strcmp(fixture_key, "qr_overdetermined_incompatible_4x2") != 0) {
+    if (strcmp(fixture_key, "qr_overdetermined_incompatible_4x2") != 0 &&
+        strcmp(fixture_key, "qr_overdetermined_compatible_5x3") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -336,6 +337,71 @@ static void test_qr_external_dense_reference_overdetermined_incompatible_4x2(voi
            solution_diff, residual_diff);
     ASSERT_TRUE(solution_diff < 1e-8);
     ASSERT_TRUE(residual_diff < 1e-8);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
+static void test_qr_external_dense_reference_overdetermined_compatible_5x3(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_EXTERNAL_COMPATIBLE_LS_VALUES = 4 };
+    double ref[QR_EXTERNAL_COMPATIBLE_LS_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_external_reference_least_squares("qr_overdetermined_compatible_5x3",
+                                                              ref, QR_EXTERNAL_COMPATIBLE_LS_VALUES,
+                                                              reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(5, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
+        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
+        !tf_qr_insert_or_free(&A, 2, 0, 2.0) || !tf_qr_insert_or_free(&A, 2, 1, -1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 4, 0, 3.0) ||
+        !tf_qr_insert_or_free(&A, 4, 2, -2.0))
+        return;
+
+    const double b[5] = {2.0, -2.5, 4.0, -0.5, 2.0};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double residual;
+    if (!qr_solve_checked(&qr, b, x, &residual)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double solution_diff = 0.0;
+    for (idx_t i = 0; i < 3; i++) {
+        double diff = fabs(x[i] - ref[i]);
+        if (diff > solution_diff)
+            solution_diff = diff;
+    }
+    double residual_diff = fabs(residual - ref[3]);
+    printf("    external QR dense ref overdetermined_compatible_5x3: "
+           "solution diff = %.3e, residual diff = %.3e\n",
+           solution_diff, residual_diff);
+    ASSERT_TRUE(solution_diff < 1e-8);
+    ASSERT_TRUE(residual_diff < 1e-8);
+    ASSERT_TRUE(residual < 1e-8);
 
     sparse_qr_free(&qr);
     sparse_free(A);
@@ -767,6 +833,7 @@ int main(void) {
     RUN_TEST(test_qr_solve_overdetermined_compatible_tall);
     RUN_TEST(test_qr_solve_overdetermined_incompatible_known_residual);
     RUN_TEST(test_qr_external_dense_reference_overdetermined_incompatible_4x2);
+    RUN_TEST(test_qr_external_dense_reference_overdetermined_compatible_5x3);
     RUN_TEST(test_qr_solve_minnorm_underdetermined_known_solution);
     RUN_TEST(test_qr_solve_rank_deficient);
     RUN_TEST(test_qr_solve_nos4);

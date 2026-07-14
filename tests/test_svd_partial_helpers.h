@@ -123,6 +123,65 @@ static void test_partial_svd_external_dense_reference_diag6_k2(void) {
 #endif
 }
 
+static void test_partial_svd_external_dense_reference_tall_diag_8x5_k3(void) {
+#ifdef _WIN32
+    SKIP_TEST("external partial-SVD dense reference helper is not enabled on Windows");
+#else
+    const idx_t rows = 8;
+    const idx_t cols = 5;
+    const idx_t k = 3;
+    const double diag[5] = {8.0, 5.0, 3.0, 1.0, 0.25};
+    double sigma_ref[3] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_svd_external_reference_singular_values(
+        "partial_svd_tall_diag_8x5_k3", sigma_ref, k, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external partial-SVD reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_svd_make_diag_matrix(rows, cols, diag, cols);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_t partial;
+    sparse_err_t err = sparse_svd_partial(A, k, NULL, &partial);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(partial.k, k);
+    ASSERT_EQ(partial.m, rows);
+    ASSERT_EQ(partial.n, cols);
+    ASSERT_NOT_NULL(partial.sigma);
+    if (!partial.sigma) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(partial.sigma[i] - sigma_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+    }
+    printf("    external partial-SVD dense ref tall_diag_8x5_k3: "
+           "max |sigma-sigma_ref| = %.3e\n",
+           max_diff);
+    ASSERT_TRUE(max_diff < 1e-8);
+    ASSERT_TRUE(partial.U == NULL);
+    ASSERT_TRUE(partial.Vt == NULL);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
+#endif
+}
+
 static void test_partial_svd_full_k(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);

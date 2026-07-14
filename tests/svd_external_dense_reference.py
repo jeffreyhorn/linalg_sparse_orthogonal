@@ -29,6 +29,15 @@ def build_svd_rankdef_duplicate_5x4() -> List[List[float]]:
     ]
 
 
+def build_svd_wide_fullrank_4x6() -> List[List[float]]:
+    return [
+        [2.0, -1.0, 0.5, 3.0, -2.0, 1.0],
+        [0.0, 4.0, -1.5, 2.0, 1.0, -0.5],
+        [3.0, 0.0, 2.5, -1.0, 0.0, 4.0],
+        [-2.0, 1.0, 3.0, 0.5, 2.0, -1.0],
+    ]
+
+
 def build_partial_svd_diag6_k2() -> List[List[float]]:
     return [
         [9.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -40,13 +49,30 @@ def build_partial_svd_diag6_k2() -> List[List[float]]:
     ]
 
 
+def build_partial_svd_tall_diag_8x5_k3() -> List[List[float]]:
+    return [
+        [8.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 5.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 3.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.25],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ]
+
+
 def fixture_matrix(name: str) -> List[List[float]]:
     if name == "svd_rect_fullrank_6x4":
         return build_svd_rect_fullrank_6x4()
     if name == "svd_rankdef_duplicate_5x4":
         return build_svd_rankdef_duplicate_5x4()
+    if name == "svd_wide_fullrank_4x6":
+        return build_svd_wide_fullrank_4x6()
     if name == "partial_svd_diag6_k2":
         return build_partial_svd_diag6_k2()
+    if name == "partial_svd_tall_diag_8x5_k3":
+        return build_partial_svd_tall_diag_8x5_k3()
     raise ValueError(f"unknown fixture {name}")
 
 
@@ -121,7 +147,7 @@ def singular_values(a: List[List[float]]) -> List[float]:
             raise ValueError("negative eigenvalue from A^T A")
         sigmas.append(math.sqrt(value))
     sigmas.sort(reverse=True)
-    return sigmas
+    return sigmas[: min(len(a), len(a[0]))]
 
 
 def main(argv: List[str]) -> int:
@@ -133,6 +159,8 @@ def main(argv: List[str]) -> int:
         sigma = singular_values(fixture_matrix(argv[1]))
         if argv[1] == "partial_svd_diag6_k2":
             sigma = sigma[:2]
+        if argv[1] == "partial_svd_tall_diag_8x5_k3":
+            sigma = sigma[:3]
     except Exception as exc:  # pragma: no cover - exercised from C harness
         print(f"ERROR {exc}")
         return 1

@@ -36,6 +36,12 @@
 #define SVD_EXTERNAL_RECT_FULLRANK_COLS 4
 #define SVD_EXTERNAL_RANKDEF_DUP_ROWS 5
 #define SVD_EXTERNAL_RANKDEF_DUP_COLS 4
+#define SVD_EXTERNAL_WIDE_FULLRANK_ROWS 4
+#define SVD_EXTERNAL_WIDE_FULLRANK_COLS 6
+#define SVD_EXTERNAL_WIDE_FULLRANK_SIGMA                                                           \
+    ((SVD_EXTERNAL_WIDE_FULLRANK_ROWS < SVD_EXTERNAL_WIDE_FULLRANK_COLS)                           \
+         ? SVD_EXTERNAL_WIDE_FULLRANK_ROWS                                                         \
+         : SVD_EXTERNAL_WIDE_FULLRANK_COLS)
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Helpers
@@ -54,6 +60,28 @@ static SparseMatrix *build_svd_external_ref_rect_fullrank_6x4(void) {
 
     for (idx_t i = 0; i < SVD_EXTERNAL_RECT_FULLRANK_ROWS; i++) {
         for (idx_t j = 0; j < SVD_EXTERNAL_RECT_FULLRANK_COLS; j++) {
+            if (values[i][j] != 0.0 && !tf_svd_insert_or_free(&A, i, j, values[i][j]))
+                return NULL;
+        }
+    }
+    return A;
+}
+
+static SparseMatrix *build_svd_external_ref_wide_fullrank_4x6(void) {
+    static const double values[SVD_EXTERNAL_WIDE_FULLRANK_ROWS][SVD_EXTERNAL_WIDE_FULLRANK_COLS] = {
+        {2.0, -1.0, 0.5, 3.0, -2.0, 1.0},
+        {0.0, 4.0, -1.5, 2.0, 1.0, -0.5},
+        {3.0, 0.0, 2.5, -1.0, 0.0, 4.0},
+        {-2.0, 1.0, 3.0, 0.5, 2.0, -1.0},
+    };
+
+    SparseMatrix *A =
+        sparse_create(SVD_EXTERNAL_WIDE_FULLRANK_ROWS, SVD_EXTERNAL_WIDE_FULLRANK_COLS);
+    if (!A)
+        return NULL;
+
+    for (idx_t i = 0; i < SVD_EXTERNAL_WIDE_FULLRANK_ROWS; i++) {
+        for (idx_t j = 0; j < SVD_EXTERNAL_WIDE_FULLRANK_COLS; j++) {
             if (values[i][j] != 0.0 && !tf_svd_insert_or_free(&A, i, j, values[i][j]))
                 return NULL;
         }
@@ -90,7 +118,9 @@ static int read_svd_external_reference_singular_values(const char *fixture_key, 
     }
     if (strcmp(fixture_key, "svd_rect_fullrank_6x4") != 0 &&
         strcmp(fixture_key, "svd_rankdef_duplicate_5x4") != 0 &&
-        strcmp(fixture_key, "partial_svd_diag6_k2") != 0) {
+        strcmp(fixture_key, "svd_wide_fullrank_4x6") != 0 &&
+        strcmp(fixture_key, "partial_svd_diag6_k2") != 0 &&
+        strcmp(fixture_key, "partial_svd_tall_diag_8x5_k3") != 0) {
         snprintf(reason, reason_cap, "unsupported external SVD reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -432,6 +462,58 @@ static void test_svd_external_dense_reference_rankdef_duplicate_5x4(void) {
     ASSERT_TRUE(max_positive_diff < 1e-8);
     ASSERT_TRUE(smallest_sigma < 1e-8);
     ASSERT_TRUE(smallest_ref < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+#endif
+}
+
+static void test_svd_external_dense_reference_wide_fullrank_4x6(void) {
+#ifdef _WIN32
+    SKIP_TEST("external SVD dense reference helper is not enabled on Windows");
+#else
+    double sigma_ref[SVD_EXTERNAL_WIDE_FULLRANK_SIGMA] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_svd_external_reference_singular_values("svd_wide_fullrank_4x6", sigma_ref,
+                                                                 SVD_EXTERNAL_WIDE_FULLRANK_SIGMA,
+                                                                 reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external SVD reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = build_svd_external_ref_wide_fullrank_4x6();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(svd.k, SVD_EXTERNAL_WIDE_FULLRANK_SIGMA);
+    ASSERT_NOT_NULL(svd.sigma);
+    if (!svd.sigma) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < SVD_EXTERNAL_WIDE_FULLRANK_SIGMA; i++) {
+        double diff = fabs(svd.sigma[i] - sigma_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+    }
+    printf("    external SVD dense ref wide_fullrank_4x6: max |sigma-sigma_ref| = %.3e\n",
+           max_diff);
+    ASSERT_TRUE(max_diff < 1e-8);
 
     sparse_svd_free(&svd);
     sparse_free(A);
@@ -2798,6 +2880,7 @@ int main(void) {
     RUN_TEST(test_svd_basic_sigma);
     RUN_TEST(test_svd_external_dense_reference_rect_fullrank_6x4);
     RUN_TEST(test_svd_external_dense_reference_rankdef_duplicate_5x4);
+    RUN_TEST(test_svd_external_dense_reference_wide_fullrank_4x6);
 
     /* Golub-Kahan validation (Day 5) */
     RUN_TEST(test_gk_square_5x5);
@@ -2854,6 +2937,7 @@ int main(void) {
     RUN_TEST(test_partial_svd_bad_k);
     RUN_TEST(test_partial_svd_diag_10x10);
     RUN_TEST(test_partial_svd_external_dense_reference_diag6_k2);
+    RUN_TEST(test_partial_svd_external_dense_reference_tall_diag_8x5_k3);
     RUN_TEST(test_partial_svd_full_k);
     RUN_TEST(test_partial_svd_dense_8x8);
     RUN_TEST(test_partial_svd_tall);

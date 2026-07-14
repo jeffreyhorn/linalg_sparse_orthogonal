@@ -355,16 +355,18 @@ refreshed the direct-solver public guidance boundary.
 | Cholesky CSC SPD | Use for SPD systems; non-SPD reports `SPARSE_ERR_NOT_SPD` | `tests/test_chol_csc.c` plus `tests/chol_external_dense_reference.py` | named SPD Matrix Market fixtures checked against an external-process dense reference | no broad non-SPD recovery claim; no full backend parity claim from examples or benchmarks |
 | LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
 | Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c` plus `tests/lu_external_dense_reference.py` | deterministic nonsymmetric `lu_nonsym_square_5` solve and singular `lu_singular_square_4` expected failure | no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
-| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c` | internal invariants, rank, residual, and public scalar seam coverage | no Sprint 102 external dense least-squares oracle lane |
-| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c` | internal reconstruction, rank, condition, and partial-SVD coverage | no Sprint 102 external dense SVD oracle lane |
+| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, and `tests/qr_external_dense_reference.py` | internal invariants, rank, residual, public scalar boundary coverage, and bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3` | no broad QR, LAPACK, NumPy, or SciPy parity; no rank-deficient, minimum-norm, Q-basis, economy-mode, sparse-mode, reorder, or performance external parity claim |
+| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, and `tests/svd_external_dense_reference.py` | internal reconstruction, rank, condition, pseudoinverse, low-rank, and bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, and `partial_svd_tall_diag_8x5_k3` | no LAPACK, NumPy, SciPy, or broad SVD parity; no vector/subspace, pseudoinverse/minimum-norm, low-rank optimality, convergence-budget, performance, or platform parity claim |
 
 Interpretation:
 
 - README and tutorial wording may mention direct-solver selection and failure
   behavior, but must keep external-oracle confidence tied to named test owners.
-- Future Sprint 103 comparison work should reuse this table as a wording input
-  before making public comparative claims.
-- Any new external oracle lane needs a family-local boundary artifact before
+- Later comparison work should reuse this table as a wording input before
+  making public comparative claims.
+- Sprints 121-123 add bounded QR, SVD, and partial-SVD external dense-reference
+  lanes, but those lanes prove only the named fixtures listed above.
+- Any future external oracle lane needs a family-local boundary artifact before
   implementation, then a validation artifact before public wording changes.
 
 ## Sprint 103 Iterative, Spectral, and SVD Evidence Boundary Snapshot
@@ -379,20 +381,21 @@ external package parity.
 | BiCGSTAB nonsymmetric convergence | Use as a Krylov option for nonsymmetric systems where residual convergence is checked by the caller | `tests/test_bicgstab.c` | deterministic known-solution solve checked against LU, internal GMRES(30)+ILU comparison on `steam1`, and one declared non-convergence budget boundary | relative residuals are fixture-local solve-quality checks; the GMRES comparison is an internal consistency cross-check, not an external oracle | no PETSc, SciPy, Trilinos, or broad nonsymmetric parity claim; no portable iteration-count or performance claim |
 | LOBPCG closed-form and preconditioned fixtures | Use for symmetric eigenvalue workflows that can tolerate fixture-local Ritz residual interpretation | `tests/test_eigs_lobpcg.c` | closed-form Laplacian eigenvalues with vector orthogonality plus `bcsstk04` LDLT-versus-IC(0) residual/orthogonality comparison | Ritz residuals and `result.residual_norm` are local quality criteria for the requested eigenpairs; preconditioner deltas are descriptive except where the fixture asserts a threshold | no ARPACK, SciPy, PETSc, Trilinos, or broad eigensolver parity claim; no portable preconditioner superiority claim |
 | Thick-restart exact diagonal fixture | Use as bounded regression evidence for restarted symmetric eigenvalue extraction | `tests/test_eigs_thick_restart.c` | exact diagonal eigenvalue fixture with Ritz residual, orthogonality, and bounded peak-basis checks | residuals are checked against exact diagonal eigenpairs; grow-`m` agreement elsewhere remains internal comparison evidence | no ARPACK parity claim; no broad memory, restart, or performance claim beyond the named bounded-basis fixture |
-| SVD deterministic rank and full-UV fixture | Use for singular-value, reconstruction, orthogonality, and rank-threshold confidence on deterministic fixtures | `tests/test_svd.c` | exact diagonal singular values `{9, 5, 2, 1e-9, 0, 0}`, full-mode reconstruction residual, U/Vt orthogonality, and explicit rank thresholds | reconstruction residual and orthogonality are separately computed test metrics; rank evidence is tied to the declared tolerances `1e-10` and `1e-8` | no LAPACK, NumPy, SciPy, or broad SVD parity claim; no external dense SVD helper lane |
+| SVD deterministic rank and full-UV fixture | Use for singular-value, reconstruction, orthogonality, and rank-threshold confidence on deterministic fixtures | `tests/test_svd.c` | exact diagonal singular values `{9, 5, 2, 1e-9, 0, 0}`, full-mode reconstruction residual, U/Vt orthogonality, and explicit rank thresholds | reconstruction residual and orthogonality are separately computed test metrics; rank evidence is tied to the declared tolerances `1e-10` and `1e-8` | no LAPACK, NumPy, SciPy, or broad SVD parity claim; external helper evidence remains limited to named Sprint 121-123 fixtures |
 
 Evidence-type interpretation:
 
-- external dense-reference evidence remains limited to the Sprint 102
-  direct-solver lanes listed above
+- external dense-reference evidence remains limited to named direct-solver
+  lanes plus bounded SVD, QR, and partial-SVD fixture lanes in Sprints 121-123
 - deterministic fixture evidence means expected values are constructed inside
   the project and checked directly by the owning test
 - internal consistency evidence means one project solver or configuration is
   compared with another project solver or configuration
 - residual and orthogonality evidence is a named-fixture quality criterion, not
   a substitute for external package parity
-- absent means Sprint 103 did not add an external helper-backed comparison lane
-  for that family
+- absent in this snapshot means Sprint 103 did not add an external
+  helper-backed comparison lane for that family; later Sprint 121-123 lanes are
+  tracked in the Sprint 102 table and Sprint 123 artifacts
 
 Documentation wording rules:
 

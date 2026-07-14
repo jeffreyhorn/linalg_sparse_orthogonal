@@ -38,7 +38,7 @@ broad QR parity.
 | --- | --- |
 | Fixture key | `qr_rankdef_duplicate_5x4_rank_only` |
 | Matrix shape | 5x4 dense tall matrix |
-| Structural model | Column 3 duplicates column 1 exactly. |
+| Structural model | Column 4 duplicates column 2 exactly. |
 | Expected rank | `3` |
 | Threshold | `0.0` for the product `sparse_qr_rank` comparison and Python reference elimination. |
 | Reference path | `tests/qr_external_dense_reference.py` computes a standard-library Gaussian-elimination rank. |

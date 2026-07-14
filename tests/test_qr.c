@@ -1608,7 +1608,14 @@ static void test_qr_external_dense_reference_economy_projector_5x3(void) {
         sparse_free(A);
         return;
     }
-    ASSERT_ERR(sparse_qr_form_q(&qr, Q), SPARSE_OK);
+    err = sparse_qr_form_q(&qr, Q);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(Q);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
 
     double max_projector_diff = 0.0;
     double max_orthogonality_err = 0.0;

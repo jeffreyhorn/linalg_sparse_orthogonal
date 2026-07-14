@@ -38,7 +38,10 @@
 #define SVD_EXTERNAL_RANKDEF_DUP_COLS 4
 #define SVD_EXTERNAL_WIDE_FULLRANK_ROWS 4
 #define SVD_EXTERNAL_WIDE_FULLRANK_COLS 6
-#define SVD_EXTERNAL_WIDE_FULLRANK_SIGMA 4
+#define SVD_EXTERNAL_WIDE_FULLRANK_SIGMA                                                           \
+    ((SVD_EXTERNAL_WIDE_FULLRANK_ROWS < SVD_EXTERNAL_WIDE_FULLRANK_COLS)                           \
+         ? SVD_EXTERNAL_WIDE_FULLRANK_ROWS                                                         \
+         : SVD_EXTERNAL_WIDE_FULLRANK_COLS)
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Helpers

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
 import math
 import sys
 from typing import List, Tuple
@@ -73,15 +74,19 @@ def rank_fixture_matrix(name: str) -> List[List[float]]:
     raise ValueError(f"unknown rank fixture {name}")
 
 
-def matrix_rank(a: List[List[float]], tol: float) -> int:
-    work = [row[:] for row in a]
+def matrix_rank(a: List[List[float]]) -> int:
+    work = [[Fraction(value).limit_denominator() for value in row] for row in a]
     rows = len(work)
     cols = len(work[0])
     rank = 0
 
     for col in range(cols):
-        pivot = max(range(rank, rows), key=lambda row: abs(work[row][col]))
-        if abs(work[pivot][col]) <= tol:
+        pivot = None
+        for row in range(rank, rows):
+            if work[row][col] != 0:
+                pivot = row
+                break
+        if pivot is None:
             continue
         if pivot != rank:
             work[rank], work[pivot] = work[pivot], work[rank]
@@ -162,7 +167,7 @@ def least_squares_reference(name: str) -> List[float]:
 
 def rank_reference(name: str) -> List[float]:
     a = rank_fixture_matrix(name)
-    return [float(matrix_rank(a, 0.0))]
+    return [float(matrix_rank(a))]
 
 
 def minnorm_reference(name: str) -> List[float]:

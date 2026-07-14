@@ -238,7 +238,7 @@ static int partial_svd_max_residuals(const SparseMatrix *A, const sparse_svd_t *
         sparse_matvec(A, v, Av);
         double av_resid = 0.0;
         for (idx_t i = 0; i < svd->m; i++) {
-            double diff = Av[i] - svd->sigma[s] * u[i];
+            double diff = Av[i] - svd->sigma[s] * svd->U[(size_t)s * (size_t)svd->m + (size_t)i];
             av_resid += diff * diff;
         }
         av_resid = sqrt(av_resid);

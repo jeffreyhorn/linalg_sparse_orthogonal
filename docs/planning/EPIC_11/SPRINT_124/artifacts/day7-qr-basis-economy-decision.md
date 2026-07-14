@@ -43,7 +43,7 @@ than basis orientation.
 | Matrix | Existing bounded 5x3 compatible QR matrix from `qr_overdetermined_compatible_5x3`. |
 | Product path | `tests/test_qr.c` factors the matrix with `SPARSE_REORDER_NONE` and `economy = 1`, forms thin Q, and computes `Q Q^T`. |
 | Reference path | `tests/qr_external_dense_reference.py` computes `A (A^T A)^{-1} A^T` using Python standard-library dense elimination. |
-| Helper output | `OK 29`, followed by `q_rows`, `q_cols`, `r_rows`, `r_cols`, and 25 row-major projector entries. |
+| Helper output | `OK 29`, followed by `q_rows`, `q_cols`, `r_rows`, `r_cols`, and 25 column-major projector entries. |
 | Shape expectations | `q_rows = 5`, `q_cols = 3`, `r_rows = 3`, `r_cols = 3`. |
 | Projector tolerance | `max |Q Q^T - P_ref| < 1e-8`. |
 | Orthogonality tolerance | `max |Q^T Q - I| < 1e-10`. |

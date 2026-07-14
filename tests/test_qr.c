@@ -1,3 +1,11 @@
+/* _POSIX_C_SOURCE 200809L: needed for `popen` / `pclose` used by the
+ * external dense-reference helper. Must be defined before any system header is
+ * included so glibc's `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
@@ -5,6 +13,8 @@
 #include "sparse_vector.h"
 #include "test_framework.h"
 #include "test_qr_helpers.h"
+#define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +27,32 @@
 
 static void assert_qr_reconstruction_below(const char *label, const SparseMatrix *A,
                                            const sparse_qr_t *qr, double tol);
+
+static int read_qr_basis_external_reference(const char *fixture_key, double *values_out, idx_t n,
+                                            char *reason, size_t reason_cap) {
+    if (!reason || reason_cap == 0)
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    if (!fixture_key || !values_out) {
+        snprintf(reason, reason_cap, "external QR basis reference invalid arguments");
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+    if (strcmp(fixture_key, "qr_economy_projector_5x3") != 0) {
+        snprintf(reason, reason_cap, "unsupported external QR basis reference fixture key: %s",
+                 fixture_key);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    char cmd[256];
+    int nw =
+        snprintf(cmd, sizeof(cmd), "python3 tests/qr_external_dense_reference.py %s", fixture_key);
+    if (nw < 0 || (size_t)nw >= sizeof(cmd)) {
+        snprintf(reason, reason_cap, "external QR basis reference command overflow");
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    return (int)tf_read_external_reference_vector(cmd, "external QR basis reference", values_out, n,
+                                                  reason, reason_cap);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
@@ -1513,6 +1549,107 @@ static void test_economy_q_orthogonality(void) {
     sparse_free(A);
 }
 
+static void test_qr_external_dense_reference_economy_projector_5x3(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_ECONOMY_PROJECTOR_ROWS = 5, QR_ECONOMY_PROJECTOR_COLS = 3 };
+    enum {
+        QR_ECONOMY_PROJECTOR_VALUES = 4 + QR_ECONOMY_PROJECTOR_ROWS * QR_ECONOMY_PROJECTOR_ROWS
+    };
+    double ref[QR_ECONOMY_PROJECTOR_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_basis_external_reference(
+        "qr_economy_projector_5x3", ref, QR_ECONOMY_PROJECTOR_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR basis reference failed: %s", reason);
+        return;
+    }
+
+    ASSERT_EQ((idx_t)ref[0], QR_ECONOMY_PROJECTOR_ROWS);
+    ASSERT_EQ((idx_t)ref[1], QR_ECONOMY_PROJECTOR_COLS);
+    ASSERT_EQ((idx_t)ref[2], QR_ECONOMY_PROJECTOR_COLS);
+    ASSERT_EQ((idx_t)ref[3], QR_ECONOMY_PROJECTOR_COLS);
+
+    SparseMatrix *A = sparse_create(QR_ECONOMY_PROJECTOR_ROWS, QR_ECONOMY_PROJECTOR_COLS);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
+        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
+        !tf_qr_insert_or_free(&A, 2, 0, 2.0) || !tf_qr_insert_or_free(&A, 2, 1, -1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 4, 0, 3.0) ||
+        !tf_qr_insert_or_free(&A, 4, 2, -2.0))
+        return;
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_TRUE(qr.economy);
+    ASSERT_NOT_NULL(qr.R);
+    if (qr.R) {
+        ASSERT_EQ(sparse_rows(qr.R), QR_ECONOMY_PROJECTOR_COLS);
+        ASSERT_EQ(sparse_cols(qr.R), QR_ECONOMY_PROJECTOR_COLS);
+    }
+
+    double *Q = calloc((size_t)QR_ECONOMY_PROJECTOR_ROWS * (size_t)QR_ECONOMY_PROJECTOR_COLS,
+                       sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_ERR(sparse_qr_form_q(&qr, Q), SPARSE_OK);
+
+    double max_projector_diff = 0.0;
+    double max_orthogonality_err = 0.0;
+    for (idx_t i = 0; i < QR_ECONOMY_PROJECTOR_ROWS; i++) {
+        for (idx_t j = 0; j < QR_ECONOMY_PROJECTOR_ROWS; j++) {
+            double product = 0.0;
+            for (idx_t col = 0; col < QR_ECONOMY_PROJECTOR_COLS; col++)
+                product += Q[(size_t)col * QR_ECONOMY_PROJECTOR_ROWS + (size_t)i] *
+                           Q[(size_t)col * QR_ECONOMY_PROJECTOR_ROWS + (size_t)j];
+            double diff =
+                fabs(product - ref[4 + (size_t)j * QR_ECONOMY_PROJECTOR_ROWS + (size_t)i]);
+            if (diff > max_projector_diff)
+                max_projector_diff = diff;
+        }
+    }
+
+    for (idx_t i = 0; i < QR_ECONOMY_PROJECTOR_COLS; i++) {
+        for (idx_t j = 0; j < QR_ECONOMY_PROJECTOR_COLS; j++) {
+            double dot = 0.0;
+            for (idx_t row = 0; row < QR_ECONOMY_PROJECTOR_ROWS; row++)
+                dot += Q[(size_t)i * QR_ECONOMY_PROJECTOR_ROWS + (size_t)row] *
+                       Q[(size_t)j * QR_ECONOMY_PROJECTOR_ROWS + (size_t)row];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double diff = fabs(dot - expected);
+            if (diff > max_orthogonality_err)
+                max_orthogonality_err = diff;
+        }
+    }
+
+    printf("    external QR dense ref economy_projector_5x3: projector diff = %.3e, "
+           "orthogonality err = %.3e\n",
+           max_projector_diff, max_orthogonality_err);
+    ASSERT_TRUE(max_projector_diff < 1e-8);
+    ASSERT_TRUE(max_orthogonality_err < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
 /* Square matrix with economy=1: same as economy=0 */
 static void test_economy_square(void) {
     idx_t n = 5;
@@ -2577,6 +2714,7 @@ int main(void) {
     /* Economy QR (Sprint 7 Day 7) */
     RUN_TEST(test_economy_solve_tall);
     RUN_TEST(test_economy_q_orthogonality);
+    RUN_TEST(test_qr_external_dense_reference_economy_projector_5x3);
     RUN_TEST(test_economy_square);
     RUN_TEST(test_economy_r_shape);
     RUN_TEST(test_economy_rank_deficient);

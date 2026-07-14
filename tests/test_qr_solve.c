@@ -42,6 +42,7 @@ static int qr_solve_checked(const sparse_qr_t *qr, const double *b, double *x, d
 
 static int read_qr_external_reference_least_squares(const char *fixture_key, double *values_out,
                                                     idx_t n, char *reason, size_t reason_cap) {
+    /* Historical name: this helper now serves all QR dense-reference fixture vectors. */
     if (!reason || reason_cap == 0)
         return TF_EXTERNAL_REFERENCE_ERROR;
     if (!fixture_key || !values_out) {

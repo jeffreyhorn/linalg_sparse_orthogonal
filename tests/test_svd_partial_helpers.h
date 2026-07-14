@@ -69,6 +69,60 @@ static void test_partial_svd_diag_10x10(void) {
     sparse_free(A);
 }
 
+static void test_partial_svd_external_dense_reference_diag6_k2(void) {
+#ifdef _WIN32
+    SKIP_TEST("external partial-SVD dense reference helper is not enabled on Windows");
+#else
+    const idx_t n = 6;
+    const idx_t k = 2;
+    const double diag[6] = {9.0, 6.0, 3.0, 1.0, 0.5, 0.25};
+    double sigma_ref[2] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_svd_external_reference_singular_values("partial_svd_diag6_k2", sigma_ref,
+                                                                 k, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external partial-SVD reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_svd_make_diag_matrix(n, n, diag, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_t partial;
+    sparse_err_t err = sparse_svd_partial(A, k, NULL, &partial);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(partial.k, k);
+    ASSERT_NOT_NULL(partial.sigma);
+    if (!partial.sigma) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(partial.sigma[i] - sigma_ref[i]);
+        if (diff > max_diff)
+            max_diff = diff;
+    }
+    printf("    external partial-SVD dense ref diag6_k2: max |sigma-sigma_ref| = %.3e\n", max_diff);
+    ASSERT_TRUE(max_diff < 1e-8);
+    ASSERT_TRUE(partial.U == NULL);
+    ASSERT_TRUE(partial.Vt == NULL);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
+#endif
+}
+
 static void test_partial_svd_full_k(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);

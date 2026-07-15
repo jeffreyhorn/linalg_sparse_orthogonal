@@ -1229,6 +1229,9 @@ static void test_minnorm_fallback_overdetermined(void) {
             maxerr = e;
     }
     ASSERT_TRUE(maxerr < 1e-10);
+    ASSERT_NEAR(x[0], 1.0, 1e-10);
+    ASSERT_NEAR(x[1], 2.0, 1e-10);
+    ASSERT_NEAR(x[2], 3.0, 1e-10);
 
     printf("    minnorm fallback 4x3: x=[%.3f,%.3f,%.3f], maxerr=%.2e ✓\n", x[0], x[1], x[2],
            maxerr);
@@ -1257,6 +1260,12 @@ static void test_minnorm_with_colamd(void) {
     sparse_matvec(A, x, Ax);
     ASSERT_NEAR(Ax[0], 3.0, 1e-10);
     ASSERT_NEAR(Ax[1], 3.0, 1e-10);
+    ASSERT_NEAR(x[0], 0.75, 1e-10);
+    ASSERT_NEAR(x[1], 0.75, 1e-10);
+    ASSERT_NEAR(x[2], 1.5, 1e-10);
+    ASSERT_NEAR(x[3], 0.75, 1e-10);
+    ASSERT_NEAR(x[4], 0.75, 1e-10);
+    ASSERT_NEAR(vec_norm2(x, 5), sqrt(4.5), 1e-10);
 
     printf("    minnorm+COLAMD 2x5: ||x||=%.4f ✓\n", vec_norm2(x, 5));
     sparse_free(A);
@@ -1311,6 +1320,9 @@ static void test_minnorm_rank_deficient(void) {
     sparse_matvec(A, x, Ax);
     ASSERT_NEAR(Ax[0], 2.0, 1e-8);
     ASSERT_NEAR(Ax[1], 4.0, 1e-8);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(x[i], 0.5, 1e-8);
+    ASSERT_NEAR(vec_norm2(x, 4), 1.0, 1e-8);
 
     printf("    minnorm rank-deficient 2x4: ||x||=%.4f ✓\n", vec_norm2(x, 4));
     sparse_free(A);
@@ -1389,6 +1401,8 @@ static void test_refine_minnorm(void) {
     REQUIRE_OK(sparse_qr_refine_minnorm(A, b, x, 3, &resid_after, NULL));
 
     ASSERT_TRUE(resid_after <= resid_before + 1e-14);
+    ASSERT_TRUE(resid_after < 1e-10);
+    ASSERT_NEAR(vec_norm2(x, 5), sqrt(4.5), 1e-10);
 
     printf("    refine minnorm: before=%.2e, after=%.2e ✓\n", resid_before, resid_after);
     sparse_free(A);
@@ -1413,6 +1427,12 @@ static void test_minnorm_zero_row(void) {
     double Ax[2] = {0};
     sparse_matvec(A, x, Ax);
     ASSERT_NEAR(Ax[0], 2.0, 1e-10);
+    ASSERT_NEAR(Ax[1], 0.0, 1e-10);
+    ASSERT_NEAR(x[0], 1.0, 1e-10);
+    ASSERT_NEAR(x[1], 0.0, 1e-10);
+    ASSERT_NEAR(x[2], 1.0, 1e-10);
+    ASSERT_NEAR(x[3], 0.0, 1e-10);
+    ASSERT_NEAR(vec_norm2(x, 4), sqrt(2.0), 1e-10);
 
     printf("    minnorm zero row: Ax[0]=%.4f, ||x||=%.4f ✓\n", Ax[0], vec_norm2(x, 4));
     sparse_free(A);
@@ -1454,6 +1474,21 @@ static void test_minnorm_vs_pinv(void) {
     /* Both should match */
     for (idx_t j = 0; j < n; j++)
         ASSERT_NEAR(x_qr[j], x_svd[j], 1e-10);
+    for (idx_t j = 0; j < n; j++) {
+        ASSERT_NEAR(x_qr[j], 0.5, 1e-10);
+        ASSERT_NEAR(x_svd[j], 0.5, 1e-10);
+    }
+    ASSERT_NEAR(vec_norm2(x_qr, n), 1.0, 1e-10);
+    ASSERT_NEAR(vec_norm2(x_svd, n), 1.0, 1e-10);
+
+    double Ax_qr[2] = {0};
+    double Ax_svd[2] = {0};
+    sparse_matvec(A, x_qr, Ax_qr);
+    sparse_matvec(A, x_svd, Ax_svd);
+    for (idx_t row = 0; row < m; row++) {
+        ASSERT_NEAR(Ax_qr[row], b[row], 1e-10);
+        ASSERT_NEAR(Ax_svd[row], b[row], 1e-10);
+    }
 
     printf("    minnorm vs pinv: x_qr=[%.3f,%.3f,%.3f,%.3f] matches ✓\n", x_qr[0], x_qr[1], x_qr[2],
            x_qr[3]);
@@ -1701,6 +1736,7 @@ static void test_minnorm_ss_submatrix(void) {
     }
 
     idx_t m = 30, n = sparse_cols(A_full);
+    ASSERT_EQ(n, 67);
     SparseMatrix *A = sparse_create(m, n);
     if (!A) {
         sparse_free(A_full);
@@ -1760,7 +1796,9 @@ static void test_minnorm_ss_submatrix(void) {
     /* Verify ||x_min|| <= ||ones|| (ones is a valid solution) */
     double norm_x = vec_norm2(x, n);
     double norm_ones = vec_norm2(ones, n);
+    ASSERT_TRUE(maxerr < 1e-8);
     ASSERT_TRUE(norm_x <= norm_ones + 1e-8);
+    ASSERT_TRUE(norm_x > 0.0);
 
     printf("    minnorm west0067 submatrix %dx%d: maxerr=%.2e, ||x||=%.2f <= ||1||=%.2f ✓\n",
            (int)m, (int)n, maxerr, norm_x, norm_ones);

@@ -309,6 +309,11 @@ static void test_partial_svd_external_dense_reference_vector_residual_diag6_k2(v
     ASSERT_EQ(partial.k, k);
     ASSERT_EQ(partial.m, n);
     ASSERT_EQ(partial.n, n);
+    if (partial.k != k || partial.m != n || partial.n != n) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(partial.sigma);
     ASSERT_NOT_NULL(partial.U);
     ASSERT_NOT_NULL(partial.Vt);

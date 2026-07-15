@@ -1,4 +1,4 @@
-# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-130 (Epic 11)
+# Project Plan: Post-Epic-10 Product Hardening, Oracle Breadth & Packaging Decisions -- Sprints 118-133 (Epic 11)
 
 Epic 11 starts from the completed Epic 10 closeout. The library is broad,
 well-tested, and much more product-disciplined than it was before Epic 10, but
@@ -15,6 +15,8 @@ This plan is based on:
 - Sprint 117's final residual queue and explicit non-claim register
 - Sprint 122's residual deferred debt and explicit oracle non-claim register
 - Sprint 123's residual deferred debt and explicit QR/partial-SVD/helper
+  non-claim register
+- Sprint 124's residual deferred debt and explicit QR/partial-SVD/helper
   non-claim register
 - prior Epic retrospectives and carry-forward work
 
@@ -288,23 +290,142 @@ adoption work consume the oracle truth.
 
 ---
 
-## Sprint 125: Numerical Corpus, Coverage Architecture & Report Indexes
+## Sprint 125: Rank-Deficient QR & Minimum-Norm Residual Evidence
 
-**Duration:** 14 days (~168 hours)
-**Goal:** Turn scattered numerical fixtures, coverage, benchmark, dead-code,
-and guardrail outputs into a clearer recurring assurance architecture.
+**Duration:** 14 days (~164 hours)
+**Goal:** Convert Sprint 124's rank-deficient QR and minimum-norm deferred debt
+into behavior-specific evidence or explicit deferrals before broader corpus and
+adoption work depend on these claims.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 118 templates complete
-- Sprint 120-124 oracle taxonomy and external-reference decisions available
+- Sprint 124 rank-deficient QR policy, minimum-norm behavior contract, and
+  helper ownership decisions available
+- Sprint 124 non-claim register preserved
 
 ### Items
 
 | Item # | Item Name | Item Description | Estimate (in hours) |
 |---|---|---|---:|
-| 1 | Corpus Inventory | Inventory Matrix Market fixtures, generated families, known matrices, external-reference scripts, and expected failures. | 20 |
-| 2 | Corpus Taxonomy | Define corpus tags for symmetry, definiteness, rank, conditioning, scale, sparsity pattern, ordering, and solver family. | 24 |
+| 1 | Deferred QR Dedupe Map | Map Sprint 124 deferred rank-deficient and minimum-norm work to existing Sprint 121-124 evidence so completed intake, policy, and fixture work is not duplicated. | 18 |
+| 2 | Rank-Deficient Residual Evidence | Add or explicitly defer residual-only rank-deficient QR evidence after proving it increases trust beyond deterministic tests without implying nullspace or minimum-norm behavior. | 24 |
+| 3 | Nullspace and Subspace Policy | Define sign, ordering, nullity, projection/subspace metric, and fixture-local tolerance rules before adding rank-deficient QR nullspace/subspace evidence. | 24 |
+| 4 | Near-Rank-Deficient Threshold Evidence | Add or explicitly defer near-rank-deficient QR threshold evidence with threshold families, expected ranks, stability policy, and non-global interpretation. | 22 |
+| 5 | SuiteSparse Rank-Deficient QR Evidence | Add or explicitly defer SuiteSparse rank-deficient QR evidence only after optional corpus, platform skip behavior, support tier, diagnostics, and claim boundaries are explicit. | 24 |
+| 6 | Minimum-Norm Behavior Evidence | Add or explicitly defer QR minimum-norm COLAMD, fallback, rank-deficient, refinement, QR-vs-SVD-pseudoinverse, and SuiteSparse evidence under behavior-specific owners. | 32 |
+| 7 | Validation and Claim Gate | Run affected focused checks and required quality gates, update evidence tables, and preserve all broad QR, nullspace, minimum-norm, backend, and corpus non-claims. | 20 |
+
+### Deliverables
+
+- Sprint 124 deferred QR/minimum-norm dedupe map
+- rank-deficient residual evidence or explicit deferral
+- nullspace/subspace policy package
+- near-rank-deficient threshold decision package
+- SuiteSparse rank-deficient QR decision package
+- minimum-norm behavior evidence package
+- validation and QR non-claim register update
+
+**Total estimate:** ~164 hours
+
+---
+
+## Sprint 126: QR Q-Basis, Economy & Helper Ownership Follow-Through
+
+**Duration:** 14 days (~166 hours)
+**Goal:** Resolve the remaining Sprint 124 QR Q-basis/economy and helper
+ownership debt in dependency order, preserving basis and helper semantics before
+the corpus/index architecture consumes them.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 125 rank-deficient QR metric and tolerance policies complete
+- Sprint 124 Q-basis/economy semantic design and helper decision artifacts
+  available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Q-Basis Evidence Policy Refresh | Confirm raw Q-column, sign, orientation, projection, economy-shape, skip, and corpus policies from Sprint 124 before extending evidence. | 18 |
+| 2 | Raw Q-Column Evidence | Add or explicitly defer raw QR Q-column evidence only where basis orientation and fixture-local tolerance rules make equality meaningful. | 22 |
+| 3 | Rank-Deficient Q/Nullspace Evidence | Add or explicitly defer rank-deficient Q/nullspace subspace evidence using the Sprint 125 nullity and projection/subspace metric policy. | 24 |
+| 4 | Wide Economy and Sparse-Mode Evidence | Add or explicitly defer wide economy and sparse-mode Q/economy evidence with explicit shape, projection, and sparse-output interpretation. | 26 |
+| 5 | SuiteSparse Q/Economy Evidence | Add or explicitly defer SuiteSparse Q/economy evidence after corpus availability, skip behavior, diagnostics, and support-tier wording are bounded. | 22 |
+| 6 | Minimum-Norm Helper Movement | Revisit minimum-norm helper movement only with behavior-specific helper names and focused QR solve, COLAMD, SVD, and full quality validation. | 26 |
+| 7 | Bidiagonal/Golub-Kahan Helper Extraction | Extract or explicitly defer Bidiagonal/Golub-Kahan helpers into a dedicated owner that preserves transpose, reconstruction, explicit `U`/`V`, wide skip, and QR-iteration semantics. | 28 |
+
+### Deliverables
+
+- Q-basis/economy evidence policy refresh
+- raw Q-column decision or bounded implementation
+- rank-deficient Q/nullspace decision or bounded implementation
+- wide economy and sparse-mode decision package
+- SuiteSparse Q/economy decision package
+- minimum-norm helper movement package
+- Bidiagonal/Golub-Kahan helper extraction package
+
+**Total estimate:** ~166 hours
+
+---
+
+## Sprint 127: Partial-SVD Residual Expansion & Solver-Selection Claim Gate
+
+**Duration:** 14 days (~166 hours)
+**Goal:** Expand or explicitly defer Sprint 124 partial-SVD residual evidence
+under dedicated metric policies, then refresh public solver-selection wording
+only where earned.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 124 partial-SVD vector/subspace semantics and residual scenario matrix
+  available
+- Sprint 125-126 QR and helper claim gates complete
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Partial-SVD Dedupe and Metric Map | Map completed Sprint 124 `partial_svd_vector_residual_diag6_k2` evidence against deferred rectangular, spectral, subspace, corpus, optimality, and convergence work. | 18 |
+| 2 | Rectangular and Nonsymmetric Evidence | Add or explicitly defer rectangular and nonsymmetric rectangular partial-SVD residual evidence with shape-specific metrics and failure interpretation. | 24 |
+| 3 | Repeated and Clustered Spectrum Evidence | Add or explicitly defer repeated-spectrum and clustered-spectrum partial-SVD evidence with subspace metrics instead of vector-equality claims. | 24 |
+| 4 | Rank-Deficient Subspace Evidence | Add or explicitly defer rank-deficient partial-SVD subspace evidence with explicit rank, nullity, projection, and tolerance policies. | 24 |
+| 5 | SuiteSparse and Low-Rank Optimality Evidence | Add or explicitly defer SuiteSparse corpus and low-rank optimality evidence with optional corpus behavior, diagnostics, and bounded claim language. | 28 |
+| 6 | Convergence-Budget Evidence | Add or explicitly defer convergence-budget partial-SVD evidence with iteration, tolerance, and partial-result semantics that do not imply broad parity. | 24 |
+| 7 | Solver-Selection Wording Gate | Refresh public solver-selection wording only if future evidence supports a user-facing claim beyond current workflow guidance; otherwise publish a no-update rationale. | 24 |
+
+### Deliverables
+
+- partial-SVD deferred-evidence dedupe map
+- rectangular and nonsymmetric residual decision package
+- repeated/clustered spectrum decision package
+- rank-deficient subspace decision package
+- SuiteSparse and low-rank optimality decision package
+- convergence-budget decision package
+- solver-selection wording update or explicit no-update rationale
+
+**Total estimate:** ~166 hours
+
+---
+
+## Sprint 128: Numerical Corpus, Coverage Architecture & Report Indexes
+
+**Duration:** 14 days (~168 hours)
+**Goal:** Turn scattered numerical fixtures, coverage, benchmark, dead-code,
+and guardrail outputs into a clearer recurring assurance architecture after the
+Sprint 124 residual QR and partial-SVD claim gates are resolved.
+
+### Prerequisites from Previous Sprints
+
+- Sprint 118 templates complete
+- Sprint 120-127 oracle taxonomy, external-reference decisions, and residual
+  claim gates available
+
+### Items
+
+| Item # | Item Name | Item Description | Estimate (in hours) |
+|---|---|---|---:|
+| 1 | Corpus Inventory | Inventory Matrix Market fixtures, generated families, known matrices, external-reference scripts, expected failures, and Sprint 125-127 optional-corpus decisions. | 20 |
+| 2 | Corpus Taxonomy | Define corpus tags for symmetry, definiteness, rank, conditioning, scale, sparsity pattern, ordering, solver family, optional availability, and support tier. | 24 |
 | 3 | Report Index Design | Design generated indexes for benchmark, coverage, dead-code, large-matrix, and oracle artifacts. | 24 |
 | 4 | Coverage Architecture | Re-rank coverage gaps by risk and decide which remain supplemental versus reviewed. | 24 |
 | 5 | Generated Index Batch | Implement or document the first generated report index without changing benchmark semantics. | 30 |
@@ -323,7 +444,7 @@ and guardrail outputs into a clearer recurring assurance architecture.
 
 ---
 
-## Sprint 126: Performance Sentinel & Backend Runtime Governance
+## Sprint 129: Performance Sentinel & Backend Runtime Governance
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Strengthen local performance and backend/runtime governance without
@@ -331,7 +452,7 @@ turning local measurements into portable performance claims.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 125 report index model available
+- Sprint 128 report index model available
 - current benchmark and backend non-claims preserved
 
 ### Items
@@ -358,7 +479,7 @@ turning local measurements into portable performance claims.
 
 ---
 
-## Sprint 127: Package, ABI & Shared-Library Product Decision
+## Sprint 130: Package, ABI & Shared-Library Product Decision
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Decide whether Epic 11 adds shared-library/dynamic ABI support or
@@ -369,6 +490,7 @@ contract.
 
 - Epic 10 static-first package truth preserved
 - Sprint 118 package/ABI residual owner map complete
+- Sprint 128-129 corpus/report and performance-governance truth available
 
 ### Items
 
@@ -394,7 +516,7 @@ contract.
 
 ---
 
-## Sprint 128: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
+## Sprint 131: Cross-Platform Install, Windows Staged Lanes & CI Tier Follow-Through
 
 **Duration:** 14 days (~168 hours)
 **Goal:** Advance platform support where feasible and make Linux/macOS/Windows
@@ -402,7 +524,7 @@ install and staged validation tiers even more explicit.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 127 package/ABI decision complete
+- Sprint 130 package/ABI decision complete
 - current CI tier model preserved
 
 ### Items
@@ -429,7 +551,7 @@ install and staged validation tiers even more explicit.
 
 ---
 
-## Sprint 129: Adoption Surface Simplification & Documentation Productization
+## Sprint 132: Adoption Surface Simplification & Documentation Productization
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Simplify the adoption surface after Epic 10 by separating first-use
@@ -438,8 +560,8 @@ find.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 125 report index decisions available
-- Sprint 127-128 package/platform truth stable
+- Sprint 128 report index decisions available
+- Sprint 130-131 package/platform truth stable
 
 ### Items
 
@@ -465,7 +587,7 @@ find.
 
 ---
 
-## Sprint 130: Final Integration, Competitive Recalibration & Epic 11 Closeout
+## Sprint 133: Final Integration, Competitive Recalibration & Epic 11 Closeout
 
 **Duration:** 14 days (~164 hours)
 **Goal:** Validate Epic 11 outcomes, compare them against the state-of-the-art
@@ -474,7 +596,7 @@ retrospective and post-epic handoff queue.
 
 ### Prerequisites from Previous Sprints
 
-- Sprint 118-129 artifacts, validation, residuals, and support-surface
+- Sprint 118-132 artifacts, validation, residuals, and support-surface
   decisions complete
 - package/platform/ABI/adoption truth stable
 
@@ -488,14 +610,14 @@ retrospective and post-epic handoff queue.
 | 4 | Competitive Claim Recalibration | Compare final evidence against Epic 11 goals and current state-of-the-art non-claims. | 24 |
 | 5 | Unsupported-Claim Cleanup | Remove, downgrade, or fence unsupported public/support wording. | 20 |
 | 6 | Residual Queue Publication | Publish post-Epic-11 residuals, future-epic candidates, optional work, and explicit non-claims. | 20 |
-| 7 | Sprint and Epic Retrospectives | Write Sprint 130 and Epic 11 retrospectives plus final closeout handoff. | 30 |
+| 7 | Sprint and Epic Retrospectives | Write Sprint 133 and Epic 11 retrospectives plus final closeout handoff. | 30 |
 
 ### Deliverables
 
 - final validation package
 - final comparison and claim cleanup package
 - post-Epic-11 residual queue
-- Sprint 130 retrospective
+- Sprint 133 retrospective
 - Epic 11 retrospective
 - final handoff artifact
 

@@ -2938,6 +2938,7 @@ int main(void) {
     RUN_TEST(test_partial_svd_diag_10x10);
     RUN_TEST(test_partial_svd_external_dense_reference_diag6_k2);
     RUN_TEST(test_partial_svd_external_dense_reference_tall_diag_8x5_k3);
+    RUN_TEST(test_partial_svd_external_dense_reference_vector_residual_diag6_k2);
     RUN_TEST(test_partial_svd_full_k);
     RUN_TEST(test_partial_svd_dense_8x8);
     RUN_TEST(test_partial_svd_tall);

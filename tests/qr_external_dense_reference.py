@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
 import math
 import sys
 from typing import List, Tuple
@@ -38,12 +39,73 @@ def build_qr_overdetermined_compatible_5x3() -> Tuple[List[List[float]], List[fl
     return a, b
 
 
+def build_qr_rankdef_duplicate_5x4_rank_only() -> List[List[float]]:
+    return [
+        [1.0, 0.0, 2.0, 0.0],
+        [0.0, 1.0, -1.0, 1.0],
+        [2.0, -1.0, 0.0, -1.0],
+        [1.0, 1.0, 1.0, 1.0],
+        [3.0, 0.0, -2.0, 0.0],
+    ]
+
+
+def build_qr_underdetermined_minnorm_2x4() -> Tuple[List[List[float]], List[float]]:
+    a = [
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0],
+    ]
+    b = [1.0, 1.0]
+    return a, b
+
+
 def fixture_system(name: str) -> Tuple[List[List[float]], List[float]]:
     if name == "qr_overdetermined_incompatible_4x2":
         return build_qr_overdetermined_incompatible_4x2()
     if name == "qr_overdetermined_compatible_5x3":
         return build_qr_overdetermined_compatible_5x3()
+    if name == "qr_underdetermined_minnorm_2x4":
+        return build_qr_underdetermined_minnorm_2x4()
     raise ValueError(f"unknown fixture {name}")
+
+
+def rank_fixture_matrix(name: str) -> List[List[float]]:
+    if name == "qr_rankdef_duplicate_5x4_rank_only":
+        return build_qr_rankdef_duplicate_5x4_rank_only()
+    raise ValueError(f"unknown rank fixture {name}")
+
+
+def matrix_rank(a: List[List[float]]) -> int:
+    work = [[Fraction(value).limit_denominator() for value in row] for row in a]
+    rows = len(work)
+    cols = len(work[0])
+    rank = 0
+
+    for col in range(cols):
+        pivot = None
+        for row in range(rank, rows):
+            if work[row][col] != 0:
+                pivot = row
+                break
+        if pivot is None:
+            continue
+        if pivot != rank:
+            work[rank], work[pivot] = work[pivot], work[rank]
+
+        pivot_value = work[rank][col]
+        for j in range(col, cols):
+            work[rank][j] /= pivot_value
+
+        for row in range(rows):
+            if row == rank:
+                continue
+            factor = work[row][col]
+            for j in range(col, cols):
+                work[row][j] -= factor * work[rank][j]
+        rank += 1
+        if rank == rows:
+            break
+
+    return rank
 
 
 def gram_ata(a: List[List[float]]) -> List[List[float]]:
@@ -103,13 +165,50 @@ def least_squares_reference(name: str) -> List[float]:
     return x + [residual_norm(a, b, x)]
 
 
+def rank_reference(name: str) -> List[float]:
+    a = rank_fixture_matrix(name)
+    return [float(matrix_rank(a))]
+
+
+def minnorm_reference(name: str) -> List[float]:
+    a, b = fixture_system(name)
+    aat = [[sum(row_i[k] * row_j[k] for k in range(len(row_i))) for row_j in a] for row_i in a]
+    y = solve_dense(aat, b)
+    x = [sum(a[row][col] * y[row] for row in range(len(a))) for col in range(len(a[0]))]
+    return x + [residual_norm(a, b, x), math.sqrt(sum(value * value for value in x))]
+
+
+def economy_projector_reference(name: str) -> List[float]:
+    if name != "qr_economy_projector_5x3":
+        raise ValueError(f"unknown economy projector fixture {name}")
+
+    a, _ = build_qr_overdetermined_compatible_5x3()
+    rows = len(a)
+    cols = len(a[0])
+    ata = gram_ata(a)
+    projector: List[float] = []
+    for row_j in range(rows):
+        weights = solve_dense(ata, a[row_j])
+        for row_i in range(rows):
+            projector.append(sum(a[row_i][col] * weights[col] for col in range(cols)))
+
+    return [float(rows), float(cols), float(cols), float(cols)] + projector
+
+
 def main(argv: List[str]) -> int:
     if len(argv) != 2:
         print("ERROR expected one fixture key")
         return 1
 
     try:
-        values = least_squares_reference(argv[1])
+        if argv[1] == "qr_rankdef_duplicate_5x4_rank_only":
+            values = rank_reference(argv[1])
+        elif argv[1] == "qr_underdetermined_minnorm_2x4":
+            values = minnorm_reference(argv[1])
+        elif argv[1] == "qr_economy_projector_5x3":
+            values = economy_projector_reference(argv[1])
+        else:
+            values = least_squares_reference(argv[1])
     except Exception as exc:  # pragma: no cover - exercised from C harness
         print(f"ERROR {exc}")
         return 1

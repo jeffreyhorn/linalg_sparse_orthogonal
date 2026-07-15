@@ -42,6 +42,7 @@ static int qr_solve_checked(const sparse_qr_t *qr, const double *b, double *x, d
 
 static int read_qr_external_reference_least_squares(const char *fixture_key, double *values_out,
                                                     idx_t n, char *reason, size_t reason_cap) {
+    /* Historical name: this helper now serves all QR dense-reference fixture vectors. */
     if (!reason || reason_cap == 0)
         return TF_EXTERNAL_REFERENCE_ERROR;
     if (!fixture_key || !values_out) {
@@ -49,7 +50,9 @@ static int read_qr_external_reference_least_squares(const char *fixture_key, dou
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
     if (strcmp(fixture_key, "qr_overdetermined_incompatible_4x2") != 0 &&
-        strcmp(fixture_key, "qr_overdetermined_compatible_5x3") != 0) {
+        strcmp(fixture_key, "qr_overdetermined_compatible_5x3") != 0 &&
+        strcmp(fixture_key, "qr_rankdef_duplicate_5x4_rank_only") != 0 &&
+        strcmp(fixture_key, "qr_underdetermined_minnorm_2x4") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -408,6 +411,56 @@ static void test_qr_external_dense_reference_overdetermined_compatible_5x3(void)
 #endif
 }
 
+static void test_qr_external_dense_reference_rankdef_duplicate_5x4_rank_only(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_EXTERNAL_RANK_VALUES = 1 };
+    double ref[QR_EXTERNAL_RANK_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_external_reference_least_squares(
+        "qr_rankdef_duplicate_5x4_rank_only", ref, QR_EXTERNAL_RANK_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
+        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
+        !tf_qr_insert_or_free(&A, 1, 3, 1.0) || !tf_qr_insert_or_free(&A, 2, 0, 2.0) ||
+        !tf_qr_insert_or_free(&A, 2, 1, -1.0) || !tf_qr_insert_or_free(&A, 2, 3, -1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 3, 3, 1.0) ||
+        !tf_qr_insert_or_free(&A, 4, 0, 3.0) || !tf_qr_insert_or_free(&A, 4, 2, -2.0))
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t expected_rank = (idx_t)ref[0];
+    idx_t product_rank = sparse_qr_rank(&qr, 0.0);
+    printf("    external QR dense ref rankdef_duplicate_5x4_rank_only: "
+           "expected rank = %d, product rank = %d\n",
+           (int)expected_rank, (int)product_rank);
+    ASSERT_EQ(product_rank, expected_rank);
+    ASSERT_EQ(qr.rank, expected_rank);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
 static void test_qr_solve_minnorm_underdetermined_known_solution(void) {
     SparseMatrix *A = sparse_create(2, 4);
     ASSERT_NOT_NULL(A);
@@ -436,6 +489,61 @@ static void test_qr_solve_minnorm_underdetermined_known_solution(void) {
     printf("    minnorm underdetermined 2x4: x=[%.3f, %.3f, %.3f, %.3f]\n", x[0], x[1], x[2], x[3]);
 
     sparse_free(A);
+}
+
+static void test_qr_external_dense_reference_underdetermined_minnorm_2x4(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_EXTERNAL_MINNORM_VALUES = 6 };
+    double ref[QR_EXTERNAL_MINNORM_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_external_reference_least_squares(
+        "qr_underdetermined_minnorm_2x4", ref, QR_EXTERNAL_MINNORM_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(2, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 1, 1.0) ||
+        !tf_qr_insert_or_free(&A, 1, 2, 1.0) || !tf_qr_insert_or_free(&A, 1, 3, 1.0))
+        return;
+
+    const double b[2] = {1.0, 1.0};
+    double x[4];
+    sparse_err_t err = sparse_qr_solve_minnorm(A, b, x, NULL);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double Ax[2] = {0.0, 0.0};
+    sparse_matvec(A, x, Ax);
+    double residual = sqrt((Ax[0] - b[0]) * (Ax[0] - b[0]) + (Ax[1] - b[1]) * (Ax[1] - b[1]));
+    double solution_diff = 0.0;
+    for (idx_t i = 0; i < 4; i++) {
+        double diff = fabs(x[i] - ref[i]);
+        if (diff > solution_diff)
+            solution_diff = diff;
+    }
+    double residual_diff = fabs(residual - ref[4]);
+    double norm_diff = fabs(vec_norm2(x, 4) - ref[5]);
+    printf("    external QR dense ref underdetermined_minnorm_2x4: "
+           "solution diff = %.3e, residual diff = %.3e, norm diff = %.3e\n",
+           solution_diff, residual_diff, norm_diff);
+    ASSERT_TRUE(solution_diff < 1e-8);
+    ASSERT_TRUE(residual_diff < 1e-8);
+    ASSERT_TRUE(norm_diff < 1e-8);
+
+    sparse_free(A);
+#endif
 }
 
 static void test_qr_solve_rank_deficient(void) {
@@ -834,7 +942,9 @@ int main(void) {
     RUN_TEST(test_qr_solve_overdetermined_incompatible_known_residual);
     RUN_TEST(test_qr_external_dense_reference_overdetermined_incompatible_4x2);
     RUN_TEST(test_qr_external_dense_reference_overdetermined_compatible_5x3);
+    RUN_TEST(test_qr_external_dense_reference_rankdef_duplicate_5x4_rank_only);
     RUN_TEST(test_qr_solve_minnorm_underdetermined_known_solution);
+    RUN_TEST(test_qr_external_dense_reference_underdetermined_minnorm_2x4);
     RUN_TEST(test_qr_solve_rank_deficient);
     RUN_TEST(test_qr_solve_nos4);
     RUN_TEST(test_qr_solve_null_residual);

@@ -1282,16 +1282,25 @@ static void test_minnorm_5x10(void) {
     }
 
     double b[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double expected[10] = {0.4, 0.8, 1.2, 1.6, 2.0, 0.2, 0.4, 0.6, 0.8, 1.0};
     double x[10];
     REQUIRE_OK(sparse_qr_solve_minnorm(A, b, x, NULL));
 
     /* Check A*x = b */
     double Ax[5] = {0};
     sparse_matvec(A, x, Ax);
-    for (idx_t i = 0; i < m; i++)
+    double maxerr = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        double err = fabs(Ax[i] - b[i]);
+        if (err > maxerr)
+            maxerr = err;
         ASSERT_NEAR(Ax[i], b[i], 1e-10);
+    }
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], expected[i], 1e-10);
+    ASSERT_NEAR(vec_norm2(x, n), sqrt(11.0), 1e-10);
 
-    printf("    minnorm 5x10: ||x||=%.4f ✓\n", vec_norm2(x, n));
+    printf("    minnorm 5x10: maxerr=%.2e, ||x||=%.4f ✓\n", maxerr, vec_norm2(x, n));
     sparse_free(A);
 }
 

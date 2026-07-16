@@ -53,6 +53,7 @@ static int read_qr_external_reference_least_squares(const char *fixture_key, dou
         strcmp(fixture_key, "qr_overdetermined_compatible_5x3") != 0 &&
         strcmp(fixture_key, "qr_rankdef_duplicate_5x4_rank_only") != 0 &&
         strcmp(fixture_key, "qr_rankdef_duplicate_5x4_residual_only") != 0 &&
+        strcmp(fixture_key, "qr_rankdef_dependent_row_4x3_residual_only") != 0 &&
         strcmp(fixture_key, "qr_underdetermined_minnorm_2x4") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR reference fixture key: %s",
                  fixture_key);
@@ -494,6 +495,58 @@ static void test_qr_external_dense_reference_rankdef_duplicate_5x4_residual_only
     double true_residual = tf_qr_relative_residual_l2(A, b, x, 5) * vec_norm2(b, 5);
     double residual_diff = fabs(residual - ref[0]);
     printf("    external QR dense ref rankdef_duplicate_5x4_residual_only: "
+           "residual = %.3e, true_residual = %.3e, expected = %.3e, diff = %.3e\n",
+           residual, true_residual, ref[0], residual_diff);
+    ASSERT_TRUE(ref[0] > 0.0);
+    ASSERT_TRUE(residual_diff < 1e-8);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
+static void test_qr_external_dense_reference_rankdef_dependent_row_4x3_residual_only(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_EXTERNAL_DEPENDENT_ROW_RESIDUAL_VALUES = 1 };
+    double ref[QR_EXTERNAL_DEPENDENT_ROW_RESIDUAL_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_external_reference_least_squares(
+        "qr_rankdef_dependent_row_4x3_residual_only", ref,
+        QR_EXTERNAL_DEPENDENT_ROW_RESIDUAL_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_qr_make_dependent_row_4x3();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    const double b[4] = {1.0, -2.0, 5.0, 0.0};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double residual;
+    if (!qr_solve_checked(&qr, b, x, &residual)) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double true_residual = tf_qr_relative_residual_l2(A, b, x, 4) * vec_norm2(b, 4);
+    double residual_diff = fabs(residual - ref[0]);
+    printf("    external QR dense ref rankdef_dependent_row_4x3_residual_only: "
            "residual = %.3e, true_residual = %.3e, expected = %.3e, diff = %.3e\n",
            residual, true_residual, ref[0], residual_diff);
     ASSERT_TRUE(ref[0] > 0.0);
@@ -987,6 +1040,7 @@ int main(void) {
     RUN_TEST(test_qr_external_dense_reference_overdetermined_compatible_5x3);
     RUN_TEST(test_qr_external_dense_reference_rankdef_duplicate_5x4_rank_only);
     RUN_TEST(test_qr_external_dense_reference_rankdef_duplicate_5x4_residual_only);
+    RUN_TEST(test_qr_external_dense_reference_rankdef_dependent_row_4x3_residual_only);
     RUN_TEST(test_qr_solve_minnorm_underdetermined_known_solution);
     RUN_TEST(test_qr_external_dense_reference_underdetermined_minnorm_2x4);
     RUN_TEST(test_qr_solve_rank_deficient);

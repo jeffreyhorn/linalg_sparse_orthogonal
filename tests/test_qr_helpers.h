@@ -133,6 +133,22 @@ static inline SparseMatrix *tf_qr_make_near_duplicate_4x3(double perturbation) {
     return A;
 }
 
+static inline SparseMatrix *tf_qr_make_rankdef_duplicate_5x4(void) {
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return NULL;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
+        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
+        !tf_qr_insert_or_free(&A, 1, 3, 1.0) || !tf_qr_insert_or_free(&A, 2, 0, 2.0) ||
+        !tf_qr_insert_or_free(&A, 2, 1, -1.0) || !tf_qr_insert_or_free(&A, 2, 3, -1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 3, 3, 1.0) ||
+        !tf_qr_insert_or_free(&A, 4, 0, 3.0) || !tf_qr_insert_or_free(&A, 4, 2, -2.0))
+        return NULL;
+    return A;
+}
+
 static inline SparseMatrix *tf_qr_make_dependent_row_4x3(void) {
     SparseMatrix *A = sparse_create(4, 3);
     if (!A)

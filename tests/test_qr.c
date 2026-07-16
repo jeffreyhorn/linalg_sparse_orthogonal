@@ -36,7 +36,8 @@ static int read_qr_basis_external_reference(const char *fixture_key, double *val
         snprintf(reason, reason_cap, "external QR basis reference invalid arguments");
         return TF_EXTERNAL_REFERENCE_ERROR;
     }
-    if (strcmp(fixture_key, "qr_economy_projector_5x3") != 0) {
+    if (strcmp(fixture_key, "qr_economy_projector_5x3") != 0 &&
+        strcmp(fixture_key, "qr_rankdef_duplicate_5x4_nullspace_projector") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR basis reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -52,6 +53,32 @@ static int read_qr_basis_external_reference(const char *fixture_key, double *val
 
     return (int)tf_read_external_reference_vector(cmd, "external QR basis reference", values_out, n,
                                                   reason, reason_cap);
+}
+
+static int read_qr_threshold_external_reference(const char *fixture_key, double *values_out,
+                                                idx_t n, char *reason, size_t reason_cap) {
+    if (!reason || reason_cap == 0)
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    if (!fixture_key || !values_out) {
+        snprintf(reason, reason_cap, "external QR threshold reference invalid arguments");
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+    if (strcmp(fixture_key, "qr_rank_threshold_diag4_family") != 0) {
+        snprintf(reason, reason_cap, "unsupported external QR threshold reference fixture key: %s",
+                 fixture_key);
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    char cmd[256];
+    int nw =
+        snprintf(cmd, sizeof(cmd), "python3 tests/qr_external_dense_reference.py %s", fixture_key);
+    if (nw < 0 || (size_t)nw >= sizeof(cmd)) {
+        snprintf(reason, reason_cap, "external QR threshold reference command overflow");
+        return TF_EXTERNAL_REFERENCE_ERROR;
+    }
+
+    return (int)tf_read_external_reference_vector(cmd, "external QR threshold reference",
+                                                  values_out, n, reason, reason_cap);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1117,6 +1144,105 @@ static void test_known_nullspace(void) {
     sparse_free(A);
 }
 
+static void test_qr_external_dense_reference_rankdef_duplicate_5x4_nullspace_projector(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_NULLSPACE_N = 4 };
+    enum { QR_NULLSPACE_PROJECTOR_VALUES = 4 + QR_NULLSPACE_N * QR_NULLSPACE_N };
+    double ref[QR_NULLSPACE_PROJECTOR_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status =
+        read_qr_basis_external_reference("qr_rankdef_duplicate_5x4_nullspace_projector", ref,
+                                         QR_NULLSPACE_PROJECTOR_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR basis reference failed: %s", reason);
+        return;
+    }
+
+    ASSERT_EQ((idx_t)ref[0], QR_NULLSPACE_N);
+    ASSERT_EQ((idx_t)ref[1], 3);
+    ASSERT_EQ((idx_t)ref[2], 1);
+    ASSERT_NEAR(ref[3], 0.0, 0.0);
+    if ((idx_t)ref[0] != QR_NULLSPACE_N || (idx_t)ref[1] != 3 || (idx_t)ref[2] != 1 ||
+        ref[3] != 0.0)
+        return;
+
+    SparseMatrix *A = tf_qr_make_rankdef_duplicate_5x4();
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 3);
+    idx_t ndim = -1;
+    ASSERT_ERR(sparse_qr_nullspace(&qr, ref[3], NULL, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 1);
+    if (qr.rank != 3 || ndim != 1) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double basis[QR_NULLSPACE_N] = {0.0};
+    ASSERT_ERR(sparse_qr_nullspace(&qr, ref[3], basis, &ndim), SPARSE_OK);
+    if (ndim != 1) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double norm_sq = 0.0;
+    for (idx_t i = 0; i < QR_NULLSPACE_N; i++)
+        norm_sq += basis[i] * basis[i];
+    ASSERT_TRUE(norm_sq > 0.0);
+    if (norm_sq <= 0.0) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double basis_norm = sqrt(norm_sq);
+    double unit_basis[QR_NULLSPACE_N] = {0.0};
+    for (idx_t i = 0; i < QR_NULLSPACE_N; i++)
+        unit_basis[i] = basis[i] / basis_norm;
+
+    double Av[5] = {0.0};
+    sparse_matvec(A, unit_basis, Av);
+    double null_residual = vec_norm2(Av, 5);
+    double max_projector_diff = 0.0;
+    for (idx_t i = 0; i < QR_NULLSPACE_N; i++) {
+        for (idx_t j = 0; j < QR_NULLSPACE_N; j++) {
+            double product = unit_basis[i] * unit_basis[j];
+            double diff = fabs(product - ref[4 + (size_t)j * QR_NULLSPACE_N + (size_t)i]);
+            if (diff > max_projector_diff)
+                max_projector_diff = diff;
+        }
+    }
+    double unit_norm_sq = 0.0;
+    for (idx_t i = 0; i < QR_NULLSPACE_N; i++)
+        unit_norm_sq += unit_basis[i] * unit_basis[i];
+    double orthogonality_err = fabs(unit_norm_sq - 1.0);
+
+    printf("    external QR dense ref rankdef_duplicate_5x4_nullspace_projector: "
+           "projector diff = %.3e, null residual = %.3e, norm err = %.3e\n",
+           max_projector_diff, null_residual, orthogonality_err);
+    ASSERT_TRUE(max_projector_diff < 1e-8);
+    ASSERT_TRUE(null_residual < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
 /* Rank-deficient rectangular: 3×5 with rank 2 */
 static void test_rank_rect_deficient(void) {
     SparseMatrix *A = sparse_create(3, 5);
@@ -1264,6 +1390,74 @@ static void test_qr_rank_diagonal_threshold_fixture(void) {
 
     sparse_qr_free(&qr);
     sparse_free(A);
+}
+
+static void test_qr_external_dense_reference_rank_threshold_diag4_family(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_THRESHOLD_VALUES = 6 };
+    const double diag[4] = {1.0, 1e-8, 1e-12, 0.0};
+    double ref[QR_THRESHOLD_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_threshold_external_reference(
+        "qr_rank_threshold_diag4_family", ref, QR_THRESHOLD_VALUES, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR threshold reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_qr_make_diag_matrix(4, 4, diag, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double rdiag[4] = {0.0};
+    ASSERT_ERR(sparse_qr_diag_r(&qr, rdiag), SPARSE_OK);
+    double r00 = fabs(rdiag[0]);
+    const double expected_thresholds[QR_THRESHOLD_VALUES / 2] = {1e-14, 1e-10, 1e-6};
+
+    for (idx_t i = 0; i < QR_THRESHOLD_VALUES / 2; i++) {
+        double threshold = ref[(size_t)i * 2];
+        idx_t expected_rank = (idx_t)ref[(size_t)i * 2 + 1];
+        ASSERT_NEAR(threshold, expected_thresholds[i], 0.0);
+        if (threshold != expected_thresholds[i]) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
+        idx_t product_rank = sparse_qr_rank(&qr, threshold);
+        sparse_qr_rank_info_t info;
+        sparse_err_t info_err = sparse_qr_rank_info(&qr, threshold, &info);
+        ASSERT_ERR(info_err, SPARSE_OK);
+        if (info_err != SPARSE_OK) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
+        double abs_threshold = threshold * r00;
+        printf("    external QR dense ref rank_threshold_diag4_family: "
+               "tol=%.0e abs_tol=%.3e expected=%d product=%d info=%d "
+               "|Rdiag|=[%.3e, %.3e, %.3e, %.3e]\n",
+               threshold, abs_threshold, (int)expected_rank, (int)product_rank, (int)info.rank,
+               fabs(rdiag[0]), fabs(rdiag[1]), fabs(rdiag[2]), fabs(rdiag[3]));
+        ASSERT_EQ(product_rank, expected_rank);
+        ASSERT_EQ(info.rank, expected_rank);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2708,10 +2902,12 @@ int main(void) {
     RUN_TEST(test_rank_full);
     RUN_TEST(test_rank_1_nullspace);
     RUN_TEST(test_known_nullspace);
+    RUN_TEST(test_qr_external_dense_reference_rankdef_duplicate_5x4_nullspace_projector);
     RUN_TEST(test_rank_rect_deficient);
     RUN_TEST(test_rank_explicit_tol);
     RUN_TEST(test_qr_rank_dependent_row_fixture);
     RUN_TEST(test_qr_rank_diagonal_threshold_fixture);
+    RUN_TEST(test_qr_external_dense_reference_rank_threshold_diag4_family);
 
     /* Column reordering (Day 11) */
     RUN_TEST(test_qr_reorder_amd_solve);

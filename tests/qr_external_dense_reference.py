@@ -49,6 +49,16 @@ def build_qr_rankdef_duplicate_5x4_rank_only() -> List[List[float]]:
     ]
 
 
+def build_qr_rank_threshold_diag4_family() -> List[float]:
+    return [1.0, 1e-8, 1e-12, 0.0]
+
+
+def build_qr_rankdef_duplicate_5x4_residual_only() -> Tuple[List[List[float]], List[float]]:
+    a = build_qr_rankdef_duplicate_5x4_rank_only()
+    b = [1.0, -2.0, 2.0, 5.0, -1.0]
+    return a, b
+
+
 def build_qr_underdetermined_minnorm_2x4() -> Tuple[List[List[float]], List[float]]:
     a = [
         [1.0, 1.0, 0.0, 0.0],
@@ -63,6 +73,8 @@ def fixture_system(name: str) -> Tuple[List[List[float]], List[float]]:
         return build_qr_overdetermined_incompatible_4x2()
     if name == "qr_overdetermined_compatible_5x3":
         return build_qr_overdetermined_compatible_5x3()
+    if name == "qr_rankdef_duplicate_5x4_residual_only":
+        return build_qr_rankdef_duplicate_5x4_residual_only()
     if name == "qr_underdetermined_minnorm_2x4":
         return build_qr_underdetermined_minnorm_2x4()
     raise ValueError(f"unknown fixture {name}")
@@ -159,6 +171,31 @@ def residual_norm(a: List[List[float]], b: List[float], x: List[float]) -> float
     return math.sqrt(accum)
 
 
+def column_space_residual_reference(name: str) -> List[float]:
+    a, b = fixture_system(name)
+    rows = len(a)
+    cols = len(a[0])
+    basis: List[List[float]] = []
+
+    for col in range(cols):
+        v = [a[row][col] for row in range(rows)]
+        for q in basis:
+            dot = sum(v[row] * q[row] for row in range(rows))
+            for row in range(rows):
+                v[row] -= dot * q[row]
+        norm = math.sqrt(sum(value * value for value in v))
+        if norm <= 1e-12:
+            continue
+        basis.append([value / norm for value in v])
+
+    residual = b[:]
+    for q in basis:
+        dot = sum(residual[row] * q[row] for row in range(rows))
+        for row in range(rows):
+            residual[row] -= dot * q[row]
+    return [math.sqrt(sum(value * value for value in residual))]
+
+
 def least_squares_reference(name: str) -> List[float]:
     a, b = fixture_system(name)
     x = solve_dense(gram_ata(a), gram_atb(a, b))
@@ -168,6 +205,26 @@ def least_squares_reference(name: str) -> List[float]:
 def rank_reference(name: str) -> List[float]:
     a = rank_fixture_matrix(name)
     return [float(matrix_rank(a))]
+
+
+def threshold_rank_reference(name: str) -> List[float]:
+    if name != "qr_rank_threshold_diag4_family":
+        raise ValueError(f"unknown threshold-rank fixture {name}")
+
+    diag = build_qr_rank_threshold_diag4_family()
+    thresholds = [1e-14, 1e-10, 1e-6]
+    r00 = abs(diag[0])
+    values: List[float] = []
+    for threshold in thresholds:
+        abs_threshold = threshold * r00
+        rank = 0
+        for value in diag:
+            if abs(value) > abs_threshold:
+                rank += 1
+            else:
+                break
+        values.extend([threshold, float(rank)])
+    return values
 
 
 def minnorm_reference(name: str) -> List[float]:
@@ -195,6 +252,21 @@ def economy_projector_reference(name: str) -> List[float]:
     return [float(rows), float(cols), float(cols), float(cols)] + projector
 
 
+def nullspace_projector_reference(name: str) -> List[float]:
+    if name != "qr_rankdef_duplicate_5x4_nullspace_projector":
+        raise ValueError(f"unknown nullspace projector fixture {name}")
+
+    n = 4
+    rank = 3
+    nullity = 1
+    z = [0.0, -1.0 / math.sqrt(2.0), 0.0, 1.0 / math.sqrt(2.0)]
+    projector: List[float] = []
+    for col in range(n):
+        for row in range(n):
+            projector.append(z[row] * z[col])
+    return [float(n), float(rank), float(nullity), 0.0] + projector
+
+
 def main(argv: List[str]) -> int:
     if len(argv) != 2:
         print("ERROR expected one fixture key")
@@ -203,10 +275,16 @@ def main(argv: List[str]) -> int:
     try:
         if argv[1] == "qr_rankdef_duplicate_5x4_rank_only":
             values = rank_reference(argv[1])
+        elif argv[1] == "qr_rank_threshold_diag4_family":
+            values = threshold_rank_reference(argv[1])
+        elif argv[1] == "qr_rankdef_duplicate_5x4_residual_only":
+            values = column_space_residual_reference(argv[1])
         elif argv[1] == "qr_underdetermined_minnorm_2x4":
             values = minnorm_reference(argv[1])
         elif argv[1] == "qr_economy_projector_5x3":
             values = economy_projector_reference(argv[1])
+        elif argv[1] == "qr_rankdef_duplicate_5x4_nullspace_projector":
+            values = nullspace_projector_reference(argv[1])
         else:
             values = least_squares_reference(argv[1])
     except Exception as exc:  # pragma: no cover - exercised from C harness

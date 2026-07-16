@@ -81,22 +81,6 @@ static int read_qr_threshold_external_reference(const char *fixture_key, double 
                                                   values_out, n, reason, reason_cap);
 }
 
-static SparseMatrix *make_qr_rankdef_duplicate_5x4_matrix(void) {
-    SparseMatrix *A = sparse_create(5, 4);
-    ASSERT_NOT_NULL(A);
-    if (!A)
-        return NULL;
-    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
-        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
-        !tf_qr_insert_or_free(&A, 1, 3, 1.0) || !tf_qr_insert_or_free(&A, 2, 0, 2.0) ||
-        !tf_qr_insert_or_free(&A, 2, 1, -1.0) || !tf_qr_insert_or_free(&A, 2, 3, -1.0) ||
-        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
-        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 3, 3, 1.0) ||
-        !tf_qr_insert_or_free(&A, 4, 0, 3.0) || !tf_qr_insert_or_free(&A, 4, 2, -2.0))
-        return NULL;
-    return A;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1181,10 +1165,12 @@ static void test_qr_external_dense_reference_rankdef_duplicate_5x4_nullspace_pro
     ASSERT_EQ((idx_t)ref[0], QR_NULLSPACE_N);
     ASSERT_EQ((idx_t)ref[1], 3);
     ASSERT_EQ((idx_t)ref[2], 1);
-    if ((idx_t)ref[0] != QR_NULLSPACE_N || (idx_t)ref[1] != 3 || (idx_t)ref[2] != 1)
+    ASSERT_NEAR(ref[3], 0.0, 0.0);
+    if ((idx_t)ref[0] != QR_NULLSPACE_N || (idx_t)ref[1] != 3 || (idx_t)ref[2] != 1 ||
+        ref[3] != 0.0)
         return;
 
-    SparseMatrix *A = make_qr_rankdef_duplicate_5x4_matrix();
+    SparseMatrix *A = tf_qr_make_rankdef_duplicate_5x4();
     if (!A)
         return;
 
@@ -1439,10 +1425,17 @@ static void test_qr_external_dense_reference_rank_threshold_diag4_family(void) {
     double rdiag[4] = {0.0};
     ASSERT_ERR(sparse_qr_diag_r(&qr, rdiag), SPARSE_OK);
     double r00 = fabs(rdiag[0]);
+    const double expected_thresholds[QR_THRESHOLD_VALUES / 2] = {1e-14, 1e-10, 1e-6};
 
     for (idx_t i = 0; i < QR_THRESHOLD_VALUES / 2; i++) {
         double threshold = ref[(size_t)i * 2];
         idx_t expected_rank = (idx_t)ref[(size_t)i * 2 + 1];
+        ASSERT_NEAR(threshold, expected_thresholds[i], 0.0);
+        if (threshold != expected_thresholds[i]) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
         idx_t product_rank = sparse_qr_rank(&qr, threshold);
         sparse_qr_rank_info_t info;
         ASSERT_ERR(sparse_qr_rank_info(&qr, threshold, &info), SPARSE_OK);

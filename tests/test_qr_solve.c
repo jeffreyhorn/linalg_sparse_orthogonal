@@ -71,22 +71,6 @@ static int read_qr_external_reference_least_squares(const char *fixture_key, dou
                                                   reason, reason_cap);
 }
 
-static SparseMatrix *make_qr_rankdef_duplicate_5x4_matrix(void) {
-    SparseMatrix *A = sparse_create(5, 4);
-    ASSERT_NOT_NULL(A);
-    if (!A)
-        return NULL;
-    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 2, 2.0) ||
-        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 2, -1.0) ||
-        !tf_qr_insert_or_free(&A, 1, 3, 1.0) || !tf_qr_insert_or_free(&A, 2, 0, 2.0) ||
-        !tf_qr_insert_or_free(&A, 2, 1, -1.0) || !tf_qr_insert_or_free(&A, 2, 3, -1.0) ||
-        !tf_qr_insert_or_free(&A, 3, 0, 1.0) || !tf_qr_insert_or_free(&A, 3, 1, 1.0) ||
-        !tf_qr_insert_or_free(&A, 3, 2, 1.0) || !tf_qr_insert_or_free(&A, 3, 3, 1.0) ||
-        !tf_qr_insert_or_free(&A, 4, 0, 3.0) || !tf_qr_insert_or_free(&A, 4, 2, -2.0))
-        return NULL;
-    return A;
-}
-
 static void test_qr_solve_square(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_NOT_NULL(A);
@@ -444,7 +428,7 @@ static void test_qr_external_dense_reference_rankdef_duplicate_5x4_rank_only(voi
         return;
     }
 
-    SparseMatrix *A = make_qr_rankdef_duplicate_5x4_matrix();
+    SparseMatrix *A = tf_qr_make_rankdef_duplicate_5x4();
     if (!A)
         return;
 
@@ -486,7 +470,7 @@ static void test_qr_external_dense_reference_rankdef_duplicate_5x4_residual_only
         return;
     }
 
-    SparseMatrix *A = make_qr_rankdef_duplicate_5x4_matrix();
+    SparseMatrix *A = tf_qr_make_rankdef_duplicate_5x4();
     if (!A)
         return;
 

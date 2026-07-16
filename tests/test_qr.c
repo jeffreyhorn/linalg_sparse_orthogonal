@@ -1438,7 +1438,13 @@ static void test_qr_external_dense_reference_rank_threshold_diag4_family(void) {
         }
         idx_t product_rank = sparse_qr_rank(&qr, threshold);
         sparse_qr_rank_info_t info;
-        ASSERT_ERR(sparse_qr_rank_info(&qr, threshold, &info), SPARSE_OK);
+        sparse_err_t info_err = sparse_qr_rank_info(&qr, threshold, &info);
+        ASSERT_ERR(info_err, SPARSE_OK);
+        if (info_err != SPARSE_OK) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
         double abs_threshold = threshold * r00;
         printf("    external QR dense ref rank_threshold_diag4_family: "
                "tol=%.0e abs_tol=%.3e expected=%d product=%d info=%d "

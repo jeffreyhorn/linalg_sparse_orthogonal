@@ -1737,6 +1737,10 @@ static void test_minnorm_ss_submatrix(void) {
 
     idx_t m = 30, n = sparse_cols(A_full);
     ASSERT_EQ(n, 67);
+    if (n != 67) {
+        sparse_free(A_full);
+        return;
+    }
     SparseMatrix *A = sparse_create(m, n);
     if (!A) {
         sparse_free(A_full);

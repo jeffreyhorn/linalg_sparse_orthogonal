@@ -1177,9 +1177,12 @@ static void test_qr_external_dense_reference_rank1_4x3_nullspace_projector(void)
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < 4; i++)
-        for (idx_t j = 0; j < QR_RANK1_NULLSPACE_N; j++)
-            sparse_insert(A, i, j, (double)(i + 1));
+    for (idx_t i = 0; i < 4; i++) {
+        for (idx_t j = 0; j < QR_RANK1_NULLSPACE_N; j++) {
+            if (!tf_qr_insert_or_free(&A, i, j, (double)(i + 1)))
+                return;
+        }
+    }
 
     sparse_qr_t qr;
     sparse_err_t err = sparse_qr_factor(A, &qr);
@@ -1642,7 +1645,13 @@ static void test_qr_external_dense_reference_rank_threshold_diag4_scaled_family(
         }
 
         double rdiag[4] = {0.0};
-        ASSERT_ERR(sparse_qr_diag_r(&qr, rdiag), SPARSE_OK);
+        sparse_err_t diag_err = sparse_qr_diag_r(&qr, rdiag);
+        ASSERT_ERR(diag_err, SPARSE_OK);
+        if (diag_err != SPARSE_OK) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
         double r00 = fabs(rdiag[0]);
 
         for (idx_t threshold_idx = 0; threshold_idx < 3; threshold_idx++) {

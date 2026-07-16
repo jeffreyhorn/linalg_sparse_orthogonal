@@ -1282,7 +1282,7 @@ static void test_minnorm_5x10(void) {
     }
 
     double b[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
-    double expected[10] = {0.4, 0.8, 1.2, 1.6, 2.0, 0.2, 0.4, 0.6, 0.8, 1.0};
+    const double expected[10] = {0.4, 0.8, 1.2, 1.6, 2.0, 0.2, 0.4, 0.6, 0.8, 1.0};
     double x[10];
     REQUIRE_OK(sparse_qr_solve_minnorm(A, b, x, NULL));
 

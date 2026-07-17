@@ -59,6 +59,17 @@ def build_qr_rankdef_duplicate_5x4_residual_only() -> Tuple[List[List[float]], L
     return a, b
 
 
+def build_qr_rankdef_dependent_row_4x3_residual_only() -> Tuple[List[List[float]], List[float]]:
+    a = [
+        [1.0, 0.0, 1.0],
+        [0.0, 1.0, 2.0],
+        [1.0, 1.0, 3.0],
+        [2.0, -1.0, 0.0],
+    ]
+    b = [1.0, -2.0, 5.0, 0.0]
+    return a, b
+
+
 def build_qr_underdetermined_minnorm_2x4() -> Tuple[List[List[float]], List[float]]:
     a = [
         [1.0, 1.0, 0.0, 0.0],
@@ -75,6 +86,8 @@ def fixture_system(name: str) -> Tuple[List[List[float]], List[float]]:
         return build_qr_overdetermined_compatible_5x3()
     if name == "qr_rankdef_duplicate_5x4_residual_only":
         return build_qr_rankdef_duplicate_5x4_residual_only()
+    if name == "qr_rankdef_dependent_row_4x3_residual_only":
+        return build_qr_rankdef_dependent_row_4x3_residual_only()
     if name == "qr_underdetermined_minnorm_2x4":
         return build_qr_underdetermined_minnorm_2x4()
     raise ValueError(f"unknown fixture {name}")
@@ -208,11 +221,28 @@ def rank_reference(name: str) -> List[float]:
 
 
 def threshold_rank_reference(name: str) -> List[float]:
+    diag = build_qr_rank_threshold_diag4_family()
+    thresholds = [1e-14, 1e-10, 1e-6]
+
+    if name == "qr_rank_threshold_diag4_scaled_family":
+        values: List[float] = []
+        for scale in [1e-6, 1.0, 1e6]:
+            scaled_diag = [scale * value for value in diag]
+            r00 = abs(scaled_diag[0])
+            for threshold in thresholds:
+                abs_threshold = threshold * r00
+                rank = 0
+                for value in scaled_diag:
+                    if abs(value) > abs_threshold:
+                        rank += 1
+                    else:
+                        break
+                values.extend([scale, threshold, float(rank)])
+        return values
+
     if name != "qr_rank_threshold_diag4_family":
         raise ValueError(f"unknown threshold-rank fixture {name}")
 
-    diag = build_qr_rank_threshold_diag4_family()
-    thresholds = [1e-14, 1e-10, 1e-6]
     r00 = abs(diag[0])
     values: List[float] = []
     for threshold in thresholds:
@@ -253,18 +283,29 @@ def economy_projector_reference(name: str) -> List[float]:
 
 
 def nullspace_projector_reference(name: str) -> List[float]:
-    if name != "qr_rankdef_duplicate_5x4_nullspace_projector":
-        raise ValueError(f"unknown nullspace projector fixture {name}")
+    if name == "qr_rank1_4x3_nullspace_projector":
+        n = 3
+        rank = 1
+        nullity = 2
+        projector: List[float] = []
+        for col in range(n):
+            for row in range(n):
+                value = (1.0 if row == col else 0.0) - (1.0 / 3.0)
+                projector.append(value)
+        return [float(n), float(rank), float(nullity), 0.0] + projector
 
-    n = 4
-    rank = 3
-    nullity = 1
-    z = [0.0, -1.0 / math.sqrt(2.0), 0.0, 1.0 / math.sqrt(2.0)]
-    projector: List[float] = []
-    for col in range(n):
-        for row in range(n):
-            projector.append(z[row] * z[col])
-    return [float(n), float(rank), float(nullity), 0.0] + projector
+    if name == "qr_rankdef_duplicate_5x4_nullspace_projector":
+        n = 4
+        rank = 3
+        nullity = 1
+        z = [0.0, -1.0 / math.sqrt(2.0), 0.0, 1.0 / math.sqrt(2.0)]
+        projector = []
+        for col in range(n):
+            for row in range(n):
+                projector.append(z[row] * z[col])
+        return [float(n), float(rank), float(nullity), 0.0] + projector
+
+    raise ValueError(f"unknown nullspace projector fixture {name}")
 
 
 def main(argv: List[str]) -> int:
@@ -277,12 +318,18 @@ def main(argv: List[str]) -> int:
             values = rank_reference(argv[1])
         elif argv[1] == "qr_rank_threshold_diag4_family":
             values = threshold_rank_reference(argv[1])
+        elif argv[1] == "qr_rank_threshold_diag4_scaled_family":
+            values = threshold_rank_reference(argv[1])
         elif argv[1] == "qr_rankdef_duplicate_5x4_residual_only":
+            values = column_space_residual_reference(argv[1])
+        elif argv[1] == "qr_rankdef_dependent_row_4x3_residual_only":
             values = column_space_residual_reference(argv[1])
         elif argv[1] == "qr_underdetermined_minnorm_2x4":
             values = minnorm_reference(argv[1])
         elif argv[1] == "qr_economy_projector_5x3":
             values = economy_projector_reference(argv[1])
+        elif argv[1] == "qr_rank1_4x3_nullspace_projector":
+            values = nullspace_projector_reference(argv[1])
         elif argv[1] == "qr_rankdef_duplicate_5x4_nullspace_projector":
             values = nullspace_projector_reference(argv[1])
         else:

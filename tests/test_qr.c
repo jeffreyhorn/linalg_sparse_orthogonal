@@ -1194,7 +1194,13 @@ static void test_qr_external_dense_reference_rank1_4x3_nullspace_projector(void)
 
     ASSERT_EQ(qr.rank, 1);
     idx_t ndim = -1;
-    ASSERT_ERR(sparse_qr_nullspace(&qr, ref[3], NULL, &ndim), SPARSE_OK);
+    sparse_err_t nullity_err = sparse_qr_nullspace(&qr, ref[3], NULL, &ndim);
+    ASSERT_ERR(nullity_err, SPARSE_OK);
+    if (nullity_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(ndim, QR_RANK1_NULLSPACE_NULLITY);
     if (qr.rank != 1 || ndim != QR_RANK1_NULLSPACE_NULLITY) {
         sparse_qr_free(&qr);
@@ -1203,7 +1209,13 @@ static void test_qr_external_dense_reference_rank1_4x3_nullspace_projector(void)
     }
 
     double basis[QR_RANK1_NULLSPACE_N * QR_RANK1_NULLSPACE_NULLITY] = {0.0};
-    ASSERT_ERR(sparse_qr_nullspace(&qr, ref[3], basis, &ndim), SPARSE_OK);
+    sparse_err_t basis_err = sparse_qr_nullspace(&qr, ref[3], basis, &ndim);
+    ASSERT_ERR(basis_err, SPARSE_OK);
+    if (basis_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     if (ndim != QR_RANK1_NULLSPACE_NULLITY) {
         sparse_qr_free(&qr);
         sparse_free(A);

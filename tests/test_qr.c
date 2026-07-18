@@ -1468,6 +1468,7 @@ static void test_qr_external_dense_reference_rankdef_dependent_row_4x3_nullspace
         sparse_free(A);
         return;
     }
+    ASSERT_EQ(ndim, 1);
     if (ndim != 1) {
         sparse_qr_free(&qr);
         sparse_free(A);

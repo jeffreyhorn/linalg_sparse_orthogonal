@@ -53,6 +53,10 @@ def build_qr_rank_threshold_diag4_family() -> List[float]:
     return [1.0, 1e-8, 1e-12, 0.0]
 
 
+def build_qr_rank_threshold_duplicate_5x4_perturbed_family() -> Tuple[float, List[float]]:
+    return 6e-8, [1e-10, 1e-6]
+
+
 def build_qr_rankdef_duplicate_5x4_residual_only() -> Tuple[List[List[float]], List[float]]:
     a = build_qr_rankdef_duplicate_5x4_rank_only()
     b = [1.0, -2.0, 2.0, 5.0, -1.0]
@@ -224,6 +228,16 @@ def threshold_rank_reference(name: str) -> List[float]:
     diag = build_qr_rank_threshold_diag4_family()
     thresholds = [1e-14, 1e-10, 1e-6]
 
+    if name == "qr_rank_threshold_duplicate_5x4_perturbed_family":
+        perturbation, perturbation_thresholds = (
+            build_qr_rank_threshold_duplicate_5x4_perturbed_family()
+        )
+        expected_ranks = [4.0, 3.0]
+        values: List[float] = []
+        for threshold, rank in zip(perturbation_thresholds, expected_ranks):
+            values.extend([perturbation, threshold, rank])
+        return values
+
     if name == "qr_rank_threshold_diag4_scaled_family":
         values: List[float] = []
         for scale in [1e-6, 1.0, 1e6]:
@@ -283,6 +297,17 @@ def economy_projector_reference(name: str) -> List[float]:
 
 
 def nullspace_projector_reference(name: str) -> List[float]:
+    if name == "qr_rankdef_dependent_row_4x3_nullspace_projector":
+        n = 3
+        rank = 2
+        nullity = 1
+        z = [-1.0 / math.sqrt(6.0), -2.0 / math.sqrt(6.0), 1.0 / math.sqrt(6.0)]
+        projector = []
+        for col in range(n):
+            for row in range(n):
+                projector.append(z[row] * z[col])
+        return [float(n), float(rank), float(nullity), 0.0] + projector
+
     if name == "qr_rank1_4x3_nullspace_projector":
         n = 3
         rank = 1
@@ -320,6 +345,8 @@ def main(argv: List[str]) -> int:
             values = threshold_rank_reference(argv[1])
         elif argv[1] == "qr_rank_threshold_diag4_scaled_family":
             values = threshold_rank_reference(argv[1])
+        elif argv[1] == "qr_rank_threshold_duplicate_5x4_perturbed_family":
+            values = threshold_rank_reference(argv[1])
         elif argv[1] == "qr_rankdef_duplicate_5x4_residual_only":
             values = column_space_residual_reference(argv[1])
         elif argv[1] == "qr_rankdef_dependent_row_4x3_residual_only":
@@ -329,6 +356,8 @@ def main(argv: List[str]) -> int:
         elif argv[1] == "qr_economy_projector_5x3":
             values = economy_projector_reference(argv[1])
         elif argv[1] == "qr_rank1_4x3_nullspace_projector":
+            values = nullspace_projector_reference(argv[1])
+        elif argv[1] == "qr_rankdef_dependent_row_4x3_nullspace_projector":
             values = nullspace_projector_reference(argv[1])
         elif argv[1] == "qr_rankdef_duplicate_5x4_nullspace_projector":
             values = nullspace_projector_reference(argv[1])

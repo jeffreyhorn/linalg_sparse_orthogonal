@@ -1432,6 +1432,7 @@ static void test_qr_external_dense_reference_rankdef_dependent_row_4x3_nullspace
         return;
 
     SparseMatrix *A = tf_qr_make_dependent_row_4x3();
+    ASSERT_NOT_NULL(A);
     if (!A)
         return;
 

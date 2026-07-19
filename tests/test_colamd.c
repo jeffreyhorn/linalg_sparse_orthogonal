@@ -1192,16 +1192,25 @@ static void test_minnorm_3x6(void) {
     sparse_insert(A, 2, 5, 2.0);
 
     double b[3] = {3.0, 4.0, 5.0};
+    const double expected[6] = {1.2, 1.2, 1.0, 0.6, 0.4, 2.0};
     double x[6];
     REQUIRE_OK(sparse_qr_solve_minnorm(A, b, x, NULL));
 
     /* Check A*x = b */
     double Ax[3] = {0};
     sparse_matvec(A, x, Ax);
-    for (int i = 0; i < 3; i++)
+    double maxerr = 0.0;
+    for (int i = 0; i < 3; i++) {
+        double err = fabs(Ax[i] - b[i]);
+        if (err > maxerr)
+            maxerr = err;
         ASSERT_NEAR(Ax[i], b[i], 1e-10);
+    }
+    for (int i = 0; i < 6; i++)
+        ASSERT_NEAR(x[i], expected[i], 1e-10);
+    ASSERT_NEAR(vec_norm2(x, 6), sqrt(8.4), 1e-10);
 
-    printf("    minnorm 3x6: ||x||=%.4f, residual OK ✓\n", vec_norm2(x, 6));
+    printf("    minnorm 3x6: maxerr=%.2e, ||x||=%.4f ✓\n", maxerr, vec_norm2(x, 6));
     sparse_free(A);
 }
 

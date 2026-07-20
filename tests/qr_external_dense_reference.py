@@ -320,14 +320,22 @@ def economy_projector_reference(name: str) -> List[float]:
 
 def nullspace_projector_reference(name: str) -> List[float]:
     if name == "qr_rankdef_wide_3x5_nullspace_subspace":
-        n = 5
-        rank = 2
-        nullity = 3
+        a = build_qr_rankdef_wide_3x5()
+        n = len(a[0])
+        rank = matrix_rank(a)
+        nullity = n - rank
         basis = [
             [-2.0, 1.0, -3.0, 0.0, 0.0],
             [-1.0, 0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, -2.0, 0.0, 1.0],
         ]
+        if rank != 2 or nullity != len(basis):
+            raise ValueError("unexpected wide nullspace reference rank")
+        for source in basis:
+            for row in a:
+                residual = sum(row[col] * source[col] for col in range(n))
+                if abs(residual) > 1e-12:
+                    raise ValueError("invalid wide nullspace reference basis")
         orthonormal: List[List[float]] = []
         for source in basis:
             v = source[:]

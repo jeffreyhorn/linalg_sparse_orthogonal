@@ -39,6 +39,7 @@ static int read_qr_basis_external_reference(const char *fixture_key, double *val
     if (strcmp(fixture_key, "qr_economy_projector_5x3") != 0 &&
         strcmp(fixture_key, "qr_rank1_4x3_nullspace_projector") != 0 &&
         strcmp(fixture_key, "qr_rankdef_dependent_row_4x3_nullspace_projector") != 0 &&
+        strcmp(fixture_key, "qr_rankdef_wide_3x5_nullspace_subspace") != 0 &&
         strcmp(fixture_key, "qr_rankdef_duplicate_5x4_nullspace_projector") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR basis reference fixture key: %s",
                  fixture_key);
@@ -67,7 +68,8 @@ static int read_qr_threshold_external_reference(const char *fixture_key, double 
     }
     if (strcmp(fixture_key, "qr_rank_threshold_diag4_family") != 0 &&
         strcmp(fixture_key, "qr_rank_threshold_diag4_scaled_family") != 0 &&
-        strcmp(fixture_key, "qr_rank_threshold_duplicate_5x4_perturbed_family") != 0) {
+        strcmp(fixture_key, "qr_rank_threshold_duplicate_5x4_perturbed_family") != 0 &&
+        strcmp(fixture_key, "qr_rank_threshold_dependent_row_4x3_perturbed_family") != 0) {
         snprintf(reason, reason_cap, "unsupported external QR threshold reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -1522,6 +1524,159 @@ static void test_qr_external_dense_reference_rankdef_dependent_row_4x3_nullspace
 #endif
 }
 
+static SparseMatrix *make_rankdef_wide_3x5(void) {
+    SparseMatrix *A = sparse_create(3, 5);
+    if (!A)
+        return NULL;
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 1, 2.0) ||
+        !tf_qr_insert_or_free(&A, 0, 3, 1.0) || !tf_qr_insert_or_free(&A, 1, 1, 3.0) ||
+        !tf_qr_insert_or_free(&A, 1, 2, 1.0) || !tf_qr_insert_or_free(&A, 1, 4, 2.0) ||
+        !tf_qr_insert_or_free(&A, 2, 0, 1.0) || !tf_qr_insert_or_free(&A, 2, 1, 5.0) ||
+        !tf_qr_insert_or_free(&A, 2, 2, 1.0) || !tf_qr_insert_or_free(&A, 2, 3, 1.0) ||
+        !tf_qr_insert_or_free(&A, 2, 4, 2.0))
+        return NULL;
+    return A;
+}
+
+static void test_qr_external_dense_reference_rankdef_wide_3x5_nullspace_subspace(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_WIDE_NULLSPACE_N = 5 };
+    enum { QR_WIDE_NULLSPACE_NULLITY = 3 };
+    enum { QR_WIDE_NULLSPACE_PROJECTOR_VALUES = 4 + QR_WIDE_NULLSPACE_N * QR_WIDE_NULLSPACE_N };
+    double ref[QR_WIDE_NULLSPACE_PROJECTOR_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_basis_external_reference("qr_rankdef_wide_3x5_nullspace_subspace", ref,
+                                                      QR_WIDE_NULLSPACE_PROJECTOR_VALUES, reason,
+                                                      sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR basis reference failed: %s", reason);
+        return;
+    }
+
+    ASSERT_EQ((idx_t)ref[0], QR_WIDE_NULLSPACE_N);
+    ASSERT_EQ((idx_t)ref[1], 2);
+    ASSERT_EQ((idx_t)ref[2], QR_WIDE_NULLSPACE_NULLITY);
+    ASSERT_NEAR(ref[3], 0.0, 0.0);
+    if ((idx_t)ref[0] != QR_WIDE_NULLSPACE_N || (idx_t)ref[1] != 2 ||
+        (idx_t)ref[2] != QR_WIDE_NULLSPACE_NULLITY || ref[3] != 0.0)
+        return;
+
+    SparseMatrix *A = make_rankdef_wide_3x5();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 2);
+    idx_t ndim = -1;
+    sparse_err_t nullity_err = sparse_qr_nullspace(&qr, ref[3], NULL, &ndim);
+    ASSERT_ERR(nullity_err, SPARSE_OK);
+    if (nullity_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(ndim, QR_WIDE_NULLSPACE_NULLITY);
+    if (qr.rank != 2 || ndim != QR_WIDE_NULLSPACE_NULLITY) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double basis[QR_WIDE_NULLSPACE_N * QR_WIDE_NULLSPACE_NULLITY] = {0.0};
+    sparse_err_t basis_err = sparse_qr_nullspace(&qr, ref[3], basis, &ndim);
+    ASSERT_ERR(basis_err, SPARSE_OK);
+    if (basis_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double z[QR_WIDE_NULLSPACE_N * QR_WIDE_NULLSPACE_NULLITY] = {0.0};
+    for (idx_t col = 0; col < QR_WIDE_NULLSPACE_NULLITY; col++) {
+        for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++)
+            z[(size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row] =
+                basis[(size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row];
+        for (idx_t prev = 0; prev < col; prev++) {
+            double dot = 0.0;
+            for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++)
+                dot += z[(size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row] *
+                       z[(size_t)prev * QR_WIDE_NULLSPACE_N + (size_t)row];
+            for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++)
+                z[(size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row] -=
+                    dot * z[(size_t)prev * QR_WIDE_NULLSPACE_N + (size_t)row];
+        }
+        double norm = vec_norm2(&z[(size_t)col * QR_WIDE_NULLSPACE_N], QR_WIDE_NULLSPACE_N);
+        ASSERT_TRUE(norm > 0.0);
+        if (norm <= 0.0) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
+        for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++)
+            z[(size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row] /= norm;
+    }
+
+    double max_null_residual = 0.0;
+    for (idx_t col = 0; col < QR_WIDE_NULLSPACE_NULLITY; col++) {
+        double Av[3] = {0.0};
+        sparse_matvec(A, &z[(size_t)col * QR_WIDE_NULLSPACE_N], Av);
+        double residual = vec_norm2(Av, 3);
+        if (residual > max_null_residual)
+            max_null_residual = residual;
+    }
+
+    double max_orthogonality_err = 0.0;
+    for (idx_t col_i = 0; col_i < QR_WIDE_NULLSPACE_NULLITY; col_i++) {
+        for (idx_t col_j = 0; col_j < QR_WIDE_NULLSPACE_NULLITY; col_j++) {
+            double dot = 0.0;
+            for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++) {
+                dot += z[(size_t)col_i * QR_WIDE_NULLSPACE_N + (size_t)row] *
+                       z[(size_t)col_j * QR_WIDE_NULLSPACE_N + (size_t)row];
+            }
+            double expected = col_i == col_j ? 1.0 : 0.0;
+            double diff = fabs(dot - expected);
+            if (diff > max_orthogonality_err)
+                max_orthogonality_err = diff;
+        }
+    }
+
+    double max_projector_diff = 0.0;
+    for (idx_t row = 0; row < QR_WIDE_NULLSPACE_N; row++) {
+        for (idx_t col = 0; col < QR_WIDE_NULLSPACE_N; col++) {
+            double product = 0.0;
+            for (idx_t k = 0; k < QR_WIDE_NULLSPACE_NULLITY; k++)
+                product += z[(size_t)k * QR_WIDE_NULLSPACE_N + (size_t)row] *
+                           z[(size_t)k * QR_WIDE_NULLSPACE_N + (size_t)col];
+            double diff = fabs(product - ref[4 + (size_t)col * QR_WIDE_NULLSPACE_N + (size_t)row]);
+            if (diff > max_projector_diff)
+                max_projector_diff = diff;
+        }
+    }
+
+    printf("    external QR dense ref rankdef_wide_3x5_nullspace_subspace: "
+           "projector diff = %.3e, null residual = %.3e, orthogonality err = %.3e\n",
+           max_projector_diff, max_null_residual, max_orthogonality_err);
+    ASSERT_TRUE(max_projector_diff < 1e-8);
+    ASSERT_TRUE(max_null_residual < 1e-10);
+    ASSERT_TRUE(max_orthogonality_err < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
 /* Rank-deficient rectangular: 3×5 with rank 2 */
 static void test_rank_rect_deficient(void) {
     SparseMatrix *A = sparse_create(3, 5);
@@ -1915,6 +2070,100 @@ static void test_qr_external_dense_reference_rank_threshold_duplicate_5x4_pertur
                perturbation, threshold, abs_threshold, (int)expected_rank, (int)product_rank,
                (int)info.rank, pivot_ratio, fabs(rdiag[0]), fabs(rdiag[1]), fabs(rdiag[2]),
                fabs(rdiag[3]));
+        ASSERT_EQ(product_rank, expected_rank);
+        ASSERT_EQ(info.rank, expected_rank);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+#endif
+}
+
+static void
+test_qr_external_dense_reference_rank_threshold_dependent_row_4x3_perturbed_family(void) {
+#ifdef _WIN32
+    SKIP_TEST("external QR dense reference helper is not enabled on Windows");
+#else
+    enum { QR_THRESHOLD_DEP_ROW_RECORDS = 3 };
+    enum { QR_THRESHOLD_DEP_ROW_FIELDS = 3 };
+    enum {
+        QR_THRESHOLD_DEP_ROW_VALUES = QR_THRESHOLD_DEP_ROW_RECORDS * QR_THRESHOLD_DEP_ROW_FIELDS
+    };
+    double ref[QR_THRESHOLD_DEP_ROW_VALUES] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_qr_threshold_external_reference(
+        "qr_rank_threshold_dependent_row_4x3_perturbed_family", ref, QR_THRESHOLD_DEP_ROW_VALUES,
+        reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external QR threshold reference failed: %s", reason);
+        return;
+    }
+
+    const double expected_perturbation = 1e-6;
+    const double expected_thresholds[QR_THRESHOLD_DEP_ROW_RECORDS] = {1e-10, 1e-8, 1e-6};
+    const idx_t expected_ranks[QR_THRESHOLD_DEP_ROW_RECORDS] = {3, 3, 2};
+
+    SparseMatrix *A = tf_qr_make_dependent_row_4x3();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_err_t insert_err = sparse_insert(A, 2, 2, 3.0 + expected_perturbation);
+    ASSERT_ERR(insert_err, SPARSE_OK);
+    if (insert_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double rdiag[3] = {0.0};
+    sparse_err_t diag_err = sparse_qr_diag_r(&qr, rdiag);
+    ASSERT_ERR(diag_err, SPARSE_OK);
+    if (diag_err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    double r00 = fabs(rdiag[0]);
+    double pivot_ratio = r00 > 0.0 ? fabs(rdiag[2]) / r00 : 0.0;
+
+    for (idx_t i = 0; i < QR_THRESHOLD_DEP_ROW_RECORDS; i++) {
+        double perturbation = ref[(size_t)i * QR_THRESHOLD_DEP_ROW_FIELDS];
+        double threshold = ref[(size_t)i * QR_THRESHOLD_DEP_ROW_FIELDS + 1u];
+        idx_t expected_rank = (idx_t)ref[(size_t)i * QR_THRESHOLD_DEP_ROW_FIELDS + 2u];
+        ASSERT_NEAR(perturbation, expected_perturbation, 0.0);
+        ASSERT_NEAR(threshold, expected_thresholds[i], 0.0);
+        ASSERT_EQ(expected_rank, expected_ranks[i]);
+        if (perturbation != expected_perturbation || threshold != expected_thresholds[i] ||
+            expected_rank != expected_ranks[i]) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
+
+        idx_t product_rank = sparse_qr_rank(&qr, threshold);
+        sparse_qr_rank_info_t info;
+        sparse_err_t info_err = sparse_qr_rank_info(&qr, threshold, &info);
+        ASSERT_ERR(info_err, SPARSE_OK);
+        if (info_err != SPARSE_OK) {
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return;
+        }
+        double abs_threshold = threshold * r00;
+        printf("    external QR dense ref rank_threshold_dependent_row_4x3_perturbed_family: "
+               "perturb=%.1e tol=%.0e abs_tol=%.3e expected=%d product=%d info=%d "
+               "pivot_ratio=%.3e |Rdiag|=[%.3e, %.3e, %.3e]\n",
+               perturbation, threshold, abs_threshold, (int)expected_rank, (int)product_rank,
+               (int)info.rank, pivot_ratio, fabs(rdiag[0]), fabs(rdiag[1]), fabs(rdiag[2]));
         ASSERT_EQ(product_rank, expected_rank);
         ASSERT_EQ(info.rank, expected_rank);
     }
@@ -3369,6 +3618,7 @@ int main(void) {
     RUN_TEST(test_qr_external_dense_reference_rank1_4x3_nullspace_projector);
     RUN_TEST(test_qr_external_dense_reference_rankdef_duplicate_5x4_nullspace_projector);
     RUN_TEST(test_qr_external_dense_reference_rankdef_dependent_row_4x3_nullspace_projector);
+    RUN_TEST(test_qr_external_dense_reference_rankdef_wide_3x5_nullspace_subspace);
     RUN_TEST(test_rank_rect_deficient);
     RUN_TEST(test_rank_explicit_tol);
     RUN_TEST(test_qr_rank_dependent_row_fixture);
@@ -3376,6 +3626,7 @@ int main(void) {
     RUN_TEST(test_qr_external_dense_reference_rank_threshold_diag4_family);
     RUN_TEST(test_qr_external_dense_reference_rank_threshold_diag4_scaled_family);
     RUN_TEST(test_qr_external_dense_reference_rank_threshold_duplicate_5x4_perturbed_family);
+    RUN_TEST(test_qr_external_dense_reference_rank_threshold_dependent_row_4x3_perturbed_family);
 
     /* Column reordering (Day 11) */
     RUN_TEST(test_qr_reorder_amd_solve);

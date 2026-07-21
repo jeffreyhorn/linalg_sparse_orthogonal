@@ -465,7 +465,10 @@ package, and adoption work consume those truth boundaries.
 **Duration:** 14 days (~166 hours)
 **Goal:** Resolve the remaining Sprint 124 QR Q-basis/economy and helper
 ownership debt in dependency order, preserving basis and helper semantics before
-the corpus/index architecture consumes them.
+the corpus/index architecture consumes them. Sprint 129 intentionally does not
+continue grinding Sprint 128 residual QR debt unless a Q/economy/helper item
+has a distinct behavior-specific claim and satisfies the Sprint 128 promotion
+gate.
 
 ### Prerequisites from Previous Sprints
 
@@ -495,6 +498,8 @@ the corpus/index architecture consumes them.
 - SuiteSparse Q/economy decision package
 - minimum-norm helper movement package
 - Bidiagonal/Golub-Kahan helper extraction package
+- no-reopen decision for Sprint 128 residual QR debt except where directly
+  required by Q-basis, economy, or helper ownership
 
 **Total estimate:** ~166 hours
 
@@ -741,7 +746,7 @@ retrospective and post-epic handoff queue.
 | 3 | Full Validation Execution | Run required quality, CMake, source-list, package/install, docs, benchmark, and supplemental lanes as applicable. | 30 |
 | 4 | Competitive Claim Recalibration | Compare final evidence against Epic 11 goals and current state-of-the-art non-claims. | 24 |
 | 5 | Unsupported-Claim Cleanup | Remove, downgrade, or fence unsupported public/support wording. | 20 |
-| 6 | Residual Queue Publication | Publish post-Epic-11 residuals, future-epic candidates, optional work, and explicit non-claims. | 20 |
+| 6 | Residual Queue Publication | Publish post-Epic-11 residuals, future-epic candidates, optional work, explicit non-claims, and the Sprint 128 deferred QR residual queue with promotion criteria instead of treating it as immediate sprint implementation work. | 20 |
 | 7 | Sprint and Epic Retrospectives | Write Sprint 136 and Epic 11 retrospectives plus final closeout handoff. | 30 |
 
 ### Deliverables
@@ -754,3 +759,44 @@ retrospective and post-epic handoff queue.
 - final handoff artifact
 
 **Total estimate:** ~164 hours
+
+## End-Of-Epic Deferred QR Residual Queue
+
+Sprint 128 closed the immediate QR residual follow-through loop. Its remaining
+debt is tracked at Epic 11 closeout rather than scheduled as another
+near-term residual-debt sprint. These items should not be pulled into Sprint
+129 or another immediate implementation sprint by default, because the last
+five sprints reduced ambiguity and added bounded evidence but did not reduce
+the open residual list enough to justify continued grind.
+
+### Carry-Forward Items
+
+| Item | Status | Promotion criteria before future implementation |
+|---|---|---|
+| Compatible zero-residual rank-deficient QR residual evidence | End-of-epic queue | Prove distinct trust value beyond existing compatible solve, rank-only, residual-only, and rank-deficient solve-smoke coverage. |
+| Wide residual-only QR evidence | End-of-epic queue | Pin underdetermined output semantics, solution-selection policy, Q/economy boundaries, sparse-mode boundaries, and residual-only proof value. |
+| Near-threshold nullspace/subspace evidence | End-of-epic queue | Pin rank/nullity, projector or two-way projection metric, threshold semantics, tolerance, diagnostics, and failure interpretation. |
+| SuiteSparse QR nullspace/subspace evidence | End-of-epic queue | Provide independent rank/nullity metadata, support tier, optional-data behavior, runtime budget, skip behavior, and diagnostics. |
+| Wide, default-threshold, or SuiteSparse threshold families | End-of-epic queue | Provide expected ranks, threshold semantics, support tier, skip behavior, diagnostics, and failure interpretation. |
+| SuiteSparse rank-deficient QR corpus evidence | End-of-epic queue | Provide independent expected-rank metadata, threshold semantics, support tier, diagnostics, skip behavior, runtime budget, and validation requirements. |
+| Additional SuiteSparse minimum-norm evidence | End-of-epic queue | Pin extraction rule, shape, nnz, RHS, expected rank/nullity when claimed, residual/norm metrics, skip behavior, runtime expectations, and support tier. |
+| Optional-large SuiteSparse QR or minimum-norm evidence | End-of-epic queue | Use the optional-large gate with missing-data skip behavior and runtime/platform expectations recorded before default test registration. |
+| Additional exact underdetermined minimum-norm lanes | End-of-epic queue | Provide non-duplicate shapes with closed-form expected values, exact norm, residual tolerance, value tolerance, norm tolerance, diagnostics, and owner-local placement. |
+| Additional QR-vs-SVD minimum-norm fixtures | End-of-epic queue | Keep each fixture a bounded cross-check with fixture key, QR residual and norm metrics, SVD tolerance, and non-oracle wording. |
+
+### Near-Term Exception
+
+Generic QR/SVD/minimum-norm helper movement remains eligible only inside the
+Sprint 129 helper ownership work, and only when the helper has a
+behavior-specific name, visible owner call-site tolerances, focused QR
+solve/COLAMD/SVD validation, and the required full quality gate.
+
+### Progress Basis
+
+Sprints 124-128 closed roughly 67 retrospective "not carried forward" bullets
+and added or strengthened about 17 named bounded evidence lanes, but the
+open residual-debt list stabilized at 12 bullets from Sprint 126 through
+Sprint 128. That means the queue has been clarified and partially paid down,
+but its remaining items are now mostly metadata- or claim-boundary blocked.
+They should be preserved for Epic 11 closeout and future-epic triage rather
+than consuming another immediate sprint by default.

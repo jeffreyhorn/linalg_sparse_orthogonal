@@ -3162,8 +3162,20 @@ static void test_sparse_mode_economy_tall_q_shape(void) {
     double x_sparse[6] = {0.0};
     double res_dense = 0.0;
     double res_sparse = 0.0;
-    ASSERT_ERR(sparse_qr_solve(&qr_dense, b, x_dense, &res_dense), SPARSE_OK);
-    ASSERT_ERR(sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse), SPARSE_OK);
+    sparse_err_t solve_dense_err = sparse_qr_solve(&qr_dense, b, x_dense, &res_dense);
+    sparse_err_t solve_sparse_err = sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse);
+    ASSERT_ERR(solve_dense_err, SPARSE_OK);
+    ASSERT_ERR(solve_sparse_err, SPARSE_OK);
+    if (solve_dense_err != SPARSE_OK || solve_sparse_err != SPARSE_OK) {
+        free(x_sparse);
+        free(x_dense);
+        free(b);
+        free(Q);
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
 
     double max_solution_diff = 0.0;
     for (idx_t i = 0; i < nc; i++) {

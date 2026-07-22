@@ -1798,6 +1798,52 @@ static void test_qr_rank_dependent_row_fixture(void) {
     sparse_free(A);
 }
 
+static void test_qr_dependent_row_q_transpose_column_space_rhs(void) {
+    SparseMatrix *A = tf_qr_make_dependent_row_4x3();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 2);
+    ASSERT_EQ(sparse_qr_rank(&qr, 0.0), 2);
+
+    /* b = 2*A(:,0) - A(:,1), so b is exactly in col(A). */
+    const double b[4] = {2.0, -1.0, 1.0, 5.0};
+    double qtb[4] = {0.0};
+    double roundtrip[4] = {0.0};
+
+    sparse_qr_apply_q(&qr, 1, b, qtb);
+    sparse_qr_apply_q(&qr, 0, qtb, roundtrip);
+
+    double tail_norm_sq = 0.0;
+    for (idx_t i = qr.rank; i < qr.m; i++)
+        tail_norm_sq += qtb[i] * qtb[i];
+    double tail_norm = sqrt(tail_norm_sq);
+
+    double roundtrip_err = 0.0;
+    for (idx_t i = 0; i < qr.m; i++) {
+        double diff = fabs(roundtrip[i] - b[i]);
+        if (diff > roundtrip_err)
+            roundtrip_err = diff;
+    }
+
+    printf("    dependent-row Q^T column-space RHS: rank=%d, tail=%.3e, roundtrip=%.3e\n",
+           (int)qr.rank, tail_norm, roundtrip_err);
+    ASSERT_TRUE(tail_norm < 1e-10);
+    ASSERT_TRUE(roundtrip_err < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
 static void test_qr_rank_diagonal_threshold_fixture(void) {
     const double diag[4] = {1.0, 1e-8, 1e-12, 0.0};
     SparseMatrix *A = tf_qr_make_diag_matrix(4, 4, diag, 4);
@@ -3032,6 +3078,241 @@ static void test_sparse_mode_tall(void) {
     sparse_free(A);
 }
 
+static void test_sparse_mode_economy_tall_q_shape(void) {
+    const idx_t m = 24;
+    const idx_t nc = 6;
+    SparseMatrix *A = tf_qr_make_tall_diagonal_dominant(m, nc, 8.0, 0.25, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double b[24];
+    for (idx_t i = 0; i < m; i++)
+        b[i] = 1.0 + (double)(i % 7);
+
+    sparse_qr_opts_t dense_opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor_opts(A, &dense_opts, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_qr_opts_t sparse_opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &sparse_opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_TRUE(qr_dense.economy);
+    ASSERT_TRUE(qr_sparse.economy);
+    ASSERT_EQ(qr_dense.rank, nc);
+    ASSERT_EQ(qr_sparse.rank, nc);
+    ASSERT_NOT_NULL(qr_dense.R);
+    ASSERT_NOT_NULL(qr_sparse.R);
+    if (!qr_dense.R || !qr_sparse.R) {
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(sparse_rows(qr_dense.R), nc);
+    ASSERT_EQ(sparse_cols(qr_dense.R), nc);
+    ASSERT_EQ(sparse_rows(qr_sparse.R), nc);
+    ASSERT_EQ(sparse_cols(qr_sparse.R), nc);
+
+    double *Q = calloc((size_t)m * (size_t)nc, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    err = sparse_qr_form_q(&qr_sparse, Q);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(Q);
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+
+    double max_orthogonality_err = 0.0;
+    for (idx_t i = 0; i < nc; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            double dot = 0.0;
+            for (idx_t row = 0; row < m; row++)
+                dot +=
+                    Q[(size_t)i * (size_t)m + (size_t)row] * Q[(size_t)j * (size_t)m + (size_t)row];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double diff = fabs(dot - expected);
+            if (diff > max_orthogonality_err)
+                max_orthogonality_err = diff;
+        }
+    }
+
+    double x_dense[6] = {0.0};
+    double x_sparse[6] = {0.0};
+    double res_dense = 0.0;
+    double res_sparse = 0.0;
+    ASSERT_ERR(sparse_qr_solve(&qr_dense, b, x_dense, &res_dense), SPARSE_OK);
+    ASSERT_ERR(sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse), SPARSE_OK);
+
+    double max_solution_diff = 0.0;
+    for (idx_t i = 0; i < nc; i++) {
+        double diff = fabs(x_dense[i] - x_sparse[i]);
+        if (diff > max_solution_diff)
+            max_solution_diff = diff;
+    }
+
+    printf("    sparse-mode economy tall 24x6: rank=%d, Q_ortho=%.3e, "
+           "max_sol_diff=%.3e, res_diff=%.3e\n",
+           (int)qr_sparse.rank, max_orthogonality_err, max_solution_diff,
+           fabs(res_dense - res_sparse));
+    ASSERT_TRUE(max_orthogonality_err < 1e-10);
+    ASSERT_TRUE(max_solution_diff < 1e-10);
+    ASSERT_NEAR(res_dense, res_sparse, 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr_sparse);
+    sparse_qr_free(&qr_dense);
+    sparse_free(A);
+}
+
+static void test_suitesparse_nos4_sparse_mode_economy_q_orthogonality(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    const idx_t m = sparse_rows(A);
+    const idx_t nc = sparse_cols(A);
+    ASSERT_EQ(m, 100);
+    ASSERT_EQ(nc, 100);
+
+    sparse_qr_opts_t dense_opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor_opts(A, &dense_opts, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_qr_opts_t sparse_opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &sparse_opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_TRUE(qr_dense.economy);
+    ASSERT_TRUE(qr_sparse.economy);
+    ASSERT_EQ(qr_dense.rank, qr_sparse.rank);
+    ASSERT_NOT_NULL(qr_dense.R);
+    ASSERT_NOT_NULL(qr_sparse.R);
+    if (!qr_dense.R || !qr_sparse.R) {
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(sparse_rows(qr_dense.R), nc);
+    ASSERT_EQ(sparse_cols(qr_dense.R), nc);
+    ASSERT_EQ(sparse_rows(qr_sparse.R), nc);
+    ASSERT_EQ(sparse_cols(qr_sparse.R), nc);
+
+    double *Q = calloc((size_t)m * (size_t)m, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    err = sparse_qr_form_q(&qr_sparse, Q);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(Q);
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+
+    double max_orthogonality_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double dot = 0.0;
+            for (idx_t row = 0; row < m; row++)
+                dot +=
+                    Q[(size_t)i * (size_t)m + (size_t)row] * Q[(size_t)j * (size_t)m + (size_t)row];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double diff = fabs(dot - expected);
+            if (diff > max_orthogonality_err)
+                max_orthogonality_err = diff;
+        }
+    }
+
+    double *b = malloc((size_t)m * sizeof(double));
+    double *x_dense = malloc((size_t)nc * sizeof(double));
+    double *x_sparse = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_dense);
+    ASSERT_NOT_NULL(x_sparse);
+    if (!b || !x_dense || !x_sparse) {
+        free(x_sparse);
+        free(x_dense);
+        free(b);
+        free(Q);
+        sparse_qr_free(&qr_sparse);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        b[i] = 1.0 + (double)(i % 11);
+
+    double res_dense = 0.0;
+    double res_sparse = 0.0;
+    ASSERT_ERR(sparse_qr_solve(&qr_dense, b, x_dense, &res_dense), SPARSE_OK);
+    ASSERT_ERR(sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse), SPARSE_OK);
+
+    double max_solution_diff = 0.0;
+    for (idx_t i = 0; i < nc; i++) {
+        double diff = fabs(x_dense[i] - x_sparse[i]);
+        if (diff > max_solution_diff)
+            max_solution_diff = diff;
+    }
+
+    printf("    nos4 sparse-mode economy Q: shape=%dx%d, rank_dense=%d, "
+           "rank_sparse=%d, Q_ortho=%.3e, max_sol_diff=%.3e, res_diff=%.3e\n",
+           (int)m, (int)m, (int)qr_dense.rank, (int)qr_sparse.rank, max_orthogonality_err,
+           max_solution_diff, fabs(res_dense - res_sparse));
+    ASSERT_TRUE(max_orthogonality_err < 1e-10);
+    ASSERT_TRUE(max_solution_diff < 1e-8);
+    ASSERT_NEAR(res_dense, res_sparse, 1e-8);
+
+    free(x_sparse);
+    free(x_dense);
+    free(b);
+    free(Q);
+    sparse_qr_free(&qr_sparse);
+    sparse_qr_free(&qr_dense);
+    sparse_free(A);
+}
+
 /* Sparse-mode: wide matrix 3×6 */
 static void test_sparse_mode_wide(void) {
     SparseMatrix *A = sparse_create(3, 6);
@@ -3622,6 +3903,7 @@ int main(void) {
     RUN_TEST(test_rank_rect_deficient);
     RUN_TEST(test_rank_explicit_tol);
     RUN_TEST(test_qr_rank_dependent_row_fixture);
+    RUN_TEST(test_qr_dependent_row_q_transpose_column_space_rhs);
     RUN_TEST(test_qr_rank_diagonal_threshold_fixture);
     RUN_TEST(test_qr_external_dense_reference_rank_threshold_diag4_family);
     RUN_TEST(test_qr_external_dense_reference_rank_threshold_diag4_scaled_family);
@@ -3650,6 +3932,8 @@ int main(void) {
 
     /* Sparse-mode hardening (Sprint 7 Day 9) */
     RUN_TEST(test_sparse_mode_tall);
+    RUN_TEST(test_sparse_mode_economy_tall_q_shape);
+    RUN_TEST(test_suitesparse_nos4_sparse_mode_economy_q_orthogonality);
     RUN_TEST(test_sparse_mode_wide);
     RUN_TEST(test_sparse_mode_rank_deficient);
     RUN_TEST(test_sparse_mode_west0067);

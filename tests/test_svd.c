@@ -120,7 +120,8 @@ static int read_svd_external_reference_singular_values(const char *fixture_key, 
         strcmp(fixture_key, "svd_rankdef_duplicate_5x4") != 0 &&
         strcmp(fixture_key, "svd_wide_fullrank_4x6") != 0 &&
         strcmp(fixture_key, "partial_svd_diag6_k2") != 0 &&
-        strcmp(fixture_key, "partial_svd_tall_diag_8x5_k3") != 0) {
+        strcmp(fixture_key, "partial_svd_tall_diag_8x5_k3") != 0 &&
+        strcmp(fixture_key, "partial_svd_nonsym_rect10x8_k3") != 0) {
         snprintf(reason, reason_cap, "unsupported external SVD reference fixture key: %s",
                  fixture_key);
         return TF_EXTERNAL_REFERENCE_ERROR;
@@ -2939,6 +2940,9 @@ int main(void) {
     RUN_TEST(test_partial_svd_external_dense_reference_diag6_k2);
     RUN_TEST(test_partial_svd_external_dense_reference_tall_diag_8x5_k3);
     RUN_TEST(test_partial_svd_external_dense_reference_vector_residual_diag6_k2);
+    RUN_TEST(test_partial_svd_external_dense_reference_vector_residual_tall8x5_k3);
+    RUN_TEST(test_partial_svd_external_dense_reference_vector_residual_nonsym_rect10x8_k3);
+    RUN_TEST(test_partial_svd_rankdef_diag6x4_k2_range_projector);
     RUN_TEST(test_partial_svd_full_k);
     RUN_TEST(test_partial_svd_dense_8x8);
     RUN_TEST(test_partial_svd_tall);
@@ -2979,6 +2983,8 @@ int main(void) {
     RUN_TEST(test_partial_svd_vectors_west0067);
     RUN_TEST(test_partial_svd_vectors_recon);
     RUN_TEST(test_partial_svd_vectors_rectangular_lowrank_recon);
+    RUN_TEST(test_partial_svd_lowrank_diag6x4_k2_frobenius_optimality);
+    RUN_TEST(test_partial_svd_max_iter_fail_closed_diag6_k2);
     RUN_TEST(test_partial_svd_vectors_k1);
     RUN_TEST(test_partial_svd_vectors_wide);
     RUN_TEST(test_partial_svd_no_vectors);

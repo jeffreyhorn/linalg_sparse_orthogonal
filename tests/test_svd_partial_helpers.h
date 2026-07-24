@@ -295,12 +295,13 @@ static double partial_svd_u_coordinate_range_projector_error(const sparse_svd_t 
 static double partial_svd_v_coordinate_range_projector_error(const sparse_svd_t *svd,
                                                              idx_t range_rank) {
     double frob_sq = 0.0;
+    idx_t vt_ld = svd->economy ? svd->k : svd->n;
     for (idx_t row = 0; row < svd->n; row++) {
         for (idx_t col = 0; col < svd->n; col++) {
             double actual = 0.0;
             for (idx_t s = 0; s < range_rank; s++)
-                actual += svd->Vt[(size_t)row * (size_t)svd->k + (size_t)s] *
-                          svd->Vt[(size_t)col * (size_t)svd->k + (size_t)s];
+                actual += svd->Vt[(size_t)row * (size_t)vt_ld + (size_t)s] *
+                          svd->Vt[(size_t)col * (size_t)vt_ld + (size_t)s];
             double expected = (row == col && row < range_rank) ? 1.0 : 0.0;
             double diff = actual - expected;
             frob_sq += diff * diff;

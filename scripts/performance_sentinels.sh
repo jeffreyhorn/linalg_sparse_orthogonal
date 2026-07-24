@@ -67,6 +67,18 @@ detect_build_mode() {
     printf 'serial\n'
 }
 
+reject_tsv_control_chars() {
+    local field_name="$1"
+    local field_value="$2"
+
+    case "$field_value" in
+        *$'\t'* | *$'\n'* | *$'\r'*)
+            echo "performance-sentinels: $field_name must not contain tabs or newlines" >&2
+            exit 2
+            ;;
+    esac
+}
+
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -76,6 +88,11 @@ build_mode="$(detect_build_mode)"
 omp_num_threads="${OMP_NUM_THREADS:-unset}"
 chol_dense_backend="${SPARSE_CHOL_DENSE_BACKEND:-unset}"
 ldlt_dense_backend="${SPARSE_LDLT_DENSE_BACKEND:-unset}"
+
+reject_tsv_control_chars "SPARSE_SENTINEL_BUILD_MODE" "$build_mode"
+reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
+reject_tsv_control_chars "SPARSE_CHOL_DENSE_BACKEND" "$chol_dense_backend"
+reject_tsv_control_chars "SPARSE_LDLT_DENSE_BACKEND" "$ldlt_dense_backend"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -87,22 +104,23 @@ elif [ "$git_branch" = "HEAD" ]; then
 fi
 
 cat > "$report_tsv" <<EOF
-sentinel_id	status	command	build_mode	omp_num_threads	matrix_or_fixture	metric	value	baseline	threshold	notes
+report_family	sentinel_id	status	support_tier	claim_boundary	command	build_mode	omp_num_threads	matrix_or_fixture	metric	value	baseline	threshold	artifact	backend_request	backend_selected	backend_fallback	dense_kernel	panel_solver	notes
 EOF
 
 append_row() {
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$1" "$2" "$3" "$build_mode" "$omp_num_threads" "$4" "$5" "$6" "$7" "$8" "$9" >> "$report_tsv"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "sentinel" "$1" "$2" "$3" "$4" "$5" "$build_mode" "$omp_num_threads" "$6" "$7" \
+        "$8" "$9" "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" >> "$report_tsv"
 }
 
 wall_status="skip"
 wall_note="not_run"
 if [ ! -x "$bench_amd_qg" ]; then
-    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
 elif [ ! -x "$bench_reorder" ]; then
-    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "bench_reorder_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_reorder_missing"
 elif [ ! -r "$wall_baseline" ]; then
-    append_row "S5" "skip" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "baseline_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "baseline_missing"
 else
     if scripts/wall_check.sh "$bench_amd_qg" "$bench_reorder" "$wall_baseline" > "$wall_output" 2>&1; then
         wall_status="pass"
@@ -116,48 +134,50 @@ else
         -v cmd="make wall-check" \
         -v build_mode="$build_mode" \
         -v omp="$omp_num_threads" \
+        -v artifact="$(basename "$wall_output")" \
         -v note="$wall_note" '
         BEGIN { OFS="\t" }
         /^wall-check: bcsstk14/ {
-            print "S5", status, cmd, build_mode, omp, "bcsstk14", "qg_amd_reorder_ms", $5, $8, "2x", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "bcsstk14", "qg_amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
         }
         /^wall-check: Pres_Poisson AMD/ {
-            print "S5", status, cmd, build_mode, omp, "Pres_Poisson", "amd_reorder_ms", $5, $8, "2x", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
         }
         /^wall-check: Pres_Poisson ND/ {
-            print "S5", status, cmd, build_mode, omp, "Pres_Poisson", "nd_reorder_ms", $5, $8, "1.5x", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "nd_reorder_ms", $5, $8, "1.5x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
         }
     ' "$wall_output" >> "$report_tsv"
 fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"
 if [ ! -x "$bench_chol_csc" ]; then
-    append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_chol_csc_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_chol_csc_missing"
 elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
-    append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "fixture_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "fixture_missing"
 else
     if "$bench_chol_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$chol_output"; then
         awk -F, -v cmd="$chol_cmd" \
             -v build_mode="$build_mode" \
             -v omp="$omp_num_threads" \
             -v chol_env="$chol_dense_backend" \
-            -v ldlt_env="$ldlt_dense_backend" '
+            -v ldlt_env="$ldlt_dense_backend" \
+            -v artifact="$(basename "$chol_output")" '
             BEGIN { OFS="\t" }
             NR == 2 {
                 fixture = $3
-                note = "threshold_free;chol_env=" chol_env ";ldlt_env=" ldlt_env ";dense_kernel=" $9 ";panel_solver=" $10
-                print "S2", "report", cmd, build_mode, omp, fixture, "factor_ll_ms", $11, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "factor_csc_ms", $12, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "factor_csc_sn_ms", $13, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "solve_ll_ms", $14, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "solve_csc_ms", $15, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "solve_csc_sn_ms", $16, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "speedup_csc", $17, "n/a", "n/a", note
-                print "S2", "report", cmd, build_mode, omp, fixture, "speedup_csc_sn", $18, "n/a", "n/a", note
+                note = "threshold_free;chol_env=" chol_env ";ldlt_env=" ldlt_env
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_ll_ms", $11, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_ms", $12, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_sn_ms", $13, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_ll_ms", $14, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $15, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_sn_ms", $16, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc", $17, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc_sn", $18, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
             }
         ' "$chol_output" >> "$report_tsv"
     else
-        append_row "S2" "skip" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "bench_run_failed"
+        append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "$(basename "$chol_output")" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_run_failed"
     fi
 fi
 

@@ -19,13 +19,24 @@ report_label="${BENCH_CANONICAL_REPORT_LABEL:-}"
 if [ -z "$report_label" ]; then
     report_label="unlabeled"
 fi
+canonical_build_mode_override="${SPARSE_CANONICAL_BUILD_MODE:-}"
+omp_num_threads="${OMP_NUM_THREADS:-unset}"
 
-case "$report_label" in
-    *$'\t'* | *$'\n'* | *$'\r'*)
-        echo "bench-canonical-report: BENCH_CANONICAL_REPORT_LABEL must not contain tabs or newlines" >&2
-        exit 2
-        ;;
-esac
+reject_tsv_control_chars() {
+    local field_name="$1"
+    local field_value="$2"
+
+    case "$field_value" in
+        *$'\t'* | *$'\n'* | *$'\r'*)
+            echo "bench-canonical-report: $field_name must not contain tabs or newlines" >&2
+            exit 2
+            ;;
+    esac
+}
+
+reject_tsv_control_chars "BENCH_CANONICAL_REPORT_LABEL" "$report_label"
+reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_MODE" "$canonical_build_mode_override"
+reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
 
 mkdir -p "$report_dir"
 
@@ -44,6 +55,50 @@ index_tsv="$report_dir/index.tsv"
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+platform="$(uname -a 2>/dev/null || echo unknown)"
+cc_version="$(${CC:-cc} --version 2>/dev/null | head -n 1 || echo unknown)"
+
+detect_openmp_runtime() {
+    local binary="$1"
+
+    if [ ! -x "$binary" ]; then
+        return 1
+    fi
+
+    if command -v otool >/dev/null 2>&1; then
+        if otool -L "$binary" 2>/dev/null | grep -Eiq 'lib(omp|gomp|iomp)'; then
+            return 0
+        fi
+    fi
+
+    if command -v ldd >/dev/null 2>&1; then
+        if ldd "$binary" 2>/dev/null | grep -Eiq 'lib(omp|gomp|iomp)'; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+detect_build_mode() {
+    local binary
+
+    if [ -n "$canonical_build_mode_override" ]; then
+        printf '%s\n' "$canonical_build_mode_override"
+        return 0
+    fi
+
+    for binary in "$bench_refactor_csc" "$bench_chol_csc" "$bench_iterative_reuse" "$bench_eigs_reuse"; do
+        if detect_openmp_runtime "$binary"; then
+            printf 'openmp\n'
+            return 0
+        fi
+    done
+
+    printf 'serial\n'
+}
+
+build_mode="$(detect_build_mode)"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -55,11 +110,11 @@ elif [ "$git_branch" = "HEAD" ]; then
 fi
 
 cat > "$index_tsv" <<EOF
-surface	category	report_label	generated_at_utc	git_commit	git_branch	artifact	relative_path	command
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_refactor_csc	$(basename "$refactor_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_chol_csc	$(basename "$chol_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_iterative_reuse	$(basename "$iter_csv")	default
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	bench_eigs_reuse	$(basename "$eigs_csv")	default
+surface	category	report_label	generated_at_utc	git_commit	git_branch	platform	compiler	build_mode	omp_num_threads	artifact	relative_path	command
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_refactor_csc	$(basename "$refactor_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_chol_csc	$(basename "$chol_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_iterative_reuse	$(basename "$iter_csv")	default
+canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_eigs_reuse	$(basename "$eigs_csv")	default
 EOF
 
 cat > "$manifest_txt" <<EOF
@@ -69,6 +124,10 @@ report_dir=$report_dir
 report_label=$report_label
 git_commit=$git_commit
 git_branch=$git_branch
+platform=$platform
+compiler=$cc_version
+build_mode=$build_mode
+omp_num_threads=$omp_num_threads
 
 surface=canonical
 category=measurement

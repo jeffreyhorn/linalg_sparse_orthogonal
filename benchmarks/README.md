@@ -234,8 +234,12 @@ plus a bounded bundle-level metadata surface:
   - generated timestamp
   - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
   - git commit / branch when locally available
+  - platform and compiler string
+  - build mode and `OMP_NUM_THREADS`
 - `index.tsv`
   - one structured row per emitted canonical artifact
+  - includes generated time, git branch/commit, platform, compiler, build
+    mode, and `OMP_NUM_THREADS`
   - keeps the same bounded canonical surface identity and command mapping in a
     machine-readable comparison form
 
@@ -245,6 +249,8 @@ This is intentionally not a pass/fail timing gate:
 - treat it as artifact-friendly reporting, not a portable performance guarantee
 - use the bundle metadata to make before/after or cross-branch snapshots
   easier to line up without widening the benchmark claim surface
+- read platform, compiler, build mode, and `OMP_NUM_THREADS` as local
+  comparison context, not as a portability or OpenMP speedup claim
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
@@ -266,8 +272,10 @@ with these artifacts:
 
 - `sentinels.tsv`
   - structured rows for each sentinel metric
-  - includes command, build mode, `OMP_NUM_THREADS`, fixture, metric, value,
-    baseline, threshold, and notes
+  - includes report family, sentinel id, status, support tier, claim boundary,
+    command, build mode, `OMP_NUM_THREADS`, fixture, metric, value, baseline,
+    threshold, artifact, backend request/selection/fallback, dense-kernel
+    descriptor, panel-solver descriptor, and notes
 - `manifest.txt`
   - git commit and branch when available
   - platform and compiler string
@@ -285,11 +293,27 @@ Interpret the bundle narrowly:
   target.
 - S2 captures `bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1` as
   threshold-free report context only.
+- S5 rows report backend-specific fields as `n/a`; S2 rows preserve the
+  Cholesky dense-kernel and panel-solver descriptors parsed from
+  `bench_chol_csc`.
 - Missing binaries, fixtures, or baselines are reported as explicit skip rows
   where practical; skips are not passes.
 - The bundle is local regression evidence, not a portable timing guarantee.
 - Timing rows are meaningful only with the recorded backend request/fallback
   context and OpenMP runtime settings.
+
+Report-index handoff:
+
+- generated canonical and sentinel artifacts carry enough branch, commit,
+  command, artifact, platform, compiler, build mode, and thread context to be
+  indexed as local evidence
+- `support_tier` and `claim_boundary` fields in sentinel rows should be
+  preserved by any report index instead of collapsed into pass/fail timing
+  status
+- backend fields that report `n/a`, `unknown`, or fallback context must remain
+  visible in any downstream index because they limit comparison scope
+- canonical rows remain threshold-free even when their index includes
+  platform/compiler/build/thread context
 
 For bounded large-matrix reorder and graph guardrails, use:
 

@@ -3167,9 +3167,6 @@ static void test_sparse_mode_economy_tall_q_shape(void) {
     ASSERT_ERR(solve_dense_err, SPARSE_OK);
     ASSERT_ERR(solve_sparse_err, SPARSE_OK);
     if (solve_dense_err != SPARSE_OK || solve_sparse_err != SPARSE_OK) {
-        free(x_sparse);
-        free(x_dense);
-        free(b);
         free(Q);
         sparse_qr_free(&qr_sparse);
         sparse_qr_free(&qr_dense);

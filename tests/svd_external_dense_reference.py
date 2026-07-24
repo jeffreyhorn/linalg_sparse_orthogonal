@@ -62,6 +62,16 @@ def build_partial_svd_tall_diag_8x5_k3() -> List[List[float]]:
     ]
 
 
+def build_partial_svd_nonsym_rect10x8_k3() -> List[List[float]]:
+    return [
+        [
+            0.0 if (i + j) % 3 == 0 else float(i + 1) / float(j + 1)
+            for j in range(8)
+        ]
+        for i in range(10)
+    ]
+
+
 def fixture_matrix(name: str) -> List[List[float]]:
     if name == "svd_rect_fullrank_6x4":
         return build_svd_rect_fullrank_6x4()
@@ -73,6 +83,8 @@ def fixture_matrix(name: str) -> List[List[float]]:
         return build_partial_svd_diag6_k2()
     if name == "partial_svd_tall_diag_8x5_k3":
         return build_partial_svd_tall_diag_8x5_k3()
+    if name == "partial_svd_nonsym_rect10x8_k3":
+        return build_partial_svd_nonsym_rect10x8_k3()
     raise ValueError(f"unknown fixture {name}")
 
 
@@ -160,6 +172,8 @@ def main(argv: List[str]) -> int:
         if argv[1] == "partial_svd_diag6_k2":
             sigma = sigma[:2]
         if argv[1] == "partial_svd_tall_diag_8x5_k3":
+            sigma = sigma[:3]
+        if argv[1] == "partial_svd_nonsym_rect10x8_k3":
             sigma = sigma[:3]
     except Exception as exc:  # pragma: no cover - exercised from C harness
         print(f"ERROR {exc}")

@@ -275,6 +275,41 @@ static int partial_svd_max_triplet_residuals(const SparseMatrix *A, const sparse
     return partial_svd_max_residuals(A, svd, k, max_av_resid, max_atu_resid);
 }
 
+static double partial_svd_u_coordinate_range_projector_error(const sparse_svd_t *svd,
+                                                             idx_t range_rank) {
+    double frob_sq = 0.0;
+    for (idx_t row = 0; row < svd->m; row++) {
+        for (idx_t col = 0; col < svd->m; col++) {
+            double actual = 0.0;
+            for (idx_t s = 0; s < range_rank; s++)
+                actual += svd->U[(size_t)s * (size_t)svd->m + (size_t)row] *
+                          svd->U[(size_t)s * (size_t)svd->m + (size_t)col];
+            double expected = (row == col && row < range_rank) ? 1.0 : 0.0;
+            double diff = actual - expected;
+            frob_sq += diff * diff;
+        }
+    }
+    return sqrt(frob_sq);
+}
+
+static double partial_svd_v_coordinate_range_projector_error(const sparse_svd_t *svd,
+                                                             idx_t range_rank) {
+    double frob_sq = 0.0;
+    idx_t vt_ld = svd->economy ? svd->k : svd->n;
+    for (idx_t row = 0; row < svd->n; row++) {
+        for (idx_t col = 0; col < svd->n; col++) {
+            double actual = 0.0;
+            for (idx_t s = 0; s < range_rank; s++)
+                actual += svd->Vt[(size_t)row * (size_t)vt_ld + (size_t)s] *
+                          svd->Vt[(size_t)col * (size_t)vt_ld + (size_t)s];
+            double expected = (row == col && row < range_rank) ? 1.0 : 0.0;
+            double diff = actual - expected;
+            frob_sq += diff * diff;
+        }
+    }
+    return sqrt(frob_sq);
+}
+
 static void test_partial_svd_external_dense_reference_vector_residual_diag6_k2(void) {
 #ifdef _WIN32
     SKIP_TEST("external partial-SVD dense reference helper is not enabled on Windows");
@@ -352,6 +387,265 @@ static void test_partial_svd_external_dense_reference_vector_residual_diag6_k2(v
     sparse_svd_free(&partial);
     sparse_free(A);
 #endif
+}
+
+static void test_partial_svd_external_dense_reference_vector_residual_tall8x5_k3(void) {
+#ifdef _WIN32
+    SKIP_TEST("external partial-SVD dense reference helper is not enabled on Windows");
+#else
+    const idx_t rows = 8;
+    const idx_t cols = 5;
+    const idx_t k = 3;
+    const double diag[5] = {8.0, 5.0, 3.0, 1.0, 0.25};
+    double sigma_ref[3] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_svd_external_reference_singular_values(
+        "partial_svd_tall_diag_8x5_k3", sigma_ref, k, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external partial-SVD tall vector-residual reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_svd_make_diag_matrix(rows, cols, diag, cols);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t partial;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &partial);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(partial.k, k);
+    ASSERT_EQ(partial.m, rows);
+    ASSERT_EQ(partial.n, cols);
+    if (partial.k != k || partial.m != rows || partial.n != cols) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_NOT_NULL(partial.sigma);
+    ASSERT_NOT_NULL(partial.U);
+    ASSERT_NOT_NULL(partial.Vt);
+    if (!partial.sigma || !partial.U || !partial.Vt) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double max_sigma_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(partial.sigma[i] - sigma_ref[i]);
+        if (diff > max_sigma_diff)
+            max_sigma_diff = diff;
+    }
+
+    double max_av_resid = 0.0;
+    double max_atu_resid = 0.0;
+    if (!partial_svd_max_triplet_residuals(A, &partial, k, &max_av_resid, &max_atu_resid)) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double u_ortho = tf_dense_column_orthogonality_error(partial.U, partial.m, k);
+    double v_ortho = tf_svd_vt_row_orthogonality_error(partial.Vt, k, partial.n, partial.k);
+    printf("    external partial-SVD vector residual tall8x5_k3: "
+           "sigma=%.3e, Av=%.3e, Atu=%.3e, U_ortho=%.3e, V_ortho=%.3e\n",
+           max_sigma_diff, max_av_resid, max_atu_resid, u_ortho, v_ortho);
+    ASSERT_TRUE(max_sigma_diff < 1e-8);
+    ASSERT_TRUE(max_av_resid < 1e-8);
+    ASSERT_TRUE(max_atu_resid < 1e-8);
+    ASSERT_TRUE(u_ortho < 1e-8);
+    ASSERT_TRUE(v_ortho < 1e-8);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
+#endif
+}
+
+static SparseMatrix *tf_svd_make_partial_nonsym_rect10x8(void) {
+    const idx_t rows = 10;
+    const idx_t cols = 8;
+    SparseMatrix *A = sparse_create(rows, cols);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < rows; i++)
+        for (idx_t j = 0; j < cols; j++)
+            if ((i + j) % 3 != 0 &&
+                !tf_svd_insert_or_free(&A, i, j, (double)(i + 1) / (double)(j + 1)))
+                return NULL;
+    return A;
+}
+
+static void test_partial_svd_external_dense_reference_vector_residual_nonsym_rect10x8_k3(void) {
+#ifdef _WIN32
+    SKIP_TEST("external partial-SVD dense reference helper is not enabled on Windows");
+#else
+    const idx_t rows = 10;
+    const idx_t cols = 8;
+    const idx_t k = 3;
+    double sigma_ref[3] = {0.0};
+    char reason[256] = {0};
+    int ref_status = read_svd_external_reference_singular_values(
+        "partial_svd_nonsym_rect10x8_k3", sigma_ref, k, reason, sizeof(reason));
+    if (ref_status == TF_EXTERNAL_REFERENCE_SKIP)
+        SKIP_TEST(reason);
+    if (ref_status != TF_EXTERNAL_REFERENCE_OK) {
+        TF_FAIL_("external partial-SVD nonsymmetric reference failed: %s", reason);
+        return;
+    }
+
+    SparseMatrix *A = tf_svd_make_partial_nonsym_rect10x8();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t partial;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &partial);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(partial.k, k);
+    ASSERT_EQ(partial.m, rows);
+    ASSERT_EQ(partial.n, cols);
+    if (partial.k != k || partial.m != rows || partial.n != cols) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_NOT_NULL(partial.sigma);
+    ASSERT_NOT_NULL(partial.U);
+    ASSERT_NOT_NULL(partial.Vt);
+    if (!partial.sigma || !partial.U || !partial.Vt) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double max_sigma_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(partial.sigma[i] - sigma_ref[i]);
+        if (diff > max_sigma_diff)
+            max_sigma_diff = diff;
+    }
+
+    double max_av_resid = 0.0;
+    double max_atu_resid = 0.0;
+    if (!partial_svd_max_triplet_residuals(A, &partial, k, &max_av_resid, &max_atu_resid)) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double u_ortho = tf_dense_column_orthogonality_error(partial.U, partial.m, k);
+    double v_ortho = tf_svd_vt_row_orthogonality_error(partial.Vt, k, partial.n, partial.k);
+    printf("    external partial-SVD vector residual nonsym_rect10x8_k3: "
+           "sigma=%.3e, Av=%.3e, Atu=%.3e, U_ortho=%.3e, V_ortho=%.3e\n",
+           max_sigma_diff, max_av_resid, max_atu_resid, u_ortho, v_ortho);
+    ASSERT_TRUE(max_sigma_diff < 1e-8);
+    ASSERT_TRUE(max_av_resid < 1e-8);
+    ASSERT_TRUE(max_atu_resid < 1e-8);
+    ASSERT_TRUE(u_ortho < 1e-8);
+    ASSERT_TRUE(v_ortho < 1e-8);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
+#endif
+}
+
+static void test_partial_svd_rankdef_diag6x4_k2_range_projector(void) {
+    const idx_t rows = 6;
+    const idx_t cols = 4;
+    const idx_t rank = 2;
+    const idx_t k = 2;
+    const double diag[4] = {9.0, 6.0, 0.0, 0.0};
+    const double sigma_expected[2] = {9.0, 6.0};
+    SparseMatrix *A = tf_svd_make_diag_matrix(rows, cols, diag, cols);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    idx_t reported_rank = -1;
+    sparse_err_t rank_err = sparse_svd_rank(A, 1e-8, &reported_rank);
+    ASSERT_ERR(rank_err, SPARSE_OK);
+    if (rank_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(reported_rank, rank);
+    if (reported_rank != rank) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t partial;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &partial);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(partial.k, k);
+    ASSERT_EQ(partial.m, rows);
+    ASSERT_EQ(partial.n, cols);
+    if (partial.k != k || partial.m != rows || partial.n != cols) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_NOT_NULL(partial.sigma);
+    ASSERT_NOT_NULL(partial.U);
+    ASSERT_NOT_NULL(partial.Vt);
+    if (!partial.sigma || !partial.U || !partial.Vt) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double max_sigma_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(partial.sigma[i] - sigma_expected[i]);
+        if (diff > max_sigma_diff)
+            max_sigma_diff = diff;
+    }
+
+    double u_projector = partial_svd_u_coordinate_range_projector_error(&partial, rank);
+    double v_projector = partial_svd_v_coordinate_range_projector_error(&partial, rank);
+    double max_av_resid = 0.0;
+    double max_atu_resid = 0.0;
+    if (!partial_svd_max_triplet_residuals(A, &partial, k, &max_av_resid, &max_atu_resid)) {
+        sparse_svd_free(&partial);
+        sparse_free(A);
+        return;
+    }
+
+    double u_ortho = tf_dense_column_orthogonality_error(partial.U, partial.m, k);
+    double v_ortho = tf_svd_vt_row_orthogonality_error(partial.Vt, k, partial.n, partial.k);
+    printf("    partial-SVD rankdef diag6x4_k2 range projector: "
+           "rank=%d, sigma=%.3e, PU=%.3e, PV=%.3e, Av=%.3e, "
+           "Atu=%.3e, U_ortho=%.3e, V_ortho=%.3e\n",
+           (int)reported_rank, max_sigma_diff, u_projector, v_projector, max_av_resid,
+           max_atu_resid, u_ortho, v_ortho);
+    ASSERT_TRUE(max_sigma_diff < 1e-8);
+    ASSERT_TRUE(u_projector < 1e-8);
+    ASSERT_TRUE(v_projector < 1e-8);
+    ASSERT_TRUE(max_av_resid < 1e-8);
+    ASSERT_TRUE(max_atu_resid < 1e-8);
+    ASSERT_TRUE(u_ortho < 1e-8);
+    ASSERT_TRUE(v_ortho < 1e-8);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
 }
 
 static void test_partial_svd_full_k(void) {
@@ -731,15 +1025,10 @@ static void test_partial_svd_timing(void) {
 }
 
 static void test_partial_svd_nonsymmetric(void) {
-    idx_t m = 10, nc = 8;
-    SparseMatrix *A = sparse_create(m, nc);
+    SparseMatrix *A = tf_svd_make_partial_nonsym_rect10x8();
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < m; i++)
-        for (idx_t j = 0; j < nc; j++)
-            if ((i + j) % 3 != 0)
-                sparse_insert(A, i, j, (double)(i + 1) / (double)(j + 1));
 
     sparse_svd_t full;
     sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
@@ -1121,6 +1410,150 @@ static void test_partial_svd_vectors_rectangular_lowrank_recon(void) {
            max_resid);
 
     sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+static void test_partial_svd_lowrank_diag6x4_k2_frobenius_optimality(void) {
+    const idx_t m = 6;
+    const idx_t n_cols = 4;
+    const idx_t k = 2;
+    const double diag[4] = {9.0, 6.0, 3.0, 1.0};
+    const double expected_sigma[2] = {9.0, 6.0};
+    const double expected_frob = sqrt(10.0);
+    SparseMatrix *A = tf_svd_make_diag_matrix(m, n_cols, diag, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    ASSERT_EQ(part.k, k);
+    ASSERT_EQ(part.m, m);
+    ASSERT_EQ(part.n, n_cols);
+    ASSERT_NOT_NULL(part.sigma);
+    ASSERT_NOT_NULL(part.U);
+    ASSERT_NOT_NULL(part.Vt);
+    if (!part.sigma || !part.U || !part.Vt) {
+        sparse_svd_free(&part);
+        sparse_free(A);
+        return;
+    }
+
+    double max_sigma_diff = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(part.sigma[i] - expected_sigma[i]);
+        if (diff > max_sigma_diff)
+            max_sigma_diff = diff;
+    }
+
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double approx = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                approx += part.U[(size_t)s * (size_t)m + (size_t)i] * part.sigma[s] *
+                          part.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double diff = sparse_get(A, i, j) - approx;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+
+    double max_av_resid = 0.0;
+    double max_atu_resid = 0.0;
+    if (!partial_svd_max_triplet_residuals(A, &part, k, &max_av_resid, &max_atu_resid)) {
+        sparse_svd_free(&part);
+        sparse_free(A);
+        return;
+    }
+
+    double u_ortho = tf_dense_column_orthogonality_error(part.U, part.m, k);
+    double v_ortho = tf_svd_vt_row_orthogonality_error(part.Vt, k, part.n, part.k);
+    printf("    partial-SVD lowrank diag6x4_k2 Frobenius: "
+           "sigma=%.3e, ||A-A_k||_F=%.12f, expected=%.12f, Av=%.3e, "
+           "Atu=%.3e, U_ortho=%.3e, V_ortho=%.3e\n",
+           max_sigma_diff, frob, expected_frob, max_av_resid, max_atu_resid, u_ortho, v_ortho);
+    ASSERT_TRUE(max_sigma_diff < 1e-8);
+    ASSERT_NEAR(frob, expected_frob, 1e-8);
+    ASSERT_TRUE(max_av_resid < 1e-8);
+    ASSERT_TRUE(max_atu_resid < 1e-8);
+    ASSERT_TRUE(u_ortho < 1e-8);
+    ASSERT_TRUE(v_ortho < 1e-8);
+
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+static void test_partial_svd_max_iter_fail_closed_diag6_k2(void) {
+    const idx_t n = 6;
+    const idx_t k = 2;
+    const double diag[6] = {9.0, 6.0, 3.0, 1.0, 0.5, 0.25};
+    SparseMatrix *A = tf_svd_make_diag_matrix(n, n, diag, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_svd_opts_t tight_budget = {.compute_uv = 1, .economy = 1, .max_iter = 1, .tol = 0.0};
+    sparse_svd_t budgeted = {0};
+    sparse_err_t err = sparse_svd_partial(A, k, &tight_budget, &budgeted);
+    printf("    partial-SVD max_iter fail-closed diag6_k2: err=%d, k=%d, sigma=%p, U=%p, Vt=%p\n",
+           (int)err, (int)budgeted.k, (void *)budgeted.sigma, (void *)budgeted.U,
+           (void *)budgeted.Vt);
+    ASSERT_ERR(err, SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_TRUE(budgeted.sigma == NULL);
+    ASSERT_TRUE(budgeted.U == NULL);
+    ASSERT_TRUE(budgeted.Vt == NULL);
+    ASSERT_EQ(budgeted.m, n);
+    ASSERT_EQ(budgeted.n, n);
+    ASSERT_EQ(budgeted.k, k);
+    sparse_svd_free(&budgeted);
+
+    sparse_svd_opts_t default_budget = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t recovered = {0};
+    err = sparse_svd_partial(A, k, &default_budget, &recovered);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_svd_free(&recovered);
+        sparse_free(A);
+        return;
+    }
+    ASSERT_NOT_NULL(recovered.sigma);
+    ASSERT_NOT_NULL(recovered.U);
+    ASSERT_NOT_NULL(recovered.Vt);
+    if (!recovered.sigma || !recovered.U || !recovered.Vt) {
+        sparse_svd_free(&recovered);
+        sparse_free(A);
+        return;
+    }
+
+    double max_sigma_diff = 0.0;
+    const double expected_sigma[2] = {9.0, 6.0};
+    for (idx_t i = 0; i < k; i++) {
+        double diff = fabs(recovered.sigma[i] - expected_sigma[i]);
+        if (diff > max_sigma_diff)
+            max_sigma_diff = diff;
+    }
+    double max_av_resid = 0.0;
+    double max_atu_resid = 0.0;
+    if (!partial_svd_max_triplet_residuals(A, &recovered, k, &max_av_resid, &max_atu_resid)) {
+        sparse_svd_free(&recovered);
+        sparse_free(A);
+        return;
+    }
+
+    printf("    partial-SVD default-budget recovery diag6_k2: sigma=%.3e, Av=%.3e, Atu=%.3e\n",
+           max_sigma_diff, max_av_resid, max_atu_resid);
+    ASSERT_TRUE(max_sigma_diff < 1e-8);
+    ASSERT_TRUE(max_av_resid < 1e-8);
+    ASSERT_TRUE(max_atu_resid < 1e-8);
+
+    sparse_svd_free(&recovered);
     sparse_free(A);
 }
 

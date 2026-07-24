@@ -143,11 +143,11 @@ else
             -v build_mode="$build_mode" \
             -v omp="$omp_num_threads" \
             -v chol_env="$chol_dense_backend" \
-            -v ldlt_env="$ldlt_dense_backend" '
+            -v ldlt_env="$ldlt_dense_backend" \
+            -v artifact="$(basename "$chol_output")" '
             BEGIN { OFS="\t" }
             NR == 2 {
                 fixture = $3
-                artifact = "bench_chol_csc_nos4.csv"
                 note = "threshold_free;chol_env=" chol_env ";ldlt_env=" ldlt_env
                 print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_ll_ms", $11, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
                 print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_ms", $12, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note

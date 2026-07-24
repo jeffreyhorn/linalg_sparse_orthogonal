@@ -99,11 +99,11 @@ append_row() {
 wall_status="skip"
 wall_note="not_run"
 if [ ! -x "$bench_amd_qg" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
 elif [ ! -x "$bench_reorder" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_reorder_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_reorder_missing"
 elif [ ! -r "$wall_baseline" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "baseline_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "baseline_missing"
 else
     if scripts/wall_check.sh "$bench_amd_qg" "$bench_reorder" "$wall_baseline" > "$wall_output" 2>&1; then
         wall_status="pass"
@@ -134,9 +134,9 @@ fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"
 if [ ! -x "$bench_chol_csc" ]; then
-    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "unknown" "unknown" "unknown" "bench_chol_csc_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_chol_csc_missing"
 elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
-    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "unknown" "unknown" "unknown" "fixture_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "fixture_missing"
 else
     if "$bench_chol_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$chol_output"; then
         awk -F, -v cmd="$chol_cmd" \
@@ -160,7 +160,7 @@ else
             }
         ' "$chol_output" >> "$report_tsv"
     else
-        append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "$(basename "$chol_output")" "$chol_dense_backend" "unknown" "unknown" "unknown" "unknown" "bench_run_failed"
+        append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "$(basename "$chol_output")" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_run_failed"
     fi
 fi
 

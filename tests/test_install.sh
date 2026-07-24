@@ -9,6 +9,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 EXPECTED_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 PREFIX="$TMPDIR/usr"
+PC_FILE="$PREFIX/lib/pkgconfig/sparse.pc"
 PASS=0
 FAIL=0
 
@@ -59,7 +60,7 @@ else
     fail "expected $EXPECTED_HEADERS headers, found $HEADER_COUNT"
 fi
 
-if [ -f "$PREFIX/lib/pkgconfig/sparse.pc" ]; then
+if [ -f "$PC_FILE" ]; then
     pass "pkg-config file installed"
 else
     fail "sparse.pc not found"
@@ -68,18 +69,78 @@ fi
 # ── 3. Verify pkg-config output ────────────────────────────────────
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 
-PC_CFLAGS="$(pkg-config --cflags sparse 2>/dev/null || true)"
-if echo "$PC_CFLAGS" | grep -q "\-I.*include"; then
-    pass "pkg-config --cflags returns include path"
+if pkg-config --print-errors --exists sparse 2>"$TMPDIR/pkg_exists.log"; then
+    pass "pkg-config can resolve sparse"
 else
-    fail "pkg-config --cflags unexpected: $PC_CFLAGS"
+    fail "pkg-config cannot resolve sparse"
+    if [ -s "$TMPDIR/pkg_exists.log" ]; then
+        cat "$TMPDIR/pkg_exists.log"
+    fi
+fi
+
+if pkg-config --print-errors --exists "sparse = $EXPECTED_VERSION" 2>"$TMPDIR/pkg_version_exists.log"; then
+    pass "pkg-config exact version constraint works"
+else
+    fail "pkg-config exact version constraint failed for $EXPECTED_VERSION"
+    if [ -s "$TMPDIR/pkg_version_exists.log" ]; then
+        cat "$TMPDIR/pkg_version_exists.log"
+    fi
+fi
+
+PC_PREFIX="$(pkg-config --variable=prefix sparse 2>/dev/null || true)"
+if [ "$PC_PREFIX" = "$PREFIX" ]; then
+    pass "pkg-config prefix points at install prefix"
+else
+    fail "pkg-config prefix expected $PREFIX, got '$PC_PREFIX'"
+fi
+
+PC_LIBDIR="$(pkg-config --variable=libdir sparse 2>/dev/null || true)"
+if [ "$PC_LIBDIR" = "$PREFIX/lib" ]; then
+    pass "pkg-config libdir points at installed libdir"
+else
+    fail "pkg-config libdir expected $PREFIX/lib, got '$PC_LIBDIR'"
+fi
+
+PC_INCLUDEDIR="$(pkg-config --variable=includedir sparse 2>/dev/null || true)"
+if [ "$PC_INCLUDEDIR" = "$PREFIX/include" ]; then
+    pass "pkg-config includedir points at installed includedir"
+else
+    fail "pkg-config includedir expected $PREFIX/include, got '$PC_INCLUDEDIR'"
+fi
+
+PREFIX_FLAGS="$(printf '%s\n' "$PREFIX" | sed 's|//*|/|g')"
+
+PC_CFLAGS="$(pkg-config --cflags sparse 2>/dev/null || true)"
+if [ "$PC_CFLAGS" = "-I$PREFIX_FLAGS/include" ]; then
+    pass "pkg-config --cflags returns installed include path"
+else
+    fail "pkg-config --cflags expected -I$PREFIX_FLAGS/include, got '$PC_CFLAGS'"
 fi
 
 PC_LIBS="$(pkg-config --libs sparse 2>/dev/null || true)"
-if echo "$PC_LIBS" | grep -q "\-lsparse_lu_ortho"; then
-    pass "pkg-config --libs returns library flag"
+if [ "$PC_LIBS" = "-L$PREFIX_FLAGS/lib -lsparse_lu_ortho -lm" ]; then
+    pass "pkg-config --libs returns installed static archive link flags"
 else
-    fail "pkg-config --libs unexpected: $PC_LIBS"
+    fail "pkg-config --libs expected '-L$PREFIX_FLAGS/lib -lsparse_lu_ortho -lm', got '$PC_LIBS'"
+fi
+
+PC_STATIC_LIBS="$(pkg-config --libs --static sparse 2>/dev/null || true)"
+if [ "$PC_STATIC_LIBS" = "$PC_LIBS" ]; then
+    pass "pkg-config --static libs match current self-contained link flags"
+else
+    fail "pkg-config --static libs expected '$PC_LIBS', got '$PC_STATIC_LIBS'"
+fi
+
+if ! grep -Eq '^Libs\.private:' "$PC_FILE"; then
+    pass "pkg-config file has no private dependency stanza"
+else
+    fail "pkg-config file unexpectedly declares Libs.private"
+fi
+
+if ! grep -Eiq 'shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
+    pass "pkg-config file has no unsupported packaging or ABI claims"
+else
+    fail "pkg-config file contains unsupported packaging or ABI wording"
 fi
 
 PC_VERSION="$(pkg-config --modversion sparse 2>/dev/null || true)"

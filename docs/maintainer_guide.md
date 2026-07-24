@@ -908,7 +908,10 @@ Current threshold-free reporting surface:
     - generated timestamp
     - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
     - git commit / branch when locally available
+    - platform, compiler, build mode, and `OMP_NUM_THREADS` for local
+      comparison context
   - writes `index.tsv` with one structured row per emitted canonical artifact
+    and the same platform/compiler/build/thread context
   - is acceptable for local before/after comparison or CI artifact capture
   - is intentionally not a timing threshold gate
   - should stay limited to the canonical maintained surface unless a later
@@ -922,11 +925,29 @@ Current bounded local sentinel bundle:
   - records branch, commit, platform, compiler, build mode,
     `OMP_NUM_THREADS`, `SPARSE_CHOL_DENSE_BACKEND`, and
     `SPARSE_LDLT_DENSE_BACKEND`
+  - records per-row support tier, claim boundary, artifact, backend
+    request/selection/fallback, dense-kernel descriptor, and panel-solver
+    descriptor where applicable
+  - uses `n/a` for backend fields on rows such as S5 that do not own a dense
+    backend seam
   - treats S5 as the existing hard `wall-check` threshold gate
   - treats S2 Cholesky CSC rows as threshold-free report context only
   - should not add new hard timing thresholds without a fresh local-baseline
     or same-worktree comparison design
   - should not be described as portable performance evidence
+
+Report-index handoff:
+
+- keep canonical report rows threshold-free even though the generated index
+  now records platform, compiler, build mode, and `OMP_NUM_THREADS`
+- preserve sentinel row `support_tier` and `claim_boundary` fields so reviewed
+  thresholded rows, reviewed threshold-free rows, skips, and report-only rows
+  remain distinguishable
+- preserve backend `n/a`, `unknown`, selected, and fallback fields instead of
+  inferring builtin or optional-backend availability from missing data
+- do not promote supplemental guardrail rows or benchmark-local rows into
+  reviewed recurring evidence without a separate owner, runtime budget, and
+  claim-boundary decision
 
 Current large-matrix structural guardrail bundle:
 

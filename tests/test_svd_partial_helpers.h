@@ -476,8 +476,9 @@ static SparseMatrix *tf_svd_make_partial_nonsym_rect10x8(void) {
         return NULL;
     for (idx_t i = 0; i < rows; i++)
         for (idx_t j = 0; j < cols; j++)
-            if ((i + j) % 3 != 0)
-                sparse_insert(A, i, j, (double)(i + 1) / (double)(j + 1));
+            if ((i + j) % 3 != 0 &&
+                !tf_svd_insert_or_free(&A, i, j, (double)(i + 1) / (double)(j + 1)))
+                return NULL;
     return A;
 }
 
@@ -1498,7 +1499,7 @@ static void test_partial_svd_max_iter_fail_closed_diag6_k2(void) {
         return;
 
     sparse_svd_opts_t tight_budget = {.compute_uv = 1, .economy = 1, .max_iter = 1, .tol = 0.0};
-    sparse_svd_t budgeted;
+    sparse_svd_t budgeted = {0};
     sparse_err_t err = sparse_svd_partial(A, k, &tight_budget, &budgeted);
     printf("    partial-SVD max_iter fail-closed diag6_k2: err=%d, k=%d, sigma=%p, U=%p, Vt=%p\n",
            (int)err, (int)budgeted.k, (void *)budgeted.sigma, (void *)budgeted.U,
@@ -1513,10 +1514,11 @@ static void test_partial_svd_max_iter_fail_closed_diag6_k2(void) {
     sparse_svd_free(&budgeted);
 
     sparse_svd_opts_t default_budget = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
-    sparse_svd_t recovered;
+    sparse_svd_t recovered = {0};
     err = sparse_svd_partial(A, k, &default_budget, &recovered);
     ASSERT_ERR(err, SPARSE_OK);
     if (err != SPARSE_OK) {
+        sparse_svd_free(&recovered);
         sparse_free(A);
         return;
     }

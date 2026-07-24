@@ -425,7 +425,7 @@ explicit metadata, ownership, support tier, validation, and claim boundaries.
   stale-report scanning, and maintainer wording refresh.
 - Classified each residual by support tier, claim impact, blocker, dependency,
   and future owner.
-- Re-stated support-tier meanings and claim-impact rules so Day 14 closeout can
+- Restated support-tier meanings and claim-impact rules so Day 14 closeout can
   preserve the Sprint 131 non-claim boundaries.
 - Prepared Day 14 closeout inputs for artifact inventory, validation package,
   accepted decisions, residual handoff queue, and Sprint 132 candidates.

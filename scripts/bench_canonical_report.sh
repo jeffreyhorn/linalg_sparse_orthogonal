@@ -19,13 +19,24 @@ report_label="${BENCH_CANONICAL_REPORT_LABEL:-}"
 if [ -z "$report_label" ]; then
     report_label="unlabeled"
 fi
+canonical_build_mode_override="${SPARSE_CANONICAL_BUILD_MODE:-}"
+omp_num_threads="${OMP_NUM_THREADS:-unset}"
 
-case "$report_label" in
-    *$'\t'* | *$'\n'* | *$'\r'*)
-        echo "bench-canonical-report: BENCH_CANONICAL_REPORT_LABEL must not contain tabs or newlines" >&2
-        exit 2
-        ;;
-esac
+reject_tsv_control_chars() {
+    local field_name="$1"
+    local field_value="$2"
+
+    case "$field_value" in
+        *$'\t'* | *$'\n'* | *$'\r'*)
+            echo "bench-canonical-report: $field_name must not contain tabs or newlines" >&2
+            exit 2
+            ;;
+    esac
+}
+
+reject_tsv_control_chars "BENCH_CANONICAL_REPORT_LABEL" "$report_label"
+reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_MODE" "$canonical_build_mode_override"
+reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
 
 mkdir -p "$report_dir"
 
@@ -46,7 +57,6 @@ git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 platform="$(uname -a 2>/dev/null || echo unknown)"
 cc_version="$(${CC:-cc} --version 2>/dev/null | head -n 1 || echo unknown)"
-omp_num_threads="${OMP_NUM_THREADS:-unset}"
 
 detect_openmp_runtime() {
     local binary="$1"
@@ -73,8 +83,8 @@ detect_openmp_runtime() {
 detect_build_mode() {
     local binary
 
-    if [ -n "${SPARSE_CANONICAL_BUILD_MODE:-}" ]; then
-        printf '%s\n' "$SPARSE_CANONICAL_BUILD_MODE"
+    if [ -n "$canonical_build_mode_override" ]; then
+        printf '%s\n' "$canonical_build_mode_override"
         return 0
     fi
 

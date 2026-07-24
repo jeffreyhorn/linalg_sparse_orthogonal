@@ -67,6 +67,18 @@ detect_build_mode() {
     printf 'serial\n'
 }
 
+reject_tsv_control_chars() {
+    local field_name="$1"
+    local field_value="$2"
+
+    case "$field_value" in
+        *$'\t'* | *$'\n'* | *$'\r'*)
+            echo "performance-sentinels: $field_name must not contain tabs or newlines" >&2
+            exit 2
+            ;;
+    esac
+}
+
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -76,6 +88,11 @@ build_mode="$(detect_build_mode)"
 omp_num_threads="${OMP_NUM_THREADS:-unset}"
 chol_dense_backend="${SPARSE_CHOL_DENSE_BACKEND:-unset}"
 ldlt_dense_backend="${SPARSE_LDLT_DENSE_BACKEND:-unset}"
+
+reject_tsv_control_chars "SPARSE_SENTINEL_BUILD_MODE" "$build_mode"
+reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
+reject_tsv_control_chars "SPARSE_CHOL_DENSE_BACKEND" "$chol_dense_backend"
+reject_tsv_control_chars "SPARSE_LDLT_DENSE_BACKEND" "$ldlt_dense_backend"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"

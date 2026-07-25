@@ -4,9 +4,12 @@ Use this guide when you know the shape of your sparse problem and need to
 choose the smallest supported public workflow. Start from the way your matrix
 arrives, then choose the solver family whose assumptions match the problem.
 
-For runnable examples, use [`examples/README.md`](../examples/README.md). For
-API details, use the public headers under [`include/`](../include/). For local
-performance measurement, use [`benchmarks/README.md`](../benchmarks/README.md).
+For compressed-first CSR, CSC, and Matrix Market adoption paths, use the
+[cookbook](cookbook.md). For runnable examples, use
+[`examples/README.md`](../examples/README.md). For API details, use the public
+headers under [`include/`](../include/). For install support, use
+[`INSTALL.md`](../INSTALL.md). For local performance measurement and generated
+report indexes, use [`benchmarks/README.md`](../benchmarks/README.md).
 
 ## Start From Your Matrix
 

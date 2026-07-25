@@ -13,6 +13,9 @@ deeper support surfaces only when you actually need them.
   - Jump to [Choose a Workflow](#choose-a-workflow), then use
     [docs/solver_selection.md](docs/solver_selection.md) for the fuller
     decision tree and example handoff.
+- **Already have CSR, CSC, or Matrix Market data?**
+  - Use the [compressed-first cookbook](docs/cookbook.md) for direct,
+    iterative, Matrix Market, SVD, eigensolver, and benchmark handoff paths.
 - **Need install or downstream-consumer setup?**
   - Use [Installation](#installation) for the compact package summary, then
     [INSTALL.md](INSTALL.md) for platform-specific detail.
@@ -20,6 +23,18 @@ deeper support surfaces only when you actually need them.
   - Examples stay in `examples/`, performance/reporting stays under
     `benchmarks/`, and maintainer/quality policy stays in
     [docs/maintainer_guide.md](docs/maintainer_guide.md).
+
+## Adoption Map
+
+| Need | Start here | Then use |
+|---|---|---|
+| Smallest local build and solve | [Quick Start](#quick-start) | [examples/README.md](examples/README.md) |
+| Problem-shape decision tree | [Choose a Workflow](#choose-a-workflow) | [docs/solver_selection.md](docs/solver_selection.md) |
+| CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md](docs/cookbook.md) | Maintained examples linked from the cookbook |
+| Installed consumer setup | [Installation](#installation) | [INSTALL.md](INSTALL.md) |
+| Local benchmark/report interpretation | [benchmarks/README.md](benchmarks/README.md) | Generated report index/manifest artifacts |
+| Current algorithm behavior | [docs/algorithm.md](docs/algorithm.md) | [docs/algorithm_history.md](docs/algorithm_history.md) for historical measurement notes |
+| Maintainer quality policy | [docs/maintainer_guide.md](docs/maintainer_guide.md) | Sprint planning artifacts when historical traceability is needed |
 
 ## Current Capabilities
 
@@ -59,7 +74,10 @@ deeper support surfaces only when you actually need them.
 - **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; `result.residual_norm` reports the maximum relative Ritz residual across the converged pairs.
 - **Observability** — `result.used_csc_path_ldlt` reports the LDL^T backend chosen on the shift-invert path; `result.peak_basis_size` reports the simultaneously-live `V` columns for memory budgeting; `result.backend_used` reports which backend AUTO actually picked.
 - **Optional inverse-iteration refinement post-pass** — `opts->refine = 1` runs Rayleigh-quotient inverse iteration on each converged Ritz pair, refactoring `(A − λ_j I) = L D L^T` per-pair via `sparse_ldlt_factor_opts` (with retry under a small perturbation if the shifted matrix is singular at the converged Ritz value). Default off; budget-bound via `opts->refine_max_iters` (default 5).
-- **Preconditioning speedup** — on bcsstk04 (n = 132, cond ≈ 5e6) k = 3 SMALLEST: vanilla LOBPCG saturates the 800-iteration cap with residual ~1e+01, IC(0) preconditioning converges in **62 iterations** at residual 8e-9, LDL^T preconditioning converges in **8 iterations** at residual 3e-9.
+- **Preconditioning evidence** — fixture-level LOBPCG runs show IC(0) and
+  LDL^T preconditioners reducing iterations on the maintained bcsstk04
+  SMALLEST-eigenpair case; treat those rows as local benchmark evidence, not a
+  portable speedup guarantee.
 - **`bench_eigs`** — permanent benchmark driver at `benchmarks/bench_eigs.c`; CLI with `--sweep default`, `--compare`, and `--matrix <path>` modes, CSV output, and configurable `--repeats`. `benchmarks/README.md` documents the current CLI and CSV schema.
 
 **Picking a backend** — pass `SPARSE_EIGS_BACKEND_AUTO` (the zero default) and let the library choose: small problems run on grow-m Lanczos; medium-to-large problems route to thick-restart Lanczos for the bounded memory; large problems with a preconditioner route to LOBPCG.  Override with an explicit `opts->backend` when profiling or when the workload differs from the bench-corpus heuristics.
@@ -144,7 +162,8 @@ When to widen beyond the first examples:
   machine, compiler, dependency, fixture, and configuration
 - tests own regression, oracle, and property guarantees
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
-  benchmark surface and is intentionally not a pass/fail timing gate
+  benchmark surface with generated `index.tsv` / `manifest.txt` context and
+  is intentionally not a pass/fail timing gate
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing wall-check lane, while
   Cholesky CSC rows are threshold-free measurement context
@@ -188,6 +207,7 @@ make deadcode-check   # verify report completeness invariants
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check hard gate + threshold-free Cholesky CSC context
+make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed structural report artifacts
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
@@ -811,9 +831,11 @@ shared-library request as supported.
 ## Documentation
 
 - [Tutorial](docs/tutorial.md) — fuller user walkthrough for repeated-run and API workflows
+- [Cookbook](docs/cookbook.md) — compressed-first direct, iterative, Matrix Market, SVD, eigensolver, and benchmark handoff paths
 - [Examples](examples/README.md) — shipped example binaries and local usage references
 - [Benchmarks](benchmarks/README.md) — benchmark commands, CSV fields, and measurement interpretation
-- [Algorithm Description](docs/algorithm.md) — data structure, LU algorithm, complexity analysis
+- [Algorithm Reference](docs/algorithm.md) — current data structures,
+  solver algorithms, compressed formats, and complexity notes
 - [Matrix Market Format](docs/matrix_market.md) — supported features and limitations
 - [Maintainer Guide](docs/maintainer_guide.md) — repository-wide quality-contract interpretation and documentation ownership
 - [Installation Guide](INSTALL.md) — cross-platform build and install instructions

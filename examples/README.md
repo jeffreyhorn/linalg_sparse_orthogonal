@@ -10,7 +10,9 @@ Use this file as the compact next-step map after the README front door.
   - Run `./build/example_basic_solve`.
 - **Already have CSR or CSC arrays?**
   - Run `./build/example_compressed_input` for compressed construction into
-    the normal public matrix shell.
+    the normal public matrix shell, or use the
+    [cookbook](../docs/cookbook.md) for direct, iterative, SVD, eigensolver,
+    and benchmark handoff paths.
 - **Need to choose a solver workflow first?**
   - Use the [solver-selection guide](../docs/solver_selection.md), then return
     here for the matching runnable example.
@@ -27,12 +29,15 @@ Use this file as the compact next-step map after the README front door.
 - **Need SVD, low-rank, or condition-number behavior?**
   - Run `./build/example_svd_lowrank` or `./build/example_condition`.
 - **Need to load and use a Matrix Market file?**
-  - Run `./build/example_matrix_market` from the project root.
+  - Run `./build/example_matrix_market` from the project root, then use the
+    [cookbook](../docs/cookbook.md) for the load/use handoff.
 - **Need an installed downstream-consumer example instead of a local build-tree example?**
   - Use `examples/cmake_example/` and the install flow in
     [INSTALL.md](../INSTALL.md).
 - **Need the fuller repeated-run and API walkthrough?**
   - Use the [tutorial](../docs/tutorial.md).
+- **Need benchmark/report interpretation after choosing an API workflow?**
+  - Use [benchmarks/README.md](../benchmarks/README.md).
 
 ## Building
 

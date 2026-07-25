@@ -14,7 +14,23 @@ Use this tutorial after the README when you want the fuller learning path:
 
 For a compact decision tree before you start coding, use the
 [solver-selection guide](solver_selection.md). For runnable examples, use
-[`examples/README.md`](../examples/README.md).
+[`examples/README.md`](../examples/README.md). If your data already starts as
+CSR, CSC, or Matrix Market input, use the [cookbook](cookbook.md) for the
+shortest compressed-first route into direct, iterative, Matrix Market, SVD,
+eigensolver, and benchmark handoff workflows.
+
+### Documentation Map
+
+| Need | Use |
+|---|---|
+| Compact problem-shape decision tree | [solver_selection.md](solver_selection.md) |
+| Compressed-first task recipes | [cookbook.md](cookbook.md) |
+| Runnable examples | [examples/README.md](../examples/README.md) |
+| Installed package and downstream consumer setup | [INSTALL.md](../INSTALL.md) |
+| Benchmark commands and generated report indexes | [benchmarks/README.md](../benchmarks/README.md) |
+| Current algorithm reference | [algorithm.md](algorithm.md) |
+| Historical measurement notes | [algorithm_history.md](algorithm_history.md) |
+| Maintainer quality policy | [maintainer_guide.md](maintainer_guide.md) |
 
 ### Choose a Workflow First
 

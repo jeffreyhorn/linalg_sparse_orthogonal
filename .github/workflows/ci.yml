@@ -4,9 +4,12 @@ name: CI
 # - reviewed Makefile compile-quality path
 # - reviewed CMake parity path
 # - dead-code report/check path
+# - reviewed static-first package contract path
 # It also carries Linux-specific supplemental signals (`make test`,
-# `bench-fast`, TSan, coverage). Focused install/package regression scripts
-# remain developer-side proof surfaces rather than a separate reviewed CI lane.
+# `bench-fast`, TSan, coverage). The package contract lane covers the
+# maintained static archive install/export surface only; it does not imply
+# shared-library packaging, dynamic ABI compatibility, or package-manager
+# support.
 # See README.md "Cross-Platform CI Contract" for the full
 # enforced/staged/supplemental model.
 
@@ -52,6 +55,26 @@ jobs:
 
       - name: Run enforced reviewed CMake parity path
         run: make quality-review-cmake
+
+  package-contract:
+    name: Linux reviewed static-first package contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install package proof tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config
+
+      - name: Run Make install and pkg-config package proof
+        run: bash tests/test_install.sh
+
+      - name: Run CMake install/export package proof
+        run: bash tests/test_cmake_install.sh
+
+      - name: Run static-first package deferral proof
+        run: bash scripts/static_package_deferral_check.sh
 
   tsan:
     name: Linux supplemental ThreadSanitizer coverage

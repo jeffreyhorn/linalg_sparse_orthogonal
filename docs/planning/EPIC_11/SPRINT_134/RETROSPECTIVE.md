@@ -51,6 +51,9 @@
   - `bash -n tests/test_install.sh`
   - `bash tests/test_install.sh` passed 22 checks, 0 failures
   - `bash scripts/static_package_deferral_check.sh`
+- [x] Post-PR Windows CI follow-up fixed the supplemental
+      install/downstream proof so captured example output is joined before
+      matching `OK`.
 
 ## What Went Well
 

@@ -84,6 +84,9 @@ Post-PR CI follow-up validation:
 - `bash -n tests/test_install.sh`: passed
 - `bash tests/test_install.sh`: 22 checks, 0 failures
 - `bash scripts/static_package_deferral_check.sh`: passed
+- Windows supplemental install/downstream proof follow-up: joined captured
+  example output before matching `OK` so PowerShell array matching cannot
+  reject successful multi-line output.
 
 ## PR Review Summary Material
 

@@ -542,3 +542,9 @@ platform-specific implementation and validation prove that claim.
 - Ran `bash -n tests/test_install.sh`; it passed.
 - Ran `bash tests/test_install.sh`; it passed 22 checks with 0 failures.
 - Ran `bash scripts/static_package_deferral_check.sh`; it passed.
+- Fixed `.github/workflows/windows-ci.yml` after the Windows supplemental
+  CMake install/downstream lane showed the installed example output contained
+  `OK` but the PowerShell `-notmatch` check still failed.
+- Root cause: PowerShell applies `-notmatch` element-wise to arrays, and
+  captured native command output can be an array of lines. The fixed workflow
+  joins the example output into a single string before checking for `OK`.

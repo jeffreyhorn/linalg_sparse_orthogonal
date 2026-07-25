@@ -145,11 +145,12 @@ jobs:
           }
           $exampleExe = Join-Path (Join-Path $exampleBuild "Release") "example.exe"
           $output = & $exampleExe 2>&1
+          $outputText = $output -join "`n"
           if ($LASTEXITCODE -ne 0) {
-            throw "Installed CMake example exited with $LASTEXITCODE`: $output"
+            throw "Installed CMake example exited with $LASTEXITCODE`: $outputText"
           }
-          if ($output -notmatch "OK") {
-            throw "Installed CMake example output did not contain OK: $output"
+          if ($outputText -notmatch "OK") {
+            throw "Installed CMake example output did not contain OK: $outputText"
           }
 
           New-Item -ItemType Directory -Force -Path $versionExactSrc | Out-Null

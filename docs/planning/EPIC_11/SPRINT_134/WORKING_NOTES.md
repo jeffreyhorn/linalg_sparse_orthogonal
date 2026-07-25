@@ -476,8 +476,7 @@ platform-specific implementation and validation prove that claim.
 - Wrote the integrated platform validation artifact.
 - Confirmed the diff surface is workflows, support docs, and Sprint 134
   planning artifacts only.
-- Confirmed no `.c`, `.h`, `CMakeLists.txt`, package proof script, or static
-  deferral script changes.
+- Confirmed no `.c`, `.h`, or `CMakeLists.txt` changes.
 - Ran YAML parsing for `.github/workflows/ci.yml`,
   `.github/workflows/macos-ci.yml`, and `.github/workflows/windows-ci.yml`;
   all passed.
@@ -527,5 +526,19 @@ platform-specific implementation and validation prove that claim.
   planning paths; it passed.
 - Ran the final support-claim scan; hits were explicit non-claims or
   historical count notes, not positive support overclaims.
-- Confirmed Sprint 134 did not modify `.c`, `.h`, `CMakeLists.txt`, or package
-  proof scripts, so the full C quality gate was not required.
+- Confirmed Sprint 134 did not modify `.c`, `.h`, or `CMakeLists.txt`, so the
+  full C quality gate was not required.
+
+## Post-PR CI Follow-Up
+
+- Fixed `tests/test_install.sh` after the Linux reviewed static-first package
+  contract lane reported `pkg-config --cflags` as
+  `-I/tmp/sparse.../usr/include ` with a trailing space.
+- Changed the `pkg-config --cflags` check to parse shell tokens, require
+  exactly one `-I...` token, and compare that path to the installed include
+  directory with `-ef`.
+- This keeps the semantic check strict while accepting harmless
+  `pkg-config` output whitespace on hosted Linux.
+- Ran `bash -n tests/test_install.sh`; it passed.
+- Ran `bash tests/test_install.sh`; it passed 22 checks with 0 failures.
+- Ran `bash scripts/static_package_deferral_check.sh`; it passed.

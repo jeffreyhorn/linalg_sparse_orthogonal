@@ -40,9 +40,17 @@
   - local CMake/CTest registration audit reported 57 non-Windows tests,
     reconciling to Windows 54 after three staged exclusions.
 - [x] `git diff --check` and focused trailing-whitespace scans passed.
-- [x] No `.c`, `.h`, `CMakeLists.txt`, or package proof script changes were
-      present, so the full `make format && make lint && make test` gate was
-      not required by the Sprint 134 validation rule.
+- [x] No `.c`, `.h`, or `CMakeLists.txt` changes were present, so the full
+      `make format && make lint && make test` gate was not required by the
+      Sprint 134 validation rule.
+- [x] Post-PR CI follow-up fixed `tests/test_install.sh` so
+      `pkg-config --cflags` validation parses shell tokens and tolerates
+      harmless trailing whitespace while still requiring the installed include
+      directory.
+- [x] Post-PR CI follow-up validation passed:
+  - `bash -n tests/test_install.sh`
+  - `bash tests/test_install.sh` passed 22 checks, 0 failures
+  - `bash scripts/static_package_deferral_check.sh`
 
 ## What Went Well
 
@@ -108,7 +116,7 @@
 |---|---:|
 | tracked `.c`/`.h` changes | 0 |
 | `CMakeLists.txt` changes | 0 |
-| package proof script changes | 0 |
+| package proof script changes | 1 |
 | workflow YAML parse | passed |
 | Make install/pkg-config proof | 22 passed, 0 failed |
 | CMake install/export proof | 21 passed, 0 failed, 0 skipped |

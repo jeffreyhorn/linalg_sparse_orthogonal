@@ -17,7 +17,7 @@ matching validation evidence before closeout.
 | Sprint artifacts | `docs/planning/EPIC_11/SPRINT_134` added/updated |
 | C sources/headers | No `.c` or `.h` changes |
 | CMake registration | No `CMakeLists.txt` changes |
-| Package proof scripts | No `tests/test_install.sh`, `tests/test_cmake_install.sh`, or `scripts/static_package_deferral_check.sh` changes |
+| Package proof scripts | Post-PR CI follow-up changed `tests/test_install.sh`; `tests/test_cmake_install.sh` and `scripts/static_package_deferral_check.sh` unchanged |
 
 Because no C source or public header changed, the sprint rule does not require
 `make format && make lint && make test`.
@@ -37,7 +37,12 @@ Because no C source or public header changed, the sprint rule does not require
 | `git diff --check` | Passed |
 | focused trailing-whitespace scan | Passed |
 | C/header/CMake registration diff scan | No `.c`, `.h`, or `CMakeLists.txt` changes |
+| package proof script diff scan | `tests/test_install.sh` changed to parse `pkg-config --cflags` tokens |
 | temporary audit build cleanup | `build-sprint134-day13` removed |
+
+Post-PR CI follow-up reran `bash -n tests/test_install.sh`,
+`bash tests/test_install.sh`, and `bash scripts/static_package_deferral_check.sh`;
+all passed. The install proof passed 22 checks with 0 failures.
 
 ## Workflow-Equivalent Evidence
 

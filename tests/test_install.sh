@@ -109,8 +109,13 @@ else
 fi
 
 PC_CFLAGS="$(pkg-config --cflags sparse 2>/dev/null || true)"
-PC_CFLAGS_INCLUDE="${PC_CFLAGS#-I}"
-if [ "${PC_CFLAGS#-I}" != "$PC_CFLAGS" ] && \
+set -- $PC_CFLAGS
+PC_CFLAGS_INCLUDE=""
+if [ "$#" -gt 0 ]; then
+    PC_CFLAGS_INCLUDE="${1#-I}"
+fi
+if [ "$#" -eq 1 ] && \
+    [ "${1#-I}" != "$1" ] && \
     [ -d "$PC_CFLAGS_INCLUDE" ] && \
     [ "$PC_CFLAGS_INCLUDE" -ef "$PREFIX/include" ]; then
     pass "pkg-config --cflags returns installed include path"

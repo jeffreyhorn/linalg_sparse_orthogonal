@@ -72,10 +72,18 @@ Day 13 provides the integrated validation record. Final closeout evidence:
 | `git diff --check` | Passed |
 | focused trailing-whitespace scan | Passed |
 | C/header/CMake registration diff scan | No `.c`, `.h`, or `CMakeLists.txt` changes |
+| package proof script diff scan | `tests/test_install.sh` changed for robust `pkg-config --cflags` token parsing |
 | Final claim scan | Only explicit non-claims and historical count notes found |
 
 The full C quality gate was not required because Sprint 134 did not modify C
-sources or public headers.
+sources or public headers. The post-PR CI fix touched only
+`tests/test_install.sh` package-proof parsing.
+
+Post-PR CI follow-up validation:
+
+- `bash -n tests/test_install.sh`: passed
+- `bash tests/test_install.sh`: 22 checks, 0 failures
+- `bash scripts/static_package_deferral_check.sh`: passed
 
 ## PR Review Summary Material
 

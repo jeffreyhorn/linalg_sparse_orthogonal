@@ -5,9 +5,11 @@ name: Windows CI
 # wrappers and dead-code flow remain staged, and the current excluded
 # tests remain explicit in job output. In particular, `test_fuzz` is still
 # outside the reviewed Windows subset, so the bounded lifecycle
-# property/fuzz lane is not claimed as reviewed Windows evidence. This lane
-# should be read as reviewed CMake-first consumer proof only; it is not a
-# separate reviewed install-validation lane and does not imply Windows
+# property/fuzz lane is not claimed as reviewed Windows evidence. The staged
+# test blockers are source-level today: pthread APIs for `test_threads` and
+# `test_sprint4_integration`, and POSIX temp-file APIs for `test_fuzz`. The
+# install/downstream job below is supplemental CMake-first confidence only; it
+# is not a reviewed install-validation lane and does not imply Windows
 # Makefile parity.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
@@ -55,9 +57,140 @@ jobs:
             throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
           }
           Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz (including the bounded lifecycle property lane)"
+          Write-Host "Windows staged blockers remain source-level: pthread APIs for test_threads/test_sprint4_integration and POSIX temp-file APIs for test_fuzz."
           Write-Host "Windows reviewed scope remains CMake-first consumer proof only: no reviewed Makefile parity and no separate reviewed install-validation lane."
         shell: pwsh
 
       - name: Run enforced reviewed CMake execution path (ctest)
         run: ctest --test-dir build -C Release --output-on-failure
+        shell: pwsh
+
+  # Verify the maintained static-first CMake install and installed downstream
+  # consumer path on Windows. This is supplemental confidence for the
+  # CMake-first package story, not a reviewed Windows install-validation lane.
+  install-and-downstream:
+    name: Windows supplemental CMake install/downstream confidence path
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run maintained supplemental CMake install/downstream proof
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Invoke-Checked {
+            param(
+              [string]$Label,
+              [scriptblock]$Command
+            )
+
+            & $Command
+            if ($LASTEXITCODE -ne 0) {
+              throw "$Label failed with exit code $LASTEXITCODE."
+            }
+          }
+
+          $prefix = Join-Path $env:RUNNER_TEMP "sparse-install"
+          $build = "build-install"
+          $exampleBuild = "build-installed-example"
+          $versionExactBuild = "build-version-exact"
+          $versionMismatchBuild = "build-version-mismatch"
+          $versionExactSrc = Join-Path $env:RUNNER_TEMP "sparse-version-exact-src"
+          $versionMismatchSrc = Join-Path $env:RUNNER_TEMP "sparse-version-mismatch-src"
+          $version = (Get-Content VERSION -Raw).Trim()
+
+          Invoke-Checked "CMake install configure" {
+            cmake -S . -B $build -G "Visual Studio 17 2022" -A x64 `
+              -DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_INSTALL_LIBDIR=lib
+          }
+          Invoke-Checked "CMake install build" {
+            cmake --build $build --config Release
+          }
+          Invoke-Checked "CMake install" {
+            cmake --install $build --config Release
+          }
+
+          $staticLib = Join-Path $prefix "lib/sparse_lu_ortho.lib"
+          if (-not (Test-Path $staticLib -PathType Leaf)) {
+            throw "Expected installed static library at $staticLib."
+          }
+
+          $dlls = @(Get-ChildItem -Path $prefix -Recurse -Filter "*.dll" -File -ErrorAction SilentlyContinue)
+          if ($dlls.Count -ne 0) {
+            throw "Unexpected shared-library artifacts installed: $($dlls.FullName -join ', ')"
+          }
+
+          $headers = @(Get-ChildItem -Path (Join-Path $prefix "include/sparse") -Filter "*.h" -File)
+          if ($headers.Count -ne 19) {
+            throw "Expected 19 installed headers, got $($headers.Count)."
+          }
+
+          foreach ($packageFile in @(
+            "lib/cmake/Sparse/SparseConfig.cmake",
+            "lib/cmake/Sparse/SparseConfigVersion.cmake",
+            "lib/cmake/Sparse/SparseTargets.cmake"
+          )) {
+            $path = Join-Path $prefix $packageFile
+            if (-not (Test-Path $path -PathType Leaf)) {
+              throw "Expected installed CMake package file at $path."
+            }
+          }
+
+          Invoke-Checked "Installed example configure" {
+            cmake -S examples/cmake_example -B $exampleBuild `
+              -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$prefix"
+          }
+          Invoke-Checked "Installed example build" {
+            cmake --build $exampleBuild --config Release
+          }
+          $exampleExe = Join-Path (Join-Path $exampleBuild "Release") "example.exe"
+          $output = & $exampleExe 2>&1
+          $outputText = $output -join "`n"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed CMake example exited with $LASTEXITCODE`: $outputText"
+          }
+          if ($outputText -notmatch "OK") {
+            throw "Installed CMake example output did not contain OK: $outputText"
+          }
+
+          New-Item -ItemType Directory -Force -Path $versionExactSrc | Out-Null
+          $mainSource = ((Get-Location).Path -replace "\\", "/") + "/examples/cmake_example/main.c"
+          Set-Content -Path (Join-Path $versionExactSrc "CMakeLists.txt") -Encoding utf8 -Value @(
+            "cmake_minimum_required(VERSION 3.14)",
+            "project(sparse_version_exact C)",
+            "find_package(Sparse $version EXACT REQUIRED)",
+            "add_executable(version_exact `"$mainSource`")",
+            "target_link_libraries(version_exact PRIVATE Sparse::sparse_lu_ortho)"
+          )
+
+          Invoke-Checked "Exact version configure" {
+            cmake -S $versionExactSrc -B $versionExactBuild `
+              -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$prefix"
+          }
+
+          $parts = $version.Split(".")
+          $major = [int]$parts[0]
+          $minor = [int]$parts[1]
+          $patch = [int]$parts[2]
+          if ($minor -gt 0) {
+            $mismatchVersion = "$major.$($minor - 1).0"
+          } elseif ($patch -gt 0) {
+            $mismatchVersion = "$major.$minor.$($patch - 1)"
+          } else {
+            throw "Cannot construct lower same-major mismatch version for $version."
+          }
+
+          New-Item -ItemType Directory -Force -Path $versionMismatchSrc | Out-Null
+          Set-Content -Path (Join-Path $versionMismatchSrc "CMakeLists.txt") -Encoding utf8 -Value @(
+            "cmake_minimum_required(VERSION 3.14)",
+            "project(sparse_version_mismatch C)",
+            "find_package(Sparse $mismatchVersion REQUIRED)"
+          )
+
+          cmake -S $versionMismatchSrc -B $versionMismatchBuild `
+            -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$prefix"
+          if ($LASTEXITCODE -eq 0) {
+            throw "Mismatched package version $mismatchVersion unexpectedly configured."
+          }
+          $global:LASTEXITCODE = 0
         shell: pwsh

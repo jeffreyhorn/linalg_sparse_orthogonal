@@ -116,17 +116,20 @@ Use the split below when deciding how much package detail you need:
 - validation story:
   - local Unix-side install scripts validate the Make and CMake install/export
     paths directly
-  - reviewed platform claims remain narrower than those local scripts
+  - Linux CI carries a reviewed static-first package-contract lane for those
+    local scripts plus the static deferral guard
+  - macOS and Windows reviewed platform claims remain narrower than those local
+    scripts
 
 ## Supported platforms
 
 | platform | toolchain | CI job | notes |
 |---|---|---|---|
-| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | strongest reviewed source of truth: reviewed Makefile quality, reviewed CMake parity, dead-code; supplemental direct runtime and `bench-fast` also live here |
+| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | strongest reviewed source of truth: reviewed Makefile quality, reviewed CMake parity, dead-code, and reviewed static-first package contract; supplemental direct runtime and `bench-fast` also live here |
 | Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | supplemental ThreadSanitizer + OpenMP lane |
-| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries supplemental static-first Make install/`pkg-config` verification |
+| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries supplemental static-first Make install/`pkg-config` and CMake install/export confidence |
 | macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | supplemental second-compiler direct build/test/wall-check coverage |
-| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset only; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane |
+| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset plus supplemental CMake install/downstream confidence; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane; pthread/POSIX-backed staged tests remain outside the reviewed Windows subset |
 
 `make tsan` on macOS 15+ is blocked by an upstream dyld initialization
 hang that is not specific to this codebase. The maintained TSan job runs on
@@ -308,12 +311,20 @@ Use the split below when reading install confidence:
   - the two scripts above exercise the Unix-side Make and CMake install paths
     end to end
 - reviewed platform confidence:
-  - Linux remains the strongest reviewed source of truth
-  - macOS carries supplemental Make install/`pkg-config` verification
-  - Windows remains the reviewed CMake subset and CMake-first consumer path
+  - Linux remains the strongest reviewed source of truth and now includes a
+    reviewed static-first package-contract lane
+  - macOS carries supplemental Make install/`pkg-config` and CMake
+    install/export confidence
+  - Windows remains the reviewed CMake subset with supplemental CMake
+    install/downstream confidence for the CMake-first consumer path
 
 Do not widen that reading into a broader reviewed install-validation claim:
 
-- macOS does not claim full reviewed install/export parity
-- Windows does not claim a separate reviewed install-validation lane beyond the
-  CMake-first consumer story
+- macOS supplemental package confidence does not claim full reviewed
+  install/export parity
+- Windows supplemental CMake install/downstream confidence does not claim a
+  separate reviewed install-validation lane beyond the CMake-first consumer
+  story
+- Linux reviewed package-contract proof does not claim shared-library
+  packaging, dynamic ABI compatibility, runtime-loader behavior, or
+  package-manager support

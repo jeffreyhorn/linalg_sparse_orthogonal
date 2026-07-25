@@ -220,8 +220,10 @@ Interpretation:
 - treat any future shared-library or wider ABI claim as a separate product
   contract with its own validation and platform ownership
 - keep platform truth explicit: Linux is still the strongest reviewed source of
-  truth, macOS remains narrower with supplemental static-first install
-  confidence, and Windows remains the reviewed CMake-first consumer subset
+  truth and now includes a reviewed static-first package-contract lane, macOS
+  remains narrower with supplemental static-first install/export confidence, and
+  Windows remains the reviewed CMake-first consumer subset with supplemental
+  CMake install/downstream confidence
 
 Focused install/package regression ownership:
 
@@ -242,10 +244,14 @@ Focused install/package regression ownership:
   guard that checks `BUILD_SHARED_LIBS=ON` rejection, the explicit static
   CMake target, absence of unsupported shared ABI metadata/selectors, and
   deferred support wording
-- macOS CI carries only a narrower supplemental Make install/`pkg-config`
-  verification lane
+- Linux CI carries a reviewed static-first package-contract lane that runs the
+  Make install/`pkg-config` proof, CMake install/export proof, and static
+  deferral guard
+- macOS CI carries narrower supplemental Make install/`pkg-config` and CMake
+  install/export confidence lanes
 - Windows does not currently claim a separate reviewed install-validation lane;
-  it keeps the reviewed CMake subset plus the CMake-first consumer story
+  it keeps the reviewed CMake subset plus supplemental CMake
+  install/downstream confidence for the CMake-first consumer story
 
 Sprint 112 package/platform proof snapshot:
 
@@ -265,14 +271,16 @@ Sprint 112 package/platform proof snapshot:
 - Sprint 133 changed `BUILD_SHARED_LIBS=ON` from warning-only behavior to
   configure-time rejection so shared-library requests remain explicit
   deferrals
-- Linux remains the strongest reviewed source of truth; install scripts are
-  local Unix-side package proof unless promoted to reviewed CI lanes
-- macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC and
-  Make install/`pkg-config` confidence; local CMake install/export proof does
-  not become reviewed macOS install/export parity
-- Windows keeps the reviewed MSVC CMake-first subset with 51 registered CTest
-  tests; `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain
-  staged exclusions
+- Linux remains the strongest reviewed source of truth; Sprint 134 promoted the
+  static-first package-contract proof stack to a reviewed Linux CI lane
+- macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC,
+  Make install/`pkg-config`, and CMake install/export confidence; those
+  supplemental package lanes do not become reviewed macOS install/export parity
+- Windows keeps the reviewed MSVC CMake-first subset with 54 registered CTest
+  tests plus supplemental CMake install/downstream confidence;
+  `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain staged
+  exclusions because the current sources still depend on pthread or POSIX
+  temp-file APIs
 - do not infer shared-library support, ABI stability, package-manager support,
   runtime-loader behavior, Windows Makefile parity, Windows install-validation
   parity, or macOS full install/export parity from the Sprint 112 package
@@ -785,6 +793,11 @@ Current platform-confidence interpretation:
   lifecycle property lanes are part of those proof surfaces
 - Windows still excludes `test_fuzz` from the reviewed CMake subset, so that
   property lane must not be implied as reviewed Windows evidence
+- Windows also still excludes `test_threads` and `test_sprint4_integration`
+  because both current test sources use pthread APIs directly
+- promoting any of these staged Windows tests requires a source portability
+  change or a Windows-native equivalent plus an intentional CTest count update
+  and hosted MSVC configure/build/execute evidence
 - this is a narrow confidence-boundary note only; it does not reopen the
   broader staged Windows exclusions or claim new platform parity
 

@@ -92,6 +92,8 @@ The maintained install surface is intentionally static-first:
 - version metadata comes from the repo `VERSION` file and is propagated through
   `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
 - the exported CMake package version file is exact-version only
+- CMake rejects `BUILD_SHARED_LIBS=ON` at configure time so a shared-library
+  request is not silently treated as supported
 
 This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
@@ -169,6 +171,11 @@ cmake --install .    # install
 | `SPARSE_OPENMP` | OFF | Enable OpenMP parallel SpMV |
 | `SPARSE_MUTEX` | OFF | Enable per-matrix mutex for thread safety |
 | `SANITIZE` | (empty) | Sanitizer: `asan`, `ubsan`, `all` |
+
+`BUILD_SHARED_LIBS=ON` is intentionally rejected. The maintained CMake package
+contract is the static archive surface; shared-library packaging and dynamic
+ABI support are deferred until explicit build rules, package metadata,
+installed-consumer proof, and runtime-loader validation exist.
 
 ### Using from a CMake project
 

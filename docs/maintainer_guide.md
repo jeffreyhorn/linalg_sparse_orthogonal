@@ -208,6 +208,8 @@ Current authoritative packaging contract:
 - version metadata is single-sourced from the repo `VERSION` file and
   propagated through the generated install artifacts
 - the exported CMake package version file is exact-version only
+- `BUILD_SHARED_LIBS=ON` is a configure-time rejection under the static-first
+  contract, not a supported shared-library mode
 - current package-version metadata should not be described as a broad
   dynamic-ABI guarantee that the repo does not review
 
@@ -224,9 +226,22 @@ Interpretation:
 Focused install/package regression ownership:
 
 - `tests/test_install.sh` is the local Unix-side proof for Make
-  install/uninstall plus `pkg-config`
+  install/uninstall plus `pkg-config`; it checks exact installed header count,
+  static archive/no-shared-artifact install shape, `.pc` prefix/libdir/include
+  variables, installed include and link flags, exact package version
+  resolution, no `Libs.private` stanza for the current self-contained link
+  surface, absence of unsupported package/ABI claims in `sparse.pc`, two
+  compile/link/run consumers, and uninstall cleanup
 - `tests/test_cmake_install.sh` is the local Unix-side proof for CMake
-  install/export plus `find_package(Sparse)`
+  install/export plus `find_package(Sparse)`; it checks exact installed
+  header count, static imported-target metadata, installed-prefix include and
+  archive locations, absence of source/build-tree path leaks, exact-version
+  package behavior, mismatched-version rejection, and installed consumer
+  configure/build/run
+- `scripts/static_package_deferral_check.sh` is the local package-contract
+  guard that checks `BUILD_SHARED_LIBS=ON` rejection, the explicit static
+  CMake target, absence of unsupported shared ABI metadata/selectors, and
+  deferred support wording
 - macOS CI carries only a narrower supplemental Make install/`pkg-config`
   verification lane
 - Windows does not currently claim a separate reviewed install-validation lane;
@@ -236,14 +251,20 @@ Sprint 112 package/platform proof snapshot:
 
 - the selected package tier remains static-first; shared-library packaging and
   dynamic ABI compatibility remain explicit non-claims
-- local Make install proof passed through static archive install, 19 installed
-  headers, `sparse.pc`, pkg-config compile/link/run consumers, and uninstall
-  cleanup
+- local Make install proof passed through static archive install, no shared
+  artifacts, 19 installed headers, `sparse.pc` field validation, exact
+  pkg-config version resolution, no `Libs.private` stanza for the current
+  self-contained link surface, pkg-config compile/link/run consumers, and
+  uninstall cleanup
 - local CMake install/export proof passed through static archive install,
   19 installed headers, `SparseConfig.cmake`, `SparseConfigVersion.cmake`,
-  `SparseTargets.cmake`, exact-version package behavior, mismatched-version
-  rejection, pkg-config version reporting, and installed CMake consumer
-  configure/build/run
+  `SparseTargets.cmake`, static imported target metadata, installed-prefix
+  include/archive paths, no source/build-tree package path leaks,
+  exact-version package behavior, mismatched-version rejection, pkg-config
+  version reporting, and installed CMake consumer configure/build/run
+- Sprint 133 changed `BUILD_SHARED_LIBS=ON` from warning-only behavior to
+  configure-time rejection so shared-library requests remain explicit
+  deferrals
 - Linux remains the strongest reviewed source of truth; install scripts are
   local Unix-side package proof unless promoted to reviewed CI lanes
 - macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC and

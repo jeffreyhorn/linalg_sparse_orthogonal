@@ -805,6 +805,8 @@ After installation, downstream projects can use either `pkg-config` or
 
 Shared-library packaging is intentionally deferred; the maintained install
 contract is the static archive surface described in [INSTALL.md](INSTALL.md).
+CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a
+shared-library request as supported.
 
 ## Documentation
 

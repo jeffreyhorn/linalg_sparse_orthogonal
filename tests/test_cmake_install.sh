@@ -16,6 +16,9 @@ VERSION_MISMATCH_BUILD="$TMPDIR/version_mismatch_build"
 VERSION_EXACT_SRC="$TMPDIR/version_exact_src"
 VERSION_MISMATCH_SRC="$TMPDIR/version_mismatch_src"
 LOG="$TMPDIR/cmake.log"
+CMAKE_PACKAGE_DIR="$PREFIX/lib/cmake/Sparse"
+SPARSE_TARGETS="$CMAKE_PACKAGE_DIR/SparseTargets.cmake"
+SPARSE_TARGETS_NOCONFIG="$CMAKE_PACKAGE_DIR/SparseTargets-noconfig.cmake"
 PASS=0
 FAIL=0
 SKIP=0
@@ -74,25 +77,26 @@ else
 fi
 
 HEADER_COUNT=$(find "$PREFIX/include/sparse" -name '*.h' 2>/dev/null | wc -l | tr -d ' ')
-if [ "$HEADER_COUNT" -ge 14 ]; then
+EXPECTED_HEADERS=$(( $(find "$ROOT_DIR/include" -maxdepth 1 -name '*.h' | wc -l | tr -d ' ') + 1 ))
+if [ "$HEADER_COUNT" -eq "$EXPECTED_HEADERS" ]; then
     pass "headers installed ($HEADER_COUNT files)"
 else
-    fail "headers" "expected >= 14, found $HEADER_COUNT"
+    fail "headers" "expected $EXPECTED_HEADERS, found $HEADER_COUNT"
 fi
 
-if [ -f "$PREFIX/lib/cmake/Sparse/SparseConfig.cmake" ]; then
+if [ -f "$CMAKE_PACKAGE_DIR/SparseConfig.cmake" ]; then
     pass "SparseConfig.cmake installed"
 else
     fail "SparseConfig.cmake" "not found"
 fi
 
-if [ -f "$PREFIX/lib/cmake/Sparse/SparseConfigVersion.cmake" ]; then
+if [ -f "$CMAKE_PACKAGE_DIR/SparseConfigVersion.cmake" ]; then
     pass "SparseConfigVersion.cmake installed"
 else
     fail "SparseConfigVersion.cmake" "not found"
 fi
 
-if [ -f "$PREFIX/lib/cmake/Sparse/SparseTargets.cmake" ]; then
+if [ -f "$SPARSE_TARGETS" ]; then
     pass "SparseTargets.cmake installed"
 else
     fail "SparseTargets.cmake" "not found"
@@ -102,6 +106,44 @@ if [ -f "$PREFIX/lib/pkgconfig/sparse.pc" ]; then
     pass "sparse.pc installed"
 else
     fail "sparse.pc" "not found"
+fi
+
+echo "--- Checking installed CMake package metadata ---"
+
+if [ -f "$SPARSE_TARGETS" ] && \
+    grep -Fq "add_library(Sparse::sparse_lu_ortho STATIC IMPORTED)" "$SPARSE_TARGETS"; then
+    pass "CMake imported target is static"
+else
+    fail "CMake imported target type" "expected STATIC IMPORTED target"
+fi
+
+if [ -f "$SPARSE_TARGETS" ] && \
+    grep -Fq 'INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"' "$SPARSE_TARGETS"; then
+    pass "CMake imported target uses install include prefix"
+else
+    fail "CMake imported target include dirs" "expected _IMPORT_PREFIX include path"
+fi
+
+if [ -f "$SPARSE_TARGETS_NOCONFIG" ] && \
+    grep -Fq 'IMPORTED_LOCATION_NOCONFIG' "$SPARSE_TARGETS_NOCONFIG" && \
+    grep -Fq '${_IMPORT_PREFIX}/lib/libsparse_lu_ortho.a' "$SPARSE_TARGETS_NOCONFIG"; then
+    pass "CMake imported archive uses install prefix"
+else
+    fail "CMake imported archive location" "expected _IMPORT_PREFIX static archive path"
+fi
+
+PACKAGE_SOURCE_LEAKS=$(grep -R -n -F "$ROOT_DIR" "$CMAKE_PACKAGE_DIR" 2>/dev/null || true)
+if [ -z "$PACKAGE_SOURCE_LEAKS" ]; then
+    pass "CMake package has no source-tree paths"
+else
+    fail "CMake package source-tree paths" "$PACKAGE_SOURCE_LEAKS"
+fi
+
+PACKAGE_BUILD_LEAKS=$(grep -R -n -F "$BUILD" "$CMAKE_PACKAGE_DIR" 2>/dev/null || true)
+if [ -z "$PACKAGE_BUILD_LEAKS" ]; then
+    pass "CMake package has no build-tree paths"
+else
+    fail "CMake package build-tree paths" "$PACKAGE_BUILD_LEAKS"
 fi
 
 # ── 3. Build cmake_example against installed library ────────────────

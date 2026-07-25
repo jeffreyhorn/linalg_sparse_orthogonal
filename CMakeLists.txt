@@ -11,10 +11,12 @@ project(linalg_sparse_orthogonal VERSION ${SPARSE_VERSION_STRING_FILE} LANGUAGES
 # configure path so `BUILD_SHARED_LIBS=ON` is not mistaken for an active
 # shared-library packaging contract.
 if(BUILD_SHARED_LIBS)
-    message(STATUS
-        "BUILD_SHARED_LIBS=ON requested, but sparse_lu_ortho remains a "
-        "maintained static archive package surface; continuing with STATIC "
-        "library output."
+    message(FATAL_ERROR
+        "BUILD_SHARED_LIBS=ON was requested, but sparse_lu_ortho currently "
+        "maintains only the static archive package surface. Shared-library "
+        "packaging and dynamic ABI support are deferred until explicit build "
+        "rules, package metadata, installed-consumer proof, and runtime-loader "
+        "validation are added."
     )
 endif()
 

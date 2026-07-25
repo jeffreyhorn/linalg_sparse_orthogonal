@@ -83,12 +83,12 @@ check_static_target() {
 
 check_no_export_or_abi_metadata() {
     require_absent_grep \
-        '\b(SPARSE_API|SPARSE_EXPORT|SPARSE_IMPORT)\b' \
+        '(^|[^[:alnum:]_])(SPARSE_API|SPARSE_EXPORT|SPARSE_IMPORT)([^[:alnum:]_]|$)' \
         "$ROOT_DIR/include" \
         "public export/import macro appeared without a shared ABI decision"
 
     require_absent_grep \
-        '\b(SOVERSION|WINDOWS_EXPORT_ALL_SYMBOLS|C_VISIBILITY_PRESET|VISIBILITY_INLINES_HIDDEN)\b|install[_-]?name|soname' \
+        '(^|[^[:alnum:]_])(SOVERSION|WINDOWS_EXPORT_ALL_SYMBOLS|C_VISIBILITY_PRESET|VISIBILITY_INLINES_HIDDEN)([^[:alnum:]_]|$)|install[_-]?name|soname' \
         "$ROOT_DIR/CMakeLists.txt" \
         "shared-library ABI metadata appeared without a support decision"
 

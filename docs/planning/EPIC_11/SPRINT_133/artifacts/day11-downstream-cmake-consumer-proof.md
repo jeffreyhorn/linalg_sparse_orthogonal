@@ -21,7 +21,7 @@ package-manager files changed on Day 11.
 
 | Check | Implemented behavior |
 | --- | --- |
-| Exact header inventory | Compares installed `include/sparse/*.h` files against the current source header count plus generated `sparse_config.h`. |
+| Exact header inventory | Compares installed `include/sparse/*.h` files against the current source header count plus generated `sparse_version.h`. |
 | Static imported target | Requires `Sparse::sparse_lu_ortho` to be exported as `STATIC IMPORTED`. |
 | Installed include prefix | Requires the imported target include directory to use `${_IMPORT_PREFIX}/include`. |
 | Installed archive prefix | Requires the imported archive location to use `${_IMPORT_PREFIX}/lib/libsparse_lu_ortho.a`. |

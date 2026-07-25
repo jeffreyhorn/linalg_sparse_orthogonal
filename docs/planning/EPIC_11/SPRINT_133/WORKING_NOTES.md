@@ -360,7 +360,7 @@ validates those claims.
   installed-package proof.
 - Changed the installed header check from `>= 14` to the exact current public
   header inventory: source `include/*.h` files plus generated
-  `sparse_config.h`, currently 19 installed headers.
+  `sparse_version.h`, currently 19 installed headers.
 - Added installed CMake package metadata checks for
   `Sparse::sparse_lu_ortho` as `STATIC IMPORTED`,
   `${_IMPORT_PREFIX}/include` include directories, and

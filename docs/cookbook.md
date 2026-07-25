@@ -54,7 +54,17 @@ arrives as CSR or CSC data.
 
    ```c
    SparseMatrix *LU = sparse_copy(A);
+   if (!LU) {
+       sparse_free(A);
+       return SPARSE_ERR_ALLOC;
+   }
+
    sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-14);
+   if (err != SPARSE_OK) {
+       sparse_free(LU);
+       sparse_free(A);
+       return err;
+   }
    ```
 
 4. Free both the factor copy and the original matrix shell when done:

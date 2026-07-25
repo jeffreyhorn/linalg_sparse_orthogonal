@@ -1300,7 +1300,7 @@ Stops when the residual stops decreasing or max iterations are reached.
 
 ## Symmetric Eigensolvers
 
-`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma
+`sparse_eigs_sym(A, k, &opts, &result)` computes `k` extreme or near-sigma
 eigenpairs of a symmetric sparse matrix A. The public surface supports
 grow-m Lanczos, thick-restart Lanczos, and LOBPCG backends selected through
 `opts->backend` or AUTO routing. An optional **shift-invert** mode for

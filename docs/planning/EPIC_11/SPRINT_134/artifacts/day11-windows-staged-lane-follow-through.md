@@ -44,7 +44,7 @@ and does not affect CTest membership.
 | --- | --- | --- |
 | `test_threads` | Direct pthread API dependency. | Windows-native thread test or portability wrapper plus hosted MSVC configure/build/execute proof. |
 | `test_sprint4_integration` | Direct pthread API dependency. | Windows-native integration equivalent or portability wrapper plus hosted MSVC configure/build/execute proof. |
-| `test_fuzz` | POSIX temp-file APIs through `<unistd.h>`, `mkstemps`, `close`, and `unlink`. | Portable temp-file abstraction or Windows-native fuzz/property variant plus hosted MSVC proof. |
+| `test_fuzz` | POSIX temp-file APIs through `unistd.h`, `mkstemps`, `close`, and `unlink`. | Portable temp-file abstraction or Windows-native fuzz/property variant plus hosted MSVC proof. |
 
 ## Validation Evidence
 

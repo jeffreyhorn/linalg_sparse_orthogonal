@@ -25,7 +25,7 @@
   - `test_sprint4_integration` remains staged because it uses pthread APIs
     directly;
   - `test_fuzz` remains staged because it uses POSIX temp-file APIs through
-    `<unistd.h>`, `mkstemps`, `close`, and `unlink`.
+    `unistd.h`, `mkstemps`, `close`, and `unlink`.
 - [x] Aligned README, INSTALL, maintainer guide, workflow comments, and Sprint
       artifacts with final reviewed/supplemental/staged/deferred support
       tiers.

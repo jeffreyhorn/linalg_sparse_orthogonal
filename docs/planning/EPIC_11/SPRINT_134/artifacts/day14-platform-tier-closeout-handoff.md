@@ -37,7 +37,7 @@ handoff material.
 | --- | --- | --- | --- |
 | Windows `test_threads` | `CMakeLists.txt`, `tests/test_threads.c`, `.github/workflows/windows-ci.yml` | Direct pthread API dependency. | Windows-native thread test or portability wrapper plus intentional CTest count update and hosted MSVC configure/build/execute proof. |
 | Windows `test_sprint4_integration` | `CMakeLists.txt`, `tests/test_sprint4_integration.c`, `.github/workflows/windows-ci.yml` | Direct pthread API dependency. | Windows-native integration equivalent or portability wrapper plus intentional CTest count update and hosted MSVC configure/build/execute proof. |
-| Windows `test_fuzz` and bounded lifecycle property lane | `CMakeLists.txt`, `tests/test_fuzz.c`, `.github/workflows/windows-ci.yml`, `docs/maintainer_guide.md` | POSIX temp-file APIs through `<unistd.h>`, `mkstemps`, `close`, and `unlink`. | Portable temp-file abstraction or Windows-specific fuzz/property variant plus intentional CTest count update and hosted MSVC proof. |
+| Windows `test_fuzz` and bounded lifecycle property lane | `CMakeLists.txt`, `tests/test_fuzz.c`, `.github/workflows/windows-ci.yml`, `docs/maintainer_guide.md` | POSIX temp-file APIs through `unistd.h`, `mkstemps`, `close`, and `unlink`. | Portable temp-file abstraction or Windows-specific fuzz/property variant plus intentional CTest count update and hosted MSVC proof. |
 | Windows Makefile parity | Makefile/wrapper surface | Windows support remains CMake-first. | Separate product decision and maintained Windows Makefile/wrapper proof. |
 
 ## Residual Install and Platform Queue

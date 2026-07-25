@@ -38,9 +38,9 @@ membership. It therefore does not affect the reviewed Windows CTest count.
 
 | Staged test | Current blocker | Promotion decision |
 | --- | --- | --- |
-| `test_threads` | Source includes `<pthread.h>` directly and uses pthread APIs. CMake intentionally gates it on `Threads_FOUND AND NOT WIN32` because CMake can find Win32 threads, but the test source is pthread-specific. | Keep staged. Promotion requires a Windows-native thread test or a portability wrapper plus hosted MSVC proof. |
-| `test_sprint4_integration` | Source includes `<pthread.h>` directly and exercises concurrent integration paths through pthread workers. It shares the same CMake gate as `test_threads`. | Keep staged. Promotion requires replacing pthread-only orchestration or adding an equivalent Windows-native integration test. |
-| `test_fuzz` | Source includes `<unistd.h>` and uses POSIX temp-file operations including `mkstemps`, `close`, and `unlink`. It also owns the bounded lifecycle property lane currently excluded from Windows. | Keep staged. Promotion requires a portable temp-file abstraction or a Windows-specific fuzz/property test variant plus hosted MSVC proof. |
+| `test_threads` | Source includes `pthread.h` directly and uses pthread APIs. CMake intentionally gates it on `Threads_FOUND AND NOT WIN32` because CMake can find Win32 threads, but the test source is pthread-specific. | Keep staged. Promotion requires a Windows-native thread test or a portability wrapper plus hosted MSVC proof. |
+| `test_sprint4_integration` | Source includes `pthread.h` directly and exercises concurrent integration paths through pthread workers. It shares the same CMake gate as `test_threads`. | Keep staged. Promotion requires replacing pthread-only orchestration or adding an equivalent Windows-native integration test. |
+| `test_fuzz` | Source includes `unistd.h` and uses POSIX temp-file operations including `mkstemps`, `close`, and `unlink`. It also owns the bounded lifecycle property lane currently excluded from Windows. | Keep staged. Promotion requires a portable temp-file abstraction or a Windows-specific fuzz/property test variant plus hosted MSVC proof. |
 
 ## Candidate Promotion List
 
@@ -48,7 +48,7 @@ membership. It therefore does not affect the reviewed Windows CTest count.
 | --- | --- |
 | Promote `test_threads` as-is | Rejected; pthread-only source would not compile under MSVC. |
 | Promote `test_sprint4_integration` as-is | Rejected; pthread-only source would not compile under MSVC. |
-| Promote `test_fuzz` as-is | Rejected; POSIX temp-file APIs and `<unistd.h>` are not MSVC-ready. |
+| Promote `test_fuzz` as-is | Rejected; POSIX temp-file APIs and `unistd.h` are not MSVC-ready. |
 | Add Windows-native equivalents | Candidate for a later sprint or explicit Day 11 decision, but not safe as an automatic promotion. |
 | Keep staged exclusions and clarify docs/comments | Selected Day 10 recommendation for Day 11 follow-through. |
 

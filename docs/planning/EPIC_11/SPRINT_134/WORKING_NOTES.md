@@ -391,8 +391,8 @@ platform-specific implementation and validation prove that claim.
   the three staged Windows exclusions: `test_threads`,
   `test_sprint4_integration`, and `test_fuzz`.
 - Re-audited `test_threads` and `test_sprint4_integration`; both include
-  `<pthread.h>` directly and remain gated by `if(Threads_FOUND AND NOT WIN32)`.
-- Re-audited `test_fuzz`; it includes `<unistd.h>` and uses POSIX temp-file
+  `pthread.h` directly and remain gated by `if(Threads_FOUND AND NOT WIN32)`.
+- Re-audited `test_fuzz`; it includes `unistd.h` and uses POSIX temp-file
   APIs including `mkstemps`, `close`, and `unlink`, so the fuzz/property lane
   remains gated by `if(NOT WIN32 AND NOT MSVC)`.
 - Rejected as-is promotion for all three staged tests because each still has

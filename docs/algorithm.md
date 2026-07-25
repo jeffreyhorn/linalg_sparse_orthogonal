@@ -1,13 +1,15 @@
-# Algorithm Description
+# Algorithm Reference
 
 This document is technical background for data structures, algorithms,
-complexity, implementation tradeoffs, and historical measurement context. It
-is not the first-use adoption guide, install/support contract, package or ABI
-reference, or a portable performance guarantee. Start with
+complexity, and current implementation tradeoffs. It is not the first-use
+adoption guide, install/support contract, package or ABI reference, or a
+portable performance guarantee. Start with
 [`README.md`](../README.md), [`docs/solver_selection.md`](solver_selection.md),
 [`examples/README.md`](../examples/README.md), and
 [`benchmarks/README.md`](../benchmarks/README.md) for adoption workflows,
 solver choice, runnable examples, and benchmark interpretation.
+Historical measurements and implementation-decision context live in
+[`docs/algorithm_history.md`](algorithm_history.md).
 
 ## Orthogonal Linked-List Data Structure
 
@@ -284,12 +286,13 @@ A dense column accumulator is used for each column k to efficiently handle fill-
 | Cholesky factor | O(nnz_L × avg_col_nnz) |
 | Cholesky solve | O(nnz_L) forward + O(nnz_L) backward |
 
-### Fill-in comparison (SuiteSparse, no reordering)
+### Fill-in behavior
 
-| Matrix | LU nnz | Cholesky nnz | Savings |
-|--------|-------:|---------:|---------|
-| nos4 (100×100) | 1510 | 805 | 47% |
-| bcsstk04 (132×132) | 8581 | 3664 | 57% |
+On SPD matrices, Cholesky usually stores substantially less factor data than
+LU because it stores only `L` and relies on symmetry. Exact fill depends on
+matrix structure and selected reordering. Historical SuiteSparse comparison
+tables and measurement context now live in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
 ## CSC Numeric Backend for Cholesky
 
@@ -343,59 +346,15 @@ of column `j` of `L` are exactly row `j` of `L^T` (no materialised
 transpose needed).  CSR would require a transpose for one of the
 sweeps; CSC fits both without reformatting.
 
-### Performance
+### Performance boundary
 
-Measured on SuiteSparse SPD fixtures (3-repeat average, one-shot
-factor with AMD reorder inside the timed region on all paths):
-
-| Matrix        |    n  |    nnz(A) | factor_ll | factor_csc | factor_csc_sn | speedup (scalar / sn) |
-|---------------|------:|----------:|----------:|-----------:|--------------:|----------------------:|
-| nos4          |   100 |       594 |    0.46 ms |    0.42 ms |       0.38 ms | **1.09× / 1.22×** |
-| bcsstk04      |   132 |     3,648 |    3.12 ms |    2.67 ms |       3.09 ms | **1.16× / 1.01×** |
-| bcsstk14      | 1,806 |    63,454 |  364.29 ms |  208.82 ms |     152.83 ms | **1.74× / 2.38×** |
-| s3rmt3m3      | 5,357 |   207,123 | 4018.41 ms | 1914.53 ms |    1179.41 ms | **2.10× / 3.41×** |
-| Kuu           | 7,102 |   340,200 | 3147.78 ms | 4112.76 ms |    1416.64 ms |   0.77× / **2.22×** |
-| Pres_Poisson  |14,822 |   715,804 |46003.69 ms|17597.98 ms |   10580.68 ms | **2.61× / 4.35×** |
-
-Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
-within double-precision round-off on every matrix above.
-
-Three takeaways from the current scaling corpus:
-
-- **Scalar-CSC speedup scales with n.**  The ratio climbs from 1.09×
-  at n = 100 to 2.61× at n = 14 822, matching the design hypothesis
-  that linked-list pointer-chasing overhead grows faster
-  than CSC column traversal.
-- **Supernodal beats scalar on every non-trivial matrix.**  The
-  batched supernodal kernel pulls ahead by another 1.2–2.9× on top
-  of scalar CSC on the four new fixtures.  The only exception is
-  bcsstk04 (supernodal 1.01× vs scalar 1.16×) where the matrix is
-  small enough that supernode-detection overhead eats the dense-
-  block win.
-- **Kuu scalar regression is real and localised.**  The scalar
-  kernel's repeated `shift_columns_right_of` calls during drop-
-  tolerance pruning cost it the round on Kuu (0.77× vs linked-list);
-  the supernodal path pre-allocates the full sym_L pattern and
-  avoids those shifts, landing 2.22× ahead.
-
-`SPARSE_CSC_THRESHOLD` (default `100` in
-`include/sparse_matrix.h`) determines where
-`sparse_cholesky_factor_opts` switches the linked-list path over to
-the CSC supernodal kernel.  These are one-shot numbers: in the
-analyze-once / factor-many workflow (`sparse_analyze` once →
-`sparse_factor_numeric` to prime the `sparse_factors_t` →
-repeated `sparse_refactor_numeric` for each new value pattern)
-the AMD cost amortizes and the CSC
-kernel's advantage is dramatically larger — measured 2.4× at n = 132
-climbing to 24.3× at n ≈ 15 k on the same corpus, captured by
-`benchmarks/bench_refactor_csc.c`.  See
-[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
-for the full 12-column CSV, both workflow tables, the hypothesis-
-check analysis, and reproduction instructions; raw captures in
-[`docs/planning/EPIC_2/SPRINT_18/bench_day12.txt`](planning/EPIC_2/SPRINT_18/bench_day12.txt)
-(one-shot) and
-[`docs/planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt`](planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt)
-(analyze-once).
+`SPARSE_CSC_THRESHOLD` (default `100` in `include/sparse_matrix.h`)
+determines where `sparse_cholesky_factor_opts` switches the linked-list
+path over to the CSC supernodal kernel. The current reference only records
+that the CSC backend is the maintained large-SPD path. Historical
+SuiteSparse timing tables, one-shot versus analyze-once comparison notes,
+and Kuu-specific regression context now live in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
 ## Supernodal Detection and Batched Kernel
 
@@ -415,7 +374,7 @@ separate etree materialisation required.
 
 The supernode-aware entry point
 `chol_csc_eliminate_supernodal(L, min_size)` runs a fully integrated
-batched path on every detected supernode (Sprint 18 Days 6-8):
+batched path on every detected supernode:
 
 - `chol_csc_supernode_extract` scatters the supernode's CSC columns
   into a dense column-major buffer, building a `row_map` that records
@@ -439,16 +398,10 @@ The companion dense kernels `chol_dense_factor(A, n, lda, tol)` and
 `n × n` blocks and return `SPARSE_ERR_NOT_SPD` on non-positive pivots;
 the error propagates out of the batched kernel unchanged.
 
-Day 9's parametrised cross-check verifies scalar == batched
-byte-for-byte on nos4 and bcsstk04 (both identity and AMD-permuted)
-plus synthetic dense / block-diagonal matrices, across min-size
-thresholds of 1, 4, and 16.  A boundary test additionally exercises
-the dispatch loop on a matrix whose supernodes are a singleton at
-column 0 and a large size-`n-1` block at columns `[1, n)`, covering
-both the degenerate `s_size == 1` and the non-degenerate paths in a
-single run.
+Historical scalar-versus-batched cross-check details are preserved in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
-## CSC LDL^T Scaffolding (Sprint 17)
+## CSC LDL^T Layout
 
 `LdltCsc` combines the Cholesky CSC layout for the unit lower triangular
 factor `L` with auxiliary arrays encoding Bunch-Kaufman pivot
@@ -463,15 +416,10 @@ information:
 - `perm[0..n-1]` — composed symmetric permutation combining any
   fill-reducing reorder with the Bunch-Kaufman pivot swaps
 
-The Day 8 elimination path expands the lower triangle to a full
-symmetric `SparseMatrix`, calls the linked-list `sparse_ldlt_factor`
-(which implements the four Bunch-Kaufman criteria with 1×1 / 2×2
-pivoting, symmetric row-and-column swaps, and element-growth guards),
-then unpacks the result back into the CSC layout with unit diagonals
-inserted.  Output is bit-identical to `sparse_ldlt_factor` on the same
-input; the Sprint 18 native CSC Bunch-Kaufman kernel
-(`ldlt_csc_eliminate_native`) replaces this wrapper as the
-production path.
+The current native CSC Bunch-Kaufman kernel
+(`ldlt_csc_eliminate_native`) owns CSC LDL^T numeric elimination. The
+older wrapper/scaffolding chronology is preserved in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
 The solve (`ldlt_csc_solve`) runs fully on CSC: apply `P` to `b`,
 forward-solve the unit lower triangular `L`, block-diagonal solve `D`
@@ -480,10 +428,10 @@ backward-solve `L^T`, apply `P^T` to recover `x` in user coordinates.
 Singularity detection mirrors `sparse_ldlt_solve`'s relative
 tolerance.
 
-## Supernodal LDL^T (Sprint 19 Days 10-13)
+## Supernodal LDL^T
 
-`ldlt_csc_eliminate_supernodal(F, min_size)` mirrors the Sprint 18
-Cholesky batched path but handles the two LDL^T-specific wrinkles:
+`ldlt_csc_eliminate_supernodal(F, min_size)` mirrors the Cholesky
+batched path but handles two LDL^T-specific wrinkles:
 
 1. **2×2 pivot atomicity in supernode boundaries.**
    `ldlt_csc_detect_supernodes` extends the Liu-Ng-Peyton three-condition
@@ -499,7 +447,7 @@ Cholesky batched path but handles the two LDL^T-specific wrinkles:
    (b) call `ldlt_csc_detect_supernodes` to identify 2×2-safe supernodes;
    (c) on subsequent refactorisations with the same sparsity pattern,
    use the batched path.  In the batched pass, the dense
-   `ldlt_dense_factor` (Sprint 19 Day 11) sees a pre-permuted matrix
+   `ldlt_dense_factor` sees a pre-permuted matrix
    where Bunch-Kaufman chooses the same pivots without further swaps;
    `eliminate_diag` validates this by comparing the dense factor's
    output `pivot_size_block` against cached `F->pivot_size` and returns
@@ -523,17 +471,11 @@ The four batched-path helpers parallel the Cholesky kernel:
   pivots and `|d11| + |d22| + |d21|` for 2×2 pivots — matching the
   scalar `chol_csc_gather` invocations in `ldlt_csc_eliminate_native`.
 
-End-of-sprint speedups (`docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`):
-the batched LDL^T path reaches 6.83× over linked-list on bcsstk14
-(SPD, n = 1806) and 3.05× on bcsstk04 (SPD, n = 132).  Indefinite
-matrices (KKT-style saddle points) currently require the scalar
-`ldlt_csc_eliminate` path because the heuristic CSC fill from
-`ldlt_csc_from_sparse` doesn't always cover the supernodal cmod's
-fill — a `_with_analysis` mirror that pre-allocates full `sym_L`
-(matching the Cholesky side's Sprint 19 Day 6 fix for Kuu) is the
-natural Sprint 20 follow-up.
+Historical batched LDL^T speedups, scaffold chronology, and indefinite
+fill-limit notes are preserved in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
-## Row-Adjacency Index for the Scalar LDL^T Kernel (Sprint 19 Days 8-9)
+## Row-Adjacency Index for the Scalar LDL^T Kernel
 
 `LdltCsc` carries a per-row adjacency index — `row_adj[r]` lists the
 prior columns `kp < r` where `L(r, kp)` was stored during the
@@ -543,8 +485,8 @@ reference's sparse-row scaling for `ldlt_csc_cmod_unified`'s Phase A
 (per-column diagonal cmod) and Phase B (2×2 cross-term).  Both phases
 iterate `F->row_adj[col]` instead of `[0, step_k)` with a binary
 search per `kp`, removing an O(step_k · log nnz) scan per elimination
-step.  Bench impact (`bench_day9_row_adj.txt`): bcsstk14 jumped from
-~2.5× to 3.5× over linked-list; s3rmt3m3 from ~2.5× to 3.8×.
+step. Historical benchmark impact is preserved in
+[`docs/algorithm_history.md`](algorithm_history.md#direct-solver-and-factorization-history).
 
 `ldlt_csc_symmetric_swap` propagates the same swap into `row_adj` (the
 two slots being swapped trade their entire adjacency lists, since the
@@ -584,7 +526,11 @@ The transpose solve (`Aᵀ·z = b`) is implemented by reversing the order of ope
 
 ## Fill-Reducing Reordering
 
-Before LU factorization, a symmetric permutation P·A·Pᵀ can dramatically reduce fill-in. The library provides four orderings: RCM, AMD (quotient-graph since Sprint 22), Nested Dissection (Sprint 22), and COLAMD (column ordering for unsymmetric / QR — described in `### Column Reordering` further down).
+Before LU factorization, a symmetric permutation P·A·Pᵀ can dramatically
+reduce fill-in. The library provides four orderings: RCM, AMD
+(quotient-graph implementation), Nested Dissection, and COLAMD (column
+ordering for unsymmetric / QR — described in `### Column Reordering` further
+down).
 
 ### Reverse Cuthill-McKee (RCM)
 
@@ -598,58 +544,54 @@ BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
 **Characteristics:**
 - O(nnz · log d_max) time (includes neighbor sorting during graph construction and BFS)
 - Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
-- On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
+- Historical local measurements showed bandwidth and fill reductions on
+  structured thermal fixtures; see the historical appendix for fixture-level
+  timing context.
 
-### Approximate Minimum Degree (AMD) — quotient-graph implementation (Sprint 22 + Sprint 24 closures)
+### Approximate Minimum Degree (AMD) — quotient-graph implementation
 
-Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.
+Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.
+The current `sparse_reorder_amd_qg` ships a variable-only quotient-graph form:
+each pivot rebuilds the affected vertices' adjacency lists via a sorted merge,
+with exact minimum-degree recompute on each rebuilt list. Workspace `iw[]` is
+`5·nnz + 6·n + 1` integer entries (Davis 2006 §7); `qg_compact` reclaims slots
+when fill-in pushes the watermark past the buffer.
 
-**Production implementation: Sprint 22's simplified quotient-graph baseline.**  The current `sparse_reorder_amd_qg` ships the variable-only quotient-graph form: each pivot rebuilds the affected vertices' adjacency lists via a sorted merge, with exact minimum-degree recompute on each rebuilt list.  No element-side adjacency, no supervariable detection, no approximate-degree formula, no dense-row skip.  Workspace `iw[]` is `5·nnz + 6·n + 1` integer entries (Davis 2006 §7); `qg_compact` reclaims slots when fill-in pushes the watermark past the buffer.  See the `src/sparse_reorder_amd_qg.c` "Day 11 implementation notes" block for the rationale.
-
-**Sprint 23's Davis-mechanism additions (reverted by Sprint 24 Day 2).**  Sprint 23 Days 2-5 layered the four canonical Davis mechanisms on top of Sprint 22's simplified baseline: element absorption (Day 3), supervariable detection (Day 4), the approximate-degree formula (Day 5, opt-in `SPARSE_QG_USE_APPROX_DEG`), and a dense-row skip (Day 5).  Workspace grew to `7·nnz + 8·n + 1` to host an element-side adjacency region.  Sprint 23 Day 12's closing bench surfaced a 62-199× wall-time regression on irregular SuiteSparse SPD fixtures (root cause: Day 3's element absorption enabled an O(adjacency-of-adjacency) walk in `qg_recompute_deg` that Sprint 24 Day 1's profile measured at 95 % of total bcsstk14 wall time; supervariable detection's O(k²) per-pivot compare contributed only 1 %).  Sprint 24 Day 2 reverted the four Days 2-5 commits via `git revert`, restoring Sprint 22's variable-only baseline bit-identically (commit history preserved; the commits exist on master via Sprint 23's PR #31 but their effects are unwound).  See `docs/planning/EPIC_2/SPRINT_24/fix_decision_day1.md` for the full root-cause analysis (the profile evidence pointed away from the three originally-considered fix candidates) and the rationale for choosing (c) revert over (d) `qg_recompute_deg` optimization (risk profile + Sprint 24 budget shape).
+Historical quotient-graph implementation chronology, reverted Davis-mechanism
+experiments, and Sprint 22-24 measurement context now live in
+[`docs/algorithm_history.md`](algorithm_history.md#reordering-and-fill-history).
 
 **Characteristics:**
 - O(deg · avg_deg) per pivot — linear in nnz instead of the bitset's O(n² / 64).  Scales to n ≥ 50 000 without paying quadratic memory.
-- Memory bound moved from O(n²/64) to O(nnz).  Sprint 22 Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`); Sprint 24 Day 9's bench (`docs/planning/EPIC_2/SPRINT_24/bench_day9_amd_qg.txt`) re-measured Pres_Poisson qg peak at 19.19 MB — exact match to Sprint 22's 19.19 MB after the (c) revert returned the memory profile to the Sprint 22 baseline.
-- Fill quality is bit-identical to bitset across the SuiteSparse corpus (verified Sprint 22 Day 13; carries through Sprint 24 — the Days 2-5 revert is fill-neutral by construction).
-- **Wall-time profile (Sprint 24 Day 9):** qg-AMD ms is at-or-below Sprint 22 Day 13 on every fixture except bcsstk04 (where the 0.9 ms difference is sub-millisecond noise).  bcsstk14 = 125.8 ms; Pres_Poisson = 8 138.8 ms.  qg wins on banded fixtures by 6.5-9× vs bitset (improvement on Sprint 22's 1.8-7×); loses on irregular SuiteSparse SPD by 1.0-2.0× (Sprint 22 was 0.6-1.8×; Sprint 23 was 6-133×).  Day 2's revert closed the Sprint 23 regression and either matched or improved on Sprint 22's baseline.  See `docs/planning/EPIC_2/SPRINT_24/bench_summary_day9.md` for the full 3-sprint side-by-side.
+- Memory bound is O(nnz), not O(n²/64).
+- Fill quality is intended to match the older bitset AMD route for the same
+  symmetrized graph.
+- Wall time and memory behavior remain fixture- and build-dependent; use
+  `benchmarks/README.md` for measurement workflows.
 
-### Nested Dissection (ND) — multilevel vertex separator (Sprint 22 + Sprint 23 + Sprint 24 + Sprint 25 + Sprint 26 + Sprint 27 + Sprint 28 closures)
+### Nested Dissection (ND) — multilevel vertex separator
 
 Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is best on regular 2D / 3D PDE meshes where the geometric advantage of separating the mesh into halves dominates the minimum-degree heuristic AMD is using.
 
 **Pipeline:**
-1. **Coarsen** — heavy-edge matching (Karypis & Kumar 1998) collapses pairs of vertices, building a multilevel hierarchy that bottoms out at MAX(20, n/divisor) vertices.  The divisor is 100 by default; `SPARSE_ND_COARSEN_FLOOR_RATIO` (Sprint 24 Day 5) overrides it in [1, 100000].  Larger divisor → tighter coarsest level → potentially tighter cut at the finest uncoarsening step.  Sprint 24 Day 5's sweep on Pres_Poisson (n = 14 822) found ratio = 200 produces a 1.0pp ND/AMD improvement (0.952× → 0.942×); ratios ≥ 400 regress because the coarsest level pegs at the floor of 20 vertices and the brute-force bisection loses cut quality.  See `docs/planning/EPIC_2/SPRINT_24/nd_coarsen_floor_decision.md`.  Sprint 25 Day 1-3 added `SPARSE_ND_COARSENING={heavy_edge,hcc}` (default `heavy_edge`).  `hcc` selects Heavy Connectivity Coarsening (Karypis & Kumar 1998 §5) — the matching score becomes `edge_weight × min(deg(u), deg(v))` rather than HEM's pure `edge_weight`, biasing matching toward dense-connectivity regions.  Day 3's Pres_Poisson measurement: HCC alone closes ND/AMD 0.952× → 0.937× (-1.5pp).  HCC + ratio=200 composes to **0.922×** (Day 9 setting 13; the Sprint 25 best Pres_Poisson combination).  HCC default flip was attempted Day 10 and reverted — bcsstk14 produces a degenerate `sep = 0` empty separator under HCC, blocking the production-default flip independent of fill quality.  See `docs/planning/EPIC_2/SPRINT_25/coarsening_decision.md` and `hcc_design.md`.  **Sprint 26 Day 3 fixed the sep=0 blocker** via a fall-back path in `sparse_graph_partition` that retries with HEM forced when the multilevel pipeline produces sep=0 (`_Thread_local force_hem_override`); bcsstk14 under HCC now produces sep=97.  Sprint 26 Day 13's flip re-attempt found Kuu HCC-alone regresses by +14.6pp vs Sprint 26 default (a separate blocker Sprint 25 had documented but masked by the bcsstk14 issue), so the HCC default flip remains BLOCKED post-Day-3 — but the env-var path now works correctly on bcsstk14.  See `docs/planning/EPIC_2/SPRINT_26/hcc_sep_zero_diagnosis.md`.
-2. **Coarsest bisection** — brute-force enumeration for n ≤ 20 (`2^(n-1)` patterns); GGGP (greedy graph-growing partition, peripheral-vertex BFS) for n > 20.  Sprint 25 Day 6-8 added `SPARSE_ND_COARSEST_BISECTION={spectral,gggp,brute}` (default unset → Sprint 22 routing: `brute` for n ≤ 20, `gggp` for n > 20).  `gggp` forces GGGP at all sizes; `brute` forces brute @ n ≤ 20 and falls through to GGGP at n > 20 (the 2^(n-1) enumeration is intractable beyond n=20; `brute` is mainly a debugging knob for the small-n path).  `spectral` builds the graph Laplacian L = D - A, computes the Fiedler vector via the Sprint 20-21 Lanczos eigensolver (`sparse_eigs_sym(SPARSE_EIGS_SMALLEST, k=2)`), and partitions vertices by the median of v_1 (the eigenvector corresponding to the second-smallest eigenvalue).  Falls back to GGGP if Lanczos fails or produces a 60/40-imbalanced cut.  Day 8's Pres_Poisson measurement: spectral alone barely moves nnz_L (0.953× vs default 0.952×), but reduces ND wall time dramatically (~23× speedup as part of Day 9 setting 15: spectral cuts close to FM optimum, so intermediate / finest FM polishes faster).  Default stays `gggp` because spectral's nnz_L benefit is essentially nil on the headline fixture; spectral ships as advisory for callers prioritising ND wall time.  See `docs/planning/EPIC_2/SPRINT_25/spectral_bisection_decision.md` and `spectral_bisection_design.md`.
-3. **Uncoarsen with FM** — project the coarsest partition back through the hierarchy with Fiduccia-Mattheyses refinement at every level (rollback-on-regress on the lowest cut seen).  Sprint 23 Day 10 swapped Sprint 22's O(n) max-gain linear scan for an O(1) gain-bucket structure (`src/sparse_graph_fm_buckets.h`); Sprint 23 Day 11 adopted 3-pass FM at the finest uncoarsening level by default (intermediate levels stay single-pass) — overridable via `SPARSE_FM_FINEST_PASSES` env var.  Sprint 25 Day 4-5 added `SPARSE_FM_INTERMEDIATE_PASSES` (default 1, range [1, 10]; out-of-range / non-numeric / missing → default 1) — controls FM passes at every intermediate uncoarsening level (the finest level continues to use `SPARSE_FM_FINEST_PASSES`).  Day 5's Pres_Poisson sweep across passes ∈ {1, 2, 3}: passes=1 (default) = 0.952×; passes=2 = 0.952× (essentially unchanged, -0.04pp); passes=3 = 0.967× (+1.5pp regression).  Default stays at 1 because the PLAN.md Day-5 flip rule (≥ 1pp Pres_Poisson tightening + no smaller-fixture regression past 5pp) fails on the headline fixture for both candidate values: passes=2 doesn't move Pres_Poisson AND regresses Kuu (+6.6pp), passes=3 regresses Pres_Poisson.  Per-fixture advisories DO exist where the workload prioritises non-Pres_Poisson fill: **Kuu at passes=3 closes -23.2pp** (2.275× → 2.043×; the strongest single per-fixture win Sprint 25 produced via this axis alone, at +3.7% wall cost), and **bcsstk14 at passes=2 closes -2.2pp** (1.129× → 1.107×, +4.7% wall) or passes=3 -2.3pp at -11.4% wall.  s3rmt3m3 regresses +1.7pp at passes ≥ 2; nos4 / bcsstk04 are flat (small fixtures).  See `docs/planning/EPIC_2/SPRINT_25/intermediate_fm_decision.md` for the full per-fixture sweep.  Sprint 26 Day 6-8 added `SPARSE_FM_FINEST_STRATEGY={baseline,fifo,annealing,thick_restart}` (default `baseline`).  `fifo` switches the gain-bucket tie-break from LIFO (most-recently-inserted-or-gain-updated wins; Sprint 23 baseline) to FIFO (first-inserted wins) by adding a `tails[]` array to `fm_bucket_array_t` + a `pop_max_tail` variant.  `annealing` and `thick_restart` are recognized for forward-compatibility but unimplemented in Sprint 26 (rejected at Day 6 design — annealing +20-50% wall; thick-restart 2-3× wall would breach the 1.5× wall-check ceiling); both fall through to baseline.  Day 8's cross-corpus sweep: `fifo` alone REGRESSES Pres_Poisson by +3pp (no flip-rule clearance); ships as advisory only in combination with Sprint 25 setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary), where it contributes -1 to -3pp on smaller fixtures (Kuu / bcsstk14 / nos4).  See `docs/planning/EPIC_2/SPRINT_26/finest_fm_decision.md`.
-4. **Vertex-separator extraction** — convert the final 2-way edge separator to a 3-way `{0, 1, 2}` vertex separator.  Default lift strategy is `smaller_weight` (METIS convention — lift the smaller-vertex-weight side's boundary); `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` (Sprint 24 Day 6) lifts whichever side has the smaller boundary count regardless of vertex weight, with a 70/30 post-lift weight-balance check that falls back to `smaller_weight` if the chosen lift would skew the recursion too far.  `balanced_boundary` is documented advisory for non-Pres_Poisson workloads: Sprint 24 Day 6's sweep showed 8-38 percentage-point ND/AMD improvements on nos4 / bcsstk14 / Kuu (Kuu's 38pp drop is the largest single nnz win Sprint 24 produced) but is essentially neutral on Pres_Poisson (+0.1pp), so it stays off-by-default.  Sprint 26 Day 10/12 extended the env var with three per-vertex variants: `per_vertex` (Day 10's hybrid score `2 × cross_deg + balance_bonus`), `per_vertex_balance` (balance-priority), `per_vertex_degree` (low-total-degree-priority).  All three score boundary vertices individually + greedily pick top-K with the same 70/30 balance gate.  Day 12's cross-corpus sweep found the three weight schemes converge to bit-identical outputs on 5 of 6 fixtures (the 70/30 balance gate dominates the score formula); per_vertex variants regress Pres_Poisson by +29pp (catastrophic) but win on bcsstk04 (-4.6pp).  Per_vertex ships as advisory for bcsstk04-class small irregular fixtures only.  See `docs/planning/EPIC_2/SPRINT_24/nd_sep_strategy_decision.md` and `docs/planning/EPIC_2/SPRINT_26/per_vertex_sep_decision.md`.
-5. **Recursive ordering** — on each interior partition: recurse; for subgraphs with `n ≤ ND_BASE_THRESHOLD` (default **128** — **Sprint 27 Day 3 default-flip from Sprint 26's 96**, itself a flip from Sprint 22's 32), call `sparse_reorder_amd_qg` on the leaf and splice the per-leaf permutation into the global perm[] via `vertex_id_map` (Sprint 23 Day 7).  Append the separator vertices last.  Sprint 26 Day 5's threshold flip from 32 → 96 was driven by Day 4's per-recursion-depth profile finding (88% of ND wall on Pres_Poisson concentrates at depths 6-9 = ~169 small-subgraph multilevel-pipeline calls with 60-200 ms per-call constant overhead floor).  Sprint 27 Day 3's relaxed-flip-rule re-sweep (2pp regression cap, was 1pp Sprint 26) found t=128 the new maximum; t=192 fails by Pres_Poisson +2.0% (right at 2pp); t=256 fails clearly (+3.2%).  Cumulative Pres_Poisson ND wall improvements: 38.1 s (Sprint 25) → 12.2 s (Sprint 26 Day 5; -67.9%) → 8.8 s (Sprint 27 Day 2 HCC default) → 7.1 s (Sprint 27 Day 3 t=128; -42% vs Sprint 26).  See `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md` and `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`.  **Sprint 27 Day 2 also flipped `SPARSE_ND_COARSENING` default `heavy_edge` → `hcc`** via the Kuu-safe matching variant (option (a.1) — degree-CV-detection-and-HEM-fall-through; default threshold 0.30 routes Kuu's CV=0.425 to HEM, Pres_Poisson's CV=0.108 stays HCC).  Both Sprint 25 Day 10 default-flip blockers now closed (bcsstk14 sep=0 by Sprint 26 Day 3; Kuu +14.6pp regress by Sprint 27 Day 2).  Day 2 corpus sweep delta vs HEM: Pres_Poisson -3.4 % (0.950× → 0.918×); Kuu -12.3 %; bcsstk14 + s3rmt3m3 within ±0.7 % (under 5pp budget); nos4 / bcsstk04 bit-stable.  See `docs/planning/EPIC_2/SPRINT_27/hcc_kuu_diagnosis.md`.
+1. **Coarsen** — heavy-edge matching or heavy-connectivity coarsening builds a
+   multilevel hierarchy. `SPARSE_ND_COARSENING` and
+   `SPARSE_ND_COARSEN_FLOOR_RATIO` control the selected coarsening route.
+2. **Coarsest bisection** — small coarse graphs can use brute-force search;
+   larger graphs use GGGP or the optional spectral path selected by
+   `SPARSE_ND_COARSEST_BISECTION`.
+3. **Uncoarsen with FM** — Fiduccia-Mattheyses refinement improves the
+   projected separator. `SPARSE_FM_FINEST_PASSES`,
+   `SPARSE_FM_INTERMEDIATE_PASSES`, and `SPARSE_FM_FINEST_STRATEGY` expose
+   tuning knobs.
+4. **Vertex-separator extraction** — the edge separator is lifted into a
+   3-way vertex separator using the configured lift strategy.
+5. **Recursive ordering** — interior partitions recurse; small leaves use
+   AMD, and separator vertices are appended last.
 
-**Sprint 27 algorithmic-axis closures (advisory, no default flip):**
-- **`SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k` + `SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree}`** (Sprint 27 Day 4) — fixed-K termination instead of the dynamic-K + 70/30 balance gate that Sprint 26 Day 12 found dominates the score formula.  Confirms Sprint 26 Day 12's hypothesis: under fixed-K, the three weight schemes produce a 6× spread in Kuu nnz_L (vs <1pp under dynamic-K).  **Headline win: Kuu under `per_vertex_fixed_k × hybrid` lands -34.7 % nnz_L** (1.229× of AMD; was 1.882× under Sprint 27 Day 2 default).  Pres_Poisson regresses +52 % under hybrid, so this is bimodal-class-specific (Kuu) not a default flip.  See `docs/planning/EPIC_2/SPRINT_27/per_vertex_fixed_k_decision.md`.
-- **`SPARSE_FM_FINEST_STRATEGY=annealing` + `SPARSE_FM_ANNEALING_SCHEDULE={linear, exponential (default), cosine}`** (Sprint 27 Days 5-7) — Sprint 26 Day 6's parser-stubbed `annealing` value gets the actual acceptance overlay (`P = exp(g/T)` per Kirkpatrick-1983 §3) plus three temperature schedules.  All three schedules regress Pres_Poisson 2.2-3.1 % (the rollback-to-best-cut floor combined with stochastic acceptance produces trajectories that miss baseline's saved-best path on the regular FE-mesh structure).  bcsstk14-class fixtures see slight wins (-0.7 %); ships as advisory for that class.  See `docs/planning/EPIC_2/SPRINT_27/annealing_fm_decision.md`.
-- **`SPARSE_ND_ROOT_BISECT={multilevel (default), spectral}` + `SPARSE_ND_ROOT_BISECT_MAX_N=N` (default 50000)** (Sprint 27 Days 7-9) — extends Sprint 25 Day 7's coarsest-level spectral path (`graph_bisect_coarsest_spectral`, promoted to internal-API on Day 8) to the ROOT level via Lanczos + Fiedler on the full graph Laplacian.  Day-7 hypothesis ("Fiedler at the root captures geometric structure the multilevel pipeline loses") is empirically wrong — multilevel's iterative FM refinement reaches near-optimal cuts the median-bisect-on-Fiedler doesn't beat.  Pres_Poisson +2.3 % regress; Kuu +16.7 %; combination with `SPARSE_FM_FINEST_STRATEGY=annealing` lands 0.947× = +2.4pp regress.  **bcsstk04 is the lone win: -1.3 % nnz_L + 23× wall speedup** (the multilevel pipeline's coarsening overhead dominated this small-n fixture; spectral skips it cleanly).  Ships as advisory for small irregular fixtures (bcsstk04-class, n ≤ ~200).  See `docs/planning/EPIC_2/SPRINT_27/root_spectral_decision.md`.
-
-**Sprint 28 algorithmic-axis closures (advisory, no default flip):**
-- **`SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal`** (Sprint 28 Days 2-3) — Sprint 27 Day 11 simplified the `gauss_noise` thick-restart variant to "random-flip with k drawn proportional to a half-Gaussian"; the formal variant adds Gaussian noise to the gain-bucket pick step (`noisy_gain = gain + sigma * |max_gain| * randn()` with linear or exponential `sigma` schedules).  Day 3's corpus sweep: catastrophic Pres_Poisson regress of +24pp (1.166× ratio) under both linear and exponential schedules; **bcsstk04 is the lone win** (-1.7 % nnz_L under the linear schedule); bcsstk14, Kuu, s3rmt3m3 all regress (+12 to +67 %).  Ships as advisory for bcsstk04-class small irregular SPDs; default stays `random_flip`.  See `docs/planning/EPIC_2/SPRINT_28/gain_noise_decision.md`.
-- **`SPARSE_FM_FINEST_STRATEGY=ensemble` + `SPARSE_FM_ENSEMBLE_STRATEGIES={baseline,fifo,annealing} (default)`** (Sprint 28 Days 4-5) — runs all listed FM strategies in parallel per finest-level call, picks the lowest-cut result.  Default selector `baseline,fifo,annealing` explores 3× the FM landscape at 2-3× wall cost.  Day 5's corpus sweep: Pres_Poisson regresses +1.5pp (0.937× ratio) under all 4 selector list variants (default, drop-FIFO, drop-baseline, 4-way with thick_restart).  Wall cost rules out the default flip even on the smaller-fixture wins.  Ships as advisory; default stays `baseline`.  See `docs/planning/EPIC_2/SPRINT_28/ensemble_fm_decision.md`.
-- **`SPARSE_SUPERNODAL_POSTORDER={off (default), on}`** (Sprint 28 Days 6-10; legacy alias `SPARSE_ND_SUPERNODAL_POSTORDER` still accepted for back-compat with Sprint 28 captures + advisory recipes that shipped under the original name) — Item 4 "non-pipeline-level pivot" per Day-1 `pivot_decision_day1.md` (chosen over METIS-style multi-matching coarsening and geometric domain decomposition).  Reorder-agnostic: the post-pass operates on whatever permutation `sparse_analyze` produced (AMD / RCM / COLAMD / ND), not just ND — the original `ND_` prefix in the env-var name was an artefact of the Day-1 framing as an ND fill-quality pivot and was renamed per PR #36 review.  Composes the elimination-tree postorder into `analysis->perm` (Liu 1990 / Davis 2006 §6.5), rebuilds B + recomputes etree+postorder so colcount + symbolic Cholesky run on the final ordering.  Default-off path bit-identical to Sprint 27; env-on path adds ~6-15 % to `sparse_analyze` wall.  Day 9's 24-cell sweep ({AMD, ND} × {off, on} × 6 fixtures): nnz_L invariant on every cell (symmetric permutation preserves symbolic Cholesky fill by construction); supernode-count delta trivial (±1-3 supernodes; total_grouped same or ±3 columns).  Day 12's 24-setting cross-corpus matrix: Item-4 + Sprint 27 default tied for Pres_Poisson best at 0.9226× (bit-equal); Item-4 + Sprint 27 Kuu opt-in (t=256) tied for corpus-wide best at geomean 1.1156.  **Ships infrastructure for future supernodal-numeric-factor kernels** (the existing chol_csc path doesn't currently exploit supernodal kernels; per Day-1 dossier candidate-(c), the post-pass becomes the natural input ordering for such kernels when a future sprint wires them).  Default stays `off`.  See `docs/planning/EPIC_2/SPRINT_28/non_pipeline_decision.md` + `pivot_decision_day1.md`.
-
-**Characteristics:**
-- Fill quality on regular meshes (default-path, **Sprint 27 + Sprint 28 production** — Sprint 28 inherited Sprint 27's HCC + Kuu-safe + t=128 defaults; no Sprint 28 default flips): nos4 1.000× of AMD (n < threshold; entirely AMD); bcsstk04 1.184×; Kuu 1.882×; bcsstk14 1.124×; s3rmt3m3 1.028×; **Pres_Poisson 0.9226× of AMD** (Sprint 22 Day 7 was 1.063×; the canonical 2D-PDE benchmark — ND beats AMD).  Sprint 28 Day 12's 24-setting × 6-fixture cross-corpus matrix (`bench_day12_combinations.csv`) confirms the production default is at the empirical floor on Pres_Poisson; no Sprint 28 axis or combination beats it on the headline fixture; Sprint 28's Item-4 (supernodal-etree post-pass) bit-equals the default by symmetric-permutation invariance.  Full corpus capture: `docs/planning/EPIC_2/SPRINT_23/bench_day12.txt` (default-path baseline through Sprint 23), `docs/planning/EPIC_2/SPRINT_25/bench_day9_combinations.csv` (Sprint 25 16-setting matrix), `docs/planning/EPIC_2/SPRINT_27/bench_day13_combinations.csv` (Sprint 27 24-setting matrix), `docs/planning/EPIC_2/SPRINT_28/bench_day12_combinations.csv` (Sprint 28 24-setting matrix; current).
-- Per-fixture advisory env-var settings (each documented in the cited decision docs).  **Sprint 28 Day 12's 24-setting × 6-fixture sweep** (`docs/planning/EPIC_2/SPRINT_28/bench_day12_combinations.{csv,txt}` + `headline_summary.md`) is the current cross-corpus reference (supersedes Sprint 27 Day 13's matrix while preserving its conclusions; Sprint 28 added Items 1+2+4 axis variants + stack combinations).  The verified-best recipes per fixture-class:
-    - **Pres_Poisson (headline)** — Sprint 27 production default (no env vars; HCC + t=128) at **0.9226×** is itself the best across all 24 settings of Sprint 28's Day-12 matrix (tied with Sprint 28 setting 3 `SPARSE_SUPERNODAL_POSTORDER=on` by symmetric-permutation invariance).  No Sprint 27 or Sprint 28 advisory combination beats it; the closest contenders cluster at 0.927-0.944×.  Stacking advisory axes (especially `fixed_k×degree`) can REGRESS Pres_Poisson catastrophically (Sprint 27 settings 5, 21, 23; Sprint 28 settings 4, 5, 10, 17, 22, 23, 24 land 1.17-1.65× — worse than AMD on some).  See `docs/planning/EPIC_2/SPRINT_28/headline_summary.md`.
-    - **Kuu (largest single-fixture win Sprint 27 produced)** — `SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=hybrid build/bench_reorder --nd-threshold 256` (Day 13 setting 18) drops Kuu ND/AMD 1.882× → **1.217×** (−35.3 % nnz_L).  Combines Day-3's t=256 advisory with Day-4's fixed-K hybrid weighting — neither stand-alone beats this; together they compose constructively.  Best Kuu single-axis: setting 17 (`--nd-threshold 256` alone) at 1.772× (−5.6pp).
-    - **bcsstk04 (small irregular SPD)** — `SPARSE_ND_ROOT_BISECT=spectral` (Day 9) drops bcsstk04 nnz_L −1.3 % AND wall 23× faster (105 ms → 4.5 ms; the multilevel pipeline's coarsening overhead dominated this small-n fixture; spectral skips it cleanly).  See `root_spectral_decision.md`.
-    - **bcsstk14 (mid-irregular)** — `SPARSE_FM_FINEST_STRATEGY=annealing` (Day 7) closes bcsstk14 nnz_L −0.7 % under the exponential or cosine schedule (1.124× → 1.116×).  See `annealing_fm_decision.md`.
-    - **s3rmt3m3 (mid-irregular)** — `SPARSE_FM_FINEST_STRATEGY=thick_restart SPARSE_FM_THICK_RESTART_PERTURB=random_flip` (Day 12) closes s3rmt3m3 nnz_L −1.0 % (1.028× → 1.018×).  See `thick_restart_decision.md`.
-    - **Corpus-wide best (geomean of 6 ratios)** — setting 17 (`build/bench_reorder --nd-threshold 256`) at geomean 1.116 vs Sprint 27 default's 1.155, driven primarily by Kuu's huge improvement.  Loses Pres_Poisson 2.5pp; ships as advisory for non-FE-mesh-dominated workloads.
-
-    Cross-axis caution: stacking advisory env vars often makes Pres_Poisson WORSE.  In Sprint 27 Day 13's matrix, settings 21, 23, 24 all regress past 1.0× of AMD; Sprint 28 Day 12's matrix re-confirms — settings 10, 17, 22, 23, 24 land 1.17-1.65× (worse than AMD on some), with `fixed_k×degree` particularly destructive to Pres_Poisson.  Opt in only on workloads that don't include FE meshes.
-
-    Historical Sprint 25 advisories — `SPARSE_ND_COARSEN_FLOOR_RATIO=200` (Sprint 24 Day 5), `SPARSE_FM_INTERMEDIATE_PASSES={2,3}` (Sprint 25 Day 4), `SPARSE_ND_COARSEST_BISECTION=spectral` (Sprint 25 Day 6-8), `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` (Sprint 24 Day 6), and the legacy `per_vertex` / `per_vertex_balance` / `per_vertex_degree` strategies (Sprint 26 Day 10/12) — remain available but are subsumed by Sprint 27's verified recipes for the corresponding fixture classes.  See `SPRINT_24/`, `SPRINT_25/`, `SPRINT_26/` decision docs.
-- The Pres_Poisson default-path **0.923× ratio** is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), 11 (multi-pass FM at the finest level), Sprint 26 Day 5 (`nd_base_threshold 32 → 96`), Sprint 27 Day 2 (`SPARSE_ND_COARSENING heavy_edge → hcc` with Kuu-safe degree-CV-fall-through), and Sprint 27 Day 3 (`nd_base_threshold 96 → 128`).  PLAN.md's literal **≤ 0.85× target across Sprints 24-28 remained UNMET** (6 consecutive sprints; current default 0.923× = 7.3pp from target; per-sprint trajectory: 0.952× → 0.942× → 0.922× → 0.9217× → 0.9226× → 0.9226×).  Sprint 27's structural-pipeline-level interventions all REGRESSED Pres_Poisson on the headline fixture (Item 4 annealing FM +2.2-3.1pp, Item 5 root-spectral +2.3pp, Item 6 thick-restart FM +4.7-11.5pp).  Sprint 28's non-pipeline-level pivot (`SPARSE_SUPERNODAL_POSTORDER=on` — Liu 1990 post-permutation acting on the elimination tree AFTER the multilevel pipeline) is bit-equivalent to the default on Pres_Poisson nnz_L by symmetric-permutation invariance — the only intervention that can act AFTER the pipeline produces a 0pp delta on the metric.  **The literal 0.85× target is formally RETIRED with Sprint 28's empirical evidence** (Day 12 cross-corpus matrix; `headline_summary.md` "Sprint 28 Verdict on the Literal 0.85× Pres_Poisson Target — RETIRED").  Sprint 29+ may revisit ONLY with fundamentally different machinery: METIS C library interop (defer to production METIS rather than the in-house multilevel pipeline), geometric mesh-aware ordering with first-class coordinate API (rejected Sprint 27 Day 9; Laplacian-spectral coordinates regress +2.3pp), or hybrid AMD-then-ND-on-separators.  None budgeted for Sprint 29.
-- **Wall time on Pres_Poisson is ~10 s** under Sprint 27 production defaults (Sprint 25 baseline was ~38 s; cumulative -73.5 % across Sprints 26-27).  Reductions: Sprint 26 Day 5 t=96 flip cut to ~12 s (-67.9 % vs Sprint 25); Sprint 27 Day 2 HCC default flip to ~8.8 s (-77 %); Sprint 27 Day 3 t=128 flip held wall at the new floor.  See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md` and `hcc_kuu_diagnosis.md` for per-flip wall measurements.
+Historical Sprint 22-28 ND chronology, retired Pres_Poisson targets,
+fixture-specific advisory recipes, and cross-axis caution tables now live in
+[`docs/algorithm_history.md`](algorithm_history.md#reordering-and-fill-history).
 
 ### Reorder/fill reporting interpretation
 
@@ -678,72 +620,15 @@ separate. Read them with these boundaries:
 
 ### Performance regression gates
 
-Sprint 24 Day 1 added a `make wall-check` target driven by
-`scripts/wall_check.sh` and a per-fixture baseline file at
-`docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`.  Sprint
-25 Day 12 extended the gate with a third single-fixture
-measurement.  The gate now runs:
+`make wall-check` is the current hard timing regression gate for selected AMD
+and ND paths. `make performance-sentinels` wraps that hard gate and adds
+threshold-free local report context under `build/bench-reports/sentinels/`.
 
-- `bench_amd_qg --only bcsstk14` — captures qg-AMD's `reorder_ms`
-  on the bcsstk14 SuiteSparse fixture (n = 1 806); compared against
-  `bcsstk14_qg_amd_ms` baseline.
-- `bench_reorder --only Pres_Poisson --skip-factor` — captures
-  both AMD's and ND's `reorder_ms` on Pres_Poisson (n = 14 822)
-  from a single bench invocation; compared against the
-  `pres_poisson_amd_ms` and `pres_poisson_nd_ms` baselines
-  respectively.
-
-Each measurement is compared against its baseline in
-`wall_check_baseline.txt` using a per-key threshold:
-
-- **`bcsstk14_qg_amd_ms` → 2× threshold** (Sprint 24 Day 1).
-  Catches single-day algorithmic regressions (Sprint 23 Days 2-5
-  each introduced ~10-50× drift, so 2× is generous-but-not-
-  toothless) without flagging on routine host-load noise (typical
-  run-to-run drift on this fixture is within ±25 %).
-- **`pres_poisson_amd_ms` → 2× threshold** (Sprint 24 Day 1).
-  Same calibration as bcsstk14 — both AMD baselines are tight
-  gates on the qg-AMD path, which Sprint 23 introduced + Sprint
-  24 reverted a 30-200× regression that escaped notice for an
-  entire sprint.
-- **`pres_poisson_nd_ms` → 1.5× threshold** (Sprint 25 Day 12).
-  Wider than the AMD gates because Sprint 25 Day 11 profiling
-  (`docs/planning/EPIC_2/SPRINT_25/profile_day11_pres_poisson_nd.txt`)
-  measured 16 % within-run variance on this fixture (5 consecutive
-  runs spanned 44 321 - 51 562 ms; 99.5 % of wall time is in the
-  partition phase, which is sensitive to macOS arm64 thermal
-  management + sustained-load variance).  1.5× absorbs the
-  variance without going so wide that real algorithmic regressions
-  slip through; if Sprint 26 lands a real cost tightening on the
-  ND default path, the gate can drop to 1.25×.
-
-The Sprint-24-internal motivation: Sprint 23's qg-AMD wall-time
-regression (62-199× vs Sprint 22 baseline; documented in
-`SPRINT_23/bench_summary_day12.md "(b)"`) accumulated across four
-day-by-day commits with no intermediate signal — the closing-day
-bench was the first time the regression was measured end-to-end.
-The wall-check gate runs in seconds (one fixture each side, no
-factor), so it's cheap to invoke at every day-by-day commit, and
-catches the single-day step-change that the corpus-scale closing-
-bench would otherwise only surface days later.
-
-Sprint 104 adds `make performance-sentinels` as a maintainer convenience
-bundle around this gate. The bundle keeps `wall-check` as the only hard
-pass/fail timing lane and adds threshold-free Cholesky CSC backend-aware
-context under `build/bench-reports/sentinels/`. Treat those additional rows as
-local measurement context under the recorded backend and OpenMP runtime
-settings, not as portable performance evidence.
-
-The baseline file commits its values in a `KEY=VALUE_MS`
-key-value format with `#`-prefixed comment blocks documenting
-which day landed each baseline and what the previous values were.
-Sprint 24 Day 4 bumps the AMD baselines down to the post-fix
-measurements once item 2's wall-time fix lands; Sprint 25 Day 12
-adds the `pres_poisson_nd_ms = 47 055 ms` baseline (median of 5
-consecutive Day 11 measurements per
-`docs/planning/EPIC_2/SPRINT_25/nd_wall_time_decision.md`).
-Future sprints that touch the AMD or ND default code paths should
-expect to update both the baselines and the comment block.
+Use [`benchmarks/README.md`](../benchmarks/README.md) for current benchmark
+commands, report directories, CSV fields, and generated-index interpretation.
+Historical wall-check rationale, baseline evolution, and sentinel history now
+live in
+[`docs/algorithm_history.md`](algorithm_history.md#benchmark-and-report-governance-history).
 
 ### Integration with Factorization
 
@@ -1413,9 +1298,17 @@ The result x has minimum 2-norm because the transformation preserves norms and t
 
 Stops when the residual stops decreasing or max iterations are reached.
 
-## Symmetric Eigensolvers (Sprint 20)
+## Symmetric Eigensolvers
 
-`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A via a **Lanczos-based Krylov method with full MGS reorthogonalisation**.  The outer solve grows the Krylov subspace dimension and retries as needed rather than performing a true thick restart (a Wu/Simon thick-restart backend that preserves a compact Ritz space across restarts is planned for Sprint 21).  An optional **shift-invert** mode for interior eigenvalues composes with the LDL^T dispatch in `sparse_ldlt.h`.
+`sparse_eigs_sym(A, k, &opts, &result)` computes `k` extreme or near-sigma
+eigenpairs of a symmetric sparse matrix A. The public surface supports
+grow-m Lanczos, thick-restart Lanczos, and LOBPCG backends selected through
+`opts->backend` or AUTO routing. An optional **shift-invert** mode for
+interior eigenvalues composes with the LDL^T dispatch in `sparse_ldlt.h`.
+
+Historical backend rollout, benchmark sweeps, and implementation rationale now
+live in
+[`docs/algorithm_history.md`](algorithm_history.md#eigensolver-implementation-history).
 
 ### The 3-term Lanczos recurrence
 
@@ -1449,11 +1342,14 @@ The `opts.reorthogonalize = 0` escape hatch disables reorth for the occasional c
 
 ### Parallel reorthogonalisation: MGS stays serial in j
 
-Sprint 21 Day 5-6 parallelises MGS under `-DSPARSE_OPENMP`, but only in the inner axis.  The outer `j` loop — sweeping the prior Lanczos vectors — **stays serial**.  Each iteration of the `j` loop reads the `w` that the previous iteration just modified, so the iterations have a read-after-write dependency that parallelism cannot break.  Only the inner dot-product `<w, v_j>` and the inner daxpy `w -= dot · v_j` are data-parallel in the length-`n` axis, and those get `#pragma omp parallel for reduction(+:dot)` and `#pragma omp parallel for` respectively.
+When built with `-DSPARSE_OPENMP`, MGS parallelizes only the inner vector
+axis. The outer `j` loop over prior Lanczos vectors stays serial because each
+projection updates `w` before the next projection reads it. The compile-time
+threshold `SPARSE_EIGS_OMP_REORTH_MIN_N` gates those parallel regions so small
+problems avoid fork/join overhead.
 
-Why not classical Gram-Schmidt?  CGS computes every `dot_j = <w_original, v_j>` in one parallel pass, then subtracts them all in a second pass: the `j` loop parallelises trivially.  But each subtraction uses the *original* `w`, not the partially-orthogonalised one, so cancellation errors compound and the orthogonality drift bottoms out around 1e-6 on wide-spectrum matrices — an order of magnitude worse than MGS's 1e-12.  On the eigensolver's convergence criterion (`|beta_m · y_{m-1,j}| / |theta_j|`) that difference determines whether the residual gate fires at 1e-10 or plateaus at 1e-8 because of ghost Ritz pairs.  We pay the serial-j cost to keep the stability; Sprint 21's parallel speedup comes from the `i`-axis work instead.  (There are compromises — iterated CGS, block MGS, TSQR — but the library's size/complexity budget doesn't justify them for the measured 2× at 4 threads we get from the simple pattern.)
-
-A compile-time threshold `SPARSE_EIGS_OMP_REORTH_MIN_N` (default 500) gates both pragmas via an OpenMP `if (n >= threshold)` clause.  Below the threshold the `parallel for` runs on a single-thread team — zero fork/join overhead, serial performance.  The fork/join overhead on macOS Homebrew libomp is 5-20 μs per parallel region, which exceeds the per-reorth work when `n < ~500`; see [`docs/planning/EPIC_2/SPRINT_21/bench_day6_omp_scaling.txt`](planning/EPIC_2/SPRINT_21/bench_day6_omp_scaling.txt) for the scaling sweep that motivates the threshold.
+Historical OpenMP scaling rationale and benchmark links live in
+[`docs/algorithm_history.md`](algorithm_history.md#eigensolver-implementation-history).
 
 ### Ritz extraction
 
@@ -1461,7 +1357,8 @@ Once Lanczos builds `(V, T)`, the Ritz pairs `(theta_j, V · y_j)` — where `(t
 
 ### Outer loop: growing m on retry
 
-The practical convergence question is *how big m should be*.  The Day 13 implementation runs a single growing-m Lanczos sequence:
+The practical convergence question is *how big m should be*. The grow-m
+backend runs a single deterministic Lanczos sequence:
 
 ```
 m = m_init = 3k + 30
@@ -1478,7 +1375,12 @@ Because `v_0` is deterministic and Lanczos is deterministic under fixed v_0, the
 
 ### Thick-restart Lanczos: bounded memory via arrowhead state
 
-The grow-m outer loop's peak memory is `O(m_cap · n)` because the full Lanczos basis `V` lives across retries.  On bcsstk14 (n = 1806) at `m_cap = 500` that's ~7 MB; pushing `m_cap = n` for harder fixtures balloons it to ~26 MB.  Sprint 21's thick-restart backend (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`) replaces the grow-m strategy with the Wu/Simon (2000) — Stathopoulos & Saad (2007) restart mechanism that bounds peak memory at `O((k + m_restart) · n)` regardless of total iteration count.
+The grow-m outer loop's peak memory is `O(m_cap · n)` because the full Lanczos
+basis `V` lives across retries. The thick-restart backend
+(`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`) replaces the grow-m strategy
+with the Wu/Simon (2000) / Stathopoulos-Saad (2007) restart mechanism that
+bounds peak memory at `O((k + m_restart) · n)` regardless of total iteration
+count.
 
 **The arrowhead state.**  After a Lanczos phase of length `m_restart` and Ritz extraction, the locked top-`k_locked` Ritz pairs are kept; the rest of `V` is discarded.  The locked block + the trailing residual seed the next phase, but T's structure is no longer plain tridiagonal — it becomes an *arrowhead* matrix:
 
@@ -1494,9 +1396,9 @@ T  =   [ β_0  β_1  β_2   α_3  β_3   0    0   ]
 
 The top-left `k_locked × k_locked` block is diagonal (the locked Ritz values `θ_j`), the spoke `β_j = β_m · y_{m-1, j}` couples each locked pair to the new Lanczos extension at row/column `k_locked`, and the trailing rows are the standard 3-term Lanczos α/β values from the new phase.  This shape is the "arrow" — three diagonals meeting at a point.
 
-**Reduction to tridiagonal.**  The existing Sprint 20 `tridiag_qr_eigenpairs` consumes a symmetric tridiagonal, not an arrowhead.  The library's `s21_arrowhead_to_tridiag` materialises the arrowhead as a dense K × K symmetric matrix (K = `k_locked + m_ext`) and runs classical Householder reflections (Golub & Van Loan §8.3.1) to chase the spoke entries into a tridiagonal form with the same spectrum — total work O(K^3) per restart, but K stays small (typically `k_locked + m_restart ≤ 100`), so each reduction is microsecond-scale.
+**Reduction to tridiagonal.**  The existing `tridiag_qr_eigenpairs` consumes a symmetric tridiagonal, not an arrowhead.  The library's `s21_arrowhead_to_tridiag` materialises the arrowhead as a dense K × K symmetric matrix (K = `k_locked + m_ext`) and runs classical Householder reflections (Golub & Van Loan §8.3.1) to chase the spoke entries into a tridiagonal form with the same spectrum — total work O(K^3) per restart, but K stays small (typically `k_locked + m_restart ≤ 100`), so each reduction is microsecond-scale.
 
-**Locked-pair preservation.**  Wu/Simon's claim is that each restart **strictly extends** the converged subspace: the locked Ritz pairs sit in the diagonal block of the new T, so the next Ritz extraction picks up exactly those eigenvalues plus refinements from the new Lanczos extension.  Phase `i+1` cannot worsen pair `j`'s residual relative to phase `i` (modulo finite-precision noise) — the bench's `test_thick_restart_locked_progress_monotone` Day 12 test verifies this at the public-API level by running two iteration budgets and asserting `r_long ≤ r_short`.
+**Locked-pair preservation.**  Wu/Simon's claim is that each restart **strictly extends** the converged subspace: the locked Ritz pairs sit in the diagonal block of the new T, so the next Ritz extraction picks up exactly those eigenvalues plus refinements from the new Lanczos extension.  Phase `i+1` cannot worsen pair `j`'s residual relative to phase `i` (modulo finite-precision noise); the public regression coverage verifies this by running two iteration budgets and asserting `r_long ≤ r_short`.
 
 **Memory bound.**  Peak `V` columns equals `m_restart + k_locked_cap` plus a small transient (`V_locked_tmp` during the pick-locked step), reported in `result.peak_basis_size`.  For bcsstk14 at `k = 5`, `m_restart = 30`, `k_locked_cap = 5`: peak `V ≈ 40 cols × 1806 × 8 B ≈ 565 KB` — ~15× smaller than the grow-m path's 7 MB.  AUTO routes to thick-restart when `n ≥ SPARSE_EIGS_THICK_RESTART_THRESHOLD` (default 500); explicitly opt in via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` below the threshold for memory profiling.
 
@@ -1516,7 +1418,7 @@ eigenvalues of op = 1 / (lambda − sigma)
 Values of `lambda` near `sigma` become **largest in magnitude** on `op`'s spectrum — exactly where Lanczos converges fastest.  The library:
 
 1. Copies A and subtracts `sigma` from each diagonal entry to form `A − sigma·I`.
-2. Factors via `sparse_ldlt_factor_opts(SPARSE_LDLT_BACKEND_AUTO)` — the Sprint 20 Days 4-6 dispatch routes to the CSC supernodal path on `n ≥ SPARSE_CSC_THRESHOLD`, so big indefinite shifts benefit from the Day 3 batched LDL^T.
+2. Factors via `sparse_ldlt_factor_opts(SPARSE_LDLT_BACKEND_AUTO)`.
 3. Drives Lanczos with `sparse_ldlt_solve` as the operator (one triangular solve per iteration against the pre-computed factor).
 4. Post-processes Ritz values: `lambda_j = sigma + 1 / theta_j`.
 
@@ -1524,15 +1426,21 @@ Singular-shift case: if `sigma` coincides with an eigenvalue of A, `A − sigma�
 
 ### Convergence heuristics in practice
 
-- **Well-separated extremes.** `LARGEST` / `SMALLEST` converge in O(sqrt(cond(A))) × k iterations on well-separated spectra.  nos4 k=5 LARGEST converges in 70 steps (~35 matvecs/requested pair).
-- **Clustered spectra.** Bottom-cluster SPD matrices need close to the full Krylov basis (m ≈ n).  bcsstk04 k=3 SMALLEST hits m_cap = n = 132 and converges cleanly (shift-invert with `sigma ~ 1e-3` would be faster).
-- **Shift-invert break-even.** When the target eigenvalues are ≥ 10% of the spectrum distance from the extremes, shift-invert beats direct even accounting for the one-time LDL^T factor cost.  The KKT n=150 run takes 39 Lanczos steps at sigma=0 vs 62 for direct SMALLEST — 34% faster wall time.
+- **Well-separated extremes.** `LARGEST` / `SMALLEST` converge faster on
+  well-separated spectra than on clustered spectra.
+- **Clustered spectra.** Bottom-cluster SPD matrices may need a much larger
+  Krylov basis or a shift-invert route.
+- **Shift-invert break-even.** Interior targets can favor shift-invert when
+  the factorization cost is offset by fewer Krylov steps.
 
-See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.  Sprint 21 Day 14's full sweep across all three backends and `which` modes lands at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (and the 3-backend × 3-precond pivot at `docs/planning/EPIC_2/SPRINT_21/bench_day14_compare.txt`).
+Historical SuiteSparse fixture measurements and backend comparison captures
+live in
+[`docs/algorithm_history.md`](algorithm_history.md#eigensolver-implementation-history).
 
 ### LOBPCG: preconditioned block Rayleigh-Ritz
 
-Sprint 21 Days 7-10 add Knyazev's (2001) Locally Optimal Block Preconditioned Conjugate Gradient as `SPARSE_EIGS_BACKEND_LOBPCG`.  Two regimes motivate a third backend:
+Knyazev's (2001) Locally Optimal Block Preconditioned Conjugate Gradient is
+available as `SPARSE_EIGS_BACKEND_LOBPCG`. Two regimes motivate this backend:
 
 1. **Ill-conditioned SPD.** When `cond(A)` reaches 1e6+, Lanczos's spectral-gap convergence rate slows to `1 − O(1/sqrt(cond))` per step.  A cheap preconditioner `M ≈ A` (IC(0) from `sparse_ic_factor`, LDL^T from `sparse_ldlt_factor`) accelerates LOBPCG to a rate determined by `cond(M^{-1}·A)` — often four or five orders of magnitude faster on the same fixture.  Lanczos has no inner preconditioning hook (shift-invert is the closest analogue, but it requires a near-eigenvalue `σ` to work).
 2. **Block convergence.** When the requested eigenvalues are clustered, Lanczos converges them sequentially while LOBPCG converges them in parallel via the `block_size > k` mechanism.
@@ -1543,7 +1451,7 @@ Sprint 21 Days 7-10 add Knyazev's (2001) Locally Optimal Block Preconditioned Co
 - `W` — preconditioned residual (`M^{-1} · (AX − X·diag(theta))` when `opts->precond` is non-NULL; the raw residual `R` itself when NULL).
 - `P` — previous search direction (init: 0; updated each step).
 
-The block Rayleigh-Ritz step concatenates these into an n × (3·`block_size`) basis Q, orthonormalises it (per-column MGS with scale-aware breakdown ejection — the `s21_lobpcg_orthonormalize_block` helper reuses the Lanczos MGS kernel), forms the dense symmetric Gram matrix `G = Q^T · A · Q`, and diagonalises it via the same dense Jacobi rotation eigensolver used for the Day 2 thick-restart arrowhead reduction.  The selection step picks `block_size` Ritz pairs by `which` (LARGEST / SMALLEST / NEAREST_SIGMA via the same shift-invert wiring the Lanczos backends use); the new X / P come from the corresponding eigenvectors of G.
+The block Rayleigh-Ritz step concatenates these into an n × (3·`block_size`) basis Q, orthonormalises it (per-column MGS with scale-aware breakdown ejection — the `s21_lobpcg_orthonormalize_block` helper reuses the Lanczos MGS kernel), forms the dense symmetric Gram matrix `G = Q^T · A · Q`, and diagonalises it via the same dense Jacobi rotation eigensolver used by the thick-restart arrowhead reduction.  The selection step picks `block_size` Ritz pairs by `which` (LARGEST / SMALLEST / NEAREST_SIGMA via the same shift-invert wiring the Lanczos backends use); the new X / P come from the corresponding eigenvectors of G.
 
 **P-update formulation.**  Knyazev's eq. 2.11 expresses `P_new` as the W and P contributions to the new X (the "search direction" component, excluding the X-block).  In exact arithmetic this matches the orthogonal-projection form `P_new = X_new − X · (X^T · X_new)`, which is what the library uses — when X stays orthonormal across iterations (which it does, because each X_new is built from an orthonormal Q via an orthogonal Y), the two formulas agree.  A **BLOPEX conditioning guard** (Stathopoulos 2007) inspects Jacobi's eigenvalue spread on G; when the smallest |theta_full| collapses below `scale · 1e-12`, treat the iteration as Gram-singular and reset `P_new = 0` (restarts the conjugate-gradient direction track on the next outer iteration).
 
@@ -1551,7 +1459,7 @@ The block Rayleigh-Ritz step concatenates these into an n × (3·`block_size`) b
 
 **Convergence.**  Per-column Wu/Simon residual `||R[:, j]|| / max(|θ_j|, scale)` matches the Lanczos backends' `result.residual_norm` semantics, so the tolerance has problem-physical meaning regardless of preconditioner choice.
 
-**Preconditioning regime.**  LOBPCG's preconditioning naturally targets the SMALLEST end of the spectrum: `M^{-1}` amplifies the small-eigenvalue components of the residual.  For LARGEST modes, the preconditioner doesn't help directly (and can hurt — see the Day 14 `bench_day14_compare.txt` row for nos4 LARGEST + IC0).  The standard LARGEST-with-precond approach is op-negation (apply LOBPCG to `-A`'s SMALLEST), which the library doesn't currently wire — a candidate for a future sprint when the workload demands it.
+**Preconditioning regime.**  LOBPCG's preconditioning naturally targets the SMALLEST end of the spectrum: `M^{-1}` amplifies the small-eigenvalue components of the residual.  For LARGEST modes, the preconditioner does not help directly and can hurt on some fixtures. The standard LARGEST-with-precond approach is op-negation (apply LOBPCG to `-A`'s SMALLEST), which the library does not currently wire. Historical preconditioning comparison captures live in [`docs/algorithm_history.md`](algorithm_history.md#eigensolver-implementation-history).
 
 **Memory.**  Peak `O((4·block_size + scratch) · n)` where the outer loop holds X, R, W, P (each n × `block_size`) plus the RR step's transient n × (3·block_size) Q and AQ scratch.  For `block_size ≤ 30` this is ~5 MB on bcsstk14 — comparable to thick-restart's ~500 KB but with much better convergence on ill-conditioned fixtures.
 
@@ -1559,4 +1467,4 @@ The block Rayleigh-Ritz step concatenates these into an n × (3·`block_size`) b
 
 ### API consistency notes
 
-The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`, `block_size`, `precond`, `precond_ctx`, `lobpcg_soft_lock`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`, `used_csc_path_ldlt`, `peak_basis_size`, `backend_used`).  All Sprint 21 additions to either struct are trailing fields, so designated-initialiser callers from Sprint 20 compile unchanged with library-default behaviour for the new knobs.  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.
+The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`, `block_size`, `precond`, `precond_ctx`, `lobpcg_soft_lock`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`, `used_csc_path_ldlt`, `peak_basis_size`, `backend_used`).  New option and result fields are trailing fields, so designated-initializer callers that omit them keep library-default behavior for the corresponding knobs.  No library-side allocation means no `sparse_eigs_free` helper; callers free their own buffers.

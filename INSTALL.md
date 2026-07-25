@@ -3,7 +3,8 @@
 Use this file for operational setup, staged installs, installed-consumer
 workflows, and install-surface validation. For first-use solver choice or
 build-tree adoption, start with [README.md](README.md) and
-[examples/README.md](examples/README.md).
+[examples/README.md](examples/README.md). For CSR, CSC, or Matrix Market
+first-use recipes before installation, use [docs/cookbook.md](docs/cookbook.md).
 
 ## Start Here
 

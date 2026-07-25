@@ -6,9 +6,10 @@ or by running the binary in `build/` directly.
 
 Use this file for benchmark command groups, CSV fields, report artifacts, and
 measurement caveats. Use the [README](../README.md) for the top-level project
-route, [examples/README](../examples/README.md) for API adoption examples, and
-the [Maintainer Guide](../docs/maintainer_guide.md) for reviewed-baseline and
-proof-owner interpretation.
+route, [docs/cookbook.md](../docs/cookbook.md) for compressed-first workflow
+handoffs, [examples/README](../examples/README.md) for API adoption examples,
+and the [Maintainer Guide](../docs/maintainer_guide.md) for reviewed-baseline
+and proof-owner interpretation.
 
 ## Quick Navigation
 
@@ -22,6 +23,7 @@ proof-owner interpretation.
 | Capture threshold-free canonical reports | [Current maintained category split](#current-maintained-category-split) |
 | Capture bounded local sentinel reports | [Current maintained category split](#current-maintained-category-split) |
 | Capture large-matrix guardrail reports | [Current maintained category split](#current-maintained-category-split) |
+| Find generated report indexes and freshness metadata | [Report index handoff](#report-index-handoff) |
 | Use the main solver-harness CLI | [bench_main](#bench_main) |
 | Use the symmetric eigensolver CLI and CSV schemas | [bench_eigs](#bench_eigs) |
 
@@ -342,6 +344,36 @@ with these default artifacts:
   - bounded two-fixture reorder/fill slice for `bcsstk14` and `Pres_Poisson`
   - the `sprint86` label is historical; read it as the current named
     two-fixture slice
+
+## Report index handoff
+
+Use generated report indexes to find artifacts and freshness context after a
+report target runs. They are navigation and interpretation aids, not broader
+performance, scalability, coverage, or platform guarantees.
+
+| Report target | Report directory | Index artifact | Freshness/context artifact | Read as |
+|---|---|---|---|---|
+| `make bench-canonical-report` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Threshold-free local snapshot of the maintained benchmark surface. |
+| `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; only the existing wall-check lane is thresholded. |
+| `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
+
+When reading any generated report index:
+
+- start with the generation command and report directory
+- check `manifest.txt` for branch, commit, timestamp, platform, compiler,
+  build mode, thread settings, and supplemental-mode context when present
+- use row identity fields such as lane id, sentinel id, command, artifact, and
+  category before interpreting status
+- treat `skip`, `n/a`, fallback, and supplemental rows as scope information,
+  not as passing evidence
+- keep CSV timing rows tied to the recorded environment and command line
+- regenerate reports instead of editing generated indexes by hand
+
+Sprint 131 accepted the existing large-matrix guardrail `index.tsv` as the
+first generated report/index path because it already has stable lane IDs,
+reviewed/supplemental categories, explicit skip rows, and manifest freshness
+anchors. Cross-report normalized indexing remains deferred until report-family
+row meanings can be preserved without flattening their claim boundaries.
 
 Supplemental report mode is opt-in:
 

@@ -103,9 +103,10 @@
 
 3. **The `pkg-config` exact-flag checks exposed portability detail.**
    Day 12 initially assumed a path form that did not match this platform's
-   `pkg-config` normalization. The final test separates raw `.pc` variables
-   from normalized emitted flags, but the false starts are a reminder that
-   package proof needs to validate real tool behavior.
+   `pkg-config` normalization, and the PR CI run showed another valid path
+   formatting. The final test separates raw `.pc` variables from semantic
+   emitted flag checks, but the false starts are a reminder that package proof
+   needs to validate real tool behavior.
 
 4. **Install/export proofs are still local.**
    The strengthened tests are valuable, but they are not yet reviewed CI lanes

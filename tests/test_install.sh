@@ -108,20 +108,31 @@ else
     fail "pkg-config includedir expected $PREFIX/include, got '$PC_INCLUDEDIR'"
 fi
 
-PREFIX_FLAGS="$(printf '%s\n' "$PREFIX" | sed 's|//*|/|g')"
-
 PC_CFLAGS="$(pkg-config --cflags sparse 2>/dev/null || true)"
-if [ "$PC_CFLAGS" = "-I$PREFIX_FLAGS/include" ]; then
+PC_CFLAGS_INCLUDE="${PC_CFLAGS#-I}"
+if [ "${PC_CFLAGS#-I}" != "$PC_CFLAGS" ] && \
+    [ -d "$PC_CFLAGS_INCLUDE" ] && \
+    [ "$PC_CFLAGS_INCLUDE" -ef "$PREFIX/include" ]; then
     pass "pkg-config --cflags returns installed include path"
 else
-    fail "pkg-config --cflags expected -I$PREFIX_FLAGS/include, got '$PC_CFLAGS'"
+    fail "pkg-config --cflags expected installed include path, got '$PC_CFLAGS'"
 fi
 
 PC_LIBS="$(pkg-config --libs sparse 2>/dev/null || true)"
-if [ "$PC_LIBS" = "-L$PREFIX_FLAGS/lib -lsparse_lu_ortho -lm" ]; then
+set -- $PC_LIBS
+PC_LIBDIR_FLAG=""
+if [ "$#" -gt 0 ]; then
+    PC_LIBDIR_FLAG="${1#-L}"
+fi
+if [ "$#" -eq 3 ] && \
+    [ "${1#-L}" != "$1" ] && \
+    [ -d "$PC_LIBDIR_FLAG" ] && \
+    [ "$PC_LIBDIR_FLAG" -ef "$PREFIX/lib" ] && \
+    [ "$2" = "-lsparse_lu_ortho" ] && \
+    [ "$3" = "-lm" ]; then
     pass "pkg-config --libs returns installed static archive link flags"
 else
-    fail "pkg-config --libs expected '-L$PREFIX_FLAGS/lib -lsparse_lu_ortho -lm', got '$PC_LIBS'"
+    fail "pkg-config --libs expected installed static archive link flags, got '$PC_LIBS'"
 fi
 
 PC_STATIC_LIBS="$(pkg-config --libs --static sparse 2>/dev/null || true)"

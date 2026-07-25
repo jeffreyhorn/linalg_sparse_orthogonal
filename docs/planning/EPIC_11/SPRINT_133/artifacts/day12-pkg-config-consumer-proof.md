@@ -55,11 +55,12 @@ Failed: 0
 ALL INSTALL TESTS PASSED
 ```
 
-The first two focused runs exposed path-normalization assumptions in the new
-exact flag checks. This platform's `pkg-config` collapses repeated slashes in
-emitted compiler/linker flags but does not resolve `/var` to `/private/var`.
-The test now compares emitted flags against the same lexical normalization and
-keeps raw `.pc` variable checks separate.
+The first focused runs exposed path-normalization assumptions in the new exact
+flag checks. Different `pkg-config` implementations may preserve or collapse
+repeated slashes in emitted compiler/linker flags. The test now keeps raw
+`.pc` variable checks separate from emitted flag checks: emitted `-I` and `-L`
+paths must resolve to the installed include and library directories, while the
+remaining link flags stay exact.
 
 ## Support Boundary
 

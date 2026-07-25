@@ -393,7 +393,7 @@ validates those claims.
 - Updated `docs/maintainer_guide.md` so maintainer ownership describes the
   stronger Make install and `pkg-config` proof.
 - Ran `bash -n tests/test_install.sh`; it passed.
-- Ran `bash tests/test_install.sh`; the first two runs exposed path
+- Ran `bash tests/test_install.sh`; the first two local runs exposed path
   normalization assumptions in exact flag checks, then the corrected test
   passed 22 checks with 0 failures.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
@@ -447,3 +447,18 @@ validates those claims.
 - Ran `git diff --check`; it passed.
 - Ran a trailing-whitespace scan over Sprint 133 and touched package/doc/script
   surfaces; it passed.
+
+## PR Fix Notes
+
+- Fixed the macOS supplemental Make install/`pkg-config` CI failure in
+  `tests/test_install.sh`.
+- GitHub macOS `pkg-config` preserved the doubled slash from the temporary
+  install prefix in emitted `--cflags` and `--libs` output, while the local
+  tool collapsed it.
+- Replaced string equality against one path-normalization form with semantic
+  checks: the emitted `-I` path must resolve to the installed include
+  directory, the emitted `-L` path must resolve to the installed library
+  directory, and the remaining link flags must be exactly
+  `-lsparse_lu_ortho -lm`.
+- Updated the Day 12 retrospective wording to describe semantic installed-path
+  validation instead of normalized path-string validation.

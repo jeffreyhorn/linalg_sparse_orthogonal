@@ -93,7 +93,7 @@ Epic 11 does not claim:
 ## Residuals And Future-Epic Candidates
 
 The post-Epic-11 residual queue is published in
-[day12-residual-queue-publication.md](./artifacts/day12-residual-queue-publication.md).
+[day12-residual-queue-publication.md](./SPRINT_136/artifacts/day12-residual-queue-publication.md).
 The highest-value future-epic candidates are:
 
 - QR residual and SuiteSparse/corpus expansion;

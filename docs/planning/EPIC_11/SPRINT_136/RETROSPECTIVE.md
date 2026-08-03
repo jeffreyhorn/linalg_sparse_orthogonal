@@ -172,7 +172,7 @@ Still consciously constrained rather than silently solved:
 - [day12-residual-queue-publication.md](./artifacts/day12-residual-queue-publication.md)
 - [day13-retro-drafts-handoff-synthesis.md](./artifacts/day13-retro-drafts-handoff-synthesis.md)
 - [day14-epic11-closeout-handoff.md](./artifacts/day14-epic11-closeout-handoff.md)
-- [EPIC_11_RETROSPECTIVE.md](./EPIC_11_RETROSPECTIVE.md)
+- [EPIC_11_RETROSPECTIVE.md](../EPIC_11_RETROSPECTIVE.md)
 
 ## Closeout
 

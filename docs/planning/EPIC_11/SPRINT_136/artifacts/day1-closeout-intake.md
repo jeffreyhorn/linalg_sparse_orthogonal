@@ -48,8 +48,8 @@ support tiers.
 | `docs/planning/EPIC_11/SPRINT_136/artifacts/day10-unsupported-claim-audit.md` | Planned Day 10 unsupported-claim audit. |
 | `docs/planning/EPIC_11/SPRINT_136/artifacts/day11-unsupported-claim-cleanup.md` | Planned Day 11 cleanup and focused validation record. |
 | `docs/planning/EPIC_11/SPRINT_136/artifacts/day12-residual-queue-publication.md` | Planned Day 12 post-Epic-11 residual queue. |
-| `docs/planning/EPIC_11/SPRINT_136/artifacts/day13-retrospective-drafts-handoff-synthesis.md` | Planned Day 13 retrospective and handoff synthesis. |
-| `docs/planning/EPIC_11/SPRINT_136/artifacts/day14-final-epic-closeout.md` | Planned Day 14 final closeout handoff. |
+| `docs/planning/EPIC_11/SPRINT_136/artifacts/day13-retro-drafts-handoff-synthesis.md` | Planned Day 13 retrospective and handoff synthesis. |
+| `docs/planning/EPIC_11/SPRINT_136/artifacts/day14-epic11-closeout-handoff.md` | Planned Day 14 final closeout handoff. |
 
 ## Inherited Input Inventory
 

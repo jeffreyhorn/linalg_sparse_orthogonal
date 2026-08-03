@@ -4,8 +4,8 @@
 
 Validate the final Epic 11 outcome package, compare earned evidence against
 the state-of-the-art target and explicit non-claims, clean unsupported public
-wording, publish residual queues, and close Epic 11 with Sprint 136 and epic
-retrospectives plus a final handoff.
+wording, publish residual queues, and close Epic 11 with Sprint 136 and
+Epic 11 retrospectives plus a final handoff.
 
 Sprint 136 is the Epic 11 closeout sprint. It must treat prior sprint
 artifacts as evidence inputs, not as automatic public claims. Generated report

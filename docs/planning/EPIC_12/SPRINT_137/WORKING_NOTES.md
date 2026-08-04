@@ -134,3 +134,32 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 2 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 3 Notes
+
+- Wrote the build, package, CI, and report baseline artifact.
+- Reviewed Makefile, CMake, pkg-config, package, install, static-deferral,
+  benchmark/report, dead-code, coverage, and hosted CI surfaces.
+- Recorded the current static-first package proof map: Make install and
+  `pkg-config`, CMake install/export and `find_package(Sparse)`, exact-version
+  metadata, downstream consumers, no shared artifacts, and
+  `BUILD_SHARED_LIBS=ON` rejection.
+- Recorded CI lane ownership: Linux reviewed Make/CMake/dead-code/package
+  proof plus supplemental runtime/sanitizer/coverage/benchmark lanes; macOS
+  reviewed Apple Clang lane plus supplemental package/compiler lanes; Windows
+  reviewed CMake subset plus supplemental CMake install/downstream lane.
+- Preserved platform asymmetries: Linux remains strongest, macOS install/export
+  remains supplemental, Windows install/downstream remains supplemental, and
+  `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain staged on
+  Windows.
+- Inventoried report families: canonical benchmarks, performance sentinels,
+  large-matrix guardrails, dead-code, coverage, and package proof logs.
+- Confirmed no generated `build/bench-reports`, `build/deadcode`, or
+  `coverage` outputs were present in the worktree during the baseline pass, so
+  Day 3 records commands and output paths rather than fresh report contents.
+- Recorded package and report non-claims so generated reports are not read as
+  broad correctness, release, coverage-completeness, portable-performance, or
+  platform-parity proof.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 3 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

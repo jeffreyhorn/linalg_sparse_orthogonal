@@ -330,3 +330,36 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 9 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 10 Notes
+
+- Wrote the package, ABI, platform, and public claim template artifact for the
+  selected Sprint 143 static-first package follow-through path and Sprint 144
+  Windows CMake install/downstream platform lane.
+- Defined a package/ABI decision template that requires a single selected path,
+  input evidence, user value, implementation scope, out-of-scope boundaries,
+  platform scope, downstream proof, documentation, validation, promotion gate,
+  and residuals.
+- Recorded the selected static-first decision shape so shared-library
+  packaging, dynamic ABI compatibility, runtime-loader behavior, and
+  package-manager support remain explicit future residuals.
+- Defined downstream consumer proof fields for package mode, consumer type,
+  install prefix, installed library/header/metadata artifacts, command, commit,
+  platform, compiler/generator, configuration, expected and observed result,
+  status, support tier, claim scope, and non-claims.
+- Defined required proof categories for Make install, pkg-config, exact-version
+  checks, downstream compile/link/run, CMake install/export, CMake
+  `find_package(Sparse)`, loader behavior, symbol/export policy, ABI
+  compatibility, unsupported artifacts, and package-manager recipes.
+- Added an unsupported-artifact checklist for static-first package proof so no
+  shared-library, ABI, runtime-loader, or package-manager claim is implied.
+- Defined the platform promotion template and the selected Windows CMake
+  install/downstream lane shape with hosted CI proof, expected counts, failure
+  semantics, package integration, documentation, promotion gate, and fallback
+  decision.
+- Defined public claim gate fields and stop conditions that require evidence
+  rows, validation commands, support-tier wording, docs updates, non-claims,
+  ownership, and rollback/demotion conditions.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 10 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

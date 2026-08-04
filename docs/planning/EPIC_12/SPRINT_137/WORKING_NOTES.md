@@ -105,3 +105,32 @@ gates are present.
   were changed on Day 1 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
 
+## Day 2 Notes
+
+- Wrote the source, test, and maintainability baseline artifact.
+- Captured 191 C/header/template files under `src`, `include`, `tests`,
+  `benchmarks`, and `examples`, totaling 123,352 lines.
+- Captured current surface counts: 49 implementation `.c` files, 20 private
+  implementation headers, 19 public headers/templates, 58 test `.c` files, 11
+  test helper headers, 16 benchmark `.c` files, and 15 example `.c` files.
+- Ranked largest implementation owners, led by `src/sparse_ldlt_csc.c`,
+  `src/sparse_lu_csr.c`, `src/sparse_ldlt.c`,
+  `src/sparse_iterative.c`, `src/sparse_qr.c`, `src/sparse_eigs.c`, and
+  `src/sparse_svd.c`.
+- Ranked largest proof owners, led by `tests/test_qr.c`,
+  `tests/test_ldlt_csc.c`, `tests/test_integration.c`,
+  `tests/test_svd.c`, `tests/test_ldlt.c`, `tests/test_etree.c`, and
+  `tests/test_iterative.c`.
+- Confirmed source-list ownership signals: `build-metadata/library_sources.txt`,
+  Makefile `LIB_SRCS`, and CMake `add_library(sparse_lu_ortho STATIC ...)`
+  all list 49 library sources.
+- Recorded test ownership signals: Makefile lists 57 main test binaries while
+  the tree has 58 test `.c` files; CMake has 54 `add_sparse_test(...)` lines
+  plus conditional POSIX/fuzz gates, preserving the Windows staged-test
+  boundary.
+- Tied maintainability risks to Epic 12 candidate gaps for QR, partial-SVD,
+  corpus/oracle architecture, report normalization, runtime/backend
+  governance, package/platform promotion, and adoption simplification.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 2 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

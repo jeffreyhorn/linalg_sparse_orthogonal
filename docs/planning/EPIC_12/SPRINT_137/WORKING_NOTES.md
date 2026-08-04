@@ -301,3 +301,32 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 8 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 9 Notes
+
+- Wrote the report index and freshness template artifact for the selected
+  Sprint 141 report normalization/freshness target.
+- Inventoried row meanings for canonical benchmark reports, performance
+  sentinels, large-matrix guardrails, dead-code reports, coverage reports,
+  package proof logs, corpus fixture manifests, oracle rows,
+  runtime/backend sentinel rows, and hosted CI job summaries.
+- Defined shared normalized report metadata fields for row identity, report
+  family, row kind, subject, artifact path, generator command, source commit,
+  branch, generated time, platform, compiler, configuration, support tier,
+  status, row meaning, claim scope, non-claims, and freshness status.
+- Defined freshness fields and stale-report expectations for commit, command,
+  platform, compiler, configuration, generated time, artifact presence, and
+  optional-data state.
+- Defined stale-report and report-integrity failure semantics for stale commit,
+  stale command, stale platform, stale compiler, stale configuration, stale
+  time, missing artifacts, malformed rows, unsupported families, and current
+  optional-data skips.
+- Classified report families by normalization eligibility so Sprint 141 can
+  normalize eligible rows, keep coverage/package proof rows metadata-only
+  initially, and defer ad hoc or prose-only reports.
+- Recorded report non-claim rules so normalized and fresh rows are not treated
+  as release proof, broad correctness proof, coverage completeness, portable
+  performance proof, package parity proof, or state-of-the-art evidence.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 9 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -242,3 +242,34 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 6 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 7 Notes
+
+- Wrote the Epic 12 gap-selection decision artifact.
+- Applied the Day 6 scoring rubric to the Day 5 residual owner map and scored
+  candidate families across user value, state-of-the-art relevance, dependency
+  readiness, testability/proofability, platform/package risk,
+  documentation/adoption impact, and complete-closure feasibility.
+- Selected one primary target for every later Epic 12 sprint:
+  Sprint 138 corpus/oracle contract, Sprint 139 QR rank-deficient
+  nullspace/subspace closure, Sprint 140 partial-SVD repeated/clustered
+  spectrum closure with convergence-budget semantics, Sprint 141 report
+  normalization/freshness, Sprint 142 runtime/backend precedence plus one
+  sentinel lane, Sprint 143 static-first package/ABI follow-through,
+  Sprint 144 Windows CMake install/downstream platform lane, Sprint 145
+  adoption front door, and Sprint 146 closeout.
+- Explicitly deferred or rejected non-selected residuals, including broad
+  SuiteSparse/minimum-norm expansion, lower-priority QR/SVD residuals, extra
+  sentinel lanes, macOS reviewed promotion, Windows pthread/POSIX staged-test
+  promotion, documentation automation, shared-library packaging, dynamic ABI,
+  package-manager support, unqualified state-of-the-art status, GPU support,
+  distributed support, and broad external-library parity.
+- Recorded dependency-ordered handoff notes from corpus/oracle through solver
+  residuals, reports, runtime/backend, package/ABI, platform, adoption, and
+  closeout.
+- Recorded claim boundaries for every selected target so later sprints cannot
+  widen solver, report, runtime, package, platform, adoption, or
+  state-of-the-art wording without earned evidence.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 7 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -163,3 +163,30 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 3 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 4 Notes
+
+- Wrote the Epic 11 residual intake artifact.
+- Extracted residuals from the Epic 11 retrospective and the Sprint 136 Day 12
+  residual queue publication.
+- Reviewed Sprint 130-136 retrospectives for carry-forward detail behind
+  partial-SVD, corpus/report, runtime/backend, package/ABI, platform,
+  adoption, and closeout residuals.
+- Classified residuals as candidates, duplicates/consolidated items,
+  already-covered context, optional-local work, or explicit non-claims.
+- Grouped active candidates by Epic 12 workstream: corpus/oracle architecture,
+  QR residual closure, partial-SVD residual closure, report
+  normalization/freshness, runtime/backend governance, package/ABI
+  productization, platform promotion/staged tests, adoption/documentation, and
+  maintainability support.
+- Fenced already-covered Epic 11 work so Sprint 137 does not duplicate Sprint
+  130 accepted partial-SVD lanes, Sprint 131 taxonomy/index policy, Sprint 132
+  runtime vocabulary, Sprint 133 static-first package decision, Sprint 134
+  Linux package-contract promotion, Sprint 135 adoption baseline, or Sprint
+  136 unsupported-claim cleanup.
+- Recorded unresolved Day 5 questions for package/ABI direction, selected QR
+  residual, selected partial-SVD residual, report-family normalization scope,
+  platform promotion choice, and adoption timing.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 4 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -363,3 +363,32 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 10 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 11 Notes
+
+- Wrote the quality surface map artifact for Epic 12 implementation sprints.
+- Defined the baseline rule that every change runs the union of checks for its
+  touched surfaces, and every `.c` or `.h` change requires
+  `make format && make lint && make test`.
+- Mapped required checks for planning docs, public docs, examples, benchmarks,
+  tests, library sources, public headers, private headers, Makefile/source
+  lists/version plumbing, CMake/package metadata, pkg-config, install scripts,
+  static package deferral, report generators, Python scripts, shell scripts,
+  CI workflows, corpus manifests, oracle rows, and generated report indexes.
+- Published a required command map for C/header, CMake, source-list, package,
+  pkg-config, static/shared boundary, script, report, and workflow changes.
+- Published a supplemental command map for sanitizer, ASan, TSan, OpenMP,
+  benchmark, canonical report, sentinel, large-matrix guardrail, coverage,
+  dead-code, and example-build confidence lanes.
+- Recorded hosted-CI dependency notes for Linux package/CMake/dead-code lanes,
+  macOS reviewed and supplemental lanes, Windows reviewed CMake subset,
+  Windows CMake install/downstream promotion candidate, and Linux supplemental
+  sanitizer/coverage/benchmark lanes.
+- Added stop conditions that block incomplete C quality, source-list/CMake
+  drift, package proof failures, unsupported public claims, local-only
+  platform promotion, report row flattening, skip-as-pass interpretation,
+  coverage/dead-code overclaims, benchmark performance overclaims, and
+  static-first package ambiguity.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 11 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -215,3 +215,30 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 5 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 6 Notes
+
+- Wrote the gap-selection criteria artifact.
+- Defined the complete-closure requirements for scope boundary, ownership,
+  implementation path, evidence source, validation command, row/output
+  semantics, support tier, documentation alignment, non-claim preservation, and
+  residual disposition.
+- Published a 21-point scoring rubric across user value, state-of-the-art
+  relevance, dependency readiness, testability/proofability, platform/package
+  risk, documentation/adoption impact, and complete-closure feasibility.
+- Added score interpretation bands so Day 7 can distinguish strong candidates,
+  narrow candidates, deferral/splitting candidates, and rejected Epic 12 scope.
+- Added candidate pre-screen rules for corpus/oracle, QR, partial-SVD, report,
+  runtime/backend, package/ABI, platform, adoption, and maintainability work.
+- Recorded anti-goals that block shallow residual coverage, unsupported
+  fixture/report/package/platform promotion, docs-only claim expansion, and
+  broad state-of-the-art wording.
+- Added a claim gate matrix covering corpus/oracle, QR, partial-SVD,
+  report/freshness, runtime/backend, package/ABI, platform, and adoption
+  claims.
+- Reviewed feasibility against the remaining Sprint 138-146 budget and
+  constrained later selection toward one complete closure target per
+  implementation sprint unless proof ownership is shared.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 6 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

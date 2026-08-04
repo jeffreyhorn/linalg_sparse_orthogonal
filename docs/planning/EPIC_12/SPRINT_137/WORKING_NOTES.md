@@ -392,3 +392,31 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 11 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 12 Notes
+
+- Wrote the public claim freeze artifact for current README, INSTALL,
+  solver-selection, cookbook, tutorial, Matrix Market, algorithm, algorithm
+  history, benchmark, maintainer-guide, examples, and public-header claim
+  surfaces.
+- Inventoried current public wording for state-of-the-art status, external
+  parity, static-first package contract, shared-library support, dynamic ABI,
+  package-manager support, platform tiers, Windows staged tests,
+  runtime/backend behavior, performance/benchmarks, generated reports,
+  coverage, dead-code, corpus/oracle evidence, QR behavior, partial-SVD
+  behavior, and adoption docs.
+- Published a frozen-claim register covering Linux reviewed source of truth,
+  macOS supplemental package lanes, Windows reviewed CMake subset plus
+  supplemental install/downstream confidence, static-first package support,
+  shared-library and dynamic ABI non-support, package-manager non-support,
+  local benchmark evidence, generated-report limits, supplemental coverage,
+  dead-code triage, external solver parity, and state-of-the-art status.
+- Recorded that no immediate public-doc cleanup was identified during the Day
+  12 audit; current live surfaces already contain explicit high-risk claim
+  boundaries.
+- Published a non-claim register and later public-wording claim gate requiring
+  exact wording, evidence rows, validation commands, support tier, docs
+  surfaces, non-claims, owner, and rollback/demotion conditions.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 12 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

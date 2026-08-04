@@ -13,8 +13,8 @@ bounded, and unsupported state-of-the-art claims are fenced.
 It is still not a state-of-the-art sparse linear algebra library in the
 SuiteSparse, PETSc, Trilinos, Eigen, ARPACK, LAPACK, CHOLMOD/UMFPACK, KLU,
 GraphBLAS, oneMKL, GPU, distributed, or package-ecosystem sense. The codebase
-has moved from "feature breadth with validation debt" to "productizing library
-with explicit support boundaries." The remaining gap is less about adding
+has moved from "feature breadth with validation debt" to "a productizing
+library with explicit support boundaries." The remaining gap is less about adding
 every solver and more about closing several high-value gaps completely:
 
 - numerical evidence is broad but still fixture-local and not corpus-grade;
@@ -324,4 +324,3 @@ standards are actually met.
 7. **API/adoption simplification.**
    Add a smaller high-level adoption front door and reduce public-doc density
    after the evidence and package decisions are settled.
-

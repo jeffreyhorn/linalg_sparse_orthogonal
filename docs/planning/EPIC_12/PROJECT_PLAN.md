@@ -30,7 +30,7 @@ completely, and create the evidence contracts that govern implementation.
 
 - Epic 11 closeout merged
 - Epic 11 retrospective and Sprint 136 residual queue available
-- PR #151 review fixes merged into `master`
+- PR #151 Epic 11 closeout merged into `master`
 
 ### Items
 
@@ -388,4 +388,3 @@ actually been earned.
 - next-epic handoff
 
 **Total estimate:** ~166 hours
-

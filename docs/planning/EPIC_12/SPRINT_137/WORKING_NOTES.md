@@ -190,3 +190,28 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 4 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 5 Notes
+
+- Wrote the residual owner and non-goal map artifact.
+- Assigned every active Day 4 residual candidate to one primary Epic 12 owner
+  workstream with supporting owners where dependencies cross boundaries.
+- Defined owner workstreams for corpus/oracle, QR, partial-SVD, report index,
+  runtime/backend, package/ABI, platform, adoption/docs, maintainability, and
+  closeout work.
+- Recorded dependency order from baseline evidence through residual intake,
+  owner assignment, Day 6 selection criteria, Day 7 gap decision, Days 8-10
+  evidence templates, Days 11-12 quality/claim gates, and Days 13-14 handoff.
+- Published an explicit Epic 12 non-goal register covering unqualified
+  state-of-the-art status, broad ecosystem parity, GPU/distributed support,
+  broad package-manager distribution, portable performance superiority, full
+  giant-test decomposition, unsupported platform parity, coverage-completeness,
+  dead-code removal-readiness, and generated-report overclaims.
+- Defined promotion gates for corpus/oracle, QR, partial-SVD, report/freshness,
+  runtime/backend, package/ABI, platform, and adoption claims.
+- Recorded stop conditions for overbroad residuals, missing owners, weak
+  promotion gates, flattened report schemas, unsupported ABI/platform claims,
+  raw-basis parity assumptions, and docs-only support widening.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 5 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

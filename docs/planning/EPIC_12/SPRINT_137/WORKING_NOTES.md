@@ -273,3 +273,31 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 7 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 8 Notes
+
+- Wrote the corpus and oracle evidence template artifact for the selected
+  Sprint 138 maintained corpus/oracle lane.
+- Defined required corpus fixture manifest fields for fixture keys, families,
+  storage kind, generator links, dimensions, structural metadata, rank/nullity,
+  conditioning, sparsity class, RHS policy, expected behavior, claim scope,
+  non-claims, support tier, validation command, owner, and introduction point.
+- Defined deterministic generated-matrix metadata fields for generator key,
+  version, algorithm, seed, parameters, structure/value hashes, canonical
+  format, floating policy, regeneration command, and change policy.
+- Defined optional-data skip/defer fields so unavailable, disabled, unlicensed,
+  unsupported, or unconfigured external data cannot be interpreted as numerical
+  pass evidence.
+- Defined oracle row fields for fixture key, solver family, operation, command,
+  source commit, platform, compiler, configuration, support tier, expected and
+  observed result, tolerance kind/value, comparison status, failure class,
+  skip/defer reason, claim scope, non-claims, and generated time.
+- Defined failure interpretation rules for oracle mismatches, generator
+  mismatches, stale reports, optional-data skips, unsupported platforms,
+  deferred rows, and known residual xfails.
+- Recorded the minimum Sprint 138 implementation contract and fixture-local
+  claim boundaries that block broad SuiteSparse, external parity, package,
+  platform, performance, and state-of-the-art claims.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 8 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

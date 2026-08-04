@@ -48,8 +48,8 @@ collection without guessing support tiers.
 | `docs/planning/EPIC_12/SPRINT_137/artifacts/day10-package-abi-platform-claim-templates.md` | Planned Day 10 package/ABI, platform-promotion, downstream-proof, and claim-gate templates. |
 | `docs/planning/EPIC_12/SPRINT_137/artifacts/day11-quality-surface-map.md` | Planned Day 11 quality matrix by touched surface. |
 | `docs/planning/EPIC_12/SPRINT_137/artifacts/day12-public-claim-freeze.md` | Planned Day 12 public claim freeze and unsupported-wording audit. |
-| `docs/planning/EPIC_12/SPRINT_137/artifacts/day13-handoff-synthesis.md` | Planned Day 13 Sprint 138 readiness and later-sprint dependency synthesis. |
-| `docs/planning/EPIC_12/SPRINT_137/artifacts/day14-closeout.md` | Planned Day 14 Sprint 137 closeout, residual register, and validation summary. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day13-handoff-synthesis-sprint138-readiness.md` | Planned Day 13 Sprint 138 readiness and later-sprint dependency synthesis. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day14-closeout-and-sprint138-readiness.md` | Planned Day 14 Sprint 137 closeout, residual register, and validation summary. |
 
 ## Inherited Input Inventory
 
@@ -93,4 +93,3 @@ collection without guessing support tiers.
 | Every Sprint 137 project-plan item has a day-level owner. | Complete | Sprint 137 scope table above and `WORKING_NOTES.md` day-level ownership table. |
 | Inherited Epic 11 and Epic 12 inputs are visible before decisions begin. | Complete | Inherited input inventory and residual-family summary above. |
 | Validation expectations are documented before later implementation work. | Complete | Validation expectation table above and `WORKING_NOTES.md` validation section. |
-

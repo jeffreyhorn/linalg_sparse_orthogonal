@@ -445,3 +445,20 @@ gates are present.
 - No source files, public documentation, workflows, scripts, or support claims
   were changed on Day 13 beyond Sprint 137 planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 14 Notes
+
+- Wrote the Sprint 137 closeout and Sprint 138 readiness artifact.
+- Verified the Sprint 137 deliverable set: day-by-day plan, working notes,
+  Day 1-14 artifacts, post-Epic-11 baseline package, residual reconciliation,
+  gap-selection decision, evidence templates, quality surface map, public claim
+  freeze, and Sprint 138 readiness handoff.
+- Published the final artifact index for Day 1 through Day 14.
+- Recorded the Day 14 validation surface as documentation-only because Sprint
+  137 Day 14 changed only Sprint 137 planning artifacts.
+- Published the Sprint 137 closed planning work list and residual register.
+- Restated Sprint 138 readiness criteria and stop conditions for the selected
+  maintained corpus/oracle implementation lane.
+- No source files, public documentation, workflows, scripts, or support claims
+  were changed on Day 14 beyond Sprint 137 planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

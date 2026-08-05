@@ -123,6 +123,11 @@ def load_expected_rows(root: Path) -> dict[str, dict[str, str]]:
             raise CorpusValidationError(
                 f"{path}:{line}: duplicate oracle_row_id {oracle_row_id!r}"
             )
+        if oracle_row_id in FIRST_LANE_ORACLE_ROW_IDS and row["status"] != "ready_for_oracle":
+            raise CorpusValidationError(
+                f"{path}:{line}: first-lane oracle row {oracle_row_id!r} "
+                f"must have status 'ready_for_oracle', got {row['status']!r}"
+            )
         expected_by_id[oracle_row_id] = row
     missing = sorted(FIRST_LANE_ORACLE_ROW_IDS - set(expected_by_id))
     if missing:
@@ -196,7 +201,7 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     branch = current_source_branch()
     platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
     configuration = (
-        "static_default; optional_data=disabled; generated_reference=python; "
+        "static_default; optional_data_policy=disabled; generated_reference=python; "
         f"structure_hash={structure_hash}; value_hash={value_hash}"
     )
     observations = {

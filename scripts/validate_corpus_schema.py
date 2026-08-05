@@ -244,7 +244,7 @@ def canonical_value_text(rows: int, cols: int, entries: list[tuple[int, int, flo
 
 
 def sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("ascii")).hexdigest()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def validate_known_generator(path: Path, line: int, row: dict[str, str]) -> None:

@@ -1,0 +1,111 @@
+# Sprint 138 Working Notes
+
+## Sprint Goal
+
+Build the maintained numerical corpus architecture and first durable
+oracle/report lane before adding broad fixture volume.
+
+Sprint 138 is the first Epic 12 implementation sprint. It must convert the
+Sprint 137 evidence contracts into maintained repository structure, schema,
+validation, and documentation for one deterministic corpus lane. The sprint
+must not broaden corpus, solver, report, package, platform, performance, or
+state-of-the-art claims before fixture-local evidence exists.
+
+## Starting Constraints
+
+- Start from the Sprint 137 selected target: maintained corpus/oracle contract
+  with one durable deterministic fixture lane and explicit skip/defer
+  semantics.
+- Use the Sprint 137 Day 8 corpus/oracle templates rather than redefining row
+  meanings.
+- Preserve Day 12 public claim freeze: corpus/oracle rows are fixture-local
+  evidence only.
+- Keep optional external data disabled or skipped by default; skip/defer rows
+  are policy evidence, not solver pass evidence.
+- Keep generated outputs out of source control unless this sprint explicitly
+  promotes a maintained artifact.
+- If any `.c` or `.h` file changes, run `make format && make lint && make
+  test`. Documentation-only changes require `git diff --check` and focused
+  Markdown hygiene/link checks.
+
+## Input Artifact Inventory
+
+| Input | Role in Sprint 138 |
+| --- | --- |
+| `docs/planning/EPIC_12/PROJECT_PLAN.md` Sprint 138 | Defines Sprint 138 items, deliverables, prerequisites, and 168-hour estimate. |
+| `docs/planning/EPIC_12/SPRINT_138/PLAN.md` | Provides day-level execution order and validation expectations. |
+| `docs/planning/EPIC_12/SPRINT_137/RETROSPECTIVE.md` | Summarizes Sprint 137 selected targets, residuals, validation, and Sprint 138 handoff. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day7-gap-selection-decision.md` | Selects the Sprint 138 maintained corpus/oracle target and claim boundaries. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day8-corpus-oracle-evidence-templates.md` | Defines fixture metadata, generated-matrix metadata, optional-data skip/defer rows, oracle rows, and failure interpretation. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day9-report-index-freshness-templates.md` | Defines report/freshness fields that Sprint 138 rows should support for Sprint 141. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day11-quality-surface-map.md` | Defines required and supplemental validation by touched surface. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day12-public-claim-freeze.md` | Freezes public claim boundaries before corpus implementation. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day13-handoff-synthesis-sprint138-readiness.md` | Provides Sprint 138 minimum implementation checklist, stop conditions, and later-sprint handoff notes. |
+| `docs/planning/EPIC_12/SPRINT_137/artifacts/day14-closeout-and-sprint138-readiness.md` | Publishes final Sprint 138 readiness criteria and residual register. |
+| `README.md`, `INSTALL.md`, `docs/maintainer_guide.md`, `benchmarks/README.md` | Current public and maintainer claim surfaces that must not be widened without evidence. |
+| `tests/`, `scripts/`, `benchmarks/`, `examples/`, `src/`, `include/` | Candidate implementation, validation, corpus, report, and adoption surfaces. |
+
+## Day-Level Ownership
+
+| Day | Owner focus | Project-plan items |
+| --- | --- | --- |
+| 1 | Scope setup, Sprint 137 handoff inventory, validation expectations, non-claims | Items 1-7 |
+| 2 | Fixture taxonomy draft and first-lane class selection | Item 1 |
+| 3 | Taxonomy review, promotion gates, and claim boundaries | Item 1 |
+| 4 | Corpus storage, manifest, optional-data, expected-result, and report path design | Item 2 |
+| 5 | Corpus directory and manifest skeleton implementation | Item 2 |
+| 6 | Oracle row schema and comparison semantics design | Item 3 |
+| 7 | Oracle schema implementation and validation helper | Item 3 |
+| 8 | First deterministic fixture lane design and generator metadata | Item 4 |
+| 9 | First corpus lane implementation | Item 4 |
+| 10 | Maintained oracle/report command implementation | Item 4 |
+| 11 | Optional-data skip/defer semantics implementation | Item 5 |
+| 12 | Focused corpus/oracle validation and required quality gates | Item 6 |
+| 13 | Corpus documentation and Sprint 139 QR handoff | Item 7 |
+| 14 | Sprint 138 closeout, residuals, validation summary, and working-notes completion | Item 7 |
+
+## Initial Validation Expectations
+
+| Change type | Required validation |
+| --- | --- |
+| Sprint 138 planning artifacts only | `git diff --check`, trailing-whitespace scan under `docs/planning/EPIC_12/SPRINT_138`, and focused Markdown link/path validation under `docs/planning/EPIC_12`. |
+| Corpus manifests, schemas, oracle rows, or generated report indexes | Schema/field validation when available, `git diff --check`, and corpus/report non-claim scan. |
+| Public or maintainer documentation | `git diff --check`, focused Markdown link/path validation, and claim-boundary scan against Sprint 137 Day 12 non-claims. |
+| Python scripts | `python3 -m py_compile <script>` plus focused command validation when feasible. |
+| Shell scripts | `bash -n <script>` plus focused command validation when feasible. |
+| Makefile, CMake, pkg-config, install, or package edits | Relevant package/install/CMake proof commands plus static/shared support-boundary review. |
+| CI workflow edits | Workflow syntax or structural review plus hosted-runner support-tier notes; do not treat unrun hosted lanes as passed local evidence. |
+| Benchmark or generated report execution | Capture command, platform, compiler/configuration, source commit, row meaning, freshness, support tier, and skip/defer status. |
+| `.c` or `.h` edits | `make format && make lint && make test` after focused tests needed for the touched implementation. |
+
+## Sprint-Level Non-Claim Register
+
+| Non-claim | Sprint 138 boundary |
+| --- | --- |
+| Broad corpus completeness | Sprint 138 implements one durable corpus lane, not broad fixture volume. |
+| SuiteSparse or external corpus parity | Optional external data remains skip/defer-gated unless configured and proven; no broad SuiteSparse claim is earned. |
+| Broad QR behavior | Sprint 138 prepares corpus/oracle inputs for Sprint 139; it does not close QR residuals. |
+| Broad partial-SVD behavior | Sprint 138 prepares corpus/oracle inputs for Sprint 140; it does not close partial-SVD residuals. |
+| Report index as release proof | Sprint 138 rows may feed future report indexes; they do not prove release readiness, broad correctness, coverage completeness, or performance. |
+| Package/ABI/platform support | Corpus implementation must not imply package, ABI, loader, package-manager, macOS, Windows, or platform-parity support. |
+| Portable performance | Corpus/report rows are fixture-local evidence, not portable timing, speedup, scalability, or memory claims. |
+| Coverage/dead-code completeness | Corpus validation does not widen coverage completeness or dead-code removal-readiness claims. |
+| State of the art | No state-of-the-art claim is earned by the first corpus lane. |
+
+## Day 1 Notes
+
+- Created the Sprint 138 working-notes baseline and artifact directory.
+- Re-read the Sprint 138 section of `docs/planning/EPIC_12/PROJECT_PLAN.md`.
+- Re-read the Sprint 137 Sprint 138 readiness handoff and closeout artifacts.
+- Mapped Sprint 138 Items 1-7 to day-level owners across Days 1-14.
+- Recorded inherited Sprint 137 evidence contracts before taxonomy or storage
+  implementation begins.
+- Recorded validation expectations for planning docs, corpus schemas, public
+  docs, scripts, build/package changes, CI workflows, generated reports, and
+  `.c`/`.h` changes.
+- Recorded sprint-level non-claims that keep Sprint 138 bounded to
+  fixture-local corpus/oracle evidence.
+- No source files, public documentation, workflows, scripts, build files,
+  corpus data, or support claims were changed on Day 1 beyond Sprint 138
+  planning artifacts.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

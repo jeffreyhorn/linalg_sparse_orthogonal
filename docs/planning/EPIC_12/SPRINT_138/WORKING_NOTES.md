@@ -330,3 +330,24 @@ state-of-the-art claims before fixture-local evidence exists.
   corpus Matrix Market files, public claim updates, or pass evidence were
   committed.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 12 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day12-focused-validation-quality-gates.md`.
+- Ran Python syntax validation for `scripts/validate_corpus_schema.py` and
+  `scripts/run_corpus_oracle.py`.
+- Ran `python3 -B scripts/validate_corpus_schema.py`; corpus fixture,
+  generator, optional-data, expected-result, and first-lane hash metadata
+  passed validation.
+- Ran `env -u SPARSE_CORPUS_OPTIONAL_DATA_DIR python3 -B
+  scripts/run_corpus_oracle.py`; default validation passed without optional
+  external data.
+- Verified the generated report split: 3 oracle `pass` rows, 1 optional-data
+  `skip` row, and 0 optional-data pass rows.
+- Ran `git diff --check`, trailing-whitespace scan, focused Markdown link/path
+  validation, and corpus TSV column consistency checks.
+- Confirmed generated oracle/report outputs remain ignored under `build/` and
+  were not committed.
+- Confirmed no `.c` or `.h` files changed, so the full C quality gate was not
+  required.

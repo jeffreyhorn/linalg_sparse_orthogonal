@@ -375,3 +375,29 @@ state-of-the-art claims before fixture-local evidence exists.
   SuiteSparse/external parity, package/platform support, portable performance,
   coverage completeness, release readiness, and state-of-the-art status.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 14 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day14-closeout-validation-summary.md`.
+- Verified all Sprint 138 deliverables against the Epic 12 Sprint 138 project
+  plan: maintained corpus taxonomy, storage layout, oracle row schema, first
+  oracle/report lane, skip/defer semantics, focused validation, maintainer
+  documentation, and Sprint 139 QR handoff.
+- Re-ran the maintained corpus schema validator and local oracle/report
+  command with optional external data unset.
+- Confirmed the generated report split remained 3 oracle pass rows, 1
+  optional-data skip row, and 0 optional-data pass rows.
+- Re-ran documentation and repository hygiene checks: `git diff --check`,
+  trailing-whitespace scan, focused Markdown local link/path validation, and
+  corpus TSV width consistency.
+- Confirmed generated oracle/report outputs remain ignored under `build/` and
+  were not committed.
+- Published final Sprint 139 QR readiness criteria with fixture key,
+  generator key, rank, nullity, null-vector direction, oracle row IDs,
+  projector tolerance, validation commands, and claim boundaries.
+- Preserved closeout residuals for Sprint 139 QR closure, reviewed hosted
+  platform promotion, Sprint 140 partial-SVD lanes, Sprint 141 freshness
+  normalization, optional external-data policy, and later public adoption
+  wording.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

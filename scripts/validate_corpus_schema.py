@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
 FIXTURE_REQUIRED = {
     "fixture_key",
     "fixture_family",
@@ -434,7 +436,7 @@ def main() -> int:
     parser.add_argument(
         "root",
         nargs="?",
-        default="tests/corpus",
+        default=DEFAULT_CORPUS_ROOT,
         type=Path,
         help="corpus root directory",
     )

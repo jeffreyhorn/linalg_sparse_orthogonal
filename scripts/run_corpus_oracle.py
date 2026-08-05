@@ -24,6 +24,10 @@ from validate_corpus_schema import (
 )
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
+DEFAULT_ORACLE_DIR = REPO_ROOT / "build" / "corpus" / "oracle"
+DEFAULT_REPORT_DIR = REPO_ROOT / "build" / "corpus-reports"
 FIXTURE_KEY = "qr_rank_deficient_6x4_nullspace_v1"
 GENERATOR_KEY = "qr_rank_deficient_6x4_nullspace_generator_v1"
 FIRST_LANE_ORACLE_ROW_IDS = {
@@ -171,8 +175,17 @@ def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
     kind = expected["comparison_kind"]
     tolerance = float(expected["tolerance_value"])
     if kind in {"rank", "nullity"}:
+        if expected["tolerance_kind"] != "exact":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: {kind} comparison requires tolerance_kind='exact'"
+            )
         passed = int(observed) == int(expected["expected_result"])
     elif kind == "residual_norm":
+        if expected["tolerance_kind"] != "absolute":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: residual_norm comparison requires "
+                "tolerance_kind='absolute'"
+            )
         passed = float(observed) <= tolerance
     else:
         raise CorpusValidationError(f"unsupported first-lane comparison kind: {kind}")
@@ -383,9 +396,9 @@ def write_manifest(path: Path, command: str, oracle_rows: list[dict[str, str]]) 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="tests/corpus", type=Path, help="corpus root")
-    parser.add_argument("--oracle-dir", default="build/corpus/oracle", type=Path)
-    parser.add_argument("--report-dir", default="build/corpus-reports", type=Path)
+    parser.add_argument("--root", default=DEFAULT_CORPUS_ROOT, type=Path, help="corpus root")
+    parser.add_argument("--oracle-dir", default=DEFAULT_ORACLE_DIR, type=Path)
+    parser.add_argument("--report-dir", default=DEFAULT_REPORT_DIR, type=Path)
     args = parser.parse_args()
 
     command = shlex.join(sys.argv)

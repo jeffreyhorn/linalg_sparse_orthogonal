@@ -35,10 +35,10 @@ Sprint 138 reserves the first durable fixture lane for:
 - fixture family: `qr_rank_deficient`
 - generator key: `qr_rank_deficient_6x4_nullspace_generator_v1`
 
-The Day 5 rows are placeholders for layout validation. Later Sprint 138 days
-must replace `TBD_*` values with generator hashes, maintained validation
-commands, oracle rows, and expected-result semantics before treating the lane
-as passing evidence.
+The Day 5 rows began as placeholders for layout validation. Day 9 added
+deterministic generator hashes and first-lane expected results, but the lane
+still needs the maintained Day 10 oracle/report command before any observed
+row can be treated as passing evidence.
 
 ## Validation
 
@@ -49,8 +49,9 @@ python3 scripts/validate_corpus_schema.py
 ```
 
 The validator checks TSV widths, required fields, basic enum values,
-fixture-to-generator references, expected-result fixture references, and that
-placeholder expected-result rows are not pass evidence.
+fixture-to-generator references, deterministic first-lane generator hashes,
+expected-result fixture references, and that placeholder expected-result rows
+are not pass evidence.
 
 ## Optional Data
 

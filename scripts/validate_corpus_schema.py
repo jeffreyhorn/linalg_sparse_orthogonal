@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 from pathlib import Path
 from typing import Iterable
 
@@ -125,6 +126,39 @@ EXPECTED_STATUSES = {
     "ready_for_oracle",
 }
 OPTIONAL_AVAILABILITY = {"available", "unavailable", "disabled", "deferred"}
+CANONICAL_FORMAT = "coo_zero_based_row_col_value_f64_text_v1"
+STRUCTURE_FORMAT = "coo_zero_based_row_col_text_v1"
+
+
+def qr_rank_deficient_6x4_nullspace_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 1.0),
+        (0, 3, 1.0),
+        (1, 1, 1.0),
+        (1, 3, 1.0),
+        (2, 2, 1.0),
+        (3, 0, 1.0),
+        (3, 1, 1.0),
+        (3, 3, 2.0),
+        (4, 1, 1.0),
+        (4, 2, 1.0),
+        (4, 3, 1.0),
+        (5, 0, 1.0),
+        (5, 2, 1.0),
+        (5, 3, 1.0),
+    ]
+
+
+GENERATED_FIXTURES = {
+    "qr_rank_deficient_6x4_nullspace_generator_v1": {
+        "algorithm": "fixed_columns_c3_equals_c0_plus_c1",
+        "rows": 6,
+        "cols": 4,
+        "expected_rank": 3,
+        "nullity": 1,
+        "entries": qr_rank_deficient_6x4_nullspace_entries,
+    }
+}
 
 
 class CorpusValidationError(RuntimeError):
@@ -174,6 +208,63 @@ def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]
         )
 
 
+def canonical_structure_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
+    lines = [
+        f"format {STRUCTURE_FORMAT}",
+        f"rows {rows}",
+        f"cols {cols}",
+        f"nnz {len(entries)}",
+    ]
+    lines.extend(f"{row} {col}" for row, col, _value in entries)
+    return "\n".join(lines) + "\n"
+
+
+def canonical_value_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
+    lines = [
+        f"format {CANONICAL_FORMAT}",
+        f"rows {rows}",
+        f"cols {cols}",
+        f"nnz {len(entries)}",
+    ]
+    lines.extend(f"{row} {col} {value:.16f}" for row, col, value in entries)
+    return "\n".join(lines) + "\n"
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
+
+
+def validate_known_generator(path: Path, line: int, row: dict[str, str]) -> None:
+    generator = GENERATED_FIXTURES.get(row["generator_key"])
+    if not generator:
+        return
+    entries = generator["entries"]()
+    expected_structure_hash = sha256_text(
+        canonical_structure_text(generator["rows"], generator["cols"], entries)
+    )
+    expected_value_hash = sha256_text(
+        canonical_value_text(generator["rows"], generator["cols"], entries)
+    )
+    expected_parameters = (
+        f"rows={generator['rows']};cols={generator['cols']};"
+        f"expected_rank={generator['expected_rank']};nullity={generator['nullity']};"
+        "dependency=c3-c0-c1"
+    )
+    checks = {
+        "algorithm": generator["algorithm"],
+        "parameters": expected_parameters,
+        "expected_structure_hash": expected_structure_hash,
+        "expected_value_hash": expected_value_hash,
+        "canonical_format": CANONICAL_FORMAT,
+    }
+    for field, expected in checks.items():
+        if row[field] != expected:
+            raise CorpusValidationError(
+                f"{path}:{line}: {field} {row[field]!r} does not match generated value "
+                f"{expected!r}"
+            )
+
+
 def validate(root: Path) -> None:
     manifests = root / "manifests"
     expected = root / "expected"
@@ -195,6 +286,8 @@ def validate(root: Path) -> None:
     if len(generator_keys) != len(generator_rows):
         raise CorpusValidationError(f"{generators_path}: duplicate generator_key")
 
+    generators_by_key = {row["generator_key"]: row for row in generator_rows}
+
     for line, row in enumerate(fixture_rows, start=2):
         assert_enum(fixtures_path, line, "storage_kind", row["storage_kind"], STORAGE_KINDS)
         assert_enum(
@@ -208,6 +301,24 @@ def validate(root: Path) -> None:
         if row["storage_kind"] == "generated" and row["generator_key"] not in generator_keys:
             raise CorpusValidationError(
                 f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
+            )
+        if row["generator_key"] in GENERATED_FIXTURES:
+            generated = GENERATED_FIXTURES[row["generator_key"]]
+            entries = generated["entries"]()
+            if row["rows"] != str(generated["rows"]):
+                raise CorpusValidationError(f"{fixtures_path}:{line}: generated row count mismatch")
+            if row["cols"] != str(generated["cols"]):
+                raise CorpusValidationError(f"{fixtures_path}:{line}: generated col count mismatch")
+            if row["nnz"] != str(len(entries)):
+                raise CorpusValidationError(f"{fixtures_path}:{line}: generated nnz mismatch")
+            if row["expected_rank"] != str(generated["expected_rank"]):
+                raise CorpusValidationError(f"{fixtures_path}:{line}: generated rank mismatch")
+            if row["nullity"] != str(generated["nullity"]):
+                raise CorpusValidationError(f"{fixtures_path}:{line}: generated nullity mismatch")
+            validate_known_generator(
+                generators_path,
+                2 + generator_rows.index(generators_by_key[row["generator_key"]]),
+                generators_by_key[row["generator_key"]],
             )
         if row["storage_kind"] == "optional_external" and row["matrix_path"] == "":
             raise CorpusValidationError(

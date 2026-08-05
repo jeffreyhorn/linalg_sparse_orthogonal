@@ -267,3 +267,25 @@ state-of-the-art claims before fixture-local evidence exists.
 - No generated oracle rows, corpus report outputs, optional external data,
   committed corpus Matrix Market files, or pass evidence were added.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 9 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day9-first-corpus-lane-implementation.md`.
+- Replaced first-lane generator hash placeholders with deterministic SHA-256
+  values for canonical structure and value text.
+- Extended `scripts/validate_corpus_schema.py` with a first-lane generator
+  registry that regenerates canonical matrix metadata and validates generator
+  algorithm, parameters, dimensions, nnz, rank, nullity, hashes, and canonical
+  format.
+- Promoted first-lane rank and nullity expected-result statuses to
+  `ready_for_oracle`; this is source-controlled expected metadata, not pass
+  evidence.
+- Kept the projector/subspace expected-result row as
+  `placeholder_pending_oracle_command` until Day 10 emits observed oracle rows.
+- Updated `tests/corpus/README.md` to describe Day 9 hash-backed metadata and
+  validator coverage.
+- Confirmed no generated oracle rows, corpus report outputs, optional external
+  data, committed corpus Matrix Market files, public claim updates, or pass
+  evidence were added.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

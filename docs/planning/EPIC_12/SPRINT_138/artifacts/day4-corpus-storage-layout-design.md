@@ -180,7 +180,7 @@ reason, claim scope, non-claims, and generated timestamp.
 | Fixture family | Lowercase snake case solver or matrix family. | `qr_rank_deficient` |
 | Generator key | `<fixture_key>`-aligned generator key ending in `_generator_v<version>`. | `qr_rank_deficient_6x4_nullspace_generator_v1` |
 | Optional data key | Source or subset plus purpose and version. | `suitesparse_rank_deficient_qr_subset_v1` |
-| Oracle row ID | `<fixture_key>_<operation>_<comparison_kind>`. | `qr_rank_deficient_6x4_nullspace_v1_projector_residual` |
+| Oracle row ID | `<fixture_key>_<comparison_kind>` when unambiguous; include operation as `<fixture_key>_<operation>_<comparison_kind>` only when needed to disambiguate rows. | `qr_rank_deficient_6x4_nullspace_v1_projector_residual` |
 | Report row ID | `corpus_<row_family>_<row_subject>_v<version>`. | `corpus_oracle_qr_rank_deficient_6x4_nullspace_v1_v1` |
 | Expected file | `<fixture_key>.tsv` unless operation-specific split is required. | `qr_rank_deficient_6x4_nullspace_v1.tsv` |
 

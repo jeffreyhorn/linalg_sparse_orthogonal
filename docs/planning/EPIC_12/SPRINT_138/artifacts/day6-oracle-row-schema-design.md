@@ -31,7 +31,7 @@ row per comparison.
 
 | Field | Required | Allowed values or format | Meaning |
 | --- | --- | --- | --- |
-| `oracle_row_id` | Yes | Stable lowercase snake case | Unique row ID, usually `<fixture_key>_<operation>_<comparison_kind>`. |
+| `oracle_row_id` | Yes | Stable lowercase snake case | Unique row ID. Use `<fixture_key>_<comparison_kind>` when unambiguous, and include `<operation>` as `<fixture_key>_<operation>_<comparison_kind>` when needed to disambiguate rows. |
 | `fixture_key` | Yes | Existing fixture manifest key | Connects the observed row to `tests/corpus/manifests/fixtures.tsv`. |
 | `solver_family` | Yes | `qr`, `partial_svd`, `lu`, `ldlt`, `cholesky`, `iterative`, `eigs`, `runtime`, `package`, `unknown` | Solver or evidence family that owns the comparison. |
 | `operation` | Yes | Lowercase snake case | Operation under test, such as `rank_info`, `nullspace`, `solve`, `singular_values`, `convergence_budget`, `diagnostic`, or `optional_data_check`. |

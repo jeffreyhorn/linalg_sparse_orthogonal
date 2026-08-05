@@ -8,7 +8,9 @@ import csv
 import datetime as dt
 import math
 import platform
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 from validate_corpus_schema import (
@@ -381,7 +383,7 @@ def main() -> int:
     parser.add_argument("--report-dir", default="build/corpus-reports", type=Path)
     args = parser.parse_args()
 
-    command = "python3 scripts/run_corpus_oracle.py"
+    command = shlex.join(sys.argv)
     oracle_rows = build_oracle_rows(args.root, command)
     skip_rows = build_skip_rows(args.root)
     oracle_path = args.oracle_dir / f"{FIXTURE_KEY}.oracle.tsv"

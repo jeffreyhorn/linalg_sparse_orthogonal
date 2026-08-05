@@ -19,7 +19,9 @@ completeness, or state-of-the-art status.
 | `manifests/optional_data.tsv` | Optional external-data skip/defer policy rows. |
 | `expected/` | Small committed expected-result rows for maintained fixtures. |
 | `schemas/fixture_fields.md` | Fixture, generator, and optional-data field definitions. |
+| `schemas/oracle_fields.md` | Observed oracle row field definitions and status semantics. |
 | `fixtures/` | Future promoted source-controlled matrix fixtures. |
+| `../scripts/validate_corpus_schema.py` | Lightweight schema check for maintained corpus TSV skeletons. |
 
 Generated matrices, observed oracle rows, logs, report indexes, and local run
 manifests belong under ignored `build/corpus/` or `build/corpus-reports/`, not
@@ -37,6 +39,18 @@ The Day 5 rows are placeholders for layout validation. Later Sprint 138 days
 must replace `TBD_*` values with generator hashes, maintained validation
 commands, oracle rows, and expected-result semantics before treating the lane
 as passing evidence.
+
+## Validation
+
+Run this structural check after editing corpus TSV files:
+
+```sh
+python3 scripts/validate_corpus_schema.py
+```
+
+The validator checks TSV widths, required fields, basic enum values,
+fixture-to-generator references, expected-result fixture references, and that
+placeholder expected-result rows are not pass evidence.
 
 ## Optional Data
 

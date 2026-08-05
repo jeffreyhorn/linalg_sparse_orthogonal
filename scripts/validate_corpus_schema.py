@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""Validate maintained corpus TSV skeletons.
+
+This intentionally checks schema shape and row semantics only. It does not run
+solver or oracle comparisons.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+from pathlib import Path
+from typing import Iterable
+
+
+FIXTURE_REQUIRED = {
+    "fixture_key",
+    "fixture_family",
+    "storage_kind",
+    "generator_key",
+    "rows",
+    "cols",
+    "nnz",
+    "symmetry",
+    "definiteness",
+    "rank_status",
+    "conditioning_class",
+    "scale_class",
+    "sparsity_class",
+    "rhs_policy",
+    "expected_behavior",
+    "claim_scope",
+    "non_claims",
+    "support_tier",
+    "validation_command",
+    "owner",
+    "introduced_in",
+}
+GENERATOR_REQUIRED = {
+    "generator_key",
+    "generator_version",
+    "algorithm",
+    "seed",
+    "parameters",
+    "expected_structure_hash",
+    "expected_value_hash",
+    "canonical_format",
+    "floating_policy",
+    "regeneration_command",
+    "change_policy",
+}
+OPTIONAL_DATA_REQUIRED = {
+    "optional_data_key",
+    "source_name",
+    "source_url_or_reference",
+    "license_or_terms",
+    "expected_location",
+    "availability_state",
+    "skip_reason",
+    "defer_reason",
+    "fixture_keys",
+    "validation_command",
+    "pass_interpretation",
+    "skip_interpretation",
+    "claim_boundary",
+}
+EXPECTED_REQUIRED = {
+    "oracle_row_id",
+    "fixture_key",
+    "operation",
+    "comparison_kind",
+    "expected_result_kind",
+    "expected_result",
+    "tolerance_kind",
+    "tolerance_value",
+    "claim_scope",
+    "non_claims",
+    "status",
+}
+
+STORAGE_KINDS = {"inline", "generated", "matrix_market", "optional_external"}
+EXPECTED_BEHAVIORS = {"success", "diagnostic_failure", "unsupported", "non_convergence", "skip"}
+SUPPORT_TIERS = {
+    "reviewed_linux",
+    "reviewed_cross_platform",
+    "supplemental_macos",
+    "supplemental_windows",
+    "local_only",
+    "optional_data",
+    "staged",
+}
+COMPARISON_KINDS = {
+    "value",
+    "residual_norm",
+    "rank",
+    "nullity",
+    "subspace_distance",
+    "status",
+    "diagnostic",
+    "local_measurement",
+}
+EXPECTED_RESULT_KINDS = {
+    "value",
+    "residual_norm",
+    "rank",
+    "nullity",
+    "subspace_distance",
+    "status",
+    "diagnostic",
+    "performance_local",
+}
+TOLERANCE_KINDS = {
+    "exact",
+    "absolute",
+    "relative",
+    "mixed",
+    "projector",
+    "status_only",
+    "not_applicable",
+}
+EXPECTED_STATUSES = {
+    "placeholder_pending_generator",
+    "placeholder_pending_oracle_command",
+    "placeholder_pending_oracle_schema",
+    "ready_for_oracle",
+}
+OPTIONAL_AVAILABILITY = {"available", "unavailable", "disabled", "deferred"}
+
+
+class CorpusValidationError(RuntimeError):
+    pass
+
+
+def read_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="") as handle:
+        rows = list(csv.reader(handle, delimiter="\t"))
+    if not rows:
+        raise CorpusValidationError(f"{path}: empty TSV")
+    width = len(rows[0])
+    for index, row in enumerate(rows, start=1):
+        if len(row) != width:
+            raise CorpusValidationError(
+                f"{path}:{index}: expected {width} columns, got {len(row)}"
+            )
+    header = rows[0]
+    if len(set(header)) != len(header):
+        raise CorpusValidationError(f"{path}: duplicate header fields")
+    return [dict(zip(header, row)) for row in rows[1:]]
+
+
+def require_fields(path: Path, rows: Iterable[dict[str, str]], required: set[str]) -> None:
+    header = set(read_header(path))
+    missing = sorted(required - header)
+    if missing:
+        raise CorpusValidationError(f"{path}: missing required headers: {', '.join(missing)}")
+    for line, row in enumerate(rows, start=2):
+        for field in required:
+            if field in {"matrix_path", "skip_reason", "defer_reason"}:
+                continue
+            if row.get(field, "") == "":
+                raise CorpusValidationError(f"{path}:{line}: required field {field} is empty")
+
+
+def read_header(path: Path) -> list[str]:
+    with path.open(newline="") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        return next(reader)
+
+
+def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]) -> None:
+    if value not in allowed:
+        raise CorpusValidationError(
+            f"{path}:{line}: invalid {field}={value!r}; expected one of {sorted(allowed)}"
+        )
+
+
+def validate(root: Path) -> None:
+    manifests = root / "manifests"
+    expected = root / "expected"
+    fixtures_path = manifests / "fixtures.tsv"
+    generators_path = manifests / "generators.tsv"
+    optional_path = manifests / "optional_data.tsv"
+
+    fixture_rows = read_tsv(fixtures_path)
+    generator_rows = read_tsv(generators_path)
+    optional_rows = read_tsv(optional_path)
+    require_fields(fixtures_path, fixture_rows, FIXTURE_REQUIRED)
+    require_fields(generators_path, generator_rows, GENERATOR_REQUIRED)
+    require_fields(optional_path, optional_rows, OPTIONAL_DATA_REQUIRED)
+
+    fixture_keys = {row["fixture_key"] for row in fixture_rows}
+    generator_keys = {row["generator_key"] for row in generator_rows}
+    if len(fixture_keys) != len(fixture_rows):
+        raise CorpusValidationError(f"{fixtures_path}: duplicate fixture_key")
+    if len(generator_keys) != len(generator_rows):
+        raise CorpusValidationError(f"{generators_path}: duplicate generator_key")
+
+    for line, row in enumerate(fixture_rows, start=2):
+        assert_enum(fixtures_path, line, "storage_kind", row["storage_kind"], STORAGE_KINDS)
+        assert_enum(
+            fixtures_path,
+            line,
+            "expected_behavior",
+            row["expected_behavior"],
+            EXPECTED_BEHAVIORS,
+        )
+        assert_enum(fixtures_path, line, "support_tier", row["support_tier"], SUPPORT_TIERS)
+        if row["storage_kind"] == "generated" and row["generator_key"] not in generator_keys:
+            raise CorpusValidationError(
+                f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
+            )
+        if row["storage_kind"] == "optional_external" and row["matrix_path"] == "":
+            raise CorpusValidationError(
+                f"{fixtures_path}:{line}: optional_external rows require matrix_path"
+            )
+
+    for line, row in enumerate(optional_rows, start=2):
+        assert_enum(
+            optional_path,
+            line,
+            "availability_state",
+            row["availability_state"],
+            OPTIONAL_AVAILABILITY,
+        )
+        if row["availability_state"] != "available" and row["skip_reason"] == "":
+            raise CorpusValidationError(
+                f"{optional_path}:{line}: unavailable optional data requires skip_reason"
+            )
+        if row["availability_state"] == "deferred" and row["defer_reason"] == "":
+            raise CorpusValidationError(
+                f"{optional_path}:{line}: deferred optional data requires defer_reason"
+            )
+
+    for path in sorted(expected.glob("*.tsv")):
+        expected_rows = read_tsv(path)
+        require_fields(path, expected_rows, EXPECTED_REQUIRED)
+        for line, row in enumerate(expected_rows, start=2):
+            fixture_key = row["fixture_key"]
+            if fixture_key not in fixture_keys:
+                raise CorpusValidationError(
+                    f"{path}:{line}: fixture_key {fixture_key!r} not found"
+                )
+            assert_enum(path, line, "comparison_kind", row["comparison_kind"], COMPARISON_KINDS)
+            assert_enum(
+                path,
+                line,
+                "expected_result_kind",
+                row["expected_result_kind"],
+                EXPECTED_RESULT_KINDS,
+            )
+            assert_enum(path, line, "tolerance_kind", row["tolerance_kind"], TOLERANCE_KINDS)
+            assert_enum(path, line, "status", row["status"], EXPECTED_STATUSES)
+            if row["tolerance_kind"] in {"exact", "absolute", "relative", "mixed", "projector"}:
+                if row["tolerance_value"] == "":
+                    raise CorpusValidationError(
+                        f"{path}:{line}: {row['tolerance_kind']} requires tolerance_value"
+                    )
+            elif row["tolerance_value"] != "":
+                raise CorpusValidationError(
+                    f"{path}:{line}: {row['tolerance_kind']} requires empty tolerance_value"
+                )
+            if "pass" in row["status"]:
+                raise CorpusValidationError(
+                    f"{path}:{line}: expected-result skeleton status must not be pass evidence"
+                )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "root",
+        nargs="?",
+        default="tests/corpus",
+        type=Path,
+        help="corpus root directory",
+    )
+    args = parser.parse_args()
+    validate(args.root)
+    print(f"validate-corpus-schema: {args.root} ok")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

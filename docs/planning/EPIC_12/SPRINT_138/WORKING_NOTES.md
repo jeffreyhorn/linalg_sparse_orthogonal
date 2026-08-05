@@ -226,3 +226,22 @@ state-of-the-art claims before fixture-local evidence exists.
 - Recorded serialization rules, validation expectations, and the Day 7
   implementation handoff.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 7 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day7-oracle-schema-implementation.md`.
+- Added `tests/corpus/schemas/oracle_fields.md` for observed oracle fields,
+  comparison status semantics, failure classes, and first-lane row IDs.
+- Updated the first-lane expected-result TSV with `oracle_row_id` and
+  `comparison_kind` columns so the rank, nullity, and projector/subspace rows
+  match the Day 6 schema design.
+- Added `scripts/validate_corpus_schema.py` to mechanically validate corpus
+  TSV widths, required fields, selected enum values, fixture/generator
+  references, expected-result fixture references, and placeholder status
+  boundaries.
+- Updated corpus README files with oracle schema and validation-helper
+  ownership notes.
+- Confirmed no generated oracle rows, corpus report outputs, optional external
+  data, committed corpus Matrix Market files, or pass evidence were added.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

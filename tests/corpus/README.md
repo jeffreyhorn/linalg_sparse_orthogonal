@@ -61,8 +61,12 @@ python3 scripts/run_corpus_oracle.py
 ```
 
 The command writes observed oracle rows under `build/corpus/oracle/` and a
-report index under `build/corpus-reports/`. Those outputs are generated local
-evidence and are not committed.
+report index plus optional-data skip rows under `build/corpus-reports/`. Those
+outputs are generated local evidence and are not committed.
+
+Default validation does not require optional external data. Disabled,
+unavailable, deferred, or unsupported optional data is reported as skip/defer
+policy evidence only and never as solver pass evidence.
 
 ## Optional Data
 

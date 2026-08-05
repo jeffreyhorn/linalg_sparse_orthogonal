@@ -82,5 +82,6 @@ python3 scripts/run_corpus_oracle.py
 
 It validates the source-controlled corpus metadata, writes observed oracle rows
 to `build/corpus/oracle/`, and writes a report index to
-`build/corpus-reports/`. These generated outputs remain local evidence and are
-not committed.
+`build/corpus-reports/`. It also writes current optional-data skip/defer rows
+to `build/corpus-reports/skips.tsv`. These generated outputs remain local
+evidence and are not committed.

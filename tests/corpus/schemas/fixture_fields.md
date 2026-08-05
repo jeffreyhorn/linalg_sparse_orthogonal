@@ -79,3 +79,8 @@ under `SPARSE_CORPUS_OPTIONAL_DATA_DIR`.
 | `pass_interpretation` | Yes | Meaning when the optional data is available and the numerical check passes. |
 | `skip_interpretation` | Yes | Meaning when the optional data is unavailable or disabled. |
 | `claim_boundary` | Yes | Explicit statement that skip/defer does not prove solver behavior. |
+
+Unavailable, disabled, or deferred optional data must not be counted as
+numerical pass evidence. The maintained validator requires skip interpretation
+wording that avoids pass evidence and claim-boundary wording that preserves
+external-parity non-claims.

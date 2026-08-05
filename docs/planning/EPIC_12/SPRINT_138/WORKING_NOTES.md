@@ -309,3 +309,24 @@ state-of-the-art claims before fixture-local evidence exists.
 - Confirmed generated oracle/report outputs remain under ignored `build/`
   paths and were not committed.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 11 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day11-optional-data-skip-semantics.md`.
+- Added the optional-data row `suitesparse_rank_deficient_qr_subset_v1` with
+  default `disabled` state, skip interpretation, external-data location, and
+  explicit SuiteSparse/external-parity non-claims.
+- Updated `scripts/run_corpus_oracle.py` to emit optional-data skip/defer rows
+  to `build/corpus-reports/skips.tsv` and include skip/defer rows in the
+  generated report index.
+- Updated `scripts/validate_corpus_schema.py` to reject optional skip wording
+  that describes pass evidence and require external-parity claim boundaries.
+- Updated corpus docs and schema notes to describe default optional-data
+  behavior and generated skip/defer outputs.
+- Confirmed default validation runs without `SPARSE_CORPUS_OPTIONAL_DATA_DIR`
+  and keeps optional data out of pass evidence.
+- No generated oracle/report outputs, optional external payloads, committed
+  corpus Matrix Market files, public claim updates, or pass evidence were
+  committed.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

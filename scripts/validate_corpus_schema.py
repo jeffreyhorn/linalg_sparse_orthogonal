@@ -341,6 +341,20 @@ def validate(root: Path) -> None:
             raise CorpusValidationError(
                 f"{optional_path}:{line}: deferred optional data requires defer_reason"
             )
+        if (
+            row["availability_state"] != "available"
+            and "pass" in row["skip_interpretation"].lower()
+        ):
+            raise CorpusValidationError(
+                f"{optional_path}:{line}: skip_interpretation must not describe pass evidence"
+            )
+        if (
+            row["availability_state"] != "available"
+            and "parity" not in row["claim_boundary"].lower()
+        ):
+            raise CorpusValidationError(
+                f"{optional_path}:{line}: claim_boundary must preserve external-parity non-claim"
+            )
 
     for path in sorted(expected.glob("*.tsv")):
         expected_rows = read_tsv(path)

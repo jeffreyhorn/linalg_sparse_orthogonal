@@ -11,7 +11,7 @@ documented in `../schemas/oracle_fields.md`.
 
 Raw QR basis vectors should not be the primary expected artifact for
 rank-deficient QR fixtures. Prefer rank, nullity, residual, and
-projector/subspace comparisons with fixture-local tolerances.
+normalized null-vector residual comparisons with fixture-local tolerances.
 
 Expected-result skeleton rows may use placeholder statuses such as
 `placeholder_pending_generator` or `placeholder_pending_oracle_command`.

@@ -38,7 +38,7 @@ The generated `index.tsv` contained:
 
 | Row type | Count | Interpretation |
 | --- | --- | --- |
-| Oracle `pass` rows | 3 | Fixture-local rank, nullity, and projector/subspace reference comparisons passed. |
+| Oracle `pass` rows | 3 | Fixture-local rank, nullity, and normalized null-vector residual reference comparisons passed. |
 | Optional-data `skip` rows | 1 | Optional SuiteSparse QR subset remains disabled by default and is policy evidence only. |
 | Optional-data `pass` rows | 0 | Optional data was not counted as numerical pass evidence. |
 

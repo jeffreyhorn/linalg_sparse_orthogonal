@@ -116,7 +116,7 @@ def matvec(
     return out
 
 
-def projector_distance_for_reference(
+def normalized_null_vector_residual_for_reference(
     entries: list[tuple[int, int, float]], rows: int, cols: int
 ) -> float:
     reference = [-1.0, -1.0, 0.0, 1.0]
@@ -132,7 +132,7 @@ def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
     tolerance = float(expected["tolerance_value"])
     if kind in {"rank", "nullity"}:
         passed = int(observed) == int(expected["expected_result"])
-    elif kind == "subspace_distance":
+    elif kind == "residual_norm":
         passed = float(observed) <= tolerance
     else:
         raise CorpusValidationError(f"unsupported first-lane comparison kind: {kind}")
@@ -168,7 +168,7 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
         f"{FIXTURE_KEY}_rank": str(fixture["expected_rank"]),
         f"{FIXTURE_KEY}_nullity": str(fixture["nullity"]),
         f"{FIXTURE_KEY}_projector_residual": (
-            f"{projector_distance_for_reference(entries, fixture['rows'], fixture['cols']):.17g}"
+            f"{normalized_null_vector_residual_for_reference(entries, fixture['rows'], fixture['cols']):.17g}"
         ),
     }
     rows: list[dict[str, str]] = []

@@ -116,7 +116,7 @@ oracle rows once implementation begins:
 | --- | --- | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` | `exact=0` | Fixture-local QR rank behavior. |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` | `exact=0` | Fixture-local QR nullity behavior. |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `subspace_distance` | Projector or two-way projection distance below fixture-local tolerance. | `projector=TBD_DAY8_OR_DAY9` | Fixture-local QR nullspace/subspace residual behavior. |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `residual_norm` | Normalized fixed null-vector residual below fixture-local tolerance. | `absolute=TBD_DAY8_OR_DAY9` | Fixture-local QR null-vector residual behavior. |
 
 Raw QR basis vectors should not be a primary expected result because QR basis
 orientation and signs are not stable enough for a durable corpus contract.
@@ -167,6 +167,6 @@ Day 7 or later validation should check:
 
 | Criterion | Status | Evidence |
 | --- | --- | --- |
-| Oracle rows can represent the first corpus lane without ambiguity. | Complete | First-lane oracle design lists rank, nullity, and projector/subspace residual rows with comparison kinds and tolerance policies. |
+| Oracle rows can represent the first corpus lane without ambiguity. | Complete | First-lane oracle design lists rank, nullity, and normalized residual rows with comparison kinds and tolerance policies. |
 | Skip, defer, and unsupported statuses are distinct from pass/fail. | Complete | Status table and failure-class table keep skip/defer/unsupported rows out of pass evidence. |
 | Row fields preserve fixture-local claim boundaries. | Complete | Schema requires `claim_scope` and `non_claims` on every observed oracle row. |

@@ -70,8 +70,8 @@
 
 5. **The Sprint 139 QR handoff is actionable.** The retrospective and Day 13
    and Day 14 artifacts give Sprint 139 the fixture key, generator key, rank,
-   nullity, null-vector direction, oracle row IDs, projector tolerance,
-   validation commands, and claim boundaries.
+   nullity, null-vector direction, oracle row IDs, normalized residual
+   tolerance, validation commands, and claim boundaries.
 
 ## What Didn't Go Well
 
@@ -140,14 +140,16 @@ Sprint 139 should consume the first QR lane exactly as defined:
 | expected rank | 3 |
 | expected nullity | 1 |
 | null vector direction | `[-1, -1, 0, 1]` |
-| rank row ID | `qr_rank_deficient_6x4_nullspace_v1__qr__rank` |
-| nullity row ID | `qr_rank_deficient_6x4_nullspace_v1__qr__nullity` |
-| projector row ID | `qr_rank_deficient_6x4_nullspace_v1__qr__projector_residual` |
-| initial projector tolerance | `1e-10` |
+| rank row ID | `qr_rank_deficient_6x4_nullspace_v1_rank` |
+| nullity row ID | `qr_rank_deficient_6x4_nullspace_v1_nullity` |
+| residual row ID | `qr_rank_deficient_6x4_nullspace_v1_projector_residual` |
+| initial normalized null-vector residual tolerance | `1e-10` |
 
-QR closure should compare nullspace projectors or two-way projection distance,
-not raw QR basis equality. Any support-tier promotion beyond local must be
-backed by reviewed generated evidence for that lane.
+QR closure for this first lane should compare the normalized residual of the
+fixed null-vector direction. Later solver-backed QR work may add projector or
+two-way projection-distance rows, but it should not require raw QR basis
+equality. Any support-tier promotion beyond local must be backed by reviewed
+generated evidence for that lane.
 
 ## Residual Deferred Debt
 

@@ -33,7 +33,7 @@ Default outputs:
 | --- | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank` | `3` | Deterministic reference rank `3`. | `pass` when equal. |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `nullity` | `1` | Deterministic reference nullity `1`. | `pass` when equal. |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `subspace_distance` | `projector_distance<=1e-10` | Reference null-vector residual normalized by vector norm. | `pass` when below tolerance. |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `residual_norm` | `normalized_null_vector_residual<=1e-10` | Reference null-vector residual normalized by vector norm. | `pass` when below tolerance. |
 
 The command validates the corpus/reference lane. Sprint 139 still owns QR
 solver behavior closure and any stronger QR implementation claim.
@@ -71,7 +71,7 @@ Rows remain `local_only` until a reviewed platform lane promotes the evidence.
 | --- | --- |
 | `tests/corpus/manifests/fixtures.tsv` | Replaced the Day 10 validation-command placeholder with `python3 scripts/run_corpus_oracle.py` and set `introduced_in` to `Sprint 138 Day 9`. |
 | `tests/corpus/manifests/generators.tsv` | Replaced the regeneration-command placeholder with `python3 scripts/run_corpus_oracle.py`. |
-| `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` | Marked the projector/subspace expected row as `ready_for_oracle`. |
+| `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` | Marked the normalized null-vector residual expected row as `ready_for_oracle`. |
 | `tests/corpus/README.md` | Added command usage and generated-output boundary notes. |
 | `tests/corpus/schemas/oracle_fields.md` | Added command usage and updated the first-lane projector expected result. |
 

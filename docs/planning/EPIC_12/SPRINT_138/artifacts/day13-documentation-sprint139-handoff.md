@@ -83,14 +83,16 @@ Sprint 139 should use the first lane:
 - expected nullity: 1
 - null vector direction: `[-1, -1, 0, 1]`
 - oracle rows:
-  - `qr_rank_deficient_6x4_nullspace_v1__qr__rank`
-  - `qr_rank_deficient_6x4_nullspace_v1__qr__nullity`
-  - `qr_rank_deficient_6x4_nullspace_v1__qr__projector_residual`
-- initial projector tolerance: `1e-10`
+  - `qr_rank_deficient_6x4_nullspace_v1_rank`
+  - `qr_rank_deficient_6x4_nullspace_v1_nullity`
+  - `qr_rank_deficient_6x4_nullspace_v1_projector_residual`
+- initial normalized null-vector residual tolerance: `1e-10`
 
-QR closure should compare nullspace projectors or two-way projection distance.
-It should not require raw QR basis equality, because sign, scaling, and
-equivalent basis choices can differ while representing the same subspace.
+QR closure for this first lane should compare the normalized residual of the
+fixed null-vector direction. Later solver-backed QR work may add projector or
+two-way projection-distance rows, but it should not require raw QR basis
+equality because sign, scaling, and equivalent basis choices can differ while
+representing the same subspace.
 
 Minimum Sprint 139 validation before claiming fixture closure:
 

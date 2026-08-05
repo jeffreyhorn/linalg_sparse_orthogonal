@@ -27,7 +27,7 @@ claim updates.
 | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank` | `3` | `placeholder_pending_generator` |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `nullity` | `1` | `placeholder_pending_generator` |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `subspace_distance` | `projector_distance<=TBD_DAY8_OR_DAY9` | `placeholder_pending_oracle_command` |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `residual_norm` | `normalized_null_vector_residual<=TBD_DAY8_OR_DAY9` | `placeholder_pending_oracle_command` |
 
 These rows remain skeleton expected results. They are not observed oracle rows
 and are not pass evidence.
@@ -77,5 +77,5 @@ The validation currently checks:
 | Criterion | Status | Evidence |
 | --- | --- | --- |
 | Initial oracle rows can be validated mechanically. | Complete | `scripts/validate_corpus_schema.py` validates current corpus TSV skeletons and fixture/generator references. |
-| Expected-result rows are present for the first durable lane. | Complete | `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` contains rank, nullity, and projector/subspace expected-result skeleton rows. |
+| Expected-result rows are present for the first durable lane. | Complete | `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` contains rank, nullity, and normalized residual expected-result skeleton rows. |
 | Schema validation does not treat skipped rows as passes. | Complete | Validator rejects expected-result statuses containing `pass` and documents skip/defer/unsupported pass-count boundaries in `oracle_fields.md`. |

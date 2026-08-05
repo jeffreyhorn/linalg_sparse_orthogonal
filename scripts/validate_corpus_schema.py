@@ -182,14 +182,20 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
     return [dict(zip(header, row)) for row in rows[1:]]
 
 
-def require_fields(path: Path, rows: Iterable[dict[str, str]], required: set[str]) -> None:
+def require_fields(
+    path: Path,
+    rows: Iterable[dict[str, str]],
+    required: set[str],
+    allow_empty: set[str] | None = None,
+) -> None:
+    allow_empty = allow_empty or set()
     header = set(read_header(path))
     missing = sorted(required - header)
     if missing:
         raise CorpusValidationError(f"{path}: missing required headers: {', '.join(missing)}")
     for line, row in enumerate(rows, start=2):
         for field in required:
-            if field in {"matrix_path", "skip_reason", "defer_reason"}:
+            if field in allow_empty:
                 continue
             if row.get(field, "") == "":
                 raise CorpusValidationError(f"{path}:{line}: required field {field} is empty")
@@ -275,9 +281,9 @@ def validate(root: Path) -> None:
     fixture_rows = read_tsv(fixtures_path)
     generator_rows = read_tsv(generators_path)
     optional_rows = read_tsv(optional_path)
-    require_fields(fixtures_path, fixture_rows, FIXTURE_REQUIRED)
+    require_fields(fixtures_path, fixture_rows, FIXTURE_REQUIRED, allow_empty={"generator_key"})
     require_fields(generators_path, generator_rows, GENERATOR_REQUIRED)
-    require_fields(optional_path, optional_rows, OPTIONAL_DATA_REQUIRED)
+    require_fields(optional_path, optional_rows, OPTIONAL_DATA_REQUIRED, allow_empty={"skip_reason", "defer_reason"})
 
     fixture_keys = {row["fixture_key"] for row in fixture_rows}
     generator_keys = {row["generator_key"] for row in generator_rows}
@@ -298,7 +304,16 @@ def validate(root: Path) -> None:
             EXPECTED_BEHAVIORS,
         )
         assert_enum(fixtures_path, line, "support_tier", row["support_tier"], SUPPORT_TIERS)
-        if row["storage_kind"] == "generated" and row["generator_key"] not in generator_keys:
+        if row["storage_kind"] == "generated":
+            if row["generator_key"] == "":
+                raise CorpusValidationError(
+                    f"{fixtures_path}:{line}: generated rows require generator_key"
+                )
+            if row["generator_key"] not in generator_keys:
+                raise CorpusValidationError(
+                    f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
+                )
+        elif row["generator_key"] != "" and row["generator_key"] not in generator_keys:
             raise CorpusValidationError(
                 f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
             )

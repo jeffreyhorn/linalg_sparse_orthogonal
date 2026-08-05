@@ -81,7 +81,7 @@ zero-based.
 | `canonical_format` | `coo_zero_based_row_col_value_f64_text_v1` |
 | `expected_structure_hash` | `TBD_DAY9` |
 | `expected_value_hash` | `TBD_DAY9` |
-| `floating_policy` | Exact integer structure/values for generation; exact rank/nullity; projector/subspace distance tolerance `1e-10`. |
+| `floating_policy` | Exact integer structure/values for generation; exact rank/nullity; normalized null-vector residual tolerance `1e-10`. |
 | `regeneration_command` | `TBD_DAY10_CORPUS_ORACLE_COMMAND` until the maintained command lands. |
 | `change_policy` | Update generator version, fixture metadata, expected results, oracle rows, validation command, and docs together. |
 
@@ -117,10 +117,10 @@ Hash policy:
 | --- | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` | `exact=0` |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` | `exact=0` |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `subspace_distance` | `projector_distance<=1e-10` | `projector=1e-10` |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `residual_norm` | `normalized_null_vector_residual<=1e-10` | `absolute=1e-10` |
 
-The projector/subspace row should compare subspace/projector behavior, not raw
-QR basis orientation or signs.
+The normalized residual row should compare the fixed null-vector direction,
+not raw QR basis orientation or signs.
 
 ## Validation Command Design
 
@@ -130,7 +130,7 @@ The Day 10 maintained command should:
 2. Read `tests/corpus/manifests/generators.tsv`.
 3. Regenerate `qr_rank_deficient_6x4_nullspace_v1` from the generator row.
 4. Verify structure and value hashes.
-5. Run QR rank/nullity and nullspace projector/subspace comparisons.
+5. Run QR rank/nullity and normalized null-vector residual comparisons.
 6. Emit observed oracle rows under `build/corpus/oracle/`.
 7. Emit a report index under `build/corpus-reports/`.
 8. Preserve `local_only` support tier unless a reviewed platform lane runs it.

@@ -19,7 +19,7 @@ solver behavior changes.
 | `tests/corpus/manifests/generators.tsv` | Added | Generator manifest header plus the first-lane generator placeholder row. |
 | `tests/corpus/manifests/optional_data.tsv` | Added | Optional external-data manifest header. |
 | `tests/corpus/expected/README.md` | Added | Expected-result ownership and non-claim policy. |
-| `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` | Added | First-lane expected-result placeholder rows for rank, nullity, and future projector/subspace residual comparison. |
+| `tests/corpus/expected/qr_rank_deficient_6x4_nullspace_v1.tsv` | Added | First-lane expected-result placeholder rows for rank, nullity, and future normalized null-vector residual comparison. |
 | `tests/corpus/schemas/fixture_fields.md` | Added | Fixture, generator, and optional-data field definitions for the Day 5 skeleton. |
 | `tests/corpus/fixtures/README.md` | Added | Placeholder documentation for future promoted stored matrix fixtures. |
 

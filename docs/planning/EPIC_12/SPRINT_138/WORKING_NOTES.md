@@ -195,7 +195,7 @@ state-of-the-art claims before fixture-local evidence exists.
 - Added `tests/corpus/manifests/optional_data.tsv` as a header-only
   optional external-data policy skeleton.
 - Added expected-result placeholders for first-lane rank, nullity, and future
-  projector/subspace residual comparison.
+  normalized null-vector residual comparison.
 - Added `tests/corpus/schemas/fixture_fields.md` for fixture, generator, and
   optional-data field definitions while leaving oracle schema finalization to
   Day 6.
@@ -221,8 +221,8 @@ state-of-the-art claims before fixture-local evidence exists.
   status-only, and not-applicable comparisons.
 - Defined comparison statuses and failure classes so skip, defer,
   unsupported, and xfail rows cannot be counted as solver passes.
-- Designed first-lane QR oracle rows for rank, nullity, and
-  projector/subspace residual comparison without raw QR basis parity.
+- Designed first-lane QR oracle rows for rank, nullity, and normalized
+  null-vector residual comparison without raw QR basis parity.
 - Recorded serialization rules, validation expectations, and the Day 7
   implementation handoff.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
@@ -234,7 +234,7 @@ state-of-the-art claims before fixture-local evidence exists.
 - Added `tests/corpus/schemas/oracle_fields.md` for observed oracle fields,
   comparison status semantics, failure classes, and first-lane row IDs.
 - Updated the first-lane expected-result TSV with `oracle_row_id` and
-  `comparison_kind` columns so the rank, nullity, and projector/subspace rows
+  `comparison_kind` columns so the rank, nullity, and normalized residual rows
   match the Day 6 schema design.
 - Added `scripts/validate_corpus_schema.py` to mechanically validate corpus
   TSV widths, required fields, selected enum values, fixture/generator
@@ -260,8 +260,8 @@ state-of-the-art claims before fixture-local evidence exists.
 - Updated first-lane manifest metadata from `TBD_DAY8` to concrete `nnz=14`.
 - Updated the generator row with Day 8 algorithm, parameters, canonical
   format, floating policy, and Day 9 hash placeholders.
-- Updated the projector/subspace expected-result tolerance to
-  `projector_distance<=1e-10` with `tolerance_value=1e-10`.
+- Updated the normalized null-vector residual expected-result tolerance to
+  `normalized_null_vector_residual<=1e-10` with `tolerance_value=1e-10`.
 - Recorded the Day 10 validation-command design and Sprint 139 QR handoff
   fields.
 - No generated oracle rows, corpus report outputs, optional external data,
@@ -281,7 +281,7 @@ state-of-the-art claims before fixture-local evidence exists.
 - Promoted first-lane rank and nullity expected-result statuses to
   `ready_for_oracle`; this is source-controlled expected metadata, not pass
   evidence.
-- Kept the projector/subspace expected-result row as
+- Kept the normalized residual expected-result row as
   `placeholder_pending_oracle_command` until Day 10 emits observed oracle rows.
 - Updated `tests/corpus/README.md` to describe Day 9 hash-backed metadata and
   validator coverage.
@@ -302,7 +302,7 @@ state-of-the-art claims before fixture-local evidence exists.
 - Updated fixture and generator manifests to use
   `python3 scripts/run_corpus_oracle.py` as the validation/regeneration
   command.
-- Marked the first-lane projector/subspace expected-result row as
+- Marked the first-lane normalized residual expected-result row as
   `ready_for_oracle`.
 - Updated corpus README and oracle schema docs with command usage,
   generated-output boundaries, and report-index handoff notes.
@@ -395,7 +395,7 @@ state-of-the-art claims before fixture-local evidence exists.
   were not committed.
 - Published final Sprint 139 QR readiness criteria with fixture key,
   generator key, rank, nullity, null-vector direction, oracle row IDs,
-  projector tolerance, validation commands, and claim boundaries.
+  normalized residual tolerance, validation commands, and claim boundaries.
 - Preserved closeout residuals for Sprint 139 QR closure, reviewed hosted
   platform promotion, Sprint 140 partial-SVD lanes, Sprint 141 freshness
   normalization, optional external-data policy, and later public adoption

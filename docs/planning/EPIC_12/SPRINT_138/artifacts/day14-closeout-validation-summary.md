@@ -51,7 +51,7 @@ The generated report index contained:
 
 | Row class | Count | Interpretation |
 | --- | ---: | --- |
-| Oracle pass rows | 3 | Fixture-local reference rows for rank, nullity, and projector/subspace residual. |
+| Oracle pass rows | 3 | Fixture-local reference rows for rank, nullity, and normalized null-vector residual. |
 | Optional-data skip rows | 1 | Default disabled SuiteSparse QR subset policy evidence only. |
 | Optional-data pass rows | 0 | Optional external data was not counted as solver pass evidence. |
 
@@ -66,17 +66,18 @@ Sprint 139 can consume the first lane when it preserves these inputs:
 - expected rank: 3
 - expected nullity: 1
 - null vector direction: `[-1, -1, 0, 1]`
-- rank row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__rank`
-- nullity row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__nullity`
-- projector row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__projector_residual`
-- initial projector tolerance: `1e-10`
+- rank row ID: `qr_rank_deficient_6x4_nullspace_v1_rank`
+- nullity row ID: `qr_rank_deficient_6x4_nullspace_v1_nullity`
+- residual row ID: `qr_rank_deficient_6x4_nullspace_v1_projector_residual`
+- initial normalized null-vector residual tolerance: `1e-10`
 - validation commands:
   - `python3 scripts/validate_corpus_schema.py`
   - `python3 scripts/run_corpus_oracle.py`
 
-QR closure should use projector or two-way projection-distance comparison
-rather than raw basis equality. Any support-tier promotion beyond local must
-come from reviewed generated evidence on the target lane.
+QR closure for this first lane should use normalized null-vector residual
+comparison rather than raw basis equality. Later solver-backed QR work may add
+projector or two-way projection-distance rows. Any support-tier promotion
+beyond local must come from reviewed generated evidence on the target lane.
 
 ## Residual Register
 

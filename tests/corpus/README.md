@@ -21,8 +21,8 @@ completeness, or state-of-the-art status.
 | `schemas/fixture_fields.md` | Fixture, generator, and optional-data field definitions. |
 | `schemas/oracle_fields.md` | Observed oracle row field definitions and status semantics. |
 | `fixtures/` | Future promoted source-controlled matrix fixtures. |
-| `../scripts/validate_corpus_schema.py` | Lightweight schema check for maintained corpus TSV skeletons. |
-| `../scripts/run_corpus_oracle.py` | Local oracle/report emission command for maintained corpus rows. |
+| `../../scripts/validate_corpus_schema.py` | Lightweight schema check for maintained corpus TSV skeletons. |
+| `../../scripts/run_corpus_oracle.py` | Local oracle/report emission command for maintained corpus rows. |
 
 Generated matrices, observed oracle rows, logs, report indexes, and local run
 manifests belong under ignored `build/corpus/` or `build/corpus-reports/`, not
@@ -52,8 +52,8 @@ package/platform evidence.
 | `manifests/optional_data.tsv` | Corpus maintainer. | Defines external-data availability, skip/defer policy, and non-claim wording. Optional payloads stay outside the repository. |
 | `expected/*.tsv` | Corpus maintainer for schema; solver owner for expected numerical meaning. | Source-controlled target rows are prerequisites for observed evidence, not observed pass evidence by themselves. |
 | `schemas/*.md` | Corpus and report maintainers. | Defines row semantics. Field or status changes need migration notes and validator updates. |
-| `scripts/validate_corpus_schema.py` | Corpus maintainer. | Enforces TSV shape, required references, selected enums, first-lane generator hashes, and false-pass guardrails. |
-| `scripts/run_corpus_oracle.py` | Corpus maintainer. | Emits local observed oracle rows, skip/defer rows, report index, and run manifest under ignored `build/` paths. |
+| `../../scripts/validate_corpus_schema.py` | Corpus maintainer. | Enforces TSV shape, required references, selected enums, first-lane generator hashes, and false-pass guardrails. |
+| `../../scripts/run_corpus_oracle.py` | Corpus maintainer. | Emits local observed oracle rows, skip/defer rows, report index, and run manifest under ignored `build/` paths. |
 | `build/corpus/`, `build/corpus-reports/` | Generated output owner is the local runner. | Do not commit generated oracle rows, report indexes, skip rows, or manifests unless a later sprint explicitly promotes them. |
 
 ## Row Interpretation
@@ -117,14 +117,16 @@ Required fixture facts:
 - rank: 3
 - nullity: 1
 - null vector direction: `[-1, -1, 0, 1]`
-- rank row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__rank`
-- nullity row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__nullity`
-- projector row ID: `qr_rank_deficient_6x4_nullspace_v1__qr__projector_residual`
-- initial projector tolerance: `1e-10`
+- rank row ID: `qr_rank_deficient_6x4_nullspace_v1_rank`
+- nullity row ID: `qr_rank_deficient_6x4_nullspace_v1_nullity`
+- residual row ID: `qr_rank_deficient_6x4_nullspace_v1_projector_residual`
+- initial normalized null-vector residual tolerance: `1e-10`
 
-QR validation should compare nullspace projectors or two-way projection
-distance. It should not require raw QR basis vector equality, because valid
-bases may differ by sign, scale normalization, or equivalent subspace basis.
+QR validation for this first lane should compare the normalized residual of
+the fixed null-vector direction. Later solver-backed QR validation may add
+projector or two-way projection-distance rows, but it should not require raw QR
+basis vector equality because valid bases may differ by sign, scale
+normalization, or equivalent subspace basis.
 
 Before promoting the QR lane, run:
 

@@ -68,9 +68,11 @@ The first durable lane reserves these row IDs:
 | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `subspace_distance` | `projector_distance<=1e-10` |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `residual_norm` | `normalized_null_vector_residual<=1e-10` |
 
-Raw QR basis vectors are not a primary expected-result artifact for this lane.
+This first-lane residual is the normalized norm of `A * [-1, -1, 0, 1]`.
+Raw QR basis vectors and projector/subspace distances are not primary
+expected-result artifacts for this lane.
 
 ## Maintained Command
 

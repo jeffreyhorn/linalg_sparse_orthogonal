@@ -92,6 +92,20 @@ def run_text(args: list[str]) -> str:
         return "unknown"
 
 
+def utc_timestamp() -> str:
+    return (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def current_source_branch() -> str:
+    branch = run_text(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    return "detached" if branch == "HEAD" else branch
+
+
 def load_expected_rows(root: Path) -> dict[str, dict[str, str]]:
     rows = read_tsv(root / "expected" / f"{FIXTURE_KEY}.tsv")
     return {row["oracle_row_id"]: row for row in rows}
@@ -156,9 +170,9 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     )
     value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
     expected = load_expected_rows(root)
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    now = utc_timestamp()
     commit = run_text(["git", "rev-parse", "HEAD"])
-    branch = run_text(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    branch = current_source_branch()
     platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
     configuration = (
         "static_default; optional_data=disabled; generated_reference=python; "
@@ -279,10 +293,8 @@ def build_skip_report_rows(
         compiler = source["compiler"]
     else:
         source_commit = run_text(["git", "rev-parse", "HEAD"])
-        source_branch = run_text(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-        generated_at_utc = dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace(
-            "+00:00", "Z"
-        )
+        source_branch = current_source_branch()
+        generated_at_utc = utc_timestamp()
         platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
         compiler = "not_applicable"
     rows: list[dict[str, str]] = []

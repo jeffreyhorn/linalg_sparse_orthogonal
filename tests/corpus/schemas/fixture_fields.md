@@ -30,7 +30,7 @@ Day 3 taxonomy review.
 | `expected_behavior` | Yes | `success`, `diagnostic_failure`, `unsupported`, `non_convergence`, or `skip`. |
 | `claim_scope` | Yes | Fixture-local statement the row may support when validated. |
 | `non_claims` | Yes | Semicolon-separated claims this row does not support. |
-| `support_tier` | Yes | `reviewed_linux`, `reviewed_cross_platform`, `supplemental_macos`, `supplemental_windows`, `local_only`, or `optional_data`. |
+| `support_tier` | Yes | `reviewed_linux`, `reviewed_cross_platform`, `supplemental_macos`, `supplemental_windows`, `local_only`, `optional_data`, or `staged`. |
 | `validation_command` | Yes | Maintained command expected to exercise the fixture or report skip/defer state. |
 | `owner` | Yes | Responsible owner or sprint. |
 | `introduced_in` | Yes | Sprint or commit where the fixture becomes maintained. |
@@ -70,7 +70,7 @@ under `SPARSE_CORPUS_OPTIONAL_DATA_DIR`.
 | `source_name` | Yes | External source name. |
 | `source_url_or_reference` | Yes | Source URL or citation/reference. |
 | `license_or_terms` | Yes | License, terms, or review status. |
-| `expected_location` | Yes | Relative location under `SPARSE_CORPUS_OPTIONAL_DATA_DIR`. |
+| `expected_location` | Yes | Environment-expanded location using `$SPARSE_CORPUS_OPTIONAL_DATA_DIR/...`. |
 | `availability_state` | Yes | `available`, `unavailable`, `disabled`, or `deferred`. |
 | `skip_reason` | Conditional | Required unless `availability_state=available`. |
 | `defer_reason` | Conditional | Required when the row is intentionally deferred instead of skipped. |

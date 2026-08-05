@@ -11,7 +11,7 @@ import argparse
 import csv
 import hashlib
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 FIXTURE_REQUIRED = {
@@ -186,7 +186,7 @@ def require_fields(
     path: Path,
     rows: Iterable[dict[str, str]],
     required: set[str],
-    allow_empty: set[str] | None = None,
+    allow_empty: Optional[set[str]] = None,
 ) -> None:
     allow_empty = allow_empty or set()
     header = set(read_header(path))
@@ -215,24 +215,26 @@ def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]
 
 
 def canonical_structure_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
+    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1], entry[2]))
     lines = [
         f"format {STRUCTURE_FORMAT}",
         f"rows {rows}",
         f"cols {cols}",
-        f"nnz {len(entries)}",
+        f"nnz {len(canonical_entries)}",
     ]
-    lines.extend(f"{row} {col}" for row, col, _value in entries)
+    lines.extend(f"{row} {col}" for row, col, _value in canonical_entries)
     return "\n".join(lines) + "\n"
 
 
 def canonical_value_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
+    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1], entry[2]))
     lines = [
         f"format {CANONICAL_FORMAT}",
         f"rows {rows}",
         f"cols {cols}",
-        f"nnz {len(entries)}",
+        f"nnz {len(canonical_entries)}",
     ]
-    lines.extend(f"{row} {col} {value:.16f}" for row, col, value in entries)
+    lines.extend(f"{row} {col} {value:.16f}" for row, col, value in canonical_entries)
     return "\n".join(lines) + "\n"
 
 
@@ -283,7 +285,12 @@ def validate(root: Path) -> None:
     optional_rows = read_tsv(optional_path)
     require_fields(fixtures_path, fixture_rows, FIXTURE_REQUIRED, allow_empty={"generator_key"})
     require_fields(generators_path, generator_rows, GENERATOR_REQUIRED)
-    require_fields(optional_path, optional_rows, OPTIONAL_DATA_REQUIRED, allow_empty={"skip_reason", "defer_reason"})
+    require_fields(
+        optional_path,
+        optional_rows,
+        OPTIONAL_DATA_REQUIRED,
+        allow_empty={"skip_reason", "defer_reason"},
+    )
 
     fixture_keys = {row["fixture_key"] for row in fixture_rows}
     generator_keys = {row["generator_key"] for row in generator_rows}

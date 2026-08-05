@@ -135,3 +135,25 @@ state-of-the-art claims before fixture-local evidence exists.
 - Captured QR, partial-SVD, and report-index dependency notes for Sprint 139,
   Sprint 140, and Sprint 141.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 3 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day3-taxonomy-review-claim-boundaries.md`.
+- Compared the Day 2 taxonomy against current QR tests, SVD/partial-SVD tests,
+  external dense-reference helpers, Matrix Market fixtures, bundled
+  SuiteSparse-style data, examples, and Sprint 137 evidence templates.
+- Finalized the Sprint 138 taxonomy by accepting Sprint 137 Day 8 fields as
+  the implementation contract and keeping `shape_class`, `graph_shape`, and
+  `expected_failure_class` out of the stored first-lane schema.
+- Confirmed `qr_rank_deficient_6x4_nullspace_v1` as the first durable fixture
+  lane with generator key `qr_rank_deficient_6x4_nullspace_generator_v1`.
+- Recorded promotion gates for taxonomy fit, stable identity,
+  reproducibility, oracle semantics, support-tier evidence, skip/defer
+  handling, claim boundaries, validation paths, and documentation handoff.
+- Wrote fixture-local claim boundaries for the selected QR lane and future
+  SVD, direct-solver, optional external-data, graph/order, and report-index
+  lanes.
+- Preserved QR, partial-SVD, and report-index handoff notes for Sprints 139,
+  140, and 141 before Day 4 storage layout begins.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

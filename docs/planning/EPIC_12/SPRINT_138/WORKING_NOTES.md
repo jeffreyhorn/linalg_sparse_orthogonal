@@ -351,3 +351,27 @@ state-of-the-art claims before fixture-local evidence exists.
   were not committed.
 - Confirmed no `.c` or `.h` files changed, so the full C quality gate was not
   required.
+
+## Day 13 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day13-documentation-sprint139-handoff.md`.
+- Updated `tests/corpus/README.md` with corpus surface ownership for fixture
+  manifests, generator manifests, optional-data rows, expected-result rows,
+  schema docs, validation helpers, oracle/report commands, and generated
+  report outputs.
+- Updated row interpretation guidance so fixture, generator, expected-result,
+  observed oracle, optional-data skip/defer, and report-index rows keep their
+  distinct evidence meanings.
+- Documented stale-report assumptions and the Sprint 141 freshness fields that
+  should be preserved when report-index work begins.
+- Defined the Sprint 139 QR handoff for
+  `qr_rank_deficient_6x4_nullspace_v1`, including expected rank, nullity,
+  null-vector direction, projector residual row ID, and initial tolerance.
+- Recorded residuals for reviewed platform promotion, Sprint 139 QR closure,
+  Sprint 140 partial-SVD fixture lanes, Sprint 141 freshness normalization,
+  optional external-data policy, and later public adoption wording.
+- Preserved fixture-local non-claims for broad QR behavior, SVD correctness,
+  SuiteSparse/external parity, package/platform support, portable performance,
+  coverage completeness, release readiness, and state-of-the-art status.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

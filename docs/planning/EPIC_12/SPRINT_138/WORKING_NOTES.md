@@ -203,3 +203,26 @@ state-of-the-art claims before fixture-local evidence exists.
   optional external payloads, or committed corpus Matrix Market files were
   added.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 6 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day6-oracle-row-schema-design.md`.
+- Defined the separation between fixture manifest rows, source-controlled
+  expected-result rows, and generated observed oracle rows.
+- Designed observed oracle TSV fields for row identity, fixture key, solver
+  family, operation, comparison kind, command, commit, branch, timestamp,
+  platform, compiler, configuration, support tier, expected and observed
+  results, tolerance, comparison status, failure class, skip/defer reason,
+  claim scope, and non-claims.
+- Defined comparison kinds for value, residual norm, rank, nullity, subspace
+  distance, status, diagnostic, and local measurement rows.
+- Defined tolerance kinds for exact, absolute, relative, mixed, projector,
+  status-only, and not-applicable comparisons.
+- Defined comparison statuses and failure classes so skip, defer,
+  unsupported, and xfail rows cannot be counted as solver passes.
+- Designed first-lane QR oracle rows for rank, nullity, and
+  projector/subspace residual comparison without raw QR basis parity.
+- Recorded serialization rules, validation expectations, and the Day 7
+  implementation handoff.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

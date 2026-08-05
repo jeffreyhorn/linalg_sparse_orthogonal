@@ -37,6 +37,11 @@ FIXTURE_REQUIRED = {
     "owner",
     "introduced_in",
 }
+FIXTURE_CONDITIONAL = {
+    "matrix_path",
+    "expected_rank",
+    "nullity",
+}
 GENERATOR_REQUIRED = {
     "generator_key",
     "generator_version",
@@ -283,7 +288,12 @@ def validate(root: Path) -> None:
     fixture_rows = read_tsv(fixtures_path)
     generator_rows = read_tsv(generators_path)
     optional_rows = read_tsv(optional_path)
-    require_fields(fixtures_path, fixture_rows, FIXTURE_REQUIRED, allow_empty={"generator_key"})
+    require_fields(
+        fixtures_path,
+        fixture_rows,
+        FIXTURE_REQUIRED | FIXTURE_CONDITIONAL,
+        allow_empty={"generator_key", "matrix_path", "expected_rank", "nullity"},
+    )
     require_fields(generators_path, generator_rows, GENERATOR_REQUIRED)
     require_fields(
         optional_path,
@@ -380,7 +390,7 @@ def validate(root: Path) -> None:
 
     for path in sorted(expected.glob("*.tsv")):
         expected_rows = read_tsv(path)
-        require_fields(path, expected_rows, EXPECTED_REQUIRED)
+        require_fields(path, expected_rows, EXPECTED_REQUIRED, allow_empty={"tolerance_value"})
         for line, row in enumerate(expected_rows, start=2):
             fixture_key = row["fixture_key"]
             if fixture_key not in fixture_keys:

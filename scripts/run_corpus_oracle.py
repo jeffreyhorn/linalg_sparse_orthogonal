@@ -24,6 +24,11 @@ from validate_corpus_schema import (
 
 FIXTURE_KEY = "qr_rank_deficient_6x4_nullspace_v1"
 GENERATOR_KEY = "qr_rank_deficient_6x4_nullspace_generator_v1"
+FIRST_LANE_ORACLE_ROW_IDS = {
+    f"{FIXTURE_KEY}_rank",
+    f"{FIXTURE_KEY}_nullity",
+    f"{FIXTURE_KEY}_projector_residual",
+}
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",
@@ -107,8 +112,22 @@ def current_source_branch() -> str:
 
 
 def load_expected_rows(root: Path) -> dict[str, dict[str, str]]:
-    rows = read_tsv(root / "expected" / f"{FIXTURE_KEY}.tsv")
-    return {row["oracle_row_id"]: row for row in rows}
+    path = root / "expected" / f"{FIXTURE_KEY}.tsv"
+    rows = read_tsv(path)
+    expected_by_id: dict[str, dict[str, str]] = {}
+    for line, row in enumerate(rows, start=2):
+        oracle_row_id = row["oracle_row_id"]
+        if oracle_row_id in expected_by_id:
+            raise CorpusValidationError(
+                f"{path}:{line}: duplicate oracle_row_id {oracle_row_id!r}"
+            )
+        expected_by_id[oracle_row_id] = row
+    missing = sorted(FIRST_LANE_ORACLE_ROW_IDS - set(expected_by_id))
+    if missing:
+        raise CorpusValidationError(
+            f"{path}: missing first-lane expected oracle rows: {', '.join(missing)}"
+        )
+    return expected_by_id
 
 
 def load_optional_rows(root: Path) -> list[dict[str, str]]:
@@ -187,6 +206,10 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     }
     rows: list[dict[str, str]] = []
     for oracle_row_id in sorted(observations):
+        if oracle_row_id not in expected:
+            raise CorpusValidationError(
+                f"missing expected result for first-lane oracle row {oracle_row_id!r}"
+            )
         expected_row = expected[oracle_row_id]
         status, failure_class = compare(expected_row, observations[oracle_row_id])
         rows.append(

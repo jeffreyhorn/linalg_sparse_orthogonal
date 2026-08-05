@@ -245,3 +245,25 @@ state-of-the-art claims before fixture-local evidence exists.
 - Confirmed no generated oracle rows, corpus report outputs, optional external
   data, committed corpus Matrix Market files, or pass evidence were added.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 8 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day8-deterministic-fixture-lane-design.md`.
+- Selected the exact generated QR first lane:
+  `qr_rank_deficient_6x4_nullspace_v1`.
+- Defined the deterministic 6x4 matrix with `c3 = c0 + c1`, 14 nonzeros,
+  expected rank 3, nullity 1, and null vector `[-1, -1, 0, 1]`.
+- Defined generator metadata values for algorithm, seed policy, parameters,
+  canonical COO text format, SHA-256 structure/value hash policy, floating
+  policy, regeneration command placeholder, and change policy.
+- Updated first-lane manifest metadata from `TBD_DAY8` to concrete `nnz=14`.
+- Updated the generator row with Day 8 algorithm, parameters, canonical
+  format, floating policy, and Day 9 hash placeholders.
+- Updated the projector/subspace expected-result tolerance to
+  `projector_distance<=1e-10` with `tolerance_value=1e-10`.
+- Recorded the Day 10 validation-command design and Sprint 139 QR handoff
+  fields.
+- No generated oracle rows, corpus report outputs, optional external data,
+  committed corpus Matrix Market files, or pass evidence were added.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -114,9 +114,9 @@ oracle rows once implementation begins:
 
 | Oracle row ID | Operation | Comparison kind | Expected result | Tolerance | Claim scope |
 | --- | --- | --- | --- | --- | --- |
-| `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` | `exact=0` | Fixture-local QR rank behavior. |
-| `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` | `exact=0` | Fixture-local QR nullity behavior. |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `residual_norm` | Normalized fixed null-vector residual below fixture-local tolerance. | `absolute=TBD_DAY8_OR_DAY9` | Fixture-local QR null-vector residual behavior. |
+| `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` | `exact=0` | Fixture-local generated reference rank metadata. |
+| `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` | `exact=0` | Fixture-local generated reference nullity metadata. |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `residual_norm` | Normalized fixed null-vector residual below fixture-local tolerance. | `absolute=TBD_DAY8_OR_DAY9` | Fixture-local generated reference null-vector residual metadata. |
 
 Raw QR basis vectors should not be a primary expected result because QR basis
 orientation and signs are not stable enough for a durable corpus contract.

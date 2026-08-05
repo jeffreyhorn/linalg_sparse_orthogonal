@@ -14,7 +14,7 @@ row's fixture-local `claim_scope` and must preserve its `non_claims`.
 | --- | --- | --- | --- |
 | `oracle_row_id` | Yes | Stable lowercase snake case | Unique row ID. Use `<fixture_key>_<comparison_kind>` when unambiguous, and include `<operation>` as `<fixture_key>_<operation>_<comparison_kind>` when needed to disambiguate rows. |
 | `fixture_key` | Yes | Existing fixture manifest key | Connects the observed row to `tests/corpus/manifests/fixtures.tsv`. |
-| `solver_family` | Yes | `qr`, `partial_svd`, `lu`, `ldlt`, `cholesky`, `iterative`, `eigs`, `runtime`, `package`, or `unknown` | Solver or evidence family that owns the comparison. |
+| `solver_family` | Yes | `qr`, `partial_svd`, `lu`, `ldlt`, `cholesky`, `iterative`, `eigs`, `runtime`, `package`, or `unknown` | Solver or evidence family that owns the comparison. Use `unknown` for generated reference rows that do not run a solver implementation. |
 | `operation` | Yes | Lowercase snake case | Operation under test, such as `rank_info`, `nullspace`, `solve`, `singular_values`, `convergence_budget`, `diagnostic`, or `optional_data_check`. |
 | `comparison_kind` | Yes | `value`, `residual_norm`, `rank`, `nullity`, `subspace_distance`, `status`, `diagnostic`, or `local_measurement` | Machine-readable comparison semantics. |
 | `command` | Yes | Exact shell command | Command that produced the observed row. |

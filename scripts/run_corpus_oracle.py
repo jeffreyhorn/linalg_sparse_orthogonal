@@ -218,7 +218,7 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
             {
                 "oracle_row_id": oracle_row_id,
                 "fixture_key": FIXTURE_KEY,
-                "solver_family": "qr",
+                "solver_family": "unknown",
                 "operation": expected_row["operation"],
                 "comparison_kind": expected_row["comparison_kind"],
                 "command": command,
@@ -337,7 +337,7 @@ def build_skip_report_rows(
                 "generated_at_utc": generated_at_utc,
                 "platform": platform_name,
                 "compiler": compiler,
-                "configuration": "optional_data=disabled",
+                "configuration": f"optional_data={skip['availability_state']}",
                 "support_tier": "optional_data",
                 "status": skip["status"],
                 "status_reason": skip["failure_class"],

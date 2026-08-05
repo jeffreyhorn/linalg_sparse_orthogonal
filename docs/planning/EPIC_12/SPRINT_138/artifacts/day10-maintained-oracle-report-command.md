@@ -105,6 +105,6 @@ The emitted rows are fixture-local corpus/oracle evidence. They do not claim:
 
 | Criterion | Status | Evidence |
 | --- | --- | --- |
-| The command validates the first corpus lane. | Complete | `scripts/run_corpus_oracle.py` validates corpus schema, regenerates first-lane reference metadata, compares rank/nullity/projector rows, and emits observed oracle rows. |
+| The command validates the first corpus lane. | Complete | `scripts/run_corpus_oracle.py` validates corpus schema, regenerates first-lane reference metadata, compares rank/nullity/normalized residual rows, and emits observed reference oracle rows. |
 | Emitted rows include required provenance and interpretation fields. | Complete | Oracle rows include command, commit, branch, timestamp, platform, configuration, support tier, expected/observed values, tolerance, status, claim scope, and non-claims. |
 | Report rows do not imply release, performance, or broad correctness proof. | Complete | Report rows carry `local_only` support tier, fixture-local row meaning, explicit non-claims, and freshness metadata. |

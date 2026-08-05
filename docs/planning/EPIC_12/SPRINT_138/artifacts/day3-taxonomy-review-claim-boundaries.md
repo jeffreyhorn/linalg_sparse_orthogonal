@@ -77,7 +77,7 @@ Day 3 confirms the Day 2 selected first lane:
 | RHS policy | `generated_rhs` |
 | Expected behavior | `success` |
 | Support tier before hosted proof | `local_only` until validation evidence promotes it. |
-| Claim scope | Fixture-local QR rank/nullity and nullspace/subspace residual behavior. |
+| Claim scope | Fixture-local generated reference rank/nullity and normalized null-vector residual metadata. |
 | Non-claims | No raw-basis parity; no broad QR correctness; no global minimum-norm guarantee; no SuiteSparse parity; no broad corpus completeness; no SVD correctness claim. |
 
 This lane supports Sprint 139 because it gives the QR owner stable

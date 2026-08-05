@@ -310,6 +310,9 @@ def validate(root: Path) -> None:
         raise CorpusValidationError(f"{generators_path}: duplicate generator_key")
 
     generators_by_key = {row["generator_key"]: row for row in generator_rows}
+    generator_lines_by_key = {
+        row["generator_key"]: line for line, row in enumerate(generator_rows, start=2)
+    }
 
     for line, row in enumerate(fixture_rows, start=2):
         assert_enum(fixtures_path, line, "storage_kind", row["storage_kind"], STORAGE_KINDS)
@@ -349,7 +352,7 @@ def validate(root: Path) -> None:
                 raise CorpusValidationError(f"{fixtures_path}:{line}: generated nullity mismatch")
             validate_known_generator(
                 generators_path,
-                2 + generator_rows.index(generators_by_key[row["generator_key"]]),
+                generator_lines_by_key[row["generator_key"]],
                 generators_by_key[row["generator_key"]],
             )
         if row["storage_kind"] == "optional_external" and row["matrix_path"] == "":

@@ -329,14 +329,23 @@ def validate(root: Path) -> None:
                 raise CorpusValidationError(
                     f"{fixtures_path}:{line}: generated rows require generator_key"
                 )
+            if row["matrix_path"] != "":
+                raise CorpusValidationError(
+                    f"{fixtures_path}:{line}: generated rows must leave matrix_path empty"
+                )
             if row["generator_key"] not in generator_keys:
                 raise CorpusValidationError(
                     f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
                 )
-        elif row["generator_key"] != "" and row["generator_key"] not in generator_keys:
-            raise CorpusValidationError(
-                f"{fixtures_path}:{line}: generator_key {row['generator_key']!r} not found"
-            )
+        else:
+            if row["generator_key"] != "":
+                raise CorpusValidationError(
+                    f"{fixtures_path}:{line}: non-generated rows must leave generator_key empty"
+                )
+            if row["matrix_path"] == "":
+                raise CorpusValidationError(
+                    f"{fixtures_path}:{line}: stored matrix rows require matrix_path"
+                )
         if row["generator_key"] in GENERATED_FIXTURES:
             generated = GENERATED_FIXTURES[row["generator_key"]]
             entries = generated["entries"]()
@@ -355,11 +364,6 @@ def validate(root: Path) -> None:
                 generator_lines_by_key[row["generator_key"]],
                 generators_by_key[row["generator_key"]],
             )
-        if row["storage_kind"] == "optional_external" and row["matrix_path"] == "":
-            raise CorpusValidationError(
-                f"{fixtures_path}:{line}: optional_external rows require matrix_path"
-            )
-
     for line, row in enumerate(optional_rows, start=2):
         assert_enum(
             optional_path,

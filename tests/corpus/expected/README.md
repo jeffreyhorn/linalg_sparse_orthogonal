@@ -16,3 +16,8 @@ projector/subspace comparisons with fixture-local tolerances.
 Expected-result skeleton rows may use placeholder statuses such as
 `placeholder_pending_generator` or `placeholder_pending_oracle_command`.
 Placeholder rows are not pass evidence.
+
+`ready_for_oracle` means the expected row is source-controlled and can be
+consumed by `python3 scripts/run_corpus_oracle.py`. It is still not pass
+evidence until an observed oracle row is generated and passes under its
+fixture-local tolerance.

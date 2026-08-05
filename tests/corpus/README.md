@@ -53,6 +53,17 @@ fixture-to-generator references, deterministic first-lane generator hashes,
 expected-result fixture references, and that placeholder expected-result rows
 are not pass evidence.
 
+Run this local corpus/oracle command to validate the first deterministic lane
+and emit generated rows:
+
+```sh
+python3 scripts/run_corpus_oracle.py
+```
+
+The command writes observed oracle rows under `build/corpus/oracle/` and a
+report index under `build/corpus-reports/`. Those outputs are generated local
+evidence and are not committed.
+
 ## Optional Data
 
 Optional external data is configured outside the repository with

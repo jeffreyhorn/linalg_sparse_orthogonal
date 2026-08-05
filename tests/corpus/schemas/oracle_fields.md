@@ -68,6 +68,19 @@ The first durable lane reserves these row IDs:
 | --- | --- | --- | --- |
 | `qr_rank_deficient_6x4_nullspace_v1_rank` | `rank_info` | `rank` | `3` |
 | `qr_rank_deficient_6x4_nullspace_v1_nullity` | `rank_info` | `nullity` | `1` |
-| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `subspace_distance` | `projector_distance<=TBD_DAY8_OR_DAY9` |
+| `qr_rank_deficient_6x4_nullspace_v1_projector_residual` | `nullspace` | `subspace_distance` | `projector_distance<=1e-10` |
 
 Raw QR basis vectors are not a primary expected-result artifact for this lane.
+
+## Maintained Command
+
+Run the first maintained corpus/oracle command with:
+
+```sh
+python3 scripts/run_corpus_oracle.py
+```
+
+It validates the source-controlled corpus metadata, writes observed oracle rows
+to `build/corpus/oracle/`, and writes a report index to
+`build/corpus-reports/`. These generated outputs remain local evidence and are
+not committed.

@@ -289,3 +289,23 @@ state-of-the-art claims before fixture-local evidence exists.
   data, committed corpus Matrix Market files, public claim updates, or pass
   evidence were added.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 10 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day10-maintained-oracle-report-command.md`.
+- Added `scripts/run_corpus_oracle.py` as the first maintained corpus/oracle
+  command.
+- The command validates corpus metadata, regenerates first-lane deterministic
+  reference rows, emits observed oracle rows under `build/corpus/oracle/`, and
+  emits a report index plus manifest under `build/corpus-reports/`.
+- Updated fixture and generator manifests to use
+  `python3 scripts/run_corpus_oracle.py` as the validation/regeneration
+  command.
+- Marked the first-lane projector/subspace expected-result row as
+  `ready_for_oracle`.
+- Updated corpus README and oracle schema docs with command usage,
+  generated-output boundaries, and report-index handoff notes.
+- Confirmed generated oracle/report outputs remain under ignored `build/`
+  paths and were not committed.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

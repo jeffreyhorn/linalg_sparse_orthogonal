@@ -109,3 +109,29 @@ state-of-the-art claims before fixture-local evidence exists.
   corpus data, or support claims were changed on Day 1 beyond Sprint 138
   planning artifacts.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 2 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day2-fixture-taxonomy-draft.md`.
+- Drafted maintained matrix-class axes for symmetry, definiteness, rank,
+  rectangularity, conditioning, scaling, sparsity pattern, graph shape, RHS
+  policy, expected behavior, and data provenance.
+- Mapped the taxonomy back to Sprint 137 Day 8 fixture metadata fields so Day 3
+  can review candidate extensions instead of reconciling new row meanings.
+- Marked `shape_class`, `graph_shape`, and `expected_failure_class` as
+  candidate review fields rather than implemented schema changes.
+- Selected `qr_rank_deficient_6x4_nullspace_v1` as the first durable fixture
+  lane candidate: generated, rectangular 6x4, expected rank 3, nullity 1,
+  structured sparse, moderate conditioning, unit scale, and fixture-local
+  success behavior.
+- Recorded first-lane non-claims for broad QR correctness, raw basis parity,
+  minimum-norm or least-squares closure, SuiteSparse/external parity, SVD
+  correctness, corpus completeness, and public state-of-the-art claims.
+- Recorded out-of-scope residual classes for optional external data,
+  partial-SVD clustered spectra, direct-solver expansions, random generators,
+  performance sentinels, graph/order fixtures, parser failures, iterative
+  non-convergence, and package/platform fixtures.
+- Captured QR, partial-SVD, and report-index dependency notes for Sprint 139,
+  Sprint 140, and Sprint 141.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

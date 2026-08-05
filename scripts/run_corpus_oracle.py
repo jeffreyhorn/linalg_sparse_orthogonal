@@ -201,8 +201,8 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     branch = current_source_branch()
     platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
     configuration = (
-        "static_default; optional_data_policy=disabled; generated_reference=python; "
-        f"structure_hash={structure_hash}; value_hash={value_hash}"
+        "build_profile=static_default;optional_data_policy=disabled;generated_reference=python;"
+        f"structure_hash={structure_hash};value_hash={value_hash}"
     )
     observations = {
         f"{FIXTURE_KEY}_rank": str(fixture["expected_rank"]),

@@ -220,7 +220,7 @@ def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]
 
 
 def canonical_structure_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
-    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1], entry[2]))
+    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1]))
     lines = [
         f"format {STRUCTURE_FORMAT}",
         f"rows {rows}",
@@ -232,7 +232,7 @@ def canonical_structure_text(rows: int, cols: int, entries: list[tuple[int, int,
 
 
 def canonical_value_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
-    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1], entry[2]))
+    canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1]))
     lines = [
         f"format {CANONICAL_FORMAT}",
         f"rows {rows}",

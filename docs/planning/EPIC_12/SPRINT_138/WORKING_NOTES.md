@@ -181,3 +181,25 @@ state-of-the-art claims before fixture-local evidence exists.
   `.gitignore` only if a future committed corpus `.mtx` fixture path is
   promoted.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 5 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day5-corpus-storage-layout-implementation.md`.
+- Added the maintained corpus skeleton under `tests/corpus/` with README,
+  manifest, expected-result, schema, and future promoted-fixture paths.
+- Added `tests/corpus/manifests/fixtures.tsv` with the first-lane
+  `qr_rank_deficient_6x4_nullspace_v1` placeholder row.
+- Added `tests/corpus/manifests/generators.tsv` with the first-lane
+  `qr_rank_deficient_6x4_nullspace_generator_v1` placeholder row.
+- Added `tests/corpus/manifests/optional_data.tsv` as a header-only
+  optional external-data policy skeleton.
+- Added expected-result placeholders for first-lane rank, nullity, and future
+  projector/subspace residual comparison.
+- Added `tests/corpus/schemas/fixture_fields.md` for fixture, generator, and
+  optional-data field definitions while leaving oracle schema finalization to
+  Day 6.
+- Confirmed no generated `build/corpus/` or `build/corpus-reports/` outputs,
+  optional external payloads, or committed corpus Matrix Market files were
+  added.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

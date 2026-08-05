@@ -1,0 +1,4 @@
+fixture_key	operation	expected_result_kind	expected_result	tolerance_kind	tolerance_value	claim_scope	non_claims	status
+qr_rank_deficient_6x4_nullspace_v1	qr_rank_info	rank	3	exact	0	Fixture-local QR rank/nullity behavior.	no broad QR correctness; no SuiteSparse parity; no raw-basis parity	placeholder_pending_oracle_schema
+qr_rank_deficient_6x4_nullspace_v1	qr_rank_info	nullity	1	exact	0	Fixture-local QR rank/nullity behavior.	no broad QR correctness; no SuiteSparse parity; no raw-basis parity	placeholder_pending_oracle_schema
+qr_rank_deficient_6x4_nullspace_v1	qr_nullspace	projector_residual	TBD_DAY6_ORACLE_SCHEMA	TBD_DAY6	TBD_DAY6	Fixture-local QR nullspace/subspace residual behavior.	no raw-basis parity; no broad QR correctness; no global minimum-norm guarantee	placeholder_pending_oracle_schema

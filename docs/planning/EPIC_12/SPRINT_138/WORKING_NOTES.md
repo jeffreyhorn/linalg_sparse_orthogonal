@@ -157,3 +157,27 @@ state-of-the-art claims before fixture-local evidence exists.
 - Preserved QR, partial-SVD, and report-index handoff notes for Sprints 139,
   140, and 141 before Day 4 storage layout begins.
 - No `.c` or `.h` files changed, so the full C quality gate was not required.
+
+## Day 4 Notes
+
+- Wrote
+  `docs/planning/EPIC_12/SPRINT_138/artifacts/day4-corpus-storage-layout-design.md`.
+- Designed the maintained source layout under `tests/corpus/` with manifest,
+  expected-result, schema, README, and future promoted-fixture paths.
+- Designed generated output paths under ignored `build/corpus/` and
+  `build/corpus-reports/`, following the existing `build/bench-reports/...`
+  convention without mixing corpus rows into benchmark outputs.
+- Chose `tests/corpus/manifests/fixtures.tsv`,
+  `tests/corpus/manifests/generators.tsv`, and
+  `tests/corpus/manifests/optional_data.tsv` as the maintained row paths.
+- Chose `tests/corpus/expected/<fixture_key>.tsv` as the committed
+  expected-result path pattern for stable, small, deterministic rows.
+- Chose `SPARSE_CORPUS_OPTIONAL_DATA_DIR` as the optional external-data root
+  and kept optional payloads outside the source-controlled corpus tree.
+- Defined naming rules for fixture keys, fixture families, generator keys,
+  optional-data keys, oracle row IDs, report row IDs, and expected-result
+  files.
+- Recorded the Day 5 implementation checklist, including the need to update
+  `.gitignore` only if a future committed corpus `.mtx` fixture path is
+  promoted.
+- No `.c` or `.h` files changed, so the full C quality gate was not required.

@@ -188,6 +188,10 @@ how to find the least-squares solution that minimizes `||Ax - b||` and reports
 per-equation residuals. For underdetermined minimum-2-norm solves, use the
 public API path `sparse_qr_solve_minnorm()`, documented in the
 [README](../README.md) and [`sparse_qr.h`](../include/sparse_qr.h).
+The maintained QR corpus proof for
+`qr_rank_deficient_6x4_nullspace_v1` is separate from these teaching examples:
+it lives in [`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and proves
+only fixture-local rank, nullity, and nullspace residual behavior.
 
 ```bash
 ./build/example_least_squares

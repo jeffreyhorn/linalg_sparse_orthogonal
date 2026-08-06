@@ -149,6 +149,23 @@ static inline SparseMatrix *tf_qr_make_rankdef_duplicate_5x4(void) {
     return A;
 }
 
+static inline SparseMatrix *tf_qr_make_rankdef_6x4_nullspace_v1(void) {
+    SparseMatrix *A = sparse_create(6, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return NULL;
+
+    if (!tf_qr_insert_or_free(&A, 0, 0, 1.0) || !tf_qr_insert_or_free(&A, 0, 3, 1.0) ||
+        !tf_qr_insert_or_free(&A, 1, 1, 1.0) || !tf_qr_insert_or_free(&A, 1, 3, 1.0) ||
+        !tf_qr_insert_or_free(&A, 2, 2, 1.0) || !tf_qr_insert_or_free(&A, 3, 0, 1.0) ||
+        !tf_qr_insert_or_free(&A, 3, 1, 1.0) || !tf_qr_insert_or_free(&A, 3, 3, 2.0) ||
+        !tf_qr_insert_or_free(&A, 4, 1, 1.0) || !tf_qr_insert_or_free(&A, 4, 2, 1.0) ||
+        !tf_qr_insert_or_free(&A, 4, 3, 1.0) || !tf_qr_insert_or_free(&A, 5, 0, 1.0) ||
+        !tf_qr_insert_or_free(&A, 5, 2, 1.0) || !tf_qr_insert_or_free(&A, 5, 3, 1.0))
+        return NULL;
+    return A;
+}
+
 static inline SparseMatrix *tf_qr_make_dependent_row_4x3(void) {
     SparseMatrix *A = sparse_create(4, 3);
     if (!A)
@@ -277,6 +294,50 @@ static inline double tf_qr_relative_residual_l2(const SparseMatrix *A, const dou
     double bnorm = vec_norm2(b, m);
     free(r);
     return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
+}
+
+static inline double tf_qr_normalized_matvec_residual(const SparseMatrix *A, const double *x,
+                                                      idx_t x_len) {
+    if (!A || !x) {
+        ASSERT_NOT_NULL(A);
+        ASSERT_NOT_NULL(x);
+        return HUGE_VAL;
+    }
+    if (x_len != sparse_cols(A)) {
+        ASSERT_EQ(x_len, sparse_cols(A));
+        return HUGE_VAL;
+    }
+
+    idx_t rows = sparse_rows(A);
+    size_t ax_bytes = 0;
+    if (!tf_qr_idx_count_bytes(rows, sizeof(double), &ax_bytes)) {
+        ASSERT_TRUE(0);
+        return HUGE_VAL;
+    }
+
+    double x_norm = vec_norm2(x, x_len);
+    if (x_norm <= 0.0) {
+        ASSERT_TRUE(x_norm > 0.0);
+        return HUGE_VAL;
+    }
+
+    double *ax = malloc(ax_bytes);
+    ASSERT_NOT_NULL(ax);
+    if (!ax)
+        return HUGE_VAL;
+    for (idx_t i = 0; i < rows; i++)
+        ax[i] = 0.0;
+
+    sparse_err_t mv_err = sparse_matvec(A, x, ax);
+    ASSERT_ERR(mv_err, SPARSE_OK);
+    if (mv_err != SPARSE_OK) {
+        free(ax);
+        return HUGE_VAL;
+    }
+
+    double residual = vec_norm2(ax, rows) / x_norm;
+    free(ax);
+    return residual;
 }
 
 #endif /* TEST_QR_HELPERS_H */

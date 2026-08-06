@@ -7,10 +7,12 @@ import argparse
 import csv
 import datetime as dt
 import math
+import os
 import platform
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from validate_corpus_schema import (
@@ -28,12 +30,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
 DEFAULT_ORACLE_DIR = REPO_ROOT / "build" / "corpus" / "oracle"
 DEFAULT_REPORT_DIR = REPO_ROOT / "build" / "corpus-reports"
+DEFAULT_SOLVER_LIBRARY = REPO_ROOT / "build" / "libsparse_lu_ortho.a"
 FIXTURE_KEY = "qr_rank_deficient_6x4_nullspace_v1"
 GENERATOR_KEY = "qr_rank_deficient_6x4_nullspace_generator_v1"
 FIRST_LANE_ORACLE_ROW_IDS = {
     f"{FIXTURE_KEY}_rank",
     f"{FIXTURE_KEY}_nullity",
     f"{FIXTURE_KEY}_projector_residual",
+}
+SOLVER_QR_ORACLE_ROW_IDS = {
+    f"{FIXTURE_KEY}_qr_rank": f"{FIXTURE_KEY}_rank",
+    f"{FIXTURE_KEY}_qr_nullity": f"{FIXTURE_KEY}_nullity",
+    f"{FIXTURE_KEY}_qr_nullspace_residual": f"{FIXTURE_KEY}_projector_residual",
 }
 ORACLE_FIELDS = [
     "oracle_row_id",
@@ -171,6 +179,189 @@ def normalized_null_vector_residual_for_reference(
     return residual / norm
 
 
+def c_literal_for_entries(entries: list[tuple[int, int, float]]) -> str:
+    lines = ["    {" + f"{row}, {col}, {value:.17g}" + "}" for row, col, value in entries]
+    return ",\n".join(lines)
+
+
+def qr_probe_source(entries: list[tuple[int, int, float]], rows: int, cols: int) -> str:
+    return f"""#include \"sparse_matrix.h\"
+#include \"sparse_qr.h\"
+#include \"sparse_types.h\"
+#include <math.h>
+#include <stdio.h>
+
+typedef struct Entry {{
+    idx_t row;
+    idx_t col;
+    double value;
+}} Entry;
+
+static const Entry entries[] = {{
+{c_literal_for_entries(entries)}
+}};
+
+int main(void) {{
+    SparseMatrix *A = sparse_create({rows}, {cols});
+    if (!A) {{
+        fprintf(stderr, \"sparse_create failed\\n\");
+        return 2;
+    }}
+    const size_t nnz = sizeof(entries) / sizeof(entries[0]);
+    for (size_t k = 0; k < nnz; ++k) {{
+        if (sparse_insert(A, entries[k].row, entries[k].col, entries[k].value) != SPARSE_OK) {{
+            fprintf(stderr, \"sparse_insert failed at %zu\\n\", k);
+            sparse_free(A);
+            return 3;
+        }}
+    }}
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    if (err != SPARSE_OK) {{
+        fprintf(stderr, \"sparse_qr_factor failed: %d\\n\", (int)err);
+        sparse_free(A);
+        return 4;
+    }}
+
+    idx_t rank = sparse_qr_rank(&qr, 0.0);
+    idx_t nullity = -1;
+    err = sparse_qr_nullspace(&qr, 0.0, NULL, &nullity);
+    if (err != SPARSE_OK) {{
+        fprintf(stderr, \"sparse_qr_nullspace query failed: %d\\n\", (int)err);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return 5;
+    }}
+    if (nullity != 1) {{
+        printf(\"rank=%d\\n\", (int)rank);
+        printf(\"nullity=%d\\n\", (int)nullity);
+        printf(\"normalized_residual=inf\\n\");
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return 0;
+    }}
+
+    double basis[{cols}] = {{0.0}};
+    err = sparse_qr_nullspace(&qr, 0.0, basis, &nullity);
+    if (err != SPARSE_OK) {{
+        fprintf(stderr, \"sparse_qr_nullspace basis failed: %d\\n\", (int)err);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return 6;
+    }}
+
+    double residual_sq = 0.0;
+    for (idx_t row = 0; row < {rows}; ++row) {{
+        double accum = 0.0;
+        for (size_t k = 0; k < nnz; ++k) {{
+            if (entries[k].row == row)
+                accum += entries[k].value * basis[entries[k].col];
+        }}
+        residual_sq += accum * accum;
+    }}
+    double norm_sq = 0.0;
+    for (idx_t col = 0; col < {cols}; ++col)
+        norm_sq += basis[col] * basis[col];
+    double normalized_residual = norm_sq > 0.0 ? sqrt(residual_sq) / sqrt(norm_sq) : INFINITY;
+
+    printf(\"rank=%d\\n\", (int)rank);
+    printf(\"nullity=%d\\n\", (int)nullity);
+    printf(\"normalized_residual=%.17g\\n\", normalized_residual);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+    return 0;
+}}
+"""
+
+
+def parse_probe_output(output: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for line in output.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed[key.strip()] = value.strip()
+    required = {"rank", "nullity", "normalized_residual"}
+    missing = sorted(required - set(parsed))
+    if missing:
+        raise CorpusValidationError(f"solver QR probe did not emit required fields: {missing}")
+    return parsed
+
+
+def compiler_argv() -> list[str]:
+    argv = shlex.split(os.environ.get("CC", "cc"))
+    return argv if argv else ["cc"]
+
+
+def compiler_identity(cc_argv: list[str]) -> str:
+    try:
+        completed = subprocess.run(
+            [*cc_argv, "--version"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError:
+        return shlex.join(cc_argv)
+    first = completed.stdout.splitlines()[0].strip() if completed.stdout else shlex.join(cc_argv)
+    return first.replace("\t", " ")
+
+
+def run_solver_qr_probe(
+    entries: list[tuple[int, int, float]], rows: int, cols: int, library: Path
+) -> tuple[dict[str, str], str]:
+    if not library.is_file():
+        raise CorpusValidationError(
+            f"solver QR probe requires built static library at {library}; run make first"
+        )
+    cc = compiler_argv()
+    with tempfile.TemporaryDirectory(prefix="sparse_qr_probe.") as tmp:
+        tmpdir = Path(tmp)
+        source = tmpdir / "qr_probe.c"
+        executable = tmpdir / "qr_probe"
+        source.write_text(qr_probe_source(entries, rows, cols))
+        compile_cmd = [
+            *cc,
+            "-std=c99",
+            f"-I{REPO_ROOT / 'include'}",
+            f"-I{REPO_ROOT / 'build' / 'include'}",
+            str(source),
+            str(library),
+            "-lm",
+            "-o",
+            str(executable),
+        ]
+        compiled = subprocess.run(
+            compile_cmd,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if compiled.returncode != 0:
+            raise CorpusValidationError(
+                "solver QR probe compile failed:\n"
+                + shlex.join(compile_cmd)
+                + "\n"
+                + compiled.stdout
+            )
+        completed = subprocess.run(
+            [str(executable)],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if completed.returncode != 0:
+            raise CorpusValidationError(
+                f"solver QR probe failed with exit {completed.returncode}:\n{completed.stdout}"
+            )
+        return parse_probe_output(completed.stdout), compiler_identity(cc)
+
+
 def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
     kind = expected["comparison_kind"]
     tolerance = float(expected["tolerance_value"])
@@ -257,6 +448,80 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
                 "skip_or_defer_reason": "",
                 "claim_scope": expected_row["claim_scope"],
                 "non_claims": expected_row["non_claims"],
+            }
+        )
+    return rows
+
+
+def build_solver_qr_oracle_rows(
+    root: Path, command: str, library: Path, *, validate_root: bool = True
+) -> list[dict[str, str]]:
+    if validate_root:
+        validate(root)
+    fixture = GENERATED_FIXTURES[GENERATOR_KEY]
+    entries = fixture["entries"]()
+    structure_hash = sha256_text(
+        canonical_structure_text(fixture["rows"], fixture["cols"], entries)
+    )
+    value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
+    expected = load_expected_rows(root)
+    observations, compiler = run_solver_qr_probe(entries, fixture["rows"], fixture["cols"], library)
+    now = utc_timestamp()
+    commit = run_text(["git", "rev-parse", "HEAD"])
+    branch = current_source_branch()
+    platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
+    configuration = (
+        "build_profile=static_default;optional_data_policy=disabled;"
+        "proof_owner=runtime_qr_probe;"
+        f"structure_hash={structure_hash};value_hash={value_hash};qr_tolerance=1e-10"
+    )
+    observation_by_solver_id = {
+        f"{FIXTURE_KEY}_qr_rank": observations["rank"],
+        f"{FIXTURE_KEY}_qr_nullity": observations["nullity"],
+        f"{FIXTURE_KEY}_qr_nullspace_residual": observations["normalized_residual"],
+    }
+    rows: list[dict[str, str]] = []
+    for oracle_row_id in sorted(observation_by_solver_id):
+        expected_row_id = SOLVER_QR_ORACLE_ROW_IDS[oracle_row_id]
+        if expected_row_id not in expected:
+            raise CorpusValidationError(
+                f"missing expected result for solver QR oracle row {expected_row_id!r}"
+            )
+        expected_row = expected[expected_row_id]
+        status, failure_class = compare(expected_row, observation_by_solver_id[oracle_row_id])
+        rows.append(
+            {
+                "oracle_row_id": oracle_row_id,
+                "fixture_key": FIXTURE_KEY,
+                "solver_family": "qr",
+                "operation": expected_row["operation"],
+                "comparison_kind": expected_row["comparison_kind"],
+                "command": command,
+                "source_commit": commit,
+                "source_branch": branch,
+                "generated_at_utc": now,
+                "platform": platform_name,
+                "compiler": compiler,
+                "configuration": configuration,
+                "support_tier": "local_only",
+                "expected_result_kind": expected_row["expected_result_kind"],
+                "expected_result": expected_row["expected_result"],
+                "observed_result": observation_by_solver_id[oracle_row_id],
+                "tolerance_kind": expected_row["tolerance_kind"],
+                "tolerance_value": expected_row["tolerance_value"],
+                "comparison_status": status,
+                "failure_class": failure_class,
+                "skip_or_defer_reason": "",
+                "claim_scope": (
+                    "Fixture-local solver-backed QR rank/nullity/nullspace residual evidence."
+                ),
+                "non_claims": (
+                    "no broad QR correctness; no raw-basis parity; "
+                    "no global rank-threshold policy; no broad rank-deficient solve; "
+                    "no minimum-norm or least-squares claim; no SuiteSparse parity; "
+                    "no external-library parity; no platform parity; no performance or "
+                    "state-of-the-art claim"
+                ),
             }
         )
     return rows
@@ -372,6 +637,8 @@ def build_skip_report_rows(
 def write_manifest(path: Path, command: str, oracle_rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     first = oracle_rows[0]
+    solver_families = ",".join(sorted({row["solver_family"] for row in oracle_rows}))
+    solver_qr_row_count = sum(1 for row in oracle_rows if row["solver_family"] == "qr")
     path.write_text(
         "\n".join(
             [
@@ -382,6 +649,9 @@ def write_manifest(path: Path, command: str, oracle_rows: list[dict[str, str]]) 
                 f"platform={first['platform']}",
                 f"compiler={first['compiler']}",
                 f"configuration={first['configuration']}",
+                f"oracle_row_count={len(oracle_rows)}",
+                f"solver_families={solver_families}",
+                f"solver_qr_row_count={solver_qr_row_count}",
                 f"command={command}",
                 f"fixture_key={FIXTURE_KEY}",
                 "support_tier=local_only",
@@ -399,10 +669,27 @@ def main() -> int:
     parser.add_argument("--root", default=DEFAULT_CORPUS_ROOT, type=Path, help="corpus root")
     parser.add_argument("--oracle-dir", default=DEFAULT_ORACLE_DIR, type=Path)
     parser.add_argument("--report-dir", default=DEFAULT_REPORT_DIR, type=Path)
+    parser.add_argument(
+        "--include-solver-qr",
+        action="store_true",
+        help="append solver-backed QR oracle rows from a temporary static-library probe",
+    )
+    parser.add_argument(
+        "--solver-library",
+        default=DEFAULT_SOLVER_LIBRARY,
+        type=Path,
+        help="static library used by --include-solver-qr",
+    )
     args = parser.parse_args()
 
     command = shlex.join(sys.argv)
     oracle_rows = build_oracle_rows(args.root, command)
+    if args.include_solver_qr:
+        oracle_rows.extend(
+            build_solver_qr_oracle_rows(
+                args.root, command, args.solver_library, validate_root=False
+            )
+        )
     skip_rows = build_skip_rows(args.root)
     oracle_path = args.oracle_dir / f"{FIXTURE_KEY}.oracle.tsv"
     report_path = args.report_dir / "index.tsv"

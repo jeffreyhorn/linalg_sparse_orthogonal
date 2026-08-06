@@ -131,7 +131,12 @@ Start with the smallest surface that matches your real workload:
     report `SPARSE_ERR_NOT_SPD`.
   - Use LDL^T for symmetric indefinite systems where the LDL^T API is the
     natural model.
-  - Use QR for rectangular or rank-deficient least-squares workflows.
+  - Use QR for rectangular or rank-deficient least-squares workflows. The
+    maintained corpus proof currently includes one fixture-local
+    rank-deficient 6x4 nullspace lane
+    (`qr_rank_deficient_6x4_nullspace_v1`) owned by
+    [`tests/test_qr_corpus.c`](tests/test_qr_corpus.c); this is not a broad QR
+    or external-library parity claim.
 - **Compressed-first one-shot direct entry:** use
   `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when your
   matrix already lives in compressed sparse storage and you want a one-shot
@@ -580,6 +585,16 @@ factor contents.
 - `sparse_qr_refine_minnorm(A, b, x, iters, &resid, &opts)` — iterative refinement for minimum-norm
 - `sparse_qr_free(&qr)` — free QR factors
 - `sparse_reorder_colamd(A, perm)` — COLAMD column ordering for unsymmetric/QR (handles rectangular)
+
+The maintained QR corpus proof for
+`qr_rank_deficient_6x4_nullspace_v1` checks rank `3`, nullity `1`, and a
+solver-produced nullspace vector with normalized residual `<= 1e-10`. The
+source-controlled proof owner is
+[`tests/test_qr_corpus.c`](tests/test_qr_corpus.c), and the opt-in local
+oracle/report lane is `python3 scripts/run_corpus_oracle.py --include-solver-qr`.
+Do not read this as raw QR basis parity, broad rank-threshold policy, broad
+rank-deficient solve, SuiteSparse, LAPACK, NumPy, SciPy, platform, performance,
+or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

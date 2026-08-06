@@ -221,6 +221,7 @@ endif()
 
 add_sparse_test(test_sprint5_integration)
 add_sparse_test(test_qr)
+add_sparse_test(test_qr_corpus)
 add_sparse_test(test_qr_solve)
 add_sparse_test(test_sprint6_integration)
 add_sparse_test(test_dense)

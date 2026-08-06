@@ -290,18 +290,23 @@ def parse_probe_output(output: str) -> dict[str, str]:
     return parsed
 
 
-def compiler_identity(cc: str) -> str:
+def compiler_argv() -> list[str]:
+    argv = shlex.split(os.environ.get("CC", "cc"))
+    return argv if argv else ["cc"]
+
+
+def compiler_identity(cc_argv: list[str]) -> str:
     try:
         completed = subprocess.run(
-            [cc, "--version"],
+            [*cc_argv, "--version"],
             check=False,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
     except OSError:
-        return cc
-    first = completed.stdout.splitlines()[0].strip() if completed.stdout else cc
+        return shlex.join(cc_argv)
+    first = completed.stdout.splitlines()[0].strip() if completed.stdout else shlex.join(cc_argv)
     return first.replace("\t", " ")
 
 
@@ -312,14 +317,14 @@ def run_solver_qr_probe(
         raise CorpusValidationError(
             f"solver QR probe requires built static library at {library}; run make first"
         )
-    cc = os.environ.get("CC", "cc")
+    cc = compiler_argv()
     with tempfile.TemporaryDirectory(prefix="sparse_qr_probe.") as tmp:
         tmpdir = Path(tmp)
         source = tmpdir / "qr_probe.c"
         executable = tmpdir / "qr_probe"
         source.write_text(qr_probe_source(entries, rows, cols))
         compile_cmd = [
-            cc,
+            *cc,
             "-std=c99",
             f"-I{REPO_ROOT / 'include'}",
             f"-I{REPO_ROOT / 'build' / 'include'}",
@@ -448,8 +453,11 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     return rows
 
 
-def build_solver_qr_oracle_rows(root: Path, command: str, library: Path) -> list[dict[str, str]]:
-    validate(root)
+def build_solver_qr_oracle_rows(
+    root: Path, command: str, library: Path, *, validate_root: bool = True
+) -> list[dict[str, str]]:
+    if validate_root:
+        validate(root)
     fixture = GENERATED_FIXTURES[GENERATOR_KEY]
     entries = fixture["entries"]()
     structure_hash = sha256_text(
@@ -677,7 +685,11 @@ def main() -> int:
     command = shlex.join(sys.argv)
     oracle_rows = build_oracle_rows(args.root, command)
     if args.include_solver_qr:
-        oracle_rows.extend(build_solver_qr_oracle_rows(args.root, command, args.solver_library))
+        oracle_rows.extend(
+            build_solver_qr_oracle_rows(
+                args.root, command, args.solver_library, validate_root=False
+            )
+        )
     skip_rows = build_skip_rows(args.root)
     oracle_path = args.oracle_dir / f"{FIXTURE_KEY}.oracle.tsv"
     report_path = args.report_dir / "index.tsv"

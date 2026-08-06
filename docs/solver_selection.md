@@ -51,7 +51,7 @@ portable timing guarantee.
 | General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. |
 | Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. |
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
-| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. |
+| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. One maintained corpus lane now proves fixture-local rank `3`, nullity `1`, and nullspace residual behavior for `qr_rank_deficient_6x4_nullspace_v1`; it is not broad QR or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 
@@ -142,6 +142,17 @@ Relevant header: [`sparse_eigs.h`](../include/sparse_eigs.h).
 
 This guide does not claim nonsymmetric eigensolver support or portable
 state-of-the-art parity. Use benchmark output as local measurement context.
+
+## QR Evidence Boundary
+
+The maintained QR corpus proof for
+`qr_rank_deficient_6x4_nullspace_v1` is owned by
+[`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and the opt-in local
+oracle command `python3 scripts/run_corpus_oracle.py --include-solver-qr`.
+It supports only the selected fixture-local rank/nullity/nullspace residual
+claim. It does not claim raw QR basis parity, global rank-threshold policy,
+broad rank-deficient solve, SuiteSparse, LAPACK, NumPy, SciPy, platform,
+performance, or state-of-the-art parity.
 
 ## SVD and Low-Rank Workflows
 

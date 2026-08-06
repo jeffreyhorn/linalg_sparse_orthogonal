@@ -384,7 +384,7 @@ refreshed the direct-solver public guidance boundary.
 | Cholesky CSC SPD | Use for SPD systems; non-SPD reports `SPARSE_ERR_NOT_SPD` | `tests/test_chol_csc.c` plus `tests/chol_external_dense_reference.py` | named SPD Matrix Market fixtures checked against an external-process dense reference | no broad non-SPD recovery claim; no full backend parity claim from examples or benchmarks |
 | LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
 | Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c` plus `tests/lu_external_dense_reference.py` | deterministic nonsymmetric `lu_nonsym_square_5` solve and singular `lu_singular_square_4` expected failure | no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
-| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_colamd.c`, and `tests/qr_external_dense_reference.py` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, and bounded economy projector fixture `qr_economy_projector_5x3` | no broad QR, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, or performance external parity claim |
+| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_qr_corpus.c`, `tests/test_colamd.c`, `tests/qr_external_dense_reference.py`, and `scripts/run_corpus_oracle.py --include-solver-qr` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, Sprint 139 corpus fixture `qr_rank_deficient_6x4_nullspace_v1` proving rank `3`, nullity `1`, and solver-produced nullspace residual `<= 1e-10`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, and bounded economy projector fixture `qr_economy_projector_5x3` | no broad QR, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, platform, performance, or state-of-the-art claim |
 | SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, and `tests/svd_external_dense_reference.py` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, and bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2` | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad vector/subspace, rectangular, nonsymmetric, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, performance, or platform parity claim |
 
 Interpretation:
@@ -398,6 +398,71 @@ Interpretation:
   above.
 - Any future external oracle lane needs a family-local boundary artifact before
   implementation, then a validation artifact before public wording changes.
+
+### Sprint 139 QR Corpus Maintenance
+
+The Sprint 139 QR corpus lane is maintained as a fixture-local confidence path,
+not as a broad QR parity claim. It closes the
+`qr_rank_deficient_6x4_nullspace_v1` residual by proving the project QR solver
+reports rank `3`, nullity `1`, and a normalized solver-produced nullspace
+residual at or below `1e-10`.
+
+Use these commands to regenerate and interpret the lane from a clean local
+checkout:
+
+```sh
+python3 scripts/validate_corpus_schema.py
+make build/test_qr_corpus && ./build/test_qr_corpus
+python3 scripts/run_corpus_oracle.py --include-solver-qr
+```
+
+The focused C proof should report four passing `test_qr_corpus` tests. The
+opt-in oracle command should write
+`build/corpus/oracle/qr_rank_deficient_6x4_nullspace_v1.oracle.tsv` with the
+three generated-reference rows plus three `solver_family=qr` rows for rank,
+nullity, and normalized nullspace residual. The report index under
+`build/corpus-reports/index.tsv` should show those QR rows as `pass`; optional
+external-data rows belong in `build/corpus-reports/skips.tsv` and remain
+skip/defer policy evidence only. The manifest under
+`build/corpus-reports/manifest.txt` should record the command, row count,
+solver families, and `solver_qr_row_count=3`.
+
+Treat a QR corpus report as stale or non-interpretable when any of these are
+true:
+
+- `tests/test_qr_corpus.c`, `tests/test_qr_helpers.h`, corpus fixture rows,
+  expected-result rows, generator metadata, schema files, or
+  `scripts/run_corpus_oracle.py` changed after the report was generated.
+- The command, commit, branch, compiler, configuration, support tier, or
+  generated path recorded in the manifest does not match the report being
+  reviewed.
+- The QR oracle file is missing the three `solver_family=qr` rows, reports a
+  solver QR row count other than `3`, omits `qr` from the solver families, or
+  emits any non-pass comparison status for the Sprint 139 QR rows.
+- Optional SuiteSparse or external-data skip/defer rows are being treated as
+  QR pass evidence.
+
+Support tier remains `local_only` for this QR lane until a later sprint
+promotes reviewed hosted-platform evidence. Generated oracle/report files stay
+ignored build artifacts; source-controlled confidence lives in the fixture
+metadata, expected rows, `test_qr_corpus`, and the reproducible command.
+
+Remaining QR residuals after Sprint 139:
+
+- Global rank-threshold policy remains open because it needs tolerance-family
+  design across scales and perturbations, not a single nullspace fixture.
+- Broad rank-deficient least-squares, residual-only solve, and minimum-norm
+  behavior remain open because they need solve-side fixtures and separate
+  oracle semantics.
+- COLAMD/reordered QR behavior remains open because ordering semantics and
+  fill behavior are distinct from the nullspace residual lane.
+- SuiteSparse and external-library parity remain open until optional-data
+  provenance, reviewed platform runs, and external-reference boundaries are
+  promoted.
+- Raw Q-basis/sign/orientation parity is intentionally not closed; Sprint 139
+  compares residual/subspace-safe behavior instead.
+- Partial-SVD overlap, including clustered/repeated singular-value and
+  rank-deficient range-projector follow-through, is owned by Sprint 140.
 
 ## Sprint 103 Iterative, Spectral, and SVD Evidence Boundary Snapshot
 

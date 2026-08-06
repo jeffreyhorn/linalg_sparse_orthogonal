@@ -49,6 +49,12 @@ arrives as CSR or CSC data.
    | Symmetric indefinite system | LDL^T |
    | Rectangular, least-squares, or rank-sensitive system | QR |
 
+   The maintained QR corpus proof currently covers only
+   `qr_rank_deficient_6x4_nullspace_v1`: rank `3`, nullity `1`, and a
+   solver-produced nullspace vector with normalized residual `<= 1e-10`.
+   Use it as fixture-local QR confidence, not as broad QR or external-library
+   parity.
+
 3. If the one-shot factorization mutates its input and you still need the
    original matrix view, factor a fresh copy:
 

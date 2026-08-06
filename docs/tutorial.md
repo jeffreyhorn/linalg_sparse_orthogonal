@@ -426,6 +426,14 @@ sparse_svd_partial(A, k, &opts, &svd);
 sparse_svd_free(&svd);
 ```
 
+Maintained partial-SVD corpus evidence currently includes one generated 8x6
+clustered/repeated diagonal fixture with `k = 3`. That fixture checks top-k
+singular values, left/right subspace projectors, triplet residuals,
+orthogonality, default-budget success, and tight-budget fail-closed behavior.
+It is a regression proof for that named fixture, not a claim of broad
+repeated-spectrum coverage, raw singular-vector identity, external-library
+parity, performance, or state-of-the-art behavior.
+
 ### Condition Number
 
 ```c

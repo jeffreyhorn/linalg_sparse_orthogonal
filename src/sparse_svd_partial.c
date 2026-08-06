@@ -8,6 +8,80 @@
 #include <stdlib.h>
 #include <string.h>
 
+static sparse_err_t partial_svd_full_truncate(const SparseMatrix *A, idx_t kk,
+                                              const sparse_svd_opts_t *opts, sparse_svd_t *svd) {
+    sparse_svd_opts_t full_opts = {0};
+    if (opts)
+        full_opts = *opts;
+    full_opts.max_iter = 0;
+
+    sparse_svd_t full = {0};
+    sparse_err_t err = sparse_svd_compute(A, opts ? &full_opts : NULL, &full);
+    if (err != SPARSE_OK)
+        return err;
+
+    size_t kk_size = 0;
+    size_t m_size = 0;
+    size_t n_size = 0;
+    if (sparse_idx_to_size_checked(kk, &kk_size) || sparse_idx_to_size_checked(full.m, &m_size) ||
+        sparse_idx_to_size_checked(full.n, &n_size)) {
+        sparse_svd_free(&full);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    double *sigma = NULL;
+    if (sparse_malloc_array(kk_size, sizeof(double), (void **)&sigma) != SPARSE_OK) {
+        sparse_svd_free(&full);
+        return SPARSE_ERR_ALLOC;
+    }
+    memcpy(sigma, full.sigma, kk_size * sizeof(double));
+
+    svd->sigma = sigma;
+    svd->m = full.m;
+    svd->n = full.n;
+    svd->k = kk;
+    svd->economy = opts ? opts->economy : 0;
+
+    if (opts && opts->compute_uv) {
+        size_t u_count = 0;
+        size_t vt_count = 0;
+        if (sparse_size_mul_overflow(m_size, kk_size, &u_count) ||
+            sparse_size_mul_overflow(n_size, kk_size, &vt_count)) {
+            sparse_svd_free(&full);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+
+        double *U = NULL;
+        double *Vt = NULL;
+        if (sparse_malloc_array(u_count, sizeof(double), (void **)&U) != SPARSE_OK ||
+            sparse_malloc_array(vt_count, sizeof(double), (void **)&Vt) != SPARSE_OK) {
+            free(U);
+            free(Vt);
+            sparse_svd_free(&full);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+
+        for (idx_t s = 0; s < kk; s++) {
+            memcpy(&U[(size_t)s * m_size], &full.U[(size_t)s * m_size], m_size * sizeof(double));
+        }
+        for (idx_t j = 0; j < full.n; j++) {
+            for (idx_t s = 0; s < kk; s++) {
+                Vt[(size_t)j * kk_size + (size_t)s] =
+                    full.Vt[(size_t)j * (size_t)full.k + (size_t)s];
+            }
+        }
+
+        svd->U = U;
+        svd->Vt = Vt;
+        svd->economy = 1;
+    }
+
+    sparse_svd_free(&full);
+    return SPARSE_OK;
+}
+
 sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_svd_opts_t *opts,
                                 sparse_svd_t *svd) {
     if (!svd)
@@ -48,6 +122,9 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (lanczos_k64 > (int64_t)kmax)
         lanczos_k64 = (int64_t)kmax;
     idx_t lanczos_k = (idx_t)lanczos_k64;
+    if ((!opts || opts->max_iter == 0) && lanczos_k == kmax)
+        return partial_svd_full_truncate(A, kk, opts, svd);
+
     size_t m_size = 0;
     size_t n_size = 0;
     size_t lanczos_k_size = 0;

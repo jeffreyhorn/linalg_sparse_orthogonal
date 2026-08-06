@@ -139,6 +139,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_dense.c \
             $(TESTDIR)/test_bidiag.c \
             $(TESTDIR)/test_svd.c \
+            $(TESTDIR)/test_svd_partial_corpus.c \
             $(TESTDIR)/test_sprint8_integration.c \
             $(TESTDIR)/test_fuzz.c \
             $(TESTDIR)/test_lu_csr.c \

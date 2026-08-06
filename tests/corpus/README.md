@@ -170,6 +170,60 @@ Keep optional-data skip rows separate from QR pass evidence. Do not promote
 support beyond `local_only` until a reviewed hosted lane records matching
 generated evidence.
 
+## Partial-SVD Clustered/Repeated Lane
+
+Sprint 140 adds one generated partial-SVD fixture lane:
+
+- fixture key: `partial_svd_clustered_repeated_diag8x6_k3_v1`
+- fixture family: `partial_svd_clustered_repeated`
+- generator key: `partial_svd_clustered_repeated_diag8x6_generator_v1`
+- proof owner: `tests/test_svd_partial_corpus.c`
+
+Run the local partial-SVD corpus lane with:
+
+```sh
+python3 scripts/run_corpus_oracle.py --include-partial-svd
+```
+
+Before interpreting the partial-SVD lane, run:
+
+```sh
+python3 scripts/validate_corpus_schema.py
+make build/test_svd_partial_corpus && ./build/test_svd_partial_corpus
+python3 scripts/run_corpus_oracle.py --include-partial-svd
+```
+
+Expected generated outputs for the opt-in partial-SVD lane:
+
+- `build/corpus/oracle/corpus.oracle.tsv` contains the QR generated-reference
+  rows plus eight generated-reference rows for
+  `partial_svd_clustered_repeated_diag8x6_k3_v1`.
+- `build/corpus-reports/index.tsv` indexes the partial-SVD rows and their
+  fixture-local claim scope.
+- `build/corpus-reports/manifest.txt` records the command, row count, solver
+  families, support tier, and `partial_svd_row_count=8`.
+
+The lane proves only fixture-local top-3 singular values, left/right top-k
+subspace projectors, triplet residuals, orthogonality, default-budget success,
+tight-budget fail-closed behavior, and no partial arrays on tight-budget
+failure for the generated 8x6 diagonal fixture. It does not claim broad
+partial-SVD correctness, raw singular-vector identity, broad repeated-spectrum
+coverage, external-library parity, performance, package/ABI support,
+platform parity, partial-result guarantees, or state-of-the-art behavior.
+
+Stale or unsupported partial-SVD report signals:
+
+- the manifest command does not include `--include-partial-svd`;
+- the report predates changes to corpus manifests, expected rows, schemas,
+  `scripts/run_corpus_oracle.py`, `tests/test_svd_partial_corpus.c`, or
+  `tests/test_svd_partial_shared_helpers.h`;
+- the oracle output lacks eight rows for
+  `partial_svd_clustered_repeated_diag8x6_k3_v1` or lists a partial-SVD row
+  count other than `8`;
+- any Sprint 140 partial-SVD expected row is not reflected in the local oracle
+  output;
+- optional-data skip/defer rows are cited as partial-SVD pass evidence.
+
 ## Residual Register
 
 - Reviewed hosted-platform promotion for corpus/oracle rows.
@@ -182,9 +236,11 @@ generated evidence.
   completeness, and state-of-the-art claims.
 - Raw QR basis/sign/orientation parity; Sprint 139 compares normalized
   residual behavior instead.
-- Partial-SVD clustered and repeated singular-value fixture lanes in Sprint
-  140.
-- Partial-SVD rank-deficient range-projector follow-through in Sprint 140.
+- Reviewed hosted-platform promotion for the Sprint 140 partial-SVD corpus
+  rows.
+- Broad partial-SVD rank-deficient range-projector follow-through beyond the
+  bounded `test_partial_svd_rankdef_diag6x4_k2_range_projector` owner-local
+  fixture.
 - Report freshness normalization and stale-report diagnostics in Sprint 141.
 - Optional external data availability, provenance, and reviewed pass policy.
 - Public documentation/adoption wording that references corpus evidence

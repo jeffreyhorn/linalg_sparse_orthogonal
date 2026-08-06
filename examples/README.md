@@ -225,6 +225,11 @@ Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows
 the singular value spectrum, condition number, rank estimation at different
 tolerances, and compression ratios for various ranks.
 
+For partial-SVD edge-case confidence, the maintained corpus has a separate
+fixture-local proof for one generated 8x6 clustered/repeated diagonal case with
+`k = 3`. That proof lives in `tests/test_svd_partial_corpus.c` and is not part
+of the example's user-facing output or a broad performance/parity claim.
+
 ```bash
 ./build/example_svd_lowrank
 ```

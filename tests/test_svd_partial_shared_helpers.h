@@ -104,14 +104,18 @@ static int partial_svd_max_triplet_residuals(const SparseMatrix *A, const sparse
 
 static double partial_svd_u_coordinate_range_projector_error(const sparse_svd_t *svd,
                                                              idx_t range_rank) {
+    idx_t effective_rank = range_rank;
+    if (effective_rank > svd->k)
+        effective_rank = svd->k;
+
     double frob_sq = 0.0;
     for (idx_t row = 0; row < svd->m; row++) {
         for (idx_t col = 0; col < svd->m; col++) {
             double actual = 0.0;
-            for (idx_t s = 0; s < range_rank; s++)
+            for (idx_t s = 0; s < effective_rank; s++)
                 actual += svd->U[(size_t)s * (size_t)svd->m + (size_t)row] *
                           svd->U[(size_t)s * (size_t)svd->m + (size_t)col];
-            double expected = (row == col && row < range_rank) ? 1.0 : 0.0;
+            double expected = (row == col && row < effective_rank) ? 1.0 : 0.0;
             double diff = actual - expected;
             frob_sq += diff * diff;
         }
@@ -123,13 +127,17 @@ static double partial_svd_v_coordinate_range_projector_error(const sparse_svd_t 
                                                              idx_t range_rank) {
     double frob_sq = 0.0;
     idx_t vt_ld = svd->economy ? svd->k : svd->n;
+    idx_t effective_rank = range_rank;
+    if (effective_rank > svd->k)
+        effective_rank = svd->k;
+
     for (idx_t row = 0; row < svd->n; row++) {
         for (idx_t col = 0; col < svd->n; col++) {
             double actual = 0.0;
-            for (idx_t s = 0; s < range_rank; s++)
+            for (idx_t s = 0; s < effective_rank; s++)
                 actual += svd->Vt[(size_t)row * (size_t)vt_ld + (size_t)s] *
                           svd->Vt[(size_t)col * (size_t)vt_ld + (size_t)s];
-            double expected = (row == col && row < range_rank) ? 1.0 : 0.0;
+            double expected = (row == col && row < effective_rank) ? 1.0 : 0.0;
             double diff = actual - expected;
             frob_sq += diff * diff;
         }

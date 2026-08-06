@@ -14,16 +14,27 @@ static sparse_err_t partial_svd_full_truncate(const SparseMatrix *A, idx_t kk,
     if (opts)
         full_opts = *opts;
     full_opts.max_iter = 0;
+    if (opts && opts->compute_uv)
+        full_opts.economy = 1;
 
     sparse_svd_t full = {0};
     sparse_err_t err = sparse_svd_compute(A, opts ? &full_opts : NULL, &full);
     if (err != SPARSE_OK)
         return err;
 
+    idx_t out_k = kk;
+    if (out_k > full.k)
+        out_k = full.k;
+    if (out_k <= 0) {
+        sparse_svd_free(&full);
+        return SPARSE_ERR_BADARG;
+    }
+
     size_t kk_size = 0;
     size_t m_size = 0;
     size_t n_size = 0;
-    if (sparse_idx_to_size_checked(kk, &kk_size) || sparse_idx_to_size_checked(full.m, &m_size) ||
+    if (sparse_idx_to_size_checked(out_k, &kk_size) ||
+        sparse_idx_to_size_checked(full.m, &m_size) ||
         sparse_idx_to_size_checked(full.n, &n_size)) {
         sparse_svd_free(&full);
         return SPARSE_ERR_ALLOC;
@@ -39,7 +50,7 @@ static sparse_err_t partial_svd_full_truncate(const SparseMatrix *A, idx_t kk,
     svd->sigma = sigma;
     svd->m = full.m;
     svd->n = full.n;
-    svd->k = kk;
+    svd->k = out_k;
     svd->economy = opts ? opts->economy : 0;
 
     if (opts && opts->compute_uv) {
@@ -63,13 +74,14 @@ static sparse_err_t partial_svd_full_truncate(const SparseMatrix *A, idx_t kk,
             return SPARSE_ERR_ALLOC;
         }
 
-        for (idx_t s = 0; s < kk; s++) {
+        idx_t full_vt_ld = full.economy ? full.k : full.n;
+        for (idx_t s = 0; s < out_k; s++) {
             memcpy(&U[(size_t)s * m_size], &full.U[(size_t)s * m_size], m_size * sizeof(double));
         }
         for (idx_t j = 0; j < full.n; j++) {
-            for (idx_t s = 0; s < kk; s++) {
+            for (idx_t s = 0; s < out_k; s++) {
                 Vt[(size_t)j * kk_size + (size_t)s] =
-                    full.Vt[(size_t)j * (size_t)full.k + (size_t)s];
+                    full.Vt[(size_t)j * (size_t)full_vt_ld + (size_t)s];
             }
         }
 

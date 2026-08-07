@@ -210,6 +210,8 @@ make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + cte
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
+python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
+python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check hard gate + threshold-free Cholesky CSC context
@@ -223,6 +225,10 @@ make install    # install to PREFIX (default /usr/local)
 make uninstall  # remove installed files
 make clean      # remove build artifacts
 ```
+
+The normalized report index is a maintainer navigation and freshness aid. It
+does not replace the underlying validation commands and does not turn local
+benchmark, coverage, dead-code, or package metadata rows into release proof.
 
 ### With CMake
 

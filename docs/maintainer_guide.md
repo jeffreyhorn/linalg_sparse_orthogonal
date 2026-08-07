@@ -173,6 +173,17 @@ Operational constraint:
 - run the `deadcode*` targets serially because they share
   `build/deadcode-cmake` and `build/deadcode/`
 
+Normalized report-index interpretation:
+
+- `python3 scripts/normalize_report_index.py --family deadcode --check`
+  indexes `build/deadcode/report.tsv` when it exists and otherwise emits
+  deterministic `not_generated` rows
+- `python3 scripts/normalize_report_index.py --family deadcode
+  --check-freshness` keeps dead-code rows advisory unless a caller explicitly
+  requires generated dead-code evidence
+- do not read a fresh dead-code row as a zero-dead-code guarantee; the rows are
+  local static-analysis classifications with bucket/disposition context
+
 ### Current residual dispositions
 
 The remaining quality/platform residuals are intentionally narrower than a
@@ -252,6 +263,20 @@ Focused install/package regression ownership:
 - Windows does not currently claim a separate reviewed install-validation lane;
   it keeps the reviewed CMake subset plus supplemental CMake
   install/downstream confidence for the CMake-first consumer story
+
+Normalized report-index interpretation:
+
+- `python3 scripts/normalize_report_index.py --family package --check`
+  expands the package contract into source-controlled proof-owner rows for
+  `tests/test_install.sh`, `tests/test_cmake_install.sh`, `sparse.pc.in`,
+  `cmake/SparseConfig.cmake.in`, and
+  `scripts/static_package_deferral_check.sh`
+- package proof-owner rows use `freshness_status=source_controlled`; they
+  prove ownership and scope of maintained checks/templates, not that an
+  install validation command was just run
+- if an install-run result must be cited, run the relevant install validation
+  script and keep its generated output separate from the source-controlled
+  proof-owner row
 
 Sprint 112 package/platform proof snapshot:
 
@@ -1097,6 +1122,54 @@ Interpretation:
   supplemental lanes are opt-in reports
 - do not let exploratory benchmark breadth blur the smaller claim-bearing
   maintained surface
+
+## Normalized Report Index Workflow
+
+Use the normalized report index when you need one cross-family view of
+source-controlled report metadata and generated local report artifacts:
+
+```sh
+python3 scripts/normalize_report_index.py \
+  --output build/report-index/normalized-index.tsv
+python3 scripts/normalize_report_index.py --check
+python3 scripts/normalize_report_index.py --check-freshness
+```
+
+Generated output belongs under ignored `build/report-index/`. Do not commit
+the generated TSV unless a later sprint explicitly promotes a stable checked-in
+example.
+
+Common focused checks:
+
+```sh
+python3 scripts/normalize_report_index.py --family oracle --check-freshness
+python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
+python3 scripts/normalize_report_index.py --family coverage --family deadcode --family package --check-freshness
+python3 scripts/normalize_report_index.py --family runtime_backend --check-freshness
+```
+
+Read diagnostics as:
+
+```text
+freshness: <severity>: <row_id>: <state>: <reason>
+```
+
+Interpretation:
+
+- `error` means a selected strict or required row failed freshness or a
+  hard-gate row reports failure
+- `warning` means a strict generated family is absent or stale but was not
+  explicitly required
+- `advisory` means the row is local measurement, quality, documentation, or
+  source-controlled context
+- `skip` means optional data or prerequisites are unavailable by policy
+- `defer` means the row is intentionally handed off, currently including
+  runtime/backend governance for Sprint 142
+
+The normalized index is not release proof by itself. It preserves row meaning,
+artifact paths, freshness context, support tier, claim scope, and non-claim
+boundaries so maintainers can decide which underlying generator or validation
+command must be rerun.
 
 ## Stable Repo Norms
 

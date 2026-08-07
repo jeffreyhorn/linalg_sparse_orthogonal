@@ -72,6 +72,21 @@ OPTIONAL_DATA_REQUIRED = {
     "skip_interpretation",
     "claim_boundary",
 }
+REPORT_FAMILY_REQUIRED = {
+    "report_family",
+    "subfamily",
+    "row_meaning",
+    "row_origin",
+    "status",
+    "support_tier",
+    "freshness_policy",
+    "generator_command",
+    "artifact_pattern",
+    "claim_scope",
+    "non_claims",
+    "owner",
+    "introduced_in",
+}
 EXPECTED_REQUIRED = {
     "oracle_row_id",
     "fixture_key",
@@ -133,6 +148,50 @@ EXPECTED_STATUSES = {
     "ready_for_oracle",
 }
 OPTIONAL_AVAILABILITY = {"available", "unavailable", "disabled", "deferred"}
+REPORT_ROW_ORIGINS = {
+    "source_controlled",
+    "generated_local",
+    "generated_ci",
+    "external_optional",
+    "documentation",
+}
+REPORT_ROW_MEANINGS = {
+    "fixture_metadata",
+    "generator_metadata",
+    "optional_data_policy",
+    "expected_result",
+    "observed_oracle_comparison",
+    "solver_backed_fixture_proof",
+    "benchmark_measurement",
+    "sentinel_hard_gate",
+    "sentinel_advisory_measurement",
+    "guardrail_lane",
+    "deadcode_classification",
+    "coverage_summary",
+    "package_install_proof_owner",
+    "ci_lane_definition",
+    "documentation_advisory",
+    "not_generated",
+    "deferred_governance",
+}
+REPORT_STATUSES = {
+    "pass",
+    "fail",
+    "skip",
+    "defer",
+    "unsupported",
+    "xfail",
+    "unknown",
+    "advisory",
+}
+REPORT_FRESHNESS_POLICIES = {
+    "source_controlled",
+    "generated_compare_inputs",
+    "generated_local_advisory",
+    "hosted_ci_external",
+    "optional_data_skip",
+    "deferred_governance",
+}
 CANONICAL_FORMAT = "coo_zero_based_row_col_value_f64_text_v1"
 STRUCTURE_FORMAT = "coo_zero_based_row_col_text_v1"
 
@@ -241,6 +300,12 @@ def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]
         )
 
 
+def is_lower_snake(value: str) -> bool:
+    if not value:
+        return False
+    return all(ch.islower() or ch.isdigit() or ch == "_" for ch in value) and "__" not in value
+
+
 def canonical_structure_text(rows: int, cols: int, entries: list[tuple[int, int, float]]) -> str:
     canonical_entries = sorted(entries, key=lambda entry: (entry[0], entry[1]))
     lines = [
@@ -301,10 +366,12 @@ def validate(root: Path) -> None:
     fixtures_path = manifests / "fixtures.tsv"
     generators_path = manifests / "generators.tsv"
     optional_path = manifests / "optional_data.tsv"
+    report_families_path = manifests / "report_families.tsv"
 
     fixture_rows = read_tsv(fixtures_path)
     generator_rows = read_tsv(generators_path)
     optional_rows = read_tsv(optional_path)
+    report_family_rows = read_tsv(report_families_path)
     require_fields(
         fixtures_path,
         fixture_rows,
@@ -318,6 +385,7 @@ def validate(root: Path) -> None:
         OPTIONAL_DATA_REQUIRED,
         allow_empty={"skip_reason", "defer_reason"},
     )
+    require_fields(report_families_path, report_family_rows, REPORT_FAMILY_REQUIRED)
 
     fixture_keys = {row["fixture_key"] for row in fixture_rows}
     generator_keys = {row["generator_key"] for row in generator_rows}
@@ -325,6 +393,14 @@ def validate(root: Path) -> None:
         raise CorpusValidationError(f"{fixtures_path}: duplicate fixture_key")
     if len(generator_keys) != len(generator_rows):
         raise CorpusValidationError(f"{generators_path}: duplicate generator_key")
+    report_family_keys = {
+        (row["report_family"], row["subfamily"], row["row_meaning"])
+        for row in report_family_rows
+    }
+    if len(report_family_keys) != len(report_family_rows):
+        raise CorpusValidationError(
+            f"{report_families_path}: duplicate report_family/subfamily/row_meaning"
+        )
 
     generators_by_key = {row["generator_key"]: row for row in generator_rows}
     generator_lines_by_key = {
@@ -410,6 +486,60 @@ def validate(root: Path) -> None:
         ):
             raise CorpusValidationError(
                 f"{optional_path}:{line}: claim_boundary must preserve external-parity non-claim"
+            )
+
+    for line, row in enumerate(report_family_rows, start=2):
+        for field in ("report_family", "subfamily", "row_meaning", "status"):
+            if not is_lower_snake(row[field]):
+                raise CorpusValidationError(
+                    f"{report_families_path}:{line}: {field} must be lowercase snake case"
+                )
+        assert_enum(
+            report_families_path,
+            line,
+            "row_origin",
+            row["row_origin"],
+            REPORT_ROW_ORIGINS,
+        )
+        assert_enum(
+            report_families_path,
+            line,
+            "row_meaning",
+            row["row_meaning"],
+            REPORT_ROW_MEANINGS,
+        )
+        assert_enum(
+            report_families_path,
+            line,
+            "status",
+            row["status"],
+            REPORT_STATUSES,
+        )
+        assert_enum(
+            report_families_path,
+            line,
+            "support_tier",
+            row["support_tier"],
+            SUPPORT_TIERS,
+        )
+        assert_enum(
+            report_families_path,
+            line,
+            "freshness_policy",
+            row["freshness_policy"],
+            REPORT_FRESHNESS_POLICIES,
+        )
+        if row["status"] == "pass":
+            raise CorpusValidationError(
+                f"{report_families_path}:{line}: contract rows must not be pass evidence"
+            )
+        if "state-of-the-art" in row["claim_scope"].lower():
+            raise CorpusValidationError(
+                f"{report_families_path}:{line}: claim_scope must not assert state-of-the-art"
+            )
+        if row["non_claims"] == "":
+            raise CorpusValidationError(
+                f"{report_families_path}:{line}: non_claims must preserve boundaries"
             )
 
     for path in sorted(expected.glob("*.tsv")):

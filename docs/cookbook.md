@@ -259,6 +259,17 @@ Read indexes as artifact maps and freshness context. Regenerate reports when
 you need current evidence; do not edit generated rows by hand to make an old
 artifact look current.
 
+For a cross-family maintainer view, run:
+
+```sh
+python3 scripts/normalize_report_index.py --check
+python3 scripts/normalize_report_index.py --check-freshness
+```
+
+Treat normalized rows as discovery and freshness diagnostics. They preserve
+claim boundaries; they are not broad performance, coverage, package, or
+platform evidence by themselves.
+
 ## Next Steps
 
 After choosing the API workflow:

@@ -17,9 +17,11 @@ completeness, or state-of-the-art status.
 | `manifests/fixtures.tsv` | Maintained fixture rows. |
 | `manifests/generators.tsv` | Deterministic generated-matrix metadata rows. |
 | `manifests/optional_data.tsv` | Optional external-data skip/defer policy rows. |
+| `manifests/report_families.tsv` | Report-family contract rows for normalized index generation. |
 | `expected/` | Small committed expected-result rows for maintained fixtures. |
 | `schemas/fixture_fields.md` | Fixture, generator, and optional-data field definitions. |
 | `schemas/oracle_fields.md` | Observed oracle row field definitions and status semantics. |
+| `schemas/report_index_fields.md` | Normalized report-index contract field definitions. |
 | `fixtures/` | Future promoted source-controlled matrix fixtures. |
 | `../../scripts/validate_corpus_schema.py` | Lightweight schema check for maintained corpus TSV skeletons. |
 | `../../scripts/run_corpus_oracle.py` | Local oracle/report emission command for maintained corpus rows. |
@@ -50,6 +52,7 @@ package/platform evidence.
 | `manifests/fixtures.tsv` | Corpus maintainer, with solver-owner review for numerical semantics. | Defines fixture identity, family, support tier, claim scope, and validation command. New rows must keep claim scope fixture-local until reviewed evidence exists. |
 | `manifests/generators.tsv` | Corpus maintainer. | Defines deterministic generator metadata, canonical format, hashes, seed policy, and regeneration command. Hash changes require an explicit generator or fixture revision. |
 | `manifests/optional_data.tsv` | Corpus maintainer. | Defines external-data availability, skip/defer policy, and non-claim wording. Optional payloads stay outside the repository. |
+| `manifests/report_families.tsv` | Report maintainer, with corpus, benchmark, package, CI, and documentation owners for family-specific semantics. | Defines report-family row meanings, support tiers, freshness policies, commands, artifact patterns, claim scopes, and non-claim boundaries for normalized indexing. |
 | `expected/*.tsv` | Corpus maintainer for schema; solver owner for expected numerical meaning. | Source-controlled target rows are prerequisites for observed evidence, not observed pass evidence by themselves. |
 | `schemas/*.md` | Corpus and report maintainers. | Defines row semantics. Field or status changes need migration notes and validator updates. |
 | `../../scripts/validate_corpus_schema.py` | Corpus maintainer. | Enforces TSV shape, required references, selected enums, first-lane generator hashes, and false-pass guardrails. |
@@ -81,6 +84,11 @@ Report index rows aggregate generated output locations and row status. They
 preserve row meaning; they are not release proof, broad coverage proof, or
 state-of-the-art evidence.
 
+Report-family contract rows in `manifests/report_families.tsv` are the
+source-controlled vocabulary for normalized report indexing. They define how a
+family should be discovered and interpreted, but they do not prove that any
+generated report exists, is fresh, or passed.
+
 ## Stale Reports
 
 Generated oracle rows and report indexes are fresh only for the recorded
@@ -103,6 +111,23 @@ Sprint 141 report-index work should keep using the current report fields for
 commit, command, platform, compiler, configuration, support tier, status,
 claim scope, generated path, and non-claims. Sprint 141 may normalize freshness
 checks, but it should not reinterpret skip/defer rows as pass evidence.
+
+Use the normalized index after generating corpus/oracle reports when you need
+cross-family row discovery or freshness diagnostics:
+
+```sh
+python3 scripts/normalize_report_index.py --family corpus --family oracle --check
+python3 scripts/normalize_report_index.py --family oracle --check-freshness
+python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
+```
+
+`--check` validates normalized row construction. `--check-freshness` emits
+diagnostics in the form
+`freshness: <severity>: <row_id>: <state>: <reason>`. Missing oracle rows warn
+by default and become errors only when `--require-generated oracle` is used.
+Source-controlled fixture, generator, optional-data, and expected-result rows
+remain advisory or skip/defer policy evidence until a generated oracle row
+records observed status.
 
 ## Sprint 139 QR Lane
 
@@ -279,6 +304,16 @@ outputs are generated local evidence and are not committed.
 Default validation does not require optional external data. Disabled,
 unavailable, deferred, or unsupported optional data is reported as skip/defer
 policy evidence only and never as solver pass evidence.
+
+Run the normalized freshness check when reviewing generated corpus evidence:
+
+```sh
+python3 scripts/normalize_report_index.py --family oracle --check-freshness
+```
+
+Use `--require-generated oracle` only when the current review actually requires
+local generated oracle artifacts to exist and match the selected freshness
+policy.
 
 ## Optional Data
 

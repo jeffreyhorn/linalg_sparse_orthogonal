@@ -329,3 +329,26 @@ Do not widen that reading into a broader reviewed install-validation claim:
 - Linux reviewed package-contract proof does not claim shared-library
   packaging, dynamic ABI compatibility, runtime-loader behavior, or
   package-manager support
+
+### Normalized Package Rows
+
+Maintainers can inspect the source-controlled package proof-owner rows without
+running an install:
+
+```sh
+python3 scripts/normalize_report_index.py --family package --check
+python3 scripts/normalize_report_index.py --family package --check-freshness
+```
+
+These rows identify maintained proof owners and templates:
+
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+- `sparse.pc.in`
+- `cmake/SparseConfig.cmake.in`
+- `scripts/static_package_deferral_check.sh`
+
+They use `freshness_status=source_controlled`. Read them as ownership and
+static-first scope metadata, not as proof that an install validation command
+was just run. To prove the install surface locally, run the install validation
+scripts above.

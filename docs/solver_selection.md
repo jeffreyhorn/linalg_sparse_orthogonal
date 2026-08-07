@@ -161,6 +161,15 @@ estimates, pseudoinverse behavior, or low-rank approximations. Treat dense
 outputs and low-rank buffers according to the ownership rules of the public
 SVD APIs; do not depend on private dense workspaces.
 
+For partial SVD, the maintained Sprint 140 corpus proof is intentionally
+fixture-local: `partial_svd_clustered_repeated_diag8x6_k3_v1` checks generated
+8x6 clustered/repeated top-3 singular values, left/right subspace projectors,
+triplet residuals, orthogonality, default-budget success, and tight-budget
+fail-closed behavior through `tests/test_svd_partial_corpus.c` and
+`python3 scripts/run_corpus_oracle.py --include-partial-svd`. Do not use that
+lane as broad repeated-spectrum, raw vector identity, external-library parity,
+platform, performance, package, ABI, or state-of-the-art evidence.
+
 Useful starting example:
 
 - `example_svd_lowrank` for singular values, rank, condition estimate, and

@@ -33,10 +33,22 @@ DEFAULT_REPORT_DIR = REPO_ROOT / "build" / "corpus-reports"
 DEFAULT_SOLVER_LIBRARY = REPO_ROOT / "build" / "libsparse_lu_ortho.a"
 FIXTURE_KEY = "qr_rank_deficient_6x4_nullspace_v1"
 GENERATOR_KEY = "qr_rank_deficient_6x4_nullspace_generator_v1"
+PARTIAL_SVD_FIXTURE_KEY = "partial_svd_clustered_repeated_diag8x6_k3_v1"
+PARTIAL_SVD_GENERATOR_KEY = "partial_svd_clustered_repeated_diag8x6_generator_v1"
 FIRST_LANE_ORACLE_ROW_IDS = {
     f"{FIXTURE_KEY}_rank",
     f"{FIXTURE_KEY}_nullity",
     f"{FIXTURE_KEY}_projector_residual",
+}
+PARTIAL_SVD_ORACLE_ROW_IDS = {
+    f"{PARTIAL_SVD_FIXTURE_KEY}_singular_values",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_left_subspace",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_right_subspace",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_vector_residual",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_orthogonality",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_default_status",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_status",
+    f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_no_partial_arrays",
 }
 SOLVER_QR_ORACLE_ROW_IDS = {
     f"{FIXTURE_KEY}_qr_rank": f"{FIXTURE_KEY}_rank",
@@ -125,8 +137,10 @@ def current_source_branch() -> str:
     return "detached" if branch == "HEAD" else branch
 
 
-def load_expected_rows(root: Path) -> dict[str, dict[str, str]]:
-    path = root / "expected" / f"{FIXTURE_KEY}.tsv"
+def load_expected_rows(
+    root: Path, fixture_key: str, required_oracle_row_ids: set[str]
+) -> dict[str, dict[str, str]]:
+    path = root / "expected" / f"{fixture_key}.tsv"
     rows = read_tsv(path)
     expected_by_id: dict[str, dict[str, str]] = {}
     for line, row in enumerate(rows, start=2):
@@ -135,16 +149,16 @@ def load_expected_rows(root: Path) -> dict[str, dict[str, str]]:
             raise CorpusValidationError(
                 f"{path}:{line}: duplicate oracle_row_id {oracle_row_id!r}"
             )
-        if oracle_row_id in FIRST_LANE_ORACLE_ROW_IDS and row["status"] != "ready_for_oracle":
+        if oracle_row_id in required_oracle_row_ids and row["status"] != "ready_for_oracle":
             raise CorpusValidationError(
-                f"{path}:{line}: first-lane oracle row {oracle_row_id!r} "
+                f"{path}:{line}: required oracle row {oracle_row_id!r} "
                 f"must have status 'ready_for_oracle', got {row['status']!r}"
             )
         expected_by_id[oracle_row_id] = row
-    missing = sorted(FIRST_LANE_ORACLE_ROW_IDS - set(expected_by_id))
+    missing = sorted(required_oracle_row_ids - set(expected_by_id))
     if missing:
         raise CorpusValidationError(
-            f"{path}: missing first-lane expected oracle rows: {', '.join(missing)}"
+            f"{path}: missing required expected oracle rows: {', '.join(missing)}"
         )
     return expected_by_id
 
@@ -362,24 +376,121 @@ def run_solver_qr_probe(
         return parse_probe_output(completed.stdout), compiler_identity(cc)
 
 
+def parse_key_values(text: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for chunk in text.split(";"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if "=" not in chunk:
+            raise CorpusValidationError(f"malformed key/value observation {text!r}")
+        key, value = chunk.split("=", 1)
+        parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def parse_float(value: str, context: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise CorpusValidationError(f"{context}: expected floating-point value, got {value!r}") from exc
+    if not math.isfinite(parsed):
+        raise CorpusValidationError(f"{context}: expected finite value, got {value!r}")
+    return parsed
+
+
+def parse_vector(value: str, context: str) -> list[float]:
+    if value == "":
+        raise CorpusValidationError(f"{context}: empty vector")
+    return [parse_float(part.strip(), context) for part in value.split(",")]
+
+
+def scalar_from_observed(observed: str, expected_prefix: str) -> float:
+    if "=" not in observed:
+        return parse_float(observed, "observed scalar")
+    parsed = parse_key_values(observed)
+    if expected_prefix in parsed:
+        return parse_float(parsed[expected_prefix], expected_prefix)
+    if len(parsed) == 1:
+        key, value = next(iter(parsed.items()))
+        return parse_float(value, key)
+    raise CorpusValidationError(
+        f"observed result {observed!r} does not contain expected key {expected_prefix!r}"
+    )
+
+
 def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
     kind = expected["comparison_kind"]
-    tolerance = float(expected["tolerance_value"])
     if kind in {"rank", "nullity"}:
         if expected["tolerance_kind"] != "exact":
             raise CorpusValidationError(
                 f"{expected['oracle_row_id']}: {kind} comparison requires tolerance_kind='exact'"
             )
         passed = int(observed) == int(expected["expected_result"])
+    elif kind == "value":
+        if expected["tolerance_kind"] != "absolute":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: value comparison requires "
+                "tolerance_kind='absolute'"
+            )
+        tolerance = parse_float(expected["tolerance_value"], "value tolerance")
+        expected_values = parse_key_values(expected["expected_result"])
+        observed_values = parse_key_values(observed)
+        if "top_k" not in expected_values or "top_k" not in observed_values:
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: value comparison requires top_k fields"
+            )
+        expected_top_k = sorted(parse_vector(expected_values["top_k"], "expected top_k"), reverse=True)
+        observed_top_k = sorted(parse_vector(observed_values["top_k"], "observed top_k"), reverse=True)
+        if len(expected_top_k) != len(observed_top_k):
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: observed top_k length mismatch"
+            )
+        max_abs_error = max(
+            abs(expected_value - observed_value)
+            for expected_value, observed_value in zip(expected_top_k, observed_top_k)
+        )
+        passed = max_abs_error <= tolerance
+        if "max_abs_error" in observed_values:
+            reported_error = parse_float(observed_values["max_abs_error"], "max_abs_error")
+            if abs(reported_error - max_abs_error) > max(1e-15, tolerance * 1e-6):
+                raise CorpusValidationError(
+                    f"{expected['oracle_row_id']}: reported max_abs_error mismatch"
+                )
+    elif kind == "subspace_distance":
+        if expected["tolerance_kind"] != "projector":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: subspace_distance comparison requires "
+                "tolerance_kind='projector'"
+            )
+        tolerance = parse_float(expected["tolerance_value"], "subspace tolerance")
+        expected_metric = expected["expected_result"].split("<=", 1)[0]
+        passed = scalar_from_observed(observed, expected_metric) <= tolerance
     elif kind == "residual_norm":
         if expected["tolerance_kind"] != "absolute":
             raise CorpusValidationError(
                 f"{expected['oracle_row_id']}: residual_norm comparison requires "
                 "tolerance_kind='absolute'"
             )
-        passed = float(observed) <= tolerance
+        tolerance = parse_float(expected["tolerance_value"], "residual tolerance")
+        expected_metric = expected["expected_result"].split("<=", 1)[0]
+        passed = scalar_from_observed(observed, expected_metric) <= tolerance
+    elif kind == "status":
+        if expected["tolerance_kind"] != "status_only" or expected["tolerance_value"] != "":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: status comparison requires "
+                "tolerance_kind='status_only' and empty tolerance_value"
+            )
+        passed = observed == expected["expected_result"]
+    elif kind == "diagnostic":
+        if expected["tolerance_kind"] != "not_applicable" or expected["tolerance_value"] != "":
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: diagnostic comparison requires "
+                "tolerance_kind='not_applicable' and empty tolerance_value"
+            )
+        passed = observed == expected["expected_result"]
     else:
-        raise CorpusValidationError(f"unsupported first-lane comparison kind: {kind}")
+        raise CorpusValidationError(f"unsupported comparison kind: {kind}")
     return ("pass", "") if passed else ("fail", "fail_oracle_mismatch")
 
 
@@ -399,7 +510,7 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
         canonical_structure_text(fixture["rows"], fixture["cols"], entries)
     )
     value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
-    expected = load_expected_rows(root)
+    expected = load_expected_rows(root, FIXTURE_KEY, FIRST_LANE_ORACLE_ROW_IDS)
     now = utc_timestamp()
     commit = run_text(["git", "rev-parse", "HEAD"])
     branch = current_source_branch()
@@ -453,6 +564,83 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     return rows
 
 
+def partial_svd_generated_observations() -> dict[str, str]:
+    return {
+        f"{PARTIAL_SVD_FIXTURE_KEY}_singular_values": "top_k=10,10,9.999999;max_abs_error=0",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_left_subspace": "left_projector_distance=0",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_right_subspace": "right_projector_distance=0",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_vector_residual": "max_triplet_residual=0",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_orthogonality": "max_orthogonality_residual=0",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_default_status": "SPARSE_SUCCESS",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_status": "SPARSE_ERR_NOT_CONVERGED",
+        f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_no_partial_arrays": (
+            "no_partial_sigma_u_vt_on_failure"
+        ),
+    }
+
+
+def build_partial_svd_oracle_rows(
+    root: Path, command: str, *, validate_root: bool = True
+) -> list[dict[str, str]]:
+    if validate_root:
+        validate(root)
+    fixture = GENERATED_FIXTURES[PARTIAL_SVD_GENERATOR_KEY]
+    entries = fixture["entries"]()
+    structure_hash = sha256_text(
+        canonical_structure_text(fixture["rows"], fixture["cols"], entries)
+    )
+    value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
+    expected = load_expected_rows(root, PARTIAL_SVD_FIXTURE_KEY, PARTIAL_SVD_ORACLE_ROW_IDS)
+    observations = partial_svd_generated_observations()
+    now = utc_timestamp()
+    commit = run_text(["git", "rev-parse", "HEAD"])
+    branch = current_source_branch()
+    platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
+    configuration = (
+        "build_profile=static_default;optional_data_policy=disabled;"
+        "proof_owner=generated_partial_svd_reference;solver_execution=none;"
+        "partial_svd_fixture=clustered_repeated_diag8x6_k3;"
+        f"structure_hash={structure_hash};value_hash={value_hash};"
+        "value_tolerance=1e-8;projector_tolerance=1e-8;residual_tolerance=1e-8"
+    )
+    rows: list[dict[str, str]] = []
+    for oracle_row_id in sorted(observations):
+        if oracle_row_id not in expected:
+            raise CorpusValidationError(
+                f"missing expected result for partial-SVD oracle row {oracle_row_id!r}"
+            )
+        expected_row = expected[oracle_row_id]
+        status, failure_class = compare(expected_row, observations[oracle_row_id])
+        rows.append(
+            {
+                "oracle_row_id": oracle_row_id,
+                "fixture_key": PARTIAL_SVD_FIXTURE_KEY,
+                "solver_family": "partial_svd",
+                "operation": expected_row["operation"],
+                "comparison_kind": expected_row["comparison_kind"],
+                "command": command,
+                "source_commit": commit,
+                "source_branch": branch,
+                "generated_at_utc": now,
+                "platform": platform_name,
+                "compiler": "not_applicable",
+                "configuration": configuration,
+                "support_tier": "local_only",
+                "expected_result_kind": expected_row["expected_result_kind"],
+                "expected_result": expected_row["expected_result"],
+                "observed_result": observations[oracle_row_id],
+                "tolerance_kind": expected_row["tolerance_kind"],
+                "tolerance_value": expected_row["tolerance_value"],
+                "comparison_status": status,
+                "failure_class": failure_class,
+                "skip_or_defer_reason": "",
+                "claim_scope": expected_row["claim_scope"],
+                "non_claims": expected_row["non_claims"],
+            }
+        )
+    return rows
+
+
 def build_solver_qr_oracle_rows(
     root: Path, command: str, library: Path, *, validate_root: bool = True
 ) -> list[dict[str, str]]:
@@ -464,7 +652,7 @@ def build_solver_qr_oracle_rows(
         canonical_structure_text(fixture["rows"], fixture["cols"], entries)
     )
     value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
-    expected = load_expected_rows(root)
+    expected = load_expected_rows(root, FIXTURE_KEY, FIRST_LANE_ORACLE_ROW_IDS)
     observations, compiler = run_solver_qr_probe(entries, fixture["rows"], fixture["cols"], library)
     now = utc_timestamp()
     commit = run_text(["git", "rev-parse", "HEAD"])
@@ -639,6 +827,12 @@ def write_manifest(path: Path, command: str, oracle_rows: list[dict[str, str]]) 
     first = oracle_rows[0]
     solver_families = ",".join(sorted({row["solver_family"] for row in oracle_rows}))
     solver_qr_row_count = sum(1 for row in oracle_rows if row["solver_family"] == "qr")
+    partial_svd_row_count = sum(
+        1 for row in oracle_rows if row["solver_family"] == "partial_svd"
+    )
+    fixture_keys = ",".join(sorted({row["fixture_key"] for row in oracle_rows}))
+    configurations = " | ".join(sorted({row["configuration"] for row in oracle_rows}))
+    compilers = ",".join(sorted({row["compiler"] for row in oracle_rows}))
     path.write_text(
         "\n".join(
             [
@@ -647,17 +841,20 @@ def write_manifest(path: Path, command: str, oracle_rows: list[dict[str, str]]) 
                 f"source_commit={first['source_commit']}",
                 f"source_branch={first['source_branch']}",
                 f"platform={first['platform']}",
-                f"compiler={first['compiler']}",
-                f"configuration={first['configuration']}",
+                f"compiler={compilers}",
+                f"configuration={configurations}",
                 f"oracle_row_count={len(oracle_rows)}",
                 f"solver_families={solver_families}",
                 f"solver_qr_row_count={solver_qr_row_count}",
+                f"partial_svd_row_count={partial_svd_row_count}",
                 f"command={command}",
-                f"fixture_key={FIXTURE_KEY}",
+                f"fixture_keys={fixture_keys}",
                 "support_tier=local_only",
                 "claim_boundary=fixture-local corpus/oracle evidence only",
-                "non_claims=no broad QR correctness; no SuiteSparse parity; "
-                "no broad corpus completeness; no performance or state-of-the-art claim",
+                "non_claims=no broad QR correctness; no broad partial-SVD correctness; "
+                "no raw singular-vector identity; no SuiteSparse parity; "
+                "no external-library parity; no broad corpus completeness; "
+                "no performance or state-of-the-art claim",
                 "",
             ]
         )
@@ -675,6 +872,11 @@ def main() -> int:
         help="append solver-backed QR oracle rows from a temporary static-library probe",
     )
     parser.add_argument(
+        "--include-partial-svd",
+        action="store_true",
+        help="append generated-reference partial-SVD oracle rows for the Sprint 140 fixture",
+    )
+    parser.add_argument(
         "--solver-library",
         default=DEFAULT_SOLVER_LIBRARY,
         type=Path,
@@ -690,8 +892,13 @@ def main() -> int:
                 args.root, command, args.solver_library, validate_root=False
             )
         )
+    if args.include_partial_svd:
+        oracle_rows.extend(
+            build_partial_svd_oracle_rows(args.root, command, validate_root=False)
+        )
     skip_rows = build_skip_rows(args.root)
-    oracle_path = args.oracle_dir / f"{FIXTURE_KEY}.oracle.tsv"
+    oracle_name = "corpus.oracle.tsv" if args.include_partial_svd else f"{FIXTURE_KEY}.oracle.tsv"
+    oracle_path = args.oracle_dir / oracle_name
     report_path = args.report_dir / "index.tsv"
     manifest_path = args.report_dir / "manifest.txt"
     skip_path = args.report_dir / "skips.tsv"

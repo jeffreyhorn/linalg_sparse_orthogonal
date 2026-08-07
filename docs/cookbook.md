@@ -181,6 +181,14 @@ Dense SVD outputs and low-rank buffers are caller-owned according to the public
 SVD API. Sparse low-rank output is returned as a `SparseMatrix *` and is freed
 with `sparse_free(...)`.
 
+The maintained corpus includes one partial-SVD clustered/repeated fixture,
+`partial_svd_clustered_repeated_diag8x6_k3_v1`, for fixture-local top-3
+singular-value, top-k subspace-projector, triplet-residual, orthogonality,
+default-budget success, and tight-budget fail-closed behavior. Use it as a
+regression proof for that generated case only; it does not claim broad
+repeated-spectrum coverage, raw singular-vector identity, external-library
+parity, performance, or state-of-the-art behavior.
+
 Use [`examples/example_svd_lowrank.c`](../examples/example_svd_lowrank.c) for
 the smallest runnable SVD, rank, condition, and low-rank workflow. Use
 [`sparse_svd.h`](../include/sparse_svd.h) for exact option and ownership

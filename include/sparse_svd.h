@@ -119,6 +119,12 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * When `opts->compute_uv` is set with `opts->economy = 1`, approximate
  * thin left and right singular vectors are recovered from the Lanczos basis.
  * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top-k triplets.
+ * A maintained Sprint 140 corpus fixture covers one generated 8x6 diagonal
+ * case with clustered/repeated leading singular values, top-3 subspace
+ * projectors, triplet residuals, orthogonality, default-budget success, and
+ * tight-budget fail-closed behavior. That fixture-local evidence is not a
+ * broad repeated-spectrum, external-library parity, performance, or
+ * partial-result guarantee.
  * Partial SVD does not support the full-U / full-V^T mode.
  *
  * @param A    The matrix (not modified). Must have identity permutations.

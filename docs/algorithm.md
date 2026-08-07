@@ -251,6 +251,21 @@ Each factorization function computes and caches `||A||_inf` before modifying the
 | QR          | `|R(0,0)|` (computed) | `|R(0,0)|`                      |
 | SVD         | bidiag norm (local)   | bidiag norm                     |
 
+### Partial-SVD Clustered/Repeated Corpus Boundary
+
+`sparse_svd_partial(...)` computes the largest `k` singular values through the
+partial-SVD path described by the public header. Sprint 140 adds one maintained
+corpus boundary for the generated
+`partial_svd_clustered_repeated_diag8x6_k3_v1` fixture: an 8x6 diagonal matrix
+with clustered/repeated leading singular values and `k = 3`.
+
+The algorithm-facing evidence for that named fixture is limited to top-3
+singular values, left/right top-k coordinate-subspace projector checks, triplet
+residuals, orthogonality, default-budget success, tight-budget fail-closed
+behavior, and no partial arrays on tight-budget failure. It is not a broad
+repeated-spectrum, raw singular-vector identity, external-library parity,
+performance, partial-result, package/ABI, platform, or state-of-the-art claim.
+
 ### QR R-extraction dropping
 
 During QR factorization, R entries are dropped if |R(i,j)| < DROP_TOL × |R(i,i)|. This is relative to the diagonal of the current row, ensuring tiny-scale matrices retain all structurally significant entries.

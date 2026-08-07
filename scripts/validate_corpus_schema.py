@@ -156,6 +156,16 @@ def qr_rank_deficient_6x4_nullspace_entries() -> list[tuple[int, int, float]]:
     ]
 
 
+def partial_svd_clustered_repeated_diag8x6_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 10.0),
+        (1, 1, 10.0),
+        (2, 2, 9.999999),
+        (3, 3, 4.0),
+        (4, 4, 1.0),
+    ]
+
+
 GENERATED_FIXTURES = {
     "qr_rank_deficient_6x4_nullspace_generator_v1": {
         "algorithm": "fixed_columns_c3_equals_c0_plus_c1",
@@ -163,7 +173,17 @@ GENERATED_FIXTURES = {
         "cols": 4,
         "expected_rank": 3,
         "nullity": 1,
+        "parameters": "rows=6;cols=4;expected_rank=3;nullity=1;dependency=c3-c0-c1",
         "entries": qr_rank_deficient_6x4_nullspace_entries,
+    },
+    "partial_svd_clustered_repeated_diag8x6_generator_v1": {
+        "algorithm": "fixed_diagonal_clustered_repeated_partial_svd",
+        "rows": 8,
+        "cols": 6,
+        "expected_rank": 5,
+        "nullity": 1,
+        "parameters": "rows=8;cols=6;k=3;diag=10,10,9.999999,4,1,0;expected_rank=5;nullity=1",
+        "entries": partial_svd_clustered_repeated_diag8x6_entries,
     }
 }
 
@@ -260,14 +280,9 @@ def validate_known_generator(path: Path, line: int, row: dict[str, str]) -> None
     expected_value_hash = sha256_text(
         canonical_value_text(generator["rows"], generator["cols"], entries)
     )
-    expected_parameters = (
-        f"rows={generator['rows']};cols={generator['cols']};"
-        f"expected_rank={generator['expected_rank']};nullity={generator['nullity']};"
-        "dependency=c3-c0-c1"
-    )
     checks = {
         "algorithm": generator["algorithm"],
-        "parameters": expected_parameters,
+        "parameters": generator["parameters"],
         "expected_structure_hash": expected_structure_hash,
         "expected_value_hash": expected_value_hash,
         "canonical_format": CANONICAL_FORMAT,

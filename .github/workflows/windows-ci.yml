@@ -149,7 +149,7 @@ jobs:
 
           $pcFile = Join-Path $prefix "lib/pkgconfig/sparse.pc"
           $pcText = Get-Content -Path $pcFile -Raw
-          if ($pcText -notmatch "(?m)^Description: Static archive package metadata for sparse linear algebra$") {
+          if ($pcText -notmatch "(?m)^Description: Static archive package metadata for sparse linear algebra\r?$") {
             throw "Installed sparse.pc does not describe static archive package metadata."
           }
           if ($pcText -match "(?im)^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan") {

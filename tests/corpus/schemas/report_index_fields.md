@@ -51,5 +51,6 @@ Rows live in `tests/corpus/manifests/report_families.tsv` and are validated by
 - Package/install rows identify maintained proof owners and static-first
   scope; they do not claim package-manager availability, shared-library ABI,
   or broad platform support.
-- Runtime/backend governance rows stay deferred to Sprint 142 when policy
-  decisions are needed.
+- Runtime/backend governance rows should remain deferred only where policy
+  decisions are still open; selected Sprint 142 sentinel rows belong under the
+  `sentinel` family and keep local-only claim boundaries.

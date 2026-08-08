@@ -637,7 +637,8 @@ separate. Read them with these boundaries:
 
 `make wall-check` is the current hard timing regression gate for selected AMD
 and ND paths. `make performance-sentinels` wraps that hard gate and adds
-threshold-free local report context under `build/bench-reports/sentinels/`.
+threshold-free Cholesky CSC and LDLT KKT local report context under
+`build/bench-reports/sentinels/`.
 
 Use [`benchmarks/README.md`](../benchmarks/README.md) for current benchmark
 commands, report directories, CSV fields, and generated-index interpretation.

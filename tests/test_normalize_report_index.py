@@ -299,6 +299,31 @@ def write_runtime_fixture(build_root: Path) -> None:
             ]
         )
         + "\n"
+        + "\t".join(
+            [
+                "sentinel",
+                "S3",
+                "report",
+                "reviewed_threshold_free",
+                "local_threshold_free",
+                "build/bench_refactor_csc --indefinite-kkt --repeat 1",
+                "serial",
+                "unset",
+                "kkt-150",
+                "refactor_csc_ms",
+                "4.0",
+                "n/a",
+                "n/a",
+                "bench_refactor_csc_kkt.csv",
+                "external",
+                "builtin",
+                "yes",
+                "n/a",
+                "n/a",
+                "threshold_free;ldlt_env=external;scenario=ldlt_kkt",
+            ]
+        )
+        + "\n"
     )
     (sentinels / "manifest.txt").write_text(
         "performance-sentinels\n"
@@ -363,6 +388,14 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
             and row["status"] == "advisory"
             for row in by_family["sentinel"]
         )
+        s3_rows = [
+            row for row in by_family["sentinel"] if row["native_row_id"] == "S3_kkt-150_refactor_csc_ms"
+        ]
+        assert len(s3_rows) == 1
+        assert s3_rows[0]["status"] == "advisory"
+        assert "backend_request=external" in s3_rows[0]["configuration"]
+        assert "backend_selected=builtin" in s3_rows[0]["configuration"]
+        assert "backend_fallback=yes" in s3_rows[0]["configuration"]
         assert any(row["native_row_id"] == "G1" and row["status"] == "pass" for row in by_family["guardrail"])
         assert any(row["native_row_id"] == "S1" and row["status"] == "skip" for row in by_family["guardrail"])
         for row in rows:

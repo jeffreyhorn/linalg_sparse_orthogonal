@@ -172,7 +172,7 @@ When to widen beyond the first examples:
   is intentionally not a pass/fail timing gate
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing wall-check lane, while
-  Cholesky CSC rows are threshold-free measurement context
+  Cholesky CSC and LDLT KKT rows are threshold-free measurement context
 
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
@@ -180,6 +180,34 @@ paths from a fresh matrix or a fresh `sparse_copy()`.
 For direct-solver evidence boundaries and current test ownership, use the
 [Maintainer Guide](docs/maintainer_guide.md). The README keeps the adoption
 path focused on choosing and running supported public workflows.
+
+## Runtime And Backend Controls
+
+Use public typed options when caller-owned backend or analysis policy matters:
+
+- `sparse_cholesky_opts_t.backend` for Cholesky linked-list/CSC dispatch.
+- `sparse_ldlt_opts_t.backend` for LDL^T linked-list/CSC dispatch.
+- `sparse_eigs_opts_t.backend` for symmetric eigensolver AUTO/Lanczos/
+  thick-restart/LOBPCG dispatch.
+- `sparse_analysis_opts_t.reorder_opts` for the shipped analysis-time
+  supernodal postorder and ND routing/coarsening controls.
+
+Leave these fields zero-initialized for default/AUTO behavior. Explicit typed
+values take precedence over legacy compatibility environment variables where
+both exist.
+
+Environment variables such as `SPARSE_CHOL_DENSE_BACKEND`,
+`SPARSE_LDLT_DENSE_BACKEND`, `SPARSE_SVD_LOWRANK_OUTER`, FM debug/profile
+knobs, `SPARSE_OPENMP`, `OMP_NUM_THREADS`, and test/benchmark opt-ins are
+maintainer, build, runtime-context, or report controls. They are useful for
+local diagnostics and generated report context, but they are not new public
+typed APIs, ABI guarantees, package guarantees, platform parity claims, or
+portable performance claims.
+
+Runtime/backend sentinels follow the same boundary: `S5` is the existing
+local `wall-check` hard gate, while `S2` Cholesky CSC and `S3` LDLT KKT rows
+are threshold-free local context rows in
+`build/bench-reports/sentinels/sentinels.tsv`.
 
 ## Building
 
@@ -214,7 +242,7 @@ python3 scripts/normalize_report_index.py --check  # validate normalized report-
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
-make performance-sentinels  # local sentinel bundle: wall-check hard gate + threshold-free Cholesky CSC context
+make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
 make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed structural report artifacts
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
@@ -702,7 +730,7 @@ maintained benchmark surface. Treat emitted benchmark rows as branch-local
 measurement artifacts, not portable performance guarantees. Use
 `make performance-sentinels` when you need the bounded local sentinel bundle:
 it reports the existing hard `wall-check` gate plus threshold-free Cholesky CSC
-backend context under the current backend and thread settings.
+and LDLT KKT backend context under the current backend and thread settings.
 
 ## Thread Safety
 

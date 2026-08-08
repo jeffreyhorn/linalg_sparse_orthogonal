@@ -1059,9 +1059,27 @@ Current bounded local sentinel bundle:
     backend seam
   - treats S5 as the existing hard `wall-check` threshold gate
   - treats S2 Cholesky CSC rows as threshold-free report context only
+  - treats S3 LDLT KKT rows as threshold-free backend report context only
   - should not add new hard timing thresholds without a fresh local-baseline
     or same-worktree comparison design
   - should not be described as portable performance evidence
+
+Runtime/backend control boundary:
+
+- public typed controls are limited to caller-meaningful backend or analysis
+  decisions: Cholesky backend, LDLT backend, symmetric eigensolver backend,
+  and analysis/reorder options
+- legacy environment variables are compatibility or maintainer controls when a
+  typed field exists; explicit typed values win when both are present
+- `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND` are dense-helper
+  diagnostics/report controls, not public solver-backend API
+- `SPARSE_SVD_LOWRANK_OUTER`, FM strategy/debug/profile variables, OpenMP
+  runtime context, package/link settings, and test/benchmark opt-ins remain
+  maintainer-only or build/report controls unless a future sprint promotes a
+  specific surface with tests and documentation
+- generated sentinel backend fields preserve request/selection/fallback
+  context; they do not imply optional-backend availability, ABI support, or
+  portable timing behavior
 
 Report-index handoff:
 

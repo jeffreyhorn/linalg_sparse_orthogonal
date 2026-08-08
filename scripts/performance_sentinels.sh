@@ -2,21 +2,23 @@
 # performance_sentinels.sh — bounded local performance sentinel bundle.
 #
 # This wrapper records runtime context, runs the existing thresholded
-# wall-check gate, and captures a threshold-free Cholesky CSC benchmark row.
+# wall-check gate, and captures threshold-free Cholesky CSC and LDLT KKT
+# benchmark rows.
 # It is local regression evidence, not a portable performance claim.
 
 set -euo pipefail
 
-if [ "$#" -ne 5 ]; then
-    echo "performance-sentinels: usage: $0 <report_dir> <bench_chol_csc> <bench_amd_qg> <bench_reorder> <wall_baseline>" >&2
+if [ "$#" -ne 6 ]; then
+    echo "performance-sentinels: usage: $0 <report_dir> <bench_chol_csc> <bench_refactor_csc> <bench_amd_qg> <bench_reorder> <wall_baseline>" >&2
     exit 2
 fi
 
 report_dir="$1"
 bench_chol_csc="$2"
-bench_amd_qg="$3"
-bench_reorder="$4"
-wall_baseline="$5"
+bench_refactor_csc="$3"
+bench_amd_qg="$4"
+bench_reorder="$5"
+wall_baseline="$6"
 
 mkdir -p "$report_dir"
 
@@ -24,8 +26,9 @@ report_tsv="$report_dir/sentinels.tsv"
 manifest_txt="$report_dir/manifest.txt"
 wall_output="$report_dir/wall_check.txt"
 chol_output="$report_dir/bench_chol_csc_nos4.csv"
+ldlt_output="$report_dir/bench_refactor_csc_kkt.csv"
 
-rm -f "$wall_output" "$chol_output"
+rm -f "$wall_output" "$chol_output" "$ldlt_output"
 
 detect_openmp_runtime() {
     local binary="$1"
@@ -57,7 +60,7 @@ detect_build_mode() {
         return 0
     fi
 
-    for binary in "$bench_chol_csc" "$bench_amd_qg" "$bench_reorder"; do
+    for binary in "$bench_chol_csc" "$bench_refactor_csc" "$bench_amd_qg" "$bench_reorder"; do
         if detect_openmp_runtime "$binary"; then
             printf 'openmp\n'
             return 0
@@ -80,7 +83,7 @@ reject_tsv_control_chars() {
 }
 
 timestamp_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-git_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
+git_commit="$(git rev-parse HEAD 2>/dev/null || true)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 platform="$(uname -a 2>/dev/null || echo unknown)"
 cc_version="$(${CC:-cc} --version 2>/dev/null | head -n 1 || echo unknown)"
@@ -181,6 +184,38 @@ else
     fi
 fi
 
+ldlt_cmd="$bench_refactor_csc --indefinite-kkt --repeat 1"
+if [ ! -x "$bench_refactor_csc" ]; then
+    append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "n/a" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_refactor_csc_missing"
+else
+    if "$bench_refactor_csc" --indefinite-kkt --repeat 1 > "$ldlt_output"; then
+        awk -F, -v cmd="$ldlt_cmd" \
+            -v build_mode="$build_mode" \
+            -v omp="$omp_num_threads" \
+            -v env_request="$ldlt_dense_backend" \
+            -v artifact="$(basename "$ldlt_output")" '
+            BEGIN { OFS="\t" }
+            NR == 2 {
+                fixture = $3
+                backend_request = $7
+                backend_selected = $8
+                backend_fallback = $9
+                note = "threshold_free;ldlt_env=" env_request ";scenario=" $4
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "analyze_ms", $10, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_public_ms", $11, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_csc_ms", $12, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_public_ms", $13, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $14, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_refactor", $15, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_public", $16, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_csc", $17, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+            }
+        ' "$ldlt_output" >> "$report_tsv"
+    else
+        append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "$(basename "$ldlt_output")" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_run_failed"
+    fi
+fi
+
 {
 cat <<EOF
 performance-sentinels
@@ -198,6 +233,7 @@ sparse_ldlt_dense_backend=$ldlt_dense_backend
 commands:
 - S5: make wall-check
 - S2: $chol_cmd
+- S3: $ldlt_cmd
 
 artifacts:
 - $(basename "$report_tsv")
@@ -210,12 +246,16 @@ fi
 if [ -e "$chol_output" ]; then
     echo "- $(basename "$chol_output")"
 fi
+if [ -e "$ldlt_output" ]; then
+    echo "- $(basename "$ldlt_output")"
+fi
 
 cat <<EOF
 
 notes:
 - S5 is the existing thresholded wall-check gate and may fail this script.
 - S2 is threshold-free local reporting; compare across local runs only.
+- S3 is threshold-free LDLT KKT backend reporting; compare across local runs only.
 - This bundle is local regression evidence, not a portable performance claim.
 EOF
 } > "$manifest_txt"
@@ -228,6 +268,9 @@ if [ -e "$wall_output" ]; then
 fi
 if [ -e "$chol_output" ]; then
     echo "  - $(basename "$chol_output")"
+fi
+if [ -e "$ldlt_output" ]; then
+    echo "  - $(basename "$ldlt_output")"
 fi
 
 if [ "$wall_status" = "fail" ]; then

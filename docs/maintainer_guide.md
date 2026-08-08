@@ -243,13 +243,16 @@ Focused install/package regression ownership:
   static archive/no-shared-artifact install shape, `.pc` prefix/libdir/include
   variables, installed include and link flags, exact package version
   resolution, no `Libs.private` stanza for the current self-contained link
-  surface, absence of unsupported package/ABI claims in `sparse.pc`, two
+  surface, static archive `.pc` description, absence of unsupported
+  package/ABI claims in `sparse.pc`, stricter output checks for two
   compile/link/run consumers, and uninstall cleanup
 - `tests/test_cmake_install.sh` is the local Unix-side proof for CMake
   install/export plus `find_package(Sparse)`; it checks exact installed
   header count, static imported-target metadata, installed-prefix include and
-  archive locations, absence of source/build-tree path leaks, exact-version
-  package behavior, mismatched-version rejection, and installed consumer
+  archive locations, absence of shared imported metadata, absence of
+  source/build-tree path leaks, static archive `.pc` description, absence of
+  unsupported package/ABI wording, exact-version package configure/build/run
+  behavior, mismatched-version rejection, and installed consumer
   configure/build/run
 - `scripts/static_package_deferral_check.sh` is the local package-contract
   guard that checks `BUILD_SHARED_LIBS=ON` rejection, the explicit static
@@ -301,7 +304,7 @@ Sprint 112 package/platform proof snapshot:
 - macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC,
   Make install/`pkg-config`, and CMake install/export confidence; those
   supplemental package lanes do not become reviewed macOS install/export parity
-- Windows keeps the reviewed MSVC CMake-first subset with 54 registered CTest
+- Windows keeps the reviewed MSVC CMake-first subset with 56 registered CTest
   tests plus supplemental CMake install/downstream confidence;
   `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain staged
   exclusions because the current sources still depend on pthread or POSIX

@@ -4,7 +4,8 @@ name: macOS CI
 # checks (`wall-check`, `sanitize`). The Homebrew GCC leg remains
 # supplemental second-compiler coverage. The Make install/`pkg-config`
 # and CMake install/export jobs below are also supplemental: they strengthen
-# confidence in the maintained static-first package story, but they do not
+# confidence in the maintained static-first package story, including
+# downstream consumer and unsupported shared-artifact proof, but they do not
 # claim reviewed install/export parity and do not widen macOS beyond the
 # narrower reviewed Apple Clang lane. See README.md "Cross-Platform CI
 # Contract" for the full model.

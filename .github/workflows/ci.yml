@@ -7,9 +7,10 @@ name: CI
 # - reviewed static-first package contract path
 # It also carries Linux-specific supplemental signals (`make test`,
 # `bench-fast`, TSan, coverage). The package contract lane covers the
-# maintained static archive install/export surface only; it does not imply
-# shared-library packaging, dynamic ABI compatibility, or package-manager
-# support.
+# maintained static archive install/export/downstream surface only, including
+# static pkg-config/CMake metadata and unsupported shared-artifact checks; it
+# does not imply shared-library packaging, dynamic ABI compatibility,
+# runtime-loader behavior, or package-manager support.
 # See README.md "Cross-Platform CI Contract" for the full
 # enforced/staged/supplemental model.
 

@@ -105,7 +105,7 @@ fi
 if [ -f "$PREFIX/lib/pkgconfig/sparse.pc" ]; then
     pass "sparse.pc installed"
 else
-    fail "sparse.pc" "not found"
+    fail "sparse.pc" "not found at $PREFIX/lib/pkgconfig/sparse.pc"
 fi
 
 echo "--- Checking installed CMake package metadata ---"
@@ -115,6 +115,13 @@ if [ -f "$SPARSE_TARGETS" ] && \
     pass "CMake imported target is static"
 else
     fail "CMake imported target type" "expected STATIC IMPORTED target"
+fi
+
+SHARED_TARGET_METADATA=$(grep -R -n -E 'SHARED IMPORTED|MODULE IMPORTED|IMPORTED_LOCATION[^[:space:]]*.*\.(so|dylib|dll)' "$CMAKE_PACKAGE_DIR" 2>/dev/null || true)
+if [ -z "$SHARED_TARGET_METADATA" ]; then
+    pass "CMake package has no shared-library imported metadata"
+else
+    fail "CMake shared imported metadata" "$SHARED_TARGET_METADATA"
 fi
 
 if [ -f "$SPARSE_TARGETS" ] && \
@@ -146,6 +153,21 @@ else
     fail "CMake package build-tree paths" "$PACKAGE_BUILD_LEAKS"
 fi
 
+PC_FILE="$PREFIX/lib/pkgconfig/sparse.pc"
+if [ -f "$PC_FILE" ] && \
+    grep -Fxq 'Description: Static archive package metadata for sparse linear algebra' "$PC_FILE"; then
+    pass "pkg-config metadata describes static archive package"
+else
+    fail "pkg-config metadata description" "expected static archive package description in $PC_FILE"
+fi
+
+if [ -f "$PC_FILE" ] && \
+    ! grep -Eq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
+    pass "pkg-config metadata has no unsupported package or ABI claims"
+else
+    fail "pkg-config unsupported metadata" "unexpected unsupported package or ABI wording in $PC_FILE"
+fi
+
 # ── 3. Build cmake_example against installed library ────────────────
 echo "--- Building cmake_example with find_package(Sparse) ---"
 mkdir -p "$EXAMPLE_BUILD"
@@ -166,7 +188,9 @@ fi
 
 if [ -x "$EXAMPLE_BUILD/example" ]; then
     OUTPUT="$("$EXAMPLE_BUILD/example" 2>&1)"
-    if echo "$OUTPUT" | grep -q "OK"; then
+    if echo "$OUTPUT" | grep -q "Sparse library version" && \
+        echo "$OUTPUT" | grep -q "Solution:" && \
+        echo "$OUTPUT" | grep -q "OK"; then
         pass "cmake_example runs correctly"
     else
         fail "cmake_example run" "unexpected output: $OUTPUT"
@@ -197,6 +221,26 @@ if cmake -S "$VERSION_EXACT_SRC" -B "$VERSION_EXACT_BUILD" \
 else
     fail "find_package exact installed version" "see $LOG"
     tail -20 "$LOG"
+fi
+
+if cmake --build "$VERSION_EXACT_BUILD" >>"$LOG" 2>&1; then
+    pass "find_package exact-version consumer builds"
+else
+    fail "find_package exact-version consumer build" "see $LOG"
+    tail -20 "$LOG"
+fi
+
+if [ -x "$VERSION_EXACT_BUILD/version_exact" ]; then
+    OUTPUT="$("$VERSION_EXACT_BUILD/version_exact" 2>&1)"
+    if echo "$OUTPUT" | grep -q "Sparse library version" && \
+        echo "$OUTPUT" | grep -q "Solution:" && \
+        echo "$OUTPUT" | grep -q "OK"; then
+        pass "find_package exact-version consumer runs correctly"
+    else
+        fail "find_package exact-version consumer run" "unexpected output: $OUTPUT"
+    fi
+else
+    fail "find_package exact-version consumer executable" "not found"
 fi
 
 IFS=. read -r version_major version_minor version_patch << EOF

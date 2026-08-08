@@ -4,7 +4,7 @@ libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 
 Name: sparse
-Description: Sparse linear algebra library with orthogonal linked-list representation
+Description: Static archive package metadata for sparse linear algebra
 Version: @VERSION@
 Cflags: -I${includedir}
 Libs: -L${libdir} -lsparse_lu_ortho -lm @SPARSE_PC_LIBS_EXTRA@

@@ -78,7 +78,31 @@ check_static_target() {
         "$ROOT_DIR/CMakeLists.txt" \
         "sparse_lu_ortho is no longer declared as an explicit STATIC target"
 
+    require_absent_grep \
+        'add_library[[:space:]]*\([[:space:]]*sparse_lu_ortho[[:space:]]+(SHARED|MODULE)' \
+        "$ROOT_DIR/CMakeLists.txt" \
+        "sparse_lu_ortho gained a non-static library target without a shared ABI decision"
+
     pass "static target declaration"
+}
+
+check_static_install_metadata() {
+    require_grep \
+        'ARCHIVE DESTINATION \$\{CMAKE_INSTALL_LIBDIR\}' \
+        "$ROOT_DIR/CMakeLists.txt" \
+        "CMake install metadata no longer installs the static archive"
+
+    require_absent_grep \
+        'RUNTIME DESTINATION|LIBRARY DESTINATION' \
+        "$ROOT_DIR/CMakeLists.txt" \
+        "CMake install metadata gained runtime/shared-library destinations without a support decision"
+
+    require_grep \
+        '^Description: Static archive package metadata for sparse linear algebra$' \
+        "$ROOT_DIR/sparse.pc.in" \
+        "pkg-config description no longer states the static archive package contract"
+
+    pass "static install metadata"
 }
 
 check_no_export_or_abi_metadata() {
@@ -132,6 +156,7 @@ check_support_wording() {
 
 check_build_shared_rejected
 check_static_target
+check_static_install_metadata
 check_no_export_or_abi_metadata
 check_no_package_selector
 check_support_wording

@@ -387,7 +387,6 @@ target_include_directories(sparse_lu_ortho
 install(TARGETS sparse_lu_ortho
     EXPORT SparseTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 install(DIRECTORY include/
@@ -432,7 +431,8 @@ install(FILES
     DESTINATION ${SPARSE_CMAKE_DIR}
 )
 
-# pkg-config (set variables that match the @VAR@ placeholders in sparse.pc.in)
+# pkg-config metadata for the maintained static archive package surface.
+# Keep the generated flags aligned with sparse.pc.in and the install tests.
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(VERSION ${PROJECT_VERSION})
 set(SPARSE_PC_LIBS_EXTRA "")

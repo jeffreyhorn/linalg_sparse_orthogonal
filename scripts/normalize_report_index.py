@@ -107,7 +107,9 @@ def write_tsv(path: Path, rows: list[dict[str, str]]) -> None:
 
 def run_text(args: list[str]) -> str:
     try:
-        return subprocess.check_output(args, text=True, stderr=subprocess.DEVNULL).strip()
+        return subprocess.check_output(
+            args, cwd=REPO_ROOT, text=True, stderr=subprocess.DEVNULL
+        ).strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 
@@ -210,7 +212,7 @@ def base_row(contract: dict[str, str], commit: str, branch: str) -> dict[str, st
         "compiler": "not_applicable",
         "configuration": f"freshness_policy={contract['freshness_policy']}",
         "artifact_path": contract["artifact_pattern"],
-        "freshness_status": contract["freshness_policy"],
+        "freshness_status": "source_controlled",
         "freshness_reason": "source_controlled_contract",
         "skip_or_defer_reason": "",
     }
@@ -959,9 +961,11 @@ def freshness_severity(
     current_commit: str,
     required_families: set[str],
     strict_generated: bool,
+    advisory_ok: bool,
 ) -> tuple[str, str]:
     policy = freshness_policy(row)
     required = is_required_family(row, required_families)
+    advisory_policy = policy in ADVISORY_FRESHNESS_POLICIES
 
     if row["status"] == "fail":
         if row["row_meaning"] in {"sentinel_hard_gate", "guardrail_lane"}:
@@ -985,7 +989,7 @@ def freshness_severity(
             return ("warning", "local generated report is absent")
         return ("advisory", "local generated advisory report is absent")
     if state == "stale":
-        if required or strict_generated:
+        if required or (strict_generated and not (advisory_ok and advisory_policy)):
             return ("error", "source_commit does not match current HEAD")
         if policy in STRICT_FRESHNESS_POLICIES:
             return ("warning", "source_commit does not match current HEAD")
@@ -994,7 +998,7 @@ def freshness_severity(
         return ("advisory", "generated row source_commit matches current HEAD")
     if state == "generated_present_unchecked":
         if row.get("source_commit") not in {"", "unknown", "not_applicable", current_commit}:
-            if required or strict_generated:
+            if required or (strict_generated and not (advisory_ok and advisory_policy)):
                 return ("error", "source_commit does not match current HEAD")
             if policy in STRICT_FRESHNESS_POLICIES:
                 return ("warning", "source_commit does not match current HEAD")
@@ -1023,6 +1027,7 @@ def freshness_diagnostics(
     current_commit: str,
     required_families: set[str],
     strict_generated: bool,
+    advisory_ok: bool,
 ) -> tuple[list[str], bool]:
     diagnostics: list[str] = []
     has_error = False
@@ -1034,6 +1039,7 @@ def freshness_diagnostics(
             current_commit=current_commit,
             required_families=required_families,
             strict_generated=strict_generated,
+            advisory_ok=advisory_ok,
         )
         if severity in ERROR_SEVERITIES:
             has_error = True
@@ -1085,6 +1091,7 @@ def main() -> int:
             current_commit=commit,
             required_families=required_families,
             strict_generated=args.strict_generated,
+            advisory_ok=args.advisory_ok,
         )
         for diagnostic in diagnostics:
             print(diagnostic)

@@ -73,7 +73,38 @@ def test_current_repo_no_generated() -> None:
         for row in rows:
             if row["row_id"].startswith("report_contract_"):
                 assert row["status"] != "pass"
+                if row["status"] != "defer":
+                    assert row["freshness_status"] == "source_controlled"
                 assert row["non_claims"]
+
+
+def test_git_metadata_is_independent_of_caller_cwd() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        output = tmp_path / "normalized-index.tsv"
+        result = subprocess.run(
+            [
+                "python3",
+                str(SCRIPT),
+                "--no-generated",
+                "--output",
+                str(output),
+            ],
+            cwd=tmp_path,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                "command failed outside repo root:"
+                f"\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+
+        rows = read_tsv(output)
+        commits = {row["source_commit"] for row in rows}
+        branches = {row["source_branch"] for row in rows}
+        assert commits == {current_commit()}
+        assert "unknown" not in branches
 
 
 def test_family_filter_and_required_missing() -> None:
@@ -549,6 +580,38 @@ def test_freshness_stale_and_advisory_runtime_rows() -> None:
         assert "freshness: advisory:" in result.stdout
         assert "local measurement freshness is advisory" in result.stdout
 
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "benchmark",
+                "--strict-generated",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "stale: source_commit does not match current HEAD" in result.stdout
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "benchmark",
+                "--strict-generated",
+                "--advisory-ok",
+                "--check-freshness",
+            ]
+        )
+        assert "freshness: advisory:" in result.stdout
+        assert "local measurement freshness is advisory" in result.stdout
+
         sentinel_path = build_root / "bench-reports" / "sentinels" / "sentinels.tsv"
         sentinel_path.write_text(sentinel_path.read_text().replace("\tpass\t", "\tfail\t", 1))
         result = run_command(
@@ -619,6 +682,7 @@ def test_generated_oracle_rows_are_preserved() -> None:
 
 def main() -> int:
     test_current_repo_no_generated()
+    test_git_metadata_is_independent_of_caller_cwd()
     test_family_filter_and_required_missing()
     test_generated_artifact_presence()
     test_runtime_report_rows_preserve_boundaries()

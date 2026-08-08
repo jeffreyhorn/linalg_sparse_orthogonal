@@ -367,14 +367,15 @@ bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
 		"$(BUILDDIR)/bench_eigs_reuse"
 
 # Bounded local performance sentinels.  Hard pass/fail behavior is limited to
-# the existing wall-check lane; Cholesky CSC rows are threshold-free local
-# report context under build/bench-reports/sentinels/.
+# the existing wall-check lane; Cholesky CSC and LDLT KKT rows are
+# threshold-free local report context under build/bench-reports/sentinels/.
 PERFORMANCE_SENTINEL_BUILD_MODE = $(if $(findstring -DSPARSE_OPENMP,$(CFLAGS)),openmp,)
 .PHONY: performance-sentinels
-performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
+performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_refactor_csc $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
 	@SPARSE_SENTINEL_BUILD_MODE="$(PERFORMANCE_SENTINEL_BUILD_MODE)" \
 		scripts/performance_sentinels.sh "$(PERFORMANCE_SENTINEL_DIR)" \
 		"$(BUILDDIR)/bench_chol_csc" \
+		"$(BUILDDIR)/bench_refactor_csc" \
 		"$(BUILDDIR)/bench_amd_qg" \
 		"$(BUILDDIR)/bench_reorder" \
 		docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt

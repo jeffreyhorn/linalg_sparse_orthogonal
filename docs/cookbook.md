@@ -255,6 +255,11 @@ navigation:
 - `build/bench-reports/large-matrix-guardrails/index.tsv` plus
   `manifest.txt`
 
+In the sentinel bundle, `S5` is the existing local hard `wall-check` gate.
+`S2` Cholesky CSC and `S3` LDLT KKT rows are threshold-free local backend
+context only; read them with the recorded compiler, platform, build mode,
+backend request/selection/fallback, and thread settings.
+
 Read indexes as artifact maps and freshness context. Regenerate reports when
 you need current evidence; do not edit generated rows by hand to make an old
 artifact look current.

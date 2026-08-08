@@ -288,6 +288,8 @@ with these artifacts:
     runs
 - `bench_chol_csc_nos4.csv`
   - raw threshold-free Cholesky CSC row when the S2 lane runs
+- `bench_refactor_csc_kkt.csv`
+  - raw threshold-free LDLT KKT row when the S3 lane runs
 
 Interpret the bundle narrowly:
 
@@ -295,9 +297,13 @@ Interpret the bundle narrowly:
   target.
 - S2 captures `bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1` as
   threshold-free report context only.
+- S3 captures `bench_refactor_csc --indefinite-kkt --repeat 1` as
+  threshold-free LDLT backend report context only.
 - S5 rows report backend-specific fields as `n/a`; S2 rows preserve the
   Cholesky dense-kernel and panel-solver descriptors parsed from
   `bench_chol_csc`.
+- S3 rows preserve the LDLT dense-backend request, selected backend, and
+  fallback fields parsed from `bench_refactor_csc`.
 - Missing binaries, fixtures, or baselines are reported as explicit skip rows
   where practical; skips are not passes.
 - The bundle is local regression evidence, not a portable timing guarantee.
@@ -381,10 +387,15 @@ python3 scripts/normalize_report_index.py \
 ```
 
 The normalized index preserves benchmark rows as local/advisory measurements,
-sentinel S5 rows as the existing wall-check hard gate, sentinel S2 rows as
-threshold-free context, and large-matrix guardrail reviewed/supplemental lanes
-as separate row meanings. Freshness diagnostics do not convert local timing
-rows into portable performance claims.
+sentinel S5 rows as the existing wall-check hard gate, sentinel S2 and S3 rows
+as threshold-free context, and large-matrix guardrail reviewed/supplemental
+lanes as separate row meanings. Freshness diagnostics do not convert local
+timing rows into portable performance claims.
+
+Generated benchmark, sentinel, guardrail, and normalized-index outputs belong
+under ignored `build/` paths such as `build/bench-reports/sentinels/` and
+`build/report-index/`. Regenerate those outputs from the maintained commands;
+do not edit or commit generated timing/report rows by hand.
 
 Supplemental report mode is opt-in:
 

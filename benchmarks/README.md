@@ -369,11 +369,22 @@ When reading any generated report index:
 - keep CSV timing rows tied to the recorded environment and command line
 - regenerate reports instead of editing generated indexes by hand
 
-Sprint 131 accepted the existing large-matrix guardrail `index.tsv` as the
-first generated report/index path because it already has stable lane IDs,
-reviewed/supplemental categories, explicit skip rows, and manifest freshness
-anchors. Cross-report normalized indexing remains deferred until report-family
-row meanings can be preserved without flattening their claim boundaries.
+Use the normalized report index when you need a cross-report view:
+
+```sh
+python3 scripts/normalize_report_index.py \
+  --family benchmark --family sentinel --family guardrail \
+  --output build/report-index/normalized-index.tsv
+python3 scripts/normalize_report_index.py \
+  --family benchmark --family sentinel --family guardrail \
+  --check-freshness
+```
+
+The normalized index preserves benchmark rows as local/advisory measurements,
+sentinel S5 rows as the existing wall-check hard gate, sentinel S2 rows as
+threshold-free context, and large-matrix guardrail reviewed/supplemental lanes
+as separate row meanings. Freshness diagnostics do not convert local timing
+rows into portable performance claims.
 
 Supplemental report mode is opt-in:
 

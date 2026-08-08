@@ -162,7 +162,7 @@ else
 fi
 
 if [ -f "$PC_FILE" ] && \
-    ! grep -Eq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
+    ! grep -Eiq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
     pass "pkg-config metadata has no unsupported package or ABI claims"
 else
     fail "pkg-config unsupported metadata" "unexpected unsupported package or ABI wording in $PC_FILE"

@@ -2,13 +2,15 @@ name: macOS CI
 
 # macOS enforces the Apple Clang reviewed path plus platform-specific
 # checks (`wall-check`, `sanitize`). The Homebrew GCC leg remains
-# supplemental second-compiler coverage. The Make install/`pkg-config`
-# and CMake install/export jobs below are also supplemental: they strengthen
-# confidence in the maintained static-first package story, including
-# downstream consumer and unsupported shared-artifact proof, but they do not
-# claim reviewed install/export parity and do not widen macOS beyond the
-# narrower reviewed Apple Clang lane. See README.md "Cross-Platform CI
-# Contract" for the full model.
+# supplemental second-compiler coverage.
+#
+# The Make install/`pkg-config` and CMake install/export jobs below are
+# reviewed macOS static-first install/export proof for the maintained static
+# archive package contract, including downstream consumer and unsupported
+# shared-artifact proof. They do not claim shared-library packaging, dynamic
+# ABI compatibility, runtime-loader compatibility, package-manager support,
+# static/shared selectors, or broader macOS platform parity. See README.md
+# "Cross-Platform CI Contract" for the full model.
 
 on:
   push:
@@ -89,34 +91,34 @@ jobs:
           make clean
           make CC=${{ matrix.cc }} sanitize
 
-  # Verify the maintained static-first Make install/`pkg-config` path on
-  # macOS. Lives in a separate supplemental job because it installs to a temp
-  # prefix and runs verification commands. This job is confidence-building
-  # support for the package story, not a reviewed macOS install/export parity
-  # lane and not a substitute for the broader Unix-side local regression
-  # scripts.
+  # Verify the reviewed macOS static-first Make install/`pkg-config` path.
+  # This job installs to a temp prefix and runs the maintained Unix-side
+  # package proof script on the hosted macOS runner. It proves the static
+  # archive install/`pkg-config` contract only, not shared-library packaging,
+  # dynamic ABI compatibility, package-manager support, or broader macOS
+  # platform parity.
   install-and-pkgconfig:
-    name: macOS supplemental static-first install and pkg-config confidence path
+    name: macOS reviewed static-first install and pkg-config proof
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run maintained supplemental Make install/pkg-config proof
+      - name: Run reviewed Make install/pkg-config proof
         run: bash tests/test_install.sh
 
-  # Verify the maintained static-first CMake install/export path on macOS.
-  # Lives in a separate supplemental job because it performs a full CMake
-  # install/export and downstream find_package proof. This job is
-  # confidence-building support for the package story, not a reviewed macOS
-  # install/export parity lane, and it does not widen macOS beyond the
-  # narrower reviewed Apple Clang lane.
+  # Verify the reviewed macOS static-first CMake install/export path. This
+  # job performs a full CMake install/export and downstream find_package proof
+  # on the hosted macOS runner, plus the static-first deferral guard. It proves
+  # the static CMake package contract only, not shared-library packaging,
+  # dynamic ABI compatibility, package-manager support, or broader macOS
+  # platform parity.
   cmake-install-export:
-    name: macOS supplemental CMake install/export confidence path
+    name: macOS reviewed static-first CMake install/export proof
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run maintained supplemental CMake install/export proof
+      - name: Run reviewed CMake install/export proof
         run: bash tests/test_cmake_install.sh
 
       - name: Run static-first package deferral proof

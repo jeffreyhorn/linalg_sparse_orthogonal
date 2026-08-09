@@ -231,8 +231,9 @@ Interpretation:
 - treat any future shared-library or wider ABI claim as a separate product
   contract with its own validation and platform ownership
 - keep platform truth explicit: Linux is still the strongest reviewed source of
-  truth and now includes a reviewed static-first package-contract lane, macOS
-  remains narrower with supplemental static-first install/export confidence, and
+  truth and now includes a reviewed static-first package-contract lane; macOS
+  now carries reviewed static-first Make install/`pkg-config` and CMake
+  install/export proof for the maintained static archive package contract; and
   Windows remains the reviewed CMake-first consumer subset with supplemental
   CMake install/downstream confidence
 
@@ -261,8 +262,11 @@ Focused install/package regression ownership:
 - Linux CI carries a reviewed static-first package-contract lane that runs the
   Make install/`pkg-config` proof, CMake install/export proof, and static
   deferral guard
-- macOS CI carries narrower supplemental Make install/`pkg-config` and CMake
-  install/export confidence lanes
+- macOS CI carries reviewed static-first Make install/`pkg-config` and CMake
+  install/export proof lanes for the maintained static archive package
+  contract; these lanes preserve no shared-library, dynamic ABI,
+  runtime-loader, package-manager, static/shared selector, or broad macOS
+  platform parity claims
 - Windows does not currently claim a separate reviewed install-validation lane;
   it keeps the reviewed CMake subset plus supplemental CMake
   install/downstream confidence for the CMake-first consumer story
@@ -301,9 +305,10 @@ Sprint 112 package/platform proof snapshot:
   deferrals
 - Linux remains the strongest reviewed source of truth; Sprint 134 promoted the
   static-first package-contract proof stack to a reviewed Linux CI lane
-- macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC,
-  Make install/`pkg-config`, and CMake install/export confidence; those
-  supplemental package lanes do not become reviewed macOS install/export parity
+- macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC, and
+  Sprint 144 promotes static-first Make install/`pkg-config` and CMake
+  install/export proof to reviewed macOS package lanes for the maintained
+  static archive package contract
 - Windows keeps the reviewed MSVC CMake-first subset with 56 registered CTest
   tests plus supplemental CMake install/downstream confidence;
   `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain staged
@@ -311,8 +316,7 @@ Sprint 112 package/platform proof snapshot:
   temp-file APIs
 - do not infer shared-library support, ABI stability, package-manager support,
   runtime-loader behavior, Windows Makefile parity, Windows install-validation
-  parity, or macOS full install/export parity from the Sprint 112 package
-  evidence
+  parity, or broader macOS platform parity from package evidence
 
 ## Capability Surface Ownership
 

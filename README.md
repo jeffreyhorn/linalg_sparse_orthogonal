@@ -118,7 +118,17 @@ deeper support surfaces only when you actually need them.
   signatures emit `phase`, `step`, `total`, and `elapsed_s`; a non-zero return
   cancels with `SPARSE_ERR_CANCELLED`. See the relevant option headers for
   family-local cancellation and input-mutation contracts.
-- **Continuous integration** — Linux remains the strongest reviewed source of truth (`make quality-review-compile`, reviewed CMake parity, dead-code, and reviewed static-first package contract); macOS enforces the Apple Clang reviewed path with supplemental Homebrew GCC, static-first Make install/`pkg-config`, and CMake install/export confidence; Windows enforces the reviewed CMake subset and carries supplemental CMake install/downstream confidence for the CMake-first consumer story while pthread/POSIX-backed staged tests remain outside the reviewed Windows subset. ThreadSanitizer stays on Linux (macOS-15+ TSan blocked by an upstream dyld issue), and `make bench-fast` remains the bounded PR-time runtime benchmark signal.
+- **Continuous integration** — Linux remains the strongest reviewed source of
+  truth (`make quality-review-compile`, reviewed CMake parity, dead-code, and
+  reviewed static-first package contract). macOS enforces the Apple Clang
+  reviewed path, reviewed static-first Make install/`pkg-config`, and reviewed
+  CMake install/export proof; Homebrew GCC remains supplemental
+  second-compiler macOS coverage. Windows enforces the reviewed CMake subset
+  and carries supplemental CMake install/downstream confidence for the
+  CMake-first consumer story while pthread/POSIX-backed staged tests remain
+  outside the reviewed Windows subset. ThreadSanitizer stays on Linux
+  (macOS-15+ TSan blocked by an upstream dyld issue), and `make bench-fast`
+  remains the bounded PR-time runtime benchmark signal.
 
 ## Choose a Workflow
 

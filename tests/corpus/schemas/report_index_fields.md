@@ -38,6 +38,7 @@ Rows live in `tests/corpus/manifests/report_families.tsv` and are validated by
 | `generated_local_advisory` | Local generated rows can be stale or absent without failing release checks unless a later gate explicitly requires them. |
 | `hosted_ci_external` | The source-controlled row identifies the lane; hosted logs remain external evidence. |
 | `optional_data_skip` | Skip/defer interpretation depends on optional-data availability and must not count as pass evidence. |
+| `runtime_backend_governance_policy` | Source-controlled runtime/backend rows identify maintained control-boundary policy; generated sentinel measurements stay under the `sentinel` family. |
 | `deferred_governance` | Row meaning is acknowledged but policy closure belongs to a later sprint. |
 
 ## Guardrails
@@ -52,5 +53,6 @@ Rows live in `tests/corpus/manifests/report_families.tsv` and are validated by
   scope; they do not claim package-manager availability, shared-library ABI,
   or broad platform support.
 - Runtime/backend governance rows should remain deferred only where policy
-  decisions are still open; selected Sprint 142 sentinel rows belong under the
-  `sentinel` family and keep local-only claim boundaries.
+  decisions are still open. Source-controlled policy rows identify the
+  maintained control boundary, while selected Sprint 142 sentinel rows belong
+  under the `sentinel` family and keep local-only claim boundaries.

@@ -9,6 +9,31 @@ For install or downstream consumer setup, use [INSTALL.md](../INSTALL.md). For
 current algorithm behavior, use [algorithm.md](algorithm.md); historical
 measurement notes live in [algorithm_history.md](algorithm_history.md).
 
+## First-Use Ladder
+
+Use this ladder when you are moving from data to the first maintained example:
+
+1. Run [`example_basic_solve`](../examples/example_basic_solve.c) when you want
+   the smallest hand-written one-shot direct solve.
+2. Run
+   [`example_compressed_input`](../examples/example_compressed_input.c) when
+   your coefficients already live in CSR or CSC arrays.
+3. Use [solver_selection.md](solver_selection.md) when the problem is not a
+   general square one-shot direct solve.
+4. Inspect diagnostics from the same workflow that produced them:
+   construction errors, direct residuals, iterative convergence/status, QR
+   rank/residuals, or SVD rank/condition output. Use
+   [solver_selection.md#diagnostics-handoff](solver_selection.md#diagnostics-handoff)
+   before changing solver family, backend, preconditioner, tolerance, or
+   benchmark settings.
+5. Use [INSTALL.md](../INSTALL.md) and
+   [`examples/cmake_example/`](../examples/cmake_example/) only when you need
+   installed downstream consumption rather than a build-tree example.
+
+The ladder is a routing aid. It does not widen QR, SVD, runtime, package,
+platform, performance, or state-of-the-art claims beyond the maintained proof
+named in the linked sections.
+
 ## Start From Your Data
 
 | Your data starts as | First public step | Then choose |
@@ -25,6 +50,11 @@ construction, and the returned matrix is freed with `sparse_free(...)`.
 Use the `sparse_create_from_*` constructors when a `NULL` result is enough for
 invalid input. Use `sparse_from_*` when the call site needs an explicit
 `sparse_err_t` diagnostic.
+
+After construction, choose the solver by problem shape rather than by storage
+format. CSR, CSC, Matrix Market, and small hand-written matrices all become
+normal public `SparseMatrix *` values before they enter direct, iterative, QR,
+SVD, or eigensolver workflows.
 
 ## Direct Solves From Compressed Input
 
@@ -84,6 +114,16 @@ Use [`examples/example_compressed_input.c`](../examples/example_compressed_input
 for the smallest runnable CSR/CSC import and one-shot direct solve. Use
 [`examples/example_basic_solve.c`](../examples/example_basic_solve.c) for the
 smallest hand-written direct solve.
+
+Diagnostics for this first-use route are deliberately simple:
+
+- `sparse_create_from_csr(...)` and `sparse_create_from_csc(...)` return
+  `NULL` for invalid input or allocation failure;
+- `sparse_from_csr(...)` and `sparse_from_csc(...)` return explicit
+  `sparse_err_t` values when the caller needs a diagnostic owner;
+- direct factorization and solve calls return `sparse_err_t`;
+- residual checks in examples are local confidence checks for the shown
+  matrix, not broad numerical or performance proof.
 
 When the sparsity pattern is stable across many value changes, move from
 one-shot direct calls to the explicit repeated-run lifecycle:

@@ -4,39 +4,54 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ## Start Here
 
-Use the README front door for the first adoption path, then widen into the
-deeper support surfaces only when you actually need them.
+Use this README as the short front door. It gets you from local build to first
+solve, then routes deeper support detail to the maintained docs that own it.
 
-- **Want a first successful solve quickly?**
-  - Build locally with `make`, then use the one-shot direct quick start below.
-- **Need to choose the right solver workflow first?**
-  - Jump to [Choose a Workflow](#choose-a-workflow), then use
-    [docs/solver_selection.md](docs/solver_selection.md) for the fuller
-    decision tree and example handoff.
-- **Already have CSR, CSC, or Matrix Market data?**
-  - Use the [compressed-first cookbook](docs/cookbook.md) for direct,
-    iterative, Matrix Market, SVD, eigensolver, and benchmark handoff paths.
-- **Need install or downstream-consumer setup?**
-  - Use [Installation](#installation) for the compact package summary, then
-    [INSTALL.md](INSTALL.md) for platform-specific detail.
-- **Need maintained examples, benchmarks, or quality policy?**
-  - Examples stay in `examples/`, performance/reporting stays under
-    `benchmarks/`, and maintainer/quality policy stays in
-    [docs/maintainer_guide.md](docs/maintainer_guide.md).
+1. **Build locally:** run `make`, then `make examples` if you want the shipped
+   example binaries.
+2. **Run the first maintained solve:** use `./build/example_basic_solve` from
+   [examples/README.md#start-here](examples/README.md#start-here), or use the
+   inline [Quick Start](#quick-start) when you want to paste a tiny program.
+3. **Start from your data format:** if your matrix already exists as CSR, CSC,
+   or Matrix Market input, use the
+   [cookbook first-use ladder](docs/cookbook.md#first-use-ladder) and
+   `./build/example_compressed_input`.
+4. **Choose the solver family:** use [Choose a Workflow](#choose-a-workflow)
+   for the compact route, then
+   [docs/solver_selection.md#choose-the-smallest-workflow](docs/solver_selection.md#choose-the-smallest-workflow)
+   for the fuller decision tree.
+5. **Inspect local diagnostics:** keep return codes, `NULL` constructor
+   results, residuals, convergence status, rank diagnostics, and benchmark
+   measurements tied to the workflow that produced them. The maintained
+   example handoff is
+   [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff).
+6. **Install only when you need a downstream consumer:** use
+   [Installation](#installation), then [INSTALL.md#start-here](INSTALL.md#start-here)
+   for static-first install and package details.
+7. **Escalate after the first workflow works:** runtime/backend controls,
+   benchmarks, report indexes, platform tiers, and maintainer evidence live in
+   [Runtime And Backend Controls](#runtime-and-backend-controls),
+   [benchmarks/README.md](benchmarks/README.md), and
+   [docs/maintainer_guide.md](docs/maintainer_guide.md).
 
 ## Adoption Map
 
 | Need | Start here | Then use |
 |---|---|---|
-| Smallest local build and solve | [Quick Start](#quick-start) | [examples/README.md](examples/README.md) |
-| Problem-shape decision tree | [Choose a Workflow](#choose-a-workflow) | [docs/solver_selection.md](docs/solver_selection.md) |
-| CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md](docs/cookbook.md) | Maintained examples linked from the cookbook |
-| Installed consumer setup | [Installation](#installation) | [INSTALL.md](INSTALL.md) |
+| Smallest local build and solve | [examples/README.md#start-here](examples/README.md#start-here) | [Quick Start](#quick-start) |
+| Problem-shape decision tree | [Choose a Workflow](#choose-a-workflow) | [docs/solver_selection.md#choose-the-smallest-workflow](docs/solver_selection.md#choose-the-smallest-workflow) |
+| CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder) | Maintained examples linked from the cookbook |
+| Diagnostics after a first run | [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff) | [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff) |
+| Installed consumer setup | [Installation](#installation) | [INSTALL.md#start-here](INSTALL.md#start-here) |
 | Local benchmark/report interpretation | [benchmarks/README.md](benchmarks/README.md) | Generated report index/manifest artifacts |
 | Current algorithm behavior | [docs/algorithm.md](docs/algorithm.md) | [docs/algorithm_history.md](docs/algorithm_history.md) for historical measurement notes |
 | Maintainer quality policy | [docs/maintainer_guide.md](docs/maintainer_guide.md) | Sprint planning artifacts when historical traceability is needed |
 
 ## Current Capabilities
+
+The inventory below is a capability reference. For first use, follow
+[Start Here](#start-here) and widen into these details only when the workflow
+needs them.
 
 ### Core Data Structure
 - **Orthogonal linked-list storage** — each non-zero is linked into both its row list and column list, enabling efficient row and column traversal
@@ -118,17 +133,13 @@ deeper support surfaces only when you actually need them.
   signatures emit `phase`, `step`, `total`, and `elapsed_s`; a non-zero return
   cancels with `SPARSE_ERR_CANCELLED`. See the relevant option headers for
   family-local cancellation and input-mutation contracts.
-- **Continuous integration** — Linux remains the strongest reviewed source of
-  truth (`make quality-review-compile`, reviewed CMake parity, dead-code, and
-  reviewed static-first package contract). macOS enforces the Apple Clang
-  reviewed path, reviewed static-first Make install/`pkg-config`, and reviewed
-  CMake install/export proof; Homebrew GCC remains supplemental
-  second-compiler macOS coverage. Windows enforces the reviewed CMake subset
-  and carries supplemental CMake install/downstream confidence for the
-  CMake-first consumer story while pthread/POSIX-backed staged tests remain
-  outside the reviewed Windows subset. ThreadSanitizer stays on Linux
-  (macOS-15+ TSan blocked by an upstream dyld issue), and `make bench-fast`
-  remains the bounded PR-time runtime benchmark signal.
+- **Continuous integration** — support tiers are summarized in
+  [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
+  in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
+  Linux is the strongest reviewed source of truth, macOS carries reviewed
+  static-first install/export proof, Windows remains CMake-first with staged
+  pthread/POSIX-backed tests outside the reviewed subset, and benchmark/report
+  rows remain bounded local evidence rather than portable performance claims.
 
 ## Choose a Workflow
 
@@ -166,9 +177,14 @@ Start with the smallest surface that matches your real workload:
 Start from these shipped references:
 
 - `example_basic_solve` for the smallest one-shot direct path
+- `example_compressed_input` for caller-owned CSR/CSC array input
 - `example_analysis` for the analyze-once / factor-many direct lifecycle
+- [examples/README.md#start-here](examples/README.md#start-here) for the
+  maintained first-use ladder and expected first outputs
 - [docs/solver_selection.md](docs/solver_selection.md) for matrix-format and
   solver-family selection
+- [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder) for
+  data-first CSR, CSC, and Matrix Market routing
 - [docs/tutorial.md](docs/tutorial.md) for the fuller repeated-run direct flow
 
 When to widen beyond the first examples:
@@ -287,11 +303,11 @@ See [INSTALL.md](INSTALL.md) for detailed cross-platform instructions.
 
 ## Quick Start
 
-Use this path if you want one successful direct solve from a tiny hand-written
-matrix before learning the repeated-run direct lifecycle or
-iterative/eigensolver surfaces. If your coefficients already exist as CSR or
-CSC arrays, skip incremental insertion and start from
-`sparse_create_from_csr(...)`, `sparse_create_from_csc(...)`, or the
+Use this path if you want to paste one tiny hand-written direct solve. For the
+maintained runnable ladder and expected first output, use
+[examples/README.md#start-here](examples/README.md#start-here). If your
+coefficients already exist as CSR or CSC arrays, skip incremental insertion and
+start from `sparse_create_from_csr(...)`, `sparse_create_from_csc(...)`, or the
 diagnostic `sparse_from_csr(...)` and `sparse_from_csc(...)` constructors
 instead.
 
@@ -338,11 +354,18 @@ Next steps after the first solve:
 
 - stay on the one-shot path for small or occasional direct solves
 - move to a compressed-first one-shot entry path when your matrix already
-  arrives as CSR or CSC data
+  arrives as CSR or CSC data; see
+  [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder)
 - move to [Repeated-Run Direct Workflow](#repeated-run-direct-workflow) when
   the sparsity pattern is stable across many value changes
 - move to [Iterative Solver Example](#iterative-solver-example) when the
   matrix/system type makes iterative workflows a better fit
+- use [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff)
+  when you need to interpret return codes, residuals, convergence status, or
+  rank diagnostics; use
+  [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff)
+  when you need to decide whether diagnostics justify changing solver family,
+  backend, preconditioner, tolerance, or benchmark settings
 - use [Installation](#installation) and [INSTALL.md](INSTALL.md) when you need
   installed consumer workflows instead of local build-tree linking
 
@@ -862,9 +885,9 @@ linalg_sparse_orthogonal/
 
 ## Installation
 
-Use [INSTALL.md](INSTALL.md) for platform-specific setup, staged installs,
-downstream consumer workflows, and install-surface validation. Quick local
-summary:
+Use [INSTALL.md#start-here](INSTALL.md#start-here) for platform-specific
+setup, staged installs, downstream consumer workflows, and install-surface
+validation. The README keeps only the shortest static-first local summary:
 
 ```bash
 # Makefile

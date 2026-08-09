@@ -5,10 +5,8 @@
  * @file sparse_matrix.h
  * @brief Public API for the orthogonal linked-list sparse matrix shell.
  *
- * The SparseMatrix type stores non-zero elements in a cross-linked structure:
- * each non-zero node is linked into both a row list (sorted by column) and a
- * column list (sorted by row). This enables efficient traversal in both
- * directions, which is essential for the LU factorization algorithm.
+ * SparseMatrix is the public mutable matrix shell. Each non-zero is linked in
+ * both row and column order, so public helpers can traverse either direction.
  *
  * Memory is managed by a slab pool allocator with a free-list for node reuse.
  * Tuning constants (slab size, drop tolerance) can be overridden at compile
@@ -19,18 +17,13 @@
  * `SPARSE_IDX_BITS` setting and use @c idx_t for persisted or exchanged
  * dimensions, indices, and nnz counts.
  *
- * This type remains the library's mutable sparse construction and one-shot
- * direct-workflow compatibility shell. Internal construction/import and
- * publication paths may use bounded compressed-first build helpers, but the
- * public ownership model still stays with this compatibility shell. The
- * explicit repeated-run direct path with reusable symbolic and factor/workspace
- * state lives in `sparse_analysis.h`.
+ * This type owns public sparse construction, compressed import/export, and
+ * one-shot direct-workflow compatibility. Reusable symbolic/factor workspace
+ * for stable sparsity patterns lives in `sparse_analysis.h`.
  *
- * Caller-owned dense scalar buffers on the shared matrix-shell helper paths
- * (`sparse_norminf`, `sparse_matvec`, `sparse_matvec_block`, and related
- * scalar-parameter entry points below) route through `sparse_scalar_t`. The
- * shipped scalar contract still remains real-only `double`; this does not
- * imply broad numeric genericity or complex support.
+ * Dense scalar buffers on helper paths use `sparse_scalar_t`. The current
+ * scalar contract is real-only `double`; this does not imply broad numeric
+ * genericity or complex support.
  */
 
 #include "sparse_types.h"
@@ -60,36 +53,11 @@
  * @brief Dimension crossover for the CSC Cholesky backend.
  *
  * `sparse_cholesky_factor_opts` with `backend == SPARSE_CHOL_BACKEND_AUTO`
- * dispatches matrices with `rows >= SPARSE_CSC_THRESHOLD` to the
- * CSC working-format kernel (batched supernodal factor + writeback), and
- * routes smaller matrices through the linked-list scalar kernel to avoid the
- * one-time conversion cost on inputs where it would dominate the numeric work.
- *
- * The default of 100 is measured. The small-corpus benchmark ran
- * `./build/bench_chol_csc --small-corpus --repeat 50` on 10
- * in-memory SPD fixtures at n ∈ {20, 40, 60, 80} across three
- * families (tridiagonal, banded, dense) plus the real-corpus
- * `nos4` (n=100) and `bcsstk04` (n=132).  The supernodal speedup
- * (`factor_ll / factor_csc_sn`) is family-dependent:
- *
- *   - dense fixtures are mixed: dense-20 is above parity at 1.14×
- *     (one large supernode amortises detection overhead across the
- *     whole matrix) but dense-60 drops back to 0.89×, so the
- *     small-corpus data does not support a monotonic dense-family
- *     crossover claim;
- *   - banded fixtures stay at 0.70×–0.85× through n = 80, trending
- *     toward 1.0× near n = 100;
- *   - tridiagonal fixtures stay at 0.51×–0.65× through n = 80
- *     (zero fill → supernode detection finds only singletons → the
- *     batched path collapses to scalar CSC plus detection overhead);
- *   - moderately-sparse SuiteSparse fixtures cross at or just above
- *     n = 100 (`nos4` 1.22×, `bcsstk04` 1.01×).
- *
- * 100 is the conservative worst-case that favours the common
- * moderately-sparse SuiteSparse input without penalising the fewer-
- * than-100-column edge. Per-structure override guidance from the
- * calibration corpus is approximately: dense ~20 and tridiagonal
- * 150-200.
+ * dispatches matrices with `rows >= SPARSE_CSC_THRESHOLD` to the CSC
+ * working-format kernel and routes smaller matrices through the linked-list
+ * scalar kernel. The default is a conservative measured crossover from the
+ * maintained Cholesky CSC benchmark corpus; treat it as local dispatch policy,
+ * not a portable performance claim.
  *
  * Callers with a known structure can override with
  * `-DSPARSE_CSC_THRESHOLD=N` at compile time, or set

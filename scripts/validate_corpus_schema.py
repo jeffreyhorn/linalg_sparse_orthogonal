@@ -171,6 +171,7 @@ REPORT_ROW_MEANINGS = {
     "package_install_proof_owner",
     "ci_lane_definition",
     "documentation_advisory",
+    "runtime_backend_governance_policy",
     "not_generated",
     "deferred_governance",
 }

@@ -11,6 +11,29 @@ headers under [`include/`](../include/). For install support, use
 [`INSTALL.md`](../INSTALL.md). For local performance measurement and generated
 report indexes, use [`benchmarks/README.md`](../benchmarks/README.md).
 
+## First-Use Solver Route
+
+Use this short route before reading the family-specific detail below:
+
+1. **Confirm the matrix entry point.** If the data is already CSR, CSC, or
+   Matrix Market, build the public `SparseMatrix *` through the cookbook path
+   instead of inserting entries one by one.
+2. **Choose by mathematical shape.** Use LU for a general square system,
+   Cholesky for symmetric positive-definite input, LDLT for symmetric
+   indefinite input, QR for rectangular/rank-sensitive least-squares, iterative
+   solvers when direct cost or memory is the issue, symmetric eigensolvers for
+   eigenpairs, and SVD APIs for rank/condition/low-rank questions.
+3. **Run one maintained example.** Start with `example_basic_solve` or
+   `example_compressed_input`, then branch to the family-specific example named
+   in [Example Handoff](#example-handoff).
+4. **Inspect diagnostics locally.** Use
+   [Diagnostics Handoff](#diagnostics-handoff) before changing backends,
+   preconditioners, tolerances, or benchmark settings.
+5. **Escalate only after the first solve is understood.** Runtime/backend
+   controls and benchmarks are advanced tools for an already chosen workflow;
+   they do not create portable performance, package, platform, or
+   state-of-the-art claims.
+
 ## Start From Your Matrix
 
 | Starting point | Use this public path | Ownership and cleanup |
@@ -43,6 +66,45 @@ not adopt those arrays.
 Examples teach API usage. Benchmarks measure local workflow behavior. Treat
 benchmark output as branch-local and configuration-sensitive, not as a
 portable timing guarantee.
+
+## Diagnostics Handoff
+
+Diagnostics belong to the workflow that produced them. Start with the smallest
+signal that can explain the local result before escalating to advanced
+controls:
+
+| Workflow | First diagnostic to inspect | Escalate only when |
+|---|---|---|
+| CSR/CSC construction | `NULL` constructor result or explicit `sparse_err_t` from `sparse_from_*`. | The input arrays are valid and copied, but later solver behavior is still unclear. |
+| Matrix Market input | `sparse_errno()` after `sparse_load_mm(...)` failure. | File parsing succeeds and solver choice remains the issue. |
+| One-shot direct solve | Factorization/solve return code and a problem-local residual. | The matrix assumptions match the solver and residual behavior still needs investigation. |
+| Repeated direct lifecycle | Analyze/factor/refactor return codes, same-pattern invariant, and solve residuals. | The sparsity pattern is stable and backend/reordering policy is the real question. |
+| Iterative solve | Convergence status, residual norm/history, iteration count, stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
+| QR | Rank, residual, nullity/nullspace output from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
+| SVD or partial SVD | Rank, condition, triplet residuals, convergence status, and fail-closed status. | You are still inside the bounded SVD workflow described in [SVD and Low-Rank Workflows](#svd-and-low-rank-workflows). |
+| Eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status. | The problem is symmetric and backend or preconditioner selection is now the target. |
+| Benchmarks or reports | Matrix corpus, compiler, backend, thread settings, generated index, and manifest context. | You are measuring local behavior, not trying to prove portable runtime claims. |
+
+Use [examples/README.md#diagnostics-handoff](../examples/README.md#diagnostics-handoff)
+for the runnable-example view of the same rule. Use the public headers when
+you need exact return-code, ownership, and result-struct semantics.
+
+## Advanced-Control Escalation
+
+Leave defaults in place for the first successful solve:
+
+- one-shot direct solvers first, before repeated-run direct lifecycle;
+- `SPARSE_EIGS_BACKEND_AUTO` first, before explicit Lanczos,
+  thick-restart, or LOBPCG backend selection;
+- zero-initialized runtime/backend option structs first, before typed
+  backend or analysis/reordering overrides;
+- no benchmark interpretation until the API workflow is already chosen.
+
+Escalate to typed runtime/backend controls only when the local diagnostic
+surface says the default path is not the right fit. Environment variables,
+benchmark flags, report indexes, and sentinel rows are maintainer or
+measurement controls; they are not public ABI promises, package guarantees,
+platform parity claims, or portable performance claims.
 
 ## Direct Solvers
 

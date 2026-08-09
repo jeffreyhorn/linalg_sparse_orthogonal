@@ -6,24 +6,10 @@
  * @brief Sparse Singular Value Decomposition (SVD).
  *
  * Computes A = U * diag(sigma) * V^T via Golub-Kahan bidiagonalization
- * followed by implicit QR iteration on the bidiagonal.
- *
- * **Usage pattern:**
- * @code
- *   SparseMatrix *A = ...;  // m×n matrix
- *   sparse_svd_opts_t opts = {
- *       .compute_uv = 1,
- *       .economy = 1,  // thin/economy U and V^T
- *   };
- *   sparse_svd_t svd;
- *   sparse_svd_compute(A, &opts, &svd);
- *
- *   // svd.sigma[0..k-1] are singular values in descending order
- *   // svd.U is m×k column-major, svd.Vt is k×n column-major
- *   // Set opts.economy = 0 to request full U (m×m) and V^T (n×n)
- *
- *   sparse_svd_free(&svd);
- * @endcode
+ * followed by implicit QR iteration on the bidiagonal. Start with
+ * `examples/README.md` and `docs/solver_selection.md` for runnable workflow
+ * guidance. This header owns API contracts: output shapes, caller ownership,
+ * convergence errors, and sparse_svd_free() cleanup.
  */
 
 #include "sparse_bidiag.h"
@@ -119,12 +105,11 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * When `opts->compute_uv` is set with `opts->economy = 1`, approximate
  * thin left and right singular vectors are recovered from the Lanczos basis.
  * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top-k triplets.
- * A maintained Sprint 140 corpus fixture covers one generated 8x6 diagonal
- * case with clustered/repeated leading singular values, top-3 subspace
- * projectors, triplet residuals, orthogonality, default-budget success, and
- * tight-budget fail-closed behavior. That fixture-local evidence is not a
- * broad repeated-spectrum, external-library parity, performance, or
- * partial-result guarantee.
+ * Maintained corpus evidence is fixture-local to one generated 8x6
+ * clustered/repeated diagonal case with top-3 residual, projector,
+ * orthogonality, default-budget success, and tight-budget fail-closed checks.
+ * It is not a broad repeated-spectrum, external-library parity, performance,
+ * or partial-result guarantee; see `docs/solver_selection.md`.
  * Partial SVD does not support the full-U / full-V^T mode.
  *
  * @param A    The matrix (not modified). Must have identity permutations.
@@ -217,15 +202,11 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  * @note Internally allocates a temporary m*n dense accumulator during
  *       construction. Peak memory is comparable to sparse_svd_lowrank().
  *
- * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to route through
- *       an alternative per-cell outer-product accumulator that avoids the
- *       m*n dense intermediate. Output is bit-identical (same per-cell sum
- *       order, same drop_tol cutoff). The env-on path trades the dense
- *       intermediate for O(nnz_result) sparse-insert overhead -- it wins
- *       large memory reductions on min(m,n) >> rank_k fixtures (e.g.
- *       ~76-88 % rss reduction on bcsstk14) with neutral wall (SVD compute
- *       dominates either way). Default off preserves the dense-intermediate path;
- *       opt in for memory-constrained workloads.
+ * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to use an
+ *       alternative per-cell outer-product accumulator that avoids the m*n
+ *       dense intermediate. Output is bit-identical for the same inputs and
+ *       drop tolerance, but the path trades dense temporary memory for sparse
+ *       insert overhead. Default off preserves the dense-intermediate path.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

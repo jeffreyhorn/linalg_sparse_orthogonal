@@ -8,33 +8,51 @@ Follow-Through
 ## Epic Objective
 
 Epic 12 started from the completed Epic 11 closeout with a broad sparse linear
-algebra library that had improved product discipline but still carried several
-large gaps: maintained corpus evidence, bounded QR and partial-SVD residuals,
-report freshness semantics, runtime/backend governance, static-first package
-proof, platform support-tier clarity, and adoption-surface complexity.
+algebra library that had useful coverage but still needed stronger evidence
+ownership before it could make larger product or competitive claims. The epic
+focused on closing selected gaps completely: maintained corpus architecture,
+bounded QR and partial-SVD residuals, report-index normalization, runtime and
+backend governance, static-first package proof, platform support-tier clarity,
+adoption simplification, and final claim recalibration.
 
-The objective was to close selected high-value gaps completely where evidence
-could support closure and to publish explicit residuals where the work remained
-too broad for honest claims.
+The epic deliberately did not try to claim broad state-of-the-art status. Its
+standard was narrower and stricter: if a claim did not have source-controlled
+evidence, local validation, hosted evidence where required, and explicit
+support boundaries, it stayed a non-claim or moved to the residual queue.
+
+## Sprint Outcomes
+
+| Sprint | Outcome |
+| --- | --- |
+| 137 | Froze the post-Epic-11 baseline, selected complete-gap targets, created evidence contract templates, mapped quality gates, and reaffirmed public non-claims. |
+| 138 | Built the maintained numerical corpus architecture with fixture taxonomy, corpus layout, oracle/report row semantics, skip/defer handling, and first durable validation lane. |
+| 139 | Closed the selected QR rank-deficient residual for `qr_rank_deficient_6x4_nullspace_v1` with corpus-backed fixture evidence, focused proof ownership, docs, and validation. |
+| 140 | Closed the selected partial-SVD clustered/repeated-spectrum residual for `partial_svd_clustered_repeated_diag8x6_k3_v1` with value, projector, residual, convergence, and fail-closed checks. |
+| 141 | Normalized report indexes and freshness gates across report families while preserving generated-output boundaries and source-controlled row meaning. |
+| 142 | Clarified runtime/backend governance, typed-control decisions, sentinel interpretation, and performance non-claims. |
+| 143 | Made the package/ABI product decision explicit: static-first support was strengthened, while shared-library ABI and package-manager support remained deferred. |
+| 144 | Promoted platform support lanes without flattening tiers: Linux remained strongest, macOS gained reviewed static-first install/export proof, and Windows stayed CMake-first with staged exclusions. |
+| 145 | Simplified the first-use adoption surface across README, INSTALL, examples, cookbook, solver selection, and selected public headers without widening support claims. |
+| 146 | Inventoried final evidence, ran final local validation, reconciled hosted master CI, audited claims, published residuals, reconciled the project plan, and closed Epic 12. |
 
 ## Major Outcomes
 
 | Area | Outcome |
 | --- | --- |
-| Evidence contract | Sprint 137 froze the post-Epic-11 baseline, selected complete-gap targets, and established evidence templates, quality maps, and non-goal boundaries. |
-| Corpus architecture | Sprint 138 created maintained corpus structure, manifests, source-controlled metadata, skip/defer semantics, and reproducible local oracle/report generation. |
-| QR residual closure | Sprint 139 closed the selected QR rank-deficient residual for `qr_rank_deficient_6x4_nullspace_v1` with fixture-local proof ownership and bounded documentation. |
-| Partial-SVD residual closure | Sprint 140 closed the selected clustered/repeated-spectrum partial-SVD residual for `partial_svd_clustered_repeated_diag8x6_k3_v1` with projector, residual, convergence, and fail-closed checks. |
-| Report governance | Sprint 141 normalized report indexes and freshness semantics while preserving the distinction between source-controlled rows and generated local evidence. |
-| Runtime/backend governance | Sprint 142 documented runtime/backend control boundaries and sentinel interpretation without promoting portable performance or backend-superiority claims. |
-| Package/ABI posture | Sprint 143 converted the maintained package contract into a static-first install/export surface with Make, CMake, `pkg-config`, version, deferral, and downstream proof. |
-| Platform tiers | Sprint 144 promoted platform lanes without flattening support tiers: Linux remains strongest, macOS has reviewed static-first install/export proof, and Windows remains CMake-first with staged exclusions. |
-| Adoption surface | Sprint 145 simplified the first-use route through README, INSTALL, examples, cookbook, solver-selection, and selected headers while preserving evidence boundaries. |
-| Final closeout | Sprint 146 inventoried final evidence, ran local validation, reconciled hosted master CI, audited claims, published residuals, and reconciled the project plan. |
+| Evidence ownership | Evidence contracts and sprint artifacts now tie claims to owners, source paths, validation commands, freshness rules, and non-claim boundaries. |
+| Corpus architecture | Corpus manifests, schemas, expected rows, optional-data semantics, skip/defer behavior, and generated-local oracle/report outputs have a maintained shape. |
+| QR evidence | The selected QR rank-deficient residual is closed for a named fixture with focused compiled proof and bounded documentation. |
+| Partial-SVD evidence | The selected partial-SVD clustered-spectrum residual is closed for a named fixture with subspace-safe comparison and convergence/failure checks. |
+| Report governance | Report-family rows normalize across heterogeneous sources, preserve row meaning, and expose freshness diagnostics without converting generated local rows into hosted proof. |
+| Runtime/backend governance | Runtime controls, backend decisions, and sentinels are documented as local governance and local measurement surfaces, not ABI or portable performance promises. |
+| Package/ABI | The maintained product contract is static-first, backed by Make install, `pkg-config`, CMake install/export, version checks, downstream consumer proof, and shared-library deferral guards. |
+| Platform support | Linux, macOS, and Windows now have clearer reviewed, supplemental, staged, local-only, hosted-only, and deferred meanings. |
+| Adoption | The public front door is shorter and more coherent while retaining links to deeper support-tier and evidence documentation. |
+| Final closeout | Epic 12 ends with a published retrospective, project-plan reconciliation, residual queue, and next-epic handoff. |
 
 ## Validation Evidence
 
-Sprint 146 provides the final Epic 12 validation snapshot:
+The final Sprint 146 validation package provides the Epic 12 closeout snapshot:
 
 | Evidence | Result | Boundary |
 | --- | --- | --- |
@@ -52,18 +70,17 @@ Sprint 146 provides the final Epic 12 validation snapshot:
 | Hosted macOS baseline | Latest inspected `master` macOS CI run passed on commit `daac9a85d516f72100c34b90b92ec78941a72200`. | Hosted master baseline, not branch-specific Sprint 146 proof. |
 | Hosted Windows baseline | Latest inspected `master` Windows CI run passed with `56` expected CTest registrations. | Hosted master baseline, Windows CMake-first support only. |
 
-The full local C quality gate was not required during Sprint 146 because the
-sprint closeout changed documentation only and introduced no `.c` or `.h`
-changes. Earlier Epic 12 implementation sprints ran their required gates for
-their touched surfaces.
+Sprint 146 changed documentation only and introduced no `.c` or `.h` changes,
+so its final full C quality gate was not required. Earlier Epic 12 sprints ran
+their required gates according to the surfaces they touched.
 
 ## Earned Claims
 
-Epic 12 earns these claims, with the stated boundaries:
+Epic 12 earns these claims with their qualifiers:
 
 - The project has a maintained corpus/report architecture with
   source-controlled manifests, expected rows, schemas, report-family metadata,
-  and reproducible local generation commands.
+  skip/defer rules, and reproducible local generation commands.
 - The selected QR residual is closed for
   `qr_rank_deficient_6x4_nullspace_v1` with fixture-local nullspace and
   residual proof.
@@ -117,6 +134,22 @@ Epic 12 does not claim:
 - branch-specific hosted Sprint 146 CI success until branch/PR hosted runs are
   available and reconciled.
 
+## Residuals And Future-Epic Candidates
+
+The post-Epic-12 residual queue is published in
+[SPRINT_146/artifacts/day11-published-residual-queue.md](./SPRINT_146/artifacts/day11-published-residual-queue.md).
+The highest-value future-epic candidates are:
+
+| Candidate | Residuals | Closure Target |
+| --- | --- | --- |
+| Windows platform closure | R1, R2, R3 | Branch-specific hosted CI publication, Windows staged pthread/POSIX portability, and reviewed Windows install-validation parity. |
+| Numerical corpus expansion | R5, R6, R12 | Broader QR and partial-SVD fixture families plus external-library comparison semantics. |
+| Shared-library and ABI productization | R4, R14 | Shared install/export, ABI policy, loader tests, symbol checks, package metadata, and package-manager distribution. |
+| Report evidence refresh | R1, R7 | Branch/PR hosted evidence and selected generated benchmark, sentinel, coverage, dead-code, and guardrail freshness gates. |
+| Adoption/documentation completion | R8, R9 | Tutorial alignment and broader public-header cleanup without widened support claims. |
+| Runtime/backend follow-through | R10, R11 | Typed-control promotion review and additional sentinel rows without portable performance wording. |
+| Competitive positioning | R12, R13 | State-of-the-art or external-parity decision only after direct comparative evidence exists. |
+
 ## State-Of-The-Art Assessment
 
 Epic 12 did not earn an unqualified state-of-the-art claim.
@@ -134,80 +167,85 @@ tolerances, platforms, compilers, optional dependencies, memory behavior,
 performance methodology, failure semantics, and caveats. Until that evidence
 exists, state-of-the-art remains an explicit non-claim.
 
-## Residuals And Future-Epic Candidates
-
-The post-Epic-12 residual queue is published in
-[day11-published-residual-queue.md](./SPRINT_146/artifacts/day11-published-residual-queue.md).
-The highest-value future-epic candidates are:
-
-- Windows platform closure: branch-specific hosted CI publication, Windows
-  staged pthread/POSIX test portability, and reviewed Windows install-validation
-  parity.
-- Numerical corpus expansion: broader QR and partial-SVD fixture families plus
-  external-library comparison semantics.
-- Shared-library and ABI productization: shared install/export, loader tests,
-  symbol policy, ABI rules, package metadata, and package-manager distribution.
-- Report evidence refresh: selected generated benchmark, sentinel, coverage,
-  dead-code, and guardrail families with freshness gates.
-- Adoption/documentation completion: tutorial alignment and broader public
-  header cleanup without widening support claims.
-- Runtime/backend follow-through: typed-control promotion review and additional
-  sentinel rows.
-- Competitive positioning: state-of-the-art or external-parity decision only
-  after direct comparative evidence exists.
-
 ## What Went Well
 
-1. **The epic closed selected gaps instead of spreading effort thinly.**
-   QR and partial-SVD work ended with named fixture-local closures and
-   explicit residuals for broader coverage.
+1. **The epic closed selected gaps instead of spreading effort thinly.** QR and
+   partial-SVD work ended with named fixture-local closures and explicit
+   residuals for broader coverage.
 
-2. **Evidence boundaries stayed visible.**
-   Corpus rows, generated report outputs, CI lanes, package support, platform
-   tiers, and adoption docs kept separate proof meanings.
+2. **Evidence boundaries stayed visible.** Corpus rows, generated report
+   outputs, CI lanes, package support, platform tiers, and adoption docs kept
+   separate proof meanings.
 
-3. **Static-first packaging became executable product truth.**
-   Make install, `pkg-config`, CMake install/export, version checks,
-   downstream consumers, and shared-library deferral are now guarded by tests
-   and documentation.
+3. **Static-first packaging became executable product truth.** Make install,
+   `pkg-config`, CMake install/export, version checks, downstream consumers,
+   and shared-library deferral are now guarded by tests and documentation.
 
-4. **Platform language became more precise.**
-   Linux, macOS, and Windows lanes now have clearer reviewed, supplemental,
-   staged, deferred, local-only, and hosted-only meanings.
+4. **Platform language became more precise.** Linux, macOS, and Windows lanes
+   now have clearer reviewed, supplemental, staged, deferred, local-only, and
+   hosted-only meanings.
 
-5. **The final closeout rejected unsupported competitive claims.**
+5. **Adoption work improved the front door without inflating claims.** The
+   README, INSTALL, examples, cookbook, solver-selection docs, and selected
+   public headers now route first-use workflows more cleanly while preserving
+   proof boundaries.
+
+6. **The final closeout rejected unsupported competitive claims.**
    State-of-the-art status remained a non-claim because the epic did not
    produce direct comparative evidence.
 
 ## What Didn't Go Well
 
-1. **Broad numerical coverage remains large.**
-   The selected QR and partial-SVD residuals closed, but broad solver-family
-   parity still requires a larger corpus and comparison program.
+1. **Broad numerical coverage remains large.** The selected QR and partial-SVD
+   residuals closed, but broad solver-family parity still requires a larger
+   corpus and comparison program.
 
-2. **Hosted branch evidence is still external to final local closeout.**
-   Sprint 146 could inspect green `master` hosted baselines, but branch-specific
+2. **Hosted branch evidence is still external to final local closeout.** Sprint
+   146 could inspect green `master` hosted baselines, but branch-specific
    Sprint 146 hosted CI remains a residual until PR workflows run.
 
-3. **Windows parity remains incomplete.**
-   Windows CMake-first support improved, but staged pthread/POSIX tests,
-   reviewed install-validation parity, Makefile parity, and `pkg-config` parity
-   remain unpromoted.
+3. **Windows parity remains incomplete.** Windows CMake-first support improved,
+   but staged pthread/POSIX tests, reviewed install-validation parity, Makefile
+   parity, and `pkg-config` parity remain unpromoted.
 
-4. **Generated report freshness is intentionally selective.**
-   Source-controlled rows and local generated artifacts are coherent, but broad
-   generated report refreshes should be tied to concrete claims.
+4. **Generated report freshness is intentionally selective.** Source-controlled
+   rows and local generated artifacts are coherent, but broad generated report
+   refreshes should be tied to concrete claims.
 
-5. **Adoption work did not finish every documentation surface.**
-   The high-value first-use path improved, but tutorial alignment and all-header
-   cleanup remain future work.
+5. **Adoption work did not finish every documentation surface.** The high-value
+   first-use path improved, but tutorial alignment and all-header cleanup
+   remain future work.
+
+6. **Shared-library and package-manager work remained product decisions, not
+   implementation work.** Static-first support is stronger, but dynamic ABI,
+   runtime-loader behavior, and package-manager distribution need a dedicated
+   productization effort.
+
+## Key Evidence Package
+
+- [SPRINT_137/RETROSPECTIVE.md](./SPRINT_137/RETROSPECTIVE.md)
+- [SPRINT_138/RETROSPECTIVE.md](./SPRINT_138/RETROSPECTIVE.md)
+- [SPRINT_139/RETROSPECTIVE.md](./SPRINT_139/RETROSPECTIVE.md)
+- [SPRINT_140/RETROSPECTIVE.md](./SPRINT_140/RETROSPECTIVE.md)
+- [SPRINT_141/RETROSPECTIVE.md](./SPRINT_141/RETROSPECTIVE.md)
+- [SPRINT_142/RETROSPECTIVE.md](./SPRINT_142/RETROSPECTIVE.md)
+- [SPRINT_143/RETROSPECTIVE.md](./SPRINT_143/RETROSPECTIVE.md)
+- [SPRINT_144/RETROSPECTIVE.md](./SPRINT_144/RETROSPECTIVE.md)
+- [SPRINT_145/RETROSPECTIVE.md](./SPRINT_145/RETROSPECTIVE.md)
+- [SPRINT_146/RETROSPECTIVE.md](./SPRINT_146/RETROSPECTIVE.md)
+- [SPRINT_146/artifacts/day5-final-local-validation-command-log.md](./SPRINT_146/artifacts/day5-final-local-validation-command-log.md)
+- [SPRINT_146/artifacts/day8-public-claim-audit.md](./SPRINT_146/artifacts/day8-public-claim-audit.md)
+- [SPRINT_146/artifacts/day9-support-maintainer-claim-audit.md](./SPRINT_146/artifacts/day9-support-maintainer-claim-audit.md)
+- [SPRINT_146/artifacts/day11-published-residual-queue.md](./SPRINT_146/artifacts/day11-published-residual-queue.md)
+- [SPRINT_146/artifacts/day13-final-project-plan-reconciliation.md](./SPRINT_146/artifacts/day13-final-project-plan-reconciliation.md)
+- [SPRINT_146/artifacts/day14-final-closeout-package.md](./SPRINT_146/artifacts/day14-final-closeout-package.md)
 
 ## Closeout Assessment
 
-Epic 12 is complete. It materially improved the library's evidence ownership,
-fixture-local numerical proof, report governance, runtime/backend support
-boundaries, static-first package confidence, platform-tier clarity, and
-adoption surface.
+Epic 12 is complete. It materially improved evidence ownership, fixture-local
+numerical proof, report governance, runtime/backend support boundaries,
+static-first package confidence, platform-tier clarity, adoption flow, claim
+discipline, and residual transparency.
 
 It deliberately leaves broad competitive, numerical, package-manager,
 shared-library ABI, Windows parity, generated-report freshness, and portable

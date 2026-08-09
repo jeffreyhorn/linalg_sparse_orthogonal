@@ -4,18 +4,34 @@ Standalone example programs demonstrating the sparse linear algebra library.
 
 ## Start Here
 
-Use this file as the compact next-step map after the README front door.
+Use this file as the compact next-step map after the README front door. The
+first-use ladder is:
+
+1. build the examples;
+2. run `example_basic_solve`;
+3. switch to `example_compressed_input` when your data is already CSR or CSC;
+4. choose the solver-specific branch that matches the problem shape;
+5. inspect diagnostics and move to installed consumers or advanced controls
+   only when the basic workflow is working.
 
 - **Want the smallest first success?**
-  - Run `./build/example_basic_solve`.
+  - Run `./build/example_basic_solve`; expect a successful direct solve and
+    residual/solution output.
 - **Already have CSR or CSC arrays?**
   - Run `./build/example_compressed_input` for compressed construction into
-    the normal public matrix shell, or use the
-    [cookbook](../docs/cookbook.md) for direct, iterative, SVD, eigensolver,
-    and benchmark handoff paths.
+    the normal public matrix shell; use the
+    [cookbook](../docs/cookbook.md#start-from-your-data) for the matching
+    data-first recipe.
 - **Need to choose a solver workflow first?**
   - Use the [solver-selection guide](../docs/solver_selection.md), then return
     here for the matching runnable example.
+- **Need to inspect diagnostics?**
+  - Start with return codes and NULL-result checks, then use example-local
+    residuals, convergence status, stagnation, breakdown, rank, or condition
+    output only for the workflow that produced it. Use the
+    [solver-selection diagnostics handoff](../docs/solver_selection.md#diagnostics-handoff)
+    before changing solver family, backend, preconditioner, tolerance, or
+    benchmark settings.
 - **Need the repeated-run direct lifecycle?**
   - Run `./build/example_analysis`.
 - **Need a one-shot iterative workflow?**
@@ -48,6 +64,30 @@ make examples
 ```
 
 This builds all examples into the `build/` directory.
+
+Run the first-use ladder with:
+
+```bash
+./build/example_basic_solve
+./build/example_compressed_input
+```
+
+Then branch by problem shape:
+
+| Problem shape or need | Example |
+|---|---|
+| Stable-pattern repeated direct solves | `./build/example_analysis` |
+| One-shot iterative solve and convergence diagnostics | `./build/example_iterative` |
+| Rectangular least-squares | `./build/example_least_squares` |
+| Underdetermined minimum-norm QR | `./build/example_minnorm` |
+| Symmetric indefinite direct solve | `./build/example_ldlt` |
+| SVD, rank, condition, or low-rank workflow | `./build/example_svd_lowrank` or `./build/example_condition` |
+| Matrix Market load/use | `./build/example_matrix_market` |
+| Installed CMake consumer | `examples/cmake_example/` plus [INSTALL.md](../INSTALL.md) |
+
+Keep `example_eigs`, `example_matrix_free`, `example_colamd`, and
+`example_ic_minres` as solver-specific second steps. They remain maintained and
+runnable, but they are intentionally not the first local success path.
 
 The examples are intentionally small public-usage references. When an example
 demonstrates an in-place factorization or an incomplete-factorization
@@ -83,6 +123,23 @@ interpretation.
 For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
 rather than open-coding unchecked count/byte multiplication at each call site.
+
+## Diagnostics Handoff
+
+Examples use diagnostics in the same narrow scope as the API that produced
+them. For the solver-family escalation view, use
+[docs/solver_selection.md#diagnostics-handoff](../docs/solver_selection.md#diagnostics-handoff).
+
+- construction helpers either return `NULL` or a `sparse_err_t` depending on
+  which constructor family you call;
+- direct examples check factorization/solve return codes and report residuals
+  only for the shown system;
+- iterative examples report convergence, residual, stagnation, and breakdown
+  fields for the local solve;
+- QR and SVD examples report rank, residual, condition, or low-rank summaries
+  as teaching output, not broad external-library parity;
+- installed-consumer examples prove static-first downstream use, not
+  package-manager, shared-library, ABI, or platform parity support.
 
 ## Programs
 

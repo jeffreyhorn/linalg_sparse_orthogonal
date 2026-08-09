@@ -63,7 +63,7 @@ def test_current_repo_no_generated() -> None:
         )
         rows = read_tsv(output)
         row_ids = {row["row_id"] for row in rows}
-        assert "report_contract_runtime_backend_governance_deferred_governance_v1" in row_ids
+        assert "report_contract_runtime_backend_governance_runtime_backend_governance_policy_v1" in row_ids
         assert "corpus_fixture_qr_rank_deficient_6x4_nullspace_v1_v1" in row_ids
         assert "corpus_expected_qr_rank_deficient_6x4_nullspace_v1_rank_v1" in row_ids
         assert "corpus_optional_suitesparse_rank_deficient_qr_subset_v1_v1" in row_ids
@@ -529,8 +529,8 @@ def test_freshness_missing_generated_and_deferred_rows() -> None:
             "--check-freshness",
         ]
     )
-    assert "freshness: defer:" in result.stdout
-    assert "deferred:" in result.stdout
+    assert "freshness: advisory:" in result.stdout
+    assert "source-controlled row is governed by schema and Git review" in result.stdout
 
 
 def test_freshness_stale_and_advisory_runtime_rows() -> None:

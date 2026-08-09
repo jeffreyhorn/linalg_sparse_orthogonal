@@ -5,48 +5,16 @@
  * @file sparse_iterative.h
  * @brief Krylov subspace iterative solvers for sparse linear systems.
  *
- * Provides Conjugate Gradient (CG) for symmetric positive-definite systems
- * and restarted GMRES for general (unsymmetric) systems, both with optional
- * preconditioning via a user-supplied callback.
+ * Provides CG for symmetric positive-definite systems, GMRES and BiCGSTAB for
+ * general nonsymmetric systems, and MINRES for symmetric indefinite systems.
+ * One-shot solve functions are the normal starting point. Explicit repeated-run
+ * handles are available for CG, GMRES, and MINRES when the problem dimension is
+ * stable and workspace reuse matters.
  *
- * **CG usage pattern:**
- * @code
- *   SparseMatrix *A = sparse_create(n, n);
- *   // ... populate A with SPD entries ...
- *   sparse_scalar_t *b = ..., *x = calloc((size_t)n, sizeof(sparse_scalar_t));
- *   sparse_iter_opts_t opts = {
- *       .max_iter = 1000,
- *       .tol = 1e-10,
- *   };
- *   sparse_iter_result_t result;
- *   sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
- *   printf("converged in %d iterations, residual = %e\n",
- *          result.iterations, result.residual_norm);
- * @endcode
- *
- * **GMRES usage pattern:**
- * @code
- *   sparse_gmres_opts_t opts = {
- *       .max_iter = 500,
- *       .restart = 30,
- *       .tol = 1e-10,
- *   };
- *   sparse_iter_result_t result;
- *   sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
- * @endcode
- *
- * **Preconditioned solve:**
- * @code
- *   // ILU preconditioner (see sparse_ilu.h)
- *   sparse_ilu_t ilu;
- *   sparse_ilu_factor(A, &ilu);
- *   sparse_gmres_opts_t opts = {
- *       .max_iter = 500,
- *       .restart = 30,
- *       .tol = 1e-10,
- *   };
- *   sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result);
- * @endcode
+ * Preconditioners are caller-supplied callbacks. Match each preconditioner to
+ * the solver assumptions, inspect `sparse_iter_result_t` for convergence and
+ * residual diagnostics, and use `examples/README.md` plus
+ * `docs/solver_selection.md` for runnable first-use examples.
  */
 
 #include "sparse_matrix.h"
@@ -54,21 +22,12 @@
 /**
  * @par Breakdown behavior summary
  *
- * - **CG p^T*A*p ≈ 0**: threshold on |p^T*A*p|. Stop, set breakdown=1.
- * - **CG r^T*z ≈ 0**: threshold on |r^T*z|. Stop, set breakdown=1.
- * - **GMRES H(j+1,j) ≈ 0** (lucky breakdown): threshold on H(j+1,j).
- *   Extract exact solution, set breakdown=1 AND converged=1.
- * - **MINRES beta_{k+1} ≈ 0** (Lanczos breakdown): threshold on beta_new.
- *   Krylov subspace exhausted, set breakdown=1.
- * - **MINRES gamma ≈ 0**: threshold on gamma. QR breakdown, set breakdown=1.
- * - **BiCGSTAB rho = r_hat^T*r ≈ 0**: threshold on |rho|. Stop, set breakdown=1.
- * - **BiCGSTAB r_hat^T*v ≈ 0**: threshold on |r_hat^T*v|. Stop, set breakdown=1.
- * - **BiCGSTAB t^T*t ≈ 0**: threshold on t^T*t. Stop, set breakdown=1.
- * - **BiCGSTAB omega ≈ 0**: |omega| < 1e-15*|alpha|. Accept half-step, restart.
- *
- * All threshold checks use sparse_rel_tol(0, DROP_TOL) ≈ DBL_MIN*100.
- * For GMRES lucky breakdown, breakdown=1 AND converged=1 indicates success.
- * For all other breakdowns, breakdown=1 AND converged=0 indicates failure.
+ * `result.breakdown` records Krylov breakdown conditions such as zero CG
+ * denominators, GMRES lucky breakdown, MINRES Lanczos/QR breakdown, and
+ * BiCGSTAB rho/omega/t-vector breakdown. GMRES lucky breakdown is reported as
+ * both `breakdown=1` and `converged=1`; other breakdown paths report
+ * `breakdown=1` with `converged=0`. Threshold checks use
+ * `sparse_rel_tol(0, DROP_TOL)`.
  */
 
 /**
@@ -224,10 +183,9 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_iter_handle_init() before first use,
- * then use the prepare / solve / free helpers below. Re-preparing or
- * re-running the handle may preserve allocation capacity, but it does not
- * preserve prior Krylov state, residual history contents, or convergence
- * status as a numerical feature.
+ * then use the prepare / solve / free helpers below. Reuse may preserve
+ * allocation capacity, but it does not preserve prior Krylov state,
+ * residual history contents, or convergence status as a numerical feature.
  *
  * sparse_iter_handle_free() is safe on a zeroed struct.
  */

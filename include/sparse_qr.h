@@ -7,29 +7,13 @@
  *
  * Provides column-pivoted QR factorization A*P = Q*R using Householder
  * reflections, with least-squares solving, rank estimation, and null-space
- * extraction.
+ * extraction. Q is stored implicitly as Householder reflectors; use
+ * sparse_qr_apply_q() to apply Q or Q^T without forming Q explicitly.
  *
- * Q is stored implicitly as a sequence of Householder reflectors
- * (v_k, beta_k) for memory efficiency. Use sparse_qr_apply_q() to
- * apply Q or Q^T to vectors without forming Q explicitly.
- *
- * **Usage pattern:**
- * @code
- *   SparseMatrix *A = ...;  // m×n matrix
- *   sparse_qr_t qr;
- *   sparse_qr_factor(A, &qr);
- *
- *   // Least-squares solve: min ||Ax - b||
- *   sparse_scalar_t *b = ...;
- *   sparse_scalar_t *x = malloc((size_t)n * sizeof(sparse_scalar_t));
- *   sparse_scalar_t residual;
- *   sparse_qr_solve(&qr, b, x, &residual);
- *
- *   // Rank estimation
- *   idx_t rank = sparse_qr_rank(&qr, 1e-12);
- *
- *   sparse_qr_free(&qr);
- * @endcode
+ * Start with `examples/README.md` and `docs/solver_selection.md` for runnable
+ * workflow guidance. This header owns API contracts: identity-permutation
+ * preconditions, output-buffer sizes, rank/residual diagnostics, and
+ * sparse_qr_free() cleanup.
  */
 
 #include "sparse_matrix.h"
@@ -299,12 +283,10 @@ typedef struct {
  * for post-factorization rank analysis; qr->rank controls which
  * components sparse_qr_solve() sets to zero.
  *
- * **Threshold selection guidance:**
- * - For well-conditioned problems: tol = 0 (automatic) works well
- * - For noisy data: use tol ≈ noise_level / |R(0,0)|
- * - For problems with known rank: set tol between the rank-th and
- *   (rank+1)-th singular value ratios
- * - Machine epsilon (≈2.2e-16) times max(m,n) is a safe default
+ * Use tol = 0 for the default threshold. For noisy data or known-rank
+ * problems, callers may choose a problem-specific tolerance from the R
+ * diagonal; see `docs/solver_selection.md#qr-evidence-boundary` for the
+ * bounded QR evidence interpretation.
  *
  * @param qr    The QR factorization.
  * @param tol   Rank tolerance (0 for default: eps * max(m,n)).

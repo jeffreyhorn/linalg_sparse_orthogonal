@@ -8,17 +8,28 @@ first-use recipes before installation, use [docs/cookbook.md](docs/cookbook.md).
 
 ## Start Here
 
-Choose the smallest install/setup path that matches what you actually need:
+Choose the smallest install/setup path that matches what you actually need.
 
-- **Need one local success before installing anything?**
-  - Use the front-door path in [README.md](README.md), then move to
-    [examples/README.md](examples/README.md).
-- **Need a Unix-side static install plus `pkg-config` downstream use?**
-  - Use [Quick Start (Makefile)](#quick-start-makefile).
-- **Need an installed CMake consumer or the Windows-supported path?**
-  - Use [CMake Build](#cmake-build).
-- **Need to prove the installed package surface locally?**
-  - Use [Verifying the Installation](#verifying-the-installation).
+1. **Prove a local build first:** if you have not run a build-tree example yet,
+   start with [README.md#start-here](README.md#start-here) and
+   [examples/README.md#start-here](examples/README.md#start-here).
+2. **Install the maintained static package:** on Unix-like systems, use
+   [Quick Start (Makefile)](#quick-start-makefile). With CMake, use
+   [CMake Build](#cmake-build).
+3. **Consume from another project:** use
+   [pkg-config](#using-via-pkg-config) for Makefile-style consumers or
+   [find_package(Sparse)](#using-from-a-cmake-project) for CMake consumers.
+4. **Validate the installed surface:** run
+   [Verifying the Installation](#verifying-the-installation) when changing
+   install rules, package metadata, CI lanes, or downstream-consumer examples.
+5. **Read platform support precisely:** use
+   [Supported platforms](#supported-platforms) before interpreting CI coverage
+   as a platform claim.
+
+The maintained install contract is static-first. Shared-library packaging,
+dynamic ABI compatibility, runtime-loader behavior, package-manager
+distribution, static/shared selectors, Windows Makefile parity, and Windows
+`pkg-config` parity are intentionally out of scope.
 
 ## Prerequisites
 
@@ -35,11 +46,12 @@ Optional:
 
 Use each support surface for the layer it owns:
 
-- local build-tree adoption:
+- first local build-tree adoption:
   - `README.md`
   - `examples/README.md`
 - Unix-side installed static package with `pkg-config`:
   - `make install`
+  - `sparse.pc`
   - `tests/test_install.sh`
 - installed CMake consumer path:
   - `cmake --install`
@@ -66,6 +78,12 @@ make quality-review
 make install PREFIX=/usr/local   # install library, headers, pkg-config
 ```
 
+After installation, a downstream Makefile-style consumer can compile with:
+
+```sh
+cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse)
+```
+
 `make quality-review-compile` is the maintained local compile-quality wrapper
 (`format-check` + `source-list-check` + `lint`). `make quality-review` adds
 `test` and `deadcode-check` on top of that reviewed path. For the fuller
@@ -81,7 +99,9 @@ make install PREFIX=/usr DESTDIR=/tmp/staging
 
 ## Maintained Install Contract
 
-The maintained install surface is intentionally static-first:
+The maintained install surface is intentionally static-first. This section is
+the claim boundary for package shape; use the quick-start sections above when
+you only need commands.
 
 - Unix-like `make install` installs a static archive such as
   `libsparse_lu_ortho.a`
@@ -164,6 +184,10 @@ make uninstall PREFIX=/usr/local
 
 ## CMake Build
 
+Use this path when you want the installed CMake package export, the
+Windows-supported build/install route, or a downstream project that calls
+`find_package(Sparse)`.
+
 ```sh
 mkdir build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
@@ -198,11 +222,19 @@ Headers are included as `#include <sparse/sparse_types.h>`.
 
 See `examples/cmake_example/` for a complete working example.
 
+On Windows, this CMake route is the maintained consumer path. The Makefile and
+`pkg-config` install flows are Unix-side validation surfaces, not Windows
+parity claims.
+
 For the reviewed local CMake parity path used alongside the install flow, run
 `make quality-review-cmake-compile` or `make quality-review-cmake` from the
 project root before switching into packaging or staged-install work.
 
 ## Platform Notes
+
+Use these notes as operational setup hints after reading
+[Supported platforms](#supported-platforms). They do not widen the reviewed
+platform tiers described above.
 
 ### Linux (Ubuntu / Debian)
 
@@ -285,7 +317,9 @@ Windows, use the CMake workflow exclusively.
 ## Verifying the Installation
 
 Use this section when you want explicit local validation of the installed package
-surface rather than another build-tree example.
+surface rather than another build-tree example. Run it after changing install
+rules, package metadata, exported CMake files, CI install lanes, or downstream
+consumer examples.
 
 Run the install validation script (Unix):
 

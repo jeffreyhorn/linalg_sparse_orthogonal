@@ -90,6 +90,9 @@ The maintained install surface is intentionally static-first:
   `Sparse::sparse_lu_ortho`
 - `pkg-config` and `find_package(Sparse)` both describe that installed static
   archive surface
+- the installed `sparse.pc` description identifies static archive package
+  metadata and intentionally carries no `Libs.private` or static/shared
+  selector under the current self-contained static link contract
 - version metadata comes from the repo `VERSION` file and is propagated through
   `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
 - the exported CMake package version file is exact-version only
@@ -290,7 +293,8 @@ bash tests/test_install.sh
 ```
 
 This installs to a temporary directory, checks all files, compiles a test
-program with pkg-config, and cleans up.
+program and the maintained example with `pkg-config`, verifies their runtime
+output, and cleans up.
 
 For CMake integration verification:
 
@@ -303,7 +307,7 @@ the maintained static-first install/export contract:
 
 - `tests/test_install.sh` covers Make install/uninstall plus `pkg-config`
 - `tests/test_cmake_install.sh` covers CMake install/export plus
-  `find_package(Sparse)`
+  `find_package(Sparse)`, including exact-version configure/build/run proof
 
 They complement, rather than replace, the narrower reviewed platform lanes.
 Use the split below when reading install confidence:

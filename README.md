@@ -873,6 +873,11 @@ After installation, downstream projects can use either `pkg-config` or
 - `find_package(Sparse REQUIRED)` plus
   `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
+The installed `sparse.pc` metadata is intentionally static-archive scoped, and
+the install proof checks downstream compile/link/run behavior plus exact
+package version handling. These checks are package proof, not package-manager
+distribution or dynamic-loader evidence.
+
 Shared-library packaging is intentionally deferred; the maintained install
 contract is the static archive surface described in [INSTALL.md](INSTALL.md).
 CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a

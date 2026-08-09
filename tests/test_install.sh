@@ -63,7 +63,7 @@ fi
 if [ -f "$PC_FILE" ]; then
     pass "pkg-config file installed"
 else
-    fail "sparse.pc not found"
+    fail "sparse.pc not found at $PC_FILE"
 fi
 
 # ── 3. Verify pkg-config output ────────────────────────────────────
@@ -153,6 +153,12 @@ else
     fail "pkg-config file unexpectedly declares Libs.private"
 fi
 
+if grep -Fxq 'Description: Static archive package metadata for sparse linear algebra' "$PC_FILE"; then
+    pass "pkg-config file describes static archive package metadata"
+else
+    fail "pkg-config file does not describe the static archive package contract"
+fi
+
 if ! grep -Eiq 'shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
     pass "pkg-config file has no unsupported packaging or ABI claims"
 else
@@ -207,7 +213,10 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
 
     if [ -x "$TMPDIR/test_link" ]; then
         OUTPUT="$("$TMPDIR/test_link" 2>&1)"
-        if echo "$OUTPUT" | grep -q "OK"; then
+        if echo "$OUTPUT" | grep -q "sparse version:" && \
+            echo "$OUTPUT" | grep -q "version int:" && \
+            echo "$OUTPUT" | grep -q "nnz: 1" && \
+            echo "$OUTPUT" | grep -q "OK"; then
             pass "basic pkg-config consumer runs correctly"
         else
             fail "basic pkg-config consumer output unexpected: $OUTPUT"
@@ -229,7 +238,9 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
 
     if [ -x "$TMPDIR/example_pkgconfig" ]; then
         OUTPUT="$("$TMPDIR/example_pkgconfig" 2>&1)"
-        if echo "$OUTPUT" | grep -q "OK"; then
+        if echo "$OUTPUT" | grep -q "Sparse library version" && \
+            echo "$OUTPUT" | grep -q "Solution:" && \
+            echo "$OUTPUT" | grep -q "OK"; then
             pass "maintained example source runs with pkg-config install"
         else
             fail "maintained example source output unexpected: $OUTPUT"

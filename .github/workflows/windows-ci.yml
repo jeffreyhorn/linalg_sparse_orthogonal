@@ -8,9 +8,12 @@ name: Windows CI
 # property/fuzz lane is not claimed as reviewed Windows evidence. The staged
 # test blockers are source-level today: pthread APIs for `test_threads` and
 # `test_sprint4_integration`, and POSIX temp-file APIs for `test_fuzz`. The
-# install/downstream job below is supplemental CMake-first confidence only; it
-# is not a reviewed install-validation lane and does not imply Windows
-# Makefile parity.
+# install/downstream job below is supplemental CMake-first static package
+# confidence only; it checks the installed static archive, CMake package
+# metadata, downstream example, exact-version consumer, and absence of DLL
+# artifacts, but it is not a reviewed install-validation lane and does not
+# imply Windows Makefile parity, pkg-config parity, shared-library support, or
+# dynamic ABI support.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -128,12 +131,29 @@ jobs:
           foreach ($packageFile in @(
             "lib/cmake/Sparse/SparseConfig.cmake",
             "lib/cmake/Sparse/SparseConfigVersion.cmake",
-            "lib/cmake/Sparse/SparseTargets.cmake"
+            "lib/cmake/Sparse/SparseTargets.cmake",
+            "lib/pkgconfig/sparse.pc"
           )) {
             $path = Join-Path $prefix $packageFile
             if (-not (Test-Path $path -PathType Leaf)) {
-              throw "Expected installed CMake package file at $path."
+              throw "Expected installed package file at $path."
             }
+          }
+
+          $cmakePackageDir = Join-Path $prefix "lib/cmake/Sparse"
+          $cmakePackageText = (Get-ChildItem -Path $cmakePackageDir -File |
+            ForEach-Object { Get-Content -Path $_.FullName -Raw }) -join "`n"
+          if ($cmakePackageText -match "SHARED IMPORTED|MODULE IMPORTED|IMPORTED_LOCATION[^\s]*.*\.(so|dylib|dll)") {
+            throw "Installed CMake package metadata unexpectedly contains shared-library imported metadata."
+          }
+
+          $pcFile = Join-Path $prefix "lib/pkgconfig/sparse.pc"
+          $pcText = Get-Content -Path $pcFile -Raw
+          if ($pcText -notmatch "(?m)^Description: Static archive package metadata for sparse linear algebra\r?$") {
+            throw "Installed sparse.pc does not describe static archive package metadata."
+          }
+          if ($pcText -match "(?im)^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan") {
+            throw "Installed sparse.pc unexpectedly contains unsupported package or ABI wording."
           }
 
           Invoke-Checked "Installed example configure" {
@@ -149,8 +169,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Installed CMake example exited with $LASTEXITCODE`: $outputText"
           }
-          if ($outputText -notmatch "OK") {
-            throw "Installed CMake example output did not contain OK: $outputText"
+          if ($outputText -notmatch "Sparse library version" -or
+              $outputText -notmatch "Solution:" -or
+              $outputText -notmatch "OK") {
+            throw "Installed CMake example output was unexpected: $outputText"
           }
 
           New-Item -ItemType Directory -Force -Path $versionExactSrc | Out-Null
@@ -166,6 +188,20 @@ jobs:
           Invoke-Checked "Exact version configure" {
             cmake -S $versionExactSrc -B $versionExactBuild `
               -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$prefix"
+          }
+          Invoke-Checked "Exact version build" {
+            cmake --build $versionExactBuild --config Release
+          }
+          $versionExactExe = Join-Path (Join-Path $versionExactBuild "Release") "version_exact.exe"
+          $versionExactOutput = & $versionExactExe 2>&1
+          $versionExactText = $versionExactOutput -join "`n"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Exact version consumer exited with $LASTEXITCODE`: $versionExactText"
+          }
+          if ($versionExactText -notmatch "Sparse library version" -or
+              $versionExactText -notmatch "Solution:" -or
+              $versionExactText -notmatch "OK") {
+            throw "Exact version consumer output was unexpected: $versionExactText"
           }
 
           $parts = $version.Split(".")

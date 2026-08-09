@@ -22,7 +22,7 @@ over partial movement across every residual.
 6. Source-controlled metadata is not observed pass evidence unless paired with
    generated or hosted proof.
 
-## Step-By-Step Plan
+## Step-by-Step Plan
 
 ### Step 1: Freeze Epic 13 Evidence Targets
 

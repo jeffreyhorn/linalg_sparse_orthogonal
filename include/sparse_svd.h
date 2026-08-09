@@ -204,9 +204,11 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  *
  * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to use an
  *       alternative per-cell outer-product accumulator that avoids the m*n
- *       dense intermediate. Output is bit-identical for the same inputs and
- *       drop tolerance, but the path trades dense temporary memory for sparse
- *       insert overhead. Default off preserves the dense-intermediate path.
+ *       dense intermediate. Output is validated for numerical agreement with
+ *       the dense-accumulator path under the same inputs and drop tolerance,
+ *       but it is not a bit-level equivalence guarantee. The path trades dense
+ *       temporary memory for sparse insert overhead. Default off preserves the
+ *       dense-intermediate path.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

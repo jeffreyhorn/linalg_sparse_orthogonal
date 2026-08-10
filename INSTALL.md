@@ -144,7 +144,9 @@ Use the split below when deciding how much package detail you need:
     local scripts plus the static deferral guard
   - macOS CI carries reviewed static-first install/export proof for those
     local scripts plus the static deferral guard
-  - Windows reviewed platform claims remain narrower than those local scripts
+  - Windows carries reviewed CMake install/downstream validation for the
+    maintained static-first package surface, but remains narrower than the
+    Unix Makefile and `pkg-config` script surface
 
 ## Supported platforms
 
@@ -154,7 +156,7 @@ Use the split below when deciding how much package detail you need:
 | Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | supplemental ThreadSanitizer + OpenMP lane |
 | macOS | Apple Clang | `.github/workflows/macos-ci.yml::build-and-test` (`compiler=apple-clang`) | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries reviewed static-first Make install/`pkg-config` and CMake install/export proof in the `install-and-pkgconfig` and `cmake-install-export` jobs |
 | macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::build-and-test` (`compiler=homebrew-gcc`) | supplemental second-compiler direct build/test/wall-check coverage |
-| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset, including the promoted `test_threads`, `test_sprint4_integration`, and `test_fuzz` targets, plus supplemental CMake install/downstream confidence; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane; does not imply Windows Makefile parity or pkg-config parity |
+| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset, including the promoted `test_threads`, `test_sprint4_integration`, and `test_fuzz` targets, plus reviewed CMake install/downstream validation for the maintained static-first package surface; does not imply Windows Makefile parity, `pkg-config` execution parity, package-manager support, shared-library support, dynamic ABI support, runtime-loader behavior, or broad Windows parity |
 
 `make tsan` on macOS 15+ is blocked by an upstream dyld initialization
 hang that is not specific to this codebase. The maintained TSan job runs on
@@ -344,7 +346,7 @@ the maintained static-first install/export contract:
 - `tests/test_cmake_install.sh` covers CMake install/export plus
   `find_package(Sparse)`, including exact-version configure/build/run proof
 
-They complement, rather than replace, the narrower reviewed platform lanes.
+They complement, rather than replace, the reviewed platform lanes.
 Use the split below when reading install confidence:
 
 - local direct validation:
@@ -355,18 +357,22 @@ Use the split below when reading install confidence:
     reviewed static-first package-contract lane
   - macOS carries reviewed static-first Make install/`pkg-config` and CMake
     install/export proof for the maintained static archive package contract
-  - Windows remains the reviewed CMake subset with supplemental CMake
-    install/downstream confidence for the CMake-first consumer path
+  - Windows carries reviewed CMake install/downstream validation for the
+    maintained static-first package surface, including installed static `.lib`,
+    headers, CMake package metadata, `sparse.pc` metadata, generated and
+    maintained installed CMake consumers, exact-version behavior,
+    mismatch-version rejection, and no DLL/shared imported metadata
 
-Do not widen that reading into a broader reviewed install-validation claim:
+Do not widen that reading into a broader platform or package claim:
 
 - macOS reviewed static-first install/export proof does not claim
   shared-library packaging, dynamic ABI compatibility, runtime-loader
   compatibility, package-manager support, static/shared selectors, or broader
   macOS platform parity
-- Windows supplemental CMake install/downstream confidence does not claim a
-  separate reviewed install-validation lane beyond the CMake-first consumer
-  story
+- Windows reviewed CMake install/downstream validation does not claim Windows
+  Makefile parity, Windows `pkg-config` execution parity, package-manager
+  support, shared-library packaging, dynamic ABI compatibility,
+  runtime-loader behavior, or broad Windows parity
 - Linux reviewed package-contract proof does not claim shared-library
   packaging, dynamic ABI compatibility, runtime-loader behavior, or
   package-manager support

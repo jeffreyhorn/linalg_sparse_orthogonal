@@ -1,17 +1,17 @@
 name: Windows CI
 
-# Windows currently enforces the reviewed CMake subset only:
-# configure + build + `ctest -N` + full `ctest`. The reviewed CMake subset now
-# includes the portable `test_threads`, `test_sprint4_integration`, and
-# `test_fuzz` targets after Sprint 148 source-portability work. Hosted Windows
-# enumeration/execution remains the proof gate for this promotion. The Makefile
-# reviewed wrappers and dead-code flow remain staged/deferred. The
-# install/downstream job below is supplemental CMake-first static package
-# confidence only; it checks the installed static archive, CMake package
-# metadata, downstream example, exact-version consumer, and absence of DLL
-# artifacts, but it is not a reviewed install-validation lane and does not
-# imply Windows Makefile parity, pkg-config parity, shared-library support, or
-# dynamic ABI support.
+# Windows enforces the reviewed CMake subset through configure + build +
+# `ctest -N` + full `ctest`. The reviewed CMake subset includes the portable
+# `test_threads`, `test_sprint4_integration`, and `test_fuzz` targets after
+# Sprint 148 source-portability work. Windows also carries reviewed CMake
+# install/downstream validation for the maintained static-first package
+# surface: installed static `.lib`, headers, CMake package metadata,
+# `sparse.pc` metadata, downstream consumers, exact-version behavior,
+# mismatch-version rejection, and absence of DLL/shared imported metadata.
+# The Makefile reviewed wrappers and dead-code flow remain staged/deferred;
+# Windows does not claim Makefile parity, pkg-config execution parity,
+# package-manager support, shared-library support, dynamic ABI support,
+# runtime-loader behavior, or broad Windows parity.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -59,23 +59,25 @@ jobs:
           }
           Write-Host "Windows reviewed CMake CTest surface includes promoted portable tests: test_threads, test_sprint4_integration, test_fuzz."
           Write-Host "Windows promoted-test proof remains CMake-first: ctest -N count plus full ctest on the hosted MSVC lane."
-          Write-Host "Windows reviewed scope remains CMake-first consumer proof only: no reviewed Makefile parity and no separate reviewed install-validation lane."
+          Write-Host "Windows reviewed install validation remains CMake install/downstream scoped: no reviewed Makefile parity and no pkg-config execution parity."
         shell: pwsh
 
       - name: Run enforced reviewed CMake execution path (ctest)
         run: ctest --test-dir build -C Release --output-on-failure
         shell: pwsh
 
-  # Verify the maintained static-first CMake install and installed downstream
-  # consumer path on Windows. This is supplemental confidence for the
-  # CMake-first package story, not a reviewed Windows install-validation lane.
+  # Verify the reviewed static-first CMake install and installed downstream
+  # consumer path on Windows. This lane is CMake install/downstream scoped; it
+  # does not claim Windows Makefile parity, pkg-config execution parity,
+  # shared-library support, dynamic ABI support, runtime-loader behavior, or
+  # package-manager support.
   install-and-downstream:
-    name: Windows supplemental CMake install/downstream confidence path
+    name: Windows reviewed CMake install/downstream validation path
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run maintained supplemental CMake install/downstream proof
+      - name: Run reviewed CMake install/downstream validation proof
         run: |
           $ErrorActionPreference = "Stop"
 
@@ -93,12 +95,15 @@ jobs:
 
           $prefix = Join-Path $env:RUNNER_TEMP "sparse-install"
           $build = "build-install"
+          $basicConsumerBuild = "build-basic-consumer"
           $exampleBuild = "build-installed-example"
           $versionExactBuild = "build-version-exact"
           $versionMismatchBuild = "build-version-mismatch"
+          $basicConsumerSrc = Join-Path $env:RUNNER_TEMP "sparse-basic-consumer-src"
           $versionExactSrc = Join-Path $env:RUNNER_TEMP "sparse-version-exact-src"
           $versionMismatchSrc = Join-Path $env:RUNNER_TEMP "sparse-version-mismatch-src"
           $version = (Get-Content VERSION -Raw).Trim()
+          $sourceRoot = (Get-Location).Path
 
           Invoke-Checked "CMake install configure" {
             cmake -S . -B $build -G "Visual Studio 17 2022" -A x64 `
@@ -125,11 +130,16 @@ jobs:
           if ($headers.Count -ne 19) {
             throw "Expected 19 installed headers, got $($headers.Count)."
           }
+          $versionHeader = Join-Path $prefix "include/sparse/sparse_version.h"
+          if (-not (Test-Path $versionHeader -PathType Leaf)) {
+            throw "Expected installed version header at $versionHeader."
+          }
 
           foreach ($packageFile in @(
             "lib/cmake/Sparse/SparseConfig.cmake",
             "lib/cmake/Sparse/SparseConfigVersion.cmake",
             "lib/cmake/Sparse/SparseTargets.cmake",
+            "lib/cmake/Sparse/SparseTargets-release.cmake",
             "lib/pkgconfig/sparse.pc"
           )) {
             $path = Join-Path $prefix $packageFile
@@ -139,19 +149,100 @@ jobs:
           }
 
           $cmakePackageDir = Join-Path $prefix "lib/cmake/Sparse"
+          $targetsFile = Join-Path $cmakePackageDir "SparseTargets.cmake"
+          $targetsReleaseFile = Join-Path $cmakePackageDir "SparseTargets-release.cmake"
+          $targetsText = Get-Content -Path $targetsFile -Raw
+          $targetsReleaseText = Get-Content -Path $targetsReleaseFile -Raw
           $cmakePackageText = (Get-ChildItem -Path $cmakePackageDir -File |
             ForEach-Object { Get-Content -Path $_.FullName -Raw }) -join "`n"
+          if (-not $targetsText.Contains('add_library(Sparse::sparse_lu_ortho STATIC IMPORTED)')) {
+            throw "Installed CMake package target is not explicitly STATIC IMPORTED."
+          }
+          if (-not $targetsText.Contains('INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"')) {
+            throw "Installed CMake package target does not use install-prefix include metadata."
+          }
+          if (-not $targetsReleaseText.Contains('IMPORTED_LOCATION_RELEASE') -or
+              -not $targetsReleaseText.Contains('${_IMPORT_PREFIX}/lib/sparse_lu_ortho.lib')) {
+            throw "Installed CMake package target does not point at the installed static .lib."
+          }
+          $buildPath = (Resolve-Path $build).Path
+          foreach ($leakPath in @(
+            $sourceRoot,
+            ($sourceRoot -replace "\\", "/"),
+            $buildPath,
+            ($buildPath -replace "\\", "/")
+          )) {
+            if ($leakPath -and $cmakePackageText.Contains($leakPath)) {
+              throw "Installed CMake package metadata leaked source/build path: $leakPath"
+            }
+          }
           if ($cmakePackageText -match "SHARED IMPORTED|MODULE IMPORTED|IMPORTED_LOCATION[^\s]*.*\.(so|dylib|dll)") {
             throw "Installed CMake package metadata unexpectedly contains shared-library imported metadata."
           }
 
           $pcFile = Join-Path $prefix "lib/pkgconfig/sparse.pc"
           $pcText = Get-Content -Path $pcFile -Raw
+          if ($pcText -notmatch "(?m)^Name: sparse\r?$") {
+            throw "Installed sparse.pc does not name the sparse package."
+          }
           if ($pcText -notmatch "(?m)^Description: Static archive package metadata for sparse linear algebra\r?$") {
             throw "Installed sparse.pc does not describe static archive package metadata."
           }
+          if ($pcText -notmatch "(?m)^Version: $([regex]::Escape($version))\r?$") {
+            throw "Installed sparse.pc does not report version $version."
+          }
+          if ($pcText -notmatch '(?m)^Cflags: -I\$\{includedir\}\r?$') {
+            throw "Installed sparse.pc does not use includedir-based Cflags metadata."
+          }
+          if ($pcText -notmatch '(?m)^Libs: -L\$\{libdir\} -lsparse_lu_ortho -lm\s*$') {
+            throw "Installed sparse.pc does not describe the static archive link flags."
+          }
           if ($pcText -match "(?im)^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan") {
             throw "Installed sparse.pc unexpectedly contains unsupported package or ABI wording."
+          }
+
+          New-Item -ItemType Directory -Force -Path $basicConsumerSrc | Out-Null
+          Set-Content -Path (Join-Path $basicConsumerSrc "CMakeLists.txt") -Encoding utf8 -Value @(
+            "cmake_minimum_required(VERSION 3.14)",
+            "project(sparse_basic_consumer C)",
+            "find_package(Sparse REQUIRED)",
+            "add_executable(basic_consumer main.c)",
+            "target_link_libraries(basic_consumer PRIVATE Sparse::sparse_lu_ortho)"
+          )
+          Set-Content -Path (Join-Path $basicConsumerSrc "main.c") -Encoding utf8 -Value @(
+            '#include <sparse/sparse_types.h>',
+            '#include <sparse/sparse_matrix.h>',
+            '#include <stdio.h>',
+            "",
+            'int main(void) {',
+            '    printf("sparse version: %s\n", SPARSE_VERSION_STRING);',
+            '    SparseMatrix *A = sparse_create(3, 3);',
+            '    if (!A) return 1;',
+            '    sparse_insert(A, 0, 0, 1.0);',
+            '    printf("nnz: %d\n", (int)sparse_nnz(A));',
+            '    sparse_free(A);',
+            '    printf("OK\n");',
+            '    return 0;',
+            '}'
+          )
+
+          Invoke-Checked "Basic generated consumer configure" {
+            cmake -S $basicConsumerSrc -B $basicConsumerBuild `
+              -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$prefix"
+          }
+          Invoke-Checked "Basic generated consumer build" {
+            cmake --build $basicConsumerBuild --config Release
+          }
+          $basicConsumerExe = Join-Path (Join-Path $basicConsumerBuild "Release") "basic_consumer.exe"
+          $basicConsumerOutput = & $basicConsumerExe 2>&1
+          $basicConsumerText = $basicConsumerOutput -join "`n"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Basic generated consumer exited with $LASTEXITCODE`: $basicConsumerText"
+          }
+          if ($basicConsumerText -notmatch "sparse version:" -or
+              $basicConsumerText -notmatch "nnz: 1" -or
+              $basicConsumerText -notmatch "OK") {
+            throw "Basic generated consumer output was unexpected: $basicConsumerText"
           }
 
           Invoke-Checked "Installed example configure" {

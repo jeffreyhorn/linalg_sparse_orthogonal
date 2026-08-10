@@ -8,8 +8,25 @@ and gate design, not implementation.
 
 ## Reproducible Baseline Commands
 
+The first command is the copy/pasteable counter used for the Day 2 baseline.
+If it is rerun after later Sprint 147 artifacts are added, the total and
+Markdown counts will include those newer planning files.
+
 ```sh
-find include src tests benchmarks examples scripts docs .github/workflows cmake -type f | sort | awk '...'
+find include src tests benchmarks examples scripts docs .github/workflows cmake CMakeLists.txt -type f | sort | awk '
+  {
+    total++;
+    if ($0 ~ /\.c$/) c++;
+    if ($0 ~ /\.h$/) h++;
+    if ($0 ~ /\.py$/) py++;
+    if ($0 ~ /\.md$/) md++;
+    if ($0 ~ /^\.github\/workflows\/.*\.ya?ml$/) workflows++;
+    if ($0 == "CMakeLists.txt" || $0 ~ /^cmake\//) cmake_files++;
+  }
+  END {
+    printf("total=%d\nc=%d\nh=%d\npy=%d\nmd=%d\nworkflows=%d\ncmake=%d\n",
+           total, c, h, py, md, workflows, cmake_files);
+  }'
 find src tests include benchmarks examples scripts -type f \( -name '*.c' -o -name '*.h' -o -name '*.py' \) -print0 | xargs -0 wc -l | sort -nr | head -30
 rg -n "LIB_SRCS|TEST_SRCS|BENCH_SRCS|EX_SRCS|add_library\(|add_sparse_test|EXPECTED_WINDOWS_CTEST_COUNT|test_threads|test_sprint4_integration|test_fuzz|test_install|test_cmake_install|static_package_deferral_check|BUILD_SHARED_LIBS" Makefile CMakeLists.txt .github/workflows/*.yml tests/test_install.sh tests/test_cmake_install.sh scripts/static_package_deferral_check.sh
 ```

@@ -122,7 +122,7 @@
 Sprint 147 closes this claim:
 
 Epic 13 now has a selected closure scope and evidence contract for Sprints
-148-156. The sprint freezes the post-Epic-12 baseline, selects completeable
+148-156. The sprint freezes the post-Epic-12 baseline, selects completable
 gaps, defines candidate earned claims and rejected broad claims, publishes
 Windows/corpus/report/package/comparison/quality gates, audits public wording,
 and hands Sprint 148 a concrete Windows staged-test prerequisite checklist.

@@ -3,8 +3,8 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_thread_helpers.h"
 #include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -104,17 +104,18 @@ static void *thread_independent_lu(void *arg) {
 
 static void test_independent_lu_threads(void) {
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     thread_result_t results[4];
 
     for (int t = 0; t < nthreads; t++) {
         results[t].thread_id = t;
-        int rc = pthread_create(&threads[t], NULL, thread_independent_lu, &results[t]);
+        int rc = test_thread_create(&threads[t], thread_independent_lu, &results[t]);
         ASSERT_EQ(rc, 0);
     }
 
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         printf("    thread %d: success=%d max_error=%.2e\n", t, results[t].success,
                results[t].max_error);
         ASSERT_TRUE(results[t].success);
@@ -197,7 +198,7 @@ static void test_concurrent_solve_shared(void) {
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
 
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     shared_solve_arg_t args[4];
 
     for (int t = 0; t < nthreads; t++) {
@@ -205,12 +206,13 @@ static void test_concurrent_solve_shared(void) {
         args[t].A = A;
         args[t].thread_id = t;
         args[t].iterations = 100;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_solve, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_solve, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         printf("    thread %d: %d iters, success=%d max_error=%.2e\n", t, args[t].iterations,
                args[t].success, args[t].max_error);
         ASSERT_TRUE(args[t].success);
@@ -294,7 +296,7 @@ static void test_concurrent_cholesky_solve(void) {
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
 
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     chol_solve_arg_t args[4];
 
     for (int t = 0; t < nthreads; t++) {
@@ -302,12 +304,13 @@ static void test_concurrent_cholesky_solve(void) {
         args[t].A = A;
         args[t].thread_id = t;
         args[t].iterations = 100;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_cholesky_solve, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_cholesky_solve, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         printf("    thread %d: %d iters, success=%d max_error=%.2e\n", t, args[t].iterations,
                args[t].success, args[t].max_error);
         ASSERT_TRUE(args[t].success);
@@ -340,7 +343,7 @@ static void test_lu_solve_stress(void) {
     ASSERT_NOT_NULL(LU);
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
 
-    pthread_t threads[STRESS_THREADS];
+    test_thread_t threads[STRESS_THREADS];
     shared_solve_arg_t args[STRESS_THREADS];
 
     for (int t = 0; t < STRESS_THREADS; t++) {
@@ -348,13 +351,14 @@ static void test_lu_solve_stress(void) {
         args[t].A = A;
         args[t].thread_id = t;
         args[t].iterations = STRESS_ITERS;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_solve, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_solve, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     int all_pass = 1;
     for (int t = 0; t < STRESS_THREADS; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         if (!args[t].success)
             all_pass = 0;
     }
@@ -382,7 +386,7 @@ static void test_cholesky_solve_stress(void) {
     ASSERT_NOT_NULL(L);
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
 
-    pthread_t threads[STRESS_THREADS];
+    test_thread_t threads[STRESS_THREADS];
     chol_solve_arg_t args[STRESS_THREADS];
 
     for (int t = 0; t < STRESS_THREADS; t++) {
@@ -390,13 +394,14 @@ static void test_cholesky_solve_stress(void) {
         args[t].A = A;
         args[t].thread_id = t;
         args[t].iterations = STRESS_ITERS;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_cholesky_solve, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_cholesky_solve, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     int all_pass = 1;
     for (int t = 0; t < STRESS_THREADS; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         if (!args[t].success)
             all_pass = 0;
     }
@@ -410,18 +415,19 @@ static void test_cholesky_solve_stress(void) {
 
 /* Concurrent independent create+factor+solve (8 threads) */
 static void test_independent_stress(void) {
-    pthread_t threads[STRESS_THREADS];
+    test_thread_t threads[STRESS_THREADS];
     thread_result_t results[STRESS_THREADS];
 
     for (int t = 0; t < STRESS_THREADS; t++) {
         results[t].thread_id = t;
-        int rc = pthread_create(&threads[t], NULL, thread_independent_lu, &results[t]);
+        int rc = test_thread_create(&threads[t], thread_independent_lu, &results[t]);
         ASSERT_EQ(rc, 0);
     }
 
     int all_pass = 1;
     for (int t = 0; t < STRESS_THREADS; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         if (!results[t].success)
             all_pass = 0;
     }
@@ -489,19 +495,20 @@ static void test_concurrent_norminf(void) {
     sparse_remove(A2, 0, (idx_t)(n - 1));
 
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     norminf_arg_t args[4];
 
     for (int t = 0; t < nthreads; t++) {
         args[t].mat = A2;
         args[t].thread_id = t;
         args[t].iterations = 1000;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_norminf, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_norminf, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         ASSERT_TRUE(args[t].success);
         ASSERT_NEAR(args[t].norm_result, expected_norm, 1e-14);
     }
@@ -544,9 +551,9 @@ static void test_concurrent_norminf_and_solve(void) {
 
     /* Threads 1-3: concurrent solves */
     shared_solve_arg_t solve_args[3];
-    pthread_t threads[4];
+    test_thread_t threads[4];
 
-    int rc = pthread_create(&threads[0], NULL, thread_concurrent_norminf, &norm_arg);
+    int rc = test_thread_create(&threads[0], thread_concurrent_norminf, &norm_arg);
     ASSERT_EQ(rc, 0);
 
     for (int t = 0; t < 3; t++) {
@@ -554,12 +561,14 @@ static void test_concurrent_norminf_and_solve(void) {
         solve_args[t].A = A;
         solve_args[t].thread_id = t + 1;
         solve_args[t].iterations = 500;
-        rc = pthread_create(&threads[t + 1], NULL, thread_concurrent_solve, &solve_args[t]);
+        rc = test_thread_create(&threads[t + 1], thread_concurrent_solve, &solve_args[t]);
         ASSERT_EQ(rc, 0);
     }
 
-    for (int t = 0; t < 4; t++)
-        pthread_join(threads[t], NULL);
+    for (int t = 0; t < 4; t++) {
+        rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
+    }
 
     ASSERT_TRUE(norm_arg.success);
     for (int t = 0; t < 3; t++)
@@ -613,7 +622,7 @@ static void test_concurrent_insert(void) {
     ASSERT_NOT_NULL(A);
 
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     insert_arg_t args[4];
     idx_t rows_per_thread = n / nthreads;
 
@@ -622,13 +631,14 @@ static void test_concurrent_insert(void) {
         args[t].thread_id = t;
         args[t].start_row = (idx_t)t * rows_per_thread;
         args[t].end_row = (t == nthreads - 1) ? n : args[t].start_row + rows_per_thread;
-        int rc = pthread_create(&threads[t], NULL, thread_concurrent_insert, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_concurrent_insert, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     int all_pass = 1;
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         if (!args[t].success)
             all_pass = 0;
     }

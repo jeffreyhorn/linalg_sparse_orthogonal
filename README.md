@@ -137,9 +137,10 @@ needs them.
   [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
   in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
   Linux is the strongest reviewed source of truth, macOS carries reviewed
-  static-first install/export proof, Windows remains CMake-first with staged
-  pthread/POSIX-backed tests outside the reviewed subset, and benchmark/report
-  rows remain bounded local evidence rather than portable performance claims.
+  static-first install/export proof, Windows remains CMake-first and now
+  includes the promoted `test_threads`, `test_sprint4_integration`, and
+  `test_fuzz` CTest targets in its reviewed subset, and benchmark/report rows
+  remain bounded local evidence rather than portable performance claims.
 
 ## Choose a Workflow
 

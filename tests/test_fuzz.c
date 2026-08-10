@@ -14,9 +14,14 @@
 #include "sparse_qr.h"
 #include "sparse_svd.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Helper: unique temp file for concurrent-safe fuzz testing
@@ -25,9 +30,39 @@
 static char fuzz_tmp_path[256];
 
 static void fuzz_init_tmp(void) {
+#ifdef _WIN32
+    char tmpdir[MAX_PATH + 1];
+    char tmppath[MAX_PATH + 1];
+    char finalpath[sizeof(fuzz_tmp_path)];
+    DWORD len;
+
+    fuzz_tmp_path[0] = '\0';
+    len = GetTempPathA((DWORD)sizeof(tmpdir), tmpdir);
+    if (len == 0 || len >= (DWORD)sizeof(tmpdir)) {
+        fprintf(stderr, "fuzz_init_tmp: GetTempPathA failed\n");
+        return;
+    }
+    if (GetTempFileNameA(tmpdir, "fuz", 0, tmppath) == 0) {
+        fprintf(stderr, "fuzz_init_tmp: GetTempFileNameA failed\n");
+        return;
+    }
+    if (snprintf(finalpath, sizeof(finalpath), "%s.mtx", tmppath) >= (int)sizeof(finalpath)) {
+        fprintf(stderr, "fuzz_init_tmp: temp path too long\n");
+        remove(tmppath);
+        return;
+    }
+    if (!MoveFileA(tmppath, finalpath)) {
+        fprintf(stderr, "fuzz_init_tmp: MoveFileA failed\n");
+        remove(tmppath);
+        fuzz_tmp_path[0] = '\0';
+        return;
+    }
+    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "%s", finalpath);
+#else
     const char *tmpdir = getenv("TMPDIR");
     if (!tmpdir || !tmpdir[0])
         tmpdir = "/tmp";
+    fuzz_tmp_path[0] = '\0';
     snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "%s/fuzz_test_XXXXXX.mtx", tmpdir);
     int fd = mkstemps(fuzz_tmp_path, 4); /* 4 = strlen(".mtx") */
     if (fd < 0) {
@@ -36,16 +71,17 @@ static void fuzz_init_tmp(void) {
     } else {
         close(fd);
     }
+#endif
 }
 
 static void fuzz_cleanup_tmp(void) {
     if (fuzz_tmp_path[0])
-        unlink(fuzz_tmp_path);
+        remove(fuzz_tmp_path);
 }
 
 static sparse_err_t try_load_mm(const char *content) {
     if (!fuzz_tmp_path[0])
-        return SPARSE_ERR_FOPEN; /* mkstemps failed in init */
+        return SPARSE_ERR_FOPEN; /* temp-file creation failed in init */
     FILE *f = fopen(fuzz_tmp_path, "w");
     if (!f)
         return SPARSE_ERR_FOPEN;

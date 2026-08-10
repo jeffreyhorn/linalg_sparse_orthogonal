@@ -309,11 +309,10 @@ Sprint 112 package/platform proof snapshot:
   Sprint 144 promotes static-first Make install/`pkg-config` and CMake
   install/export proof to reviewed macOS package lanes for the maintained
   static archive package contract
-- Windows keeps the reviewed MSVC CMake-first subset with 56 registered CTest
-  tests plus supplemental CMake install/downstream confidence;
-  `test_threads`, `test_sprint4_integration`, and `test_fuzz` remain staged
-  exclusions because the current sources still depend on pthread or POSIX
-  temp-file APIs
+- Windows keeps the reviewed MSVC CMake-first subset with 59 registered CTest
+  tests plus supplemental CMake install/downstream confidence; Sprint 148
+  promotes `test_threads`, `test_sprint4_integration`, and `test_fuzz` into
+  that CMake subset through portable test-only thread and temp-file helpers
 - do not infer shared-library support, ABI stability, package-manager support,
   runtime-loader behavior, Windows Makefile parity, Windows install-validation
   parity, or broader macOS platform parity from package evidence
@@ -891,15 +890,16 @@ Current platform-confidence interpretation:
 - Linux and macOS still exercise the full `test_fuzz` binary in their direct
   `make test` / reviewed local paths, so the bounded seeded generative
   lifecycle property lanes are part of those proof surfaces
-- Windows still excludes `test_fuzz` from the reviewed CMake subset, so that
-  property lane must not be implied as reviewed Windows evidence
-- Windows also still excludes `test_threads` and `test_sprint4_integration`
-  because both current test sources use pthread APIs directly
-- promoting any of these staged Windows tests requires a source portability
-  change or a Windows-native equivalent plus an intentional CTest count update
-  and hosted MSVC configure/build/execute evidence
-- this is a narrow confidence-boundary note only; it does not reopen the
-  broader staged Windows exclusions or claim new platform parity
+- Windows reviewed CMake now includes `test_fuzz`, so its deterministic
+  parser/property coverage is part of the reviewed Windows CMake evidence once
+  hosted MSVC configure/build/execute proof is green
+- Windows reviewed CMake also includes `test_threads` and
+  `test_sprint4_integration` through `tests/test_thread_helpers.h`, which keeps
+  POSIX pthread behavior on POSIX builds and uses a Windows backend on MSVC
+- this is a narrow confidence-boundary note only; it does not claim Windows
+  Makefile parity, Windows pkg-config parity, Windows install-validation
+  parity, package-manager support, shared-library support, or dynamic ABI
+  support
 
 Current deferred direct-usability queue:
 

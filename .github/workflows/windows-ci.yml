@@ -1,13 +1,11 @@
 name: Windows CI
 
 # Windows currently enforces the reviewed CMake subset only:
-# configure + build + `ctest -N` + full `ctest`. The Makefile reviewed
-# wrappers and dead-code flow remain staged, and the current excluded
-# tests remain explicit in job output. In particular, `test_fuzz` is still
-# outside the reviewed Windows subset, so the bounded lifecycle
-# property/fuzz lane is not claimed as reviewed Windows evidence. The staged
-# test blockers are source-level today: pthread APIs for `test_threads` and
-# `test_sprint4_integration`, and POSIX temp-file APIs for `test_fuzz`. The
+# configure + build + `ctest -N` + full `ctest`. The reviewed CMake subset now
+# includes the portable `test_threads`, `test_sprint4_integration`, and
+# `test_fuzz` targets after Sprint 148 source-portability work. Hosted Windows
+# enumeration/execution remains the proof gate for this promotion. The Makefile
+# reviewed wrappers and dead-code flow remain staged/deferred. The
 # install/downstream job below is supplemental CMake-first static package
 # confidence only; it checks the installed static archive, CMake package
 # metadata, downstream example, exact-version consumer, and absence of DLL
@@ -30,7 +28,7 @@ jobs:
     # image that actually carries the reviewed MSVC/CMake surface.
     runs-on: windows-2022
     env:
-      EXPECTED_WINDOWS_CTEST_COUNT: "56"
+      EXPECTED_WINDOWS_CTEST_COUNT: "59"
     steps:
       - uses: actions/checkout@v4
 
@@ -59,8 +57,8 @@ jobs:
           if ($count -ne [int]$env:EXPECTED_WINDOWS_CTEST_COUNT) {
             throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
           }
-          Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz (including the bounded lifecycle property lane)"
-          Write-Host "Windows staged blockers remain source-level: pthread APIs for test_threads/test_sprint4_integration and POSIX temp-file APIs for test_fuzz."
+          Write-Host "Windows reviewed CMake CTest surface includes promoted portable tests: test_threads, test_sprint4_integration, test_fuzz."
+          Write-Host "Windows promoted-test proof remains CMake-first: ctest -N count plus full ctest on the hosted MSVC lane."
           Write-Host "Windows reviewed scope remains CMake-first consumer proof only: no reviewed Makefile parity and no separate reviewed install-validation lane."
         shell: pwsh
 

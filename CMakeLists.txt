@@ -207,15 +207,13 @@ add_sparse_test(test_iterative)
 add_sparse_test(test_ilu)
 add_sparse_test(test_omp)
 
-# Thread tests need pthreads.  The test sources include <pthread.h>
-# directly, so they're POSIX-only; gate them on `NOT WIN32` alongside
-# the existing `Threads_FOUND` check (CMake's `find_package(Threads)`
-# does find Win32 threads, but our test source uses the pthread API).
+# test_threads and test_sprint4_integration use a test-only portable helper:
+# pthreads on POSIX and Win32 threads on Windows.
 find_package(Threads)
+add_sparse_test(test_threads)
+add_sparse_test(test_sprint4_integration)
 if(Threads_FOUND AND NOT WIN32)
-    add_sparse_test(test_threads)
     target_link_libraries(test_threads PRIVATE Threads::Threads)
-    add_sparse_test(test_sprint4_integration)
     target_link_libraries(test_sprint4_integration PRIVATE Threads::Threads)
 endif()
 
@@ -229,9 +227,7 @@ add_sparse_test(test_bidiag)
 add_sparse_test(test_svd)
 add_sparse_test(test_svd_partial_corpus)
 add_sparse_test(test_sprint8_integration)
-if(NOT WIN32 AND NOT MSVC)
-    add_sparse_test(test_fuzz)
-endif()
+add_sparse_test(test_fuzz)
 add_sparse_test(test_lu_csr)
 add_sparse_test(test_block_solvers)
 add_sparse_test(test_sprint10_integration)

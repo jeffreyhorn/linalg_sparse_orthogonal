@@ -10,8 +10,8 @@ explicitly out of scope.
 
 | Day | Target | Outcome | Windows CTest Delta |
 | --- | --- | --- | --- |
-| Day 6 | `test_threads` | Refactored to `tests/test_thread_helpers.h`; CMake now registers the target on all platforms and links `Threads::Threads` only where needed. | `56` to `57` |
-| Day 8 | `test_sprint4_integration` | Refactored concurrent checks to the portable helper; CMake now registers the target on all platforms. | `57` to `58` |
+| Day 6 | `test_threads` | Refactored to `tests/test_thread_helpers.h`; CMake now registers the target on Windows and on POSIX builds with `Threads_FOUND`, linking `Threads::Threads` only for POSIX. | `56` to `57` |
+| Day 8 | `test_sprint4_integration` | Refactored concurrent checks to the portable helper; CMake now registers the target on Windows and on POSIX builds with `Threads_FOUND`. | `57` to `58` |
 | Day 10 | `test_fuzz` | Replaced POSIX-only temp-file mechanics with a portable `.mtx` temp path; CMake now registers the target on all platforms. | `58` to `59` |
 
 ## CMake State

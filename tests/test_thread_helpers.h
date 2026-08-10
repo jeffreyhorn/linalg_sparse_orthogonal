@@ -7,6 +7,7 @@ typedef void *(*test_thread_fn)(void *);
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <process.h>
 #include <windows.h>
 
 typedef struct {
@@ -16,7 +17,7 @@ typedef struct {
     void *result;
 } test_thread_t;
 
-static DWORD WINAPI test_thread_entry(LPVOID arg) {
+static unsigned __stdcall test_thread_entry(void *arg) {
     test_thread_t *thread = (test_thread_t *)arg;
     thread->result = thread->fn(thread->arg);
     return 0;
@@ -29,7 +30,7 @@ static int test_thread_create(test_thread_t *thread, test_thread_fn fn, void *ar
     thread->fn = fn;
     thread->arg = arg;
     thread->result = NULL;
-    thread->handle = CreateThread(NULL, 0, test_thread_entry, thread, 0, NULL);
+    thread->handle = (HANDLE)_beginthreadex(NULL, 0, test_thread_entry, thread, 0, NULL);
     return thread->handle ? 0 : 1;
 }
 

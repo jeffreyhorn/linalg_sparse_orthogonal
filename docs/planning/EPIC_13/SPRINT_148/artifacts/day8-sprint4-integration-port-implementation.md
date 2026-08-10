@@ -14,7 +14,7 @@ surface.
 | Thread abstraction | Reused `tests/test_thread_helpers.h` in `tests/test_sprint4_integration.c`. | Keeps the worker function signature unchanged while hiding pthread versus Win32 lifecycle details. |
 | Direct pthread usage | Removed the direct `<pthread.h>` include and replaced raw `pthread_t`, `pthread_create`, and `pthread_join` calls. | Eliminates the source-level Windows blocker identified during the Day 2 audit. |
 | Join diagnostics | Added return-code assertions around `test_thread_join`. | Preserves failure visibility if a worker cannot be joined cleanly. |
-| CMake registration | Registered `test_sprint4_integration` unconditionally through `add_sparse_test`. | Makes the target eligible for the reviewed Windows CMake CTest surface. |
+| CMake registration | Registered `test_sprint4_integration` on Windows and on POSIX builds with `Threads_FOUND`. | Makes the target eligible for the reviewed Windows CMake CTest surface without adding a pthread-linked POSIX target when CMake cannot find Threads. |
 | POSIX linkage | Kept `Threads::Threads` linkage only for non-Windows builds when `Threads_FOUND`. | Preserves pthread linkage on POSIX without imposing pthread requirements on MSVC. |
 
 ## Behavior Preservation
@@ -34,7 +34,8 @@ surface.
 The CMake test-registration policy now treats `test_threads` and
 `test_sprint4_integration` the same way:
 
-- Both tests are registered by CMake on all platforms.
+- Both tests are registered by CMake on Windows and on POSIX builds with
+  `Threads_FOUND`.
 - POSIX builds link both tests to `Threads::Threads` when CMake finds the
   thread package.
 - Windows builds avoid pthread linkage and rely on the helper's Win32 backend.

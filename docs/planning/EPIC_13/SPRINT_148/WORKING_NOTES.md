@@ -189,8 +189,9 @@ boundaries.
   proof.
 - Added explicit join return-code assertions so thread join failures are
   reported by the test framework.
-- Updated `CMakeLists.txt` so `test_threads` is always registered by CMake,
-  while POSIX builds still link `Threads::Threads`; kept
+- Updated `CMakeLists.txt` so `test_threads` is registered on Windows and on
+  POSIX builds when `Threads_FOUND`, while POSIX builds still link
+  `Threads::Threads`; kept
   `test_sprint4_integration` under the existing POSIX-only gate for Days 7-8.
 - Focused validation passed: `cmake -S . -B build`,
   `cmake --build build --target test_threads`, and

@@ -4,8 +4,8 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_thread_helpers.h"
 #include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -290,18 +290,19 @@ static void *thread_cholesky_suitesparse(void *arg) {
 
 static void test_concurrent_cholesky_suitesparse(void) {
     int nthreads = 4;
-    pthread_t threads[4];
+    test_thread_t threads[4];
     chol_ss_arg_t args[4];
 
     for (int t = 0; t < nthreads; t++) {
         args[t].thread_id = t;
-        int rc = pthread_create(&threads[t], NULL, thread_cholesky_suitesparse, &args[t]);
+        int rc = test_thread_create(&threads[t], thread_cholesky_suitesparse, &args[t]);
         ASSERT_EQ(rc, 0);
     }
 
     int all_pass = 1;
     for (int t = 0; t < nthreads; t++) {
-        pthread_join(threads[t], NULL);
+        int rc = test_thread_join(&threads[t]);
+        ASSERT_EQ(rc, 0);
         if (!args[t].success)
             all_pass = 0;
     }

@@ -50,6 +50,127 @@ PARTIAL_SVD_ORACLE_ROW_IDS = {
     f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_status",
     f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_no_partial_arrays",
 }
+PARTIAL_SVD_GENERATED_FIXTURES = {
+    PARTIAL_SVD_FIXTURE_KEY: {
+        "generator_key": PARTIAL_SVD_GENERATOR_KEY,
+        "fixture_label": "clustered_repeated_diag8x6_k3",
+        "value_tolerance": "1e-8",
+        "projector_tolerance": "1e-8",
+        "residual_tolerance": "1e-8",
+        "oracle_row_ids": PARTIAL_SVD_ORACLE_ROW_IDS,
+        "observations": {
+            f"{PARTIAL_SVD_FIXTURE_KEY}_singular_values": (
+                "top_k=10,10,9.999999;max_abs_error=0"
+            ),
+            f"{PARTIAL_SVD_FIXTURE_KEY}_left_subspace": "left_projector_distance=0",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_right_subspace": "right_projector_distance=0",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_vector_residual": "max_triplet_residual=0",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_orthogonality": "max_orthogonality_residual=0",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_default_status": "SPARSE_SUCCESS",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_status": "SPARSE_ERR_NOT_CONVERGED",
+            f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_no_partial_arrays": (
+                "no_partial_sigma_u_vt_on_failure"
+            ),
+        },
+    },
+    "partial_svd_rankdef_diag6x4_k2_range_projector_v1": {
+        "generator_key": "partial_svd_rankdef_diag6x4_k2_range_projector_generator_v1",
+        "fixture_label": "rankdef_diag6x4_k2_range_projector",
+        "value_tolerance": "1e-8",
+        "projector_tolerance": "1e-8",
+        "residual_tolerance": "1e-8",
+        "oracle_row_ids": {
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_default_status",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_singular_values",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_rank",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_left_subspace",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_right_subspace",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_vector_residuals",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_orthogonality",
+        },
+        "observations": {
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_default_status": (
+                "SPARSE_SUCCESS"
+            ),
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_singular_values": (
+                "top_k=9,6;max_abs_error=0"
+            ),
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_rank": "2",
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_left_subspace": (
+                "left_projector_distance=0"
+            ),
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_right_subspace": (
+                "right_projector_distance=0"
+            ),
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_vector_residuals": (
+                "max_triplet_residual=0"
+            ),
+            "partial_svd_rankdef_diag6x4_k2_range_projector_v1_orthogonality": (
+                "max_orthogonality_residual=0"
+            ),
+        },
+    },
+    "partial_svd_lowrank_rect5x7_k3_sparse_output_v1": {
+        "generator_key": "partial_svd_lowrank_rect5x7_k3_sparse_output_generator_v1",
+        "fixture_label": "lowrank_rect5x7_k3_sparse_output",
+        "value_tolerance": "1e-10",
+        "projector_tolerance": "not_applicable",
+        "residual_tolerance": "1e-10",
+        "oracle_row_ids": {
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_status",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_shape",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_nnz",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_selected_values",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_dense_frobenius_error",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_dense_frobenius_diff",
+        },
+        "observations": {
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_status": (
+                "SPARSE_SUCCESS"
+            ),
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_shape": "shape=5x7",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_nnz": "3",
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_selected_values": (
+                "selected_values=8,4,2,0;max_abs_error=0"
+            ),
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_dense_frobenius_error": (
+                "dense_frobenius_abs_error=0"
+            ),
+            "partial_svd_lowrank_rect5x7_k3_sparse_output_v1_sparse_dense_frobenius_diff": (
+                "sparse_dense_frobenius_diff=0"
+            ),
+        },
+    },
+    "partial_svd_fail_closed_diag6_k2_v1": {
+        "generator_key": "partial_svd_fail_closed_diag6_k2_generator_v1",
+        "fixture_label": "fail_closed_diag6_k2",
+        "value_tolerance": "1e-8",
+        "projector_tolerance": "not_applicable",
+        "residual_tolerance": "1e-8",
+        "oracle_row_ids": {
+            "partial_svd_fail_closed_diag6_k2_v1_tight_budget_status",
+            "partial_svd_fail_closed_diag6_k2_v1_tight_budget_no_partial_arrays",
+            "partial_svd_fail_closed_diag6_k2_v1_recovery_status",
+            "partial_svd_fail_closed_diag6_k2_v1_default_singular_values",
+            "partial_svd_fail_closed_diag6_k2_v1_default_vector_residuals",
+        },
+        "observations": {
+            "partial_svd_fail_closed_diag6_k2_v1_tight_budget_status": (
+                "SPARSE_ERR_NOT_CONVERGED"
+            ),
+            "partial_svd_fail_closed_diag6_k2_v1_tight_budget_no_partial_arrays": (
+                "no_partial_sigma_u_vt_on_failure"
+            ),
+            "partial_svd_fail_closed_diag6_k2_v1_recovery_status": "SPARSE_SUCCESS",
+            "partial_svd_fail_closed_diag6_k2_v1_default_singular_values": (
+                "top_k=9,6;max_abs_error=0"
+            ),
+            "partial_svd_fail_closed_diag6_k2_v1_default_vector_residuals": (
+                "max_triplet_residual=0"
+            ),
+        },
+    },
+}
 SOLVER_QR_ORACLE_ROW_IDS = {
     f"{FIXTURE_KEY}_qr_rank": f"{FIXTURE_KEY}_rank",
     f"{FIXTURE_KEY}_qr_nullity": f"{FIXTURE_KEY}_nullity",
@@ -788,20 +909,30 @@ def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
             expected_norm = parse_float(expected_values["solution_norm"], "expected solution_norm")
             observed_norm = parse_float(observed_values["solution_norm"], "observed solution_norm")
             passed = abs(expected_norm - observed_norm) <= tolerance
-        elif "solution_values" in expected_values or "solution_values" in observed_values:
-            if "solution_values" not in expected_values or "solution_values" not in observed_values:
+        elif (
+            "solution_values" in expected_values
+            or "solution_values" in observed_values
+            or "selected_values" in expected_values
+            or "selected_values" in observed_values
+        ):
+            vector_field = (
+                "selected_values"
+                if "selected_values" in expected_values or "selected_values" in observed_values
+                else "solution_values"
+            )
+            if vector_field not in expected_values or vector_field not in observed_values:
                 raise CorpusValidationError(
-                    f"{expected['oracle_row_id']}: value comparison requires solution_values fields"
+                    f"{expected['oracle_row_id']}: value comparison requires {vector_field} fields"
                 )
             expected_solution = parse_vector(
-                expected_values["solution_values"], "expected solution_values"
+                expected_values[vector_field], f"expected {vector_field}"
             )
             observed_solution = parse_vector(
-                observed_values["solution_values"], "observed solution_values"
+                observed_values[vector_field], f"observed {vector_field}"
             )
             if len(expected_solution) != len(observed_solution):
                 raise CorpusValidationError(
-                    f"{expected['oracle_row_id']}: observed solution_values length mismatch"
+                    f"{expected['oracle_row_id']}: observed {vector_field} length mismatch"
                 )
             max_abs_error = max(
                 abs(expected_value - observed_value)
@@ -935,19 +1066,26 @@ def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
     return rows
 
 
-def partial_svd_generated_observations() -> dict[str, str]:
-    return {
-        f"{PARTIAL_SVD_FIXTURE_KEY}_singular_values": "top_k=10,10,9.999999;max_abs_error=0",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_left_subspace": "left_projector_distance=0",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_right_subspace": "right_projector_distance=0",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_vector_residual": "max_triplet_residual=0",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_orthogonality": "max_orthogonality_residual=0",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_default_status": "SPARSE_SUCCESS",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_status": "SPARSE_ERR_NOT_CONVERGED",
-        f"{PARTIAL_SVD_FIXTURE_KEY}_tight_budget_no_partial_arrays": (
-            "no_partial_sigma_u_vt_on_failure"
-        ),
-    }
+def partial_svd_configuration(
+    fixture_key: str,
+    generator_key: str,
+    fixture_info: dict[str, object],
+) -> str:
+    fixture = GENERATED_FIXTURES[generator_key]
+    entries = fixture["entries"]()
+    structure_hash = sha256_text(
+        canonical_structure_text(fixture["rows"], fixture["cols"], entries)
+    )
+    value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
+    return (
+        "build_profile=static_default;optional_data_policy=disabled;"
+        "proof_owner=generated_partial_svd_reference;solver_execution=none;"
+        f"partial_svd_fixture={fixture_info['fixture_label']};fixture_key={fixture_key};"
+        f"structure_hash={structure_hash};value_hash={value_hash};"
+        f"value_tolerance={fixture_info['value_tolerance']};"
+        f"projector_tolerance={fixture_info['projector_tolerance']};"
+        f"residual_tolerance={fixture_info['residual_tolerance']}"
+    )
 
 
 def build_partial_svd_oracle_rows(
@@ -955,60 +1093,63 @@ def build_partial_svd_oracle_rows(
 ) -> list[dict[str, str]]:
     if validate_root:
         validate(root)
-    fixture = GENERATED_FIXTURES[PARTIAL_SVD_GENERATOR_KEY]
-    entries = fixture["entries"]()
-    structure_hash = sha256_text(
-        canonical_structure_text(fixture["rows"], fixture["cols"], entries)
-    )
-    value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
-    expected = load_expected_rows(root, PARTIAL_SVD_FIXTURE_KEY, PARTIAL_SVD_ORACLE_ROW_IDS)
-    observations = partial_svd_generated_observations()
     now = utc_timestamp()
     commit = run_text(["git", "rev-parse", "HEAD"])
     branch = current_source_branch()
     platform_name = f"{platform.system().lower()}-{platform.machine().lower()}"
-    configuration = (
-        "build_profile=static_default;optional_data_policy=disabled;"
-        "proof_owner=generated_partial_svd_reference;solver_execution=none;"
-        "partial_svd_fixture=clustered_repeated_diag8x6_k3;"
-        f"structure_hash={structure_hash};value_hash={value_hash};"
-        "value_tolerance=1e-8;projector_tolerance=1e-8;residual_tolerance=1e-8"
-    )
     rows: list[dict[str, str]] = []
-    for oracle_row_id in sorted(observations):
-        if oracle_row_id not in expected:
+    for fixture_key, fixture_info in PARTIAL_SVD_GENERATED_FIXTURES.items():
+        generator_key = str(fixture_info["generator_key"])
+        oracle_row_ids = set(fixture_info["oracle_row_ids"])
+        observations = dict(fixture_info["observations"])
+        observation_ids = set(observations)
+        missing_observations = sorted(oracle_row_ids - observation_ids)
+        extra_observations = sorted(observation_ids - oracle_row_ids)
+        if missing_observations or extra_observations:
+            details = []
+            if missing_observations:
+                details.append(f"missing observations: {', '.join(missing_observations)}")
+            if extra_observations:
+                details.append(f"extra observations: {', '.join(extra_observations)}")
             raise CorpusValidationError(
-                f"missing expected result for partial-SVD oracle row {oracle_row_id!r}"
+                f"partial-SVD oracle row mismatch for {fixture_key!r}: {'; '.join(details)}"
             )
-        expected_row = expected[oracle_row_id]
-        status, failure_class = compare(expected_row, observations[oracle_row_id])
-        rows.append(
-            {
-                "oracle_row_id": oracle_row_id,
-                "fixture_key": PARTIAL_SVD_FIXTURE_KEY,
-                "solver_family": "partial_svd",
-                "operation": expected_row["operation"],
-                "comparison_kind": expected_row["comparison_kind"],
-                "command": command,
-                "source_commit": commit,
-                "source_branch": branch,
-                "generated_at_utc": now,
-                "platform": platform_name,
-                "compiler": "not_applicable",
-                "configuration": configuration,
-                "support_tier": "local_only",
-                "expected_result_kind": expected_row["expected_result_kind"],
-                "expected_result": expected_row["expected_result"],
-                "observed_result": observations[oracle_row_id],
-                "tolerance_kind": expected_row["tolerance_kind"],
-                "tolerance_value": expected_row["tolerance_value"],
-                "comparison_status": status,
-                "failure_class": failure_class,
-                "skip_or_defer_reason": "",
-                "claim_scope": expected_row["claim_scope"],
-                "non_claims": expected_row["non_claims"],
-            }
-        )
+        expected = load_expected_rows(root, fixture_key, oracle_row_ids)
+        configuration = partial_svd_configuration(fixture_key, generator_key, fixture_info)
+        for oracle_row_id in sorted(oracle_row_ids):
+            if oracle_row_id not in expected:
+                raise CorpusValidationError(
+                    f"missing expected result for partial-SVD oracle row {oracle_row_id!r}"
+                )
+            expected_row = expected[oracle_row_id]
+            status, failure_class = compare(expected_row, observations[oracle_row_id])
+            rows.append(
+                {
+                    "oracle_row_id": oracle_row_id,
+                    "fixture_key": fixture_key,
+                    "solver_family": "partial_svd",
+                    "operation": expected_row["operation"],
+                    "comparison_kind": expected_row["comparison_kind"],
+                    "command": command,
+                    "source_commit": commit,
+                    "source_branch": branch,
+                    "generated_at_utc": now,
+                    "platform": platform_name,
+                    "compiler": "not_applicable",
+                    "configuration": configuration,
+                    "support_tier": "local_only",
+                    "expected_result_kind": expected_row["expected_result_kind"],
+                    "expected_result": expected_row["expected_result"],
+                    "observed_result": observations[oracle_row_id],
+                    "tolerance_kind": expected_row["tolerance_kind"],
+                    "tolerance_value": expected_row["tolerance_value"],
+                    "comparison_status": status,
+                    "failure_class": failure_class,
+                    "skip_or_defer_reason": "",
+                    "claim_scope": expected_row["claim_scope"],
+                    "non_claims": expected_row["non_claims"],
+                }
+            )
     return rows
 
 
@@ -1416,7 +1557,7 @@ def main() -> int:
     parser.add_argument(
         "--include-partial-svd",
         action="store_true",
-        help="append generated-reference partial-SVD oracle rows for the Sprint 140 fixture",
+        help="append generated-reference partial-SVD oracle rows for maintained fixtures",
     )
     parser.add_argument(
         "--solver-library",

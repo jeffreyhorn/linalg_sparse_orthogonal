@@ -223,14 +223,19 @@ estimates, pseudoinverse behavior, or low-rank approximations. Treat dense
 outputs and low-rank buffers according to the ownership rules of the public
 SVD APIs; do not depend on private dense workspaces.
 
-For partial SVD, the maintained Sprint 140 corpus proof is intentionally
-fixture-local: `partial_svd_clustered_repeated_diag8x6_k3_v1` checks generated
-8x6 clustered/repeated top-3 singular values, left/right subspace projectors,
-triplet residuals, orthogonality, default-budget success, and tight-budget
-fail-closed behavior through `tests/test_svd_partial_corpus.c` and
+For partial SVD, the maintained corpus proof is intentionally fixture-local.
+It covers `partial_svd_clustered_repeated_diag8x6_k3_v1` plus the Sprint 151
+families `partial_svd_rankdef_diag6x4_k2_range_projector_v1`,
+`partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and
+`partial_svd_fail_closed_diag6_k2_v1`. Those rows check generated top-k
+singular values, rank, subspace projectors, triplet residuals, orthogonality,
+sparse low-rank shape/nnz/selected values/Frobenius behavior, default-budget
+success, tight-budget fail-closed behavior, and recovery through
+`tests/test_svd_partial_corpus.c` and
 `python3 scripts/run_corpus_oracle.py --include-partial-svd`. Do not use that
-lane as broad repeated-spectrum, raw vector identity, external-library parity,
-platform, performance, package, ABI, or state-of-the-art evidence.
+lane as broad partial-SVD correctness, raw vector identity, broad sparse-output
+optimality, external-library parity, platform, performance, package, ABI, or
+state-of-the-art evidence.
 
 Useful starting example:
 

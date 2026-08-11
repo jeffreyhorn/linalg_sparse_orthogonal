@@ -13,6 +13,12 @@ Raw QR basis vectors should not be the primary expected artifact for
 rank-deficient QR fixtures. Prefer rank, nullity, residual, and
 normalized null-vector residual comparisons with fixture-local tolerances.
 
+Raw partial-SVD singular vectors should not be the primary expected artifact
+for partial-SVD corpus fixtures. Prefer sorted top-k singular values,
+projector/subspace distances, triplet residuals, orthogonality residuals,
+status/diagnostic rows, sparse-output shape/nnz/selected values, and
+Frobenius-error summaries with fixture-local tolerances.
+
 Expected-result skeleton rows may use placeholder statuses such as
 `placeholder_pending_generator` or `placeholder_pending_oracle_command`.
 Placeholder rows are not pass evidence.

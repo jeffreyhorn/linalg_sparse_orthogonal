@@ -226,6 +226,33 @@ def partial_svd_clustered_repeated_diag8x6_entries() -> list[tuple[int, int, flo
     ]
 
 
+def partial_svd_rankdef_diag6x4_k2_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 9.0),
+        (1, 1, 6.0),
+    ]
+
+
+def partial_svd_lowrank_rect5x7_k3_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 8.0),
+        (1, 1, 4.0),
+        (2, 2, 2.0),
+        (3, 3, 1.0),
+    ]
+
+
+def partial_svd_fail_closed_diag6_k2_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 9.0),
+        (1, 1, 6.0),
+        (2, 2, 3.0),
+        (3, 3, 1.0),
+        (4, 4, 0.5),
+        (5, 5, 0.25),
+    ]
+
+
 def qr_rankdef_duplicate_5x4_entries() -> list[tuple[int, int, float]]:
     return [
         (0, 0, 1.0),
@@ -350,7 +377,34 @@ GENERATED_FIXTURES = {
         "nullity": 1,
         "parameters": "rows=8;cols=6;k=3;diag=10,10,9.999999,4,1,0;expected_rank=5;nullity=1",
         "entries": partial_svd_clustered_repeated_diag8x6_entries,
-    }
+    },
+    "partial_svd_rankdef_diag6x4_k2_range_projector_generator_v1": {
+        "algorithm": "fixed_partial_svd_rankdef_diag6x4_k2_range_projector",
+        "rows": 6,
+        "cols": 4,
+        "expected_rank": 2,
+        "nullity": 2,
+        "parameters": "rows=6;cols=4;k=2;diag=9,6,0,0;expected_rank=2;nullity=2",
+        "entries": partial_svd_rankdef_diag6x4_k2_entries,
+    },
+    "partial_svd_lowrank_rect5x7_k3_sparse_output_generator_v1": {
+        "algorithm": "fixed_partial_svd_lowrank_rect5x7_k3_sparse_output",
+        "rows": 5,
+        "cols": 7,
+        "expected_rank": 4,
+        "nullity": 3,
+        "parameters": "rows=5;cols=7;k=3;diag=8,4,2,1,0;drop_tol=0;expected_rank=4;nullity=3",
+        "entries": partial_svd_lowrank_rect5x7_k3_entries,
+    },
+    "partial_svd_fail_closed_diag6_k2_generator_v1": {
+        "algorithm": "fixed_partial_svd_fail_closed_diag6_k2",
+        "rows": 6,
+        "cols": 6,
+        "expected_rank": 6,
+        "nullity": 0,
+        "parameters": "rows=6;cols=6;k=2;diag=9,6,3,1,0.5,0.25;tight_max_iter=1;expected_rank=6;nullity=0",
+        "entries": partial_svd_fail_closed_diag6_k2_entries,
+    },
 }
 
 

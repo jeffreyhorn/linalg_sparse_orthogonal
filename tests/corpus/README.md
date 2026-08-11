@@ -214,14 +214,18 @@ Keep optional-data skip rows separate from QR pass evidence. Do not promote
 support beyond `local_only` until a reviewed hosted lane records matching
 generated evidence.
 
-## Partial-SVD Clustered/Repeated Lane
+## Partial-SVD Corpus Lane
 
-Sprint 140 adds one generated partial-SVD fixture lane:
+Sprint 140 and Sprint 151 maintain generated partial-SVD fixture lanes:
 
-- fixture key: `partial_svd_clustered_repeated_diag8x6_k3_v1`
-- fixture family: `partial_svd_clustered_repeated`
-- generator key: `partial_svd_clustered_repeated_diag8x6_generator_v1`
-- proof owner: `tests/test_svd_partial_corpus.c`
+| Fixture key | Family | Generator key | Generated oracle rows |
+| --- | --- | --- | ---: |
+| `partial_svd_clustered_repeated_diag8x6_k3_v1` | `partial_svd_clustered_repeated` | `partial_svd_clustered_repeated_diag8x6_generator_v1` | 8 |
+| `partial_svd_rankdef_diag6x4_k2_range_projector_v1` | `partial_svd_rankdef_rectangular` | `partial_svd_rankdef_diag6x4_k2_range_projector_generator_v1` | 7 |
+| `partial_svd_lowrank_rect5x7_k3_sparse_output_v1` | `partial_svd_lowrank_sparse_output` | `partial_svd_lowrank_rect5x7_k3_sparse_output_generator_v1` | 6 |
+| `partial_svd_fail_closed_diag6_k2_v1` | `partial_svd_fail_closed` | `partial_svd_fail_closed_diag6_k2_generator_v1` | 5 |
+
+The source-controlled proof owner is `tests/test_svd_partial_corpus.c`.
 
 Run the local partial-SVD corpus lane with:
 
@@ -240,20 +244,23 @@ python3 scripts/run_corpus_oracle.py --include-partial-svd
 Expected generated outputs for the opt-in partial-SVD lane:
 
 - `build/corpus/oracle/corpus.oracle.tsv` contains the QR generated-reference
-  rows plus eight generated-reference rows for
-  `partial_svd_clustered_repeated_diag8x6_k3_v1`.
+  rows plus `26` partial-SVD generated-local rows for the four maintained
+  fixtures above.
 - `build/corpus-reports/index.tsv` indexes the partial-SVD rows and their
   fixture-local claim scope.
 - `build/corpus-reports/manifest.txt` records the command, row count, solver
-  families, support tier, and `partial_svd_row_count=8`.
+  families, support tier, and `partial_svd_row_count=26`.
 
-The lane proves only fixture-local top-3 singular values, left/right top-k
-subspace projectors, triplet residuals, orthogonality, default-budget success,
-tight-budget fail-closed behavior, and no partial arrays on tight-budget
-failure for the generated 8x6 diagonal fixture. It does not claim broad
-partial-SVD correctness, raw singular-vector identity, broad repeated-spectrum
-coverage, external-library parity, performance, package/ABI support,
-platform parity, partial-result guarantees, or state-of-the-art behavior.
+The lane proves only fixture-local top-k singular values, rank, left/right
+selected-subspace projectors, triplet residuals, orthogonality, sparse
+low-rank shape/nnz/selected values/Frobenius behavior, default-budget success,
+tight-budget fail-closed behavior, no partial arrays on tight-budget failure,
+and default-budget recovery after failure for the generated fixtures above. It
+does not claim broad partial-SVD correctness, raw singular-vector identity,
+broad repeated-spectrum coverage, broad rank-deficient behavior, broad
+sparse-output optimality, external-library parity, performance, package/ABI
+support, platform parity, partial-result guarantees, or state-of-the-art
+behavior.
 
 Stale or unsupported partial-SVD report signals:
 
@@ -261,11 +268,11 @@ Stale or unsupported partial-SVD report signals:
 - the report predates changes to corpus manifests, expected rows, schemas,
   `scripts/run_corpus_oracle.py`, `tests/test_svd_partial_corpus.c`, or
   `tests/test_svd_partial_shared_helpers.h`;
-- the oracle output lacks eight rows for
-  `partial_svd_clustered_repeated_diag8x6_k3_v1` or lists a partial-SVD row
-  count other than `8`;
-- any Sprint 140 partial-SVD expected row is not reflected in the local oracle
-  output;
+- the oracle output lacks the expected `8`, `7`, `6`, and `5` generated rows
+  for the four maintained partial-SVD fixtures or lists a partial-SVD row count
+  other than `26`;
+- any maintained partial-SVD expected row is not reflected in the local oracle
+  output or normalized report index;
 - optional-data skip/defer rows are cited as partial-SVD pass evidence.
 
 ## Residual Register
@@ -280,11 +287,11 @@ Stale or unsupported partial-SVD report signals:
   completeness, and state-of-the-art claims.
 - Raw QR basis/sign/orientation parity; Sprint 139 compares normalized
   residual behavior instead.
-- Reviewed hosted-platform promotion for the Sprint 140 partial-SVD corpus
+- Reviewed hosted-platform promotion for the maintained partial-SVD corpus
   rows.
-- Broad partial-SVD rank-deficient range-projector follow-through beyond the
-  bounded `test_partial_svd_rankdef_diag6x4_k2_range_projector` owner-local
-  fixture.
+- Broad partial-SVD behavior beyond the maintained clustered/repeated,
+  rank-deficient projector, sparse low-rank output, and fail-closed recovery
+  fixtures.
 - Report freshness normalization and stale-report diagnostics in Sprint 141.
 - Optional external data availability, provenance, and reviewed pass policy.
 - Public documentation/adoption wording that references corpus evidence

@@ -427,7 +427,7 @@ refreshed the direct-solver public guidance boundary.
 | LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
 | Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c` plus `tests/lu_external_dense_reference.py` | deterministic nonsymmetric `lu_nonsym_square_5` solve and singular `lu_singular_square_4` expected failure | no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
 | QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_qr_corpus.c`, `tests/test_colamd.c`, `tests/qr_external_dense_reference.py`, and `scripts/run_corpus_oracle.py --include-solver-qr` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, Sprint 139 corpus fixture `qr_rank_deficient_6x4_nullspace_v1` proving rank `3`, nullity `1`, and solver-produced nullspace residual `<= 1e-10`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, and bounded economy projector fixture `qr_economy_projector_5x3` | no broad QR, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, platform, performance, or state-of-the-art claim |
-| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, `tests/test_svd_partial_corpus.c`, `tests/test_svd_partial_shared_helpers.h`, `tests/svd_external_dense_reference.py`, and `scripts/run_corpus_oracle.py --include-partial-svd` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2`, and Sprint 140 corpus fixture `partial_svd_clustered_repeated_diag8x6_k3_v1` proving generated 8x6 clustered/repeated top-3 singular values, left/right top-k subspace projectors, triplet residuals, orthogonality, default-budget success, tight-budget fail-closed behavior, and no partial arrays on tight-budget failure | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad vector/subspace, rectangular, nonsymmetric, repeated-spectrum, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, performance, platform, package, ABI, or state-of-the-art claim |
+| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, `tests/test_svd_partial_corpus.c`, `tests/test_svd_partial_shared_helpers.h`, `tests/svd_external_dense_reference.py`, and `scripts/run_corpus_oracle.py --include-partial-svd` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2`, and Sprint 140/Sprint 151 corpus fixtures `partial_svd_clustered_repeated_diag8x6_k3_v1`, `partial_svd_rankdef_diag6x4_k2_range_projector_v1`, `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and `partial_svd_fail_closed_diag6_k2_v1` proving generated top-k values, rank, selected subspace projectors, triplet residuals, orthogonality, sparse low-rank shape/nnz/selected-value/Frobenius behavior, tight-budget fail-closed behavior, no partial arrays on tight-budget failure, and recovery | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad vector/subspace, rectangular, nonsymmetric, repeated-spectrum, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, performance, platform, package, ABI, or state-of-the-art claim |
 
 Interpretation:
 
@@ -435,10 +435,11 @@ Interpretation:
   behavior, but must keep external-oracle confidence tied to named test owners.
 - Later comparison work should reuse this table as a wording input before
   making public comparative claims.
-- Sprints 121-125 add bounded QR, SVD, and partial-SVD evidence lanes, and
-  Sprint 140 adds one generated partial-SVD clustered/repeated corpus lane.
-  These lanes prove only the named fixtures and owner-local behaviors listed
-  above.
+- Sprints 121-125 add bounded QR, SVD, and partial-SVD evidence lanes. Sprint
+  140 adds the clustered/repeated generated partial-SVD corpus lane, and Sprint
+  151 adds rank-deficient rectangular projector, sparse low-rank output, and
+  fail-closed recovery generated partial-SVD corpus lanes. These lanes prove
+  only the named fixtures and owner-local behaviors listed above.
 - Any future external oracle lane needs a family-local boundary artifact before
   implementation, then a validation artifact before public wording changes.
 
@@ -518,10 +519,75 @@ Remaining QR residuals after Sprint 139:
   promoted.
 - Raw Q-basis/sign/orientation parity is intentionally not closed; Sprint 139
   compares residual/subspace-safe behavior instead.
-- Partial-SVD clustered/repeated singular-value follow-through is now covered
-  by the Sprint 140 `partial_svd_clustered_repeated_diag8x6_k3_v1` corpus
-  fixture and `tests/test_svd_partial_corpus.c`; broader repeated-spectrum and
-  raw vector identity claims remain out of scope.
+- Partial-SVD clustered/repeated, rank-deficient rectangular, sparse low-rank
+  output, and fail-closed recovery follow-through are now covered by
+  `tests/test_svd_partial_corpus.c` and the partial-SVD corpus/oracle command;
+  broader repeated-spectrum, raw vector identity, broad sparse-output
+  optimality, external-library parity, performance, platform/package/ABI, and
+  state-of-the-art claims remain out of scope.
+
+### Partial-SVD Corpus Maintenance
+
+The Sprint 140/Sprint 151 partial-SVD corpus lane is maintained as a
+fixture-local confidence path, not as broad partial-SVD parity or product
+quality proof. The selected fixture keys are:
+
+- `partial_svd_clustered_repeated_diag8x6_k3_v1`
+- `partial_svd_rankdef_diag6x4_k2_range_projector_v1`
+- `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`
+- `partial_svd_fail_closed_diag6_k2_v1`
+
+Together, these fixtures prove only named top-k value, rank, selected
+subspace-projector, triplet-residual, orthogonality, sparse-output
+shape/nnz/selected-value/Frobenius, fail-closed, no-partial-array, and recovery
+rows.
+
+Use these commands to regenerate and interpret the lane from a clean local
+checkout:
+
+```sh
+python3 scripts/validate_corpus_schema.py
+make build/test_svd_partial_corpus && ./build/test_svd_partial_corpus
+python3 scripts/run_corpus_oracle.py --include-partial-svd
+python3 scripts/normalize_report_index.py --family corpus --family oracle --check
+python3 scripts/normalize_report_index.py --family oracle --check-freshness
+```
+
+The focused C proof should report `10` passing `test_svd_partial_corpus` tests.
+The opt-in oracle command writes `build/corpus/oracle/corpus.oracle.tsv` with
+three QR generated-reference rows plus `26` `solver_family=partial_svd` rows
+for the maintained partial-SVD fixtures. The manifest should record
+`partial_svd_row_count=26`, `solver_families=partial_svd,unknown`, the command,
+the current commit/branch, and all four selected partial-SVD fixture keys. The
+normalized corpus/oracle index should currently contain `105` rows when the
+generated local oracle output is present.
+
+Treat a partial-SVD corpus report as stale or non-interpretable when any of
+these are true:
+
+- `tests/test_svd_partial_corpus.c`,
+  `tests/test_svd_partial_shared_helpers.h`, corpus fixture rows,
+  expected-result rows, generator metadata, schema files,
+  `scripts/validate_corpus_schema.py`, `scripts/run_corpus_oracle.py`, or
+  `scripts/normalize_report_index.py` changed after the report was generated.
+- The command, commit, branch, platform, compiler, configuration, support tier,
+  or generated path recorded in the oracle rows or manifest does not match the
+  report being reviewed.
+- The oracle output lacks the expected `8`, `7`, `6`, and `5` generated rows
+  for the four selected fixtures, reports a partial-SVD row count other than
+  `26`, omits `partial_svd` from solver families, omits any selected
+  partial-SVD fixture key, or emits any non-pass comparison status for the
+  maintained partial-SVD rows.
+- Normalized oracle freshness reports stale rows. Default freshness may warn,
+  but `--strict-generated --check-freshness` or
+  `--require-generated oracle --check-freshness` should fail stale strict
+  oracle evidence when a current partial-SVD report is required.
+
+Support tier remains `local_only` for this partial-SVD lane until a later
+sprint promotes reviewed hosted-platform evidence. Generated oracle/report
+files stay ignored build artifacts. Source-controlled confidence lives in the
+fixture metadata, generator metadata, expected rows, focused C proof-owner
+tests, normalized report-index tests, and reproducible commands.
 
 ## Sprint 103 Iterative, Spectral, and SVD Evidence Boundary Snapshot
 

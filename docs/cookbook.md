@@ -221,13 +221,17 @@ Dense SVD outputs and low-rank buffers are caller-owned according to the public
 SVD API. Sparse low-rank output is returned as a `SparseMatrix *` and is freed
 with `sparse_free(...)`.
 
-The maintained corpus includes one partial-SVD clustered/repeated fixture,
-`partial_svd_clustered_repeated_diag8x6_k3_v1`, for fixture-local top-3
-singular-value, top-k subspace-projector, triplet-residual, orthogonality,
-default-budget success, and tight-budget fail-closed behavior. Use it as a
-regression proof for that generated case only; it does not claim broad
-repeated-spectrum coverage, raw singular-vector identity, external-library
-parity, performance, or state-of-the-art behavior.
+The maintained corpus includes fixture-local partial-SVD rows for
+`partial_svd_clustered_repeated_diag8x6_k3_v1`,
+`partial_svd_rankdef_diag6x4_k2_range_projector_v1`,
+`partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and
+`partial_svd_fail_closed_diag6_k2_v1`. Use them as regression proof for those
+generated cases only: top-k values, projector/residual/orthogonality checks,
+sparse low-rank shape/nnz/selected values/Frobenius behavior, tight-budget
+fail-closed behavior, and recovery. They do not claim broad partial-SVD
+correctness, raw singular-vector identity, broad sparse-output optimality,
+external-library parity, performance, platform/package/ABI support, or
+state-of-the-art behavior.
 
 Use [`examples/example_svd_lowrank.c`](../examples/example_svd_lowrank.c) for
 the smallest runnable SVD, rank, condition, and low-rank workflow. Use

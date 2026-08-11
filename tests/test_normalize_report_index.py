@@ -14,6 +14,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "normalize_report_index.py"
 ORACLE_SCRIPT = REPO_ROOT / "scripts" / "run_corpus_oracle.py"
 CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
+SPRINT151_PARTIAL_SVD_ROW_COUNTS = {
+    "partial_svd_rankdef_diag6x4_k2_range_projector_v1": 7,
+    "partial_svd_lowrank_rect5x7_k3_sparse_output_v1": 6,
+    "partial_svd_fail_closed_diag6_k2_v1": 5,
+}
 
 
 def run_command(args: list[str], *, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
@@ -47,6 +52,10 @@ def assert_sorted(rows: list[dict[str, str]]) -> None:
     ]
     if keys != sorted(keys):
         raise AssertionError("normalized rows are not deterministically sorted")
+
+
+def generated_oracle_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [row for row in rows if row["row_id"].startswith("oracle_")]
 
 
 def test_current_repo_no_generated() -> None:
@@ -702,15 +711,118 @@ def test_generated_oracle_rows_are_preserved() -> None:
         )
         rows = read_tsv(output)
         native_ids = {row["native_row_id"] for row in rows}
+        oracle_rows = generated_oracle_rows(rows)
         assert "qr_rank_deficient_6x4_nullspace_v1_rank" in native_ids
         assert "partial_svd_clustered_repeated_diag8x6_k3_v1_singular_values" in native_ids
-        assert not any(row["freshness_status"] == "not_generated" for row in rows)
-        for row in rows:
-            if row["row_id"].startswith("oracle_"):
+        for fixture_key, expected_count in SPRINT151_PARTIAL_SVD_ROW_COUNTS.items():
+            fixture_rows = [
+                row
+                for row in oracle_rows
+                if row["native_row_id"].startswith(fixture_key)
+            ]
+            assert len(fixture_rows) == expected_count
+            for row in fixture_rows:
+                assert row["report_family"] == "oracle"
+                assert row["subfamily"] == "solver_backed"
+                assert row["row_origin"] == "generated_local"
+                assert row["support_tier"] == "local_only"
                 assert row["status"] == "pass"
-                assert "fixture_key=" in row["configuration"]
-                assert "broad" in row["non_claims"]
-                assert row["freshness_status"] == "generated_present_unchecked"
+                assert "solver_family=partial_svd" in row["configuration"]
+                assert f"fixture_key={fixture_key}" in row["configuration"]
+                assert "proof_owner=generated_partial_svd_reference" in row["configuration"]
+                assert "solver_execution=none" in row["configuration"]
+                assert (
+                    "broad partial-SVD correctness" in row["non_claims"]
+                    or "broad sparse-output correctness" in row["non_claims"]
+                )
+                assert "external-library parity" in row["non_claims"]
+                assert "performance" in row["non_claims"]
+        assert not any(row["freshness_status"] == "not_generated" for row in rows)
+        for row in oracle_rows:
+            assert row["status"] == "pass"
+            assert "fixture_key=" in row["configuration"]
+            assert "broad" in row["non_claims"]
+            assert row["freshness_status"] == "generated_present_unchecked"
+
+
+def test_sprint151_partial_svd_oracle_freshness_strictness() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        oracle_dir = build_root / "corpus" / "oracle"
+        report_dir = build_root / "corpus-reports"
+        output = tmp_path / "oracle-index.tsv"
+
+        run_command(
+            [
+                "python3",
+                str(ORACLE_SCRIPT),
+                "--include-partial-svd",
+                "--oracle-dir",
+                str(oracle_dir),
+                "--report-dir",
+                str(report_dir),
+            ]
+        )
+        oracle_path = oracle_dir / "corpus.oracle.tsv"
+        oracle_text = oracle_path.read_text()
+        fixture_key = "partial_svd_rankdef_diag6x4_k2_range_projector_v1"
+        if fixture_key not in oracle_text:
+            raise AssertionError(f"missing generated fixture rows for {fixture_key}")
+        oracle_path.write_text(oracle_text.replace("\t" + current_commit() + "\t", "\toldcommit\t"))
+
+        run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--output",
+                str(output),
+            ]
+        )
+        rows = read_tsv(output)
+        stale_fixture_rows = [
+            row
+            for row in generated_oracle_rows(rows)
+            if row["native_row_id"].startswith(fixture_key)
+        ]
+        assert len(stale_fixture_rows) == SPRINT151_PARTIAL_SVD_ROW_COUNTS[fixture_key]
+        assert {row["source_commit"] for row in stale_fixture_rows} == {"oldcommit"}
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--check-freshness",
+            ]
+        )
+        assert "freshness: warning:" in result.stdout
+        assert "stale: source_commit does not match current HEAD" in result.stdout
+        assert fixture_key in result.stdout
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--strict-generated",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "stale: source_commit does not match current HEAD" in result.stdout
+        assert fixture_key in result.stdout
 
 
 def main() -> int:
@@ -723,6 +835,7 @@ def main() -> int:
     test_freshness_missing_generated_and_deferred_rows()
     test_freshness_stale_and_advisory_runtime_rows()
     test_generated_oracle_rows_are_preserved()
+    test_sprint151_partial_svd_oracle_freshness_strictness()
     print("test-normalize-report-index: ok")
     return 0
 

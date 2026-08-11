@@ -90,12 +90,34 @@ status, residual norm, solution norm, and deterministic exact solution values.
 These rows are fixture-local expected targets, not broad QR or raw-basis
 identity claims.
 
+Sprint 151 extends the maintained partial-SVD expected-row families:
+
+| Fixture key | Operation family | Expected row suffixes |
+| --- | --- | --- |
+| `partial_svd_rankdef_diag6x4_k2_range_projector_v1` | `partial_svd` / `rank_info` | `default_status`, `singular_values`, `rank`, `left_subspace`, `right_subspace`, `vector_residuals`, `orthogonality` |
+| `partial_svd_lowrank_rect5x7_k3_sparse_output_v1` | `lowrank_sparse` | `sparse_status`, `sparse_shape`, `sparse_nnz`, `sparse_selected_values`, `dense_frobenius_error`, `sparse_dense_frobenius_diff` |
+| `partial_svd_fail_closed_diag6_k2_v1` | `convergence_budget` / `partial_svd` | `tight_budget_status`, `tight_budget_no_partial_arrays`, `recovery_status`, `default_singular_values`, `default_vector_residuals` |
+
+Partial-SVD rows compare value, rank, status, diagnostic, residual-norm, and
+subspace-distance fields with fixture-local tolerances. They intentionally use
+subspace-safe and residual-safe comparisons instead of raw singular-vector
+identity. Generated rows for these fixtures remain `local_only` and are
+interpreted through
+`python3 scripts/run_corpus_oracle.py --include-partial-svd` plus normalized
+oracle freshness checks.
+
 ## Maintained Command
 
-Run the maintained corpus/oracle command with:
+Run the maintained QR corpus/oracle command with:
 
 ```sh
 python3 scripts/run_corpus_oracle.py --include-solver-qr
+```
+
+Run the maintained partial-SVD corpus/oracle command with:
+
+```sh
+python3 scripts/run_corpus_oracle.py --include-partial-svd
 ```
 
 It validates the source-controlled corpus metadata, writes observed oracle rows

@@ -67,7 +67,7 @@ needs them.
 - **Full and partial SVD** — dense full SVD plus Lanczos-based partial SVD for the largest singular values.
 - **Conditioning and inverse-style tools** — numerical rank, condition number estimation, pseudoinverse, and low-rank approximation.
 - **Low-rank output choices** — dense and sparse low-rank approximations stay available under the same public SVD surface.
-- **Maintained partial-SVD corpus proof** — a generated 8x6 clustered/repeated diagonal fixture checks top-3 singular values, subspace projectors, triplet residuals, orthogonality, default-budget success, and tight-budget fail-closed behavior. This is fixture-local evidence, not a broad repeated-spectrum, external-library parity, performance, or state-of-the-art claim.
+- **Maintained partial-SVD corpus proof** — generated diagonal fixtures now cover the 8x6 clustered/repeated top-3 lane plus Sprint 151 rank-deficient rectangular projectors, sparse low-rank output, and non-repeated fail-closed recovery rows. This is fixture-local evidence, not broad partial-SVD correctness, raw singular-vector identity, external-library parity, performance, platform/package/ABI, or state-of-the-art support.
 
 ### Iterative Solvers
 - **Core one-shot solvers** — CG for SPD systems, GMRES for general unsymmetric systems, MINRES for symmetric indefinite systems, and BiCGSTAB as a one-shot compatibility path.
@@ -673,7 +673,7 @@ platform, performance, or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)
-- `sparse_svd_partial(A, k, &opts, &svd)` — k largest singular values via Lanczos bidiagonalization; Sprint 140 adds fixture-local clustered/repeated top-k subspace and convergence-budget evidence
+- `sparse_svd_partial(A, k, &opts, &svd)` — k largest singular values via Lanczos bidiagonalization; maintained corpus evidence is fixture-local to clustered/repeated top-k, rank-deficient projector, sparse low-rank output, and fail-closed recovery rows
 - `sparse_cond(A, &err)` — 2-norm condition number via SVD
 - `sparse_svd_rank(A, tol, &rank)` — numerical rank estimation
 - `sparse_pinv(A, tol, &pinv)` — Moore-Penrose pseudoinverse

@@ -62,7 +62,7 @@ row's fixture-local `claim_scope` and must preserve its `non_claims`.
 
 ## First-Lane Expected Oracle Rows
 
-The first durable lane reserves these row IDs:
+The first durable lane reserves these seed row IDs:
 
 | Oracle row ID | Operation | Comparison kind | Expected result |
 | --- | --- | --- | --- |
@@ -74,12 +74,28 @@ This first-lane residual is the normalized norm of `A * [-1, -1, 0, 1]`.
 Raw QR basis vectors and projector/subspace distances are not primary
 expected-result artifacts for this lane.
 
+Sprint 150 adds the following maintained QR expected-row families:
+
+| Fixture key | Operation family | Expected row suffixes |
+| --- | --- | --- |
+| `qr_rankdef_duplicate_5x4_v1` | `rank_info` / `nullspace` | `rank`, `nullity`, `nullspace_residual`, `nullspace_subspace` |
+| `qr_rankdef_dependent_row_4x3_v1` | `rank_info` / `nullspace` | `rank`, `nullity`, `nullspace_residual`, `nullspace_subspace` |
+| `qr_underdetermined_minnorm_2x4` | `minnorm_solve` | `status`, `residual`, `solution_norm`, `solution_values` |
+| `qr_minnorm_3x6_exact_values` | `minnorm_solve` | `status`, `residual`, `solution_norm`, `solution_values` |
+| `qr_minnorm_5x10_exact_values` | `minnorm_solve` | `status`, `residual`, `solution_norm`, `solution_values` |
+
+Rank-deficient rectangular rows compare exact rank/nullity, normalized
+nullspace residual, and projector/subspace distance. Minimum-norm rows compare
+status, residual norm, solution norm, and deterministic exact solution values.
+These rows are fixture-local expected targets, not broad QR or raw-basis
+identity claims.
+
 ## Maintained Command
 
-Run the first maintained corpus/oracle command with:
+Run the maintained corpus/oracle command with:
 
 ```sh
-python3 scripts/run_corpus_oracle.py
+python3 scripts/run_corpus_oracle.py --include-solver-qr
 ```
 
 It validates the source-controlled corpus metadata, writes observed oracle rows

@@ -1158,15 +1158,17 @@ Residual: ||c[rank:]||_2
 - `sparse_qr_rank(qr, tol)`: counts R diagonal entries exceeding tol * |R(0,0)|
 - `sparse_qr_nullspace(qr, tol, basis, ndim)`: for each null column j, solves R*z = -R[:,j] and forms the null-space vector [z; e_j], unpermuted to original column space
 
-Maintained corpus coverage includes the fixture-local
-`qr_rank_deficient_6x4_nullspace_v1` lane. The source-controlled proof
-[`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) builds the 6x4 fixture,
-checks QR rank `3`, nullity `1`, and verifies that a solver-produced
-nullspace vector has normalized residual `<= 1e-10`; the local oracle command
-can append matching solver-backed rows with
-`python3 scripts/run_corpus_oracle.py --include-solver-qr`. This is
-residual/subspace-safe evidence only: it does not compare exact basis entries
-or imply broad QR, rank-threshold, SuiteSparse, LAPACK, NumPy, SciPy, platform,
+Maintained corpus coverage includes the fixture-local Sprint 139/Sprint 150 QR
+family. The source-controlled proof
+[`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) covers the
+`qr_rank_deficient_6x4_nullspace_v1` seed, two rank-deficient rectangular
+fixtures with rank/nullity/residual/subspace checks, and three underdetermined
+minimum-norm fixtures with status/residual/norm/value checks. The local oracle
+command can append matching generated-local solver-backed rows with
+`python3 scripts/run_corpus_oracle.py --include-solver-qr`; a current QR-only
+run reports `23` solver-backed QR rows. This is residual/subspace-safe and
+fixture-local evidence only: it does not compare exact QR basis entries or
+imply broad QR, rank-threshold, SuiteSparse, LAPACK, NumPy, SciPy, platform,
 performance, or state-of-the-art parity.
 
 ### Column Reordering

@@ -45,6 +45,12 @@ the maintained oracle/report command that emits observed rows under ignored
 this first lane only; they are not broad QR, least-squares, minimum-norm, or
 package/platform evidence.
 
+Sprint 150 expands the maintained QR corpus family with selected
+rank-deficient rectangular and underdetermined minimum-norm fixtures. The
+expanded family remains fixture-local and `local_only`; it does not promote
+broad QR correctness, raw-basis identity, external-library parity, platform,
+package, ABI, performance, or state-of-the-art claims.
+
 ## Ownership
 
 | Surface | Owner | Update rule |
@@ -129,12 +135,13 @@ Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
 records observed status.
 
-## Sprint 139 QR Lane
+## Sprint 139/Sprint 150 QR Lane
 
 Sprint 139 uses `qr_rank_deficient_6x4_nullspace_v1` as the first QR fixture
-closure lane.
+closure lane. Sprint 150 keeps that seed and adds two rank-deficient
+rectangular fixtures plus three underdetermined minimum-norm fixtures.
 
-Required fixture facts:
+Seed fixture facts:
 
 - generator key: `qr_rank_deficient_6x4_nullspace_generator_v1`
 - shape: 6 rows by 4 columns
@@ -145,13 +152,23 @@ Required fixture facts:
 - rank row ID: `qr_rank_deficient_6x4_nullspace_v1_rank`
 - nullity row ID: `qr_rank_deficient_6x4_nullspace_v1_nullity`
 - residual row ID: `qr_rank_deficient_6x4_nullspace_v1_projector_residual`
-- initial normalized null-vector residual tolerance: `1e-10`
+- normalized null-vector residual tolerance: `1e-10`
 
-QR validation for this first lane compares normalized residuals rather than
-raw QR basis vector equality because valid bases may differ by sign, scale
-normalization, or equivalent subspace basis. The source-controlled proof owner
-is [`../../tests/test_qr_corpus.c`](../../tests/test_qr_corpus.c), and the
-opt-in solver-backed oracle/report path is:
+Sprint 150 selected fixture facts:
+
+| Fixture key | Family | Proof rows |
+| --- | --- | --- |
+| `qr_rankdef_duplicate_5x4_v1` | rank-deficient rectangular | rank, nullity, nullspace residual, projector/subspace distance |
+| `qr_rankdef_dependent_row_4x3_v1` | rank-deficient rectangular | rank, nullity, nullspace residual, projector/subspace distance |
+| `qr_underdetermined_minnorm_2x4` | underdetermined minimum-norm | status, residual, solution norm, exact solution values |
+| `qr_minnorm_3x6_exact_values` | underdetermined minimum-norm | status, residual, solution norm, exact solution values |
+| `qr_minnorm_5x10_exact_values` | underdetermined minimum-norm | status, residual, solution norm, exact solution values |
+
+QR validation compares normalized residuals and projector/subspace distances
+rather than raw QR basis vector equality because valid bases may differ by
+sign, scale normalization, or equivalent subspace basis. The source-controlled
+proof owner is [`../../tests/test_qr_corpus.c`](../../tests/test_qr_corpus.c),
+and the opt-in solver-backed oracle/report path is:
 
 ```sh
 python3 scripts/run_corpus_oracle.py --include-solver-qr
@@ -168,17 +185,18 @@ python3 scripts/run_corpus_oracle.py --include-solver-qr
 Expected generated outputs for the opt-in QR lane:
 
 - `build/corpus/oracle/qr_rank_deficient_6x4_nullspace_v1.oracle.tsv` contains
-  six observed rows: three generated-reference rows with
-  `solver_family=unknown` and three solver-backed QR rows with
+  `26` observed rows: three generated-reference rows with
+  `solver_family=unknown` and `23` solver-backed QR rows with
   `solver_family=qr`.
-- The solver-backed QR rows cover rank, nullity, and normalized nullspace
-  residual, and should all report `comparison_status=pass`.
+- The solver-backed QR rows cover the seed fixture plus the five Sprint 150
+  fixtures listed above, and should all report `comparison_status=pass`.
 - `build/corpus-reports/index.tsv` indexes the QR rows and their fixture-local
   claim scope.
 - `build/corpus-reports/skips.tsv` contains optional-data skip/defer rows, not
   QR pass evidence.
 - `build/corpus-reports/manifest.txt` records the command, row count, solver
-  families, support tier, and `solver_qr_row_count=3`.
+  families, support tier, selected fixture keys, `solver_qr_row_count=23`, and
+  `partial_svd_row_count=0` for a QR-only run.
 
 Stale or unsupported QR report signals:
 
@@ -186,9 +204,10 @@ Stale or unsupported QR report signals:
 - the report predates changes to corpus manifests, expected rows, schemas,
   `scripts/run_corpus_oracle.py`, `tests/test_qr_corpus.c`, or
   `tests/test_qr_helpers.h`;
-- the oracle output lacks three `solver_family=qr` rows or lists a solver QR
-  row count other than `3`;
-- any Sprint 139 QR comparison row is not `pass`;
+- the oracle output lacks `23` `solver_family=qr` rows or lists a solver QR
+  row count other than `23`;
+- the manifest omits any selected QR fixture key;
+- any maintained QR comparison row is not `pass`;
 - optional-data skip/defer rows are cited as solver pass evidence.
 
 Keep optional-data skip rows separate from QR pass evidence. Do not promote

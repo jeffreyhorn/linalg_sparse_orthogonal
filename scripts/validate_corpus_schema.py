@@ -226,6 +226,67 @@ def partial_svd_clustered_repeated_diag8x6_entries() -> list[tuple[int, int, flo
     ]
 
 
+def qr_rankdef_duplicate_5x4_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 1.0),
+        (0, 2, 2.0),
+        (1, 1, 1.0),
+        (1, 2, -1.0),
+        (1, 3, 1.0),
+        (2, 0, 2.0),
+        (2, 1, -1.0),
+        (2, 3, -1.0),
+        (3, 0, 1.0),
+        (3, 1, 1.0),
+        (3, 2, 1.0),
+        (3, 3, 1.0),
+        (4, 0, 3.0),
+        (4, 2, -2.0),
+    ]
+
+
+def qr_rankdef_dependent_row_4x3_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 1.0),
+        (0, 2, 1.0),
+        (1, 1, 1.0),
+        (1, 2, 2.0),
+        (2, 0, 1.0),
+        (2, 1, 1.0),
+        (2, 2, 3.0),
+        (3, 0, 2.0),
+        (3, 1, -1.0),
+    ]
+
+
+def qr_underdetermined_minnorm_2x4_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 1.0),
+        (0, 2, 1.0),
+        (1, 1, 1.0),
+        (1, 3, 1.0),
+    ]
+
+
+def qr_minnorm_3x6_exact_values_entries() -> list[tuple[int, int, float]]:
+    return [
+        (0, 0, 2.0),
+        (0, 3, 1.0),
+        (1, 1, 3.0),
+        (1, 4, 1.0),
+        (2, 2, 1.0),
+        (2, 5, 2.0),
+    ]
+
+
+def qr_minnorm_5x10_exact_values_entries() -> list[tuple[int, int, float]]:
+    entries: list[tuple[int, int, float]] = []
+    for index in range(5):
+        entries.append((index, index, 2.0))
+        entries.append((index, index + 5, 1.0))
+    return entries
+
+
 GENERATED_FIXTURES = {
     "qr_rank_deficient_6x4_nullspace_generator_v1": {
         "algorithm": "fixed_columns_c3_equals_c0_plus_c1",
@@ -235,6 +296,51 @@ GENERATED_FIXTURES = {
         "nullity": 1,
         "parameters": "rows=6;cols=4;expected_rank=3;nullity=1;dependency=c3-c0-c1",
         "entries": qr_rank_deficient_6x4_nullspace_entries,
+    },
+    "qr_rankdef_duplicate_5x4_generator_v1": {
+        "algorithm": "fixed_rankdef_duplicate_5x4",
+        "rows": 5,
+        "cols": 4,
+        "expected_rank": 3,
+        "nullity": 1,
+        "parameters": "rows=5;cols=4;expected_rank=3;nullity=1;duplicate_column=c3-c1",
+        "entries": qr_rankdef_duplicate_5x4_entries,
+    },
+    "qr_rankdef_dependent_row_4x3_generator_v1": {
+        "algorithm": "fixed_rankdef_dependent_row_4x3",
+        "rows": 4,
+        "cols": 3,
+        "expected_rank": 2,
+        "nullity": 1,
+        "parameters": "rows=4;cols=3;expected_rank=2;nullity=1;dependent_row=r2-r0-r1",
+        "entries": qr_rankdef_dependent_row_4x3_entries,
+    },
+    "qr_underdetermined_minnorm_2x4_generator_v1": {
+        "algorithm": "fixed_underdetermined_minnorm_2x4",
+        "rows": 2,
+        "cols": 4,
+        "expected_rank": 2,
+        "nullity": 2,
+        "parameters": "rows=2;cols=4;expected_rank=2;nullity=2;rhs=1,1;expected_norm=1.0",
+        "entries": qr_underdetermined_minnorm_2x4_entries,
+    },
+    "qr_minnorm_3x6_exact_values_generator_v1": {
+        "algorithm": "fixed_minnorm_3x6_exact_values",
+        "rows": 3,
+        "cols": 6,
+        "expected_rank": 3,
+        "nullity": 3,
+        "parameters": "rows=3;cols=6;expected_rank=3;nullity=3;expected_norm=sqrt(8.4)",
+        "entries": qr_minnorm_3x6_exact_values_entries,
+    },
+    "qr_minnorm_5x10_exact_values_generator_v1": {
+        "algorithm": "fixed_minnorm_5x10_exact_values",
+        "rows": 5,
+        "cols": 10,
+        "expected_rank": 5,
+        "nullity": 5,
+        "parameters": "rows=5;cols=10;expected_rank=5;nullity=5;expected_norm=sqrt(11.0)",
+        "entries": qr_minnorm_5x10_exact_values_entries,
     },
     "partial_svd_clustered_repeated_diag8x6_generator_v1": {
         "algorithm": "fixed_diagonal_clustered_repeated_partial_svd",

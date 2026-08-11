@@ -55,6 +55,60 @@ SOLVER_QR_ORACLE_ROW_IDS = {
     f"{FIXTURE_KEY}_qr_nullity": f"{FIXTURE_KEY}_nullity",
     f"{FIXTURE_KEY}_qr_nullspace_residual": f"{FIXTURE_KEY}_projector_residual",
 }
+SPRINT150_RANKDEF_QR_FIXTURES = {
+    "qr_rankdef_duplicate_5x4_v1": {
+        "generator_key": "qr_rankdef_duplicate_5x4_generator_v1",
+        "expected_row_ids": {
+            "rank": "qr_rankdef_duplicate_5x4_v1_rank",
+            "nullity": "qr_rankdef_duplicate_5x4_v1_nullity",
+            "nullspace_residual": "qr_rankdef_duplicate_5x4_v1_nullspace_residual",
+            "nullspace_subspace": "qr_rankdef_duplicate_5x4_v1_nullspace_subspace",
+        },
+        "reference_null_vector": [0.0, -1.0, 0.0, 1.0],
+    },
+    "qr_rankdef_dependent_row_4x3_v1": {
+        "generator_key": "qr_rankdef_dependent_row_4x3_generator_v1",
+        "expected_row_ids": {
+            "rank": "qr_rankdef_dependent_row_4x3_v1_rank",
+            "nullity": "qr_rankdef_dependent_row_4x3_v1_nullity",
+            "nullspace_residual": "qr_rankdef_dependent_row_4x3_v1_nullspace_residual",
+            "nullspace_subspace": "qr_rankdef_dependent_row_4x3_v1_nullspace_subspace",
+        },
+        "reference_null_vector": [-1.0, -2.0, 1.0],
+    },
+}
+SPRINT150_MINNORM_QR_FIXTURES = {
+    "qr_underdetermined_minnorm_2x4": {
+        "generator_key": "qr_underdetermined_minnorm_2x4_generator_v1",
+        "expected_row_ids": {
+            "status": "qr_underdetermined_minnorm_2x4_status",
+            "residual": "qr_underdetermined_minnorm_2x4_residual",
+            "solution_norm": "qr_underdetermined_minnorm_2x4_solution_norm",
+            "solution_values": "qr_underdetermined_minnorm_2x4_solution_values",
+        },
+        "rhs": [1.0, 1.0],
+    },
+    "qr_minnorm_3x6_exact_values": {
+        "generator_key": "qr_minnorm_3x6_exact_values_generator_v1",
+        "expected_row_ids": {
+            "status": "qr_minnorm_3x6_exact_values_status",
+            "residual": "qr_minnorm_3x6_exact_values_residual",
+            "solution_norm": "qr_minnorm_3x6_exact_values_solution_norm",
+            "solution_values": "qr_minnorm_3x6_exact_values_solution_values",
+        },
+        "rhs": [3.0, 4.0, 5.0],
+    },
+    "qr_minnorm_5x10_exact_values": {
+        "generator_key": "qr_minnorm_5x10_exact_values_generator_v1",
+        "expected_row_ids": {
+            "status": "qr_minnorm_5x10_exact_values_status",
+            "residual": "qr_minnorm_5x10_exact_values_residual",
+            "solution_norm": "qr_minnorm_5x10_exact_values_solution_norm",
+            "solution_values": "qr_minnorm_5x10_exact_values_solution_values",
+        },
+        "rhs": [1.0, 2.0, 3.0, 4.0, 5.0],
+    },
+}
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",
@@ -198,6 +252,10 @@ def c_literal_for_entries(entries: list[tuple[int, int, float]]) -> str:
     return ",\n".join(lines)
 
 
+def c_literal_for_values(values: list[float]) -> str:
+    return ", ".join(f"{value:.17g}" for value in values)
+
+
 def qr_probe_source(entries: list[tuple[int, int, float]], rows: int, cols: int) -> str:
     return f"""#include \"sparse_matrix.h\"
 #include \"sparse_qr.h\"
@@ -290,14 +348,222 @@ int main(void) {{
 """
 
 
-def parse_probe_output(output: str) -> dict[str, str]:
+def qr_rankdef_probe_source(
+    entries: list[tuple[int, int, float]], rows: int, cols: int, reference: list[float]
+) -> str:
+    return f"""#include \"sparse_matrix.h\"
+#include \"sparse_qr.h\"
+#include \"sparse_types.h\"
+#include <math.h>
+#include <stdio.h>
+
+typedef struct Entry {{
+    idx_t row;
+    idx_t col;
+    double value;
+}} Entry;
+
+static const Entry entries[] = {{
+{c_literal_for_entries(entries)}
+}};
+
+static const double reference_null_vector[{cols}] = {{{c_literal_for_values(reference)}}};
+
+int main(void) {{
+    SparseMatrix *A = sparse_create({rows}, {cols});
+    if (!A) {{
+        fprintf(stderr, \"sparse_create failed\\n\");
+        return 2;
+    }}
+    const size_t nnz = sizeof(entries) / sizeof(entries[0]);
+    for (size_t k = 0; k < nnz; ++k) {{
+        if (sparse_insert(A, entries[k].row, entries[k].col, entries[k].value) != SPARSE_OK) {{
+            fprintf(stderr, \"sparse_insert failed at %zu\\n\", k);
+            sparse_free(A);
+            return 3;
+        }}
+    }}
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    if (err != SPARSE_OK) {{
+        fprintf(stderr, \"sparse_qr_factor failed: %d\\n\", (int)err);
+        sparse_free(A);
+        return 4;
+    }}
+
+    idx_t rank = sparse_qr_rank(&qr, 0.0);
+    idx_t nullity = -1;
+    err = sparse_qr_nullspace(&qr, 0.0, NULL, &nullity);
+    if (err != SPARSE_OK) {{
+        fprintf(stderr, \"sparse_qr_nullspace query failed: %d\\n\", (int)err);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return 5;
+    }}
+
+    double basis[{cols}] = {{0.0}};
+    double normalized_residual = INFINITY;
+    double projector_distance = INFINITY;
+    if (nullity == 1) {{
+        err = sparse_qr_nullspace(&qr, 0.0, basis, &nullity);
+        if (err != SPARSE_OK) {{
+            fprintf(stderr, \"sparse_qr_nullspace basis failed: %d\\n\", (int)err);
+            sparse_qr_free(&qr);
+            sparse_free(A);
+            return 6;
+        }}
+
+        double residual_sq = 0.0;
+        for (idx_t row = 0; row < {rows}; ++row) {{
+            double accum = 0.0;
+            for (size_t k = 0; k < nnz; ++k) {{
+                if (entries[k].row == row)
+                    accum += entries[k].value * basis[entries[k].col];
+            }}
+            residual_sq += accum * accum;
+        }}
+
+        double basis_norm_sq = 0.0;
+        double ref_norm_sq = 0.0;
+        for (idx_t col = 0; col < {cols}; ++col) {{
+            basis_norm_sq += basis[col] * basis[col];
+            ref_norm_sq += reference_null_vector[col] * reference_null_vector[col];
+        }}
+        if (basis_norm_sq > 0.0 && ref_norm_sq > 0.0) {{
+            normalized_residual = sqrt(residual_sq) / sqrt(basis_norm_sq);
+            for (idx_t row = 0; row < {cols}; ++row) {{
+                for (idx_t col = 0; col < {cols}; ++col) {{
+                    double observed = basis[row] * basis[col] / basis_norm_sq;
+                    double expected =
+                        reference_null_vector[row] * reference_null_vector[col] / ref_norm_sq;
+                    double diff = fabs(observed - expected);
+                    if (diff > projector_distance || !isfinite(projector_distance))
+                        projector_distance = diff;
+                }}
+            }}
+        }}
+    }}
+
+    printf(\"rank=%d\\n\", (int)rank);
+    printf(\"nullity=%d\\n\", (int)nullity);
+    printf(\"normalized_null_vector_residual=%.17g\\n\", normalized_residual);
+    printf(\"projector_distance=%.17g\\n\", projector_distance);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+    return 0;
+}}
+"""
+
+
+def qr_minnorm_probe_source(
+    entries: list[tuple[int, int, float]], rows: int, cols: int, rhs: list[float]
+) -> str:
+    return f"""#include \"sparse_matrix.h\"
+#include \"sparse_qr.h\"
+#include \"sparse_types.h\"
+#include <math.h>
+#include <stdio.h>
+
+typedef struct Entry {{
+    idx_t row;
+    idx_t col;
+    double value;
+}} Entry;
+
+static const Entry entries[] = {{
+{c_literal_for_entries(entries)}
+}};
+
+static const double rhs[{rows}] = {{{c_literal_for_values(rhs)}}};
+
+static const char *status_name(sparse_err_t err) {{
+    switch (err) {{
+    case SPARSE_OK:
+        return \"SPARSE_SUCCESS\";
+    case SPARSE_ERR_NULL:
+        return \"SPARSE_ERR_NULL\";
+    case SPARSE_ERR_ALLOC:
+        return \"SPARSE_ERR_ALLOC\";
+    case SPARSE_ERR_BOUNDS:
+        return \"SPARSE_ERR_BOUNDS\";
+    case SPARSE_ERR_SINGULAR:
+        return \"SPARSE_ERR_SINGULAR\";
+    case SPARSE_ERR_SHAPE:
+        return \"SPARSE_ERR_SHAPE\";
+    case SPARSE_ERR_BADARG:
+        return \"SPARSE_ERR_BADARG\";
+    case SPARSE_ERR_NOT_CONVERGED:
+        return \"SPARSE_ERR_NOT_CONVERGED\";
+    case SPARSE_ERR_NUMERIC:
+        return \"SPARSE_ERR_NUMERIC\";
+    default:
+        return \"SPARSE_ERR_OTHER\";
+    }}
+}}
+
+int main(void) {{
+    SparseMatrix *A = sparse_create({rows}, {cols});
+    if (!A) {{
+        fprintf(stderr, \"sparse_create failed\\n\");
+        return 2;
+    }}
+    const size_t nnz = sizeof(entries) / sizeof(entries[0]);
+    for (size_t k = 0; k < nnz; ++k) {{
+        if (sparse_insert(A, entries[k].row, entries[k].col, entries[k].value) != SPARSE_OK) {{
+            fprintf(stderr, \"sparse_insert failed at %zu\\n\", k);
+            sparse_free(A);
+            return 3;
+        }}
+    }}
+
+    double x[{cols}];
+    for (idx_t col = 0; col < {cols}; ++col)
+        x[col] = 0.0;
+    sparse_err_t err = sparse_qr_solve_minnorm(A, rhs, x, NULL);
+
+    double residual_sq = 0.0;
+    double norm_sq = 0.0;
+    if (err == SPARSE_OK) {{
+        for (idx_t row = 0; row < {rows}; ++row) {{
+            double accum = 0.0;
+            for (size_t k = 0; k < nnz; ++k) {{
+                if (entries[k].row == row)
+                    accum += entries[k].value * x[entries[k].col];
+            }}
+            double diff = accum - rhs[row];
+            residual_sq += diff * diff;
+        }}
+        for (idx_t col = 0; col < {cols}; ++col)
+            norm_sq += x[col] * x[col];
+    }}
+
+    printf(\"status=%s\\n\", status_name(err));
+    printf(\"residual_norm=%.17g\\n\", err == SPARSE_OK ? sqrt(residual_sq) : INFINITY);
+    printf(\"solution_norm=%.17g\\n\", err == SPARSE_OK ? sqrt(norm_sq) : INFINITY);
+    printf(\"solution_values=\");
+    for (idx_t col = 0; col < {cols}; ++col) {{
+        if (col > 0)
+            printf(\",\");
+        printf(\"%.17g\", x[col]);
+    }}
+    printf(\"\\n\");
+
+    sparse_free(A);
+    return 0;
+}}
+"""
+
+
+def parse_probe_output(output: str, required: set[str] | None = None) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for line in output.splitlines():
         if "=" not in line:
             continue
         key, value = line.split("=", 1)
         parsed[key.strip()] = value.strip()
-    required = {"rank", "nullity", "normalized_residual"}
+    required = required or {"rank", "nullity", "normalized_residual"}
     missing = sorted(required - set(parsed))
     if missing:
         raise CorpusValidationError(f"solver QR probe did not emit required fields: {missing}")
@@ -376,6 +642,58 @@ def run_solver_qr_probe(
         return parse_probe_output(completed.stdout), compiler_identity(cc)
 
 
+def run_solver_probe_source(
+    source_text: str, library: Path, required_fields: set[str]
+) -> tuple[dict[str, str], str]:
+    if not library.is_file():
+        raise CorpusValidationError(
+            f"solver QR probe requires built static library at {library}; run make first"
+        )
+    cc = compiler_argv()
+    with tempfile.TemporaryDirectory(prefix="sparse_qr_probe.") as tmp:
+        tmpdir = Path(tmp)
+        source = tmpdir / "qr_probe.c"
+        executable = tmpdir / "qr_probe"
+        source.write_text(source_text)
+        compile_cmd = [
+            *cc,
+            "-std=c99",
+            f"-I{REPO_ROOT / 'include'}",
+            f"-I{REPO_ROOT / 'build' / 'include'}",
+            str(source),
+            str(library),
+            "-lm",
+            "-o",
+            str(executable),
+        ]
+        compiled = subprocess.run(
+            compile_cmd,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if compiled.returncode != 0:
+            raise CorpusValidationError(
+                "solver QR probe compile failed:\n"
+                + shlex.join(compile_cmd)
+                + "\n"
+                + compiled.stdout
+            )
+        completed = subprocess.run(
+            [str(executable)],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if completed.returncode != 0:
+            raise CorpusValidationError(
+                f"solver QR probe failed with exit {completed.returncode}:\n{completed.stdout}"
+            )
+        return parse_probe_output(completed.stdout, required_fields), compiler_identity(cc)
+
+
 def parse_key_values(text: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for chunk in text.split(";"):
@@ -436,27 +754,70 @@ def compare(expected: dict[str, str], observed: str) -> tuple[str, str]:
         tolerance = parse_float(expected["tolerance_value"], "value tolerance")
         expected_values = parse_key_values(expected["expected_result"])
         observed_values = parse_key_values(observed)
-        if "top_k" not in expected_values or "top_k" not in observed_values:
-            raise CorpusValidationError(
-                f"{expected['oracle_row_id']}: value comparison requires top_k fields"
-            )
-        expected_top_k = sorted(parse_vector(expected_values["top_k"], "expected top_k"), reverse=True)
-        observed_top_k = sorted(parse_vector(observed_values["top_k"], "observed top_k"), reverse=True)
-        if len(expected_top_k) != len(observed_top_k):
-            raise CorpusValidationError(
-                f"{expected['oracle_row_id']}: observed top_k length mismatch"
-            )
-        max_abs_error = max(
-            abs(expected_value - observed_value)
-            for expected_value, observed_value in zip(expected_top_k, observed_top_k)
-        )
-        passed = max_abs_error <= tolerance
-        if "max_abs_error" in observed_values:
-            reported_error = parse_float(observed_values["max_abs_error"], "max_abs_error")
-            if abs(reported_error - max_abs_error) > max(1e-15, tolerance * 1e-6):
+        if "top_k" in expected_values or "top_k" in observed_values:
+            if "top_k" not in expected_values or "top_k" not in observed_values:
                 raise CorpusValidationError(
-                    f"{expected['oracle_row_id']}: reported max_abs_error mismatch"
+                    f"{expected['oracle_row_id']}: value comparison requires top_k fields"
                 )
+            expected_top_k = sorted(
+                parse_vector(expected_values["top_k"], "expected top_k"), reverse=True
+            )
+            observed_top_k = sorted(
+                parse_vector(observed_values["top_k"], "observed top_k"), reverse=True
+            )
+            if len(expected_top_k) != len(observed_top_k):
+                raise CorpusValidationError(
+                    f"{expected['oracle_row_id']}: observed top_k length mismatch"
+                )
+            max_abs_error = max(
+                abs(expected_value - observed_value)
+                for expected_value, observed_value in zip(expected_top_k, observed_top_k)
+            )
+            passed = max_abs_error <= tolerance
+            if "max_abs_error" in observed_values:
+                reported_error = parse_float(observed_values["max_abs_error"], "max_abs_error")
+                if abs(reported_error - max_abs_error) > max(1e-15, tolerance * 1e-6):
+                    raise CorpusValidationError(
+                        f"{expected['oracle_row_id']}: reported max_abs_error mismatch"
+                    )
+        elif "solution_norm" in expected_values or "solution_norm" in observed_values:
+            if "solution_norm" not in expected_values or "solution_norm" not in observed_values:
+                raise CorpusValidationError(
+                    f"{expected['oracle_row_id']}: value comparison requires solution_norm fields"
+                )
+            expected_norm = parse_float(expected_values["solution_norm"], "expected solution_norm")
+            observed_norm = parse_float(observed_values["solution_norm"], "observed solution_norm")
+            passed = abs(expected_norm - observed_norm) <= tolerance
+        elif "solution_values" in expected_values or "solution_values" in observed_values:
+            if "solution_values" not in expected_values or "solution_values" not in observed_values:
+                raise CorpusValidationError(
+                    f"{expected['oracle_row_id']}: value comparison requires solution_values fields"
+                )
+            expected_solution = parse_vector(
+                expected_values["solution_values"], "expected solution_values"
+            )
+            observed_solution = parse_vector(
+                observed_values["solution_values"], "observed solution_values"
+            )
+            if len(expected_solution) != len(observed_solution):
+                raise CorpusValidationError(
+                    f"{expected['oracle_row_id']}: observed solution_values length mismatch"
+                )
+            max_abs_error = max(
+                abs(expected_value - observed_value)
+                for expected_value, observed_value in zip(expected_solution, observed_solution)
+            )
+            passed = max_abs_error <= tolerance
+            if "max_abs_error" in observed_values:
+                reported_error = parse_float(observed_values["max_abs_error"], "max_abs_error")
+                if abs(reported_error - max_abs_error) > max(1e-15, tolerance * 1e-6):
+                    raise CorpusValidationError(
+                        f"{expected['oracle_row_id']}: reported max_abs_error mismatch"
+                    )
+        else:
+            raise CorpusValidationError(
+                f"{expected['oracle_row_id']}: unsupported value comparison fields"
+            )
     elif kind == "subspace_distance":
         if expected["tolerance_kind"] != "projector":
             raise CorpusValidationError(
@@ -500,6 +861,16 @@ def write_tsv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None
         writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def reset_generated_outputs(oracle_dir: Path, report_dir: Path) -> None:
+    oracle_dir.mkdir(parents=True, exist_ok=True)
+    for path in oracle_dir.glob("*.tsv"):
+        path.unlink()
+    for name in ("index.tsv", "skips.tsv", "manifest.txt"):
+        path = report_dir / name
+        if path.exists():
+            path.unlink()
 
 
 def build_oracle_rows(root: Path, command: str) -> list[dict[str, str]]:
@@ -715,6 +1086,177 @@ def build_solver_qr_oracle_rows(
     return rows
 
 
+def row_metadata_for_fixture(
+    fixture_key: str,
+    generator_key: str,
+    command: str,
+    compiler: str,
+    operation_family: str,
+) -> dict[str, str]:
+    fixture = GENERATED_FIXTURES[generator_key]
+    entries = fixture["entries"]()
+    structure_hash = sha256_text(
+        canonical_structure_text(fixture["rows"], fixture["cols"], entries)
+    )
+    value_hash = sha256_text(canonical_value_text(fixture["rows"], fixture["cols"], entries))
+    return {
+        "fixture_key": fixture_key,
+        "command": command,
+        "source_commit": run_text(["git", "rev-parse", "HEAD"]),
+        "source_branch": current_source_branch(),
+        "generated_at_utc": utc_timestamp(),
+        "platform": f"{platform.system().lower()}-{platform.machine().lower()}",
+        "compiler": compiler,
+        "configuration": (
+            "build_profile=static_default;optional_data_policy=disabled;"
+            f"proof_owner=runtime_qr_probe;operation_family={operation_family};"
+            f"structure_hash={structure_hash};value_hash={value_hash};qr_tolerance=1e-10"
+        ),
+        "support_tier": "local_only",
+    }
+
+
+def build_sprint150_rankdef_qr_rows(root: Path, command: str, library: Path) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for fixture_key, fixture_info in SPRINT150_RANKDEF_QR_FIXTURES.items():
+        generator_key = fixture_info["generator_key"]
+        fixture = GENERATED_FIXTURES[generator_key]
+        entries = fixture["entries"]()
+        expected = load_expected_rows(
+            root, fixture_key, set(fixture_info["expected_row_ids"].values())
+        )
+        observations, compiler = run_solver_probe_source(
+            qr_rankdef_probe_source(
+                entries,
+                fixture["rows"],
+                fixture["cols"],
+                fixture_info["reference_null_vector"],
+            ),
+            library,
+            {"rank", "nullity", "normalized_null_vector_residual", "projector_distance"},
+        )
+        metadata = row_metadata_for_fixture(
+            fixture_key, generator_key, command, compiler, "rankdef_nullspace"
+        )
+        observation_by_key = {
+            "rank": observations["rank"],
+            "nullity": observations["nullity"],
+            "nullspace_residual": (
+                f"normalized_null_vector_residual={observations['normalized_null_vector_residual']}"
+            ),
+            "nullspace_subspace": f"projector_distance={observations['projector_distance']}",
+        }
+        for suffix, observed in sorted(observation_by_key.items()):
+            expected_row_id = fixture_info["expected_row_ids"][suffix]
+            expected_row = expected[expected_row_id]
+            status, failure_class = compare(expected_row, observed)
+            rows.append(
+                {
+                    "oracle_row_id": f"{fixture_key}_qr_{suffix}",
+                    "fixture_key": fixture_key,
+                    "solver_family": "qr",
+                    "operation": expected_row["operation"],
+                    "comparison_kind": expected_row["comparison_kind"],
+                    "expected_result_kind": expected_row["expected_result_kind"],
+                    "expected_result": expected_row["expected_result"],
+                    "observed_result": observed,
+                    "tolerance_kind": expected_row["tolerance_kind"],
+                    "tolerance_value": expected_row["tolerance_value"],
+                    "comparison_status": status,
+                    "failure_class": failure_class,
+                    "skip_or_defer_reason": "",
+                    "claim_scope": (
+                        "Fixture-local solver-backed rank-deficient rectangular QR evidence."
+                    ),
+                    "non_claims": (
+                        "no broad QR correctness; no raw-basis parity; "
+                        "no sign/orientation/column-order parity; no global rank-threshold policy; "
+                        "no external-library parity; no platform/package/ABI/performance or "
+                        "state-of-the-art claim"
+                    ),
+                    **metadata,
+                }
+            )
+    return rows
+
+
+def build_sprint150_minnorm_qr_rows(root: Path, command: str, library: Path) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for fixture_key, fixture_info in SPRINT150_MINNORM_QR_FIXTURES.items():
+        generator_key = fixture_info["generator_key"]
+        fixture = GENERATED_FIXTURES[generator_key]
+        entries = fixture["entries"]()
+        expected = load_expected_rows(
+            root, fixture_key, set(fixture_info["expected_row_ids"].values())
+        )
+        observations, compiler = run_solver_probe_source(
+            qr_minnorm_probe_source(
+                entries,
+                fixture["rows"],
+                fixture["cols"],
+                fixture_info["rhs"],
+            ),
+            library,
+            {"status", "residual_norm", "solution_norm", "solution_values"},
+        )
+        metadata = row_metadata_for_fixture(
+            fixture_key, generator_key, command, compiler, "minnorm_solve"
+        )
+        solution_values = observations["solution_values"]
+        observation_by_key = {
+            "residual": f"residual_norm={observations['residual_norm']}",
+            "solution_norm": f"solution_norm={observations['solution_norm']}",
+            "solution_values": f"solution_values={solution_values}",
+            "status": observations["status"],
+        }
+        expected_values_row = expected[fixture_info["expected_row_ids"]["solution_values"]]
+        expected_solution = parse_key_values(expected_values_row["expected_result"])[
+            "solution_values"
+        ]
+        max_abs_error = max(
+            abs(expected_value - observed_value)
+            for expected_value, observed_value in zip(
+                parse_vector(expected_solution, f"{fixture_key} expected solution_values"),
+                parse_vector(solution_values, f"{fixture_key} observed solution_values"),
+            )
+        )
+        observation_by_key["solution_values"] = (
+            f"solution_values={solution_values};max_abs_error={max_abs_error:.17g}"
+        )
+        for suffix, observed in sorted(observation_by_key.items()):
+            expected_row_id = fixture_info["expected_row_ids"][suffix]
+            expected_row = expected[expected_row_id]
+            status, failure_class = compare(expected_row, observed)
+            rows.append(
+                {
+                    "oracle_row_id": f"{fixture_key}_qr_{suffix}",
+                    "fixture_key": fixture_key,
+                    "solver_family": "qr",
+                    "operation": expected_row["operation"],
+                    "comparison_kind": expected_row["comparison_kind"],
+                    "expected_result_kind": expected_row["expected_result_kind"],
+                    "expected_result": expected_row["expected_result"],
+                    "observed_result": observed,
+                    "tolerance_kind": expected_row["tolerance_kind"],
+                    "tolerance_value": expected_row["tolerance_value"],
+                    "comparison_status": status,
+                    "failure_class": failure_class,
+                    "skip_or_defer_reason": "",
+                    "claim_scope": (
+                        "Fixture-local solver-backed underdetermined minimum-norm QR evidence."
+                    ),
+                    "non_claims": (
+                        "no global minimum-norm guarantee; no SVD pseudoinverse global-oracle "
+                        "claim; no broad rank-deficient recovery claim; no broad inconsistent-"
+                        "system behavior claim; no external-library parity; no platform/package/"
+                        "ABI/performance or state-of-the-art claim"
+                    ),
+                    **metadata,
+                }
+            )
+    return rows
+
+
 def build_report_rows(
     oracle_rows: list[dict[str, str]], command: str, oracle_path: Path
 ) -> list[dict[str, str]]:
@@ -892,6 +1434,12 @@ def main() -> int:
                 args.root, command, args.solver_library, validate_root=False
             )
         )
+        oracle_rows.extend(
+            build_sprint150_rankdef_qr_rows(args.root, command, args.solver_library)
+        )
+        oracle_rows.extend(
+            build_sprint150_minnorm_qr_rows(args.root, command, args.solver_library)
+        )
     if args.include_partial_svd:
         oracle_rows.extend(
             build_partial_svd_oracle_rows(args.root, command, validate_root=False)
@@ -902,6 +1450,7 @@ def main() -> int:
     report_path = args.report_dir / "index.tsv"
     manifest_path = args.report_dir / "manifest.txt"
     skip_path = args.report_dir / "skips.tsv"
+    reset_generated_outputs(args.oracle_dir, args.report_dir)
     write_tsv(oracle_path, ORACLE_FIELDS, oracle_rows)
     report_rows = build_report_rows(oracle_rows, command, oracle_path)
     report_rows.extend(build_skip_report_rows(skip_rows, command, skip_path, oracle_rows))

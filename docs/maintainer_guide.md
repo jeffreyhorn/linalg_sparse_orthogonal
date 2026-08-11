@@ -442,13 +442,23 @@ Interpretation:
 - Any future external oracle lane needs a family-local boundary artifact before
   implementation, then a validation artifact before public wording changes.
 
-### Sprint 139 QR Corpus Maintenance
+### QR Corpus Maintenance
 
-The Sprint 139 QR corpus lane is maintained as a fixture-local confidence path,
-not as a broad QR parity claim. It closes the
-`qr_rank_deficient_6x4_nullspace_v1` residual by proving the project QR solver
-reports rank `3`, nullity `1`, and a normalized solver-produced nullspace
-residual at or below `1e-10`.
+The Sprint 139/Sprint 150 QR corpus lane is maintained as a fixture-local
+confidence path, not as a broad QR parity claim. It covers the
+`qr_rank_deficient_6x4_nullspace_v1` seed plus the Sprint 150
+rank-deficient rectangular and underdetermined minimum-norm fixture families.
+The selected Sprint 150 fixture keys are:
+
+- `qr_rankdef_duplicate_5x4_v1`
+- `qr_rankdef_dependent_row_4x3_v1`
+- `qr_underdetermined_minnorm_2x4`
+- `qr_minnorm_3x6_exact_values`
+- `qr_minnorm_5x10_exact_values`
+
+Together with the seed fixture, the QR corpus lane proves only named
+rank/nullity, nullspace residual/subspace, and underdetermined minimum-norm
+status/residual/norm/value rows.
 
 Use these commands to regenerate and interpret the lane from a clean local
 checkout:
@@ -459,16 +469,17 @@ make build/test_qr_corpus && ./build/test_qr_corpus
 python3 scripts/run_corpus_oracle.py --include-solver-qr
 ```
 
-The focused C proof should report four passing `test_qr_corpus` tests. The
+The focused C proof should report `14` passing `test_qr_corpus` tests. The
 opt-in oracle command should write
-`build/corpus/oracle/qr_rank_deficient_6x4_nullspace_v1.oracle.tsv` with the
-three generated-reference rows plus three `solver_family=qr` rows for rank,
-nullity, and normalized nullspace residual. The report index under
+`build/corpus/oracle/qr_rank_deficient_6x4_nullspace_v1.oracle.tsv` with three
+generated-reference rows plus `23` `solver_family=qr` rows for the seed and
+Sprint 150 QR fixtures. The report index under
 `build/corpus-reports/index.tsv` should show those QR rows as `pass`; optional
 external-data rows belong in `build/corpus-reports/skips.tsv` and remain
 skip/defer policy evidence only. The manifest under
 `build/corpus-reports/manifest.txt` should record the command, row count,
-solver families, and `solver_qr_row_count=3`.
+solver families, the selected six QR fixture keys, `solver_qr_row_count=23`,
+and `partial_svd_row_count=0` for a QR-only run.
 
 Treat a QR corpus report as stale or non-interpretable when any of these are
 true:
@@ -479,15 +490,18 @@ true:
 - The command, commit, branch, compiler, configuration, support tier, or
   generated path recorded in the manifest does not match the report being
   reviewed.
-- The QR oracle file is missing the three `solver_family=qr` rows, reports a
-  solver QR row count other than `3`, omits `qr` from the solver families, or
-  emits any non-pass comparison status for the Sprint 139 QR rows.
+- The QR oracle file is missing the `23` `solver_family=qr` rows, reports a
+  solver QR row count other than `23`, omits `qr` from the solver families,
+  omits any selected QR fixture key, or emits any non-pass comparison status
+  for the maintained QR rows.
 - Optional SuiteSparse or external-data skip/defer rows are being treated as
   QR pass evidence.
 
 Support tier remains `local_only` for this QR lane until a later sprint
 promotes reviewed hosted-platform evidence. Generated oracle/report files stay
-ignored build artifacts; source-controlled confidence lives in the fixture
+ignored build artifacts; `scripts/run_corpus_oracle.py` clears stale generated
+oracle/report outputs before writing the current run so normalization reads the
+current local lane only. Source-controlled confidence lives in the fixture
 metadata, expected rows, `test_qr_corpus`, and the reproducible command.
 
 Remaining QR residuals after Sprint 139:

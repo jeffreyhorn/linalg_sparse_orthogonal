@@ -19,6 +19,43 @@ SPRINT151_PARTIAL_SVD_ROW_COUNTS = {
     "partial_svd_lowrank_rect5x7_k3_sparse_output_v1": 6,
     "partial_svd_fail_closed_diag6_k2_v1": 5,
 }
+SELECTED_ORACLE_FIXTURE_KEYS = {
+    "partial_svd_clustered_repeated_diag8x6_k3_v1",
+    "partial_svd_fail_closed_diag6_k2_v1",
+    "partial_svd_lowrank_rect5x7_k3_sparse_output_v1",
+    "partial_svd_rankdef_diag6x4_k2_range_projector_v1",
+    "qr_minnorm_3x6_exact_values",
+    "qr_minnorm_5x10_exact_values",
+    "qr_rank_deficient_6x4_nullspace_v1",
+    "qr_rankdef_dependent_row_4x3_v1",
+    "qr_rankdef_duplicate_5x4_v1",
+    "qr_underdetermined_minnorm_2x4",
+}
+ORACLE_FIELDS = [
+    "oracle_row_id",
+    "fixture_key",
+    "solver_family",
+    "operation",
+    "comparison_kind",
+    "command",
+    "source_commit",
+    "source_branch",
+    "generated_at_utc",
+    "platform",
+    "compiler",
+    "configuration",
+    "support_tier",
+    "expected_result_kind",
+    "expected_result",
+    "observed_result",
+    "tolerance_kind",
+    "tolerance_value",
+    "comparison_status",
+    "failure_class",
+    "skip_or_defer_reason",
+    "claim_scope",
+    "non_claims",
+]
 
 
 def run_command(args: list[str], *, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
@@ -678,6 +715,96 @@ def current_commit() -> str:
     ).strip()
 
 
+def selected_oracle_fixture_sequence() -> list[tuple[str, str]]:
+    sequence: list[tuple[str, str]] = []
+    sequence.extend([("unknown", "qr_rank_deficient_6x4_nullspace_v1")] * 3)
+    qr_fixtures = [
+        "qr_rank_deficient_6x4_nullspace_v1",
+        "qr_rankdef_duplicate_5x4_v1",
+        "qr_rankdef_dependent_row_4x3_v1",
+        "qr_underdetermined_minnorm_2x4",
+        "qr_minnorm_3x6_exact_values",
+        "qr_minnorm_5x10_exact_values",
+    ]
+    partial_svd_fixtures = [
+        "partial_svd_clustered_repeated_diag8x6_k3_v1",
+        "partial_svd_rankdef_diag6x4_k2_range_projector_v1",
+        "partial_svd_lowrank_rect5x7_k3_sparse_output_v1",
+        "partial_svd_fail_closed_diag6_k2_v1",
+    ]
+    for index in range(23):
+        sequence.append(("qr", qr_fixtures[index % len(qr_fixtures)]))
+    for index in range(26):
+        sequence.append(("partial_svd", partial_svd_fixtures[index % len(partial_svd_fixtures)]))
+    return sequence
+
+
+def write_selected_oracle_rows(
+    build_root: Path,
+    *,
+    drop_last: bool = False,
+    omit_solver_family: str = "",
+    stale_first: bool = False,
+    fail_first: bool = False,
+    remap_fixture_from: str = "",
+    remap_fixture_to: str = "",
+) -> None:
+    oracle_dir = build_root / "corpus" / "oracle"
+    report_dir = build_root / "corpus-reports"
+    oracle_dir.mkdir(parents=True)
+    report_dir.mkdir(parents=True)
+    rows = []
+    selected_rows = selected_oracle_fixture_sequence()
+    if omit_solver_family:
+        selected_rows = [
+            row for row in selected_rows if row[0] != omit_solver_family
+        ]
+    if drop_last:
+        selected_rows.pop()
+    for index, (solver_family, fixture_key) in enumerate(selected_rows):
+        if fixture_key == remap_fixture_from:
+            fixture_key = remap_fixture_to
+        rows.append(
+            {
+                "oracle_row_id": f"{fixture_key}_synthetic_{index}",
+                "fixture_key": fixture_key,
+                "solver_family": solver_family,
+                "operation": "synthetic",
+                "comparison_kind": "value",
+                "command": (
+                    "python3 scripts/run_corpus_oracle.py "
+                    "--include-solver-qr --include-partial-svd"
+                ),
+                "source_commit": "oldcommit" if stale_first and index == 0 else current_commit(),
+                "source_branch": "sprint-152",
+                "generated_at_utc": "2026-08-11T00:00:00Z",
+                "platform": "test",
+                "compiler": "test",
+                "configuration": "proof_owner=synthetic_selected_oracle",
+                "support_tier": "local_only",
+                "expected_result_kind": "scalar",
+                "expected_result": "1",
+                "observed_result": "1",
+                "tolerance_kind": "absolute",
+                "tolerance_value": "0",
+                "comparison_status": "fail" if fail_first and index == 0 else "pass",
+                "failure_class": "synthetic_failure" if fail_first and index == 0 else "",
+                "skip_or_defer_reason": "",
+                "claim_scope": "selected generated oracle freshness proof",
+                "non_claims": "synthetic test rows only; no solver correctness claim",
+            }
+        )
+    with (oracle_dir / "corpus.oracle.tsv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=ORACLE_FIELDS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+    (report_dir / "manifest.txt").write_text(
+        "corpus-oracle\n"
+        f"git_commit={current_commit()}\n"
+        "command=python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd\n"
+    )
+
+
 def test_generated_oracle_rows_are_preserved() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -825,6 +952,250 @@ def test_sprint151_partial_svd_oracle_freshness_strictness() -> None:
         assert fixture_key in result.stdout
 
 
+def test_selected_oracle_required_freshness_requires_complete_family_set() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        write_selected_oracle_rows(build_root)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ]
+        )
+        assert "oracle_selected_row_count" not in result.stdout
+        assert "oracle_selected_fixture_keys" not in result.stdout
+
+        output = tmp_path / "oracle-index.tsv"
+        run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--output",
+                str(output),
+            ]
+        )
+        rows = read_tsv(output)
+        assert len(generated_oracle_rows(rows)) == 52
+        observed_fixture_keys = {
+            part.removeprefix("fixture_key=")
+            for row in generated_oracle_rows(rows)
+            for part in row["configuration"].split(";")
+            if part.startswith("fixture_key=")
+        }
+        assert SELECTED_ORACLE_FIXTURE_KEYS <= observed_fixture_keys
+
+
+def test_selected_oracle_required_freshness_rejects_partial_family_set() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        write_selected_oracle_rows(build_root, drop_last=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "oracle_selected_row_count" in result.stdout
+        assert "row_count_mismatch" in result.stdout
+        assert "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd" in result.stdout
+
+
+def test_selected_oracle_required_freshness_reports_missing_artifacts() -> None:
+    result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "oracle",
+            "--no-generated",
+            "--require-generated",
+            "oracle",
+            "--check-freshness",
+        ],
+        expect_success=False,
+    )
+    assert "freshness: error:" in result.stdout
+    assert "required generated family missing: oracle" in result.stdout
+    assert "artifact=build/corpus/oracle/*.tsv" in result.stdout
+    assert "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd" in result.stdout
+
+
+def test_selected_oracle_required_freshness_rejects_stale_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        write_selected_oracle_rows(build_root, stale_first=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "stale: source_commit does not match current HEAD" in result.stdout
+        assert "recorded=oldcommit" in result.stdout
+        assert "current=" in result.stdout
+        assert "artifact=" in result.stdout
+
+
+def test_selected_oracle_required_freshness_rejects_failed_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        write_selected_oracle_rows(build_root, fail_first=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "generated oracle row reports fail" in result.stdout
+        assert "fixture_key=qr_rank_deficient_6x4_nullspace_v1" in result.stdout
+        assert "artifact=" in result.stdout
+
+
+def test_selected_oracle_required_freshness_rejects_missing_solver_family() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        write_selected_oracle_rows(build_root, omit_solver_family="qr")
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "oracle_selected_solver_families" in result.stdout
+        assert "missing=qr" in result.stdout
+        assert "observed=partial_svd,unknown" in result.stdout
+
+
+def test_selected_oracle_required_freshness_rejects_missing_fixture_key() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        missing_fixture = "partial_svd_fail_closed_diag6_k2_v1"
+        replacement_fixture = "partial_svd_clustered_repeated_diag8x6_k3_v1"
+        write_selected_oracle_rows(
+            build_root,
+            remap_fixture_from=missing_fixture,
+            remap_fixture_to=replacement_fixture,
+        )
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "oracle",
+                "--require-generated",
+                "oracle",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "oracle_selected_row_count" not in result.stdout
+        assert "oracle_selected_fixture_keys" in result.stdout
+        assert f"missing={missing_fixture}" in result.stdout
+        assert "manifest=build/corpus-reports/manifest.txt" in result.stdout
+
+
+def test_selected_oracle_gate_preserves_advisory_and_source_controlled_families() -> None:
+    coverage_result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "coverage",
+            "--check-freshness",
+        ]
+    )
+    assert "freshness: advisory:" in coverage_result.stdout
+    assert "local generated advisory report is absent" in coverage_result.stdout
+
+    coverage_required = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "coverage",
+            "--require-generated",
+            "coverage",
+            "--check-freshness",
+        ],
+        expect_success=False,
+    )
+    assert "required generated family missing: coverage" in coverage_required.stdout
+
+    package_result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "package",
+            "--check-freshness",
+        ]
+    )
+    assert "freshness: advisory:" in package_result.stdout
+    assert "source-controlled row is governed by schema and Git review" in package_result.stdout
+
+
 def main() -> int:
     test_current_repo_no_generated()
     test_git_metadata_is_independent_of_caller_cwd()
@@ -836,6 +1207,14 @@ def main() -> int:
     test_freshness_stale_and_advisory_runtime_rows()
     test_generated_oracle_rows_are_preserved()
     test_sprint151_partial_svd_oracle_freshness_strictness()
+    test_selected_oracle_required_freshness_requires_complete_family_set()
+    test_selected_oracle_required_freshness_rejects_partial_family_set()
+    test_selected_oracle_required_freshness_reports_missing_artifacts()
+    test_selected_oracle_required_freshness_rejects_stale_rows()
+    test_selected_oracle_required_freshness_rejects_failed_rows()
+    test_selected_oracle_required_freshness_rejects_missing_solver_family()
+    test_selected_oracle_required_freshness_rejects_missing_fixture_key()
+    test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     print("test-normalize-report-index: ok")
     return 0
 

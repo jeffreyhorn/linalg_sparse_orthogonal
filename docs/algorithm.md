@@ -1169,13 +1169,14 @@ family. The source-controlled proof
 [`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) covers the
 `qr_rank_deficient_6x4_nullspace_v1` seed, two rank-deficient rectangular
 fixtures with rank/nullity/residual/subspace checks, and three underdetermined
-minimum-norm fixtures with status/residual/norm/value checks. The local oracle
-command can append matching generated-local solver-backed rows with
-`python3 scripts/run_corpus_oracle.py --include-solver-qr`; a current QR-only
-run reports `23` solver-backed QR rows. This is residual/subspace-safe and
+minimum-norm fixtures with status/residual/norm/value checks. The selected
+local oracle freshness gate is `make report-index-oracle-freshness`; it
+regenerates the combined QR + partial-SVD oracle output and checks the selected
+oracle family is current. QR-only oracle runs remain focused debug variants,
+not the selected combined freshness gate. This is residual/subspace-safe and
 fixture-local evidence only: it does not compare exact QR basis entries or
-imply broad QR, rank-threshold, SuiteSparse, LAPACK, NumPy, SciPy, platform,
-performance, or state-of-the-art parity.
+imply broad QR, rank-threshold, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI,
+platform, performance, package/ABI, or state-of-the-art parity.
 
 ### Column Reordering
 

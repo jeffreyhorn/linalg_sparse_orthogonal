@@ -72,7 +72,12 @@ static void qr_corpus_assert_rankdef_fixture(const char *fixture_key, SparseMatr
     ASSERT_EQ(rank, expected_rank);
 
     idx_t nullity = -1;
-    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, NULL, &nullity), SPARSE_OK);
+    err = sparse_qr_nullspace(&qr, 0.0, NULL, &nullity);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        return;
+    }
     ASSERT_EQ(nullity, expected_nullity);
     if (nullity != expected_nullity) {
         sparse_qr_free(&qr);
@@ -80,7 +85,12 @@ static void qr_corpus_assert_rankdef_fixture(const char *fixture_key, SparseMatr
     }
 
     double basis[QR_CORPUS_MAX_COLS] = {0.0};
-    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, basis, &nullity), SPARSE_OK);
+    err = sparse_qr_nullspace(&qr, 0.0, basis, &nullity);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr);
+        return;
+    }
     ASSERT_EQ(nullity, expected_nullity);
 
     double residual = tf_qr_normalized_matvec_residual(A, basis, cols);

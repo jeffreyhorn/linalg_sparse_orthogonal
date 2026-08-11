@@ -109,10 +109,6 @@ SPRINT150_MINNORM_QR_FIXTURES = {
         "rhs": [1.0, 2.0, 3.0, 4.0, 5.0],
     },
 }
-SPRINT150_QR_ORACLE_ROW_IDS = {
-    *(row_id for fixture in SPRINT150_RANKDEF_QR_FIXTURES.values() for row_id in fixture["expected_row_ids"].values()),
-    *(row_id for fixture in SPRINT150_MINNORM_QR_FIXTURES.values() for row_id in fixture["expected_row_ids"].values()),
-}
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",

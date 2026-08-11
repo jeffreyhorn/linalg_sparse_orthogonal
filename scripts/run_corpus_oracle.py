@@ -1102,9 +1102,21 @@ def build_partial_svd_oracle_rows(
         generator_key = str(fixture_info["generator_key"])
         oracle_row_ids = set(fixture_info["oracle_row_ids"])
         observations = dict(fixture_info["observations"])
+        observation_ids = set(observations)
+        missing_observations = sorted(oracle_row_ids - observation_ids)
+        extra_observations = sorted(observation_ids - oracle_row_ids)
+        if missing_observations or extra_observations:
+            details = []
+            if missing_observations:
+                details.append(f"missing observations: {', '.join(missing_observations)}")
+            if extra_observations:
+                details.append(f"extra observations: {', '.join(extra_observations)}")
+            raise CorpusValidationError(
+                f"partial-SVD oracle row mismatch for {fixture_key!r}: {'; '.join(details)}"
+            )
         expected = load_expected_rows(root, fixture_key, oracle_row_ids)
         configuration = partial_svd_configuration(fixture_key, generator_key, fixture_info)
-        for oracle_row_id in sorted(observations):
+        for oracle_row_id in sorted(oracle_row_ids):
             if oracle_row_id not in expected:
                 raise CorpusValidationError(
                     f"missing expected result for partial-SVD oracle row {oracle_row_id!r}"

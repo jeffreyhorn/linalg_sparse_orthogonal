@@ -234,8 +234,9 @@ Interpretation:
   truth and now includes a reviewed static-first package-contract lane; macOS
   now carries reviewed static-first Make install/`pkg-config` and CMake
   install/export proof for the maintained static archive package contract; and
-  Windows remains the reviewed CMake-first consumer subset with supplemental
-  CMake install/downstream confidence
+  Windows remains CMake-first with reviewed CTest coverage plus reviewed CMake
+  install/downstream validation for the maintained static-first package
+  surface
 
 Focused install/package regression ownership:
 
@@ -267,9 +268,14 @@ Focused install/package regression ownership:
   contract; these lanes preserve no shared-library, dynamic ABI,
   runtime-loader, package-manager, static/shared selector, or broad macOS
   platform parity claims
-- Windows does not currently claim a separate reviewed install-validation lane;
-  it keeps the reviewed CMake subset plus supplemental CMake
-  install/downstream confidence for the CMake-first consumer story
+- Windows CI carries reviewed CMake install/downstream validation for the
+  maintained static-first package surface; this lane checks installed static
+  `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
+  maintained installed CMake consumers, exact-version behavior,
+  mismatched-version rejection, and absence of DLL/shared imported metadata
+- Windows still does not claim Makefile parity, `pkg-config` execution parity,
+  package-manager support, shared-library support, dynamic ABI support,
+  runtime-loader behavior, or broad Windows parity
 
 Normalized report-index interpretation:
 
@@ -310,12 +316,17 @@ Sprint 112 package/platform proof snapshot:
   install/export proof to reviewed macOS package lanes for the maintained
   static archive package contract
 - Windows keeps the reviewed MSVC CMake-first subset with 59 registered CTest
-  tests plus supplemental CMake install/downstream confidence; Sprint 148
-  promotes `test_threads`, `test_sprint4_integration`, and `test_fuzz` into
-  that CMake subset through portable test-only thread and temp-file helpers
+  tests; Sprint 148 promotes `test_threads`, `test_sprint4_integration`, and
+  `test_fuzz` into that CMake subset through portable test-only thread and
+  temp-file helpers
+- Sprint 149 promotes reviewed Windows CMake install/downstream validation for
+  the maintained static-first package surface, including installed static
+  `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
+  maintained installed CMake consumers, exact-version behavior,
+  mismatched-version rejection, and no DLL/shared imported metadata
 - do not infer shared-library support, ABI stability, package-manager support,
-  runtime-loader behavior, Windows Makefile parity, Windows install-validation
-  parity, or broader macOS platform parity from package evidence
+  runtime-loader behavior, Windows Makefile parity, Windows `pkg-config`
+  execution parity, or broader macOS platform parity from package evidence
 
 ## Capability Surface Ownership
 
@@ -896,10 +907,10 @@ Current platform-confidence interpretation:
 - Windows reviewed CMake also includes `test_threads` and
   `test_sprint4_integration` through `tests/test_thread_helpers.h`, which keeps
   POSIX pthread behavior on POSIX builds and uses a Windows backend on MSVC
-- this is a narrow confidence-boundary note only; it does not claim Windows
-  Makefile parity, Windows pkg-config parity, Windows install-validation
-  parity, package-manager support, shared-library support, or dynamic ABI
-  support
+- this is a narrow CTest confidence-boundary note only; it does not claim
+  Windows Makefile parity, Windows `pkg-config` execution parity,
+  package-manager support, shared-library support, dynamic ABI support,
+  runtime-loader behavior, or broad Windows parity
 
 Current deferred direct-usability queue:
 

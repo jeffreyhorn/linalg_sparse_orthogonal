@@ -139,8 +139,12 @@ needs them.
   Linux is the strongest reviewed source of truth, macOS carries reviewed
   static-first install/export proof, Windows remains CMake-first and now
   includes the promoted `test_threads`, `test_sprint4_integration`, and
-  `test_fuzz` CTest targets in its reviewed subset, and benchmark/report rows
-  remain bounded local evidence rather than portable performance claims.
+  `test_fuzz` CTest targets plus reviewed CMake install/downstream validation
+  for the static-first package surface. Windows still does not claim Makefile
+  parity, `pkg-config` execution parity, package-manager support,
+  shared-library support, dynamic ABI support, runtime-loader behavior, or
+  broad Windows parity. Benchmark/report rows remain bounded local evidence
+  rather than portable performance claims.
 
 ## Choose a Workflow
 

@@ -1021,7 +1021,9 @@ def test_selected_oracle_required_freshness_rejects_partial_family_set() -> None
         assert "freshness: error:" in result.stdout
         assert "oracle_selected_row_count" in result.stdout
         assert "row_count_mismatch" in result.stdout
+        assert "make report-index-oracle-freshness" in result.stdout
         assert "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd" in result.stdout
+        assert f"resolved_artifact={build_root / 'corpus' / 'oracle'}/*.tsv" in result.stdout
 
 
 def test_selected_oracle_required_freshness_reports_missing_artifacts() -> None:
@@ -1041,6 +1043,7 @@ def test_selected_oracle_required_freshness_reports_missing_artifacts() -> None:
     assert "freshness: error:" in result.stdout
     assert "required generated family missing: oracle" in result.stdout
     assert "artifact=build/corpus/oracle/*.tsv" in result.stdout
+    assert "make report-index-oracle-freshness" in result.stdout
     assert "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd" in result.stdout
 
 
@@ -1069,6 +1072,7 @@ def test_selected_oracle_required_freshness_rejects_stale_rows() -> None:
         assert "recorded=oldcommit" in result.stdout
         assert "current=" in result.stdout
         assert "artifact=" in result.stdout
+        assert "make report-index-oracle-freshness" in result.stdout
 
 
 def test_selected_oracle_required_freshness_rejects_failed_rows() -> None:
@@ -1095,6 +1099,7 @@ def test_selected_oracle_required_freshness_rejects_failed_rows() -> None:
         assert "generated oracle row reports fail" in result.stdout
         assert "fixture_key=qr_rank_deficient_6x4_nullspace_v1" in result.stdout
         assert "artifact=" in result.stdout
+        assert "make report-index-oracle-freshness" in result.stdout
 
 
 def test_selected_oracle_required_freshness_rejects_missing_solver_family() -> None:
@@ -1121,6 +1126,7 @@ def test_selected_oracle_required_freshness_rejects_missing_solver_family() -> N
         assert "oracle_selected_solver_families" in result.stdout
         assert "missing=qr" in result.stdout
         assert "observed=partial_svd,unknown" in result.stdout
+        assert f"resolved_artifact={build_root / 'corpus' / 'oracle'}/*.tsv" in result.stdout
 
 
 def test_selected_oracle_required_freshness_rejects_missing_fixture_key() -> None:
@@ -1154,6 +1160,7 @@ def test_selected_oracle_required_freshness_rejects_missing_fixture_key() -> Non
         assert "oracle_selected_fixture_keys" in result.stdout
         assert f"missing={missing_fixture}" in result.stdout
         assert "manifest=build/corpus-reports/manifest.txt" in result.stdout
+        assert f"resolved_manifest={build_root / 'corpus-reports' / 'manifest.txt'}" in result.stdout
 
 
 def test_selected_oracle_gate_preserves_advisory_and_source_controlled_families() -> None:

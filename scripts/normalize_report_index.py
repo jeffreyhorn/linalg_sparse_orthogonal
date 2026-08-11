@@ -45,8 +45,12 @@ GENERATED_STATUS_MAP = {
 STRICT_FRESHNESS_POLICIES = {"generated_compare_inputs"}
 ADVISORY_FRESHNESS_POLICIES = {"generated_local_advisory", "hosted_ci_external"}
 ERROR_SEVERITIES = {"error"}
+CANONICAL_ORACLE_TARGET = "make report-index-oracle-freshness"
 CANONICAL_ORACLE_COMMAND = (
     "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd"
+)
+CANONICAL_ORACLE_REMEDIATION = (
+    f"{CANONICAL_ORACLE_TARGET} (fallback: {CANONICAL_ORACLE_COMMAND})"
 )
 SELECTED_ORACLE_ROW_COUNTS = {
     "partial_svd": 26,
@@ -822,11 +826,11 @@ def not_generated_row(contract: dict[str, str], commit: str, branch: str) -> dic
         row["freshness_reason"] = (
             "local_generated_artifact_not_found;"
             f" expected_artifact={contract['artifact_pattern']};"
-            f" remediation={CANONICAL_ORACLE_COMMAND}"
+            f" remediation={CANONICAL_ORACLE_REMEDIATION}"
         )
         row["skip_or_defer_reason"] = (
             "missing generated oracle rows are not pass evidence;"
-            f" run {CANONICAL_ORACLE_COMMAND}"
+            f" run {CANONICAL_ORACLE_REMEDIATION}"
         )
     return row
 
@@ -985,6 +989,16 @@ def is_required_family(row: dict[str, str], required_families: set[str]) -> bool
     return row["report_family"] in required_families
 
 
+def oracle_artifact_detail(build_root: Path) -> str:
+    resolved = display_path(build_root / "corpus" / "oracle", REPO_ROOT)
+    return f"artifact=build/corpus/oracle/*.tsv; resolved_artifact={resolved}/*.tsv"
+
+
+def oracle_manifest_detail(build_root: Path) -> str:
+    resolved = display_path(build_root / "corpus-reports" / "manifest.txt", REPO_ROOT)
+    return f"manifest=build/corpus-reports/manifest.txt; resolved_manifest={resolved}"
+
+
 def stale_source_commit_reason(row: dict[str, str], current_commit: str) -> str:
     if row["report_family"] != "oracle":
         return "source_commit does not match current HEAD"
@@ -992,7 +1006,7 @@ def stale_source_commit_reason(row: dict[str, str], current_commit: str) -> str:
         "source_commit does not match current HEAD; "
         f"recorded={row.get('source_commit', 'unknown')}; current={current_commit}; "
         f"artifact={row.get('artifact_path', 'unknown')}; "
-        f"run {CANONICAL_ORACLE_COMMAND}"
+        f"run {CANONICAL_ORACLE_REMEDIATION}"
     )
 
 
@@ -1015,6 +1029,7 @@ def selected_oracle_generated_rows(rows: list[dict[str, str]]) -> list[dict[str,
 def selected_oracle_policy_diagnostics(
     rows: list[dict[str, str]],
     *,
+    build_root: Path,
     required_families: set[str],
     strict_generated: bool,
 ) -> tuple[list[str], bool]:
@@ -1044,8 +1059,8 @@ def selected_oracle_policy_diagnostics(
             "freshness: error: oracle_selected_row_count: row_count_mismatch: "
             f"expected total={SELECTED_ORACLE_TOTAL_ROWS} counts={SELECTED_ORACLE_ROW_COUNTS}; "
             f"observed total={len(oracle_rows)} counts={counts}; "
-            "artifact=build/corpus/oracle/*.tsv; "
-            f"run {CANONICAL_ORACLE_COMMAND}"
+            f"{oracle_artifact_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
         )
 
     expected_solver_families = set(SELECTED_ORACLE_ROW_COUNTS)
@@ -1056,8 +1071,8 @@ def selected_oracle_policy_diagnostics(
             "freshness: error: oracle_selected_solver_families: missing_solver_family: "
             f"missing={','.join(missing_solver_families)}; "
             f"observed={','.join(sorted(observed_solver_families)) or 'none'}; "
-            "artifact=build/corpus/oracle/*.tsv; "
-            f"run {CANONICAL_ORACLE_COMMAND}"
+            f"{oracle_artifact_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
         )
 
     missing_fixture_keys = sorted(SELECTED_ORACLE_FIXTURE_KEYS - observed_fixture_keys)
@@ -1066,8 +1081,8 @@ def selected_oracle_policy_diagnostics(
         diagnostics.append(
             "freshness: error: oracle_selected_fixture_keys: missing_fixture_key: "
             f"missing={','.join(missing_fixture_keys)}; "
-            "manifest=build/corpus-reports/manifest.txt; "
-            f"run {CANONICAL_ORACLE_COMMAND}"
+            f"{oracle_manifest_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
         )
 
     return diagnostics, has_error
@@ -1097,7 +1112,7 @@ def freshness_severity(
                 "generated oracle row reports fail; "
                 f"fixture_key={configuration_value(row['configuration'], 'fixture_key') or 'unknown'}; "
                 f"artifact={row.get('artifact_path', 'unknown')}; "
-                f"run {CANONICAL_ORACLE_COMMAND}",
+                f"run {CANONICAL_ORACLE_REMEDIATION}",
             )
         if row["report_family"] == "package":
             return ("error", "source-controlled package proof owner is missing")
@@ -1118,7 +1133,7 @@ def freshness_severity(
                     "error",
                     "required generated family missing: oracle; "
                     "artifact=build/corpus/oracle/*.tsv; "
-                    f"run {CANONICAL_ORACLE_COMMAND}",
+                    f"run {CANONICAL_ORACLE_REMEDIATION}",
                 )
             return ("error", f"required generated family missing: {row['report_family']}")
         if policy in STRICT_FRESHNESS_POLICIES:
@@ -1160,6 +1175,7 @@ def evaluate_freshness_state(row: dict[str, str], current_commit: str) -> str:
 def freshness_diagnostics(
     rows: list[dict[str, str]],
     *,
+    build_root: Path,
     current_commit: str,
     required_families: set[str],
     strict_generated: bool,
@@ -1184,6 +1200,7 @@ def freshness_diagnostics(
         )
     oracle_diagnostics, oracle_has_error = selected_oracle_policy_diagnostics(
         rows,
+        build_root=build_root,
         required_families=required_families,
         strict_generated=strict_generated,
     )
@@ -1231,6 +1248,7 @@ def main() -> int:
     if args.check_freshness:
         diagnostics, has_error = freshness_diagnostics(
             rows,
+            build_root=args.build_root,
             current_commit=commit,
             required_families=required_families,
             strict_generated=args.strict_generated,

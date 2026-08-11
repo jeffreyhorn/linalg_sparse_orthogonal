@@ -503,7 +503,6 @@ checkout:
 python3 scripts/validate_corpus_schema.py
 make build/test_qr_corpus && ./build/test_qr_corpus
 python3 scripts/run_corpus_oracle.py --include-solver-qr
-make report-index-oracle-freshness
 ```
 
 The focused C proof should report `14` passing `test_qr_corpus` tests. The
@@ -591,7 +590,6 @@ checkout:
 python3 scripts/validate_corpus_schema.py
 make build/test_svd_partial_corpus && ./build/test_svd_partial_corpus
 python3 scripts/run_corpus_oracle.py --include-partial-svd
-make report-index-oracle-freshness
 python3 scripts/normalize_report_index.py --family corpus --family oracle --check
 python3 scripts/normalize_report_index.py --family oracle --check-freshness
 ```

@@ -166,13 +166,14 @@ jobs:
             throw "Installed CMake package target does not point at the installed static .lib."
           }
           $buildPath = (Resolve-Path $build).Path
+          $cmakePackageTextLower = $cmakePackageText.ToLowerInvariant()
           foreach ($leakPath in @(
             $sourceRoot,
             ($sourceRoot -replace "\\", "/"),
             $buildPath,
             ($buildPath -replace "\\", "/")
           )) {
-            if ($leakPath -and $cmakePackageText.Contains($leakPath)) {
+            if ($leakPath -and $cmakePackageTextLower.Contains($leakPath.ToLowerInvariant())) {
               throw "Installed CMake package metadata leaked source/build path: $leakPath"
             }
           }
@@ -218,7 +219,10 @@ jobs:
             '    printf("sparse version: %s\n", SPARSE_VERSION_STRING);',
             '    SparseMatrix *A = sparse_create(3, 3);',
             '    if (!A) return 1;',
-            '    sparse_insert(A, 0, 0, 1.0);',
+            '    if (sparse_insert(A, 0, 0, 1.0) != SPARSE_OK) {',
+            '        sparse_free(A);',
+            '        return 2;',
+            '    }',
             '    printf("nnz: %d\n", (int)sparse_nnz(A));',
             '    sparse_free(A);',
             '    printf("OK\n");',

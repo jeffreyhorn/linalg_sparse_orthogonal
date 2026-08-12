@@ -485,7 +485,6 @@ def comparison_generated_rows(
                     {
                         "row_id": comparison["comparison_row_id"],
                         "native_row_id": comparison["comparison_row_id"],
-                        "row_meaning": comparison.get("metric", contract["row_meaning"]),
                         "status": GENERATED_STATUS_MAP.get(
                             comparison.get("status", "unknown"), "unknown"
                         ),
@@ -493,9 +492,7 @@ def comparison_generated_rows(
                         "support_tier": comparison.get("support_tier", contract["support_tier"]),
                         "claim_scope": comparison.get("claim_scope", contract["claim_scope"]),
                         "non_claims": comparison.get("non_claims", contract["non_claims"]),
-                        "generator_command": comparison.get(
-                            "project_command", contract["generator_command"]
-                        ),
+                        "generator_command": contract["generator_command"],
                         "source_commit": comparison.get("source_commit", commit),
                         "source_branch": comparison.get("source_branch", branch),
                         "generated_at_utc": comparison.get("generated_at_utc", "unknown"),

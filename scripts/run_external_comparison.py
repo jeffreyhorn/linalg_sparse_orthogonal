@@ -474,6 +474,11 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
 
 def project_observation_rows(observations: dict[str, str]) -> list[dict[str, str]]:
     values = parse_vector(observations["solution_values"])
+    if len(values) != len(EXPECTED_SOLUTION):
+        raise ComparisonError(
+            "project_probe_failed",
+            f"project solution has {len(values)} values, expected {len(EXPECTED_SOLUTION)}",
+        )
     max_abs_delta = max(
         abs(expected - observed) for expected, observed in zip(EXPECTED_SOLUTION, values)
     )
@@ -890,6 +895,17 @@ def run_self_check(root: Path) -> int:
     assert_comparison_error(
         "metric_comparison_malformed",
         lambda: max_abs_delta([1.0], [1.0, 2.0], "metric_comparison_malformed"),
+    )
+    assert_comparison_error(
+        "project_probe_failed",
+        lambda: project_observation_rows(
+            {
+                "status": "SPARSE_SUCCESS",
+                "residual_norm": "0",
+                "solution_norm": "1",
+                "solution_values": "0.5,0.5,0.5",
+            }
+        ),
     )
     dependency_rows = dependency_status_rows(root)
     deferred = {

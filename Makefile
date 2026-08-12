@@ -592,6 +592,14 @@ check: format-check lint test
 source-list-check:
 	@python3 scripts/check_library_sources.py
 
+.PHONY: report-index-oracle-freshness
+report-index-oracle-freshness: $(LIB)
+	@echo "report-index-oracle-freshness: regenerating selected local oracle output"
+	@python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd
+	@echo "report-index-oracle-freshness: checking selected oracle freshness"
+	@python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
+	@echo "report-index-oracle-freshness: passed (local-only generated oracle freshness)"
+
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the

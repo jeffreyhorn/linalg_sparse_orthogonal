@@ -41,6 +41,44 @@ Rows live in `tests/corpus/manifests/report_families.tsv` and are validated by
 | `runtime_backend_governance_policy` | Source-controlled runtime/backend rows identify maintained control-boundary policy; generated sentinel measurements stay under the `sentinel` family. |
 | `deferred_governance` | Row meaning is acknowledged but policy closure belongs to a later sprint. |
 
+## Selected Oracle Freshness Gate
+
+Sprint 152 selects the local oracle family for required freshness through:
+
+```sh
+make report-index-oracle-freshness
+```
+
+That target regenerates the combined local oracle report and then runs:
+
+```sh
+python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
+```
+
+The selected oracle gate expects generated-local rows under
+`build/corpus/oracle/*.tsv` with the current source commit and the selected
+combined row family:
+
+- `52` generated oracle rows total;
+- `3` `solver_family=unknown` generated-reference rows;
+- `23` `solver_family=qr` rows;
+- `26` `solver_family=partial_svd` rows;
+- all selected QR and partial-SVD fixture keys present.
+
+Required selected oracle freshness fails missing artifacts, stale commits,
+generated comparison failures, row-count mismatches, missing solver families,
+and missing fixture keys. The diagnostics are part of the gate contract:
+
+- `oracle_selected_row_count`
+- `oracle_selected_solver_families`
+- `oracle_selected_fixture_keys`
+
+Generated oracle, corpus-report, and report-index outputs stay under ignored
+`build/` paths. They are local evidence and are not hosted CI proof, release
+proof, package proof, ABI proof, platform proof, performance proof,
+external-library parity, broad QR correctness, broad partial-SVD correctness,
+or state-of-the-art evidence.
+
 ## Guardrails
 
 - Source-controlled contract rows are advisory or deferred; they are not pass

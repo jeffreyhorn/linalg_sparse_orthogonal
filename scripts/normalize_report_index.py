@@ -45,6 +45,31 @@ GENERATED_STATUS_MAP = {
 STRICT_FRESHNESS_POLICIES = {"generated_compare_inputs"}
 ADVISORY_FRESHNESS_POLICIES = {"generated_local_advisory", "hosted_ci_external"}
 ERROR_SEVERITIES = {"error"}
+CANONICAL_ORACLE_TARGET = "make report-index-oracle-freshness"
+CANONICAL_ORACLE_COMMAND = (
+    "python3 scripts/run_corpus_oracle.py --include-solver-qr --include-partial-svd"
+)
+CANONICAL_ORACLE_REMEDIATION = (
+    f"{CANONICAL_ORACLE_TARGET} (fallback: {CANONICAL_ORACLE_COMMAND})"
+)
+SELECTED_ORACLE_ROW_COUNTS = {
+    "partial_svd": 26,
+    "qr": 23,
+    "unknown": 3,
+}
+SELECTED_ORACLE_TOTAL_ROWS = sum(SELECTED_ORACLE_ROW_COUNTS.values())
+SELECTED_ORACLE_FIXTURE_KEYS = {
+    "partial_svd_clustered_repeated_diag8x6_k3_v1",
+    "partial_svd_fail_closed_diag6_k2_v1",
+    "partial_svd_lowrank_rect5x7_k3_sparse_output_v1",
+    "partial_svd_rankdef_diag6x4_k2_range_projector_v1",
+    "qr_minnorm_3x6_exact_values",
+    "qr_minnorm_5x10_exact_values",
+    "qr_rank_deficient_6x4_nullspace_v1",
+    "qr_rankdef_dependent_row_4x3_v1",
+    "qr_rankdef_duplicate_5x4_v1",
+    "qr_underdetermined_minnorm_2x4",
+}
 
 NORMALIZED_FIELDS = [
     "row_id",
@@ -797,6 +822,16 @@ def not_generated_row(contract: dict[str, str], commit: str, branch: str) -> dic
     row["freshness_status"] = "not_generated"
     row["freshness_reason"] = "local_generated_artifact_not_found"
     row["skip_or_defer_reason"] = "missing generated rows are not pass evidence"
+    if contract["report_family"] == "oracle":
+        row["freshness_reason"] = (
+            "local_generated_artifact_not_found;"
+            f" expected_artifact={contract['artifact_pattern']};"
+            f" remediation={CANONICAL_ORACLE_REMEDIATION}"
+        )
+        row["skip_or_defer_reason"] = (
+            "missing generated oracle rows are not pass evidence;"
+            f" run {CANONICAL_ORACLE_REMEDIATION}"
+        )
     return row
 
 
@@ -954,6 +989,105 @@ def is_required_family(row: dict[str, str], required_families: set[str]) -> bool
     return row["report_family"] in required_families
 
 
+def oracle_artifact_detail(build_root: Path) -> str:
+    resolved = display_path(build_root / "corpus" / "oracle", REPO_ROOT)
+    return f"artifact=build/corpus/oracle/*.tsv; resolved_artifact={resolved}/*.tsv"
+
+
+def oracle_manifest_detail(build_root: Path) -> str:
+    resolved = display_path(build_root / "corpus-reports" / "manifest.txt", REPO_ROOT)
+    return f"manifest=build/corpus-reports/manifest.txt; resolved_manifest={resolved}"
+
+
+def stale_source_commit_reason(row: dict[str, str], current_commit: str) -> str:
+    if row["report_family"] != "oracle":
+        return "source_commit does not match current HEAD"
+    return (
+        "source_commit does not match current HEAD; "
+        f"recorded={row.get('source_commit', 'unknown')}; current={current_commit}; "
+        f"artifact={row.get('artifact_path', 'unknown')}; "
+        f"run {CANONICAL_ORACLE_REMEDIATION}"
+    )
+
+
+def selected_oracle_policy_enabled(
+    required_families: set[str], strict_generated: bool
+) -> bool:
+    return "oracle" in required_families or strict_generated
+
+
+def selected_oracle_generated_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        row
+        for row in rows
+        if row["report_family"] == "oracle"
+        and row["row_origin"] == "generated_local"
+        and row["row_id"].startswith("oracle_")
+    ]
+
+
+def selected_oracle_policy_diagnostics(
+    rows: list[dict[str, str]],
+    *,
+    build_root: Path,
+    required_families: set[str],
+    strict_generated: bool,
+) -> tuple[list[str], bool]:
+    if not selected_oracle_policy_enabled(required_families, strict_generated):
+        return [], False
+
+    oracle_rows = selected_oracle_generated_rows(rows)
+    if not oracle_rows:
+        return [], False
+
+    counts = {solver_family: 0 for solver_family in SELECTED_ORACLE_ROW_COUNTS}
+    observed_solver_families: set[str] = set()
+    observed_fixture_keys: set[str] = set()
+    for row in oracle_rows:
+        solver_family = configuration_value(row["configuration"], "solver_family") or "unknown"
+        fixture_key = configuration_value(row["configuration"], "fixture_key")
+        observed_solver_families.add(solver_family)
+        if fixture_key:
+            observed_fixture_keys.add(fixture_key)
+        counts[solver_family] = counts.get(solver_family, 0) + 1
+
+    diagnostics: list[str] = []
+    has_error = False
+    if len(oracle_rows) != SELECTED_ORACLE_TOTAL_ROWS or counts != SELECTED_ORACLE_ROW_COUNTS:
+        has_error = True
+        diagnostics.append(
+            "freshness: error: oracle_selected_row_count: row_count_mismatch: "
+            f"expected total={SELECTED_ORACLE_TOTAL_ROWS} counts={SELECTED_ORACLE_ROW_COUNTS}; "
+            f"observed total={len(oracle_rows)} counts={counts}; "
+            f"{oracle_artifact_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
+        )
+
+    expected_solver_families = set(SELECTED_ORACLE_ROW_COUNTS)
+    missing_solver_families = sorted(expected_solver_families - observed_solver_families)
+    if missing_solver_families:
+        has_error = True
+        diagnostics.append(
+            "freshness: error: oracle_selected_solver_families: missing_solver_family: "
+            f"missing={','.join(missing_solver_families)}; "
+            f"observed={','.join(sorted(observed_solver_families)) or 'none'}; "
+            f"{oracle_artifact_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
+        )
+
+    missing_fixture_keys = sorted(SELECTED_ORACLE_FIXTURE_KEYS - observed_fixture_keys)
+    if missing_fixture_keys:
+        has_error = True
+        diagnostics.append(
+            "freshness: error: oracle_selected_fixture_keys: missing_fixture_key: "
+            f"missing={','.join(missing_fixture_keys)}; "
+            f"{oracle_manifest_detail(build_root)}; "
+            f"run {CANONICAL_ORACLE_REMEDIATION}"
+        )
+
+    return diagnostics, has_error
+
+
 def freshness_severity(
     row: dict[str, str],
     *,
@@ -970,6 +1104,16 @@ def freshness_severity(
     if row["status"] == "fail":
         if row["row_meaning"] in {"sentinel_hard_gate", "guardrail_lane"}:
             return ("error", "generated hard-gate or guardrail row reports fail")
+        if row["report_family"] == "oracle" and (
+            required or selected_oracle_policy_enabled(required_families, strict_generated)
+        ):
+            return (
+                "error",
+                "generated oracle row reports fail; "
+                f"fixture_key={configuration_value(row['configuration'], 'fixture_key') or 'unknown'}; "
+                f"artifact={row.get('artifact_path', 'unknown')}; "
+                f"run {CANONICAL_ORACLE_REMEDIATION}",
+            )
         if row["report_family"] == "package":
             return ("error", "source-controlled package proof owner is missing")
 
@@ -984,24 +1128,31 @@ def freshness_severity(
         return (severity, row["skip_or_defer_reason"] or "row is unsupported in this context")
     if state == "not_generated":
         if required:
+            if row["report_family"] == "oracle":
+                return (
+                    "error",
+                    "required generated family missing: oracle; "
+                    "artifact=build/corpus/oracle/*.tsv; "
+                    f"run {CANONICAL_ORACLE_REMEDIATION}",
+                )
             return ("error", f"required generated family missing: {row['report_family']}")
         if policy in STRICT_FRESHNESS_POLICIES:
             return ("warning", "local generated report is absent")
         return ("advisory", "local generated advisory report is absent")
     if state == "stale":
         if required or (strict_generated and not (advisory_ok and advisory_policy)):
-            return ("error", "source_commit does not match current HEAD")
+            return ("error", stale_source_commit_reason(row, current_commit))
         if policy in STRICT_FRESHNESS_POLICIES:
-            return ("warning", "source_commit does not match current HEAD")
+            return ("warning", stale_source_commit_reason(row, current_commit))
         return ("advisory", "local measurement freshness is advisory")
     if state == "fresh":
         return ("advisory", "generated row source_commit matches current HEAD")
     if state == "generated_present_unchecked":
         if row.get("source_commit") not in {"", "unknown", "not_applicable", current_commit}:
             if required or (strict_generated and not (advisory_ok and advisory_policy)):
-                return ("error", "source_commit does not match current HEAD")
+                return ("error", stale_source_commit_reason(row, current_commit))
             if policy in STRICT_FRESHNESS_POLICIES:
-                return ("warning", "source_commit does not match current HEAD")
+                return ("warning", stale_source_commit_reason(row, current_commit))
             return ("advisory", "source_commit differs, but local measurement freshness is advisory")
         if policy in ADVISORY_FRESHNESS_POLICIES:
             return ("advisory", "local generated row freshness is advisory")
@@ -1024,6 +1175,7 @@ def evaluate_freshness_state(row: dict[str, str], current_commit: str) -> str:
 def freshness_diagnostics(
     rows: list[dict[str, str]],
     *,
+    build_root: Path,
     current_commit: str,
     required_families: set[str],
     strict_generated: bool,
@@ -1046,6 +1198,14 @@ def freshness_diagnostics(
         diagnostics.append(
             f"freshness: {severity}: {row['row_id']}: {state}: {reason}"
         )
+    oracle_diagnostics, oracle_has_error = selected_oracle_policy_diagnostics(
+        rows,
+        build_root=build_root,
+        required_families=required_families,
+        strict_generated=strict_generated,
+    )
+    diagnostics.extend(oracle_diagnostics)
+    has_error = has_error or oracle_has_error
     return diagnostics, has_error
 
 
@@ -1088,6 +1248,7 @@ def main() -> int:
     if args.check_freshness:
         diagnostics, has_error = freshness_diagnostics(
             rows,
+            build_root=args.build_root,
             current_commit=commit,
             required_families=required_families,
             strict_generated=args.strict_generated,

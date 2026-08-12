@@ -209,12 +209,12 @@ state-of-the-art parity. Use benchmark output as local measurement context.
 
 The maintained QR corpus proof for
 `qr_rank_deficient_6x4_nullspace_v1` is owned by
-[`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and the opt-in local
-oracle command `python3 scripts/run_corpus_oracle.py --include-solver-qr`.
+[`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and the selected local
+oracle freshness gate `make report-index-oracle-freshness`.
 It supports only the selected fixture-local rank/nullity/nullspace residual
 claim. It does not claim raw QR basis parity, global rank-threshold policy,
-broad rank-deficient solve, SuiteSparse, LAPACK, NumPy, SciPy, platform,
-performance, or state-of-the-art parity.
+broad rank-deficient solve, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI,
+platform, performance, package/ABI, or state-of-the-art parity.
 
 ## SVD and Low-Rank Workflows
 
@@ -232,10 +232,13 @@ singular values, rank, subspace projectors, triplet residuals, orthogonality,
 sparse low-rank shape/nnz/selected values/Frobenius behavior, default-budget
 success, tight-budget fail-closed behavior, and recovery through
 `tests/test_svd_partial_corpus.c` and
-`python3 scripts/run_corpus_oracle.py --include-partial-svd`. Do not use that
-lane as broad partial-SVD correctness, raw vector identity, broad sparse-output
-optimality, external-library parity, platform, performance, package, ABI, or
-state-of-the-art evidence.
+the selected local oracle freshness gate `make report-index-oracle-freshness`.
+The narrower `python3 scripts/run_corpus_oracle.py --include-partial-svd`
+variant remains useful for focused local debugging, but it does not satisfy the
+combined selected freshness gate by itself. Do not use that lane as broad
+partial-SVD correctness, raw vector identity, broad sparse-output optimality,
+external-library parity, hosted CI proof, platform, performance, package, ABI,
+or state-of-the-art evidence.
 
 Useful starting example:
 

@@ -665,11 +665,12 @@ The maintained QR corpus proof covers six fixture-local rows:
 `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`. The
 source-controlled proof owner is
 [`tests/test_qr_corpus.c`](tests/test_qr_corpus.c), and the opt-in local
-oracle/report lane is `python3 scripts/run_corpus_oracle.py --include-solver-qr`.
-That local lane reports `23` solver-backed QR rows when current. Do not read
-this as raw QR basis parity, broad rank-threshold policy, broad rank-deficient
-solve, broad minimum-norm behavior, SuiteSparse, LAPACK, NumPy, SciPy,
-platform, performance, or state-of-the-art evidence.
+oracle/report freshness gate is `make report-index-oracle-freshness`. That
+local gate regenerates the combined QR + partial-SVD oracle rows and verifies
+the selected oracle family is current. Do not read this as raw QR basis parity,
+broad rank-threshold policy, broad rank-deficient solve, broad minimum-norm
+behavior, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI, platform, performance,
+package/ABI, or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

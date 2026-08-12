@@ -7,7 +7,8 @@ name: Windows CI
 # install/downstream validation for the maintained static-first package
 # surface: installed static `.lib`, headers, CMake package metadata,
 # `sparse.pc` metadata, downstream consumers, exact-version behavior,
-# mismatch-version rejection, and absence of DLL/shared imported metadata.
+# mismatch-version rejection, absence of DLL/shared imported metadata, and
+# absence of unsupported loader/static-shared selector metadata.
 # The Makefile reviewed wrappers and dead-code flow remain staged/deferred;
 # Windows does not claim Makefile parity, pkg-config execution parity,
 # package-manager support, shared-library support, dynamic ABI support,
@@ -179,6 +180,9 @@ jobs:
           }
           if ($cmakePackageText -match "SHARED IMPORTED|MODULE IMPORTED|IMPORTED_LOCATION[^\s]*.*\.(so|dylib|dll)") {
             throw "Installed CMake package metadata unexpectedly contains shared-library imported metadata."
+          }
+          if ($cmakePackageText -match "SOVERSION|IMPORTED_SONAME|INSTALL_NAME|MACOSX_RPATH|IMPORTED_IMPLIB|(^|[^\w])RUNTIME([^\w]|$)|COMPONENTS?\s+.*(static|shared)|Sparse::.*shared") {
+            throw "Installed CMake package metadata unexpectedly contains unsupported loader or shared-selector metadata under the static-first package decision."
           }
 
           $pcFile = Join-Path $prefix "lib/pkgconfig/sparse.pc"

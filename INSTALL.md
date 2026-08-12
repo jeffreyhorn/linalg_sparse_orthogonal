@@ -123,9 +123,11 @@ This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
 remains the reviewed CMake workflow.
 
-Shared-library packaging is deferred until a future change adds explicit build
-rules, package metadata, installed-consumer proof, and platform-specific
-runtime-loader coverage.
+Shared-library packaging is deferred until a future change adds explicit
+export/import and symbol visibility policies, a dynamic ABI policy, Linux
+SONAME metadata, macOS install-name/RPATH metadata, Windows
+DLL/import-library behavior, installed shared consumer proof, and
+runtime-loader validation.
 
 Use the split below when deciding how much package detail you need:
 
@@ -208,8 +210,10 @@ cmake --install .    # install
 
 `BUILD_SHARED_LIBS=ON` is intentionally rejected. The maintained CMake package
 contract is the static archive surface; shared-library packaging and dynamic
-ABI support are deferred until explicit build rules, package metadata,
-installed-consumer proof, and runtime-loader validation exist.
+ABI support are deferred until explicit export/import and symbol visibility
+policies, a dynamic ABI policy, Linux SONAME metadata, macOS
+install-name/RPATH metadata, Windows DLL/import-library behavior, installed
+shared consumer proof, and runtime-loader validation exist.
 
 ### Using from a CMake project
 

@@ -49,6 +49,7 @@ check_build_shared_rejected() {
     local stderr_file="$TMPDIR/cmake-shared-request.stderr"
     local rc
     local output
+    local normalized_output
 
     set +e
     cmake -S "$ROOT_DIR" -B "$build_dir" -DBUILD_SHARED_LIBS=ON >"$stdout_file" 2>"$stderr_file"
@@ -60,6 +61,7 @@ check_build_shared_rejected() {
     fi
 
     output="$(cat "$stdout_file" "$stderr_file")"
+    normalized_output="$(printf '%s\n' "$output" | tr '\n' ' ')"
     printf '%s\n' "$output" | grep -q "BUILD_SHARED_LIBS=ON was requested" ||
         fail "BUILD_SHARED_LIBS deferral wording lost the rejected-input token"
     printf '%s\n' "$output" | grep -q "static archive package surface" ||
@@ -68,6 +70,22 @@ check_build_shared_rejected() {
         fail "BUILD_SHARED_LIBS deferral wording lost the shared-library deferral"
     printf '%s\n' "$output" | grep -q "dynamic ABI support are deferred" ||
         fail "BUILD_SHARED_LIBS deferral wording lost the dynamic ABI deferral"
+    printf '%s\n' "$normalized_output" | grep -q "export/import" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the export/import blocker"
+    printf '%s\n' "$normalized_output" | grep -Eq "symbol[[:space:]]+visibility" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the symbol visibility blocker"
+    printf '%s\n' "$normalized_output" | grep -Eq "dynamic[[:space:]]+ABI[[:space:]]+policy" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the dynamic ABI policy blocker"
+    printf '%s\n' "$normalized_output" | grep -q "SONAME" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the Linux SONAME blocker"
+    printf '%s\n' "$normalized_output" | grep -q "install-name/RPATH" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the macOS install-name/RPATH blocker"
+    printf '%s\n' "$normalized_output" | grep -q "DLL/import-library" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the Windows DLL/import-library blocker"
+    printf '%s\n' "$normalized_output" | grep -Eq "installed[[:space:]]+shared[[:space:]]+consumer[[:space:]]+proof" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the installed shared consumer proof blocker"
+    printf '%s\n' "$normalized_output" | grep -q "runtime-loader validation" ||
+        fail "BUILD_SHARED_LIBS deferral wording lost the runtime-loader blocker"
 
     pass "BUILD_SHARED_LIBS rejection"
 }
@@ -112,7 +130,7 @@ check_no_export_or_abi_metadata() {
         "public export/import macro appeared without a shared ABI decision"
 
     require_absent_grep \
-        '(^|[^[:alnum:]_])(SOVERSION|WINDOWS_EXPORT_ALL_SYMBOLS|C_VISIBILITY_PRESET|VISIBILITY_INLINES_HIDDEN)([^[:alnum:]_]|$)|install[_-]?name|soname' \
+        '(^|[^[:alnum:]_])(SOVERSION|WINDOWS_EXPORT_ALL_SYMBOLS|C_VISIBILITY_PRESET|VISIBILITY_INLINES_HIDDEN|INSTALL_NAME_DIR|MACOSX_RPATH)([^[:alnum:]_]|$)' \
         "$ROOT_DIR/CMakeLists.txt" \
         "shared-library ABI metadata appeared without a support decision"
 

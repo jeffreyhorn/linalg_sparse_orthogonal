@@ -252,14 +252,15 @@ Focused install/package regression ownership:
   install/export plus `find_package(Sparse)`; it checks exact installed
   header count, static imported-target metadata, installed-prefix include and
   archive locations, absence of shared imported metadata, absence of
+  unsupported loader/static-shared selector metadata, absence of
   source/build-tree path leaks, static archive `.pc` description, absence of
   unsupported package/ABI wording, exact-version package configure/build/run
   behavior, mismatched-version rejection, and installed consumer
   configure/build/run
 - `scripts/static_package_deferral_check.sh` is the local package-contract
   guard that checks `BUILD_SHARED_LIBS=ON` rejection, the explicit static
-  CMake target, absence of unsupported shared ABI metadata/selectors, and
-  deferred support wording
+  CMake target, exact shared deferral blocker wording, absence of unsupported
+  shared ABI metadata/selectors, and deferred support wording
 - Linux CI carries a reviewed static-first package-contract lane that runs the
   Make install/`pkg-config` proof, CMake install/export proof, and static
   deferral guard
@@ -272,7 +273,8 @@ Focused install/package regression ownership:
   maintained static-first package surface; this lane checks installed static
   `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
   maintained installed CMake consumers, exact-version behavior,
-  mismatched-version rejection, and absence of DLL/shared imported metadata
+  mismatched-version rejection, absence of DLL/shared imported metadata, and
+  absence of unsupported loader/static-shared selector metadata
 - Windows still does not claim Makefile parity, `pkg-config` execution parity,
   package-manager support, shared-library support, dynamic ABI support,
   runtime-loader behavior, or broad Windows parity
@@ -323,7 +325,8 @@ Sprint 112 package/platform proof snapshot:
   the maintained static-first package surface, including installed static
   `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
   maintained installed CMake consumers, exact-version behavior,
-  mismatched-version rejection, and no DLL/shared imported metadata
+  mismatched-version rejection, no DLL/shared imported metadata, and no
+  unsupported loader/static-shared selector metadata
 - do not infer shared-library support, ABI stability, package-manager support,
   runtime-loader behavior, Windows Makefile parity, Windows `pkg-config`
   execution parity, or broader macOS platform parity from package evidence

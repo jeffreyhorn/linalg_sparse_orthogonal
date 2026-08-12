@@ -14,9 +14,11 @@ if(BUILD_SHARED_LIBS)
     message(FATAL_ERROR
         "BUILD_SHARED_LIBS=ON was requested, but sparse_lu_ortho currently "
         "maintains only the static archive package surface. Shared-library "
-        "packaging and dynamic ABI support are deferred until explicit build "
-        "rules, package metadata, installed-consumer proof, and runtime-loader "
-        "validation are added."
+        "packaging and dynamic ABI support are deferred until explicit "
+        "export/import and symbol visibility policies, a dynamic ABI policy, "
+        "Linux SONAME metadata, macOS install-name/RPATH metadata, Windows "
+        "DLL/import-library behavior, installed shared consumer proof, and "
+        "runtime-loader validation are added."
     )
 endif()
 

@@ -121,7 +121,14 @@ SHARED_TARGET_METADATA=$(grep -R -n -E 'SHARED IMPORTED|MODULE IMPORTED|IMPORTED
 if [ -z "$SHARED_TARGET_METADATA" ]; then
     pass "CMake package has no shared-library imported metadata"
 else
-    fail "CMake shared imported metadata" "$SHARED_TARGET_METADATA"
+    fail "CMake shared imported metadata" "shared imported target metadata appeared before shared-library support was selected: $SHARED_TARGET_METADATA"
+fi
+
+UNSUPPORTED_LOADER_METADATA=$(grep -R -n -E 'SOVERSION|IMPORTED_SONAME|INSTALL_NAME|MACOSX_RPATH|IMPORTED_IMPLIB|(^|[^[:alnum:]_])RUNTIME([^[:alnum:]_]|$)|COMPONENTS?[[:space:]].*(static|shared)|Sparse::.*shared' "$CMAKE_PACKAGE_DIR" 2>/dev/null || true)
+if [ -z "$UNSUPPORTED_LOADER_METADATA" ]; then
+    pass "CMake package has no unsupported loader or shared-selector metadata"
+else
+    fail "CMake unsupported loader metadata" "loader metadata appeared before runtime-loader support was selected under the static-first package decision: $UNSUPPORTED_LOADER_METADATA"
 fi
 
 if [ -f "$SPARSE_TARGETS" ] && \

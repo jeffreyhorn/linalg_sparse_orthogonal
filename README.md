@@ -922,7 +922,9 @@ distribution or dynamic-loader evidence.
 Shared-library packaging is intentionally deferred; the maintained install
 contract is the static archive surface described in [INSTALL.md](INSTALL.md).
 CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a
-shared-library request as supported.
+shared-library request as supported, and the rejection names the missing
+export/import, symbol visibility, dynamic ABI, platform loader metadata,
+installed shared consumer, and runtime-loader validation policies.
 
 ## Documentation
 

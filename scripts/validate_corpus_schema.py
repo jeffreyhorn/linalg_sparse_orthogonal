@@ -172,6 +172,7 @@ REPORT_ROW_MEANINGS = {
     "ci_lane_definition",
     "documentation_advisory",
     "runtime_backend_governance_policy",
+    "external_process_dense_reference_comparison",
     "not_generated",
     "deferred_governance",
 }

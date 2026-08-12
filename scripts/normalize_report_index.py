@@ -70,6 +70,14 @@ SELECTED_ORACLE_FIXTURE_KEYS = {
     "qr_rankdef_duplicate_5x4_v1",
     "qr_underdetermined_minnorm_2x4",
 }
+SELECTED_COMPARISON_ROW_IDS = {
+    "comparison_qr_underdetermined_minnorm_2x4_project_status_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_baseline_status_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_residual_norm_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_solution_norm_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_solution_values_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1",
+}
 
 NORMALIZED_FIELDS = [
     "row_id",
@@ -458,6 +466,62 @@ def oracle_generated_rows(
     return rows
 
 
+def comparison_generated_rows(
+    contract: dict[str, str],
+    build_root: Path,
+    repo_root: Path,
+    commit: str,
+    branch: str,
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
+        artifact = display_path(path, repo_root)
+        for comparison in read_tsv(path):
+            rows.append(
+                row_with_overrides(
+                    contract,
+                    commit,
+                    branch,
+                    {
+                        "row_id": comparison["comparison_row_id"],
+                        "native_row_id": comparison["comparison_row_id"],
+                        "row_meaning": comparison.get("metric", contract["row_meaning"]),
+                        "status": GENERATED_STATUS_MAP.get(
+                            comparison.get("status", "unknown"), "unknown"
+                        ),
+                        "status_reason": comparison.get("status_reason", ""),
+                        "support_tier": comparison.get("support_tier", contract["support_tier"]),
+                        "claim_scope": comparison.get("claim_scope", contract["claim_scope"]),
+                        "non_claims": comparison.get("non_claims", contract["non_claims"]),
+                        "generator_command": comparison.get(
+                            "project_command", contract["generator_command"]
+                        ),
+                        "source_commit": comparison.get("source_commit", commit),
+                        "source_branch": comparison.get("source_branch", branch),
+                        "generated_at_utc": comparison.get("generated_at_utc", "unknown"),
+                        "platform": comparison.get("platform", "unknown"),
+                        "compiler": comparison.get("compiler", "unknown"),
+                        "configuration": (
+                            f"subfamily={comparison.get('subfamily', contract['subfamily'])};"
+                            f"fixture_key={comparison.get('fixture_key', 'unknown')};"
+                            f"operation={comparison.get('operation', 'unknown')};"
+                            f"metric={comparison.get('metric', 'unknown')};"
+                            f"row_kind={comparison.get('row_kind', 'unknown')};"
+                            f"tolerance_kind={comparison.get('tolerance_kind', 'unknown')};"
+                            f"tolerance_value={comparison.get('tolerance_value', '')};"
+                            f"baseline_type={comparison.get('baseline_type', 'unknown')};"
+                            f"{comparison.get('configuration', '')}"
+                        ),
+                        "artifact_path": artifact,
+                        "freshness_status": "generated_present_unchecked",
+                        "freshness_reason": "comparison_row_loaded",
+                        "skip_or_defer_reason": comparison.get("caveat", ""),
+                    },
+                )
+            )
+    return rows
+
+
 def benchmark_generated_rows(
     contract: dict[str, str],
     build_root: Path,
@@ -832,6 +896,16 @@ def not_generated_row(contract: dict[str, str], commit: str, branch: str) -> dic
             "missing generated oracle rows are not pass evidence;"
             f" run {CANONICAL_ORACLE_REMEDIATION}"
         )
+    if contract["report_family"] == "comparison":
+        row["freshness_reason"] = (
+            "local_generated_artifact_not_found;"
+            f" expected_artifact={contract['artifact_pattern']};"
+            " remediation=make report-index-comparison-freshness"
+        )
+        row["skip_or_defer_reason"] = (
+            "missing generated comparison rows are not pass evidence;"
+            " run make report-index-comparison-freshness"
+        )
     return row
 
 
@@ -878,6 +952,18 @@ def emit_rows(
                 oracle_rows = oracle_generated_rows(contract, build_root, repo_root, commit, branch)
                 if oracle_rows:
                     rows.extend(oracle_rows)
+                else:
+                    rows.append(not_generated_row(contract, commit, branch))
+            continue
+        if contract["report_family"] == "comparison":
+            if not include_generated:
+                rows.append(not_generated_row(contract, commit, branch))
+            else:
+                comparison_rows = comparison_generated_rows(
+                    contract, build_root, repo_root, commit, branch
+                )
+                if comparison_rows:
+                    rows.extend(comparison_rows)
                 else:
                     rows.append(not_generated_row(contract, commit, branch))
             continue
@@ -1000,6 +1086,13 @@ def oracle_manifest_detail(build_root: Path) -> str:
 
 
 def stale_source_commit_reason(row: dict[str, str], current_commit: str) -> str:
+    if row["report_family"] == "comparison":
+        return (
+            "source_commit does not match current HEAD; "
+            f"recorded={row.get('source_commit', 'unknown')}; current={current_commit}; "
+            f"artifact={row.get('artifact_path', 'unknown')}; "
+            "run make report-index-comparison-freshness"
+        )
     if row["report_family"] != "oracle":
         return "source_commit does not match current HEAD"
     return (
@@ -1088,6 +1181,80 @@ def selected_oracle_policy_diagnostics(
     return diagnostics, has_error
 
 
+def selected_comparison_policy_enabled(
+    required_families: set[str], strict_generated: bool
+) -> bool:
+    return "comparison" in required_families or strict_generated
+
+
+def selected_comparison_generated_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        row
+        for row in rows
+        if row["report_family"] == "comparison"
+        and row["row_origin"] == "generated_local"
+        and row["row_id"].startswith("comparison_")
+    ]
+
+
+def selected_comparison_policy_diagnostics(
+    rows: list[dict[str, str]],
+    *,
+    required_families: set[str],
+    strict_generated: bool,
+) -> tuple[list[str], bool]:
+    if not selected_comparison_policy_enabled(required_families, strict_generated):
+        return [], False
+
+    comparison_rows = selected_comparison_generated_rows(rows)
+    if not comparison_rows:
+        return [], False
+
+    diagnostics: list[str] = []
+    has_error = False
+    row_ids = [row["row_id"] for row in comparison_rows]
+    observed_ids = set(row_ids)
+    missing = sorted(SELECTED_COMPARISON_ROW_IDS - observed_ids)
+    duplicates = sorted(row_id for row_id in observed_ids if row_ids.count(row_id) > 1)
+    unexpected = sorted(observed_ids - SELECTED_COMPARISON_ROW_IDS)
+    if missing or duplicates or unexpected or len(comparison_rows) != len(SELECTED_COMPARISON_ROW_IDS):
+        has_error = True
+        diagnostics.append(
+            "freshness: error: comparison_selected_rows: row_set_mismatch: "
+            f"expected={len(SELECTED_COMPARISON_ROW_IDS)}; observed={len(comparison_rows)}; "
+            f"missing={','.join(missing) or 'none'}; "
+            f"duplicates={','.join(duplicates) or 'none'}; "
+            f"unexpected={','.join(unexpected) or 'none'}; "
+            "artifact=build/comparison/qr_minnorm/study.tsv; "
+            "run make report-index-comparison-freshness"
+        )
+
+    non_pass = [
+        f"{row['row_id']}={row['status']}/{row['status_reason']}"
+        for row in comparison_rows
+        if row["row_id"] in SELECTED_COMPARISON_ROW_IDS and row["status"] != "pass"
+    ]
+    if non_pass:
+        has_error = True
+        diagnostics.append(
+            "freshness: error: comparison_selected_status: non_pass_selected_row: "
+            f"{';'.join(non_pass)}; artifact=build/comparison/qr_minnorm/study.tsv; "
+            "run make report-index-comparison-freshness"
+        )
+
+    deferred = [
+        row["row_id"]
+        for row in comparison_rows
+        if row["status"] in {"skip", "defer"}
+    ]
+    if deferred:
+        diagnostics.append(
+            "freshness: defer: comparison_optional_rows: skip_or_defer_not_proof: "
+            f"{','.join(deferred)}"
+        )
+    return diagnostics, has_error
+
+
 def freshness_severity(
     row: dict[str, str],
     *,
@@ -1114,6 +1281,15 @@ def freshness_severity(
                 f"artifact={row.get('artifact_path', 'unknown')}; "
                 f"run {CANONICAL_ORACLE_REMEDIATION}",
             )
+        if row["report_family"] == "comparison" and (
+            required or selected_comparison_policy_enabled(required_families, strict_generated)
+        ):
+            return (
+                "error",
+                "generated comparison row reports fail; "
+                f"artifact={row.get('artifact_path', 'unknown')}; "
+                "run make report-index-comparison-freshness",
+            )
         if row["report_family"] == "package":
             return ("error", "source-controlled package proof owner is missing")
 
@@ -1134,6 +1310,13 @@ def freshness_severity(
                     "required generated family missing: oracle; "
                     "artifact=build/corpus/oracle/*.tsv; "
                     f"run {CANONICAL_ORACLE_REMEDIATION}",
+                )
+            if row["report_family"] == "comparison":
+                return (
+                    "error",
+                    "required generated family missing: comparison; "
+                    "artifact=build/comparison/qr_minnorm/study.tsv; "
+                    "run make report-index-comparison-freshness",
                 )
             return ("error", f"required generated family missing: {row['report_family']}")
         if policy in STRICT_FRESHNESS_POLICIES:
@@ -1206,6 +1389,13 @@ def freshness_diagnostics(
     )
     diagnostics.extend(oracle_diagnostics)
     has_error = has_error or oracle_has_error
+    comparison_diagnostics, comparison_has_error = selected_comparison_policy_diagnostics(
+        rows,
+        required_families=required_families,
+        strict_generated=strict_generated,
+    )
+    diagnostics.extend(comparison_diagnostics)
+    has_error = has_error or comparison_has_error
     return diagnostics, has_error
 
 

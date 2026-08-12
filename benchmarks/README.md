@@ -362,6 +362,7 @@ performance, scalability, coverage, or platform guarantees.
 | `make bench-canonical-report` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Threshold-free local snapshot of the maintained benchmark surface. |
 | `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; only the existing wall-check lane is thresholded. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
+| `make report-index-comparison-freshness` | `build/comparison/qr_minnorm/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm comparison against the selected source-controlled dense reference helper. |
 
 When reading any generated report index:
 
@@ -379,23 +380,27 @@ Use the normalized report index when you need a cross-report view:
 
 ```sh
 python3 scripts/normalize_report_index.py \
-  --family benchmark --family sentinel --family guardrail \
+  --family benchmark --family sentinel --family guardrail --family comparison \
   --output build/report-index/normalized-index.tsv
 python3 scripts/normalize_report_index.py \
-  --family benchmark --family sentinel --family guardrail \
+  --family benchmark --family sentinel --family guardrail --family comparison \
   --check-freshness
 ```
 
 The normalized index preserves benchmark rows as local/advisory measurements,
 sentinel S5 rows as the existing wall-check hard gate, sentinel S2 and S3 rows
 as threshold-free context, and large-matrix guardrail reviewed/supplemental
-lanes as separate row meanings. Freshness diagnostics do not convert local
-timing rows into portable performance claims.
+lanes as separate row meanings. Comparison rows remain fixture-local
+correctness evidence for the selected QR minimum-norm study only. Freshness
+diagnostics do not convert local timing rows into portable performance claims
+or local comparison rows into broad external-library parity.
 
 Generated benchmark, sentinel, guardrail, and normalized-index outputs belong
 under ignored `build/` paths such as `build/bench-reports/sentinels/` and
-`build/report-index/`. Regenerate those outputs from the maintained commands;
-do not edit or commit generated timing/report rows by hand.
+`build/report-index/`. The generated comparison artifacts under
+`build/comparison/qr_minnorm/` follow the same local-output rule. Regenerate
+those outputs from the maintained commands; do not edit or commit generated
+timing/report/comparison rows by hand.
 
 Supplemental report mode is opt-in:
 

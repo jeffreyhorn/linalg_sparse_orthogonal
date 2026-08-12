@@ -600,6 +600,14 @@ report-index-oracle-freshness: $(LIB)
 	@python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
 	@echo "report-index-oracle-freshness: passed (local-only generated oracle freshness)"
 
+.PHONY: report-index-comparison-freshness
+report-index-comparison-freshness: $(LIB)
+	@echo "report-index-comparison-freshness: regenerating selected local comparison output"
+	@python3 scripts/run_external_comparison.py --target qr-minnorm
+	@echo "report-index-comparison-freshness: checking selected comparison freshness"
+	@python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
+	@echo "report-index-comparison-freshness: passed (local-only generated comparison freshness)"
+
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the

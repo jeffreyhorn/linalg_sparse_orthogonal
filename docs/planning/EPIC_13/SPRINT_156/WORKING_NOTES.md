@@ -557,3 +557,45 @@ rather than aspiration.
   required.
 - Day 12 handoff: draft the Epic 13 retrospective using the Day 11 residual
   queue as the closeout residual source of truth.
+
+### Day 12: Epic 13 Retrospective Draft
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day12-retrospective-draft.md`.
+- Reviewed prior epic retrospective structure, using Epic 12 as the closest
+  format reference for:
+  - epic objective;
+  - sprint outcomes;
+  - major outcomes;
+  - validation evidence;
+  - earned claims;
+  - non-claims;
+  - residuals and future-epic candidates;
+  - state-of-the-art assessment;
+  - what went well / what did not go well.
+- Drafted Sprint 147-156 outcomes:
+  - Sprint 147 evidence gates and claim targets;
+  - Sprint 148 Windows staged CMake test promotion;
+  - Sprint 149 Windows CMake install/downstream validation;
+  - Sprint 150 QR maintained corpus expansion;
+  - Sprint 151 partial-SVD maintained corpus expansion;
+  - Sprint 152 selected generated oracle freshness;
+  - Sprint 153 static-first/shared-library deferral product decision;
+  - Sprint 154 first narrow comparison study;
+  - Sprint 155 tutorial/API/header coherence;
+  - Sprint 156 final validation, claim audit, and residual queue.
+- Summarized validation evidence from Sprint 156 Days 4-11 and the sprint
+  retrospectives for Sprints 147-155.
+- Carried Day 11 residual queue into the draft as the next-epic handoff source
+  of truth.
+- Kept branch-specific Sprint 156 hosted CI as PR-time pending rather than
+  claiming hosted branch success before PR workflows run.
+- Preserved non-claims for broad state-of-the-art, ecosystem parity, broad
+  numerical correctness, raw basis/vector identity, portable performance,
+  hosted proof for local-only generated rows, generated API HTML completeness,
+  shared-library/dynamic ABI/loader/package-manager support, Windows Makefile
+  parity, Windows `pkg-config` parity, and broad Windows platform parity.
+- Day 12 made no `.c` or public `.h` edits, so no full C quality gate was
+  required.
+- Day 13 handoff: reconcile this retrospective draft against the Epic 13
+  project plan and the completed artifact set before final Day 14 publication.

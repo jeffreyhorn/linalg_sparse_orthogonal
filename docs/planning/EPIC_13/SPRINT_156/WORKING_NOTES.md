@@ -1,0 +1,102 @@
+# Sprint 156 Working Notes
+
+## Goal
+
+Sprint 156 closes Epic 13 by validating the final evidence state, recalibrating
+public claims and non-claims, publishing residuals, writing the Epic 13
+retrospective, and preparing a next-epic handoff grounded in reviewed evidence
+rather than aspiration.
+
+## Starting Evidence
+
+- Sprint 147 established Epic 13 baseline gaps, claim targets, and evidence
+  gates.
+- Sprint 148 promoted Windows staged test portability work and recorded staged
+  blockers.
+- Sprint 149 made the Windows install-validation parity decision and promoted
+  reviewed CMake install/downstream validation while preserving Windows
+  Makefile and `pkg-config` non-claims.
+- Sprint 150 expanded the maintained QR corpus family and report evidence.
+- Sprint 151 expanded the maintained partial-SVD corpus family and report
+  evidence.
+- Sprint 152 published generated report freshness policy and selected
+  freshness gates.
+- Sprint 153 preserved the static-first package contract and deferred
+  shared-library ABI support as a product decision.
+- Sprint 154 created the first narrow external comparison harness and
+  `qr-minnorm` study without broad ecosystem parity claims.
+- Sprint 155 aligned the tutorial, selected public headers, and API reference
+  entry point while preserving declaration and claim boundaries.
+
+## Item-To-Day Owner Map
+
+| Sprint 156 Item | Primary Days | Closeout Owner |
+| --- | --- | --- |
+| Item 1: Final Evidence Inventory | Days 1-2 | Day 1 inventories source structure and stop conditions; Day 2 builds the final evidence matrix. |
+| Item 2: Full Quality Baseline | Days 3-5 | Day 3 designs validation scope; Day 4 runs local baseline; Day 5 validates install/package surfaces. |
+| Item 3: Cross-Platform/CI Reconciliation | Day 6 | Day 6 reconciles Linux, macOS, Windows, reviewed, supplemental, staged, local-only, and deferred evidence. |
+| Item 4: Claim And Non-Claim Audit | Days 7-10 | Day 7 validates corpus/report evidence; Day 8 validates comparison evidence; Day 9 validates adoption/API evidence; Day 10 audits public claims. |
+| Item 5: Residual Queue Publication | Day 11 | Day 11 consolidates residuals with owners, blockers, prerequisites, and promotion gates. |
+| Item 6: Epic 13 Retrospective | Day 12 | Day 12 drafts the Epic 13 retrospective from evidence, claims, non-claims, validation, and residuals. |
+| Item 7: Final Project Plan Reconciliation | Days 13-14 | Day 13 reconciles plan status; Day 14 finalizes closeout and next-epic handoff. |
+
+## Stop Conditions
+
+- Any public documentation presents the project as an unqualified
+  state-of-the-art sparse linear algebra library.
+- Narrow QR, partial-SVD, direct-solver, eigensolver, comparison, benchmark, or
+  corpus evidence is converted into broad external-library or ecosystem parity.
+- Local benchmark, report, sentinel, or comparison rows are treated as portable
+  performance proof.
+- Static-first package metadata is interpreted as shared-library support,
+  dynamic ABI compatibility, runtime-loader compatibility, package-manager
+  distribution, or static/shared selector support.
+- Windows reviewed CMake-first support is widened into Windows Makefile parity,
+  Windows `pkg-config` execution parity, or broad Windows platform parity.
+- Generated report rows or generated API HTML are treated as fresh evidence
+  without the selected freshness command or publication policy.
+- Optional external dependencies, external-service outages, skipped CI lanes,
+  staged blockers, or local-only checks are counted as passing support evidence.
+- `.c` or public `.h` edits land without `make format && make lint && make
+  test`.
+- Public header edits land without declaration-preservation evidence.
+
+## Validation Surfaces
+
+- local formatting, lint, and test gates;
+- Make install, uninstall, and `pkg-config` package proof;
+- CMake install/export and downstream consumer proof;
+- Windows reviewed CMake-first CTest and install/downstream proof;
+- macOS and Linux reviewed/supplemental package lanes;
+- QR and partial-SVD maintained corpus tests and report rows;
+- generated report freshness normalization commands;
+- external comparison harness and `qr-minnorm` report family;
+- README, INSTALL, tutorial, cookbook, solver-selection, benchmark/report,
+  maintainer, support-tier, API reference, and selected public-header wording;
+- Sprint 147-155 plans, working notes, artifacts, retrospectives, and handoffs.
+
+## Daily Log
+
+### Day 1: Sprint Intake And Closeout Baseline
+
+- Re-read the Sprint 156 section of
+  `docs/planning/EPIC_13/PROJECT_PLAN.md`.
+- Confirmed Sprint 156 is the Epic 13 final validation and claim
+  recalibration sprint, even though the initiating prompt referenced the stale
+  Epic 12 project-plan path.
+- Created the Sprint 156 artifact directory.
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day1-closeout-baseline.md`.
+- Inventoried Sprint 147 through Sprint 155 evidence sources:
+  - all nine prior Epic 13 sprint directories have a plan, working notes,
+    retrospective, and day artifacts;
+  - Sprint 152 and Sprint 154 include additional cross-sprint/report study
+    artifacts;
+  - Sprint 155 includes declaration-preservation scans and the explicit Sprint
+    156 handoff.
+- Recorded closeout stop conditions for state-of-the-art, parity, ABI,
+  package-manager, platform, performance, report freshness, and generated API
+  reference claims.
+- Identified validation surfaces touched during Epic 13.
+- Day 2 handoff: build the final evidence inventory matrix across platform,
+  corpus, report, ABI/package, comparison, adoption, and validation surfaces.

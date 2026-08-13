@@ -640,3 +640,39 @@ rather than aspiration.
 - Day 14 handoff: finalize Sprint 156 artifacts, publish the final Epic 13
   retrospective, run final docs-only hygiene and claim checks, and prepare the
   branch for PR closeout.
+
+### Day 14: Final Closeout And Handoff
+
+- Created
+  `docs/planning/EPIC_13/EPIC_13_RETROSPECTIVE.md`.
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day14-closeout-handoff.md`.
+- Promoted the Day 12 retrospective draft to final root-level retrospective
+  wording after applying the Day 13 project-plan reconciliation:
+  - Sprint 156 is now marked complete;
+  - Day 13 project-plan reconciliation is included in validation evidence;
+  - final Day 14 docs-only checks are included;
+  - branch-specific Sprint 156 hosted PR evidence remains explicitly pending
+    until PR workflows run.
+- Published the final Sprint 156 artifact index for Days 1-14.
+- Re-ran the final claim/non-claim scan across the Day 11 residual queue, Day
+  12 retrospective draft, Day 13 project-plan reconciliation, and final Day 14
+  retrospective wording.
+- Preserved final non-claims for:
+  - unqualified state-of-the-art sparse linear algebra status;
+  - broad ecosystem or external-library parity;
+  - broad QR, SVD, or partial-SVD correctness;
+  - raw QR basis and raw singular-vector identity parity;
+  - portable performance or backend superiority;
+  - generated report pass evidence from source-controlled rows alone;
+  - hosted proof for local-only generated rows;
+  - generated API HTML completeness;
+  - shared-library, dynamic ABI, runtime-loader, static/shared selector, and
+    package-manager support;
+  - Windows Makefile parity, Windows `pkg-config` parity, and broad Windows
+    platform parity.
+- Confirmed the next-epic handoff should start from
+  `day11-residual-queue-publication.md` and prioritize bounded complete-gap
+  closure.
+- Day 14 made no `.c` or public `.h` edits, so no full C quality gate was
+  required.

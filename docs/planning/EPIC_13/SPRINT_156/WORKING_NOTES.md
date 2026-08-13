@@ -454,3 +454,54 @@ rather than aspiration.
 - Day 10 handoff: perform the full public claim/non-claim audit across
   state-of-the-art, parity, performance, ABI, package, platform, report, and
   support-tier wording.
+
+### Day 10: Public Claim And Non-Claim Audit
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day10-claim-audit.md`.
+- Audited public and support documentation:
+  - `README.md`;
+  - `INSTALL.md`;
+  - `docs/tutorial.md`;
+  - `docs/cookbook.md`;
+  - `docs/solver_selection.md`;
+  - `docs/api_reference.md`;
+  - `examples/README.md`;
+  - `benchmarks/README.md`;
+  - `tests/corpus/README.md`;
+  - `docs/maintainer_guide.md`;
+  - public headers under `include/`.
+- Ran focused public claim scans for unsupported state-of-the-art, ecosystem
+  parity, external-library parity, portable performance, shared-library,
+  dynamic ABI, runtime-loader, package-manager, Windows Makefile, Windows
+  `pkg-config`, broad Windows, and broad platform wording.
+- Ran focused support/report scans for reviewed/supplemental support-tier,
+  local-only, freshness, report-index, generated-report, benchmark, and
+  performance-claim wording.
+- Inspected `INSTALL.md` package and support-tier sections directly:
+  - static-first package wording remains the maintained package claim;
+  - Linux remains the strongest reviewed source of truth;
+  - macOS reviewed Apple Clang plus reviewed static-first install/export proof
+    remains bounded, with Homebrew GCC supplemental;
+  - Windows remains reviewed CMake-first with reviewed CMake install/downstream
+    validation;
+  - shared-library, dynamic ABI, runtime-loader, package-manager, Windows
+    Makefile, Windows `pkg-config`, and broad Windows parity remain explicit
+    non-claims.
+- Confirmed public corpus/report/comparison wording remains local-only and
+  fixture-bound:
+  - QR corpus/report evidence maps to Day 7;
+  - partial-SVD corpus/report evidence maps to Day 7;
+  - the selected QR minimum-norm comparison maps to Day 8 only;
+  - benchmark/report rows remain local measurement and freshness diagnostics,
+    not portable performance proof.
+- Confirmed API/reference wording remains bounded:
+  - checked-in public headers remain the declaration source of truth;
+  - generated API HTML remains a convenience view with documented refresh and
+    missing-page residuals from Day 9.
+- No public documentation patch was required because all broad phrase matches
+  were already evidence-bound or explicit non-claims.
+- Day 10 made no `.c` or public `.h` edits, so no full C quality gate was
+  required.
+- Day 11 handoff: reconcile final residuals and risk register against the Day
+  10 claim audit before final closeout validation.

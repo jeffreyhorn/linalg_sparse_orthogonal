@@ -505,3 +505,55 @@ rather than aspiration.
   required.
 - Day 11 handoff: reconcile final residuals and risk register against the Day
   10 claim audit before final closeout validation.
+
+### Day 11: Residual Queue Publication
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day11-residual-queue-publication.md`.
+- Consolidated residual sources from:
+  - Sprint 147-155 retrospectives;
+  - Sprint 147-155 closeout and handoff artifacts;
+  - Sprint 156 Day 5 package validation;
+  - Sprint 156 Day 6 platform reconciliation;
+  - Sprint 156 Day 7 corpus/report validation;
+  - Sprint 156 Day 8 comparison reconciliation;
+  - Sprint 156 Day 9 adoption/API reconciliation;
+  - Sprint 156 Day 10 claim audit.
+- Deduplicated residuals into final categories:
+  - platform/package;
+  - ABI/package;
+  - reports/CI and report tooling;
+  - QR corpus and comparison;
+  - partial-SVD corpus and comparison;
+  - external parity;
+  - performance;
+  - API/docs;
+  - claims/product;
+  - runtime/backend.
+- Published `18` final residuals with owner role, blocker, prerequisites, and
+  promotion gate fields.
+- Prioritized next-epic candidates by complete-gap closure potential:
+  - generated API HTML refresh;
+  - hosted promotion for selected local-only oracle/comparison rows;
+  - one bounded QR comparison expansion;
+  - one bounded partial-SVD comparison publication;
+  - Windows package parity decision;
+  - next public-header cleanup batch.
+- Separated long-horizon deferrals:
+  - package-manager distribution;
+  - shared-library product support;
+  - dynamic ABI compatibility;
+  - broad ecosystem parity;
+  - portable performance superiority;
+  - broad state-of-the-art positioning;
+  - typed runtime/backend API promotion unless tied to selected API and ABI
+    scope.
+- Preserved non-claim language for state-of-the-art, broad ecosystem parity,
+  broad numerical correctness, raw basis/vector identity, portable
+  performance, generated report pass evidence, shared-library/ABI/loader,
+  package-manager, Windows Makefile, Windows `pkg-config`, and broad Windows
+  parity claims.
+- Day 11 made no `.c` or public `.h` edits, so no full C quality gate was
+  required.
+- Day 12 handoff: draft the Epic 13 retrospective using the Day 11 residual
+  queue as the closeout residual source of truth.

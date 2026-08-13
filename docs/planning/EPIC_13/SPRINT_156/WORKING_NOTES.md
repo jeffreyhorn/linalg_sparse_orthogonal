@@ -127,3 +127,30 @@ rather than aspiration.
   final public claim audit.
 - Day 3 handoff: turn the evidence inventory into a concrete validation matrix
   with commands, required gates, skip/defer semantics, and escalation rules.
+
+### Day 3: Validation Matrix Design
+
+- Re-read the Sprint 147 Day 12 quality surface map and the current Makefile,
+  install, CMake, report-index, corpus, and comparison validation targets.
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day3-validation-matrix.md`.
+- Defined the final validation matrix by surface:
+  - documentation-only closeout changes require whitespace and claim-evidence
+    checks;
+  - `.c` or public `.h` changes require `make format && make lint && make
+    test`;
+  - strongest local code/build baseline is `make quality-review-full`;
+  - static-first package proof uses `bash tests/test_install.sh`,
+    `bash tests/test_cmake_install.sh`, and
+    `bash scripts/static_package_deferral_check.sh`;
+  - corpus/report proof uses schema validation, selected oracle generation,
+    and `make report-index-oracle-freshness`;
+  - comparison proof uses `python3 scripts/run_external_comparison.py
+    --self-check` and `make report-index-comparison-freshness`;
+  - platform proof remains a hosted CI reconciliation task, not something local
+    commands can substitute for.
+- Recorded skip/defer semantics for unavailable hosted CI, optional external
+  dependencies, generated API HTML refresh, staged Windows lanes, and
+  source-controlled report rows.
+- Day 4 handoff: run the selected local baseline from the matrix and record
+  exact command results, environment details, failures, skips, and deferrals.

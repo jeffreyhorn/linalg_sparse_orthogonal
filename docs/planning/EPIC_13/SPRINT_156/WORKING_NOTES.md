@@ -154,3 +154,36 @@ rather than aspiration.
   source-controlled report rows.
 - Day 4 handoff: run the selected local baseline from the matrix and record
   exact command results, environment details, failures, skips, and deferrals.
+
+### Day 4: Full Local Quality Baseline
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day4-local-baseline.md`.
+- Ran Day 4 intake checks:
+  - `git status --short --branch`;
+  - `git diff --check`;
+  - `git diff --name-only master...HEAD`;
+  - local environment capture with `uname`, `cc --version`,
+    `cmake --version`, and `make --version`.
+- Confirmed the Sprint 156 branch delta before Day 4 artifact edits was
+  documentation-only under `docs/planning/EPIC_13/SPRINT_156/`.
+- Ran the strongest local reviewed baseline:
+  - `make quality-review-full`.
+- Result: passed.
+  - Makefile reviewed path passed: format-check, lint, full `make test`, and
+    deadcode-check.
+  - CMake reviewed path passed: configure, clean serial build, `ctest -N`,
+    Makefile/CMake test-count parity, and full CTest execution.
+  - CMake registered `59` tests, matching the Makefile test count.
+  - CTest passed `59/59` tests with `0` failures.
+- Recorded expected/known limitations:
+  - evidence is local macOS evidence only, not hosted Linux/macOS/Windows proof;
+  - full C quality gate was not required by the Sprint 156 file delta because
+    no `.c` or `.h` files changed, but the stronger local reviewed baseline
+    was run for final closeout confidence;
+  - CMake build emitted one non-fatal AppleClang warning in
+    `tests/test_svd_partial_corpus.c` for `INFINITY` double promotion; the
+    reviewed target still passed.
+- Day 5 handoff: validate package/install proof with Make install,
+  CMake install/export, downstream consumer checks, and static package
+  deferral guard.

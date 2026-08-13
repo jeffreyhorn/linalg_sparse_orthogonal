@@ -599,3 +599,44 @@ rather than aspiration.
   required.
 - Day 13 handoff: reconcile this retrospective draft against the Epic 13
   project plan and the completed artifact set before final Day 14 publication.
+
+### Day 13: Project Plan Reconciliation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day13-project-plan-reconciliation.md`.
+- Reviewed `docs/planning/EPIC_13/PROJECT_PLAN.md` against:
+  - Sprint 147-155 retrospectives;
+  - Sprint 147-155 Day 13/Day 14 validation and closeout artifacts;
+  - Sprint 156 Day 1-12 artifacts;
+  - Day 11 final residual queue;
+  - Day 12 Epic 13 retrospective draft.
+- Reconciled Sprint 147-156 status:
+  - Sprints 147-148 complete as planned;
+  - Sprints 149-155 complete with intentionally narrowed claims or documented
+    residuals;
+  - Sprint 156 Days 1-13 complete, with Day 14 final closeout remaining.
+- Marked Sprint 153's shared-library item complete under the plan's
+  implementation-or-deferral branch: static-first support was preserved and
+  shared-library support now has exact blocker diagnostics and guard checks.
+- Marked generated report freshness complete with narrowed scope:
+  selected oracle and comparison freshness landed; benchmark, sentinel,
+  coverage, dead-code, and broader generated report families remain residuals.
+- Reconciled estimate and validation variances:
+  - Windows CTest count guard drift;
+  - fixed installed-header counts;
+  - PR-time hosted evidence boundaries;
+  - local-only generated report freshness;
+  - source-controlled comparison helper rather than external package baseline;
+  - deferred generated API HTML refresh.
+- Confirmed the Day 12 retrospective draft needs no earned-claim removals but
+  must remain draft/pending until Day 14 final docs-only hygiene and
+  claim/non-claim checks are complete.
+- Updated next-epic handoff priorities around complete-gap closure:
+  generated API HTML refresh, hosted selected oracle/comparison promotion, one
+  bounded QR comparison expansion, one bounded partial-SVD comparison
+  publication, Windows parity decision, and next header cleanup batch.
+- Day 13 made no `.c` or public `.h` edits, so no full C quality gate was
+  required.
+- Day 14 handoff: finalize Sprint 156 artifacts, publish the final Epic 13
+  retrospective, run final docs-only hygiene and claim checks, and prepare the
+  branch for PR closeout.

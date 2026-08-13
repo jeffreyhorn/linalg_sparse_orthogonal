@@ -100,3 +100,30 @@ rather than aspiration.
 - Identified validation surfaces touched during Epic 13.
 - Day 2 handoff: build the final evidence inventory matrix across platform,
   corpus, report, ABI/package, comparison, adoption, and validation surfaces.
+
+### Day 2: Final Evidence Inventory
+
+- Re-read the Day 2 plan tasks from
+  `docs/planning/EPIC_13/SPRINT_156/PLAN.md`.
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day2-evidence-inventory.md`.
+- Inventoried the final Epic 13 evidence by deliverable family:
+  - Sprint 147 baseline, gap selection, claim targets, and evidence gates;
+  - Sprint 148 Windows staged portability and promoted CMake test count;
+  - Sprint 149 Windows reviewed CMake install/downstream validation;
+  - Sprint 150 QR maintained corpus and generated-local report rows;
+  - Sprint 151 partial-SVD maintained corpus and generated-local report rows;
+  - Sprint 152 selected oracle generated report freshness policy;
+  - Sprint 153 static-first package contract and shared-library ABI deferral;
+  - Sprint 154 first narrow `qr-minnorm` comparison study;
+  - Sprint 155 adoption/API/header documentation coherence.
+- Classified evidence as reviewed, supplemental, local, generated-local,
+  source-controlled, staged, or deferred so later claim audit work can avoid
+  treating all evidence as equivalent.
+- Recorded missing or stale evidence for Day 3 through Day 10 follow-up:
+  hosted CI reconciliation, final local quality baseline, package validation,
+  corpus/report freshness checks, comparison freshness, adoption/API scan,
+  generated API HTML refresh deferral, remaining public-header cleanup, and
+  final public claim audit.
+- Day 3 handoff: turn the evidence inventory into a concrete validation matrix
+  with commands, required gates, skip/defer semantics, and escalation rules.

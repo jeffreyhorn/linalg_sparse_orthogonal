@@ -271,6 +271,7 @@ make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
+make report-index-comparison-freshness  # local QR minimum-norm comparison freshness
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
@@ -287,7 +288,8 @@ make clean      # remove build artifacts
 
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
-benchmark, coverage, dead-code, or package metadata rows into release proof.
+benchmark, coverage, dead-code, comparison, or package metadata rows into
+release proof.
 
 ### With CMake
 
@@ -665,12 +667,14 @@ The maintained QR corpus proof covers six fixture-local rows:
 `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`. The
 source-controlled proof owner is
 [`tests/test_qr_corpus.c`](tests/test_qr_corpus.c), and the opt-in local
-oracle/report freshness gate is `make report-index-oracle-freshness`. That
-local gate regenerates the combined QR + partial-SVD oracle rows and verifies
-the selected oracle family is current. Do not read this as raw QR basis parity,
-broad rank-threshold policy, broad rank-deficient solve, broad minimum-norm
-behavior, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI, platform, performance,
-package/ABI, or state-of-the-art evidence.
+oracle/report freshness gate is `make report-index-oracle-freshness`. The
+narrow local comparison freshness gate is
+`make report-index-comparison-freshness`, which checks only the
+`qr_underdetermined_minnorm_2x4` QR minimum-norm fixture against the selected
+source-controlled dense reference helper. These local gates do not prove raw QR
+basis parity, broad rank-threshold policy, broad rank-deficient solve, broad
+minimum-norm behavior, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI, platform,
+performance, package/ABI, or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

@@ -187,3 +187,44 @@ rather than aspiration.
 - Day 5 handoff: validate package/install proof with Make install,
   CMake install/export, downstream consumer checks, and static package
   deferral guard.
+
+### Day 5: Package And Install Validation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day5-package-validation.md`.
+- Re-ran the maintained static package guard:
+  - `bash scripts/static_package_deferral_check.sh`;
+  - result: passed, including `BUILD_SHARED_LIBS=ON` rejection, explicit
+    static target checks, install metadata checks, no export/ABI metadata, no
+    static/shared selector, and support wording checks.
+- Re-ran the maintained Make install and `pkg-config` proof:
+  - `bash tests/test_install.sh`;
+  - result: passed with `23` checks, `0` failures;
+  - installed static archive, no shared artifacts, `19` headers, `sparse.pc`,
+    exact version `2.2.0`, `pkg-config` cflags/libs/static libs, downstream
+    compile/link/run, maintained example compile/run, and uninstall proof.
+- Re-ran the maintained CMake install/export and downstream proof:
+  - `bash tests/test_cmake_install.sh`;
+  - result: passed with `27` checks, `0` failures, `0` skips;
+  - installed static archive, no shared artifacts, `19` headers, CMake package
+    files, static imported target metadata, source/build tree path absence,
+    downstream `find_package(Sparse)`, exact-version consumer, mismatched
+    version rejection, and `pkg-config` version `2.2.0`.
+- Re-ran package report-index checks:
+  - `python3 scripts/normalize_report_index.py --family package --check`;
+  - `python3 scripts/normalize_report_index.py --family package
+    --check-freshness`;
+  - `python3 scripts/normalize_report_index.py --family runtime_backend
+    --check-freshness`;
+  - results: package structure passed with `6` rows, package freshness passed
+    with `6` source-controlled rows, runtime-backend freshness passed with `1`
+    source-controlled row.
+- Recorded package evidence boundaries:
+  - local Unix/macOS package proof does not prove Windows Makefile or Windows
+    `pkg-config` execution parity;
+  - static-first package proof does not prove shared-library support, dynamic
+    ABI compatibility, runtime-loader behavior, package-manager distribution,
+    or static/shared selectors.
+- Day 6 handoff: reconcile hosted Linux, macOS, Windows, reviewed,
+  supplemental, staged, and deferred platform evidence separately from this
+  local package proof.

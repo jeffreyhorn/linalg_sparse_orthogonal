@@ -189,7 +189,7 @@ sparse_free(C);
 
 ---
 
-## Choose the Solver Workflow
+### Choose the Solver Workflow
 
 Start with the smallest public workflow that matches the problem, then use the
 linked runnable example when you need a concrete reference.
@@ -518,15 +518,30 @@ an explicit backend only after the basic workflow is understood and local
 diagnostics justify it.
 
 ```c
+#include <stdlib.h>
+
 #include "sparse_eigs.h"
+
+idx_t n = sparse_rows(A);
+idx_t k = 5;
+sparse_scalar_t *eigenvalues =
+    malloc((size_t)k * sizeof(*eigenvalues));
+sparse_scalar_t *eigenvectors =
+    malloc((size_t)n * (size_t)k * sizeof(*eigenvectors));
 
 sparse_eigs_opts_t opts = {
     .which = SPARSE_EIGS_LARGEST,
     .tol = 1e-10,
     .compute_vectors = 1,
 };
-sparse_eigs_result_t result;
+sparse_eigs_result_t result = {
+    .eigenvalues = eigenvalues,
+    .eigenvectors = eigenvectors,
+};
 sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
+
+free(eigenvectors);
+free(eigenvalues);
 ```
 
 Use [`examples/example_eigs.c`](../examples/example_eigs.c) for the runnable

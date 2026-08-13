@@ -331,3 +331,69 @@ rather than aspiration.
 - Day 8 handoff: validate external comparison evidence without widening the
   selected `qr-minnorm` study into broad QR, external-library, platform, or
   performance parity.
+
+### Day 8: Comparison Study Reconciliation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day8-comparison-reconciliation.md`.
+- Reviewed Sprint 154 comparison artifacts:
+  - `day3-comparison-target-selection.md`;
+  - `day11-report-integration-implementation.md`;
+  - `day13-integrated-validation-and-study-publication.md`;
+  - `first-narrow-qr-minnorm-comparison-study.md`.
+- Reviewed comparison ownership in:
+  - `scripts/run_external_comparison.py`;
+  - `scripts/normalize_report_index.py`;
+  - `tests/qr_external_dense_reference.py`;
+  - `tests/corpus/manifests/report_families.tsv`;
+  - `README.md`;
+  - `docs/maintainer_guide.md`.
+- Ran comparison harness validation:
+  - `python3 scripts/run_external_comparison.py --self-check`;
+  - result: passed.
+- Ran selected comparison freshness:
+  - `make report-index-comparison-freshness`;
+  - result: passed, regenerating ignored local comparison outputs and
+    validating required comparison freshness with `7` normalized rows.
+- Re-ran the selected freshness target with `PYTHONDONTWRITEBYTECODE=1` after
+  clearing transient Python bytecode so the generated manifest recorded
+  `worktree_state=clean`.
+- Ran focused normalized comparison checks:
+  - `python3 scripts/normalize_report_index.py --family comparison
+    --require-generated comparison --check-freshness`;
+  - `python3 scripts/normalize_report_index.py --family comparison --output
+    build/report-index/day8-comparison-normalized.tsv`;
+  - results: passed with `7` rows.
+- Recorded current selected study provenance:
+  - target `qr-minnorm`;
+  - fixture `qr_underdetermined_minnorm_2x4`;
+  - baseline `source-controlled-dense-qr-reference`;
+  - baseline helper `tests/qr_external_dense_reference.py`;
+  - source commit `c00a349b9cab7edd58be79c0f6496c9f1097261b`;
+  - branch `sprint-156`;
+  - platform `darwin-x86_64`;
+  - support tier `local_only`.
+- Recorded selected generated comparison rows:
+  - `project_status`: pass;
+  - `baseline_status`: pass;
+  - `residual_norm`: delta `1.5700924586837752e-16`, tolerance `1e-10`;
+  - `solution_norm`: delta `1.1102230246251565e-16`, tolerance `1e-10`;
+  - `solution_values`: delta `1.1102230246251565e-16`, tolerance `1e-10`;
+  - `project_vs_baseline_max_abs_delta`: delta
+    `1.1102230246251565e-16`, tolerance `1e-10`;
+  - all six generated rows were `pass`.
+- Confirmed dependency status:
+  - `python3` and `tests/qr_external_dense_reference.py` were required pass
+    dependencies;
+  - `numpy` and `scipy` remained deferred optional package baselines and were
+    not counted as proof.
+- Audited comparison wording in README, maintainer guide, and the Sprint 154
+  publication artifact; no public wording change was needed because the
+  comparison lane already remains fixture-local and local-only.
+- Published the residual comparison queue with owners and promotion criteria
+  for broader QR targets, optional NumPy/SciPy, ecosystem baselines,
+  raw-basis/order metrics, partial-SVD comparison publication, performance,
+  hosted CI, package-manager, shared-library, loader, and ABI lanes.
+- Day 9 handoff: reconcile tutorial, API reference, cookbook, examples,
+  selected headers, and adoption-surface wording against the final evidence
+  boundaries.

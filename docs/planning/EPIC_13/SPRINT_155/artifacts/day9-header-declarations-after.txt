@@ -1,0 +1,44 @@
+include/sparse_ic.h:1:#ifndef SPARSE_IC_H
+include/sparse_ic.h:2:#define SPARSE_IC_H
+include/sparse_ic.h:77:sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic);
+include/sparse_ic.h:93:sparse_err_t sparse_ic_solve(const sparse_ilu_t *ic, const double *r, double *z);
+include/sparse_ic.h:110:sparse_err_t sparse_ic_precond(const void *ctx, idx_t n, const double *r, double *z);
+include/sparse_ic.h:119:void sparse_ic_free(sparse_ilu_t *ic);
+include/sparse_ldlt.h:1:#ifndef SPARSE_LDLT_H
+include/sparse_ldlt.h:2:#define SPARSE_LDLT_H
+include/sparse_ldlt.h:65:typedef struct {
+include/sparse_ldlt.h:107:typedef enum {
+include/sparse_ldlt.h:131:typedef struct {
+include/sparse_ldlt.h:201:sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt);
+include/sparse_ldlt.h:244:sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, double *x);
+include/sparse_ldlt.h:251:void sparse_ldlt_free(sparse_ldlt_t *ldlt);
+include/sparse_ldlt.h:313:sparse_err_t sparse_ldlt_condest(const SparseMatrix *A, const sparse_ldlt_t *ldlt, double *condest);
+include/sparse_eigs.h:1:#ifndef SPARSE_EIGS_H
+include/sparse_eigs.h:2:#define SPARSE_EIGS_H
+include/sparse_eigs.h:101:typedef enum {
+include/sparse_eigs.h:132:typedef enum {
+include/sparse_eigs.h:166:#ifndef SPARSE_EIGS_THICK_RESTART_THRESHOLD
+include/sparse_eigs.h:167:#define SPARSE_EIGS_THICK_RESTART_THRESHOLD 500
+include/sparse_eigs.h:192:#ifndef SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD
+include/sparse_eigs.h:193:#define SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD 1000
+include/sparse_eigs.h:216:typedef struct {
+include/sparse_eigs.h:393:typedef struct {
+include/sparse_eigs.h:483:typedef struct {
+include/sparse_eigs.h:495:void sparse_eigs_handle_init(sparse_eigs_handle_t *handle);
+include/sparse_eigs.h:505:void sparse_eigs_handle_free(sparse_eigs_handle_t *handle);
+include/sparse_analysis.h:1:#ifndef SPARSE_ANALYSIS_H
+include/sparse_analysis.h:2:#define SPARSE_ANALYSIS_H
+include/sparse_analysis.h:63:typedef enum {
+include/sparse_analysis.h:76:typedef enum {
+include/sparse_analysis.h:89:typedef enum {
+include/sparse_analysis.h:102:typedef enum {
+include/sparse_analysis.h:115:typedef enum {
+include/sparse_analysis.h:130:typedef enum {
+include/sparse_analysis.h:147:typedef enum {
+include/sparse_analysis.h:166:typedef struct {
+include/sparse_analysis.h:201:typedef struct {
+include/sparse_analysis.h:228:typedef struct {
+include/sparse_analysis.h:252:typedef struct {
+include/sparse_analysis.h:332:void sparse_analysis_free(sparse_analysis_t *analysis);
+include/sparse_analysis.h:348:typedef struct {
+include/sparse_analysis.h:438:void sparse_factor_free(sparse_factors_t *factors);

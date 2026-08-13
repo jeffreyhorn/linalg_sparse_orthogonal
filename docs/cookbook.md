@@ -8,6 +8,9 @@ It complements the [solver-selection guide](solver_selection.md), the
 For install or downstream consumer setup, use [INSTALL.md](../INSTALL.md). For
 current algorithm behavior, use [algorithm.md](algorithm.md); historical
 measurement notes live in [algorithm_history.md](algorithm_history.md).
+For exact declarations, option/result structs, ownership rules, and return-code
+contracts after you choose a workflow, use [api_reference.md](api_reference.md)
+and the public headers under [`include/`](../include/).
 
 ## First-Use Ladder
 

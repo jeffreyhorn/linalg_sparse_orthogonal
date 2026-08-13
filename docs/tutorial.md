@@ -4,13 +4,17 @@ A practical guide to using the sparse linear algebra library.
 
 ## Getting Started
 
-Use this tutorial after the README when you want the fuller learning path:
+Use this tutorial after the README when you want the fuller learning path. The
+first-use route is:
 
-1. create or load a sparse matrix;
-2. choose a one-shot solve or repeated-run lifecycle;
-3. validate return codes and output;
-4. move to examples, benchmarks, headers, or install docs when you need the
-   next level of detail.
+1. build locally;
+2. run the first maintained solve;
+3. start from CSR, CSC, Matrix Market, or hand-written input;
+4. choose the solver family by problem shape;
+5. inspect diagnostics from the workflow that produced them;
+6. install only when you need a downstream consumer;
+7. move to advanced controls, benchmarks, reports, public headers, or
+   [API reference](api_reference.md) only after the first workflow works.
 
 For a compact decision tree before you start coding, use the
 [solver-selection guide](solver_selection.md). For runnable examples, use
@@ -23,80 +27,93 @@ eigensolver, and benchmark handoff workflows.
 
 | Need | Use |
 |---|---|
+| Short project front door | [README.md](../README.md) |
+| Runnable first-use examples | [examples/README.md](../examples/README.md) |
+| Data-first CSR, CSC, and Matrix Market recipes | [cookbook.md](cookbook.md) |
 | Compact problem-shape decision tree | [solver_selection.md](solver_selection.md) |
-| Compressed-first task recipes | [cookbook.md](cookbook.md) |
-| Runnable examples | [examples/README.md](../examples/README.md) |
 | Installed package and downstream consumer setup | [INSTALL.md](../INSTALL.md) |
 | Benchmark commands and generated report indexes | [benchmarks/README.md](../benchmarks/README.md) |
+| Exact declarations and ownership contracts | [api_reference.md](api_reference.md) and public headers under [`include/`](../include/) |
 | Current algorithm reference | [algorithm.md](algorithm.md) |
 | Historical measurement notes | [algorithm_history.md](algorithm_history.md) |
 | Maintainer quality policy | [maintainer_guide.md](maintainer_guide.md) |
 
-### Choose a Workflow First
-
-Start with the smallest public path that matches the problem:
-
-- use `sparse_create_from_csr(...)` or `sparse_create_from_csc(...)` when
-  coefficients already arrive as caller-owned compressed sparse data
-- use the one-shot LU, Cholesky, LDL^T, QR, iterative, SVD, or eigensolver
-  entry points for most occasional solves
-- move to the explicit repeated-run direct lifecycle only when the sparsity
-  pattern stays fixed across many solves
-- move to the explicit iterative-handle or eigensolver-handle lifecycle only
-  when the matrix dimension stays fixed and setup reuse matters
-
-The stable repeated-run support boundary is intentionally narrow:
-
-- direct repeated-run lifecycle:
-  - analyze once
-  - factor / solve
-  - refactor / solve many
-- iterative handles:
-  - `CG`
-  - `GMRES`
-  - `MINRES`
-- eigensolver handle:
-  - grow-m Lanczos
-  - thick-restart Lanczos
-  - explicit `LOBPCG`
-
-`BiCGSTAB` and block iterative workflows remain one-shot compatibility
-surfaces.
-
-### Building the Library
+### Build And Run The First Solve
 
 ```bash
-make          # Build the static library (build/libsparse_lu_ortho.a)
-make test     # Run all tests
-make examples # Build example programs
+make          # build the static library (build/libsparse_lu_ortho.a)
+make examples # build example programs
+./build/example_basic_solve
 ```
 
-For install, downstream consumer, or package validation workflows, use
-[`INSTALL.md`](../INSTALL.md). For benchmark commands and measurement
-interpretation, use [`benchmarks/README.md`](../benchmarks/README.md).
+`example_basic_solve` is the smallest maintained first success path. It shows
+matrix creation, a one-shot LU solve, and local residual output. Use
+[`examples/README.md#one-shot-direct-example_basic_solve`](../examples/README.md#one-shot-direct-example_basic_solve)
+for the runnable-example explanation, or [README.md#quick-start](../README.md#quick-start)
+when you want a pasteable standalone program.
 
-### Linking Your Program
+Use `make examples-build` when you only need to confirm that maintained
+examples compile. Use `make test` when you are validating a code change rather
+than learning the first workflow.
+
+### Link Locally Or Install Later
 
 ```bash
 cc -O2 -Iinclude -o my_program my_program.c -Lbuild -lsparse_lu_ortho -lm
 ```
 
-Include the headers you need:
+That command links against the local build-tree static archive. For installed
+downstream consumers, use [`INSTALL.md#start-here`](../INSTALL.md#start-here)
+instead of copying install/package detail into this tutorial:
+
+- [`INSTALL.md#using-via-pkg-config`](../INSTALL.md#using-via-pkg-config) for
+  Makefile-style installed consumers;
+- [`INSTALL.md#using-from-a-cmake-project`](../INSTALL.md#using-from-a-cmake-project)
+  for CMake installed consumers.
+
+The maintained package story is static-first and owned by `INSTALL.md`; this
+tutorial only shows the local build-tree path.
+
+Include the headers needed by the workflow you are using:
 
 ```c
 #include "sparse_matrix.h"   // Core matrix operations
 #include "sparse_csr.h"      // CSR/CSC conversion and compressed construction
 #include "sparse_lu.h"       // LU factorization
 #include "sparse_cholesky.h" // Cholesky factorization (SPD matrices)
+#include "sparse_ldlt.h"     // LDLT factorization (symmetric indefinite)
 #include "sparse_qr.h"       // QR factorization
 #include "sparse_iterative.h" // CG, GMRES, MINRES iterative solvers
 #include "sparse_ilu.h"      // ILU preconditioners
+#include "sparse_ic.h"       // IC(0) preconditioners
 #include "sparse_svd.h"      // SVD, condition number, pseudoinverse
+#include "sparse_eigs.h"     // Symmetric sparse eigensolver
 ```
+
+For exact declarations, option structs, result fields, and ownership
+contracts, use [api_reference.md](api_reference.md) and the public headers
+under [`include/`](../include/).
 
 ---
 
-## 1. Choosing a Matrix Construction Path
+## 1. Start From Your Matrix
+
+Choose the input route before choosing a solver. Every route below produces a
+normal public `SparseMatrix *` that later direct, iterative, QR, SVD, and
+eigensolver workflows can consume.
+
+| Starting data | First public step | Runnable or owner reference |
+|---|---|---|
+| Small hand-written matrix | `sparse_create(...)` plus `sparse_insert(...)` | this tutorial and `example_basic_solve` |
+| Caller-owned CSR arrays | `sparse_create_from_csr(...)` or `sparse_from_csr(...)` | [`example_compressed_input`](../examples/README.md#compressed-input-example_compressed_input) and [cookbook](cookbook.md#start-from-your-data) |
+| Caller-owned CSC arrays | `sparse_create_from_csc(...)` or `sparse_from_csc(...)` | [`example_compressed_input`](../examples/README.md#compressed-input-example_compressed_input) and [cookbook](cookbook.md#start-from-your-data) |
+| Matrix Market file | `sparse_load_mm(...)` | [`example_matrix_market`](../examples/README.md#matrix-market-loaduse-example_matrix_market) and [matrix_market.md](matrix_market.md) |
+
+CSR and CSC constructors validate and copy caller-owned arrays. The caller
+still owns the input arrays, and the returned matrix is freed with
+`sparse_free(...)`. Use `sparse_create_from_*` when a `NULL` result is enough
+for invalid input. Use `sparse_from_*` when the call site needs an explicit
+`sparse_err_t` diagnostic.
 
 ### Mutable Construction for Small Hand-Written Matrices
 
@@ -121,14 +138,6 @@ idx_t rows = sparse_rows(A);  // 5
 idx_t cols = sparse_cols(A);  // 5
 idx_t nnz  = sparse_nnz(A);  // 4
 ```
-
-If your matrix already exists as CSR or CSC arrays, build the same public
-matrix shell from that compressed input instead of inserting entries one at a
-time. `sparse_create_from_csr(...)` and `sparse_create_from_csc(...)` validate
-and copy caller-owned arrays, so the caller keeps ownership of those arrays
-and the returned `SparseMatrix *` is freed with `sparse_free(...)`. Use
-`sparse_from_csr(...)` or `sparse_from_csc(...)` when the call site needs an
-explicit `sparse_err_t` diagnostic.
 
 ### Loading from Matrix Market Files
 
@@ -179,6 +188,27 @@ sparse_free(C);
 ```
 
 ---
+
+## Choose the Solver Workflow
+
+Start with the smallest public workflow that matches the problem, then use the
+linked runnable example when you need a concrete reference.
+
+| Need | First workflow | Runnable anchor |
+|---|---|---|
+| One general square solve | LU | [`example_basic_solve`](../examples/README.md#one-shot-direct-example_basic_solve) |
+| Symmetric positive-definite direct solve | Cholesky | this tutorial, then [solver-selection](solver_selection.md#direct-solvers) |
+| Symmetric indefinite direct solve | LDLT | [`example_ldlt`](../examples/README.md#symmetric-indefinite-direct-example_ldlt) |
+| Rectangular or rank-sensitive solve | QR | [`example_least_squares`](../examples/README.md#rectangular-least-squares-example_least_squares) or [`example_minnorm`](../examples/README.md#underdetermined-minimum-norm-example_minnorm) |
+| Large or memory-sensitive linear system | Iterative solver | [`example_iterative`](../examples/README.md#one-shot-iterative-example_iterative) or [`example_ic_minres`](../examples/README.md#ic0-cg-and-minres-example_ic_minres) |
+| Symmetric eigenpairs | `sparse_eigs_sym(...)` | [`example_eigs`](../examples/README.md#one-shot-symmetric-eigensolver-example_eigs) |
+| Rank, condition, pseudoinverse, or low-rank output | SVD APIs | [`example_svd_lowrank`](../examples/README.md#svd-low-rank-example_svd_lowrank) or [`example_condition`](../examples/README.md#condition-number-example_condition) |
+| Procedural operator instead of stored matrix | Matrix-free iterative solver | [`example_matrix_free`](../examples/README.md#matrix-free-iterative-example_matrix_free) |
+
+Use [solver_selection.md](solver_selection.md) for the full decision tree and
+evidence boundaries. Examples teach API usage. Benchmarks and report indexes
+measure local behavior after you have already chosen the API workflow; they do
+not create portable performance or platform claims.
 
 ## 2. Direct Solvers
 
@@ -340,7 +370,9 @@ view with identity permutations. If the matrix may already have been factored
 or reordered, build the preconditioner from a fresh `sparse_copy()` of the
 original matrix.
 
-ILU preconditioning dramatically reduces iteration counts:
+Preconditioning can reduce iteration counts on workloads where the
+preconditioner matches the matrix assumptions. Treat that as local diagnostic
+evidence, not as a portable performance guarantee:
 
 ```c
 #include "sparse_ilu.h"
@@ -426,13 +458,14 @@ sparse_svd_partial(A, k, &opts, &svd);
 sparse_svd_free(&svd);
 ```
 
-Maintained partial-SVD corpus evidence currently includes one generated 8x6
-clustered/repeated diagonal fixture with `k = 3`. That fixture checks top-k
-singular values, left/right subspace projectors, triplet residuals,
-orthogonality, default-budget success, and tight-budget fail-closed behavior.
-It is a regression proof for that named fixture, not a claim of broad
-repeated-spectrum coverage, raw singular-vector identity, external-library
-parity, performance, or state-of-the-art behavior.
+Maintained partial-SVD corpus evidence is fixture-local. It currently covers
+the clustered/repeated 8x6 lane plus Sprint 151 rank-deficient projector,
+sparse low-rank output, and fail-closed recovery rows. Use
+[solver_selection.md#svd-and-low-rank-workflows](solver_selection.md#svd-and-low-rank-workflows)
+for the current evidence boundary. Do not treat those rows as broad
+partial-SVD correctness, raw singular-vector identity, external-library
+parity, performance, package/platform/ABI support, or state-of-the-art
+behavior.
 
 ### Condition Number
 
@@ -477,9 +510,43 @@ sparse_free(sp_lr);
 
 ---
 
-## 5. Matrix-Free Interface
+## 5. Symmetric Eigensolver Workflows
 
-For operators too large to store or defined procedurally:
+Use `sparse_eigs_sym(...)` when the matrix is symmetric and you need extreme
+or near-sigma eigenpairs. Start with the default AUTO backend behavior; choose
+an explicit backend only after the basic workflow is understood and local
+diagnostics justify it.
+
+```c
+#include "sparse_eigs.h"
+
+sparse_eigs_opts_t opts = {
+    .which = SPARSE_EIGS_LARGEST,
+    .tol = 1e-10,
+    .compute_vectors = 1,
+};
+sparse_eigs_result_t result;
+sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
+```
+
+Use [`examples/example_eigs.c`](../examples/example_eigs.c) for the runnable
+symmetric eigensolver workflow, including shift-invert and a preconditioned
+LOBPCG case. Inspect convergence count, Ritz residual, selected backend, and
+peak basis size before changing backend, preconditioner, or shift-invert
+settings. Use [`sparse_eigs.h`](../include/sparse_eigs.h) for exact option,
+result, backend, and handle details.
+
+This tutorial does not describe a nonsymmetric eigensolver workflow and does
+not claim portable state-of-the-art eigensolver parity.
+
+---
+
+## 6. Matrix-Free Interface
+
+Use matrix-free iterative solvers when the operator is too large to store or
+is naturally defined procedurally. This is an advanced iterative path after
+the standard matrix-shell workflows are understood. For the runnable handoff,
+use [`examples/example_matrix_free.c`](../examples/example_matrix_free.c).
 
 ```c
 #include "sparse_iterative.h"
@@ -512,6 +579,52 @@ sparse_solve_gmres_mf(my_matvec, NULL, n, b, x, &gm_opts, NULL, NULL, &result);
 ```
 
 ---
+
+## Diagnostics Handoff
+
+Diagnostics belong to the workflow that produced them. Start with the smallest
+local signal before changing solver family, backend, preconditioner,
+tolerance, or benchmark settings.
+
+| Workflow | First diagnostic to inspect |
+|---|---|
+| CSR/CSC construction | `NULL` result from `sparse_create_from_*` or explicit `sparse_err_t` from `sparse_from_*` |
+| Matrix Market input | `sparse_errno()` after `SPARSE_ERR_IO` from `sparse_load_mm(...)` |
+| One-shot direct solve | factor/solve return code and problem-local residual |
+| Repeated direct lifecycle | analyze/factor/refactor return code, same-pattern invariant, and solve residual |
+| Iterative solve | convergence status, residual norm/history, iteration count, stagnation, and breakdown fields |
+| QR | rank, residual, nullity/nullspace, and minimum-norm output from QR APIs or examples |
+| SVD or partial SVD | rank, condition, triplet residuals, convergence status, and fail-closed status |
+| Symmetric eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status |
+| Benchmarks or reports | matrix, compiler, backend, thread settings, generated index, and manifest context |
+
+Use [solver_selection.md#diagnostics-handoff](solver_selection.md#diagnostics-handoff)
+for the full escalation guide and
+[`examples/README.md#diagnostics-handoff`](../examples/README.md#diagnostics-handoff)
+for the runnable-example view. Use
+[`benchmarks/README.md#reading-benchmark-results`](../benchmarks/README.md#reading-benchmark-results)
+before interpreting benchmark or generated report artifacts.
+
+## Advanced Handoffs
+
+After the first workflow works:
+
+- use [README.md#runtime-and-backend-controls](../README.md#runtime-and-backend-controls)
+  and [solver_selection.md#advanced-control-escalation](solver_selection.md#advanced-control-escalation)
+  for runtime/backend controls;
+- use [`benchmarks/README.md`](../benchmarks/README.md) for local benchmark
+  commands, generated report indexes, and measurement caveats;
+- use [`INSTALL.md`](../INSTALL.md) for installed downstream consumers and
+  static-first package support;
+- use [api_reference.md](api_reference.md) and public headers under
+  [`include/`](../include/) when you need exact declarations, options, result
+  structs, ownership rules, or return-code contracts;
+- use [`docs/maintainer_guide.md`](maintainer_guide.md) for maintainer
+  evidence, report freshness, package/ABI, and support-tier interpretation.
+
+Report freshness commands and normalized report-index checks are maintainer or
+advanced-evidence tools. They should not be read as broad performance,
+package, platform, external-parity, or release proof.
 
 ## Error Handling
 

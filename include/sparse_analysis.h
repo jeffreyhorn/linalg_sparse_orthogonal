@@ -7,16 +7,13 @@
  *
  * Separates symbolic analysis from numeric factorization for LU, Cholesky,
  * and LDL^T. This enables repeated numeric refactorization on the same
- * sparsity pattern without redoing ordering and symbolic work — critical
- * for nonlinear solvers, time-stepping codes, and optimization loops.
+ * sparsity pattern without redoing ordering and symbolic work.
  *
- * This is the library's explicit public repeated-run direct-solver path and
- * the clearer long-lived owner of reusable symbolic and factor/workspace
- * state: zero/init `sparse_analysis_t` and `sparse_factors_t`, analyze once,
- * factor and solve, refactor with new numeric values on the same sparsity
- * pattern, then free both objects explicitly. The one-shot LU, Cholesky, and
- * LDL^T family APIs remain first-class peer entry points for one-off or
- * lower-context matrix-shell solves.
+ * This is the public repeated-run direct-solver path. Zero-initialize
+ * `sparse_analysis_t` and `sparse_factors_t`, analyze once, factor and solve,
+ * refactor with new numeric values on the same sparsity pattern, then free
+ * both objects explicitly. The one-shot LU, Cholesky, and LDL^T APIs remain
+ * the simpler entry points for one-off solves.
  *
  * @note For LU, the one-time symbolic analysis can be substantially more
  * expensive than the subsequent numeric refactorizations may suggest. In
@@ -242,16 +239,15 @@ typedef struct {
 /**
  * @brief Precomputed symbolic analysis for repeated numeric factorization.
  *
- * Contains the elimination tree, fill-reducing permutation, symbolic
- * structure of the factor(s), and cached matrix norm. Once computed by
- * sparse_analyze(), this object can be reused for multiple numeric
- * factorizations on matrices with the same sparsity pattern.
+ * Contains the elimination tree, fill-reducing permutation, symbolic factor
+ * structure, and cached matrix norm. Once computed by sparse_analyze(), this
+ * object can be reused for numeric factorizations on matrices with the same
+ * sparsity pattern.
  *
- * Callers must call sparse_analysis_free() when done. The free function
- * is safe on a zeroed struct.
+ * Call sparse_analysis_free() when done. NULL and zeroed structs are safe.
  *
- * This object owns symbolic/permutation setup only. It does not own the
- * source matrix and it does not retain old numeric factor state.
+ * This object owns symbolic/permutation setup only. It does not own the source
+ * matrix and does not retain numeric factor state.
  */
 typedef struct {
     idx_t n;                     /**< Matrix dimension */
@@ -286,10 +282,10 @@ typedef struct {
 /**
  * @brief Compute symbolic analysis for a sparse matrix.
  *
- * Performs fill-reducing reordering (if requested), computes the
- * elimination tree, column counts, and symbolic factorization structure.
- * The result can be reused for multiple numeric factorizations on
- * matrices with the same sparsity pattern.
+ * Performs fill-reducing reordering (if requested), computes the elimination
+ * tree, column counts, and symbolic factorization structure. The result can be
+ * reused for numeric factorizations on matrices with the same sparsity
+ * pattern.
  *
  * @pre A must be square. For CHOLESKY and LDLT, A should be symmetric
  *      (only the lower triangle is used). For LU, A may be unsymmetric.
@@ -328,9 +324,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
 /**
  * @brief Free all memory associated with a symbolic analysis.
  *
- * Releases the permutation, etree, postorder, and symbolic structure
- * arrays. Safe to call on a zeroed struct (no-op). After freeing,
- * the struct is zeroed.
+ * Releases the permutation, etree, postorder, and symbolic structure arrays.
+ * NULL and zeroed structs are safe. After freeing, the struct is zeroed.
  *
  * @param analysis  The analysis object to free, or NULL (no-op).
  */
@@ -343,12 +338,12 @@ void sparse_analysis_free(sparse_analysis_t *analysis);
 /**
  * @brief Factorization result from sparse_factor_numeric().
  *
- * Wraps the factored matrix (L for Cholesky, L+U for LU, L+D for LDL^T)
- * along with the factorization type and permutation needed for solve.
+ * Wraps the numeric factor payload (L for Cholesky, L+U for LU, L+D for
+ * LDL^T) along with the factorization type and permutation needed for solve.
  *
- * Callers must call sparse_factor_free() when done. This object owns numeric
- * factor state only; repeated refactorization reuses the symbolic/permutation
- * setup from sparse_analysis_t but replaces the numeric factor contents.
+ * Call sparse_factor_free() when done. This object owns numeric factor state
+ * only; repeated refactorization reuses the symbolic/permutation setup from
+ * sparse_analysis_t but replaces the numeric factor contents.
  */
 typedef struct {
     SparseMatrix *F;           /**< Factored matrix (L for Cholesky, L+U for LU, L for LDL^T) */
@@ -366,16 +361,12 @@ typedef struct {
  * @brief Perform numeric factorization using a precomputed analysis.
  *
  * Applies the fill-reducing permutation from the analysis (if any) and
- * performs the numeric factorization for the requested family. The shared
- * Cholesky repeated-run path now stays on the analysis-backed CSC-aware
- * route for all problem sizes. The LDL^T CSC path also reuses the caller's
- * analysis when its scalar pivot pre-pass does not introduce extra
- * symmetric swaps beyond the caller's reorder; otherwise it rebuilds the
- * symbolic analysis on the pre-permuted matrix. The LU path still
- * delegates through the corresponding one-shot family routine. The
- * symbolic structure (etree, column counts, sym_L/sym_U) computed by
- * sparse_analyze() is therefore partly consumed today and remains
- * available for further shared-path reuse work.
+ * performs numeric factorization for the requested family. The Cholesky path
+ * uses the analysis-backed CSC-aware route for all problem sizes. The LDL^T
+ * CSC path reuses the caller's analysis when its scalar pivot pre-pass does
+ * not introduce extra symmetric swaps beyond the caller's reorder; otherwise
+ * it rebuilds symbolic analysis on the pre-permuted matrix. The LU path
+ * delegates through the corresponding one-shot family routine.
  *
  * For Cholesky: computes L such that P*A*P^T = L*L^T.
  * For LU: computes L and U such that P*A*Q = L*U (with pivoting).
@@ -440,8 +431,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 /**
  * @brief Free all memory associated with a factorization result.
  *
- * Safe to call on a zeroed struct (no-op). After freeing, the struct
- * is zeroed.
+ * NULL and zeroed structs are safe. After freeing, the struct is zeroed.
  *
  * @param factors  The factors to free, or NULL (no-op).
  */
@@ -452,8 +442,8 @@ void sparse_factor_free(sparse_factors_t *factors);
  *
  * Attempts a new numeric factorization using the new matrix and the same
  * symbolic analysis. The matrix A_new must have dimensions compatible with
- * the analysis. Structural compatibility (same sparsity pattern) is a
- * caller precondition but is not validated.
+ * the analysis. Same sparsity pattern is a caller precondition; this routine
+ * performs cheap boundary checks, not a full structural-pattern comparison.
  *
  * On success, the existing factors are replaced with the newly computed
  * factorization. On failure, the previous factors are left unchanged.
@@ -470,10 +460,9 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @pre factors must be zeroed or contain a valid existing factorization
  *      produced for the same factor family and dimension as @p analysis.
  *
- * This routine performs cheap boundary validation only. In addition to
- * dimension and matrix-state checks, it rejects obvious gross structure drift
- * when `sparse_nnz(A_new)` no longer matches the matrix analyzed into
- * @p analysis. It does not run a full structural-pattern verifier.
+ * In addition to dimension and matrix-state checks, this routine rejects
+ * obvious gross structure drift when `sparse_nnz(A_new)` no longer matches
+ * the matrix analyzed into @p analysis.
  *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.

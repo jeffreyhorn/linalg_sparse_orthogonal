@@ -915,6 +915,55 @@ Public headers should keep concise API-local caveats needed at call sites.
 They should not expand into long maintainer-policy explanations if the same
 policy is already owned here.
 
+When cleaning public headers, treat the change as API-surface work even if the
+intended edit is comment-only:
+
+- keep function purpose, shape assumptions, ownership/lifetime rules, output
+  buffer sizes, NULL/error returns, mutation guarantees, option defaults,
+  result-field semantics, backend behavior, and required non-claims at the
+  call site;
+- shorten sprint history, benchmark narratives, report/CI ownership detail,
+  and tutorial-scale examples when a link to README, examples, cookbook,
+  solver-selection, benchmarks, install docs, or this guide is clearer;
+- do not change declarations, signatures, typedefs, enum values, struct field
+  order, macros, include guards, installed header names, or exported names as
+  part of documentation cleanup;
+- after public header edits, compare declaration-like diff hunks before and
+  after the change, scan claim wording, run `git diff --check`, and run
+  `make format && make lint && make test`;
+- after public-header or API-comment cleanup, check whether
+  `docs/api_reference.md` needs a header table or ownership update and whether
+  `docs/api/html/` should be refreshed or explicitly treated as stale/partial.
+
+### API reference and generated Doxygen HTML
+
+`docs/api_reference.md` is the user-facing API reference entry point. It should
+stay compact and should route exact declarations back to the public headers
+under `include/`.
+
+`docs/api/html/` is generated Doxygen output from the configured input set in
+`Doxyfile`. Treat it as fresh only when all of the following are true:
+
+- `make docs` was run on the current branch;
+- Doxygen warnings were captured and triaged;
+- generated page coverage was checked against the intended input headers;
+- generated output was committed with the corresponding source/header comment
+  change or in a dedicated reference-refresh commit;
+- the review description states whether generated output changed.
+
+Treat generated API HTML as stale or partial when public header comments changed
+after the last Doxygen refresh, new public headers do not have generated pages,
+generated installed headers are outside the configured Doxygen input set, or the
+generated output is not committed with the source/header change that explains
+it.
+
+API reference guidance may say that public headers own exact declarations and
+call-site contracts and that `make docs` generates local Doxygen HTML. It must
+not imply dynamic ABI compatibility, shared-library support, package-manager
+distribution, broad Windows Makefile or Windows `pkg-config` parity,
+external-library parity, portable runtime guarantees, or completeness beyond
+the configured Doxygen input set.
+
 ### Local benchmark/example READMEs
 
 `benchmarks/README.md` and `examples/README.md` should keep local usage details

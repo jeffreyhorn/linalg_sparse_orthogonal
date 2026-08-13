@@ -273,3 +273,61 @@ rather than aspiration.
   current branch has not yet had hosted PR runs.
 - Day 7 handoff: validate corpus/report evidence without converting generated
   rows or local proof into broader hosted, platform, or performance claims.
+
+### Day 7: Corpus And Report Validation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day7-corpus-report-validation.md`.
+- Reviewed corpus/report ownership and freshness policy in:
+  - `docs/maintainer_guide.md`;
+  - `README.md`;
+  - `tests/corpus/README.md`;
+  - `tests/corpus/manifests/report_families.tsv`;
+  - `tests/corpus/manifests/fixtures.tsv`;
+  - `tests/corpus/manifests/generators.tsv`;
+  - `tests/corpus/expected/*.tsv`;
+  - `tests/corpus/schemas/report_index_fields.md`.
+- Ran corpus schema validation:
+  - `python3 scripts/validate_corpus_schema.py`;
+  - result: passed, reporting `tests/corpus ok`.
+- Ran focused QR corpus proof:
+  - `make build/test_qr_corpus`;
+  - `./build/test_qr_corpus`;
+  - result: passed with `14` tests, `0` failures, `0` skips, and `258`
+    assertions.
+- Ran focused partial-SVD corpus proof:
+  - `make build/test_svd_partial_corpus`;
+  - `./build/test_svd_partial_corpus`;
+  - result: passed with `10` tests, `0` failures, `0` skips, and `247`
+    assertions.
+- Ran selected local oracle freshness:
+  - `make report-index-oracle-freshness`;
+  - result: passed, regenerating ignored local outputs under `build/` and
+    validating required oracle freshness with `54` normalized oracle rows.
+- Ran normalized corpus/oracle index checks:
+  - `python3 scripts/normalize_report_index.py --family corpus --family oracle
+    --check`;
+  - result: passed with `128` rows.
+- Recorded selected combined oracle output:
+  - `52` generated rows total;
+  - `23` QR solver-backed rows;
+  - `26` partial-SVD solver-backed rows;
+  - `3` generated-reference rows;
+  - all generated oracle rows had `comparison_status=pass`;
+  - selected fixture-key count was `10`.
+- Confirmed the current partial-SVD-only documentation count of `105`
+  normalized corpus/oracle rows remains interpretable as the partial-SVD-only
+  run shape, not the selected combined QR plus partial-SVD gate.
+- Preserved local-only boundaries:
+  generated corpus/oracle rows are not hosted CI, broad solver correctness,
+  external-library parity, platform, package, ABI, performance, release, or
+  state-of-the-art proof.
+- Published the deferred corpus-family queue with owners and promotion
+  criteria for broad QR rank-threshold policy, broad QR solve/minimum-norm
+  behavior, QR reordered/COLAMD corpus behavior, SuiteSparse/external corpus,
+  broad partial-SVD repeated-spectrum/raw-vector behavior, sparse-output
+  optimality, convergence-rate/partial-result semantics, and hosted
+  corpus/report evidence.
+- Day 8 handoff: validate external comparison evidence without widening the
+  selected `qr-minnorm` study into broad QR, external-library, platform, or
+  performance parity.

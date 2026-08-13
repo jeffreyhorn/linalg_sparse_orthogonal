@@ -228,3 +228,48 @@ rather than aspiration.
 - Day 6 handoff: reconcile hosted Linux, macOS, Windows, reviewed,
   supplemental, staged, and deferred platform evidence separately from this
   local package proof.
+
+### Day 6: Platform Reconciliation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day6-platform-reconciliation.md`.
+- Reviewed the maintained platform contract in:
+  - `.github/workflows/ci.yml`;
+  - `.github/workflows/macos-ci.yml`;
+  - `.github/workflows/windows-ci.yml`;
+  - `README.md`;
+  - `INSTALL.md`;
+  - `docs/maintainer_guide.md`.
+- Reconciled the platform lanes:
+  - Linux remains the strongest reviewed source of truth, with reviewed
+    Makefile compile-quality, CMake parity, dead-code, and static-first
+    package-contract lanes plus supplemental runtime, benchmark, TSan, and
+    coverage signals;
+  - macOS carries reviewed Apple Clang Makefile/CMake/wall/sanitizer proof,
+    reviewed static-first Make install/`pkg-config` and CMake install/export
+    proof, and supplemental Homebrew GCC second-compiler proof;
+  - Windows carries reviewed MSVC 2022 CMake-first proof with
+    `EXPECTED_WINDOWS_CTEST_COUNT=59`, full hosted CTest, and reviewed CMake
+    install/downstream validation.
+- Verified recent hosted master merge evidence with `gh run list`:
+  - CI run `31723661978` succeeded for PR #172 merge commit
+    `c7981c6ef7fa887e87575279009113b1dcf3a630`;
+  - macOS CI run `31723661840` succeeded for the same merge commit;
+  - Windows CI run `31723661771` succeeded for the same merge commit.
+- Separated support labels into reviewed hosted proof, supplemental hosted
+  proof, local-only proof, source-controlled policy, deferred non-claim,
+  PR-time pending, and external outage.
+- Recorded that Sprint 148 closed the prior Windows staged-test exclusions by
+  promoting `test_threads`, `test_sprint4_integration`, and `test_fuzz` into
+  the reviewed CMake subset.
+- Preserved remaining Windows deferred non-claims:
+  Windows Makefile parity, Windows `pkg-config` execution parity,
+  package-manager support, shared-library support, dynamic ABI support,
+  runtime-loader behavior, and broad Windows platform parity.
+- Classified hosted setup/download failures such as GitHub Actions
+  action-resolution `Service Unavailable` errors as external outages unless a
+  rerun reaches repository command execution and reproduces a command failure.
+- Recorded that Sprint 156 branch CI is still PR-time pending because the
+  current branch has not yet had hosted PR runs.
+- Day 7 handoff: validate corpus/report evidence without converting generated
+  rows or local proof into broader hosted, platform, or performance claims.

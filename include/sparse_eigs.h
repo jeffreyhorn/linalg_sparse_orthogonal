@@ -48,20 +48,14 @@
  *   free(vecs);
  * @endcode
  *
- * **Convergence.** `sparse_eigs_sym` routes through one of the
- * supported symmetric eigensolver backends (grow-m Lanczos,
- * thick-restart Lanczos, or explicit LOBPCG). The Lanczos-family
- * paths start from a deterministic pseudo-random v0 (golden-ratio
- * fractional mixing — reproducible across runs and avoids
- * eigenvector alignment on diagonal fixtures). Grow-m retries
- * strictly extend the Krylov basis, so every pass benefits from
- * prior work. `result.residual_norm` reports the maximum relative
- * Ritz residual across the converged pairs, and for the Lanczos-family
- * backends it is gated on the Wu/Simon residual
- * `|beta_m * y_{m-1, j}| / |theta_j|` of every selected Ritz pair.
- * That residual bounds the
- * eigen-equation relative error of whatever operator Lanczos is
- * running on:
+ * **Convergence.** `sparse_eigs_sym()` dispatches to grow-m Lanczos,
+ * thick-restart Lanczos, or explicit LOBPCG. The Lanczos-family paths start
+ * from a deterministic pseudo-random vector and grow-m retries extend the
+ * Krylov basis. `result.residual_norm` reports the maximum relative Ritz
+ * residual across converged pairs. For Lanczos-family backends, the convergence
+ * gate is the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|` for each
+ * selected Ritz pair. That residual bounds the eigen-equation relative error
+ * of the operator Lanczos is running on:
  *   - `LARGEST` / `SMALLEST`: Lanczos runs on `A`, so the bound
  *     applies to `||A v - λ v|| / (|λ| * ||v||)` directly.
  *   - `NEAREST_SIGMA`: Lanczos runs on `(A - sigma·I)^{-1}`, so
@@ -73,15 +67,9 @@
  *     original-A residual must recompute `||A v - lambda v||`
  *     themselves from `result.eigenvectors`.
  *
- * **Design notes.** The result struct uses caller-owned scalar buffers for
- * the eigenvalue and eigenvector arrays — consistent with the
- * iterative-solver convention in `sparse_iterative.h`
- * (`residual_history` is caller-allocated).  The library writes
- * scalar output fields (`n_requested`, `n_converged`, `iterations`,
- * `residual_norm`, `used_csc_path_ldlt`, `peak_basis_size`,
- * `backend_used`) into `sparse_eigs_t` on return.  No library-side
- * allocation means no `sparse_eigs_free` helper is needed — caller
- * frees its own buffers.
+ * **Ownership.** Eigenvalue and eigenvector arrays are caller-owned buffers.
+ * The library writes scalar output fields into `sparse_eigs_t` on return but
+ * does not allocate result buffers, so there is no `sparse_eigs_free()` helper.
  *
  * @see sparse_ldlt.h — factorisation backend used by shift-invert.
  * @see sparse_svd.h — related decomposition for rectangular A.
@@ -217,19 +205,13 @@ typedef enum {
  * LOBPCG; ignored for Lanczos), `lobpcg_soft_lock = 1` (per-column
  * freezing on; ignored for Lanczos).
  *
- * @warning **ABI break in v2.2.0.** This release added the
- * `block_size`, `precond`, `precond_ctx`, and `lobpcg_soft_lock`
- * fields at the end of this struct, changing its size relative to
- * the v2.1.x version. Source-level
- * compatibility is preserved: positional and designated initialisers
- * from v2.1.x continue to compile, leaving the new trailing fields
- * zero-initialised / unset.  That is *not* identical to passing
- * `opts == NULL` for full library defaults; in particular,
- * `lobpcg_soft_lock` stays 0 (off) unless explicitly set to 1,
- * whereas the `opts == NULL` path turns soft-locking on.  Pre-
- * compiled downstream binaries linked against v2.1.x must be
- * recompiled against v2.2.x because stack-allocating the old struct
- * would cause the new library to read past its end.
+ * @warning **Source rebuild required for v2.2.0 options layout.** The
+ * `block_size`, `precond`, `precond_ctx`, and `lobpcg_soft_lock` fields were
+ * added after the original v2.1.x fields. Source initializers from v2.1.x
+ * still compile and leave trailing fields zero-initialized. That differs from
+ * passing `opts == NULL`: in particular, `lobpcg_soft_lock` remains 0 unless
+ * explicitly set to 1, while the NULL-options path enables it. Downstream
+ * objects compiled against the older struct layout must be rebuilt.
  */
 typedef struct {
     /** Which portion of the spectrum to return. */
@@ -237,12 +219,10 @@ typedef struct {
     /** Shift point for `SPARSE_EIGS_NEAREST_SIGMA`; ignored
      *  otherwise.  Default: 0.0. */
     sparse_scalar_t sigma;
-    /** Cap on the Lanczos subspace size (`m`) per Lanczos run.
-     *  Also caps the growth across grow-m retries (`m` never
-     *  exceeds this value on any run), but does not bound the
-     *  cumulative Lanczos iterations across retries — that is
-     *  reported as `result->iterations`.  0 selects the library
-     *  default (currently `max(10 * k + 20, 100)`). */
+    /** Cap on Lanczos subspace size (`m`) per run. Grow-m retries never exceed
+     *  this per-run cap, but cumulative retry iterations may be larger and are
+     *  reported in `result->iterations`. 0 selects the library default
+     *  (currently `max(10 * k + 20, 100)`). */
     idx_t max_iterations;
     /** Convergence tolerance on the Wu/Simon Ritz-residual bound
      *  `|beta_m * y_{m-1,j}| / max(|theta_j|, scale)` used by
@@ -254,15 +234,12 @@ typedef struct {
      *  selects the library default `1e-10`.  Negative values are
      *  rejected with SPARSE_ERR_BADARG. */
     sparse_scalar_t tol;
-    /** Full-reorthogonalization flag.  Nonzero reorthogonalizes each
-     *  new Lanczos vector against every prior Lanczos vector,
-     *  maintaining `V^T V ≈ I` under finite precision.  Zero
-     *  disables reorth (faster per iteration but loses orthogonality
-     *  on wide-spectrum matrices — "ghost" eigenvalues may appear;
-     *  mainly useful for cheap smoke tests).  The library default is
-     *  ON — pass `opts == NULL` to get it, or set this field to 1
-     *  explicitly when using designated initialisers (which zero
-     *  unset fields).
+    /** Full-reorthogonalization flag. Nonzero reorthogonalizes each new
+     *  Lanczos vector against the prior basis, maintaining `V^T V ~= I` under
+     *  finite precision. Zero disables reorth; this is faster per iteration
+     *  but can lose orthogonality and produce ghost Ritz values on
+     *  wide-spectrum matrices. The library default is ON: pass `opts == NULL`
+     *  or set this field to 1 explicitly when using designated initializers.
      *
      *  **Reliability caveat (important):** both the Wu/Simon
      *  convergence gate reported in `result->residual_norm` and the
@@ -273,7 +250,7 @@ typedef struct {
      *  ghost Ritz pairs) and lifted eigenvectors are not unit norm
      *  nor truly A-eigenvectors.  Callers that want reliable
      *  `result->residual_norm` or `compute_vectors = 1` output
-     *  MUST set this field to 1. */
+     *  must set this field to 1. */
     int reorthogonalize;
     /** Nonzero to also compute eigenvectors; zero (default) returns
      *  eigenvalues only.  When nonzero, `result->eigenvectors` must
@@ -301,14 +278,11 @@ typedef struct {
      *  struct, so older designated initialisers still compile and
      *  get the library default. */
     idx_t block_size;
-    /** LOBPCG preconditioner callback. When
-     *  non-NULL, applied to each column of the residual block W in
-     *  every LOBPCG iteration: `precond(precond_ctx, n, R[:, j],
-     *  W[:, j])`.  NULL selects vanilla (unpreconditioned) LOBPCG —
-     *  correct but typically slower convergence on ill-conditioned
-     *  problems.  See `sparse_iterative.h` for the typedef and
-     *  `sparse_ic.h` / `sparse_ldlt.h` for ready-made preconditioner
-     *  builders.
+    /** LOBPCG preconditioner callback. When non-NULL, applied to each residual
+     *  column W in every LOBPCG iteration as
+     *  `precond(precond_ctx, n, R[:, j], W[:, j])`. NULL selects vanilla
+     *  LOBPCG. See `sparse_iterative.h` for the callback typedef and
+     *  `sparse_ic.h` / `sparse_ldlt.h` for preconditioner-building APIs.
      *
      *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
     sparse_precond_fn precond;
@@ -320,16 +294,11 @@ typedef struct {
      *  `precond == NULL` is rejected as SPARSE_ERR_BADARG (the
      *  obvious user error of forgetting to set the callback). */
     const void *precond_ctx;
-    /** LOBPCG soft-locking flag. Nonzero enables
-     *  per-column convergence freezing: once a Ritz pair's residual
-     *  drops below `tol`, the corresponding W (preconditioned
-     *  residual) and P (search direction) columns are zeroed for
-     *  subsequent iterations.  The orthonormalisation step then
-     *  ejects those zero columns, shrinking the effective
-     *  Rayleigh-Ritz subspace and saving work on the remaining
-     *  unconverged columns.  Locked columns themselves stay in X
-     *  (their Ritz pair is preserved by the RR step because X is
-     *  in the basis).
+    /** LOBPCG soft-locking flag. Nonzero enables per-column convergence
+     *  freezing: once a Ritz pair's residual drops below `tol`, the
+     *  corresponding W and P columns are zeroed for later iterations. The
+     *  orthonormalization step ejects those zero columns, shrinking the active
+     *  Rayleigh-Ritz subspace while locked columns remain in X.
      *
      *  Library default is ON when `opts == NULL`.  Designated
      *  initialisers leave this field at 0 (off); set it to 1
@@ -378,11 +347,10 @@ typedef struct {
      *
      *  Ignored when `refine == 0`. */
     idx_t refine_max_iters;
-    /** Optional progress / cancellation callback. Invoked at the top
-     *  of each outer eigensolver iteration
-     *  on the **grow-m Lanczos** path (`phase = "lanczos"`) and the
-     *  **LOBPCG** path (`phase = "lobpcg"`); `step = total_iter`,
-     *  `total = max_iterations`.
+    /** Optional progress / cancellation callback. Invoked at each outer
+     *  eigensolver iteration on the grow-m Lanczos path
+     *  (`phase = "lanczos"`) and the LOBPCG path (`phase = "lobpcg"`), with
+     *  `step = total_iter` and `total = max_iterations`.
      *
      *  **Thick-restart Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`,
      *  AUTO-selected for `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` without
@@ -393,10 +361,8 @@ typedef struct {
      *  via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS` at the cost of
      *  the higher peak-basis memory.
      *
-     *  Return 0 to continue; non-zero cancels — the library frees
-     *  intermediate state and returns `SPARSE_ERR_CANCELLED`.  Default
-     *  NULL leaves progress/cancel disabled. Trailing
-     *  field for designated-init back-compat. */
+     *  Return 0 to continue. Non-zero cancels, frees intermediate state, and
+     *  returns `SPARSE_ERR_CANCELLED`. NULL leaves progress/cancel disabled. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
@@ -419,15 +385,10 @@ typedef struct {
  * Callers that want partial results in the unconverged case
  * should inspect `n_converged` before consuming `eigenvalues[]`.
  *
- * @warning **ABI break in v2.2.0.** This release added
- * the `peak_basis_size` and `backend_used` fields at the end of
- * this struct, changing its size relative to the v2.1.x version
- * shipped previously. Source-level compatibility is
- * preserved: positional and designated initialisers from v2.1.x
- * continue to compile.  Pre-compiled downstream binaries linked
- * against v2.1.x must be recompiled against v2.2.x because stack-
- * allocating the old struct would cause the new library to write
- * past its end.
+ * @warning **Source rebuild required for v2.2.0 result layout.** The
+ * `peak_basis_size` and `backend_used` fields were added after the v2.1.x
+ * fields. Source initializers from v2.1.x still compile, but downstream
+ * objects compiled against the older struct layout must be rebuilt.
  */
 typedef struct {
     /** Caller-owned buffer of length `>= k`.  The library writes

@@ -9,9 +9,8 @@
  * P*A*P^T = L*D*L^T, where L is unit lower triangular, D is block-diagonal
  * with 1x1 and 2x2 blocks, and P is a symmetric permutation.
  *
- * Bunch-Kaufman pivoting handles symmetric indefinite matrices (KKT systems,
- * saddle-point problems, constrained optimization) by choosing 1x1 or 2x2
- * pivots to maintain bounded element growth without requiring symmetry-breaking
+ * Bunch-Kaufman pivoting handles symmetric indefinite matrices such as KKT and
+ * saddle-point systems by choosing 1x1 or 2x2 pivots without symmetry-breaking
  * row pivoting.
  *
  * **Usage pattern:**
@@ -35,11 +34,9 @@
  *   sparse_ldlt_free(&ldlt2);
  * @endcode
  *
- * This header exposes the family-local owned-factor LDL^T surface. For
- * stable-pattern repeated direct runs across LU, Cholesky, or LDL^T, the
- * shared analysis/factor/refactor path in `sparse_analysis.h` is the common
- * repeated-run contract and the clearer owner of reusable symbolic and
- * factor/workspace state.
+ * This header owns one-shot LDL^T factors and solves. Use the
+ * `sparse_analysis.h` analyze/factor/refactor path when one symbolic analysis
+ * should be reused across repeated direct solves.
  */
 
 #include "sparse_matrix.h"
@@ -58,14 +55,12 @@
  * of the 2x2 block, D_offdiag[k] holds the off-diagonal entry,
  * pivot_size[k] = pivot_size[k+1] = 2.
  *
- * Callers must call sparse_ldlt_free() before reusing a sparse_ldlt_t for
- * a new factorization; the factor functions overwrite the struct without
- * freeing prior contents. sparse_ldlt_free() is safe on a zeroed struct.
+ * Factor functions overwrite this struct without freeing existing contents.
+ * Call sparse_ldlt_free() before reusing a populated object. A zeroed
+ * sparse_ldlt_t is valid to pass to sparse_ldlt_free().
  *
- * This owned factor object is distinct from the shared repeated-run direct
- * path in `sparse_analysis.h`: `sparse_ldlt_t` owns family-local LDL^T
- * numeric state, while `sparse_analysis_t` / `sparse_factors_t` carry the
- * shared analyze/factor/refactor direct lifecycle.
+ * This owned factor object is separate from the repeated-run direct lifecycle
+ * in `sparse_analysis.h`.
  */
 typedef struct {
     SparseMatrix *L;    /**< Unit lower triangular factor */
@@ -92,11 +87,10 @@ typedef struct {
 /**
  * @brief LDL^T numeric backend selector.
  *
- * `sparse_ldlt_factor_opts` provides transparent backend dispatch mirroring
- * the Cholesky backend selector (`sparse_cholesky_opts_t::backend`). Callers can leave
- * the field at its zero-initialised default (`SPARSE_LDLT_BACKEND_AUTO`)
- * to let the library pick the kernel by matrix size, or force a
- * specific path for benchmarks / regression coverage.
+ * `sparse_ldlt_factor_opts` can select the linked-list or CSC LDL^T numeric
+ * path. Leave the option at its zero-initialized default
+ * (`SPARSE_LDLT_BACKEND_AUTO`) for size-based dispatch, or force a path for
+ * focused benchmarks and regression tests.
  *
  * - `SPARSE_LDLT_BACKEND_AUTO` (default, zero-initialised): use the
  *   CSC supernodal backend when `A->rows >= SPARSE_CSC_THRESHOLD`,
@@ -105,13 +99,10 @@ typedef struct {
  *   kernel regardless of dimension.
  * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC pipeline
  *   (`sparse_analyze` / scalar pre-pass resolution →
- *   `ldlt_csc_factor_with_resolved_analysis` → CSC→`sparse_ldlt_t`
- *   writeback).  Once selected, that CSC pipeline may retain the
- *   batched supernodal completion or fall back to the resolved scalar
- *   pre-pass factor when the batched path rejects the cached pivot
- *   pattern.  The only exception is the empty-matrix edge case:
- *   `n == 0` still routes to the linked-list path because the CSC
- *   scalar pre-pass has no meaningful empty input to factor.
+ *   `ldlt_csc_factor_with_resolved_analysis` -> CSC-to-`sparse_ldlt_t`
+ *   writeback). Once selected, the CSC pipeline may finish through either the
+ *   batched supernodal completion or the resolved scalar pre-pass fallback.
+ *   The empty-matrix edge case (`n == 0`) still routes to the linked-list path.
  */
 typedef enum {
     SPARSE_LDLT_BACKEND_AUTO = 0,
@@ -122,35 +113,20 @@ typedef enum {
 /**
  * @brief Options for LDL^T factorization.
  *
- * @warning **ABI break in v2.1.0.**  The
- * `backend` and `used_csc_path` fields at the end of this struct,
- * changing its size relative to the v2.0.x version shipped through
- * prior releases.  Source-level compatibility is preserved: positional
- * initialisers like `{SPARSE_REORDER_AMD, 0.0}` continue to compile
- * — the new trailing fields zero-init to `SPARSE_LDLT_BACKEND_AUTO`
- * and `NULL`.  Pre-compiled downstream binaries linked against
- * v2.0.x must be recompiled against v2.1.x because stack-allocating
- * the old struct would cause the new library to read past its end.
+ * @warning **Source rebuild required for v2.1.0 options layout.** The
+ * `backend` and `used_csc_path` fields were added after the original
+ * reorder/tolerance fields. Positional initializers such as
+ * `{SPARSE_REORDER_AMD, 0.0}` still compile because trailing fields
+ * zero-initialize, but downstream objects compiled against the older struct
+ * layout must be rebuilt.
  *
- * @note **Transparent CSC dispatch.** Same pattern as the Cholesky backend
- * selector. See `sparse_ldlt_backend_t` above for the per-value semantics. The
- * optional `used_csc_path` output pointer reports the actual selected
- * numeric path: 1 when the CSC pipeline ran and 0 when the linked-list
- * backend ran.  That means a forced `SPARSE_LDLT_BACKEND_CSC` request
- * still reports 0 on the `n == 0` empty-matrix edge case because the
- * linked-list backend is the only valid implementation there.
- *
- * Note that "CSC selected" means the CSC kernel chain handled the
- * factor end-to-end — this includes both of the internal completion
- * variants:
- *
- * - the batched supernodal completion path
- * - the resolved scalar-prepass fallback when the batched path rejects
- *   the cached pivot pattern
- *
- * Both variants still route through the CSC entry points and write
- * back via `ldlt_csc_writeback_to_ldlt`.
- * Pass NULL if the caller does not need this telemetry.
+ * @note **Backend telemetry.** See `sparse_ldlt_backend_t` for per-value
+ * semantics. `used_csc_path` is optional; pass NULL when the caller does not
+ * need telemetry. When non-NULL, it is set to 1 if the CSC pipeline was
+ * selected and 0 if the linked-list path ran. A forced CSC request still
+ * reports 0 for `n == 0` because empty matrices use the linked-list no-op
+ * path. "CSC selected" includes both the batched supernodal completion and
+ * the resolved scalar-prepass fallback.
  */
 typedef struct {
     sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, AMD, or ND —
@@ -175,19 +151,14 @@ typedef struct {
     int *used_csc_path;            /**< Optional output: 1 if the CSC pipeline was selected
                                         (including the structural fallback to the scalar
                                         pre-pass factor), 0 if the linked-list kernel ran. */
-    /** Optional progress / cancellation callback.  Invoked at the top of each Bunch-Kaufman pivot
-     *  iteration of the linked-list backend with `phase =
-     *  "ldlt_factor"`, `step = k`, `total = n` (k advances by 1 for
-     *  a 1x1 pivot or 2 for a 2x2 pivot).  Return 0 to continue;
-     *  non-zero cancels the factorisation — the library frees the
-     *  partially-built `ldlt` struct and returns
-     *  `SPARSE_ERR_CANCELLED`.  The input matrix `A` is never
-     *  modified by LDL^T (factorisation writes to a separate
-     *  `ldlt_t` struct), so cancellation always leaves `A` bit-
-     *  identical.  NULL (default) disables the callback.  Currently
-     *  only the linked-list backend emits progress; the CSC supernodal backend
-     *  does not emit progress events.  Trailing field for designated-init
-     *  compatibility. */
+    /** Optional progress / cancellation callback. Invoked by the linked-list
+     *  backend at each Bunch-Kaufman pivot with phase `"ldlt_factor"`,
+     *  `step = k`, and `total = n`; k advances by 1 or 2 depending on pivot
+     *  block size. Return 0 to continue. A non-zero return cancels the
+     *  factorization, frees the partial `ldlt` output, and returns
+     *  `SPARSE_ERR_CANCELLED`. LDL^T factorization does not modify the input
+     *  matrix. NULL disables callbacks. The CSC backend currently emits no
+     *  progress events. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
@@ -200,7 +171,8 @@ typedef struct {
  * Computes P*A*P^T = L*D*L^T using Bunch-Kaufman symmetric pivoting.
  * L is unit lower triangular (stored as a new SparseMatrix), D is
  * block-diagonal with 1x1 and 2x2 blocks.  The original matrix A is
- * not modified.
+ * not modified. The output object is reset on entry, so sparse_ldlt_free() is
+ * safe after an error return.
  *
  * @note **Tolerance semantics:** The factorization computes and caches
  *       ||A||_inf in ldlt->factor_norm. Singularity detection uses
@@ -237,10 +209,12 @@ sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt);
  * sparse_ldlt_solve() can automatically unpermute the solution.
  *
  * @param A     The symmetric matrix to factor (not modified). Must be square.
- * @param opts  Factorization options (NULL for defaults: no reordering,
- *              default tolerance).
- * @param ldlt  Output: LDL^T factors. Must be freed with sparse_ldlt_free().
+ * @param opts  Factorization options. NULL uses defaults: no reordering,
+ *              default tolerance, AUTO backend, no telemetry, no callback.
+ * @param ldlt  Output: LDL^T factors. Reset on entry and must be freed with
+ *              sparse_ldlt_free() after success.
  * @return SPARSE_OK on success, or an error code (see sparse_ldlt_factor()).
+ * @return SPARSE_ERR_CANCELLED if the linked-list progress callback cancels.
  */
 sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_opts_t *opts,
                                      sparse_ldlt_t *ldlt);
@@ -261,6 +235,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_BADARG if ldlt has not been factored.
+ * @return SPARSE_ERR_ALLOC if temporary solve workspace allocation fails.
  * @return SPARSE_ERR_SINGULAR if a zero D block is encountered during solve.
  *
  * @par Thread safety: Read-only on ldlt. Safe to call concurrently on the
@@ -271,7 +246,7 @@ sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, doubl
 /**
  * @brief Free the LDL^T factorization data.
  *
- * @param ldlt  The factorization to free. Safe to call on a zeroed struct.
+ * @param ldlt  The factorization to free. NULL and zeroed structs are safe.
  */
 void sparse_ldlt_free(sparse_ldlt_t *ldlt);
 
@@ -293,6 +268,7 @@ void sparse_ldlt_free(sparse_ldlt_t *ldlt);
  * @param n_zero Output: number of zero eigenvalues. May be NULL.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if ldlt is NULL.
+ * @return SPARSE_ERR_BADARG if ldlt has not been factored.
  */
 sparse_err_t sparse_ldlt_inertia(const sparse_ldlt_t *ldlt, idx_t *n_pos, idx_t *n_neg,
                                  idx_t *n_zero);
@@ -309,7 +285,11 @@ sparse_err_t sparse_ldlt_inertia(const sparse_ldlt_t *ldlt, idx_t *n_pos, idx_t 
  * @param x          Solution vector of length n (modified in-place).
  * @param max_iters  Maximum number of refinement iterations.
  * @param tol        Convergence tolerance on relative residual.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any pointer argument is NULL.
+ * @return SPARSE_ERR_ALLOC if temporary workspace allocation fails.
+ * @return SPARSE_ERR_BADARG or SPARSE_ERR_SINGULAR if the factorization solve
+ *         fails during a refinement step.
  */
 sparse_err_t sparse_ldlt_refine(const SparseMatrix *A, const sparse_ldlt_t *ldlt, const double *b,
                                 double *x, int max_iters, double tol);
@@ -326,6 +306,9 @@ sparse_err_t sparse_ldlt_refine(const SparseMatrix *A, const sparse_ldlt_t *ldlt
  * @param condest Output: condition number estimate.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_ALLOC if temporary estimator workspace allocation fails.
+ * @return SPARSE_ERR_BADARG or SPARSE_ERR_SINGULAR if the factorization solve
+ *         fails during estimation.
  */
 sparse_err_t sparse_ldlt_condest(const SparseMatrix *A, const sparse_ldlt_t *ldlt, double *condest);
 

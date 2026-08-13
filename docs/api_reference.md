@@ -1,0 +1,67 @@
+# API Reference
+
+Use this page when you need exact public declarations, option/result structs,
+ownership rules, output-buffer expectations, or return-code contracts after
+you have chosen a workflow from the README, tutorial, cookbook, or
+solver-selection guide.
+
+## Source Of Truth
+
+The checked-in public headers under [`include/`](../include/) are the source of
+truth for API declarations and call-site contracts:
+
+| Header | Primary surface |
+| --- | --- |
+| `sparse_matrix.h` | Matrix construction, mutation, copy/free, norms, and dense conversion |
+| `sparse_types.h` | Shared scalar, error, and compressed-format types |
+| `sparse_vector.h` | Vector helpers |
+| `sparse_lu.h` | One-shot LU and LU option/result contracts |
+| `sparse_lu_csr.h` | CSR LU support surface |
+| `sparse_cholesky.h` | Cholesky factorization and solve contracts |
+| `sparse_ldlt.h` | LDL^T factorization, solve, backend, and telemetry contracts |
+| `sparse_analysis.h` | Analyze-once/factor-many direct-solver lifecycle |
+| `sparse_qr.h` | QR, least-squares, rank, nullspace, and minimum-norm contracts |
+| `sparse_svd.h` | Full SVD, partial SVD, pseudoinverse, and low-rank contracts |
+| `sparse_eigs.h` | Symmetric eigensolver options, backends, handles, and result contracts |
+| `sparse_iterative.h` | CG, GMRES, MINRES, BiCGSTAB, matrix-free, and handle contracts |
+| `sparse_ilu.h` | ILU(0), ILUT, and preconditioner callback contracts |
+| `sparse_ic.h` | IC(0) and IC preconditioner callback contracts |
+| `sparse_csr.h` | CSR storage helpers |
+| `sparse_dense.h` | Dense matrix helpers |
+| `sparse_bidiag.h` | Bidiagonalization helpers |
+| `sparse_reorder.h` | Reordering APIs and option contracts |
+
+Installed packages also include a generated `sparse_version.h` derived from
+`VERSION` and `include/sparse_version.h.in`. Use the installed header,
+`VERSION`, and the install-validation tests for version macro behavior.
+
+## Generated HTML
+
+`make docs` runs Doxygen with [`Doxyfile`](../Doxyfile) and writes generated
+HTML under [`docs/api/html/`](api/html/index.html).
+
+Treat generated HTML as a convenience view of the configured Doxygen input set,
+not as a broader support claim. The current Doxygen configuration reads
+checked-in headers under `include/`. If generated HTML is stale or incomplete,
+prefer the public headers above for exact declarations until the generated
+reference is refreshed.
+
+## Workflow Guides
+
+Use the higher-level guides before dropping into declarations:
+
+- [README.md](../README.md) for the short project front door;
+- [tutorial.md](tutorial.md) for the fuller learning path;
+- [cookbook.md](cookbook.md) for CSR, CSC, and Matrix Market first-use routes;
+- [solver_selection.md](solver_selection.md) for choosing a solver family;
+- [INSTALL.md](../INSTALL.md) for installed static-first downstream consumers;
+- [maintainer_guide.md](maintainer_guide.md) for generated-reference
+  freshness, evidence, package, ABI, and support-tier interpretation.
+
+## Claim Boundaries
+
+This API reference index does not imply dynamic ABI compatibility,
+shared-library support, package-manager distribution, broad platform parity,
+external-library parity, portable performance, or state-of-the-art coverage.
+Those boundaries remain owned by the install, benchmark, solver-selection, and
+maintainer documentation.

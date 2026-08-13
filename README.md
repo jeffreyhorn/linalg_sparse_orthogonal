@@ -29,9 +29,11 @@ solve, then routes deeper support detail to the maintained docs that own it.
    [Installation](#installation), then [INSTALL.md#start-here](INSTALL.md#start-here)
    for static-first install and package details.
 7. **Escalate after the first workflow works:** runtime/backend controls,
-   benchmarks, report indexes, platform tiers, and maintainer evidence live in
+   benchmarks, report indexes, API reference, platform tiers, and maintainer
+   evidence live in
    [Runtime And Backend Controls](#runtime-and-backend-controls),
-   [benchmarks/README.md](benchmarks/README.md), and
+   [benchmarks/README.md](benchmarks/README.md),
+   [docs/api_reference.md](docs/api_reference.md), and
    [docs/maintainer_guide.md](docs/maintainer_guide.md).
 
 ## Adoption Map
@@ -43,6 +45,7 @@ solve, then routes deeper support detail to the maintained docs that own it.
 | CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder) | Maintained examples linked from the cookbook |
 | Diagnostics after a first run | [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff) | [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff) |
 | Installed consumer setup | [Installation](#installation) | [INSTALL.md#start-here](INSTALL.md#start-here) |
+| Exact API declarations and ownership contracts | [docs/api_reference.md](docs/api_reference.md) | Public headers under [`include/`](include/) |
 | Local benchmark/report interpretation | [benchmarks/README.md](benchmarks/README.md) | Generated report index/manifest artifacts |
 | Current algorithm behavior | [docs/algorithm.md](docs/algorithm.md) | [docs/algorithm_history.md](docs/algorithm_history.md) for historical measurement notes |
 | Maintainer quality policy | [docs/maintainer_guide.md](docs/maintainer_guide.md) | Sprint planning artifacts when historical traceability is needed |
@@ -278,6 +281,7 @@ make performance-sentinels  # local sentinel bundle: wall-check gate + threshold
 make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed structural report artifacts
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
+# API reference entry point: docs/api_reference.md
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
 make coverage   # default line-coverage report on the active test surface (80% threshold; backend auto-selected)

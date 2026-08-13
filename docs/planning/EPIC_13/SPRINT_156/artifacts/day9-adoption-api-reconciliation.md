@@ -1,0 +1,153 @@
+# Sprint 156 Day 9: Adoption And API Surface Reconciliation
+
+## Purpose
+
+Reconcile tutorial, API reference, cookbook, examples, solver-selection,
+headers, install guidance, and maintainer guidance against the final Epic 13
+evidence boundaries. The goal is to confirm that user-facing adoption has one
+coherent first-use path and that API/header cleanup remains backed by
+declaration-preservation evidence.
+
+## Inputs Reviewed
+
+- `README.md`
+- `docs/tutorial.md`
+- `docs/cookbook.md`
+- `docs/solver_selection.md`
+- `docs/api_reference.md`
+- `examples/README.md`
+- `INSTALL.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+- `docs/planning/EPIC_13/SPRINT_155/artifacts/day5-tutorial-alignment-summary.md`
+- `docs/planning/EPIC_13/SPRINT_155/artifacts/day11-api-reference-guidance-implementation.md`
+- `docs/planning/EPIC_13/SPRINT_155/artifacts/day12-preservation-and-reconciliation.md`
+- `docs/planning/EPIC_13/SPRINT_155/artifacts/day13-integrated-validation.md`
+- `docs/planning/EPIC_13/SPRINT_155/artifacts/day14-closeout-sprint156-handoff.md`
+
+## Checks Run
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| API/adoption link targets | Passed | `docs/api_reference.md`, `docs/api/html/index.html`, `include/`, `docs/tutorial.md`, `docs/cookbook.md`, `docs/solver_selection.md`, and `examples/README.md` exist. |
+| Declaration preservation artifact sizes | Passed | Day 8, Day 9, and Day 12 normalized declaration diffs are all `0` bytes. |
+| Generated HTML inventory | Passed as documented residual | `18` checked-in public headers and `13` generated header pages. |
+| Stale/unsupported phrase scan | Passed | Matches were explicit non-claim wording only. |
+
+## Coherent First-Use Path
+
+The current adoption docs describe a single route:
+
+1. `README.md` is the short front door.
+2. `examples/README.md#start-here` owns the smallest local build/run path.
+3. `docs/cookbook.md#first-use-ladder` owns CSR, CSC, and Matrix Market
+   data-first routes.
+4. `docs/solver_selection.md` owns problem-shape solver choice and diagnostic
+   escalation.
+5. `INSTALL.md` owns installed downstream consumers and static-first package
+   interpretation.
+6. `benchmarks/README.md` owns local measurement/report interpretation after
+   the API workflow is chosen.
+7. `docs/api_reference.md` and public headers under `include/` own exact
+   declarations, option/result structs, ownership rules, and return-code
+   contracts.
+8. `docs/maintainer_guide.md` owns evidence interpretation, report freshness,
+   package/ABI boundaries, generated-reference policy, and support tiers.
+
+No competing first-use ladder was found. The duplicated content that remains
+is intentional routing context: README, tutorial, cookbook, solver-selection,
+and examples all point to the same first-run sequence rather than defining
+different product claims.
+
+## Public Header Preservation Summary
+
+Sprint 155 edited comments in these checked-in public headers:
+
+- `include/sparse_ldlt.h`
+- `include/sparse_ic.h`
+- `include/sparse_eigs.h`
+- `include/sparse_analysis.h`
+
+Declaration-preservation evidence remains intact:
+
+- `day8-header-declarations-normalized-diff.txt`: `0` bytes;
+- `day9-header-declarations-normalized-diff.txt`: `0` bytes;
+- `day12-header-declarations-normalized-diff.txt`: `0` bytes.
+
+Sprint 155 Day 13 also ran `make format && make lint && make test` after the
+public-header comment work, and the full gate passed. Day 9 made no `.c` or
+public `.h` edits, so no new declaration scan or full C quality gate was
+required.
+
+## API Reference And Generated HTML Residuals
+
+`docs/api_reference.md` is the maintained user-facing API reference entry
+point. It correctly states that checked-in public headers under `include/` are
+the source of truth for declarations and call-site contracts.
+
+Generated Doxygen HTML remains an explicit residual:
+
+- checked-in public headers: `18`;
+- generated `docs/api/html/sparse__*_8h.html` pages: `13`;
+- missing generated pages:
+  - `sparse__analysis_8h.html`;
+  - `sparse__eigs_8h.html`;
+  - `sparse__ic_8h.html`;
+  - `sparse__ldlt_8h.html`;
+  - `sparse__lu__csr_8h.html`.
+
+This is not hidden from users: `docs/api_reference.md` and
+`docs/maintainer_guide.md` both describe generated HTML as a convenience view
+that may be stale or incomplete unless `make docs` was run, warnings were
+triaged, page coverage was checked, and generated output was committed with a
+source/header change or dedicated reference refresh.
+
+## Documentation Consistency Checklist
+
+| Surface | Current interpretation | Day 9 result |
+| --- | --- | --- |
+| README | Short front door, current capability inventory, support-tier summary, and route to deeper docs. | Coherent. |
+| Tutorial | Fuller learning path after README; delegates install, benchmark, report, API, and maintainer policy. | Coherent. |
+| Cookbook | Data-first CSR/CSC/Matrix Market route and first-use ladder. | Coherent. |
+| Solver selection | Problem-shape decision tree and diagnostics handoff. | Coherent. |
+| Examples README | Runnable first local success path and family-specific examples. | Coherent. |
+| INSTALL | Static-first downstream-consumer and platform support interpretation. | Coherent. |
+| API reference | Compact public-header index and generated HTML freshness boundary. | Coherent, with generated HTML residual explicit. |
+| Benchmarks README | Local measurement/report interpretation, not portable performance proof. | Coherent. |
+| Maintainer guide | Evidence, freshness, API-reference, package, ABI, and support-tier policy. | Coherent. |
+
+## Claim Boundary Notes
+
+The adoption/API surfaces reviewed on Day 9 keep the same boundaries established
+by Days 1-8:
+
+- examples teach API workflows; they do not own broad correctness, parity, or
+  performance claims;
+- benchmark and report outputs are local measurement or local generated
+  evidence, not portable performance or platform proof;
+- corpus and comparison rows remain fixture-local and local-only unless later
+  promoted to reviewed hosted lanes;
+- installed packages remain static-first;
+- API reference and public headers do not imply shared-library support,
+  dynamic ABI compatibility, package-manager distribution, broad platform
+  parity, external-library parity, portable performance, or state-of-the-art
+  coverage.
+
+## Residual Queue
+
+| Residual | Owner | Promotion criteria |
+| --- | --- | --- |
+| Generated API HTML refresh | Documentation/API owner | Run `make docs`, capture and triage Doxygen warnings, verify generated page coverage, and commit generated output in a dedicated refresh or alongside justified header/comment edits. |
+| Missing generated header pages | Documentation/API owner | Close with the generated HTML refresh gate; expected missing pages are analysis, eigs, IC, LDLT, and LU CSR. |
+| Generated installed `sparse_version.h` Doxygen coverage | Documentation/API and package owners | Decide whether Doxygen should read build-generated include paths; otherwise keep version macro behavior owned by `VERSION`, generated install headers, and install tests. |
+| Remaining public-header cleanup outside Sprint 155 selected batch | Header owners | Re-run header-selection, declaration-preservation, claim scan, and full C quality gate for each future batch. |
+| Final public claim audit | Sprint 156 Day 10 | Search and reconcile public state-of-the-art, parity, performance, ABI, package, platform, report, and support-tier wording across public docs. |
+
+## Completion Criteria Check
+
+- Adoption docs describe one coherent first-use path.
+- Header cleanup remains declaration-preserving and already validated by
+  Sprint 155's full gate.
+- Day 9 made no code or public-header edits.
+- API reference residuals are explicit and ready for next-epic planning.
+- No adoption/API documentation correction was required on Day 9.

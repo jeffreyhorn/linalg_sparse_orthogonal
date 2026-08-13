@@ -397,3 +397,60 @@ rather than aspiration.
 - Day 9 handoff: reconcile tutorial, API reference, cookbook, examples,
   selected headers, and adoption-surface wording against the final evidence
   boundaries.
+
+### Day 9: Adoption And API Surface Reconciliation
+
+- Created
+  `docs/planning/EPIC_13/SPRINT_156/artifacts/day9-adoption-api-reconciliation.md`.
+- Reviewed Sprint 155 adoption and API artifacts:
+  - `day5-tutorial-alignment-summary.md`;
+  - `day11-api-reference-guidance-implementation.md`;
+  - `day12-preservation-and-reconciliation.md`;
+  - `day13-integrated-validation.md`;
+  - `day14-closeout-sprint156-handoff.md`.
+- Reviewed current adoption/API surfaces:
+  - `README.md`;
+  - `docs/tutorial.md`;
+  - `docs/cookbook.md`;
+  - `docs/solver_selection.md`;
+  - `docs/api_reference.md`;
+  - `examples/README.md`;
+  - `INSTALL.md`;
+  - `benchmarks/README.md`;
+  - `docs/maintainer_guide.md`.
+- Confirmed the coherent first-use route:
+  README front door -> examples first run -> cookbook data-first path ->
+  solver-selection problem-shape route -> install only for downstream
+  consumers -> benchmarks/reports after workflow selection -> API reference and
+  public headers for exact declarations.
+- Rechecked API/adoption link targets:
+  - `docs/api_reference.md`;
+  - `docs/api/html/index.html`;
+  - `include/`;
+  - `docs/tutorial.md`;
+  - `docs/cookbook.md`;
+  - `docs/solver_selection.md`;
+  - `examples/README.md`;
+  - result: passed.
+- Rechecked Sprint 155 declaration-preservation evidence:
+  - Day 8 normalized declaration diff: `0` bytes;
+  - Day 9 normalized declaration diff: `0` bytes;
+  - Day 12 normalized declaration diff: `0` bytes.
+- Reconciled generated API HTML inventory:
+  - `18` checked-in public headers;
+  - `13` generated `sparse__*_8h.html` pages;
+  - missing generated pages remain
+    `sparse__analysis_8h.html`, `sparse__eigs_8h.html`,
+    `sparse__ic_8h.html`, `sparse__ldlt_8h.html`, and
+    `sparse__lu__csr_8h.html`.
+- Ran stale/unsupported phrase scan across README, tutorial, cookbook,
+  solver-selection, API reference, examples README, install docs, maintainer
+  guide, and public headers; matches were explicit non-claim wording only.
+- Recorded that Day 9 made no `.c` or public `.h` edits, so no new
+  declaration scan or full C quality gate was required.
+- Published residuals for generated API HTML refresh, missing generated header
+  pages, generated installed `sparse_version.h` Doxygen coverage, remaining
+  public-header cleanup, and Day 10 final public claim audit.
+- Day 10 handoff: perform the full public claim/non-claim audit across
+  state-of-the-art, parity, performance, ABI, package, platform, report, and
+  support-tier wording.

@@ -40,7 +40,7 @@ targets Epic 14 will attempt to close.
 | 1 | Baseline Inventory | Capture source, header, test, script, benchmark, example, docs, corpus, generated report, and package inventory. | 22 |
 | 2 | Residual Selection | Convert Epic 13 residuals into selected Epic 14 targets, long-horizon deferrals, and explicit non-goals. | 24 |
 | 3 | Evidence Contract | Define recurring evidence requirements for API docs, hosted reports, comparison rows, Windows package decisions, and performance reports. | 30 |
-| 4 | Claim Target Register | Publish claim targets and non-claims for state-of-art, external parity, performance, package, Windows, ABI, and docs surfaces. | 24 |
+| 4 | Claim Target Register | Publish claim targets and non-claims for state-of-the-art, external parity, performance, package, Windows, ABI, and docs surfaces. | 24 |
 | 5 | Quality Surface Map | Map required validation commands for docs, scripts, C/header, build-system, package, CI, and generated artifacts. | 22 |
 | 6 | Risk And Handoff | Publish sprint working notes, risk register, and Sprint 158 API-doc handoff. | 22 |
 | 7 | Closeout | Reconcile completed artifacts with the plan and update residuals. | 22 |
@@ -366,9 +366,9 @@ residuals unambiguous.
 | 1 | Final Evidence Inventory | Inventory API docs, hosted generated reports, QR and partial-SVD comparison rows, Windows package decision, performance report, header cleanup, and package boundary evidence. | 24 |
 | 2 | Full Validation Baseline | Run strongest feasible local baseline plus generated docs/report/package/comparison checks required by touched surfaces. | 28 |
 | 3 | Hosted CI Reconciliation | Reconcile Linux, macOS, Windows, reviewed, supplemental, hosted, local-only, and advisory evidence. | 22 |
-| 4 | Claim Audit | Scan public docs for unsupported state-of-art, external parity, performance, package, Windows, shared-library, ABI, runtime-loader, and generated-report wording. | 24 |
+| 4 | Claim Audit | Scan public docs for unsupported state-of-the-art, external parity, performance, package, Windows, shared-library, ABI, runtime-loader, and generated-report wording. | 24 |
 | 5 | Project Plan Reconciliation | Mark every Epic 14 item complete, narrowed, or residualized with evidence links. | 22 |
-| 6 | Epic 14 Retrospective | Write the Epic 14 retrospective with earned claims, non-claims, validation evidence, and state-of-art assessment. | 28 |
+| 6 | Epic 14 Retrospective | Write the Epic 14 retrospective with earned claims, non-claims, validation evidence, and state-of-the-art assessment. | 28 |
 | 7 | Residual Queue | Publish owner, blocker, prerequisite, and promotion gate for every remaining gap. | 20 |
 
 ### Deliverables
@@ -395,5 +395,5 @@ residuals unambiguous.
   overclaiming.
 - Public headers and API docs remain declaration-preserving and coherent.
 - Static-first package and ABI non-claims are hardened.
-- The final state-of-art assessment maps every positive claim to recurring
+- The final state-of-the-art assessment maps every positive claim to recurring
   evidence and rejects unsupported broad claims.

@@ -105,8 +105,8 @@ Impact:
 
 - PR reviewers cannot rely on hosted logs for all claim-bearing generated
   evidence;
-- local evidence is real but easy to stale or omit;
-- state-of-art or ecosystem-parity claims remain impossible.
+- local evidence is real but easy to let go stale or omit;
+- state-of-the-art or ecosystem-parity claims remain impossible.
 
 Closure target:
 
@@ -272,7 +272,7 @@ Closure target:
 
 - keep claim/non-claim audits mandatory in Epic 14;
 - route public claims to recurring evidence;
-- publish a final state-of-art assessment that rejects any unsupported broad
+- publish a final state-of-the-art assessment that rejects any unsupported broad
   claim.
 
 ## State-Of-The-Art Assessment

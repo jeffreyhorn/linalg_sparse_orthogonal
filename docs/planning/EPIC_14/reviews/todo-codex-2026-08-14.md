@@ -64,7 +64,7 @@ documentation over broad partial progress.
 4. Add source-controlled contract rows and generated report freshness.
 5. Document skipped optional baselines and dependency provenance.
 6. Preserve non-claims for broad SVD parity, raw vector identity, convergence
-   rates, sparse-output optimality, performance, and state-of-art status.
+   rates, sparse-output optimality, performance, and state-of-the-art status.
 
 ### 6. Decide Windows Package Parity
 
@@ -100,7 +100,7 @@ documentation over broad partial progress.
 
 ### 9. Reconcile Claims And Product Boundaries
 
-1. Scan public docs for unsupported claims about state-of-art status, external
+1. Scan public docs for unsupported claims about state-of-the-art status, external
    parity, Windows parity, package-manager support, shared libraries, ABI
    stability, runtime-loader behavior, and portable performance.
 2. Map every positive public claim to a recurring local or hosted evidence

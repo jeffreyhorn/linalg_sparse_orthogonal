@@ -79,7 +79,7 @@ non-claims for unsupported surfaces.
 | Sprint 156 Day 6 hosted master platform reconciliation | Latest inspected master merge baseline for PR #172 passed Linux CI, macOS CI, and Windows CI on commit `c7981c6ef7fa887e87575279009113b1dcf3a630`. | Master hosted baseline, not branch-specific Sprint 156 PR proof. |
 | Sprint 156 Day 7 corpus/report validation | Schema passed; QR corpus passed `14` tests; partial-SVD corpus passed `10` tests; selected oracle freshness passed. | Local-only fixture/report evidence. |
 | Sprint 156 Day 8 comparison reconciliation | Harness self-check and selected comparison freshness passed; all six generated comparison rows passed. | One local-only comparison fixture. |
-| Sprint 156 Day 9 adoption/API reconciliation | Link targets and declaration-preservation evidence passed; generated HTML residuals recorded. | Docs/API surface coherence, not generated HTML completeness. |
+| Sprint 156 Day 9 adoption/API reconciliation | Checked-in link targets and declaration-preservation evidence passed; absent checked-in generated HTML residual recorded. | Docs/API surface coherence, not generated HTML publication. |
 | Sprint 156 Day 10 claim audit | Public claim scans found evidence-bound wording or explicit non-claims only. | Claim audit proof, not new capability proof. |
 | Sprint 156 Day 11 residual queue | Published `18` final residuals with owners, blockers, prerequisites, and promotion gates. | Planning/closeout artifact. |
 
@@ -166,7 +166,7 @@ Highest-priority next-epic candidates:
 
 | Priority | Candidate | Closure target |
 | --- | --- | --- |
-| 1 | Generated API HTML refresh | Run `make docs`, triage warnings, close or explicitly document missing generated pages, and preserve source-header-first API wording. |
+| 1 | Generated API HTML refresh | Run `make docs`, triage warnings, decide whether generated output should be committed, and preserve source-header-first API wording. |
 | 2 | Hosted promotion for selected local-only oracle/comparison rows | Move already-selected freshness gates into reviewed hosted evidence without broadening solver semantics. |
 | 3 | One bounded QR comparison expansion | Extend the existing comparison harness with one controlled fixture family, metrics, tolerances, provenance, and freshness gate. |
 | 4 | One bounded partial-SVD comparison publication | Add subspace-safe comparison rows and freshness for a selected partial-SVD fixture family. |
@@ -245,8 +245,8 @@ failure semantics, and caveats.
    interpretation work for maintainers and reviewers.
 
 3. **API HTML refresh was deferred.** Sprint 155 documented the generated API
-   reference boundary, but users still do not have complete generated pages
-   for all checked-in public headers.
+   reference boundary, but the repository still has no checked-in generated
+   API HTML tree.
 
 4. **Comparison breadth is still small.** The first comparison study is useful
    infrastructure proof, not meaningful ecosystem coverage.

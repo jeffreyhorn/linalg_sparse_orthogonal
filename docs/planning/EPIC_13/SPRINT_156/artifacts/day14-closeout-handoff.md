@@ -73,7 +73,7 @@ Final public interpretation remains:
 Use `day11-residual-queue-publication.md` as the source of truth for future
 work. The highest-priority complete-gap closure candidates are:
 
-1. Generated API HTML refresh.
+1. Generated API HTML refresh/publication.
 2. Hosted promotion for selected local-only oracle/comparison rows.
 3. One bounded QR comparison expansion.
 4. One bounded partial-SVD comparison publication.

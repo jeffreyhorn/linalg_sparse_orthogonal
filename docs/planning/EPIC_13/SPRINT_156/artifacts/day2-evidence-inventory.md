@@ -53,7 +53,7 @@ Sprint 156 validation day must reconcile it before final closeout.
 | Package/install proof freshness | Needs current confirmation | Package metadata and install behavior can drift after Sprint 153. | Day 5 should run or review Make/CMake install and downstream proof. |
 | QR and partial-SVD generated rows | Need freshness interpretation | Source-controlled rows and generated-local rows are not equivalent to fresh report evidence. | Day 7 should check corpus/report freshness and stale rows. |
 | Comparison report freshness | Needs current confirmation | Sprint 154 comparison evidence is narrow and generated-local. | Day 8 should check comparison outputs, dependency status, and report freshness. |
-| Generated API HTML refresh | Deferred from Sprint 155 | Current `docs/api/html/` is not a complete fresh reference surface. | Day 9 should preserve the publication-policy boundary; Day 11 should retain residual if not promoted. |
+| Generated API HTML refresh | Deferred from Sprint 155 | The repository has no checked-in generated API HTML tree under `docs/api/html/`; local generated output is ignored by Git. | Day 9 should preserve the publication-policy boundary; Day 11 should retain residual if not promoted. |
 | Remaining public-header cleanup | Deferred from Sprint 155 | Header docs outside the selected batch may still have cleanup debt. | Day 9 should document residual; Day 11 should assign promotion gate. |
 | Final public claim audit | Not yet complete | The final closeout must prevent support widening across all public docs. | Day 10 owns final scan and correction list. |
 

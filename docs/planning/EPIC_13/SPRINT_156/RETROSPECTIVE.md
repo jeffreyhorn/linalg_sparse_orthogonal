@@ -77,8 +77,8 @@
    macOS, and Windows results can only be reconciled after the PR exists.
 
 2. **The generated API HTML gap remains visible.** Sprint 155 and Sprint 156
-   documented the gap clearly, but `docs/api/html/` still lacks generated pages
-   for several checked-in public headers.
+   documented the gap clearly, but the repository still has no checked-in
+   generated API HTML tree under `docs/api/html/`.
 
 3. **The comparison story is still intentionally narrow.** The harness and
    first study are useful, but the project still lacks optional NumPy/SciPy and
@@ -174,7 +174,7 @@ The next epic can begin from this baseline:
 | --- | --- |
 | Final residual queue | Use Day 11 as the source of truth for owner, blocker, prerequisite, and promotion gate fields. |
 | Epic 13 retrospective | Treat the root retrospective as final after Day 14, but keep Sprint 156 PR-hosted CI as pending until PR workflows run. |
-| Generated API HTML | Prioritize refresh if the next epic wants a bounded documentation closure with immediate user value. |
+| Generated API HTML | Prioritize refresh/publication if the next epic wants a bounded documentation closure with immediate user value. |
 | Hosted report promotion | Promote selected local-only oracle/comparison gates only after deciding runtime budget, artifact retention, and support-tier wording. |
 | QR and partial-SVD comparison breadth | Add one bounded fixture family at a time with metrics, tolerances, provenance, and explicit non-parity wording. |
 | Windows package parity | Decide product scope before adding Windows Makefile or Windows `pkg-config` toolchain complexity. |
@@ -184,7 +184,7 @@ The next epic can begin from this baseline:
 
 Still explicitly unresolved at Sprint 156 close:
 
-- generated API HTML refresh and missing generated public-header pages;
+- generated API HTML refresh/publication;
 - hosted promotion for selected local-only oracle and comparison rows;
 - row-level strict freshness beyond selected aggregate gates;
 - benchmark, sentinel, guardrail, dead-code, and coverage report publication

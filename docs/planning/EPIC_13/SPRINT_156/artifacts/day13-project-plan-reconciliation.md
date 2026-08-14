@@ -115,7 +115,7 @@ The most important deferred groups are:
 | Generated report freshness | Plan allowed selected generated families. | Only selected oracle and comparison freshness became claim-bearing; other generated families stayed advisory/deferred. | Correct narrowing; prevents generated local rows from being overread. |
 | Shared-library ABI | Plan allowed implementation or stronger deferral. | Stronger deferral was selected. | Complete under the plan because exact blockers and guard tests now exist. |
 | External comparison | Plan asked for first narrow study. | The study used a source-controlled helper rather than an external package. | Complete for first harness/study; external package parity remains residual. |
-| API docs | Plan included API index or generated publication plan. | API index and policy landed; generated HTML refresh deferred. | Complete with residual; avoids large generated-output churn during Sprint 155. |
+| API docs | Plan included API index or generated publication plan. | API index and policy landed; checked-in generated HTML publication deferred. | Complete with residual; avoids large generated-output churn during Sprint 155. |
 
 ## Retrospective Draft Reconciliation
 
@@ -129,7 +129,7 @@ required Day 14 edits:
   implementation.
 - Keep comparison wording scoped to one QR fixture and one source-controlled
   dense helper.
-- Keep generated API HTML refresh in residuals.
+- Keep generated API HTML refresh/publication in residuals.
 - Reference the Day 11 residual queue as the final residual source of truth.
 
 No earned claim in the Day 12 draft needs removal based on the project-plan
@@ -142,7 +142,7 @@ The next epic should prefer complete closure candidates from Day 11:
 
 | Priority | Candidate | Required first decision |
 | --- | --- | --- |
-| 1 | Generated API HTML refresh | Decide Doxygen input scope, generated `sparse_version.h` handling, and warning/page-coverage gate. |
+| 1 | Generated API HTML refresh | Decide Doxygen input scope, generated `sparse_version.h` handling, warning/page-coverage gate, and whether generated output should be committed. |
 | 2 | Hosted selected oracle/comparison promotion | Decide whether selected local-only report gates become reviewed hosted evidence and how artifacts are retained. |
 | 3 | One bounded QR comparison expansion | Select exactly one QR fixture family and metrics before implementation. |
 | 4 | One bounded partial-SVD comparison publication | Select subspace-safe metrics and baseline helper policy before implementation. |

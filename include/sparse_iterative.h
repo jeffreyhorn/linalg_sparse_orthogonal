@@ -125,7 +125,7 @@ typedef struct {
      *  "gmres"`, `step = total_iter`, `total = max_iter`.  Trailing
      *  field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
-    void *progress_user;
+    void *progress_user; /**< User context passed to progress_cb. */
 } sparse_gmres_opts_t;
 
 /**

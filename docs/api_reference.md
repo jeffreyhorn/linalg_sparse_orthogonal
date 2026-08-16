@@ -37,14 +37,20 @@ Installed packages also include a generated `sparse_version.h` derived from
 
 ## Generated HTML
 
-`make docs` runs Doxygen with [`Doxyfile`](../Doxyfile) and writes generated
-HTML under [`docs/api/html/`](api/html/index.html).
+`make docs-check` runs Doxygen with [`Doxyfile`](../Doxyfile), writes generated
+HTML under `docs/api/html/`, and checks generated page coverage for the
+checked-in public headers.
 
-Treat generated HTML as a convenience view of the configured Doxygen input set,
-not as a broader support claim. The current Doxygen configuration reads
-checked-in headers under `include/`. If generated HTML is stale or incomplete,
-prefer the public headers above for exact declarations until the generated
-reference is refreshed.
+The generated HTML tree is local-only generated output. It remains ignored by
+the repository and is not a hosted or source-controlled publication surface.
+Treat it as current only for the branch and checkout where `make docs-check`
+has just passed.
+
+The current Doxygen configuration reads checked-in headers under `include/`.
+Generated install headers such as `sparse_version.h` are owned by install
+artifacts, `VERSION`, and install-validation tests rather than by a generated
+Doxygen page. If local generated HTML is missing, stale, or incomplete, prefer
+the public headers above for exact declarations until `make docs-check` passes.
 
 ## Workflow Guides
 

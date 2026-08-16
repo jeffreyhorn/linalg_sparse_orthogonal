@@ -801,7 +801,7 @@ docs:
 	@echo "Documentation generated in docs/api/html/"
 
 api-docs-coverage:
-	python3 scripts/check_api_docs_coverage.py
+	@python3 scripts/check_api_docs_coverage.py
 
 docs-check: docs api-docs-coverage
 

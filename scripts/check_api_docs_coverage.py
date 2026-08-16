@@ -41,11 +41,11 @@ def checked_in_headers(include_dir: Path) -> list[Path]:
 
 def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, int, int]:
     if not html_dir.is_dir():
-        raise CoverageError(f"generated API HTML directory not found: {rel(html_dir, root)}; run `make docs` first")
+        raise CoverageError(f"generated API HTML directory not found: {rel(html_dir, root)}; run `make docs-check`")
 
     index = html_dir / "index.html"
     if not index.is_file():
-        raise CoverageError(f"generated API index not found: {rel(index, root)}; rerun `make docs`")
+        raise CoverageError(f"generated API index not found: {rel(index, root)}; rerun `make docs-check`")
 
     headers = checked_in_headers(include_dir)
     missing: list[str] = []

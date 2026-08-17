@@ -642,10 +642,10 @@ Important behavior:
 - `sparse_ldlt_free(&ldlt)` — free factorization data
 
 **Symmetric eigensolvers:**
-- `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via Lanczos (growing-m outer loop) with full MGS reorthogonalization
+- `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A through the public AUTO/Lanczos/thick-restart/LOBPCG backend surface
 - `sparse_eigs_handle_init(&handle)` / `sparse_eigs_handle_prepare(&handle, n, k, &opts)` / `sparse_eigs_sym_with_handle(A, k, &opts, &result, &handle)` / `sparse_eigs_handle_free(&handle)` — explicit repeated-run lifecycle path for stable-dimension symmetric eigensolves
 - `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts`
-- `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert
+- `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert; `result.backend_used` records the concrete backend selected on successful AUTO calls
 
 **Symbolic analysis & refactorization:**
 - `sparse_analyze(A, &opts, &analysis)` — compute elimination tree, column counts, symbolic structure

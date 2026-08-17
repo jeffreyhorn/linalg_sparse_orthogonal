@@ -190,6 +190,10 @@ Relevant headers:
 Use `sparse_eigs_sym(...)` for symmetric sparse eigensolver workflows. The
 default `SPARSE_EIGS_BACKEND_AUTO` is the normal starting point; explicit
 backend selection is for profiling or workload-specific control.
+AUTO is a routing policy, not a superiority claim. Inspect
+`sparse_eigs_t.backend_used`, `peak_basis_size`, convergence count, and
+residual norm together with the return code before deciding whether an explicit
+backend request is useful.
 
 Use repeated-run eigensolver handles when the dimension is stable and
 workspace reuse matters. Shift-invert and preconditioning are advanced paths
@@ -200,7 +204,9 @@ Useful starting example:
 - `example_eigs` for symmetric eigenpairs, shift-invert, and an explicit
   LOBPCG/preconditioner case.
 
-Relevant header: [`sparse_eigs.h`](../include/sparse_eigs.h).
+Relevant header: [`sparse_eigs.h`](../include/sparse_eigs.h). For a fuller
+walkthrough, use [tutorial.md#5-symmetric-eigensolver-workflows](tutorial.md#5-symmetric-eigensolver-workflows)
+and [cookbook.md#symmetric-eigensolver-workflows](cookbook.md#symmetric-eigensolver-workflows).
 
 This guide does not claim nonsymmetric eigensolver support or portable
 state-of-the-art parity. Use benchmark output as local measurement context.

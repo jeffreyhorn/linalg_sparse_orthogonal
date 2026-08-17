@@ -21,6 +21,17 @@ if [ -z "$report_label" ]; then
 fi
 canonical_build_mode_override="${SPARSE_CANONICAL_BUILD_MODE:-}"
 omp_num_threads="${OMP_NUM_THREADS:-unset}"
+report_family="benchmark"
+row_status="measurement"
+support_tier="local_only"
+claim_boundary="local_threshold_free"
+baseline="n/a"
+threshold="n/a"
+warmup="not_recorded"
+variance="not_recorded"
+matrix_size="not_recorded"
+backend_context="n/a"
+methodology_notes="threshold_free_local_measurement;not_portable_performance_claim"
 
 reject_tsv_control_chars() {
     local field_name="$1"
@@ -37,6 +48,17 @@ reject_tsv_control_chars() {
 reject_tsv_control_chars "BENCH_CANONICAL_REPORT_LABEL" "$report_label"
 reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_MODE" "$canonical_build_mode_override"
 reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
+reject_tsv_control_chars "canonical report family" "$report_family"
+reject_tsv_control_chars "canonical row status" "$row_status"
+reject_tsv_control_chars "canonical support tier" "$support_tier"
+reject_tsv_control_chars "canonical claim boundary" "$claim_boundary"
+reject_tsv_control_chars "canonical baseline" "$baseline"
+reject_tsv_control_chars "canonical threshold" "$threshold"
+reject_tsv_control_chars "canonical warmup" "$warmup"
+reject_tsv_control_chars "canonical variance" "$variance"
+reject_tsv_control_chars "canonical matrix size" "$matrix_size"
+reject_tsv_control_chars "canonical backend context" "$backend_context"
+reject_tsv_control_chars "canonical methodology notes" "$methodology_notes"
 
 mkdir -p "$report_dir"
 
@@ -109,13 +131,39 @@ elif [ "$git_branch" = "HEAD" ]; then
     git_branch="detached"
 fi
 
-cat > "$index_tsv" <<EOF
-surface	category	report_label	generated_at_utc	git_commit	git_branch	platform	compiler	build_mode	omp_num_threads	artifact	relative_path	command
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_refactor_csc	$(basename "$refactor_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_chol_csc	$(basename "$chol_csv")	tests/data/suitesparse/nos4.mtx --repeat 1
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_iterative_reuse	$(basename "$iter_csv")	default
-canonical	measurement	$report_label	$timestamp_utc	$git_commit	$git_branch	$platform	$cc_version	$build_mode	$omp_num_threads	bench_eigs_reuse	$(basename "$eigs_csv")	default
-EOF
+{
+    printf '%s\n' "surface	category	report_label	generated_at_utc	git_commit	git_branch	platform	compiler	build_mode	omp_num_threads	artifact	relative_path	command	report_family	status	support_tier	claim_boundary	fixture_or_workload	matrix_size	repeat_semantics	warmup	variance	baseline	threshold	backend_context	methodology_notes"
+
+    emit_index_row() {
+        local artifact="$1"
+        local relative_path="$2"
+        local command="$3"
+        local fixture_or_workload="$4"
+        local repeat_semantics="$5"
+
+        reject_tsv_control_chars "canonical artifact" "$artifact"
+        reject_tsv_control_chars "canonical relative_path" "$relative_path"
+        reject_tsv_control_chars "canonical command" "$command"
+        reject_tsv_control_chars "canonical fixture_or_workload" "$fixture_or_workload"
+        reject_tsv_control_chars "canonical repeat_semantics" "$repeat_semantics"
+
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "canonical" "measurement" "$report_label" "$timestamp_utc" "$git_commit" "$git_branch" \
+            "$platform" "$cc_version" "$build_mode" "$omp_num_threads" "$artifact" "$relative_path" \
+            "$command" "$report_family" "$row_status" "$support_tier" "$claim_boundary" \
+            "$fixture_or_workload" "$matrix_size" "$repeat_semantics" "$warmup" "$variance" \
+            "$baseline" "$threshold" "$backend_context" "$methodology_notes"
+    }
+
+    emit_index_row "bench_refactor_csc" "$(basename "$refactor_csv")" \
+        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1"
+    emit_index_row "bench_chol_csc" "$(basename "$chol_csv")" \
+        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1"
+    emit_index_row "bench_iterative_reuse" "$(basename "$iter_csv")" \
+        "default" "default" "benchmark_default"
+    emit_index_row "bench_eigs_reuse" "$(basename "$eigs_csv")" \
+        "default" "default" "benchmark_default"
+} > "$index_tsv"
 
 cat > "$manifest_txt" <<EOF
 bench-canonical-report
@@ -131,6 +179,17 @@ omp_num_threads=$omp_num_threads
 
 surface=canonical
 category=measurement
+report_family=$report_family
+status=$row_status
+support_tier=$support_tier
+claim_boundary=$claim_boundary
+baseline=$baseline
+threshold=$threshold
+warmup=$warmup
+variance=$variance
+matrix_size=$matrix_size
+backend_context=$backend_context
+methodology_notes=$methodology_notes
 
 bench_refactor_csc=tests/data/suitesparse/nos4.mtx --repeat 1 -> $(basename "$refactor_csv")
 bench_chol_csc=tests/data/suitesparse/nos4.mtx --repeat 1 -> $(basename "$chol_csv")
@@ -149,6 +208,8 @@ artifacts:
 notes:
 - This is a threshold-free local/CI-friendly snapshot, not a pass/fail timing gate.
 - Compare CSV rows across branches or runs; do not interpret single-run timings as portable claims.
+- These rows are methodology-bound local measurement artifacts. They record the command, fixture, artifact, commit, branch, platform, compiler, build mode, and thread setting available at generation time.
+- They are not portable performance guarantees, state-of-the-art claims, broad platform parity claims, package evidence, package-manager claims, shared-library or ABI guarantees, runtime-loader claims, external-library parity claims, OpenMP speedup claims, or backend superiority claims.
 EOF
 
 echo "bench-canonical-report: wrote $report_dir"

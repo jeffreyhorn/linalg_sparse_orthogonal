@@ -247,6 +247,15 @@ def configuration_value(configuration: str, key: str) -> str:
     return ""
 
 
+def configuration_field(key: str, value: str) -> str:
+    escaped = value.replace("%", "%25").replace(";", "%3B").replace("\n", "%0A")
+    return f"{key}={escaped}"
+
+
+def configuration_fields(fields: list[tuple[str, str]]) -> str:
+    return ";".join(configuration_field(key, value) for key, value in fields)
+
+
 def base_row(contract: dict[str, str], commit: str, branch: str) -> dict[str, str]:
     return {
         "report_family": contract["report_family"],
@@ -576,14 +585,29 @@ def benchmark_generated_rows(
                         ),
                         "platform": benchmark.get("platform", manifest.get("platform", "unknown")),
                         "compiler": benchmark.get("compiler", manifest.get("compiler", "unknown")),
-                        "configuration": (
-                            f"surface={benchmark.get('surface', 'unknown')};"
-                            f"category={benchmark.get('category', 'unknown')};"
-                            f"report_label={benchmark.get('report_label', 'unknown')};"
-                            f"build_mode={benchmark.get('build_mode', 'unknown')};"
-                            f"omp_num_threads={benchmark.get('omp_num_threads', 'unknown')};"
-                            f"command={benchmark.get('command', 'unknown')};"
-                            f"relative_path={benchmark.get('relative_path', 'unknown')}"
+                        "configuration": configuration_fields(
+                            [
+                                ("surface", benchmark.get("surface", "unknown")),
+                                ("category", benchmark.get("category", "unknown")),
+                                ("report_label", benchmark.get("report_label", "unknown")),
+                                ("build_mode", benchmark.get("build_mode", "unknown")),
+                                ("omp_num_threads", benchmark.get("omp_num_threads", "unknown")),
+                                ("command", benchmark.get("command", "unknown")),
+                                ("relative_path", benchmark.get("relative_path", "unknown")),
+                                ("row_report_family", benchmark.get("report_family", "unknown")),
+                                ("row_status", benchmark.get("status", "unknown")),
+                                ("row_support_tier", benchmark.get("support_tier", "unknown")),
+                                ("claim_boundary", benchmark.get("claim_boundary", "unknown")),
+                                ("fixture_or_workload", benchmark.get("fixture_or_workload", "unknown")),
+                                ("matrix_size", benchmark.get("matrix_size", "unknown")),
+                                ("repeat_semantics", benchmark.get("repeat_semantics", "unknown")),
+                                ("warmup", benchmark.get("warmup", "unknown")),
+                                ("variance", benchmark.get("variance", "unknown")),
+                                ("baseline", benchmark.get("baseline", "unknown")),
+                                ("threshold", benchmark.get("threshold", "unknown")),
+                                ("backend_context", benchmark.get("backend_context", "unknown")),
+                                ("methodology_notes", benchmark.get("methodology_notes", "unknown")),
+                            ]
                         ),
                         "artifact_path": artifact,
                         "freshness_status": "generated_present_unchecked",
@@ -641,19 +665,29 @@ def sentinel_generated_rows(
                         "generated_at_utc": manifest.get("generated_at_utc", "unknown"),
                         "platform": manifest.get("platform", "unknown"),
                         "compiler": manifest.get("compiler", "unknown"),
-                        "configuration": (
-                            f"sentinel_id={sentinel.get('sentinel_id', 'unknown')};"
-                            f"claim_boundary={claim_boundary or 'unknown'};"
-                            f"row_support_tier={sentinel.get('support_tier', 'unknown')};"
-                            f"build_mode={sentinel.get('build_mode', 'unknown')};"
-                            f"omp_num_threads={sentinel.get('omp_num_threads', 'unknown')};"
-                            f"metric={sentinel.get('metric', 'unknown')};"
-                            f"value={sentinel.get('value', 'unknown')};"
-                            f"baseline={sentinel.get('baseline', 'unknown')};"
-                            f"threshold={sentinel.get('threshold', 'unknown')};"
-                            f"backend_request={sentinel.get('backend_request', 'unknown')};"
-                            f"backend_selected={sentinel.get('backend_selected', 'unknown')};"
-                            f"backend_fallback={sentinel.get('backend_fallback', 'unknown')}"
+                        "configuration": configuration_fields(
+                            [
+                                ("sentinel_id", sentinel.get("sentinel_id", "unknown")),
+                                ("claim_boundary", claim_boundary or "unknown"),
+                                ("row_support_tier", sentinel.get("support_tier", "unknown")),
+                                ("build_mode", sentinel.get("build_mode", "unknown")),
+                                ("omp_num_threads", sentinel.get("omp_num_threads", "unknown")),
+                                ("metric", sentinel.get("metric", "unknown")),
+                                ("value", sentinel.get("value", "unknown")),
+                                ("baseline", sentinel.get("baseline", "unknown")),
+                                ("threshold", sentinel.get("threshold", "unknown")),
+                                (
+                                    "baseline_provenance",
+                                    sentinel.get("baseline_provenance", "unknown"),
+                                ),
+                                ("repeat_semantics", sentinel.get("repeat_semantics", "unknown")),
+                                ("warmup", sentinel.get("warmup", "unknown")),
+                                ("variance", sentinel.get("variance", "unknown")),
+                                ("backend_request", sentinel.get("backend_request", "unknown")),
+                                ("backend_selected", sentinel.get("backend_selected", "unknown")),
+                                ("backend_fallback", sentinel.get("backend_fallback", "unknown")),
+                                ("methodology_notes", sentinel.get("methodology_notes", "unknown")),
+                            ]
                         ),
                         "artifact_path": artifact,
                         "freshness_status": "generated_present_unchecked",

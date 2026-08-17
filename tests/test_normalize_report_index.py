@@ -306,6 +306,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "artifact",
                 "relative_path",
                 "command",
+                "methodology_notes",
             ]
         )
         + "\n"
@@ -324,6 +325,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "bench_refactor_csc",
                 "bench_refactor_csc.csv",
                 "tests/data/suitesparse/nos4.mtx --repeat 1",
+                "threshold_free_local_measurement;not_portable_performance_claim",
             ]
         )
         + "\n"
@@ -362,6 +364,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "dense_kernel",
                 "panel_solver",
                 "notes",
+                "methodology_notes",
             ]
         )
         + "\n"
@@ -387,6 +390,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "n/a",
                 "n/a",
                 "existing_threshold_gate_passed",
+                "thresholded_local_wall_gate;not_portable_performance_claim",
             ]
         )
         + "\n"
@@ -412,6 +416,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "builtin",
                 "left_looking",
                 "threshold_free",
+                "threshold_free_local_backend_context;not_backend_superiority_claim",
             ]
         )
         + "\n"
@@ -437,6 +442,7 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "n/a",
                 "n/a",
                 "threshold_free;ldlt_env=external;scenario=ldlt_kkt",
+                "threshold_free_local_ldlt_backend_context;not_backend_superiority_claim",
             ]
         )
         + "\n"
@@ -494,7 +500,17 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
         by_family = {}
         for row in rows:
             by_family.setdefault(row["report_family"], []).append(row)
-        assert any(row["native_row_id"] == "bench_refactor_csc" for row in by_family["benchmark"])
+        benchmark_rows = [
+            row for row in by_family["benchmark"] if row["native_row_id"] == "bench_refactor_csc"
+        ]
+        assert len(benchmark_rows) == 1
+        assert (
+            "methodology_notes=threshold_free_local_measurement%3Bnot_portable_performance_claim"
+            in benchmark_rows[0]["configuration"]
+        )
+        assert "not_portable_performance_claim" not in {
+            part.split("=", 1)[0] for part in benchmark_rows[0]["configuration"].split(";")
+        }
         assert any(
             row["row_meaning"] == "sentinel_hard_gate" and row["status"] == "pass"
             for row in by_family["sentinel"]
@@ -512,6 +528,14 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
         assert "backend_request=external" in s3_rows[0]["configuration"]
         assert "backend_selected=builtin" in s3_rows[0]["configuration"]
         assert "backend_fallback=yes" in s3_rows[0]["configuration"]
+        assert (
+            "methodology_notes=threshold_free_local_ldlt_backend_context%3B"
+            "not_backend_superiority_claim"
+            in s3_rows[0]["configuration"]
+        )
+        assert "not_backend_superiority_claim" not in {
+            part.split("=", 1)[0] for part in s3_rows[0]["configuration"].split(";")
+        }
         assert any(row["native_row_id"] == "G1" and row["status"] == "pass" for row in by_family["guardrail"])
         assert any(row["native_row_id"] == "S1" and row["status"] == "skip" for row in by_family["guardrail"])
         for row in rows:

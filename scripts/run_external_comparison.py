@@ -23,6 +23,9 @@ DEFAULT_LIBRARY = REPO_ROOT / "build" / "libsparse_lu_ortho.a"
 
 RESIDUAL_TOLERANCE_DEFAULT = 1e-10
 SOLUTION_TOLERANCE_DEFAULT = 1e-10
+SINGULAR_VALUE_TOLERANCE_DEFAULT = 1e-10
+ORTHOGONALITY_TOLERANCE_DEFAULT = 1e-10
+PROJECTOR_TOLERANCE_DEFAULT = 1e-10
 
 QR_COMPATIBLE_LS_ENTRIES = [
     (0, 0, 1.0),
@@ -40,6 +43,7 @@ QR_COMPATIBLE_LS_ENTRIES = [
 
 TARGETS = {
     "qr-minnorm": {
+        "comparison_kind": "qr",
         "fixture_key": "qr_underdetermined_minnorm_2x4",
         "generator_key": "qr_underdetermined_minnorm_2x4_generator_v1",
         "subfamily": "qr_minnorm",
@@ -62,6 +66,7 @@ TARGETS = {
         "success_message": "external-comparison: qr-minnorm project-vs-baseline comparison passed",
     },
     "qr-compatible-ls": {
+        "comparison_kind": "qr",
         "fixture_key": "qr_overdetermined_compatible_5x3",
         "entries": QR_COMPATIBLE_LS_ENTRIES,
         "rows": 5,
@@ -85,6 +90,43 @@ TARGETS = {
         ),
         "success_message": (
             "external-comparison: qr-compatible-ls project-vs-baseline comparison passed"
+        ),
+    },
+    "partial-svd-diag6-k2": {
+        "comparison_kind": "partial_svd",
+        "fixture_key": "partial_svd_diag6_k2",
+        "subfamily": "partial_svd_diag6_k2",
+        "operation": "partial_svd",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "partial_svd_diag6_k2",
+        "rows": 6,
+        "cols": 6,
+        "rank": 2,
+        "diag_values": [9.0, 6.0, 3.0, 1.0, 0.5, 0.25],
+        "expected_singular_values": [9.0, 6.0],
+        "baseline_value_count": 2,
+        "singular_value_tolerance": SINGULAR_VALUE_TOLERANCE_DEFAULT,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "orthogonality_tolerance": ORTHOGONALITY_TOLERANCE_DEFAULT,
+        "projector_tolerance": PROJECTOR_TOLERANCE_DEFAULT,
+        "claim_scope": "fixture-local partial-SVD diagonal top-k comparison only",
+        "summary_title": "Partial-SVD Diagonal Top-K External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local partial-SVD "
+            "diagonal top-k result against the source-controlled dense "
+            "singular-value reference helper."
+        ),
+        "non_claims": (
+            "no broad SVD correctness;no broad partial-SVD correctness;"
+            "no raw singular-vector identity;no vector sign or orientation identity;"
+            "no repeated-spectrum ordering claim;no NumPy parity;no SciPy parity;"
+            "no LAPACK parity;no SuiteSparse parity;no Eigen parity;"
+            "no external-library ecosystem parity;no performance claim;"
+            "no package-manager proof;no hosted CI proof;no release proof;"
+            "no platform portability proof;no shared-library ABI proof;"
+            "no state-of-the-art claim"
+        ),
+        "success_message": (
+            "external-comparison: partial-svd-diag6-k2 project-vs-baseline comparison passed"
         ),
     },
 }
@@ -283,6 +325,196 @@ def c_literal_for_values(values: list[float]) -> str:
     return ", ".join(f"{value:.17g}" for value in values)
 
 
+def partial_svd_project_probe_source(
+    diag_values: list[float],
+    rows: int,
+    cols: int,
+    rank: int,
+) -> str:
+    return f"""#include \"sparse_matrix.h\"
+#include \"sparse_svd.h\"
+#include \"sparse_types.h\"
+#include <math.h>
+#include <stdio.h>
+
+static const double diag_values[{cols}] = {{{c_literal_for_values(diag_values)}}};
+
+static const char *status_name(sparse_err_t err) {{
+    switch (err) {{
+    case SPARSE_OK:
+        return \"SPARSE_SUCCESS\";
+    case SPARSE_ERR_NULL:
+        return \"SPARSE_ERR_NULL\";
+    case SPARSE_ERR_ALLOC:
+        return \"SPARSE_ERR_ALLOC\";
+    case SPARSE_ERR_BOUNDS:
+        return \"SPARSE_ERR_BOUNDS\";
+    case SPARSE_ERR_SINGULAR:
+        return \"SPARSE_ERR_SINGULAR\";
+    case SPARSE_ERR_SHAPE:
+        return \"SPARSE_ERR_SHAPE\";
+    case SPARSE_ERR_BADARG:
+        return \"SPARSE_ERR_BADARG\";
+    case SPARSE_ERR_NOT_CONVERGED:
+        return \"SPARSE_ERR_NOT_CONVERGED\";
+    case SPARSE_ERR_NUMERIC:
+        return \"SPARSE_ERR_NUMERIC\";
+    default:
+        return \"SPARSE_ERR_OTHER\";
+    }}
+}}
+
+static double dense_entry(idx_t row, idx_t col) {{
+    if (row == col && col < {cols})
+        return diag_values[col];
+    return 0.0;
+}}
+
+static double max_triplet_residual(const sparse_svd_t *svd) {{
+    double max_residual = 0.0;
+    for (idx_t comp = 0; comp < {rank}; ++comp) {{
+        const double sigma = svd->sigma[comp];
+        double av_sq = 0.0;
+        for (idx_t row = 0; row < {rows}; ++row) {{
+            double av = 0.0;
+            for (idx_t col = 0; col < {cols}; ++col)
+                av += dense_entry(row, col) * svd->Vt[comp + col * {rank}];
+            const double diff = av - sigma * svd->U[row + comp * {rows}];
+            av_sq += diff * diff;
+        }}
+        double atu_sq = 0.0;
+        for (idx_t col = 0; col < {cols}; ++col) {{
+            double atu = 0.0;
+            for (idx_t row = 0; row < {rows}; ++row)
+                atu += dense_entry(row, col) * svd->U[row + comp * {rows}];
+            const double diff = atu - sigma * svd->Vt[comp + col * {rank}];
+            atu_sq += diff * diff;
+        }}
+        const double av_residual = sqrt(av_sq);
+        const double atu_residual = sqrt(atu_sq);
+        if (av_residual > max_residual)
+            max_residual = av_residual;
+        if (atu_residual > max_residual)
+            max_residual = atu_residual;
+    }}
+    return max_residual;
+}}
+
+static double u_orthogonality(const sparse_svd_t *svd) {{
+    double max_error = 0.0;
+    for (idx_t i = 0; i < {rank}; ++i) {{
+        for (idx_t j = i; j < {rank}; ++j) {{
+            double dot = 0.0;
+            for (idx_t row = 0; row < {rows}; ++row)
+                dot += svd->U[row + i * {rows}] * svd->U[row + j * {rows}];
+            const double expected = (i == j) ? 1.0 : 0.0;
+            const double error = fabs(dot - expected);
+            if (error > max_error)
+                max_error = error;
+        }}
+    }}
+    return max_error;
+}}
+
+static double v_orthogonality(const sparse_svd_t *svd) {{
+    double max_error = 0.0;
+    for (idx_t i = 0; i < {rank}; ++i) {{
+        for (idx_t j = i; j < {rank}; ++j) {{
+            double dot = 0.0;
+            for (idx_t col = 0; col < {cols}; ++col)
+                dot += svd->Vt[i + col * {rank}] * svd->Vt[j + col * {rank}];
+            const double expected = (i == j) ? 1.0 : 0.0;
+            const double error = fabs(dot - expected);
+            if (error > max_error)
+                max_error = error;
+        }}
+    }}
+    return max_error;
+}}
+
+static double u_projector_diag(const sparse_svd_t *svd) {{
+    double max_error = 0.0;
+    for (idx_t row = 0; row < {rows}; ++row) {{
+        double value = 0.0;
+        for (idx_t comp = 0; comp < {rank}; ++comp) {{
+            const double u = svd->U[row + comp * {rows}];
+            value += u * u;
+        }}
+        const double expected = row < {rank} ? 1.0 : 0.0;
+        const double error = fabs(value - expected);
+        if (error > max_error)
+            max_error = error;
+    }}
+    return max_error;
+}}
+
+static double v_projector_diag(const sparse_svd_t *svd) {{
+    double max_error = 0.0;
+    for (idx_t col = 0; col < {cols}; ++col) {{
+        double value = 0.0;
+        for (idx_t comp = 0; comp < {rank}; ++comp) {{
+            const double v = svd->Vt[comp + col * {rank}];
+            value += v * v;
+        }}
+        const double expected = col < {rank} ? 1.0 : 0.0;
+        const double error = fabs(value - expected);
+        if (error > max_error)
+            max_error = error;
+    }}
+    return max_error;
+}}
+
+int main(void) {{
+    SparseMatrix *A = sparse_create({rows}, {cols});
+    if (!A) {{
+        fprintf(stderr, \"sparse_create failed\\n\");
+        return 2;
+    }}
+    for (idx_t i = 0; i < {cols}; ++i) {{
+        if (sparse_insert(A, i, i, diag_values[i]) != SPARSE_OK) {{
+            fprintf(stderr, \"sparse_insert failed at %d\\n\", (int)i);
+            sparse_free(A);
+            return 3;
+        }}
+    }}
+
+    sparse_svd_opts_t opts = {{.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0}};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, {rank}, &opts, &svd);
+
+    printf(\"status=%s\\n\", status_name(err));
+    if (err == SPARSE_OK && svd.sigma && svd.U && svd.Vt && svd.k >= {rank}) {{
+        double max_sigma_delta = 0.0;
+        for (idx_t i = 0; i < {rank}; ++i) {{
+            const double delta = fabs(svd.sigma[i] - diag_values[i]);
+            if (delta > max_sigma_delta)
+                max_sigma_delta = delta;
+            printf(\"singular_value_%d=%.17g\\n\", (int)i, svd.sigma[i]);
+        }}
+        printf(\"singular_values_max_abs_delta=%.17g\\n\", max_sigma_delta);
+        printf(\"residual_norm=%.17g\\n\", max_triplet_residual(&svd));
+        printf(\"u_orthogonality=%.17g\\n\", u_orthogonality(&svd));
+        printf(\"v_orthogonality=%.17g\\n\", v_orthogonality(&svd));
+        printf(\"u_projector_diag=%.17g\\n\", u_projector_diag(&svd));
+        printf(\"v_projector_diag=%.17g\\n\", v_projector_diag(&svd));
+    }} else {{
+        for (idx_t i = 0; i < {rank}; ++i)
+            printf(\"singular_value_%d=inf\\n\", (int)i);
+        printf(\"singular_values_max_abs_delta=inf\\n\");
+        printf(\"residual_norm=inf\\n\");
+        printf(\"u_orthogonality=inf\\n\");
+        printf(\"v_orthogonality=inf\\n\");
+        printf(\"u_projector_diag=inf\\n\");
+        printf(\"v_projector_diag=inf\\n\");
+    }}
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+    return 0;
+}}
+"""
+
+
 def project_probe_source(
     entries: list[tuple[int, int, float]],
     rows: int,
@@ -443,7 +675,6 @@ def run_project_probe(
     root: Path, library: Path, keep_temp: bool, target: dict[str, object]
 ) -> tuple[dict[str, str], str]:
     ensure_library(root, library)
-    entries, rows, cols = descriptor_entries(target)
     cc = compiler_argv()
     compiler = compiler_identity(cc)
 
@@ -451,16 +682,40 @@ def run_project_probe(
     try:
         source = temp_dir / f"{str(target['subfamily'])}_probe.c"
         binary = temp_dir / f"{str(target['subfamily'])}_probe"
-        source.write_text(
-            project_probe_source(
-                entries,
-                rows,
-                cols,
-                list(target["rhs"]),  # type: ignore[arg-type]
-                str(target["solve_mode"]),
-            ),
-            encoding="utf-8",
-        )
+        if target.get("comparison_kind") == "partial_svd":
+            source.write_text(
+                partial_svd_project_probe_source(
+                    list(target["diag_values"]),  # type: ignore[arg-type]
+                    int(target["rows"]),
+                    int(target["cols"]),
+                    int(target["rank"]),
+                ),
+                encoding="utf-8",
+            )
+            required_fields = {
+                "status",
+                "singular_value_0",
+                "singular_value_1",
+                "singular_values_max_abs_delta",
+                "residual_norm",
+                "u_orthogonality",
+                "v_orthogonality",
+                "u_projector_diag",
+                "v_projector_diag",
+            }
+        else:
+            entries, rows, cols = descriptor_entries(target)
+            source.write_text(
+                project_probe_source(
+                    entries,
+                    rows,
+                    cols,
+                    list(target["rhs"]),  # type: ignore[arg-type]
+                    str(target["solve_mode"]),
+                ),
+                encoding="utf-8",
+            )
+            required_fields = {"status", "residual_norm", "solution_norm", "solution_values"}
         compile_cmd = [
             *cc,
             "-std=c99",
@@ -488,10 +743,7 @@ def run_project_probe(
                 f"failed to compile project comparison probe:\n{completed.stdout}",
             )
         output = run_capture([str(binary)], cwd=root)
-        parsed = parse_key_values(
-            output,
-            {"status", "residual_norm", "solution_norm", "solution_values"},
-        )
+        parsed = parse_key_values(output, required_fields)
         parsed["project_probe_command"] = shlex.join(compile_cmd) + " && " + str(binary)
         return parsed, compiler
     finally:
@@ -520,6 +772,8 @@ def parse_baseline_vector(text: str) -> list[float]:
 
 
 def run_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
+    if target.get("comparison_kind") == "partial_svd":
+        return run_partial_svd_baseline_reference(root, target)
     helper = root / "tests" / "qr_external_dense_reference.py"
     if not helper.is_file():
         raise ComparisonError(
@@ -593,9 +847,73 @@ def run_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, s
     }
 
 
+def run_partial_svd_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
+    helper = root / "tests" / "svd_external_dense_reference.py"
+    if not helper.is_file():
+        raise ComparisonError(
+            "missing_baseline_helper",
+            f"selected baseline helper is missing: {helper}",
+        )
+
+    fixture_key = str(target["fixture_key"])
+    baseline_value_count = int(target["baseline_value_count"])
+    command = [sys.executable, str(helper), fixture_key]
+    output = run_capture(command, cwd=root, failure_class="baseline_command_failed")
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not lines:
+        raise ComparisonError("baseline_malformed_output", "baseline emitted no output")
+
+    header = lines[0].split()
+    if len(header) != 2 or header[0] != "OK":
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline first line must be 'OK {baseline_value_count}', got {lines[0]!r}",
+        )
+    try:
+        value_count = int(header[1])
+    except ValueError as exc:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline value count is not an integer: {header[1]!r}",
+        ) from exc
+    if value_count != baseline_value_count:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline value count must be {baseline_value_count} for {fixture_key}, got {value_count}",
+        )
+
+    value_lines = lines[1:]
+    if len(value_lines) != value_count:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline emitted {len(value_lines)} values, expected {value_count}",
+        )
+    try:
+        values = [float(value) for value in value_lines]
+    except ValueError as exc:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline emitted non-numeric values: {', '.join(value_lines)}",
+        ) from exc
+
+    observations = {
+        "status": "success",
+        "baseline_command": shlex.join(command),
+        "baseline_helper_path": str(helper.relative_to(root)),
+        "baseline_python_executable": sys.executable,
+        "baseline_python_version": python_version(),
+    }
+    for index, value in enumerate(values):
+        observations[f"singular_value_{index}"] = f"{value:.17g}"
+    observations["singular_values"] = ",".join(f"{value:.17g}" for value in values)
+    return observations
+
+
 def project_observation_rows(
     observations: dict[str, str], target: dict[str, object]
 ) -> list[dict[str, str]]:
+    if target.get("comparison_kind") == "partial_svd":
+        return partial_svd_project_observation_rows(observations, target)
     values = parse_vector(observations["solution_values"])
     expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
     solution_tolerance = float(target["solution_tolerance"])
@@ -655,9 +973,70 @@ def project_observation_rows(
     return rows
 
 
+def metric_status(value: float, tolerance: float) -> tuple[str, str]:
+    if value <= tolerance:
+        return "pass", "project_metric_within_tolerance"
+    return "fail", "project_metric_tolerance_miss"
+
+
+def partial_svd_project_observation_rows(
+    observations: dict[str, str], target: dict[str, object]
+) -> list[dict[str, str]]:
+    rows = [
+        {
+            "fixture_key": str(target["fixture_key"]),
+            "metric": "project_status",
+            "value": observations["status"],
+            "status": "pass" if observations["status"] == "SPARSE_SUCCESS" else "fail",
+            "status_reason": "project_status_match"
+            if observations["status"] == "SPARSE_SUCCESS"
+            else "project_status_mismatch",
+        }
+    ]
+    singular_tolerance = float(target["singular_value_tolerance"])
+    expected_singular_values = list(target["expected_singular_values"])  # type: ignore[arg-type]
+    for index, expected in enumerate(expected_singular_values):
+        metric = f"singular_value_{index}"
+        value = float(observations[metric])
+        delta = abs(value - float(expected))
+        rows.append(
+            {
+                "fixture_key": str(target["fixture_key"]),
+                "metric": metric,
+                "value": observations[metric],
+                "status": "pass" if delta <= singular_tolerance else "fail",
+                "status_reason": "project_singular_value_within_tolerance"
+                if delta <= singular_tolerance
+                else "project_singular_value_tolerance_miss",
+            }
+        )
+    metric_tolerances = {
+        "singular_values_max_abs_delta": float(target["singular_value_tolerance"]),
+        "residual_norm": float(target["residual_tolerance"]),
+        "u_orthogonality": float(target["orthogonality_tolerance"]),
+        "v_orthogonality": float(target["orthogonality_tolerance"]),
+        "u_projector_diag": float(target["projector_tolerance"]),
+        "v_projector_diag": float(target["projector_tolerance"]),
+    }
+    for metric, tolerance in metric_tolerances.items():
+        status, reason = metric_status(float(observations[metric]), tolerance)
+        rows.append(
+            {
+                "fixture_key": str(target["fixture_key"]),
+                "metric": metric,
+                "value": observations[metric],
+                "status": status,
+                "status_reason": reason,
+            }
+        )
+    return rows
+
+
 def baseline_observation_rows(
     observations: dict[str, str], target: dict[str, object]
 ) -> list[dict[str, str]]:
+    if target.get("comparison_kind") == "partial_svd":
+        return partial_svd_baseline_observation_rows(observations, target)
     values = parse_baseline_vector(observations["solution_values"])
     expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
     solution_tolerance = float(target["solution_tolerance"])
@@ -715,8 +1094,47 @@ def baseline_observation_rows(
     return rows
 
 
-def dependency_status_rows(root: Path) -> list[dict[str, str]]:
-    helper = root / "tests" / "qr_external_dense_reference.py"
+def partial_svd_baseline_observation_rows(
+    observations: dict[str, str], target: dict[str, object]
+) -> list[dict[str, str]]:
+    rows = [
+        {
+            "fixture_key": str(target["fixture_key"]),
+            "metric": "baseline_status",
+            "value": observations["status"],
+            "status": "pass" if observations["status"] == "success" else "fail",
+            "status_reason": "baseline_status_success"
+            if observations["status"] == "success"
+            else "baseline_status_mismatch",
+        }
+    ]
+    singular_tolerance = float(target["singular_value_tolerance"])
+    expected_singular_values = list(target["expected_singular_values"])  # type: ignore[arg-type]
+    for index, expected in enumerate(expected_singular_values):
+        metric = f"baseline_singular_value_{index}"
+        observation_key = f"singular_value_{index}"
+        value = float(observations[observation_key])
+        delta = abs(value - float(expected))
+        rows.append(
+            {
+                "fixture_key": str(target["fixture_key"]),
+                "metric": metric,
+                "value": observations[observation_key],
+                "status": "pass" if delta <= singular_tolerance else "fail",
+                "status_reason": "baseline_singular_value_within_tolerance"
+                if delta <= singular_tolerance
+                else "baseline_singular_value_tolerance_miss",
+            }
+        )
+    return rows
+
+
+def dependency_status_rows(root: Path, target: dict[str, object]) -> list[dict[str, str]]:
+    if target.get("comparison_kind") == "partial_svd":
+        helper_name = "tests/svd_external_dense_reference.py"
+    else:
+        helper_name = "tests/qr_external_dense_reference.py"
+    helper = root / helper_name
     return [
         {
             "dependency": "python3",
@@ -726,7 +1144,7 @@ def dependency_status_rows(root: Path) -> list[dict[str, str]]:
             "caveat": "current Python executable only; no package-manager inference",
         },
         {
-            "dependency": "tests/qr_external_dense_reference.py",
+            "dependency": helper_name,
             "status": "pass" if helper.is_file() else "error",
             "status_reason": "baseline_helper_available"
             if helper.is_file()
@@ -798,7 +1216,7 @@ def build_study_context(
         "generated_at_utc": generated_at,
         "support_tier": "local_only",
         "claim_scope": str(target["claim_scope"]),
-        "non_claims": NON_CLAIMS,
+        "non_claims": str(target.get("non_claims", NON_CLAIMS)),
     }
 
 
@@ -819,6 +1237,16 @@ def comparison_study_rows(
     observations: dict[str, str],
     target: dict[str, object],
 ) -> list[dict[str, str]]:
+    if target.get("comparison_kind") == "partial_svd":
+        return partial_svd_comparison_study_rows(
+            artifact_path=artifact_path,
+            baseline_observations=baseline_observations,
+            compiler=compiler,
+            generated_at=generated_at,
+            manifest=manifest,
+            observations=observations,
+            target=target,
+        )
     context = build_study_context(
         artifact_path=artifact_path,
         baseline_observations=baseline_observations,
@@ -960,6 +1388,148 @@ def comparison_study_rows(
     return rows
 
 
+def partial_svd_comparison_study_rows(
+    *,
+    artifact_path: str,
+    baseline_observations: dict[str, str],
+    compiler: str,
+    generated_at: str,
+    manifest: dict[str, str],
+    observations: dict[str, str],
+    target: dict[str, object],
+) -> list[dict[str, str]]:
+    context = build_study_context(
+        artifact_path=artifact_path,
+        baseline_observations=baseline_observations,
+        compiler=compiler,
+        generated_at=generated_at,
+        manifest=manifest,
+        observations=observations,
+        target=target,
+    )
+    fixture_key = str(target["fixture_key"])
+    singular_tolerance = float(target["singular_value_tolerance"])
+    residual_tolerance = float(target["residual_tolerance"])
+    orthogonality_tolerance = float(target["orthogonality_tolerance"])
+    projector_tolerance = float(target["projector_tolerance"])
+    expected_singular_values = list(target["expected_singular_values"])  # type: ignore[arg-type]
+    caveat = (
+        "local generated artifact; dirty worktree allowed only as explicit provenance"
+        if manifest["worktree_state"] == "dirty"
+        else "local generated artifact"
+    )
+
+    rows = [
+        study_row(
+            context,
+            comparison_row_id=f"comparison_{fixture_key}_project_status_v1",
+            row_kind="metric_comparison",
+            metric="project_status",
+            expected_value="SPARSE_SUCCESS",
+            project_value=observations["status"],
+            baseline_value="",
+            delta_value="",
+            tolerance_kind="status_only",
+            tolerance_value="",
+            status="pass" if observations["status"] == "SPARSE_SUCCESS" else "fail",
+            status_reason="project_status_match"
+            if observations["status"] == "SPARSE_SUCCESS"
+            else "project_status_mismatch",
+            caveat=caveat,
+        ),
+        study_row(
+            context,
+            comparison_row_id=f"comparison_{fixture_key}_baseline_status_v1",
+            row_kind="dependency_status",
+            metric="baseline_status",
+            expected_value="success",
+            project_value="",
+            baseline_value=baseline_observations["status"],
+            delta_value="",
+            tolerance_kind="status_only",
+            tolerance_value="",
+            status="pass" if baseline_observations["status"] == "success" else "fail",
+            status_reason="baseline_status_success"
+            if baseline_observations["status"] == "success"
+            else "baseline_status_mismatch",
+            caveat="required source-controlled dense singular-value reference; not an external package",
+        ),
+    ]
+    max_delta = 0.0
+    for index, expected in enumerate(expected_singular_values):
+        metric = f"singular_value_{index}"
+        project_value = float(observations[metric])
+        baseline_value = float(baseline_observations[metric])
+        delta = abs(project_value - baseline_value)
+        max_delta = max(max_delta, delta)
+        rows.append(
+            study_row(
+                context,
+                comparison_row_id=f"comparison_{fixture_key}_{metric}_v1",
+                row_kind="metric_comparison",
+                metric=metric,
+                expected_value=format_float(float(expected)),
+                project_value=observations[metric],
+                baseline_value=baseline_observations[metric],
+                delta_value=format_float(delta),
+                tolerance_kind="absolute",
+                tolerance_value=format_float(singular_tolerance),
+                status="pass" if delta <= singular_tolerance else "fail",
+                status_reason="project_baseline_singular_value_delta_within_tolerance"
+                if delta <= singular_tolerance
+                else "project_baseline_singular_value_delta_tolerance_miss",
+                caveat=caveat,
+            )
+        )
+    rows.append(
+        study_row(
+            context,
+            comparison_row_id=f"comparison_{fixture_key}_singular_values_max_abs_delta_v1",
+            row_kind="metric_comparison",
+            metric="singular_values_max_abs_delta",
+            expected_value=f"<={format_float(singular_tolerance)}",
+            project_value=observations["singular_values_max_abs_delta"],
+            baseline_value="0",
+            delta_value=format_float(max_delta),
+            tolerance_kind="absolute",
+            tolerance_value=format_float(singular_tolerance),
+            status="pass" if max_delta <= singular_tolerance else "fail",
+            status_reason="project_baseline_singular_values_delta_within_tolerance"
+            if max_delta <= singular_tolerance
+            else "project_baseline_singular_values_delta_tolerance_miss",
+            caveat=caveat,
+        )
+    )
+    for metric, tolerance in (
+        ("residual_norm", residual_tolerance),
+        ("u_orthogonality", orthogonality_tolerance),
+        ("v_orthogonality", orthogonality_tolerance),
+        ("u_projector_diag", projector_tolerance),
+        ("v_projector_diag", projector_tolerance),
+    ):
+        project_value = float(observations[metric])
+        rows.append(
+            study_row(
+                context,
+                comparison_row_id=f"comparison_{fixture_key}_{metric}_v1",
+                row_kind="metric_comparison",
+                metric=metric,
+                expected_value=f"<={format_float(tolerance)}",
+                project_value=observations[metric],
+                baseline_value="0",
+                delta_value=format_float(project_value),
+                tolerance_kind="upper_bound",
+                tolerance_value=format_float(tolerance),
+                status="pass" if project_value <= tolerance else "fail",
+                status_reason=f"project_{metric}_within_tolerance"
+                if project_value <= tolerance
+                else f"project_{metric}_tolerance_miss",
+                caveat=caveat,
+            )
+        )
+    return rows
+
+
 def validate_selected_study_rows(rows: list[dict[str, str]], target: dict[str, object]) -> None:
     expected_ids = set(expected_study_row_ids(target))
     counts: dict[str, int] = {}
@@ -983,6 +1553,19 @@ def validate_selected_study_rows(rows: list[dict[str, str]], target: dict[str, o
 
 def expected_study_row_ids(target: dict[str, object]) -> list[str]:
     fixture_key = str(target["fixture_key"])
+    if target.get("comparison_kind") == "partial_svd":
+        return [
+            f"comparison_{fixture_key}_project_status_v1",
+            f"comparison_{fixture_key}_baseline_status_v1",
+            f"comparison_{fixture_key}_singular_value_0_v1",
+            f"comparison_{fixture_key}_singular_value_1_v1",
+            f"comparison_{fixture_key}_singular_values_max_abs_delta_v1",
+            f"comparison_{fixture_key}_residual_norm_v1",
+            f"comparison_{fixture_key}_u_orthogonality_v1",
+            f"comparison_{fixture_key}_v_orthogonality_v1",
+            f"comparison_{fixture_key}_u_projector_diag_v1",
+            f"comparison_{fixture_key}_v_projector_diag_v1",
+        ]
     return [
         f"comparison_{fixture_key}_project_status_v1",
         f"comparison_{fixture_key}_baseline_status_v1",
@@ -1047,7 +1630,7 @@ def run_self_check(root: Path) -> int:
             TARGETS["qr-minnorm"],
         ),
     )
-    dependency_rows = dependency_status_rows(root)
+    dependency_rows = dependency_status_rows(root, TARGETS["qr-minnorm"])
     deferred = {
         row["dependency"]: row["status"]
         for row in dependency_rows
@@ -1078,10 +1661,7 @@ def write_summary(
                 "",
                 str(target["summary_scope"]),
                 "",
-                "It does not claim broad QR parity, NumPy/SciPy parity, "
-                "external-library ecosystem parity, package-manager support, "
-                "performance superiority, hosted CI proof, shared-library ABI "
-                "support, or state-of-the-art status.",
+                "Non-claims: " + str(target.get("non_claims", NON_CLAIMS)),
                 "",
                 "## Provenance",
                 "",
@@ -1152,7 +1732,7 @@ def run(args: argparse.Namespace) -> int:
     baseline_observations = run_baseline_reference(root, target)
     observation_rows = project_observation_rows(observations, target)
     baseline_rows = baseline_observation_rows(baseline_observations, target)
-    dependency_rows = dependency_status_rows(root)
+    dependency_rows = dependency_status_rows(root, target)
 
     project_observations_path = output_dir / "project_observations.tsv"
     baseline_observations_path = output_dir / "baseline_observations.tsv"
@@ -1171,12 +1751,21 @@ def run(args: argparse.Namespace) -> int:
         "platform": f"{platform.system().lower()}-{platform.machine().lower()}",
         "compiler": compiler,
         "configuration": (
+            "stage=sprint161_day5_comparison_logic;"
+            "baseline_status=integrated_and_compared;support_tier=local_only"
+        )
+        if target.get("comparison_kind") == "partial_svd"
+        else (
             "stage=sprint160_day5_comparison_logic;"
             "baseline_status=integrated_and_compared;support_tier=local_only"
         ),
-        "baseline_name": "source-controlled-dense-qr-reference",
+        "baseline_name": "source-controlled-dense-svd-reference"
+        if target.get("comparison_kind") == "partial_svd"
+        else "source-controlled-dense-qr-reference",
         "baseline_type": "external-process-source-controlled-helper",
-        "baseline_version": "qr_external_dense_reference.py",
+        "baseline_version": "svd_external_dense_reference.py"
+        if target.get("comparison_kind") == "partial_svd"
+        else "qr_external_dense_reference.py",
         "baseline_command": baseline_observations["baseline_command"],
         "baseline_helper_path": baseline_observations["baseline_helper_path"],
         "baseline_python_executable": baseline_observations["baseline_python_executable"],

@@ -79,6 +79,39 @@ proof, package proof, ABI proof, platform proof, performance proof,
 external-library parity, broad QR correctness, broad partial-SVD correctness,
 or state-of-the-art evidence.
 
+## Selected Comparison Freshness Gate
+
+Sprint 161 extends the selected comparison family for required freshness
+through:
+
+```sh
+make report-index-comparison-freshness
+```
+
+That target regenerates the selected QR and partial-SVD comparison reports and
+then runs:
+
+```sh
+python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
+```
+
+The selected comparison gate expects three source-controlled comparison
+contract rows plus `22` generated-local comparison rows under
+`build/comparison/*/study.tsv` with the current source commit:
+
+- `6` generated rows for `qr_underdetermined_minnorm_2x4`;
+- `6` generated rows for `qr_overdetermined_compatible_5x3`;
+- `10` generated rows for `partial_svd_diag6_k2`.
+
+Required selected comparison freshness fails missing artifacts, stale commits,
+generated comparison failures, skipped or deferred selected rows, duplicate
+rows, unexpected rows, row-count mismatches, and missing selected families.
+The generated rows are local fixture evidence only. They are not broad QR,
+SVD, or partial-SVD correctness; raw QR basis identity; raw singular-vector
+identity; vector sign/orientation identity; external-library parity; platform
+proof; package proof; ABI proof; performance proof; release proof; or
+state-of-the-art evidence.
+
 ## Guardrails
 
 - Source-controlled contract rows are advisory or deferred; they are not pass

@@ -11,6 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "run_external_comparison.py"
+REPORT_FAMILIES = REPO_ROOT / "tests" / "corpus" / "manifests" / "report_families.tsv"
 REQUIRED_OUTPUT_FILES = {
     "project_observations.tsv",
     "baseline_observations.tsv",
@@ -25,25 +26,63 @@ TARGET_EXPECTATIONS = {
         "fixture_key": "qr_underdetermined_minnorm_2x4",
         "subfamily": "qr_minnorm",
         "operation": "minnorm_solve",
+        "required_helper": "tests/qr_external_dense_reference.py",
+        "generator_command": "python3 scripts/run_external_comparison.py --target qr-minnorm",
+        "artifact_pattern": "build/comparison/qr_minnorm/study.tsv",
+        "expected_metrics": {
+            "project_status",
+            "baseline_status",
+            "residual_norm",
+            "solution_norm",
+            "solution_values",
+            "project_vs_baseline_max_abs_delta",
+        },
         "success_message": "external-comparison: qr-minnorm project-vs-baseline comparison passed",
     },
     "qr-compatible-ls": {
         "fixture_key": "qr_overdetermined_compatible_5x3",
         "subfamily": "qr_compatible_ls",
         "operation": "least_squares_solve",
+        "required_helper": "tests/qr_external_dense_reference.py",
+        "generator_command": "python3 scripts/run_external_comparison.py --target qr-compatible-ls",
+        "artifact_pattern": "build/comparison/qr_compatible_ls/study.tsv",
+        "expected_metrics": {
+            "project_status",
+            "baseline_status",
+            "residual_norm",
+            "solution_norm",
+            "solution_values",
+            "project_vs_baseline_max_abs_delta",
+        },
         "success_message": (
             "external-comparison: qr-compatible-ls project-vs-baseline comparison passed"
         ),
     },
-}
-
-EXPECTED_METRICS = {
-    "project_status",
-    "baseline_status",
-    "residual_norm",
-    "solution_norm",
-    "solution_values",
-    "project_vs_baseline_max_abs_delta",
+    "partial-svd-diag6-k2": {
+        "fixture_key": "partial_svd_diag6_k2",
+        "subfamily": "partial_svd_diag6_k2",
+        "operation": "partial_svd",
+        "required_helper": "tests/svd_external_dense_reference.py",
+        "generator_command": (
+            "python3 scripts/run_external_comparison.py --target partial-svd-diag6-k2"
+        ),
+        "artifact_pattern": "build/comparison/partial_svd_diag6_k2/study.tsv",
+        "expected_metrics": {
+            "project_status",
+            "baseline_status",
+            "singular_value_0",
+            "singular_value_1",
+            "singular_values_max_abs_delta",
+            "residual_norm",
+            "u_orthogonality",
+            "v_orthogonality",
+            "u_projector_diag",
+            "v_projector_diag",
+        },
+        "success_message": (
+            "external-comparison: partial-svd-diag6-k2 project-vs-baseline comparison passed"
+        ),
+    },
 }
 
 
@@ -67,15 +106,13 @@ def read_manifest(path: Path) -> dict[str, str]:
     return {row["key"]: row["value"] for row in read_tsv(path)}
 
 
-def expected_row_ids(fixture_key: str) -> set[str]:
-    return {
-        f"comparison_{fixture_key}_project_status_v1",
-        f"comparison_{fixture_key}_baseline_status_v1",
-        f"comparison_{fixture_key}_residual_norm_v1",
-        f"comparison_{fixture_key}_solution_norm_v1",
-        f"comparison_{fixture_key}_solution_values_v1",
-        f"comparison_{fixture_key}_project_vs_baseline_max_abs_delta_v1",
-    }
+def read_report_family_rows() -> dict[str, dict[str, str]]:
+    rows = read_tsv(REPORT_FAMILIES)
+    return {row["subfamily"]: row for row in rows if row["report_family"] == "comparison"}
+
+
+def expected_row_ids(fixture_key: str, metrics: set[str]) -> set[str]:
+    return {f"comparison_{fixture_key}_{metric}_v1" for metric in metrics}
 
 
 def assert_target_output(target: str, output_dir: Path) -> None:
@@ -103,9 +140,12 @@ def assert_target_output(target: str, output_dir: Path) -> None:
     assert manifest["study_path"] == str(output_dir / "study.tsv")
 
     rows = read_tsv(output_dir / "study.tsv")
-    assert len(rows) == 6
-    assert {row["comparison_row_id"] for row in rows} == expected_row_ids(expected["fixture_key"])
-    assert {row["metric"] for row in rows} == EXPECTED_METRICS
+    expected_metrics = expected["expected_metrics"]
+    assert len(rows) == len(expected_metrics)
+    assert {row["comparison_row_id"] for row in rows} == expected_row_ids(
+        expected["fixture_key"], expected_metrics
+    )
+    assert {row["metric"] for row in rows} == expected_metrics
     assert {row["status"] for row in rows} == {"pass"}
     assert {row["report_family"] for row in rows} == {"comparison"}
     assert {row["subfamily"] for row in rows} == {expected["subfamily"]}
@@ -115,6 +155,13 @@ def assert_target_output(target: str, output_dir: Path) -> None:
     assert {row["artifact_path"] for row in rows} == {str(output_dir / "study.tsv")}
 
     dependency_rows = read_tsv(output_dir / "dependency_status.tsv")
+    required_rows = {row["dependency"]: row for row in dependency_rows if row["required"] == "yes"}
+    assert expected["required_helper"] in required_rows
+    assert required_rows[expected["required_helper"]]["status"] == "pass"
+    assert (
+        required_rows[expected["required_helper"]]["caveat"]
+        == "source-controlled dense reference helper; not an external package"
+    )
     optional_rows = {row["dependency"]: row for row in dependency_rows if row["required"] == "no"}
     assert {"numpy", "scipy"} <= set(optional_rows)
     for dependency in ("numpy", "scipy"):
@@ -122,6 +169,17 @@ def assert_target_output(target: str, output_dir: Path) -> None:
         assert row["status"] == "defer"
         assert row["status_reason"] == "optional_package_baseline_not_selected"
         assert row["caveat"] == "deferred rows are not pass evidence"
+
+    metadata = read_report_family_rows()[expected["subfamily"]]
+    assert metadata["row_meaning"] == "external_process_dense_reference_comparison"
+    assert metadata["row_origin"] == "generated_local"
+    assert metadata["status"] == "unknown"
+    assert metadata["support_tier"] == "local_only"
+    assert metadata["freshness_policy"] == "generated_compare_inputs"
+    assert metadata["generator_command"] == expected["generator_command"]
+    assert metadata["artifact_pattern"] == expected["artifact_pattern"]
+    assert "state-of-the-art" in metadata["non_claims"]
+    assert "parity" in metadata["non_claims"]
 
 
 def test_unsupported_target_reports_supported_targets() -> None:
@@ -133,6 +191,7 @@ def test_unsupported_target_reports_supported_targets() -> None:
     assert "supported targets:" in result.stderr
     assert "qr-compatible-ls" in result.stderr
     assert "qr-minnorm" in result.stderr
+    assert "partial-svd-diag6-k2" in result.stderr
 
 
 def test_selected_targets_generate_expected_rows_and_metadata() -> None:

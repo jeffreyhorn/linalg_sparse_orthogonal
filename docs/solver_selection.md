@@ -113,7 +113,7 @@ platform parity claims, or portable performance claims.
 | General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. |
 | Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. |
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
-| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. This is not broad QR or external-library parity. |
+| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD comparison described below. This is not broad QR or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 
@@ -243,6 +243,16 @@ combined selected freshness gate by itself. Do not use that lane as broad
 partial-SVD correctness, raw vector identity, broad sparse-output optimality,
 external-library parity, broad platform proof, performance, package, ABI, or
 state-of-the-art evidence.
+
+The selected comparison freshness gate also includes
+`partial_svd_diag6_k2`. That generated comparison is fixture-local and checks
+top-k singular-value agreement, residual, left/right orthogonality, and
+diagonal projector diagnostics against the source-controlled dense SVD
+reference helper. It remains `local_only` evidence and does not claim broad
+partial-SVD correctness, raw singular-vector identity, vector sign or
+orientation identity, repeated-spectrum ordering, external-library parity,
+hosted/release/platform/package/ABI proof, performance, or state-of-the-art
+status.
 
 Useful starting example:
 

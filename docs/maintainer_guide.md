@@ -430,7 +430,7 @@ refreshed the direct-solver public guidance boundary.
 | LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
 | Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c` plus `tests/lu_external_dense_reference.py` | deterministic nonsymmetric `lu_nonsym_square_5` solve and singular `lu_singular_square_4` expected failure | no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
 | QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_qr_corpus.c`, `tests/test_colamd.c`, `tests/qr_external_dense_reference.py`, `make report-index-oracle-freshness`, and `make report-index-comparison-freshness` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, Sprint 139 corpus fixture `qr_rank_deficient_6x4_nullspace_v1` proving rank `3`, nullity `1`, and solver-produced nullspace residual `<= 1e-10`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, bounded economy projector fixture `qr_economy_projector_5x3`, and selected local generated comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper | no broad QR, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, hosted CI, platform, performance, package/ABI, or state-of-the-art claim |
-| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, `tests/test_svd_partial_corpus.c`, `tests/test_svd_partial_shared_helpers.h`, `tests/svd_external_dense_reference.py`, and `make report-index-oracle-freshness` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2`, and Sprint 140/Sprint 151 corpus fixtures `partial_svd_clustered_repeated_diag8x6_k3_v1`, `partial_svd_rankdef_diag6x4_k2_range_projector_v1`, `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and `partial_svd_fail_closed_diag6_k2_v1` proving generated top-k values, rank, selected subspace projectors, triplet residuals, orthogonality, sparse low-rank shape/nnz/selected-value/Frobenius behavior, tight-budget fail-closed behavior, no partial arrays on tight-budget failure, and recovery | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad vector/subspace, rectangular, nonsymmetric, repeated-spectrum, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, hosted CI, performance, platform, package, ABI, or state-of-the-art claim |
+| SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, `tests/test_svd_partial_corpus.c`, `tests/test_svd_partial_shared_helpers.h`, `tests/svd_external_dense_reference.py`, `make report-index-oracle-freshness`, and `make report-index-comparison-freshness` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2`, Sprint 140/Sprint 151 corpus fixtures `partial_svd_clustered_repeated_diag8x6_k3_v1`, `partial_svd_rankdef_diag6x4_k2_range_projector_v1`, `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and `partial_svd_fail_closed_diag6_k2_v1` proving generated top-k values, rank, selected subspace projectors, triplet residuals, orthogonality, sparse low-rank shape/nnz/selected-value/Frobenius behavior, tight-budget fail-closed behavior, no partial arrays on tight-budget failure, and recovery, plus the selected local generated comparison for `partial_svd_diag6_k2` proving fixture-local diagonal top-k singular-value agreement, residual, orthogonality, and diagonal projector diagnostics against the source-controlled dense SVD reference helper | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad partial-SVD correctness; no raw singular-vector identity; no vector sign/orientation identity; no broad vector/subspace, rectangular, nonsymmetric, repeated-spectrum, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, hosted CI, performance, platform, package, ABI, or state-of-the-art claim |
 
 Interpretation:
 
@@ -487,8 +487,8 @@ state-of-the-art evidence.
 
 ### Selected Comparison Freshness Gate
 
-Use the selected comparison freshness gate when you need the selected QR
-comparison report families to be current:
+Use the selected comparison freshness gate when you need the selected QR and
+partial-SVD comparison report families to be current:
 
 ```sh
 make report-index-comparison-freshness
@@ -496,8 +496,9 @@ make report-index-comparison-freshness
 
 The target builds the static library if needed, runs
 `python3 scripts/run_external_comparison.py --target qr-minnorm`, runs
-`python3 scripts/run_external_comparison.py --target qr-compatible-ls`, and
-then runs
+`python3 scripts/run_external_comparison.py --target qr-compatible-ls`, runs
+`python3 scripts/run_external_comparison.py --target partial-svd-diag6-k2`,
+and then runs
 `python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness`.
 
 Expected selected comparison output:
@@ -514,11 +515,17 @@ Expected selected comparison output:
 - `build/comparison/qr_compatible_ls/study.tsv`
 - `build/comparison/qr_compatible_ls/summary.md`
 - `build/comparison/qr_compatible_ls/manifest.tsv`
+- `build/comparison/partial_svd_diag6_k2/project_observations.tsv`
+- `build/comparison/partial_svd_diag6_k2/baseline_observations.tsv`
+- `build/comparison/partial_svd_diag6_k2/dependency_status.tsv`
+- `build/comparison/partial_svd_diag6_k2/study.tsv`
+- `build/comparison/partial_svd_diag6_k2/summary.md`
+- `build/comparison/partial_svd_diag6_k2/manifest.tsv`
 
-The required comparison freshness gate expects two source-controlled contract
-rows plus 12 generated selected rows split across
+The required comparison freshness gate expects three source-controlled
+contract rows plus 22 generated selected rows split across
 `qr_underdetermined_minnorm_2x4` and
-`qr_overdetermined_compatible_5x3`. Each selected fixture contributes:
+`qr_overdetermined_compatible_5x3`, with six rows each:
 
 - `project_status`
 - `baseline_status`
@@ -527,15 +534,28 @@ rows plus 12 generated selected rows split across
 - `solution_values`
 - `project_vs_baseline_max_abs_delta`
 
-Interpret the generated rows as fixture-local QR minimum-norm and compatible
-least-squares comparison evidence only. The reviewed Linux hosted
-report-freshness lane may run this selected gate and upload split comparison
-artifacts for reviewer inspection, but the generated rows remain `local_only`.
-`skip` and `defer` rows are visible non-proof states, and optional NumPy or
-SciPy absence cannot create pass evidence. The comparison families do not claim
-broad QR, LAPACK, NumPy, SciPy, SuiteSparse, Eigen, release, broad platform
-support, package-manager behavior, shared-library ABI, performance, or
-state-of-the-art proof.
+The selected `partial_svd_diag6_k2` family contributes ten rows:
+
+- `project_status`
+- `baseline_status`
+- `singular_value_0`
+- `singular_value_1`
+- `singular_values_max_abs_delta`
+- `residual_norm`
+- `u_orthogonality`
+- `v_orthogonality`
+- `u_projector_diag`
+- `v_projector_diag`
+
+Interpret the generated rows as fixture-local QR minimum-norm, QR compatible
+least-squares, and partial-SVD diagonal top-k comparison evidence only. The
+generated rows remain `local_only`. `skip` and `defer` rows are visible
+non-proof states, and optional NumPy or SciPy absence cannot create pass
+evidence. The comparison families do not claim broad QR, broad SVD or
+partial-SVD correctness, raw QR basis identity, raw singular-vector identity,
+vector sign/orientation identity, LAPACK, NumPy, SciPy, SuiteSparse, Eigen,
+release, broad platform support, package-manager behavior, shared-library ABI,
+performance, or state-of-the-art proof.
 
 ### QR Corpus Maintenance
 
@@ -1471,14 +1491,12 @@ remain ignored local artifacts. Sprint 159 adds reviewed Linux hosted execution
 and split artifact upload for the selected oracle gate only; broad report-index
 freshness and unselected generated families remain local/advisory.
 
-For selected QR comparison freshness, prefer
+For selected QR and partial-SVD comparison freshness, prefer
 `make report-index-comparison-freshness` over hand-running the underlying
 commands. The Makefile target regenerates current local comparison output for
-both selected targets and runs the required comparison freshness gate.
-Generated comparison and
-report-index outputs remain ignored local artifacts. Reviewed Linux hosted
-execution and split artifact upload cover only the selected QR comparison gate;
-optional NumPy/SciPy defers remain context, not pass evidence.
+all selected targets and runs the required comparison freshness gate. Generated
+comparison and report-index outputs remain ignored local artifacts. Optional
+NumPy/SciPy defers remain context, not pass evidence.
 
 ## Stable Repo Norms
 

@@ -275,7 +275,7 @@ make deadcode-check   # verify report completeness invariants
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
-make report-index-comparison-freshness  # selected QR comparison freshness, mirrored by reviewed Linux hosted CI
+make report-index-comparison-freshness  # selected QR + partial-SVD comparison freshness
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
@@ -296,8 +296,9 @@ The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
 benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof. The reviewed Linux hosted report-freshness lane runs only the
-selected oracle and selected QR comparison gates above; it does not promote
-broad report-index freshness or any unselected local-only family.
+selected oracle and selected QR plus partial-SVD comparison gates above; it
+does not promote broad report-index freshness or any unselected local-only
+family.
 
 ### With CMake
 
@@ -680,15 +681,14 @@ selected oracle gate and the split oracle artifacts are also run in the
 reviewed Linux hosted report-freshness lane. The narrow local comparison
 freshness gate is
 `make report-index-comparison-freshness`, which checks selected fixture-local
-QR minimum-norm and compatible least-squares comparisons for
-`qr_underdetermined_minnorm_2x4` and
-`qr_overdetermined_compatible_5x3` against the selected source-controlled
-dense reference helper; that selected comparison gate and the split comparison
-artifacts are also run in the reviewed Linux hosted report-freshness lane.
-These gates do not prove raw QR basis parity, broad rank-threshold policy,
-broad rank-deficient solve, broad minimum-norm behavior, SuiteSparse, LAPACK,
-NumPy, SciPy, platform parity, performance, package/ABI, or state-of-the-art
-evidence.
+QR minimum-norm and compatible least-squares comparisons plus the selected
+fixture-local partial-SVD diagonal top-k comparison for `partial_svd_diag6_k2`
+against the selected source-controlled dense reference helpers. These gates do
+not prove raw QR basis parity, raw singular-vector identity, broad
+rank-threshold policy, broad rank-deficient solve, broad minimum-norm
+behavior, broad SVD or partial-SVD correctness, SuiteSparse, LAPACK, NumPy,
+SciPy, platform parity, performance, package/ABI, release, or
+state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

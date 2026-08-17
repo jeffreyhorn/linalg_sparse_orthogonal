@@ -226,11 +226,11 @@ check_windows_package_nonclaim_wording() {
 
 check_windows_workflow_no_unselected_package_execution() {
     require_absent_grep \
-        '^[[:space:]]*(-[[:space:]]*)?run:[[:space:]]*pkg-config([[:space:]]|$)' \
+        '^[[:space:]]*(-[[:space:]]*)?run:[[:space:]]*(&[[:space:]]*)?pkg-config(\.exe)?([[:space:]]|$)' \
         "$ROOT_DIR/.github/workflows/windows-ci.yml" \
         "Windows workflow started executing pkg-config without a selected provider and downstream proof"
     require_absent_grep \
-        '^[[:space:]]*pkg-config([[:space:]]|$)' \
+        '^[[:space:]]*(&[[:space:]]*)?pkg-config(\.exe)?([[:space:]]|$)' \
         "$ROOT_DIR/.github/workflows/windows-ci.yml" \
         "Windows workflow started executing pkg-config inside a script block without a selected provider and downstream proof"
     require_absent_grep \

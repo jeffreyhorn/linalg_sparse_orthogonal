@@ -35,7 +35,7 @@ state-of-the-art claims.
 | Starting commit | `b53810ba514b030a0cbe6153cd92e9760a51b5b3` |
 | Starting commit summary | `b53810ba Merge pull request #176 from jeffreyhorn/sprint-158` |
 | Upstream state | created from current `master` after PR #176 merge |
-| Initial Day 1 scope note | The prompt referenced `docs/planning/EPIC_12/PROJECT_PLAN.md`, but the Sprint 159 section exists in `docs/planning/EPIC_14/PROJECT_PLAN.md`; the requested Sprint 159 plan/artifacts path remains under `docs/planning/EPIC_13/SPRINT_159/`. |
+| Initial Day 1 scope note | The prompt referenced `docs/planning/EPIC_12/PROJECT_PLAN.md`, but the Sprint 159 section exists in `docs/planning/EPIC_14/PROJECT_PLAN.md`; the requested Sprint 159 plan/artifacts path remains under `docs/planning/EPIC_14/SPRINT_159/`. |
 
 ## Candidate Freshness Surface
 
@@ -87,7 +87,7 @@ state-of-the-art claims.
 - Confirmed the prompt path mismatch: `EPIC_12` lines 96-130 are Sprint 139,
   while the requested Sprint 159 title appears in Epic 14.
 - Created Sprint 159 working notes and artifact directory structure under
-  `docs/planning/EPIC_13/SPRINT_159/`.
+  `docs/planning/EPIC_14/SPRINT_159/`.
 - Recorded branch baseline: `sprint-159` at
   `b53810ba514b030a0cbe6153cd92e9760a51b5b3`, created from current `master`
   after PR #176.
@@ -342,7 +342,7 @@ state-of-the-art claims.
   - `make report-index-comparison-freshness`
   - `python3 -m py_compile scripts/normalize_report_index.py tests/test_normalize_report_index.py`
   - `make lint`
-  - `git diff --check -- scripts/normalize_report_index.py tests/test_normalize_report_index.py .github/workflows/ci.yml docs/planning/EPIC_13/SPRINT_159`
+  - `git diff --check -- scripts/normalize_report_index.py tests/test_normalize_report_index.py .github/workflows/ci.yml docs/planning/EPIC_14/SPRINT_159`
 - Day 11 handoff: align maintainer and public documentation with the tightened
   selected hosted freshness semantics without broadening support-tier,
   package, ABI, platform, performance, external-parity, or state-of-the-art
@@ -433,7 +433,7 @@ state-of-the-art claims.
 ### Day 14: Closeout
 
 - Confirmed all Day 1-13 artifacts and the Sprint 159 plan/working notes are
-  present under `docs/planning/EPIC_13/SPRINT_159/`.
+  present under `docs/planning/EPIC_14/SPRINT_159/`.
 - Re-ran final targeted validation:
   - `make report-index-oracle-freshness`
   - `make report-index-comparison-freshness`

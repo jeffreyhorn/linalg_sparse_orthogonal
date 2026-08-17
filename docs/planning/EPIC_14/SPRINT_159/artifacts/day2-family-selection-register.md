@@ -16,7 +16,7 @@ explicit non-claims.
 | `docs/maintainer_guide.md` | Current QR/SVD evidence table, selected oracle/comparison freshness gate docs, and report-index interpretation. |
 | `docs/solver_selection.md` | Public QR and partial-SVD fixture-local evidence boundaries. |
 | `README.md` | Public command inventory and QR/SVD evidence wording. |
-| `docs/planning/EPIC_13/SPRINT_159/artifacts/day1-promotion-boundary.md` | Candidate command and report-family inventory. |
+| `docs/planning/EPIC_14/SPRINT_159/artifacts/day1-promotion-boundary.md` | Candidate command and report-family inventory. |
 
 ## Selection Result
 

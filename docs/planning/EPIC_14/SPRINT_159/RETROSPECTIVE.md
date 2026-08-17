@@ -6,11 +6,10 @@
 
 ## Source Artifact Note
 
-Sprint 159 was planned from the Epic 14 project-plan section for Sprint 159,
-while the requested execution package lives under
-`docs/planning/EPIC_13/SPRINT_159/`. The sprint records that path mismatch in
-`WORKING_NOTES.md`; the implemented plan, artifacts, and retrospective are in
-the requested Epic 13 Sprint 159 path.
+Sprint 159 was planned from the Epic 14 project-plan section for Sprint 159
+and now lives under `docs/planning/EPIC_14/SPRINT_159/` with its plan, working
+notes, artifacts, and retrospective in one package. `WORKING_NOTES.md` records
+the original prompt path mismatch for historical traceability.
 
 ## Definition Of Done Checklist
 

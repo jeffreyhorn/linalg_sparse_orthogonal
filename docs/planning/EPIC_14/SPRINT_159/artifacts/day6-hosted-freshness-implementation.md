@@ -13,8 +13,8 @@ performance, or broad external-library parity claims.
 | File | Change |
 | --- | --- |
 | `.github/workflows/ci.yml` | Added selected hosted oracle/comparison freshness to the Linux reviewed baseline comment and added a serialized Linux hosted freshness job. |
-| `docs/planning/EPIC_13/SPRINT_159/WORKING_NOTES.md` | Recorded Day 6 implementation notes and Day 7 handoff. |
-| `docs/planning/EPIC_13/SPRINT_159/artifacts/day6-hosted-freshness-implementation.md` | Captured this implementation artifact. |
+| `docs/planning/EPIC_14/SPRINT_159/WORKING_NOTES.md` | Recorded Day 6 implementation notes and Day 7 handoff. |
+| `docs/planning/EPIC_14/SPRINT_159/artifacts/day6-hosted-freshness-implementation.md` | Captured this implementation artifact. |
 
 No C or public-header files were modified.
 

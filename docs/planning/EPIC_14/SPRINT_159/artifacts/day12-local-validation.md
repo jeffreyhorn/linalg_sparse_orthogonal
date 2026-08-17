@@ -18,7 +18,7 @@ No `.c` or `.h` files are modified, so the required C/header quality gate
 | `python3 tests/test_normalize_report_index.py` | Pass | Focused normalizer tests, including selected comparison pass/missing/stale/duplicate/unexpected/fail/defer coverage. |
 | `python3 -m py_compile scripts/normalize_report_index.py tests/test_normalize_report_index.py` | Pass | Python syntax compilation for changed executable script/test files. |
 | `make docs-check` | Pass | Doxygen generation and API docs coverage check passed. |
-| `git diff --check -- .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_13/SPRINT_159` | Pass | Diff whitespace hygiene passed. |
+| `git diff --check -- .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_14/SPRINT_159` | Pass | Diff whitespace hygiene passed. |
 | `rg -n "[ \t]+$" ...` | Pass | No trailing whitespace found in changed Sprint 159 files. |
 
 ## Freshness Output Summary

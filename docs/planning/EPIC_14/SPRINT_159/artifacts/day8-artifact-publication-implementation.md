@@ -14,8 +14,8 @@ No C or public-header files were modified.
 | File | Change |
 | --- | --- |
 | `.github/workflows/ci.yml` | Split selected artifact uploads, added oracle/comparison summary steps, and made missing selected files fail with `if-no-files-found: error`. |
-| `docs/planning/EPIC_13/SPRINT_159/WORKING_NOTES.md` | Recorded Day 8 implementation notes and Day 9 handoff. |
-| `docs/planning/EPIC_13/SPRINT_159/artifacts/day8-artifact-publication-implementation.md` | Captured this implementation artifact. |
+| `docs/planning/EPIC_14/SPRINT_159/WORKING_NOTES.md` | Recorded Day 8 implementation notes and Day 9 handoff. |
+| `docs/planning/EPIC_14/SPRINT_159/artifacts/day8-artifact-publication-implementation.md` | Captured this implementation artifact. |
 
 ## Workflow Implementation
 

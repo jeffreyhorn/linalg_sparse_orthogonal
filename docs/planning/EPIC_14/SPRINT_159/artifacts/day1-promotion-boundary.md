@@ -32,7 +32,7 @@ Sprint 139. The matching Sprint 159 section is in
 kept in the requested path:
 
 ```text
-docs/planning/EPIC_13/SPRINT_159/
+docs/planning/EPIC_14/SPRINT_159/
 ```
 
 ## Branch Baseline

@@ -14,8 +14,8 @@ No C or public-header files were modified.
 | --- | --- |
 | `scripts/normalize_report_index.py` | Treat selected required current-commit generated oracle/comparison rows as `fresh` instead of generic `generated_present_unchecked` warnings, and rename comparison skip/defer diagnostics from optional-row wording to selected-row wording. |
 | `tests/test_normalize_report_index.py` | Added synthetic selected comparison fixtures and tests for valid, missing, stale, duplicate, unexpected, failed, and deferred selected comparison rows. |
-| `docs/planning/EPIC_13/SPRINT_159/WORKING_NOTES.md` | Recorded Day 10 implementation notes and Day 11 handoff. |
-| `docs/planning/EPIC_13/SPRINT_159/artifacts/day10-normalizer-semantics-implementation.md` | Captured this implementation artifact. |
+| `docs/planning/EPIC_14/SPRINT_159/WORKING_NOTES.md` | Recorded Day 10 implementation notes and Day 11 handoff. |
+| `docs/planning/EPIC_14/SPRINT_159/artifacts/day10-normalizer-semantics-implementation.md` | Captured this implementation artifact. |
 
 ## Implementation Details
 
@@ -90,7 +90,7 @@ make report-index-oracle-freshness
 make report-index-comparison-freshness
 python3 -m py_compile scripts/normalize_report_index.py tests/test_normalize_report_index.py
 make lint
-git diff --check -- scripts/normalize_report_index.py tests/test_normalize_report_index.py .github/workflows/ci.yml docs/planning/EPIC_13/SPRINT_159
+git diff --check -- scripts/normalize_report_index.py tests/test_normalize_report_index.py .github/workflows/ci.yml docs/planning/EPIC_14/SPRINT_159
 ```
 
 Observed selected freshness behavior after the change:

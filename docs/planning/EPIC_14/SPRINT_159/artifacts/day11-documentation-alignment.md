@@ -15,7 +15,7 @@ No C or public-header files were modified.
 | `docs/maintainer_guide.md` | Updated selected oracle/comparison gate sections and normalized report-index interpretation for Sprint 159 hosted execution and selected-row fresh/error semantics. |
 | `tests/corpus/README.md` | Clarified that Sprint 159 hosted CI covers only selected required oracle and QR minimum-norm comparison freshness rows, not broad report-index freshness or every local-only family. |
 | `docs/solver_selection.md` | Updated QR and partial-SVD evidence boundaries to mention the selected reviewed Linux hosted report-freshness lane without turning it into broad platform or parity proof. |
-| `docs/planning/EPIC_13/SPRINT_159/WORKING_NOTES.md` | Recorded Day 11 notes and Day 12 handoff. |
+| `docs/planning/EPIC_14/SPRINT_159/WORKING_NOTES.md` | Recorded Day 11 notes and Day 12 handoff. |
 
 ## Documentation Semantics
 
@@ -99,7 +99,7 @@ after this wording update:
 make report-index-oracle-freshness
 make report-index-comparison-freshness
 python3 tests/test_normalize_report_index.py
-git diff --check -- README.md docs/maintainer_guide.md tests/corpus/README.md docs/solver_selection.md docs/planning/EPIC_13/SPRINT_159
+git diff --check -- README.md docs/maintainer_guide.md tests/corpus/README.md docs/solver_selection.md docs/planning/EPIC_14/SPRINT_159
 ```
 
 ## Completion Check

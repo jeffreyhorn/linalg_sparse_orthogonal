@@ -54,8 +54,8 @@ python3 tests/test_normalize_report_index.py
 make docs-check
 python3 -m py_compile scripts/normalize_report_index.py tests/test_normalize_report_index.py
 ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci.yml"); puts "ci.yml YAML parse ok"'
-git diff --check -- .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_13/SPRINT_159
-rg -n "[ \t]+$" .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_13/SPRINT_159
+git diff --check -- .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_14/SPRINT_159
+rg -n "[ \t]+$" .github/workflows/ci.yml README.md docs/maintainer_guide.md docs/solver_selection.md scripts/normalize_report_index.py tests/corpus/README.md tests/test_normalize_report_index.py docs/planning/EPIC_14/SPRINT_159
 ```
 
 Observed final selected freshness status:

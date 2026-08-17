@@ -401,9 +401,9 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
 /**
  * @brief Compute C = alpha*A + beta*B (sparse matrix addition with scaling).
  *
- * A and B must have the same dimensions. C_out is set to NULL before
- * validation/allocation, and on success receives a newly allocated
- * caller-owned matrix.
+ * A and B must have the same dimensions. After A, B, and C_out are validated,
+ * *C_out is set to NULL before shape checks/allocation; on success it receives
+ * a newly allocated caller-owned matrix.
  * Entries that cancel to zero (|value| < 1e-15) are not stored.
  *
  * @note Operates in physical index space. Do not use on matrices with
@@ -413,9 +413,9 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
  * @param B       Second input matrix (borrowed, not modified).
  * @param alpha   Scalar for A.
  * @param beta    Scalar for B.
- * @param[out] C_out  Pointer to receive the result matrix. Set to NULL on
- *                    entry and left NULL on error. The caller must free a
- *                    successful result with sparse_free().
+ * @param[out] C_out  Pointer to receive the result matrix. Set to NULL after
+ *                    pointer validation and left NULL on later errors. The
+ *                    caller must free a successful result with sparse_free().
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
  *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
  *         memory failure.
@@ -506,8 +506,9 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * input) return SPARSE_ERR_PARSE.
  *
  * @param[out] mat_out  Pointer to receive the loaded caller-owned matrix. Set
- *                      to NULL on entry and left NULL on error. The caller
- *                      must free a successful matrix with sparse_free().
+ *                      to NULL after argument validation and left NULL on later
+ *                      errors. The caller must free a successful matrix with
+ *                      sparse_free().
  * @param      filename Path to the input .mtx file.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
  *         SPARSE_ERR_IO on file open/read failure, SPARSE_ERR_PARSE on

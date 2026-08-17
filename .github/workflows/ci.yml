@@ -5,6 +5,7 @@ name: CI
 # - reviewed CMake parity path
 # - dead-code report/check path
 # - reviewed static-first package contract path
+# - selected hosted oracle/comparison freshness path
 # It also carries Linux-specific supplemental signals (`make test`,
 # `bench-fast`, TSan, coverage). The package contract lane covers the
 # maintained static archive install/export/downstream surface only, including
@@ -76,6 +77,131 @@ jobs:
 
       - name: Run static-first package deferral proof
         run: bash scripts/static_package_deferral_check.sh
+
+  generated-report-freshness:
+    name: Linux reviewed hosted oracle/comparison freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # This lane promotes only the selected QR/partial-SVD oracle rows and
+      # the selected QR minimum-norm comparison rows to reviewed hosted
+      # evidence. Other generated report families remain local-only,
+      # supplemental, or advisory unless a later sprint explicitly promotes
+      # them with their own runtime, artifact, and claim policy.
+      - name: Run reviewed hosted oracle freshness
+        run: make report-index-oracle-freshness
+
+      - name: Summarize reviewed hosted oracle freshness
+        run: |
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          oracle_path = Path("build/corpus/oracle/corpus.oracle.tsv")
+          manifest_path = Path("build/corpus-reports/manifest.txt")
+          rows = list(csv.DictReader(oracle_path.open(newline=""), delimiter="\t"))
+          solver_counts = {}
+          status_counts = {}
+          for row in rows:
+              solver_counts[row["solver_family"]] = solver_counts.get(row["solver_family"], 0) + 1
+              status = row["comparison_status"]
+              status_counts[status] = status_counts.get(status, 0) + 1
+          manifest = {}
+          for line in manifest_path.read_text(encoding="utf-8").splitlines():
+              if "=" in line:
+                  key, value = line.split("=", 1)
+                  manifest[key] = value
+          print(
+              "sprint159-oracle-summary: "
+              f"total_rows={len(rows)} "
+              f"qr_rows={solver_counts.get('qr', 0)} "
+              f"partial_svd_rows={solver_counts.get('partial_svd', 0)} "
+              f"generated_reference_rows={solver_counts.get('unknown', 0)} "
+              f"pass_rows={status_counts.get('pass', 0)}"
+          )
+          print(
+              "sprint159-oracle-summary: "
+              f"source_commit={manifest.get('source_commit', 'unknown')} "
+              f"source_branch={manifest.get('source_branch', 'unknown')} "
+              f"support_tier={manifest.get('support_tier', 'unknown')}"
+          )
+          PY
+
+      - name: Upload reviewed oracle freshness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint159-oracle-freshness
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            build/corpus/oracle/corpus.oracle.tsv
+            build/corpus-reports/index.tsv
+            build/corpus-reports/skips.tsv
+            build/corpus-reports/manifest.txt
+
+      - name: Run reviewed hosted QR minimum-norm comparison freshness
+        run: make report-index-comparison-freshness
+
+      - name: Summarize reviewed hosted QR minimum-norm comparison freshness
+        run: |
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          study_path = Path("build/comparison/qr_minnorm/study.tsv")
+          deps_path = Path("build/comparison/qr_minnorm/dependency_status.tsv")
+          manifest_path = Path("build/comparison/qr_minnorm/manifest.tsv")
+          study_rows = list(csv.DictReader(study_path.open(newline=""), delimiter="\t"))
+          deps = list(csv.DictReader(deps_path.open(newline=""), delimiter="\t"))
+          manifest = {
+              row["key"]: row["value"]
+              for row in csv.DictReader(manifest_path.open(newline=""), delimiter="\t")
+          }
+          status_counts = {}
+          for row in study_rows:
+              status_counts[row["status"]] = status_counts.get(row["status"], 0) + 1
+          dep_counts = {}
+          deferred_optional = []
+          for row in deps:
+              dep_counts[row["status"]] = dep_counts.get(row["status"], 0) + 1
+              if row["status"] == "defer" and row["required"] == "no":
+                  deferred_optional.append(row["dependency"])
+          print(
+              "sprint159-comparison-summary: "
+              f"fixture={manifest.get('fixture_key', 'unknown')} "
+              f"selected_rows={len(study_rows)} "
+              f"pass_rows={status_counts.get('pass', 0)}"
+          )
+          print(
+              "sprint159-comparison-summary: "
+              f"dependency_pass={dep_counts.get('pass', 0)} "
+              f"dependency_defer={dep_counts.get('defer', 0)} "
+              f"deferred_optional={','.join(deferred_optional) if deferred_optional else 'none'}"
+          )
+          print(
+              "sprint159-comparison-summary: "
+              f"source_commit={manifest.get('source_commit', 'unknown')} "
+              f"source_branch={manifest.get('source_branch', 'unknown')}"
+          )
+          PY
+
+      - name: Upload reviewed QR minimum-norm comparison freshness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint159-comparison-qr-minnorm
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            build/comparison/qr_minnorm/project_observations.tsv
+            build/comparison/qr_minnorm/baseline_observations.tsv
+            build/comparison/qr_minnorm/dependency_status.tsv
+            build/comparison/qr_minnorm/study.tsv
+            build/comparison/qr_minnorm/summary.md
+            build/comparison/qr_minnorm/manifest.tsv
 
   tsan:
     name: Linux supplemental ThreadSanitizer coverage

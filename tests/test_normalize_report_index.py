@@ -38,7 +38,17 @@ SELECTED_COMPARISON_ROW_IDS = [
     "comparison_qr_underdetermined_minnorm_2x4_solution_norm_v1",
     "comparison_qr_underdetermined_minnorm_2x4_solution_values_v1",
     "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1",
+    "comparison_qr_overdetermined_compatible_5x3_project_status_v1",
+    "comparison_qr_overdetermined_compatible_5x3_baseline_status_v1",
+    "comparison_qr_overdetermined_compatible_5x3_residual_norm_v1",
+    "comparison_qr_overdetermined_compatible_5x3_solution_norm_v1",
+    "comparison_qr_overdetermined_compatible_5x3_solution_values_v1",
+    "comparison_qr_overdetermined_compatible_5x3_project_vs_baseline_max_abs_delta_v1",
 ]
+SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
+    "artifacts=build/comparison/qr_minnorm/study.tsv,"
+    "build/comparison/qr_compatible_ls/study.tsv"
+)
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",
@@ -861,18 +871,31 @@ def write_selected_comparison_rows(
     duplicate_first: bool = False,
     unexpected_first: bool = False,
 ) -> None:
-    comparison_dir = build_root / "comparison" / "qr_minnorm"
-    comparison_dir.mkdir(parents=True, exist_ok=True)
     row_ids = list(SELECTED_COMPARISON_ROW_IDS)
     if drop_last:
-        row_ids.pop()
+        row_ids.remove(
+            "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1"
+        )
     if unexpected_first:
         row_ids[0] = "comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1"
     if duplicate_first:
         row_ids.append(row_ids[0])
 
-    rows = []
+    rows_by_subfamily: dict[str, list[dict[str, str]]] = {
+        "qr_minnorm": [],
+        "qr_compatible_ls": [],
+    }
     for index, row_id in enumerate(row_ids):
+        if "qr_overdetermined_compatible_5x3" in row_id:
+            subfamily = "qr_compatible_ls"
+            fixture_key = "qr_overdetermined_compatible_5x3"
+            operation = "least_squares_solve"
+            artifact_path = "build/comparison/qr_compatible_ls/study.tsv"
+        else:
+            subfamily = "qr_minnorm"
+            fixture_key = "qr_underdetermined_minnorm_2x4"
+            operation = "minnorm_solve"
+            artifact_path = "build/comparison/qr_minnorm/study.tsv"
         status = "pass"
         status_reason = "synthetic_pass"
         if index == 0 and defer_first:
@@ -881,14 +904,14 @@ def write_selected_comparison_rows(
         if index == 0 and fail_first:
             status = "fail"
             status_reason = "synthetic_comparison_failure"
-        rows.append(
+        rows_by_subfamily[subfamily].append(
             {
                 "comparison_row_id": row_id,
                 "report_family": "comparison",
-                "subfamily": "qr_minnorm",
+                "subfamily": subfamily,
                 "row_kind": "metric_comparison",
-                "fixture_key": "qr_underdetermined_minnorm_2x4",
-                "operation": "qr_solve",
+                "fixture_key": fixture_key,
+                "operation": operation,
                 "metric": f"synthetic_metric_{index}",
                 "baseline_name": "dense_reference",
                 "baseline_type": "source_controlled",
@@ -914,17 +937,22 @@ def write_selected_comparison_rows(
                 "status": status,
                 "status_reason": status_reason,
                 "caveat": "",
-                "artifact_path": "build/comparison/qr_minnorm/study.tsv",
+                "artifact_path": artifact_path,
                 "generated_at_utc": "2026-08-16T00:00:00Z",
                 "support_tier": "local_only",
                 "claim_scope": "selected generated comparison freshness proof",
                 "non_claims": "synthetic test rows only; no broad QR parity claim",
             }
         )
-    with (comparison_dir / "study.tsv").open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
-        writer.writeheader()
-        writer.writerows(rows)
+    for subfamily, rows in rows_by_subfamily.items():
+        if not rows:
+            continue
+        comparison_dir = build_root / "comparison" / subfamily
+        comparison_dir.mkdir(parents=True, exist_ok=True)
+        with (comparison_dir / "study.tsv").open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
 
 
 def test_generated_oracle_rows_are_preserved() -> None:
@@ -1345,6 +1373,7 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
             expect_success=False,
         )
         assert "required generated family missing: comparison" in result.stdout
+        assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
 
         write_selected_comparison_rows(build_root)
         result = run_command(
@@ -1388,6 +1417,7 @@ def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> No
         assert "freshness: error:" in result.stdout
         assert "comparison_selected_rows" in result.stdout
         assert "row_set_mismatch" in result.stdout
+        assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
         assert "missing=comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1" in result.stdout
 
         write_selected_comparison_rows(build_root, unexpected_first=True)
@@ -1407,6 +1437,7 @@ def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> No
         )
         assert "freshness: error:" in result.stdout
         assert "unexpected=comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1" in result.stdout
+        assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
 
 
 def test_selected_comparison_required_freshness_rejects_duplicate_rows() -> None:
@@ -1472,6 +1503,7 @@ def test_selected_comparison_required_freshness_rejects_stale_and_invalid_rows()
         assert "freshness: error:" in result.stdout
         assert "generated comparison row reports fail" in result.stdout
         assert "comparison_selected_status" in result.stdout
+        assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
 
         write_selected_comparison_rows(build_root, defer_first=True)
         result = run_command(

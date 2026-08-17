@@ -604,6 +604,7 @@ report-index-oracle-freshness: $(LIB)
 report-index-comparison-freshness: $(LIB)
 	@echo "report-index-comparison-freshness: regenerating selected local comparison output"
 	@python3 scripts/run_external_comparison.py --target qr-minnorm
+	@python3 scripts/run_external_comparison.py --target qr-compatible-ls
 	@echo "report-index-comparison-freshness: checking selected comparison freshness"
 	@python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
 	@echo "report-index-comparison-freshness: passed (local-only generated comparison freshness)"

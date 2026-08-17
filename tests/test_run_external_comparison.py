@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Focused tests for the external comparison runner CLI."""
+
+from __future__ import annotations
+
+import csv
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = REPO_ROOT / "scripts" / "run_external_comparison.py"
+REQUIRED_OUTPUT_FILES = {
+    "project_observations.tsv",
+    "baseline_observations.tsv",
+    "dependency_status.tsv",
+    "study.tsv",
+    "summary.md",
+    "manifest.tsv",
+}
+
+TARGET_EXPECTATIONS = {
+    "qr-minnorm": {
+        "fixture_key": "qr_underdetermined_minnorm_2x4",
+        "subfamily": "qr_minnorm",
+        "operation": "minnorm_solve",
+        "success_message": "external-comparison: qr-minnorm project-vs-baseline comparison passed",
+    },
+    "qr-compatible-ls": {
+        "fixture_key": "qr_overdetermined_compatible_5x3",
+        "subfamily": "qr_compatible_ls",
+        "operation": "least_squares_solve",
+        "success_message": (
+            "external-comparison: qr-compatible-ls project-vs-baseline comparison passed"
+        ),
+    },
+}
+
+EXPECTED_METRICS = {
+    "project_status",
+    "baseline_status",
+    "residual_norm",
+    "solution_norm",
+    "solution_values",
+    "project_vs_baseline_max_abs_delta",
+}
+
+
+def run_command(args: list[str], *, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(args, cwd=REPO_ROOT, text=True, capture_output=True)
+    if expect_success and result.returncode != 0:
+        raise AssertionError(
+            f"command failed: {' '.join(args)}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    if not expect_success and result.returncode == 0:
+        raise AssertionError(f"command unexpectedly succeeded: {' '.join(args)}")
+    return result
+
+
+def read_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
+def read_manifest(path: Path) -> dict[str, str]:
+    return {row["key"]: row["value"] for row in read_tsv(path)}
+
+
+def expected_row_ids(fixture_key: str) -> set[str]:
+    return {
+        f"comparison_{fixture_key}_project_status_v1",
+        f"comparison_{fixture_key}_baseline_status_v1",
+        f"comparison_{fixture_key}_residual_norm_v1",
+        f"comparison_{fixture_key}_solution_norm_v1",
+        f"comparison_{fixture_key}_solution_values_v1",
+        f"comparison_{fixture_key}_project_vs_baseline_max_abs_delta_v1",
+    }
+
+
+def assert_target_output(target: str, output_dir: Path) -> None:
+    output_dir = output_dir.resolve()
+    expected = TARGET_EXPECTATIONS[target]
+    result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--target",
+            target,
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+    assert expected["success_message"] in result.stdout
+
+    missing = sorted(name for name in REQUIRED_OUTPUT_FILES if not (output_dir / name).is_file())
+    if missing:
+        raise AssertionError(f"{target} did not generate required files: {missing}")
+
+    manifest = read_manifest(output_dir / "manifest.tsv")
+    assert manifest["target"] == target
+    assert manifest["fixture_key"] == expected["fixture_key"]
+    assert manifest["study_path"] == str(output_dir / "study.tsv")
+
+    rows = read_tsv(output_dir / "study.tsv")
+    assert len(rows) == 6
+    assert {row["comparison_row_id"] for row in rows} == expected_row_ids(expected["fixture_key"])
+    assert {row["metric"] for row in rows} == EXPECTED_METRICS
+    assert {row["status"] for row in rows} == {"pass"}
+    assert {row["report_family"] for row in rows} == {"comparison"}
+    assert {row["subfamily"] for row in rows} == {expected["subfamily"]}
+    assert {row["fixture_key"] for row in rows} == {expected["fixture_key"]}
+    assert {row["operation"] for row in rows} == {expected["operation"]}
+    assert {row["support_tier"] for row in rows} == {"local_only"}
+    assert {row["artifact_path"] for row in rows} == {str(output_dir / "study.tsv")}
+
+    dependency_rows = read_tsv(output_dir / "dependency_status.tsv")
+    optional_rows = {row["dependency"]: row for row in dependency_rows if row["required"] == "no"}
+    assert {"numpy", "scipy"} <= set(optional_rows)
+    for dependency in ("numpy", "scipy"):
+        row = optional_rows[dependency]
+        assert row["status"] == "defer"
+        assert row["status_reason"] == "optional_package_baseline_not_selected"
+        assert row["caveat"] == "deferred rows are not pass evidence"
+
+
+def test_unsupported_target_reports_supported_targets() -> None:
+    result = run_command(
+        ["python3", str(SCRIPT), "--target", "not-a-target"],
+        expect_success=False,
+    )
+    assert "ERROR unsupported_target:" in result.stderr
+    assert "supported targets:" in result.stderr
+    assert "qr-compatible-ls" in result.stderr
+    assert "qr-minnorm" in result.stderr
+
+
+def test_selected_targets_generate_expected_rows_and_metadata() -> None:
+    with tempfile.TemporaryDirectory(prefix="sparse-external-comparison-test-") as tmp:
+        tmp_root = Path(tmp)
+        for target in sorted(TARGET_EXPECTATIONS):
+            assert_target_output(target, tmp_root / target)
+
+
+def main() -> int:
+    test_unsupported_target_reports_supported_targets()
+    test_selected_targets_generate_expected_rows_and_metadata()
+    print("test-run-external-comparison: ok")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

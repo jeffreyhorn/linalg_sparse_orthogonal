@@ -77,7 +77,20 @@ SELECTED_COMPARISON_ROW_IDS = {
     "comparison_qr_underdetermined_minnorm_2x4_solution_norm_v1",
     "comparison_qr_underdetermined_minnorm_2x4_solution_values_v1",
     "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1",
+    "comparison_qr_overdetermined_compatible_5x3_project_status_v1",
+    "comparison_qr_overdetermined_compatible_5x3_baseline_status_v1",
+    "comparison_qr_overdetermined_compatible_5x3_residual_norm_v1",
+    "comparison_qr_overdetermined_compatible_5x3_solution_norm_v1",
+    "comparison_qr_overdetermined_compatible_5x3_solution_values_v1",
+    "comparison_qr_overdetermined_compatible_5x3_project_vs_baseline_max_abs_delta_v1",
 }
+SELECTED_COMPARISON_ARTIFACTS = (
+    "build/comparison/qr_minnorm/study.tsv",
+    "build/comparison/qr_compatible_ls/study.tsv",
+)
+SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = "artifacts=" + ",".join(
+    SELECTED_COMPARISON_ARTIFACTS
+)
 
 NORMALIZED_FIELDS = [
     "row_id",
@@ -1222,7 +1235,7 @@ def selected_comparison_policy_diagnostics(
             f"missing={','.join(missing) or 'none'}; "
             f"duplicates={','.join(duplicates) or 'none'}; "
             f"unexpected={','.join(unexpected) or 'none'}; "
-            "artifact=build/comparison/qr_minnorm/study.tsv; "
+            f"{SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
             "run make report-index-comparison-freshness"
         )
 
@@ -1235,7 +1248,7 @@ def selected_comparison_policy_diagnostics(
         has_error = True
         diagnostics.append(
             "freshness: error: comparison_selected_status: non_pass_selected_row: "
-            f"{';'.join(non_pass)}; artifact=build/comparison/qr_minnorm/study.tsv; "
+            f"{';'.join(non_pass)}; {SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
             "run make report-index-comparison-freshness"
         )
 
@@ -1333,7 +1346,7 @@ def freshness_severity(
                 return (
                     "error",
                     "required generated family missing: comparison; "
-                    "artifact=build/comparison/qr_minnorm/study.tsv; "
+                    f"{SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
                     "run make report-index-comparison-freshness",
                 )
             return ("error", f"required generated family missing: {row['report_family']}")

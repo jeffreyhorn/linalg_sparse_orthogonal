@@ -19,17 +19,75 @@ from validate_corpus_schema import GENERATED_FIXTURES
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "build" / "comparison" / "qr_minnorm"
 DEFAULT_LIBRARY = REPO_ROOT / "build" / "libsparse_lu_ortho.a"
 
-TARGET = "qr-minnorm"
-FIXTURE_KEY = "qr_underdetermined_minnorm_2x4"
-GENERATOR_KEY = "qr_underdetermined_minnorm_2x4_generator_v1"
-RHS = [1.0, 1.0]
-EXPECTED_SOLUTION = [0.5, 0.5, 0.5, 0.5]
-EXPECTED_SOLUTION_NORM = 1.0
-RESIDUAL_TOLERANCE = 1e-10
-SOLUTION_TOLERANCE = 1e-10
+RESIDUAL_TOLERANCE_DEFAULT = 1e-10
+SOLUTION_TOLERANCE_DEFAULT = 1e-10
+
+QR_COMPATIBLE_LS_ENTRIES = [
+    (0, 0, 1.0),
+    (0, 2, 2.0),
+    (1, 1, 1.0),
+    (1, 2, -1.0),
+    (2, 0, 2.0),
+    (2, 1, -1.0),
+    (3, 0, 1.0),
+    (3, 1, 1.0),
+    (3, 2, 1.0),
+    (4, 0, 3.0),
+    (4, 2, -2.0),
+]
+
+TARGETS = {
+    "qr-minnorm": {
+        "fixture_key": "qr_underdetermined_minnorm_2x4",
+        "generator_key": "qr_underdetermined_minnorm_2x4_generator_v1",
+        "subfamily": "qr_minnorm",
+        "operation": "minnorm_solve",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "qr_minnorm",
+        "rhs": [1.0, 1.0],
+        "expected_solution": [0.5, 0.5, 0.5, 0.5],
+        "expected_solution_norm": 1.0,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "solution_tolerance": SOLUTION_TOLERANCE_DEFAULT,
+        "baseline_value_count": 6,
+        "solve_mode": "minnorm",
+        "claim_scope": "fixture-local qr minimum-norm comparison only",
+        "summary_title": "QR Minimum-Norm External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local QR "
+            "minimum-norm solve against the source-controlled dense "
+            "reference helper."
+        ),
+        "success_message": "external-comparison: qr-minnorm project-vs-baseline comparison passed",
+    },
+    "qr-compatible-ls": {
+        "fixture_key": "qr_overdetermined_compatible_5x3",
+        "entries": QR_COMPATIBLE_LS_ENTRIES,
+        "rows": 5,
+        "cols": 3,
+        "subfamily": "qr_compatible_ls",
+        "operation": "least_squares_solve",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "qr_compatible_ls",
+        "rhs": [2.0, -2.5, 4.0, -0.5, 2.0],
+        "expected_solution": [1.0, -2.0, 0.5],
+        "expected_solution_norm": 2.2912878474779199,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "solution_tolerance": SOLUTION_TOLERANCE_DEFAULT,
+        "baseline_value_count": 4,
+        "solve_mode": "least_squares",
+        "claim_scope": "fixture-local qr compatible least-squares comparison only",
+        "summary_title": "QR Compatible Least-Squares External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local QR "
+            "compatible least-squares solve against the source-controlled "
+            "dense reference helper."
+        ),
+        "success_message": (
+            "external-comparison: qr-compatible-ls project-vs-baseline comparison passed"
+        ),
+    },
+}
 
 MANIFEST_FIELDS = [
     "key",
@@ -225,7 +283,30 @@ def c_literal_for_values(values: list[float]) -> str:
     return ", ".join(f"{value:.17g}" for value in values)
 
 
-def project_probe_source(entries: list[tuple[int, int, float]], rows: int, cols: int) -> str:
+def project_probe_source(
+    entries: list[tuple[int, int, float]],
+    rows: int,
+    cols: int,
+    rhs: list[float],
+    solve_mode: str,
+) -> str:
+    if solve_mode == "minnorm":
+        solve_block = "    sparse_err_t err = sparse_qr_solve_minnorm(A, rhs, x, NULL);\n"
+        cleanup_block = ""
+    elif solve_mode == "least_squares":
+        solve_block = """    sparse_qr_t qr;
+    int qr_factored = 0;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    if (err == SPARSE_OK) {
+        qr_factored = 1;
+        err = sparse_qr_solve(&qr, rhs, x, NULL);
+    }
+"""
+        cleanup_block = """    if (qr_factored)
+        sparse_qr_free(&qr);
+"""
+    else:
+        raise ComparisonError("unsupported_target", f"unsupported project solve mode {solve_mode!r}")
     return f"""#include \"sparse_matrix.h\"
 #include \"sparse_qr.h\"
 #include \"sparse_types.h\"
@@ -242,7 +323,7 @@ static const Entry entries[] = {{
 {c_literal_for_entries(entries)}
 }};
 
-static const double rhs[{rows}] = {{{c_literal_for_values(RHS)}}};
+static const double rhs[{rows}] = {{{c_literal_for_values(rhs)}}};
 
 static const char *status_name(sparse_err_t err) {{
     switch (err) {{
@@ -287,7 +368,7 @@ int main(void) {{
     double x[{cols}];
     for (idx_t col = 0; col < {cols}; ++col)
         x[col] = 0.0;
-    sparse_err_t err = sparse_qr_solve_minnorm(A, rhs, x, NULL);
+{solve_block}
 
     double residual_sq = 0.0;
     double norm_sq = 0.0;
@@ -316,6 +397,7 @@ int main(void) {{
     }}
     printf(\"\\n\");
 
+{cleanup_block}
     sparse_free(A);
     return 0;
 }}
@@ -338,20 +420,47 @@ def parse_key_values(output: str, required: set[str]) -> dict[str, str]:
     return parsed
 
 
-def run_project_probe(root: Path, library: Path, keep_temp: bool) -> tuple[dict[str, str], str]:
+def descriptor_entries(target: dict[str, object]) -> tuple[list[tuple[int, int, float]], int, int]:
+    if "generator_key" in target:
+        fixture = GENERATED_FIXTURES[str(target["generator_key"])]
+        entries = fixture["entries"]()
+        rows = int(fixture["rows"])
+        cols = int(fixture["cols"])
+        return entries, rows, cols
+    if {"entries", "rows", "cols"} <= set(target):
+        return (
+            list(target["entries"]),  # type: ignore[arg-type]
+            int(target["rows"]),
+            int(target["cols"]),
+        )
+    raise ComparisonError(
+        "missing_fixture_metadata",
+        f"missing fixture metadata for {target['fixture_key']}",
+    )
+
+
+def run_project_probe(
+    root: Path, library: Path, keep_temp: bool, target: dict[str, object]
+) -> tuple[dict[str, str], str]:
     ensure_library(root, library)
-    fixture = GENERATED_FIXTURES[GENERATOR_KEY]
-    entries = fixture["entries"]()
-    rows = int(fixture["rows"])
-    cols = int(fixture["cols"])
+    entries, rows, cols = descriptor_entries(target)
     cc = compiler_argv()
     compiler = compiler_identity(cc)
 
     temp_dir = Path(tempfile.mkdtemp(prefix="sparse-comparison-"))
     try:
-        source = temp_dir / "qr_minnorm_probe.c"
-        binary = temp_dir / "qr_minnorm_probe"
-        source.write_text(project_probe_source(entries, rows, cols), encoding="utf-8")
+        source = temp_dir / f"{str(target['subfamily'])}_probe.c"
+        binary = temp_dir / f"{str(target['subfamily'])}_probe"
+        source.write_text(
+            project_probe_source(
+                entries,
+                rows,
+                cols,
+                list(target["rhs"]),  # type: ignore[arg-type]
+                str(target["solve_mode"]),
+            ),
+            encoding="utf-8",
+        )
         compile_cmd = [
             *cc,
             "-std=c99",
@@ -410,7 +519,7 @@ def parse_baseline_vector(text: str) -> list[float]:
         raise ComparisonError("baseline_malformed_output", f"malformed baseline vector {text!r}") from exc
 
 
-def run_baseline_reference(root: Path) -> dict[str, str]:
+def run_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
     helper = root / "tests" / "qr_external_dense_reference.py"
     if not helper.is_file():
         raise ComparisonError(
@@ -418,7 +527,10 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
             f"selected baseline helper is missing: {helper}",
         )
 
-    command = [sys.executable, str(helper), FIXTURE_KEY]
+    fixture_key = str(target["fixture_key"])
+    baseline_value_count = int(target["baseline_value_count"])
+    expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
+    command = [sys.executable, str(helper), fixture_key]
     output = run_capture(command, cwd=root, failure_class="baseline_command_failed")
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     if not lines:
@@ -428,7 +540,7 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
     if len(header) != 2 or header[0] != "OK":
         raise ComparisonError(
             "baseline_malformed_output",
-            f"baseline first line must be 'OK 6', got {lines[0]!r}",
+            f"baseline first line must be 'OK {baseline_value_count}', got {lines[0]!r}",
         )
     try:
         value_count = int(header[1])
@@ -437,10 +549,10 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
             "baseline_malformed_output",
             f"baseline value count is not an integer: {header[1]!r}",
         ) from exc
-    if value_count != 6:
+    if value_count != baseline_value_count:
         raise ComparisonError(
             "baseline_malformed_output",
-            f"baseline value count must be 6 for {FIXTURE_KEY}, got {value_count}",
+            f"baseline value count must be {baseline_value_count} for {fixture_key}, got {value_count}",
         )
 
     value_lines = lines[1:]
@@ -457,9 +569,18 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
             f"baseline emitted non-numeric values: {', '.join(value_lines)}",
         ) from exc
 
-    solution = values[:4]
-    residual = values[4]
-    solution_norm = values[5]
+    solution_count = len(expected_solution)
+    if value_count < solution_count + 1:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline value count must include solution and residual for {fixture_key}",
+        )
+    solution = values[:solution_count]
+    residual = values[solution_count]
+    if value_count > solution_count + 1:
+        solution_norm = values[solution_count + 1]
+    else:
+        solution_norm = sum(value * value for value in solution) ** 0.5
     return {
         "status": "success",
         "solution_values": ",".join(f"{value:.17g}" for value in solution),
@@ -472,19 +593,24 @@ def run_baseline_reference(root: Path) -> dict[str, str]:
     }
 
 
-def project_observation_rows(observations: dict[str, str]) -> list[dict[str, str]]:
+def project_observation_rows(
+    observations: dict[str, str], target: dict[str, object]
+) -> list[dict[str, str]]:
     values = parse_vector(observations["solution_values"])
-    if len(values) != len(EXPECTED_SOLUTION):
+    expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
+    solution_tolerance = float(target["solution_tolerance"])
+    residual_tolerance = float(target["residual_tolerance"])
+    if len(values) != len(expected_solution):
         raise ComparisonError(
             "project_probe_failed",
-            f"project solution has {len(values)} values, expected {len(EXPECTED_SOLUTION)}",
+            f"project solution has {len(values)} values, expected {len(expected_solution)}",
         )
     max_abs_delta = max(
-        abs(expected - observed) for expected, observed in zip(EXPECTED_SOLUTION, values)
+        abs(expected - observed) for expected, observed in zip(expected_solution, values)
     )
     rows = [
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "project_status",
             "value": observations["status"],
             "status": "pass" if observations["status"] == "SPARSE_SUCCESS" else "fail",
@@ -493,57 +619,62 @@ def project_observation_rows(observations: dict[str, str]) -> list[dict[str, str
             else "project_status_mismatch",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "residual_norm",
             "value": observations["residual_norm"],
             "status": "pass"
-            if float(observations["residual_norm"]) <= RESIDUAL_TOLERANCE
+            if float(observations["residual_norm"]) <= residual_tolerance
             else "fail",
             "status_reason": "project_residual_within_tolerance"
-            if float(observations["residual_norm"]) <= RESIDUAL_TOLERANCE
+            if float(observations["residual_norm"]) <= residual_tolerance
             else "project_residual_tolerance_miss",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "solution_norm",
             "value": observations["solution_norm"],
             "status": "pass"
-            if abs(float(observations["solution_norm"]) - EXPECTED_SOLUTION_NORM)
-            <= SOLUTION_TOLERANCE
+            if abs(float(observations["solution_norm"]) - float(target["expected_solution_norm"]))
+            <= solution_tolerance
             else "fail",
             "status_reason": "project_solution_norm_within_tolerance"
-            if abs(float(observations["solution_norm"]) - EXPECTED_SOLUTION_NORM)
-            <= SOLUTION_TOLERANCE
+            if abs(float(observations["solution_norm"]) - float(target["expected_solution_norm"]))
+            <= solution_tolerance
             else "project_solution_norm_tolerance_miss",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "solution_values",
             "value": observations["solution_values"],
-            "status": "pass" if max_abs_delta <= SOLUTION_TOLERANCE else "fail",
+            "status": "pass" if max_abs_delta <= solution_tolerance else "fail",
             "status_reason": "project_solution_values_within_tolerance"
-            if max_abs_delta <= SOLUTION_TOLERANCE
+            if max_abs_delta <= solution_tolerance
             else "project_solution_values_tolerance_miss",
         },
     ]
     return rows
 
 
-def baseline_observation_rows(observations: dict[str, str]) -> list[dict[str, str]]:
+def baseline_observation_rows(
+    observations: dict[str, str], target: dict[str, object]
+) -> list[dict[str, str]]:
     values = parse_baseline_vector(observations["solution_values"])
-    if len(values) != len(EXPECTED_SOLUTION):
+    expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
+    solution_tolerance = float(target["solution_tolerance"])
+    residual_tolerance = float(target["residual_tolerance"])
+    if len(values) != len(expected_solution):
         raise ComparisonError(
             "baseline_malformed_output",
-            f"baseline solution has {len(values)} values, expected {len(EXPECTED_SOLUTION)}",
+            f"baseline solution has {len(values)} values, expected {len(expected_solution)}",
         )
     max_abs_delta = max(
-        abs(expected - observed) for expected, observed in zip(EXPECTED_SOLUTION, values)
+        abs(expected - observed) for expected, observed in zip(expected_solution, values)
     )
     residual = float(observations["residual_norm"])
     solution_norm = float(observations["solution_norm"])
     rows = [
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "baseline_status",
             "value": observations["status"],
             "status": "pass" if observations["status"] == "success" else "fail",
@@ -552,32 +683,32 @@ def baseline_observation_rows(observations: dict[str, str]) -> list[dict[str, st
             else "baseline_status_mismatch",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "baseline_residual_norm",
             "value": observations["residual_norm"],
-            "status": "pass" if residual <= RESIDUAL_TOLERANCE else "fail",
+            "status": "pass" if residual <= residual_tolerance else "fail",
             "status_reason": "baseline_residual_within_tolerance"
-            if residual <= RESIDUAL_TOLERANCE
+            if residual <= residual_tolerance
             else "baseline_residual_tolerance_miss",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "baseline_solution_norm",
             "value": observations["solution_norm"],
             "status": "pass"
-            if abs(solution_norm - EXPECTED_SOLUTION_NORM) <= SOLUTION_TOLERANCE
+            if abs(solution_norm - float(target["expected_solution_norm"])) <= solution_tolerance
             else "fail",
             "status_reason": "baseline_solution_norm_within_tolerance"
-            if abs(solution_norm - EXPECTED_SOLUTION_NORM) <= SOLUTION_TOLERANCE
+            if abs(solution_norm - float(target["expected_solution_norm"])) <= solution_tolerance
             else "baseline_solution_norm_tolerance_miss",
         },
         {
-            "fixture_key": FIXTURE_KEY,
+            "fixture_key": str(target["fixture_key"]),
             "metric": "baseline_solution_values",
             "value": observations["solution_values"],
-            "status": "pass" if max_abs_delta <= SOLUTION_TOLERANCE else "fail",
+            "status": "pass" if max_abs_delta <= solution_tolerance else "fail",
             "status_reason": "baseline_solution_values_within_tolerance"
-            if max_abs_delta <= SOLUTION_TOLERANCE
+            if max_abs_delta <= solution_tolerance
             else "baseline_solution_values_tolerance_miss",
         },
     ]
@@ -641,12 +772,13 @@ def build_study_context(
     generated_at: str,
     manifest: dict[str, str],
     observations: dict[str, str],
+    target: dict[str, object],
 ) -> dict[str, str]:
     return {
         "report_family": "comparison",
-        "subfamily": "qr_minnorm",
-        "fixture_key": FIXTURE_KEY,
-        "operation": "minnorm_solve",
+        "subfamily": str(target["subfamily"]),
+        "fixture_key": str(target["fixture_key"]),
+        "operation": str(target["operation"]),
         "baseline_name": manifest["baseline_name"],
         "baseline_type": manifest["baseline_type"],
         "baseline_version": manifest["baseline_version"],
@@ -665,7 +797,7 @@ def build_study_context(
         "artifact_path": artifact_path,
         "generated_at_utc": generated_at,
         "support_tier": "local_only",
-        "claim_scope": "fixture-local qr minimum-norm comparison only",
+        "claim_scope": str(target["claim_scope"]),
         "non_claims": NON_CLAIMS,
     }
 
@@ -685,6 +817,7 @@ def comparison_study_rows(
     generated_at: str,
     manifest: dict[str, str],
     observations: dict[str, str],
+    target: dict[str, object],
 ) -> list[dict[str, str]]:
     context = build_study_context(
         artifact_path=artifact_path,
@@ -693,10 +826,15 @@ def comparison_study_rows(
         generated_at=generated_at,
         manifest=manifest,
         observations=observations,
+        target=target,
     )
+    fixture_key = str(target["fixture_key"])
+    expected_solution_values = list(target["expected_solution"])  # type: ignore[arg-type]
+    residual_tolerance = float(target["residual_tolerance"])
+    solution_tolerance = float(target["solution_tolerance"])
     project_solution = parse_vector(observations["solution_values"])
     baseline_solution = parse_baseline_vector(baseline_observations["solution_values"])
-    expected_solution = ",".join(format_float(value) for value in EXPECTED_SOLUTION)
+    expected_solution = ",".join(format_float(value) for value in expected_solution_values)
     solution_delta = max_abs_delta(
         project_solution,
         baseline_solution,
@@ -718,7 +856,7 @@ def comparison_study_rows(
     rows = [
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_project_status_v1",
+            comparison_row_id=f"comparison_{fixture_key}_project_status_v1",
             row_kind="metric_comparison",
             metric="project_status",
             expected_value="SPARSE_SUCCESS",
@@ -735,7 +873,7 @@ def comparison_study_rows(
         ),
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_baseline_status_v1",
+            comparison_row_id=f"comparison_{fixture_key}_baseline_status_v1",
             row_kind="dependency_status",
             metric="baseline_status",
             expected_value="success",
@@ -752,41 +890,41 @@ def comparison_study_rows(
         ),
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_residual_norm_v1",
+            comparison_row_id=f"comparison_{fixture_key}_residual_norm_v1",
             row_kind="metric_comparison",
             metric="residual_norm",
-            expected_value=f"<={format_float(RESIDUAL_TOLERANCE)}",
+            expected_value=f"<={format_float(residual_tolerance)}",
             project_value=observations["residual_norm"],
             baseline_value=baseline_observations["residual_norm"],
             delta_value=format_float(residual_delta),
             tolerance_kind="absolute",
-            tolerance_value=format_float(RESIDUAL_TOLERANCE),
-            status="pass" if residual_delta <= RESIDUAL_TOLERANCE else "fail",
+            tolerance_value=format_float(residual_tolerance),
+            status="pass" if residual_delta <= residual_tolerance else "fail",
             status_reason="project_baseline_residual_delta_within_tolerance"
-            if residual_delta <= RESIDUAL_TOLERANCE
+            if residual_delta <= residual_tolerance
             else "project_baseline_residual_delta_tolerance_miss",
             caveat=caveat,
         ),
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_solution_norm_v1",
+            comparison_row_id=f"comparison_{fixture_key}_solution_norm_v1",
             row_kind="metric_comparison",
             metric="solution_norm",
-            expected_value=format_float(EXPECTED_SOLUTION_NORM),
+            expected_value=format_float(float(target["expected_solution_norm"])),
             project_value=observations["solution_norm"],
             baseline_value=baseline_observations["solution_norm"],
             delta_value=format_float(solution_norm_delta),
             tolerance_kind="absolute",
-            tolerance_value=format_float(SOLUTION_TOLERANCE),
-            status="pass" if solution_norm_delta <= SOLUTION_TOLERANCE else "fail",
+            tolerance_value=format_float(solution_tolerance),
+            status="pass" if solution_norm_delta <= solution_tolerance else "fail",
             status_reason="project_baseline_solution_norm_delta_within_tolerance"
-            if solution_norm_delta <= SOLUTION_TOLERANCE
+            if solution_norm_delta <= solution_tolerance
             else "project_baseline_solution_norm_delta_tolerance_miss",
             caveat=caveat,
         ),
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_solution_values_v1",
+            comparison_row_id=f"comparison_{fixture_key}_solution_values_v1",
             row_kind="metric_comparison",
             metric="solution_values",
             expected_value=expected_solution,
@@ -794,27 +932,27 @@ def comparison_study_rows(
             baseline_value=baseline_observations["solution_values"],
             delta_value=format_float(solution_delta),
             tolerance_kind="absolute_per_component",
-            tolerance_value=format_float(SOLUTION_TOLERANCE),
-            status="pass" if solution_delta <= SOLUTION_TOLERANCE else "fail",
+            tolerance_value=format_float(solution_tolerance),
+            status="pass" if solution_delta <= solution_tolerance else "fail",
             status_reason="project_baseline_solution_values_delta_within_tolerance"
-            if solution_delta <= SOLUTION_TOLERANCE
+            if solution_delta <= solution_tolerance
             else "project_baseline_solution_values_delta_tolerance_miss",
             caveat=caveat,
         ),
         study_row(
             context,
-            comparison_row_id=f"comparison_{FIXTURE_KEY}_project_vs_baseline_max_abs_delta_v1",
+            comparison_row_id=f"comparison_{fixture_key}_project_vs_baseline_max_abs_delta_v1",
             row_kind="metric_comparison",
             metric="project_vs_baseline_max_abs_delta",
-            expected_value=f"<={format_float(SOLUTION_TOLERANCE)}",
+            expected_value=f"<={format_float(solution_tolerance)}",
             project_value=observations["solution_values"],
             baseline_value=baseline_observations["solution_values"],
             delta_value=format_float(solution_delta),
             tolerance_kind="absolute",
-            tolerance_value=format_float(SOLUTION_TOLERANCE),
-            status="pass" if solution_delta <= SOLUTION_TOLERANCE else "fail",
+            tolerance_value=format_float(solution_tolerance),
+            status="pass" if solution_delta <= solution_tolerance else "fail",
             status_reason="project_baseline_max_abs_delta_within_tolerance"
-            if solution_delta <= SOLUTION_TOLERANCE
+            if solution_delta <= solution_tolerance
             else "project_baseline_max_abs_delta_tolerance_miss",
             caveat=caveat,
         ),
@@ -822,15 +960,8 @@ def comparison_study_rows(
     return rows
 
 
-def validate_selected_study_rows(rows: list[dict[str, str]]) -> None:
-    expected_ids = {
-        f"comparison_{FIXTURE_KEY}_project_status_v1",
-        f"comparison_{FIXTURE_KEY}_baseline_status_v1",
-        f"comparison_{FIXTURE_KEY}_residual_norm_v1",
-        f"comparison_{FIXTURE_KEY}_solution_norm_v1",
-        f"comparison_{FIXTURE_KEY}_solution_values_v1",
-        f"comparison_{FIXTURE_KEY}_project_vs_baseline_max_abs_delta_v1",
-    }
+def validate_selected_study_rows(rows: list[dict[str, str]], target: dict[str, object]) -> None:
+    expected_ids = set(expected_study_row_ids(target))
     counts: dict[str, int] = {}
     for row in rows:
         row_id = row["comparison_row_id"]
@@ -850,14 +981,15 @@ def validate_selected_study_rows(rows: list[dict[str, str]]) -> None:
         raise ComparisonError("metric_tolerance_miss", ", ".join(failures))
 
 
-def expected_study_row_ids() -> list[str]:
+def expected_study_row_ids(target: dict[str, object]) -> list[str]:
+    fixture_key = str(target["fixture_key"])
     return [
-        f"comparison_{FIXTURE_KEY}_project_status_v1",
-        f"comparison_{FIXTURE_KEY}_baseline_status_v1",
-        f"comparison_{FIXTURE_KEY}_residual_norm_v1",
-        f"comparison_{FIXTURE_KEY}_solution_norm_v1",
-        f"comparison_{FIXTURE_KEY}_solution_values_v1",
-        f"comparison_{FIXTURE_KEY}_project_vs_baseline_max_abs_delta_v1",
+        f"comparison_{fixture_key}_project_status_v1",
+        f"comparison_{fixture_key}_baseline_status_v1",
+        f"comparison_{fixture_key}_residual_norm_v1",
+        f"comparison_{fixture_key}_solution_norm_v1",
+        f"comparison_{fixture_key}_solution_values_v1",
+        f"comparison_{fixture_key}_project_vs_baseline_max_abs_delta_v1",
     ]
 
 
@@ -872,26 +1004,33 @@ def assert_comparison_error(expected: str, fn) -> None:
 
 
 def run_self_check(root: Path) -> int:
-    passing_rows = [
-        {"comparison_row_id": row_id, "status": "pass", "status_reason": "self_check"}
-        for row_id in expected_study_row_ids()
-    ]
-    validate_selected_study_rows(passing_rows)
-    assert_comparison_error(
-        "missing_selected_row",
-        lambda: validate_selected_study_rows(passing_rows[:-1]),
-    )
-    assert_comparison_error(
-        "duplicate_selected_row",
-        lambda: validate_selected_study_rows([*passing_rows, passing_rows[0]]),
-    )
-    failing_rows = [dict(row) for row in passing_rows]
-    failing_rows[0]["status"] = "fail"
-    failing_rows[0]["status_reason"] = "self_check_failure"
-    assert_comparison_error(
-        "metric_tolerance_miss",
-        lambda: validate_selected_study_rows(failing_rows),
-    )
+    for target in TARGETS.values():
+        passing_rows = [
+            {"comparison_row_id": row_id, "status": "pass", "status_reason": "self_check"}
+            for row_id in expected_study_row_ids(target)
+        ]
+        validate_selected_study_rows(passing_rows, target)
+        assert_comparison_error(
+            "missing_selected_row",
+            lambda target=target, passing_rows=passing_rows: validate_selected_study_rows(
+                passing_rows[:-1], target
+            ),
+        )
+        assert_comparison_error(
+            "duplicate_selected_row",
+            lambda target=target, passing_rows=passing_rows: validate_selected_study_rows(
+                [*passing_rows, passing_rows[0]], target
+            ),
+        )
+        failing_rows = [dict(row) for row in passing_rows]
+        failing_rows[0]["status"] = "fail"
+        failing_rows[0]["status_reason"] = "self_check_failure"
+        assert_comparison_error(
+            "metric_tolerance_miss",
+            lambda target=target, failing_rows=failing_rows: validate_selected_study_rows(
+                failing_rows, target
+            ),
+        )
     assert_comparison_error(
         "metric_comparison_malformed",
         lambda: max_abs_delta([1.0], [1.0, 2.0], "metric_comparison_malformed"),
@@ -904,7 +1043,8 @@ def run_self_check(root: Path) -> int:
                 "residual_norm": "0",
                 "solution_norm": "1",
                 "solution_values": "0.5,0.5,0.5",
-            }
+            },
+            TARGETS["qr-minnorm"],
         ),
     )
     dependency_rows = dependency_status_rows(root)
@@ -919,7 +1059,9 @@ def run_self_check(root: Path) -> int:
     return 0
 
 
-def write_summary(path: Path, rows: list[dict[str, str]], manifest: dict[str, str]) -> None:
+def write_summary(
+    path: Path, rows: list[dict[str, str]], manifest: dict[str, str], target: dict[str, object]
+) -> None:
     pass_rows = [row for row in rows if row["status"] == "pass"]
     non_pass_rows = [row for row in rows if row["status"] != "pass"]
     metric_lines = "\n".join(
@@ -930,13 +1072,11 @@ def write_summary(path: Path, rows: list[dict[str, str]], manifest: dict[str, st
     path.write_text(
         "\n".join(
             [
-                "# QR Minimum-Norm External Comparison Study",
+                f"# {target['summary_title']}",
                 "",
                 "## Scope",
                 "",
-                "This local generated study compares one fixture-local QR "
-                "minimum-norm solve against the source-controlled dense "
-                "reference helper.",
+                str(target["summary_scope"]),
                 "",
                 "It does not claim broad QR parity, NumPy/SciPy parity, "
                 "external-library ecosystem parity, package-manager support, "
@@ -994,19 +1134,24 @@ def write_manifest(path: Path, manifest: dict[str, str]) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    if args.target != TARGET:
-        raise ComparisonError("unsupported_target", f"unsupported target {args.target!r}")
+    if args.target not in TARGETS:
+        supported = ", ".join(sorted(TARGETS))
+        raise ComparisonError(
+            "unsupported_target",
+            f"unsupported target {args.target!r}; supported targets: {supported}",
+        )
 
+    target = TARGETS[args.target]
     root = args.root.resolve()
-    output_dir = args.output_dir.resolve()
+    output_dir = args.output_dir.resolve() if args.output_dir else Path(target["output_dir"]).resolve()
     library = args.library.resolve()
     reset_output_dir(output_dir)
 
     generated_at = utc_timestamp()
-    observations, compiler = run_project_probe(root, library, args.keep_temp)
-    baseline_observations = run_baseline_reference(root)
-    observation_rows = project_observation_rows(observations)
-    baseline_rows = baseline_observation_rows(baseline_observations)
+    observations, compiler = run_project_probe(root, library, args.keep_temp, target)
+    baseline_observations = run_baseline_reference(root, target)
+    observation_rows = project_observation_rows(observations, target)
+    baseline_rows = baseline_observation_rows(baseline_observations, target)
     dependency_rows = dependency_status_rows(root)
 
     project_observations_path = output_dir / "project_observations.tsv"
@@ -1017,7 +1162,7 @@ def run(args: argparse.Namespace) -> int:
     manifest_path = output_dir / "manifest.tsv"
     manifest = {
         "target": args.target,
-        "fixture_key": FIXTURE_KEY,
+        "fixture_key": str(target["fixture_key"]),
         "generated_at_utc": generated_at,
         "source_commit": current_commit(root),
         "source_branch": current_branch(root),
@@ -1026,7 +1171,7 @@ def run(args: argparse.Namespace) -> int:
         "platform": f"{platform.system().lower()}-{platform.machine().lower()}",
         "compiler": compiler,
         "configuration": (
-            "stage=day9_comparison_logic;"
+            "stage=sprint160_day5_comparison_logic;"
             "baseline_status=integrated_and_compared;support_tier=local_only"
         ),
         "baseline_name": "source-controlled-dense-qr-reference",
@@ -1061,14 +1206,15 @@ def run(args: argparse.Namespace) -> int:
         generated_at=generated_at,
         manifest=manifest,
         observations=observations,
+        target=target,
     )
-    validate_selected_study_rows(study_rows)
+    validate_selected_study_rows(study_rows, target)
 
     write_tsv(project_observations_path, PROJECT_OBSERVATION_FIELDS, observation_rows)
     write_tsv(baseline_observations_path, BASELINE_OBSERVATION_FIELDS, baseline_rows)
     write_tsv(dependency_status_path, DEPENDENCY_STATUS_FIELDS, dependency_rows)
     write_tsv(study_path, STUDY_FIELDS, study_rows)
-    write_summary(summary_path, study_rows, manifest)
+    write_summary(summary_path, study_rows, manifest, target)
     write_manifest(manifest_path, manifest)
 
     print(f"external-comparison: wrote {project_observations_path}")
@@ -1077,15 +1223,18 @@ def run(args: argparse.Namespace) -> int:
     print(f"external-comparison: wrote {study_path}")
     print(f"external-comparison: wrote {summary_path}")
     print(f"external-comparison: wrote {manifest_path}")
-    print("external-comparison: qr-minnorm project-vs-baseline comparison passed")
+    print(str(target["success_message"]))
     return 0
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", help="comparison target; only qr-minnorm is supported")
+    parser.add_argument(
+        "--target",
+        help=f"comparison target; supported: {', '.join(sorted(TARGETS))}",
+    )
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--library", type=Path, default=DEFAULT_LIBRARY)
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--self-check", action="store_true")

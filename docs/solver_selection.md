@@ -113,7 +113,7 @@ platform parity claims, or portable performance claims.
 | General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. |
 | Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. |
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
-| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds one selected QR minimum-norm comparison for `qr_underdetermined_minnorm_2x4` against the selected source-controlled dense reference helper and is mirrored by reviewed Linux hosted CI. This is not broad QR or external-library parity. |
+| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. This is not broad QR or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 

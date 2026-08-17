@@ -133,10 +133,37 @@ diagnostics in the form
 by default and become errors only when `--require-generated oracle` is used.
 Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
-records observed status. Sprint 159 mirrors the selected required oracle and
-QR minimum-norm comparison freshness gates in the reviewed Linux hosted lane;
-that hosted lane covers only the selected generated rows and split artifacts,
-not broad report-index freshness or all local-only families.
+records observed status. The reviewed Linux hosted lane mirrors the selected
+required oracle and QR comparison freshness gates; that hosted lane covers
+only the selected generated rows and split artifacts, not broad report-index
+freshness or all local-only families.
+
+## Selected QR Comparison Freshness
+
+The selected QR comparison freshness gate is:
+
+```sh
+make report-index-comparison-freshness
+```
+
+It regenerates two fixture-local comparison families before strict
+normalization:
+
+| Target | Fixture | Comparison meaning | Artifact |
+| --- | --- | --- | --- |
+| `qr-minnorm` | `qr_underdetermined_minnorm_2x4` | minimum-norm solve against the source-controlled dense QR reference helper | `build/comparison/qr_minnorm/study.tsv` |
+| `qr-compatible-ls` | `qr_overdetermined_compatible_5x3` | compatible least-squares solve against the source-controlled dense QR reference helper | `build/comparison/qr_compatible_ls/study.tsv` |
+
+Each selected comparison family contributes six generated rows:
+`project_status`, `baseline_status`, `residual_norm`, `solution_norm`,
+`solution_values`, and `project_vs_baseline_max_abs_delta`.
+
+These rows are local generated evidence for the named fixtures only. They do
+not prove broad QR parity, raw QR basis identity, Q sign/orientation identity,
+global rank-threshold behavior, broad rank-deficient solve behavior,
+external-library parity, platform support, package/ABI support, performance,
+or state-of-the-art status. Optional NumPy/SciPy dependency rows are deferred
+context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 
@@ -342,10 +369,10 @@ python3 scripts/normalize_report_index.py --family oracle --check-freshness
 
 Use `--require-generated oracle` only when the current review actually requires
 local generated oracle artifacts to exist and match the selected freshness
-policy. Sprint 159 hosted CI runs the selected oracle gate and the selected
-QR minimum-norm comparison gate as reviewed Linux evidence, but generated
-corpus/report rows remain fixture-local and do not imply broad solver,
-platform, package, performance, external-parity, or state-of-the-art claims.
+policy. Hosted CI runs the selected oracle gate and the selected QR comparison
+gate as reviewed Linux evidence, but generated corpus/report rows remain
+fixture-local and do not imply broad solver, platform, package, performance,
+external-parity, or state-of-the-art claims.
 
 ## Optional Data
 

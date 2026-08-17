@@ -44,10 +44,24 @@ SELECTED_COMPARISON_ROW_IDS = [
     "comparison_qr_overdetermined_compatible_5x3_solution_norm_v1",
     "comparison_qr_overdetermined_compatible_5x3_solution_values_v1",
     "comparison_qr_overdetermined_compatible_5x3_project_vs_baseline_max_abs_delta_v1",
+    "comparison_partial_svd_diag6_k2_project_status_v1",
+    "comparison_partial_svd_diag6_k2_baseline_status_v1",
+    "comparison_partial_svd_diag6_k2_singular_value_0_v1",
+    "comparison_partial_svd_diag6_k2_singular_value_1_v1",
+    "comparison_partial_svd_diag6_k2_singular_values_max_abs_delta_v1",
+    "comparison_partial_svd_diag6_k2_residual_norm_v1",
+    "comparison_partial_svd_diag6_k2_u_orthogonality_v1",
+    "comparison_partial_svd_diag6_k2_v_orthogonality_v1",
+    "comparison_partial_svd_diag6_k2_u_projector_diag_v1",
+    "comparison_partial_svd_diag6_k2_v_projector_diag_v1",
 ]
+SELECTED_PARTIAL_SVD_COMPARISON_ROW_IDS = {
+    row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "partial_svd_diag6_k2" in row_id
+}
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/qr_minnorm/study.tsv,"
-    "build/comparison/qr_compatible_ls/study.tsv"
+    "build/comparison/qr_compatible_ls/study.tsv,"
+    "build/comparison/partial_svd_diag6_k2/study.tsv"
 )
 ORACLE_FIELDS = [
     "oracle_row_id",
@@ -868,34 +882,49 @@ def write_selected_comparison_rows(
     stale_first: bool = False,
     defer_first: bool = False,
     fail_first: bool = False,
+    skip_first: bool = False,
     duplicate_first: bool = False,
     unexpected_first: bool = False,
 ) -> None:
     row_ids = list(SELECTED_COMPARISON_ROW_IDS)
     if drop_last:
-        row_ids.remove(
-            "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1"
-        )
+        row_ids.remove("comparison_partial_svd_diag6_k2_v_projector_diag_v1")
     if unexpected_first:
-        row_ids[0] = "comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1"
+        row_ids[0] = "comparison_partial_svd_diag6_k2_unexpected_metric_v1"
     if duplicate_first:
-        row_ids.append(row_ids[0])
+        row_ids.append("comparison_partial_svd_diag6_k2_project_status_v1")
+    if stale_first or defer_first or fail_first or skip_first:
+        selected = "comparison_partial_svd_diag6_k2_project_status_v1"
+        row_ids.remove(selected)
+        row_ids.insert(0, selected)
 
     rows_by_subfamily: dict[str, list[dict[str, str]]] = {
         "qr_minnorm": [],
         "qr_compatible_ls": [],
+        "partial_svd_diag6_k2": [],
     }
     for index, row_id in enumerate(row_ids):
-        if "qr_overdetermined_compatible_5x3" in row_id:
+        if "partial_svd_diag6_k2" in row_id:
+            subfamily = "partial_svd_diag6_k2"
+            fixture_key = "partial_svd_diag6_k2"
+            operation = "partial_svd"
+            artifact_path = "build/comparison/partial_svd_diag6_k2/study.tsv"
+            non_claims = (
+                "synthetic test rows only; no broad partial-SVD correctness; "
+                "no raw singular-vector identity claim"
+            )
+        elif "qr_overdetermined_compatible_5x3" in row_id:
             subfamily = "qr_compatible_ls"
             fixture_key = "qr_overdetermined_compatible_5x3"
             operation = "least_squares_solve"
             artifact_path = "build/comparison/qr_compatible_ls/study.tsv"
+            non_claims = "synthetic test rows only; no broad QR parity claim"
         else:
             subfamily = "qr_minnorm"
             fixture_key = "qr_underdetermined_minnorm_2x4"
             operation = "minnorm_solve"
             artifact_path = "build/comparison/qr_minnorm/study.tsv"
+            non_claims = "synthetic test rows only; no broad QR parity claim"
         status = "pass"
         status_reason = "synthetic_pass"
         if index == 0 and defer_first:
@@ -904,6 +933,9 @@ def write_selected_comparison_rows(
         if index == 0 and fail_first:
             status = "fail"
             status_reason = "synthetic_comparison_failure"
+        if index == 0 and skip_first:
+            status = "skip"
+            status_reason = "synthetic_comparison_skipped"
         rows_by_subfamily[subfamily].append(
             {
                 "comparison_row_id": row_id,
@@ -941,7 +973,7 @@ def write_selected_comparison_rows(
                 "generated_at_utc": "2026-08-16T00:00:00Z",
                 "support_tier": "local_only",
                 "claim_scope": "selected generated comparison freshness proof",
-                "non_claims": "synthetic test rows only; no broad QR parity claim",
+                "non_claims": non_claims,
             }
         )
     for subfamily, rows in rows_by_subfamily.items():
@@ -1394,6 +1426,36 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
         assert "freshness: warning:" not in result.stdout
         assert "generated row exists but strict freshness comparison is pending" not in result.stdout
 
+        output = Path(tmp) / "comparison-index.tsv"
+        run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--output",
+                str(output),
+            ]
+        )
+        rows = read_tsv(output)
+        partial_svd_rows = [
+            row
+            for row in rows
+            if row["subfamily"] == "partial_svd_diag6_k2"
+            and row["row_origin"] == "generated_local"
+            and row["row_id"].startswith("comparison_")
+        ]
+        assert {row["row_id"] for row in partial_svd_rows} == SELECTED_PARTIAL_SVD_COMPARISON_ROW_IDS
+        assert {row["status"] for row in partial_svd_rows} == {"pass"}
+        assert {row["support_tier"] for row in partial_svd_rows} == {"local_only"}
+        assert all(
+            row["artifact_path"].endswith("comparison/partial_svd_diag6_k2/study.tsv")
+            for row in partial_svd_rows
+        )
+        assert all("raw singular-vector identity" in row["non_claims"] for row in partial_svd_rows)
+
 
 def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -1418,7 +1480,7 @@ def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> No
         assert "comparison_selected_rows" in result.stdout
         assert "row_set_mismatch" in result.stdout
         assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
-        assert "missing=comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1" in result.stdout
+        assert "missing=comparison_partial_svd_diag6_k2_v_projector_diag_v1" in result.stdout
 
         write_selected_comparison_rows(build_root, unexpected_first=True)
         result = run_command(
@@ -1436,7 +1498,7 @@ def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> No
             expect_success=False,
         )
         assert "freshness: error:" in result.stdout
-        assert "unexpected=comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1" in result.stdout
+        assert "unexpected=comparison_partial_svd_diag6_k2_unexpected_metric_v1" in result.stdout
         assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
 
 
@@ -1506,6 +1568,26 @@ def test_selected_comparison_required_freshness_rejects_stale_and_invalid_rows()
         assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
 
         write_selected_comparison_rows(build_root, defer_first=True)
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_status" in result.stdout
+        assert "comparison_selected_rows: skip_or_defer_not_proof" in result.stdout
+        assert "comparison_optional_rows" not in result.stdout
+
+        write_selected_comparison_rows(build_root, skip_first=True)
         result = run_command(
             [
                 "python3",

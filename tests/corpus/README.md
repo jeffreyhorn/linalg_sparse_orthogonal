@@ -134,34 +134,42 @@ by default and become errors only when `--require-generated oracle` is used.
 Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
 records observed status. The reviewed Linux hosted lane mirrors the selected
-required oracle and QR comparison freshness gates; that hosted lane covers
-only the selected generated rows and split artifacts, not broad report-index
-freshness or all local-only families.
+required oracle and QR plus partial-SVD comparison freshness gates; that
+hosted lane covers only the selected generated rows and split artifacts, not
+broad report-index freshness or all local-only families.
 
-## Selected QR Comparison Freshness
+## Selected QR And Partial-SVD Comparison Freshness
 
-The selected QR comparison freshness gate is:
+The selected comparison freshness gate is:
 
 ```sh
 make report-index-comparison-freshness
 ```
 
-It regenerates two fixture-local comparison families before strict
+It regenerates three fixture-local comparison families before strict
 normalization:
 
 | Target | Fixture | Comparison meaning | Artifact |
 | --- | --- | --- | --- |
 | `qr-minnorm` | `qr_underdetermined_minnorm_2x4` | minimum-norm solve against the source-controlled dense QR reference helper | `build/comparison/qr_minnorm/study.tsv` |
 | `qr-compatible-ls` | `qr_overdetermined_compatible_5x3` | compatible least-squares solve against the source-controlled dense QR reference helper | `build/comparison/qr_compatible_ls/study.tsv` |
+| `partial-svd-diag6-k2` | `partial_svd_diag6_k2` | partial-SVD diagonal top-k comparison against the source-controlled dense SVD reference helper | `build/comparison/partial_svd_diag6_k2/study.tsv` |
 
-Each selected comparison family contributes six generated rows:
+Each selected QR comparison family contributes six generated rows:
 `project_status`, `baseline_status`, `residual_norm`, `solution_norm`,
 `solution_values`, and `project_vs_baseline_max_abs_delta`.
 
+The selected `partial_svd_diag6_k2` family contributes ten generated rows:
+`project_status`, `baseline_status`, `singular_value_0`,
+`singular_value_1`, `singular_values_max_abs_delta`, `residual_norm`,
+`u_orthogonality`, `v_orthogonality`, `u_projector_diag`, and
+`v_projector_diag`.
+
 These rows are local generated evidence for the named fixtures only. They do
-not prove broad QR parity, raw QR basis identity, Q sign/orientation identity,
-global rank-threshold behavior, broad rank-deficient solve behavior,
-external-library parity, platform support, package/ABI support, performance,
+not prove broad QR, SVD, or partial-SVD correctness; raw QR basis identity;
+raw singular-vector identity; vector sign/orientation identity; global
+rank-threshold behavior; broad rank-deficient solve behavior; external-library
+parity; platform support; package/ABI support; performance; release readiness;
 or state-of-the-art status. Optional NumPy/SciPy dependency rows are deferred
 context only and never pass evidence.
 
@@ -369,8 +377,9 @@ python3 scripts/normalize_report_index.py --family oracle --check-freshness
 
 Use `--require-generated oracle` only when the current review actually requires
 local generated oracle artifacts to exist and match the selected freshness
-policy. Hosted CI runs the selected oracle gate and the selected QR comparison
-gate as reviewed Linux evidence, but generated corpus/report rows remain
+policy. Hosted CI runs the selected oracle gate and the selected QR plus
+partial-SVD comparison gate as reviewed Linux evidence, but generated
+corpus/report rows remain
 fixture-local and do not imply broad solver, platform, package, performance,
 external-parity, or state-of-the-art claims.
 

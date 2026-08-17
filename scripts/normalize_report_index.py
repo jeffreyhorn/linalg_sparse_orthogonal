@@ -83,10 +83,21 @@ SELECTED_COMPARISON_ROW_IDS = {
     "comparison_qr_overdetermined_compatible_5x3_solution_norm_v1",
     "comparison_qr_overdetermined_compatible_5x3_solution_values_v1",
     "comparison_qr_overdetermined_compatible_5x3_project_vs_baseline_max_abs_delta_v1",
+    "comparison_partial_svd_diag6_k2_project_status_v1",
+    "comparison_partial_svd_diag6_k2_baseline_status_v1",
+    "comparison_partial_svd_diag6_k2_singular_value_0_v1",
+    "comparison_partial_svd_diag6_k2_singular_value_1_v1",
+    "comparison_partial_svd_diag6_k2_singular_values_max_abs_delta_v1",
+    "comparison_partial_svd_diag6_k2_residual_norm_v1",
+    "comparison_partial_svd_diag6_k2_u_orthogonality_v1",
+    "comparison_partial_svd_diag6_k2_v_orthogonality_v1",
+    "comparison_partial_svd_diag6_k2_u_projector_diag_v1",
+    "comparison_partial_svd_diag6_k2_v_projector_diag_v1",
 }
 SELECTED_COMPARISON_ARTIFACTS = (
     "build/comparison/qr_minnorm/study.tsv",
     "build/comparison/qr_compatible_ls/study.tsv",
+    "build/comparison/partial_svd_diag6_k2/study.tsv",
 )
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = "artifacts=" + ",".join(
     SELECTED_COMPARISON_ARTIFACTS

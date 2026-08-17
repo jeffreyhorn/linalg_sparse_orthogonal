@@ -102,7 +102,7 @@ sparse_err_t lu_csr_to_sparse(const LuCsr *csr, SparseMatrix **mat);
  * Fill-in is handled by dynamically growing the CSR arrays when capacity
  * is exceeded. Entries smaller than drop_tol * |pivot| are dropped.
  *
- * @param csr       The LuCsr to factor in-place. On output, contains L\U.
+ * @param csr       The LuCsr to factor in-place. On output, contains L and U.
  * @param tol       Absolute pivot tolerance. If the best pivot magnitude
  *                  is below this value, SPARSE_ERR_SINGULAR is returned.
  * @param drop_tol  Drop tolerance for fill-in. Entries with |value| <
@@ -149,7 +149,7 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                                     idx_t *piv_perm);
 
 /**
- * @brief Solve a linear system using a factored LuCsr (L\U with pivot perm).
+ * @brief Solve a linear system using a factored LuCsr (L and U with pivot perm).
  *
  * Solves P*A*x = b by:
  * 1. Apply pivot permutation: pb[i] = b[piv_perm[i]]
@@ -265,7 +265,7 @@ sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const doub
 /**
  * @brief Dense LU factorization with partial pivoting (dgetrf-style).
  *
- * Factors a dense m×n matrix (column-major) in-place into L\U form.
+ * Factors a dense m×n matrix (column-major) in-place into L and U form.
  * Row swaps are recorded in ipiv[0..min(m,n)-1].
  *
  * @param m     Number of rows.
@@ -283,9 +283,9 @@ sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const doub
 sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv, double tol);
 
 /**
- * @brief Dense triangular solve using factored L\U from lu_dense_factor.
+ * @brief Dense triangular solve using factored L and U from lu_dense_factor.
  *
- * Solves L*U*x = P*b where L\U and ipiv are from lu_dense_factor().
+ * Solves L*U*x = P*b where L and U plus ipiv are from lu_dense_factor().
  *
  * @param n     System dimension.
  * @param LU    Factored dense matrix (column-major, n×n) from lu_dense_factor.

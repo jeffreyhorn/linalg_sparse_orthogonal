@@ -794,11 +794,16 @@ wall-check: $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
 
 # ─── API documentation ────────────────────────────────────────────────
 
-.PHONY: docs
+.PHONY: docs api-docs-coverage docs-check
 docs:
 	@echo "Generating API documentation with Doxygen..."
 	doxygen Doxyfile
 	@echo "Documentation generated in docs/api/html/"
+
+api-docs-coverage:
+	@python3 scripts/check_api_docs_coverage.py
+
+docs-check: docs api-docs-coverage
 
 # ─── Tree-mutating coverage modes ─────────────────────────────────────
 #

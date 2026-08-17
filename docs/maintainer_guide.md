@@ -942,27 +942,40 @@ stay compact and should route exact declarations back to the public headers
 under `include/`.
 
 `docs/api/html/` is generated Doxygen output from the configured input set in
-`Doxyfile`. Treat it as fresh only when all of the following are true:
+`Doxyfile`. The maintained Sprint 158 policy keeps this tree local-only and
+ignored rather than committed or hosted.
 
-- `make docs` was run on the current branch;
-- Doxygen warnings were captured and triaged;
-- generated page coverage was checked against the intended input headers;
-- generated output was committed with the corresponding source/header comment
-  change or in a dedicated reference-refresh commit;
-- the review description states whether generated output changed.
+Use this command to refresh and validate the local generated API view:
+
+```bash
+make docs-check
+```
+
+Interpretation:
+
+- `make docs-check` runs Doxygen and then checks generated page coverage for
+  checked-in public headers under `include/`;
+- the generated HTML is current only for the branch and checkout where the
+  command just passed;
+- generated `sparse_version.h` remains an installed-header policy row derived
+  from `VERSION` and `include/sparse_version.h.in`, not an expected Doxygen
+  page under the current input set;
+- local generated output under `docs/api/html/` is not source-controlled,
+  hosted, or release evidence.
 
 Treat generated API HTML as stale or partial when public header comments changed
-after the last Doxygen refresh, new public headers do not have generated pages,
-generated installed headers are outside the configured Doxygen input set, or the
-generated output is not committed with the source/header change that explains
-it.
+after the last successful `make docs-check`, new checked-in public headers do
+not have generated pages, Doxygen warnings appear without triage, or generated
+installed headers are expected to appear even though they are outside the
+configured Doxygen input set.
 
 API reference guidance may say that public headers own exact declarations and
-call-site contracts and that `make docs` generates local Doxygen HTML. It must
-not imply dynamic ABI compatibility, shared-library support, package-manager
-distribution, broad Windows Makefile or Windows `pkg-config` parity,
-external-library parity, portable runtime guarantees, or completeness beyond
-the configured Doxygen input set.
+call-site contracts and that `make docs-check` generates and validates local
+Doxygen HTML. It must not imply dynamic ABI compatibility, shared-library
+support, package-manager distribution, broad Windows Makefile or Windows
+`pkg-config` parity, external-library parity, portable runtime guarantees,
+hosted documentation publication, source-controlled generated HTML, or
+completeness beyond the configured Doxygen input set.
 
 ### Local benchmark/example READMEs
 

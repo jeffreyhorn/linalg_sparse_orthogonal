@@ -281,6 +281,7 @@ make performance-sentinels  # local sentinel bundle: wall-check gate + threshold
 make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed structural report artifacts
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
+make docs-check # generate and check local Doxygen API page coverage
 # API reference entry point: docs/api_reference.md
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer

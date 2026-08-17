@@ -41,14 +41,22 @@
 #endif
 
 #if SPARSE_IDX_BITS == 32
+/** Signed 32-bit public index type selected by SPARSE_IDX_BITS. */
 typedef int32_t idx_t;
+/** Maximum representable idx_t value for the 32-bit index configuration. */
 #define IDX_MAX INT32_MAX
+/** printf conversion macro for idx_t in the 32-bit index configuration. */
 #define SPARSE_PRIDX PRId32
+/** scanf conversion macro for idx_t in the 32-bit index configuration. */
 #define SPARSE_SCNIDX SCNd32
 #elif SPARSE_IDX_BITS == 64
+/** Signed 64-bit public index type selected by SPARSE_IDX_BITS. */
 typedef int64_t idx_t;
+/** Maximum representable idx_t value for the 64-bit index configuration. */
 #define IDX_MAX INT64_MAX
+/** printf conversion macro for idx_t in the 64-bit index configuration. */
 #define SPARSE_PRIDX PRId64
+/** scanf conversion macro for idx_t in the 64-bit index configuration. */
 #define SPARSE_SCNIDX SCNd64
 #else
 #error "SPARSE_IDX_BITS must be 32 or 64"

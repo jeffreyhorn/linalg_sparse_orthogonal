@@ -31,6 +31,14 @@ SELECTED_ORACLE_FIXTURE_KEYS = {
     "qr_rankdef_duplicate_5x4_v1",
     "qr_underdetermined_minnorm_2x4",
 }
+SELECTED_COMPARISON_ROW_IDS = [
+    "comparison_qr_underdetermined_minnorm_2x4_project_status_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_baseline_status_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_residual_norm_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_solution_norm_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_solution_values_v1",
+    "comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1",
+]
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",
@@ -53,6 +61,44 @@ ORACLE_FIELDS = [
     "comparison_status",
     "failure_class",
     "skip_or_defer_reason",
+    "claim_scope",
+    "non_claims",
+]
+COMPARISON_STUDY_FIELDS = [
+    "comparison_row_id",
+    "report_family",
+    "subfamily",
+    "row_kind",
+    "fixture_key",
+    "operation",
+    "metric",
+    "baseline_name",
+    "baseline_type",
+    "baseline_version",
+    "baseline_command",
+    "baseline_python_executable",
+    "baseline_python_version",
+    "project_name",
+    "project_version",
+    "project_command",
+    "source_commit",
+    "source_branch",
+    "worktree_state",
+    "platform",
+    "compiler",
+    "configuration",
+    "expected_value",
+    "project_value",
+    "baseline_value",
+    "delta_value",
+    "tolerance_kind",
+    "tolerance_value",
+    "status",
+    "status_reason",
+    "caveat",
+    "artifact_path",
+    "generated_at_utc",
+    "support_tier",
     "claim_scope",
     "non_claims",
 ]
@@ -805,6 +851,82 @@ def write_selected_oracle_rows(
     )
 
 
+def write_selected_comparison_rows(
+    build_root: Path,
+    *,
+    drop_last: bool = False,
+    stale_first: bool = False,
+    defer_first: bool = False,
+    fail_first: bool = False,
+    duplicate_first: bool = False,
+    unexpected_first: bool = False,
+) -> None:
+    comparison_dir = build_root / "comparison" / "qr_minnorm"
+    comparison_dir.mkdir(parents=True, exist_ok=True)
+    row_ids = list(SELECTED_COMPARISON_ROW_IDS)
+    if drop_last:
+        row_ids.pop()
+    if unexpected_first:
+        row_ids[0] = "comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1"
+    if duplicate_first:
+        row_ids.append(row_ids[0])
+
+    rows = []
+    for index, row_id in enumerate(row_ids):
+        status = "pass"
+        status_reason = "synthetic_pass"
+        if index == 0 and defer_first:
+            status = "defer"
+            status_reason = "synthetic_dependency_deferred"
+        if index == 0 and fail_first:
+            status = "fail"
+            status_reason = "synthetic_comparison_failure"
+        rows.append(
+            {
+                "comparison_row_id": row_id,
+                "report_family": "comparison",
+                "subfamily": "qr_minnorm",
+                "row_kind": "metric_comparison",
+                "fixture_key": "qr_underdetermined_minnorm_2x4",
+                "operation": "qr_solve",
+                "metric": f"synthetic_metric_{index}",
+                "baseline_name": "dense_reference",
+                "baseline_type": "source_controlled",
+                "baseline_version": "synthetic",
+                "baseline_command": "synthetic baseline",
+                "baseline_python_executable": "python3",
+                "baseline_python_version": "synthetic",
+                "project_name": "sparse_lu_ortho",
+                "project_version": "synthetic",
+                "project_command": "synthetic project",
+                "source_commit": "oldcommit" if stale_first and index == 0 else current_commit(),
+                "source_branch": "sprint-159",
+                "worktree_state": "clean",
+                "platform": "test",
+                "compiler": "test",
+                "configuration": "proof_owner=synthetic_selected_comparison",
+                "expected_value": "1",
+                "project_value": "1",
+                "baseline_value": "1",
+                "delta_value": "0",
+                "tolerance_kind": "absolute",
+                "tolerance_value": "0",
+                "status": status,
+                "status_reason": status_reason,
+                "caveat": "",
+                "artifact_path": "build/comparison/qr_minnorm/study.tsv",
+                "generated_at_utc": "2026-08-16T00:00:00Z",
+                "support_tier": "local_only",
+                "claim_scope": "selected generated comparison freshness proof",
+                "non_claims": "synthetic test rows only; no broad QR parity claim",
+            }
+        )
+    with (comparison_dir / "study.tsv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def test_generated_oracle_rows_are_preserved() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -973,6 +1095,8 @@ def test_selected_oracle_required_freshness_requires_complete_family_set() -> No
         )
         assert "oracle_selected_row_count" not in result.stdout
         assert "oracle_selected_fixture_keys" not in result.stdout
+        assert "freshness: warning:" not in result.stdout
+        assert "generated row exists but strict freshness comparison is pending" not in result.stdout
 
         output = tmp_path / "oracle-index.tsv"
         run_command(
@@ -1203,6 +1327,173 @@ def test_selected_oracle_gate_preserves_advisory_and_source_controlled_families(
     assert "source-controlled row is governed by schema and Git review" in package_result.stdout
 
 
+def test_selected_comparison_required_freshness_accepts_complete_row_set() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "required generated family missing: comparison" in result.stdout
+
+        write_selected_comparison_rows(build_root)
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ]
+        )
+        assert "comparison_selected_rows" not in result.stdout
+        assert "comparison_selected_status" not in result.stdout
+        assert "freshness: warning:" not in result.stdout
+        assert "generated row exists but strict freshness comparison is pending" not in result.stdout
+
+
+def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(build_root, drop_last=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_rows" in result.stdout
+        assert "row_set_mismatch" in result.stdout
+        assert "missing=comparison_qr_underdetermined_minnorm_2x4_project_vs_baseline_max_abs_delta_v1" in result.stdout
+
+        write_selected_comparison_rows(build_root, unexpected_first=True)
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "unexpected=comparison_qr_underdetermined_minnorm_2x4_unexpected_metric_v1" in result.stdout
+
+
+def test_selected_comparison_required_freshness_rejects_duplicate_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(build_root, duplicate_first=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "duplicate normalized row_id" in result.stderr
+
+
+def test_selected_comparison_required_freshness_rejects_stale_and_invalid_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(build_root, stale_first=True)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "stale: source_commit does not match current HEAD" in result.stdout
+        assert "run make report-index-comparison-freshness" in result.stdout
+
+        write_selected_comparison_rows(build_root, fail_first=True)
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "generated comparison row reports fail" in result.stdout
+        assert "comparison_selected_status" in result.stdout
+
+        write_selected_comparison_rows(build_root, defer_first=True)
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_status" in result.stdout
+        assert "comparison_selected_rows: skip_or_defer_not_proof" in result.stdout
+        assert "comparison_optional_rows" not in result.stdout
+
+
 def main() -> int:
     test_current_repo_no_generated()
     test_git_metadata_is_independent_of_caller_cwd()
@@ -1222,6 +1513,10 @@ def main() -> int:
     test_selected_oracle_required_freshness_rejects_missing_solver_family()
     test_selected_oracle_required_freshness_rejects_missing_fixture_key()
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
+    test_selected_comparison_required_freshness_accepts_complete_row_set()
+    test_selected_comparison_required_freshness_rejects_row_set_mismatch()
+    test_selected_comparison_required_freshness_rejects_duplicate_rows()
+    test_selected_comparison_required_freshness_rejects_stale_and_invalid_rows()
     print("test-normalize-report-index: ok")
     return 0
 

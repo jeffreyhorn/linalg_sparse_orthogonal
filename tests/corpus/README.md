@@ -133,7 +133,10 @@ diagnostics in the form
 by default and become errors only when `--require-generated oracle` is used.
 Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
-records observed status.
+records observed status. Sprint 159 mirrors the selected required oracle and
+QR minimum-norm comparison freshness gates in the reviewed Linux hosted lane;
+that hosted lane covers only the selected generated rows and split artifacts,
+not broad report-index freshness or all local-only families.
 
 ## Sprint 139/Sprint 150 QR Lane
 
@@ -339,7 +342,10 @@ python3 scripts/normalize_report_index.py --family oracle --check-freshness
 
 Use `--require-generated oracle` only when the current review actually requires
 local generated oracle artifacts to exist and match the selected freshness
-policy.
+policy. Sprint 159 hosted CI runs the selected oracle gate and the selected
+QR minimum-norm comparison gate as reviewed Linux evidence, but generated
+corpus/report rows remain fixture-local and do not imply broad solver,
+platform, package, performance, external-parity, or state-of-the-art claims.
 
 ## Optional Data
 

@@ -448,7 +448,7 @@ Interpretation:
 
 ### Selected Oracle Freshness Gate
 
-Use the selected local oracle freshness gate when you need the maintained
+Use the selected oracle freshness gate when you need the maintained
 Sprint 152 QR + partial-SVD generated report family to be current:
 
 ```sh
@@ -476,14 +476,18 @@ with diagnostics that name the artifact or manifest path and the regeneration
 command.
 
 Generated oracle/report artifacts stay under ignored `build/` paths. Do not
-commit or upload them as Sprint 152 proof. The gate remains local-only and
-fixture-local; it is not hosted CI evidence, release evidence, package proof,
-ABI proof, platform proof, performance proof, external-library parity, broad
-QR correctness, broad partial-SVD correctness, or state-of-the-art evidence.
+commit them as Sprint 152 proof. Sprint 159 mirrors this selected gate in the
+reviewed Linux hosted report-freshness lane and uploads split oracle artifacts
+for reviewer inspection. The generated row metadata remains local-only and
+fixture-local; the hosted lane proves only that the selected gate ran and
+passed on the reviewed Linux CI surface. It is not release evidence, package
+proof, ABI proof, broad platform proof, performance proof, external-library
+parity, broad QR correctness, broad partial-SVD correctness, or
+state-of-the-art evidence.
 
 ### Selected Comparison Freshness Gate
 
-Use the selected local comparison freshness gate when you need the Sprint 154
+Use the selected comparison freshness gate when you need the Sprint 154
 QR minimum-norm comparison report family to be current:
 
 ```sh
@@ -516,11 +520,13 @@ row plus six generated selected rows for
 - `project_vs_baseline_max_abs_delta`
 
 Interpret all six generated rows as fixture-local QR minimum-norm evidence
-only. `skip` and `defer` rows are visible non-proof states, and optional NumPy
-or SciPy absence cannot create pass evidence. The comparison family does not
-claim broad QR, LAPACK, NumPy, SciPy, SuiteSparse, Eigen, hosted CI, release,
-platform, package-manager, shared-library ABI, performance, or
-state-of-the-art proof.
+only. Sprint 159 mirrors this selected gate in the reviewed Linux hosted
+report-freshness lane and uploads split QR minimum-norm comparison artifacts
+for reviewer inspection. `skip` and `defer` rows are visible non-proof states,
+and optional NumPy or SciPy absence cannot create pass evidence. The comparison
+family does not claim broad QR, LAPACK, NumPy, SciPy, SuiteSparse, Eigen,
+release, broad platform support, package-manager behavior, shared-library ABI,
+performance, or state-of-the-art proof.
 
 ### QR Corpus Maintenance
 
@@ -1431,6 +1437,10 @@ Interpretation:
   hard-gate row reports failure; for selected oracle rows this includes
   missing artifacts, stale source commits, failing comparison rows, selected
   row-count mismatches, missing solver families, and missing fixture keys
+- for selected required oracle/comparison rows generated at the current
+  source commit, `fresh` diagnostics mean the selected gate has current
+  generated output; stale, missing, failing, skipped, deferred, duplicate,
+  unexpected, or incomplete selected rows must not be treated as pass evidence
 - `warning` means a strict generated family is absent or stale but was not
   explicitly required
 - `advisory` means the row is local measurement, quality, documentation, or
@@ -1448,15 +1458,18 @@ For Sprint 152 selected oracle freshness, prefer
 `make report-index-oracle-freshness` over hand-running the two underlying
 commands. The Makefile target regenerates current local oracle output and runs
 the required oracle freshness gate. Generated report-index and oracle outputs
-remain ignored local artifacts unless a later sprint explicitly changes the
-publication policy.
+remain ignored local artifacts. Sprint 159 adds reviewed Linux hosted execution
+and split artifact upload for the selected oracle gate only; broad report-index
+freshness and unselected generated families remain local/advisory.
 
 For Sprint 154 selected comparison freshness, prefer
 `make report-index-comparison-freshness` over hand-running the two underlying
 commands. The Makefile target regenerates current local comparison output and
 runs the required comparison freshness gate. Generated comparison and
-report-index outputs remain ignored local artifacts unless a later sprint
-explicitly changes the publication policy.
+report-index outputs remain ignored local artifacts. Sprint 159 adds reviewed
+Linux hosted execution and split artifact upload for the selected QR
+minimum-norm comparison gate only; optional NumPy/SciPy defers remain context,
+not pass evidence.
 
 ## Stable Repo Norms
 

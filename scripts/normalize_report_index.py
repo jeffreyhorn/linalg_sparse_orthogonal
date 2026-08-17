@@ -1246,10 +1246,31 @@ def selected_comparison_policy_diagnostics(
     ]
     if deferred:
         diagnostics.append(
-            "freshness: defer: comparison_optional_rows: skip_or_defer_not_proof: "
+            "freshness: defer: comparison_selected_rows: skip_or_defer_not_proof: "
             f"{','.join(deferred)}"
         )
     return diagnostics, has_error
+
+
+def is_selected_required_generated_row(
+    row: dict[str, str],
+    *,
+    required_families: set[str],
+    strict_generated: bool,
+) -> bool:
+    if row["freshness_status"] != "generated_present_unchecked":
+        return False
+    if row["row_origin"] != "generated_local":
+        return False
+    if row["report_family"] == "oracle":
+        return selected_oracle_policy_enabled(required_families, strict_generated) and row[
+            "row_id"
+        ].startswith("oracle_")
+    if row["report_family"] == "comparison":
+        return selected_comparison_policy_enabled(
+            required_families, strict_generated
+        ) and row["row_id"].startswith("comparison_")
+    return False
 
 
 def freshness_severity(
@@ -1365,6 +1386,12 @@ def freshness_diagnostics(
     has_error = False
     for row in rows:
         state = evaluate_freshness_state(row, current_commit)
+        if state == "generated_present_unchecked" and is_selected_required_generated_row(
+            row,
+            required_families=required_families,
+            strict_generated=strict_generated,
+        ):
+            state = "fresh"
         severity, reason = freshness_severity(
             row,
             state=state,

@@ -274,7 +274,8 @@ make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
-make report-index-comparison-freshness  # local QR minimum-norm comparison freshness
+make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
+make report-index-comparison-freshness  # selected QR minimum-norm comparison freshness, mirrored by reviewed Linux hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
@@ -294,7 +295,9 @@ make clean      # remove build artifacts
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
 benchmark, coverage, dead-code, comparison, or package metadata rows into
-release proof.
+release proof. The reviewed Linux hosted report-freshness lane runs only the
+selected oracle and QR minimum-norm comparison gates above; it does not promote
+broad report-index freshness or any unselected local-only family.
 
 ### With CMake
 
@@ -672,14 +675,18 @@ The maintained QR corpus proof covers six fixture-local rows:
 `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`. The
 source-controlled proof owner is
 [`tests/test_qr_corpus.c`](tests/test_qr_corpus.c), and the opt-in local
-oracle/report freshness gate is `make report-index-oracle-freshness`. The
-narrow local comparison freshness gate is
+oracle/report freshness gate is `make report-index-oracle-freshness`. That
+selected oracle gate and the split oracle artifacts are also run in the
+reviewed Linux hosted report-freshness lane. The narrow local comparison
+freshness gate is
 `make report-index-comparison-freshness`, which checks only the
 `qr_underdetermined_minnorm_2x4` QR minimum-norm fixture against the selected
-source-controlled dense reference helper. These local gates do not prove raw QR
-basis parity, broad rank-threshold policy, broad rank-deficient solve, broad
-minimum-norm behavior, SuiteSparse, LAPACK, NumPy, SciPy, hosted CI, platform,
-performance, package/ABI, or state-of-the-art evidence.
+source-controlled dense reference helper; that selected comparison gate and
+the split comparison artifacts are also run in the reviewed Linux hosted
+report-freshness lane. These gates do not prove raw QR basis parity, broad
+rank-threshold policy, broad rank-deficient solve, broad minimum-norm
+behavior, SuiteSparse, LAPACK, NumPy, SciPy, platform parity, performance,
+package/ABI, or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

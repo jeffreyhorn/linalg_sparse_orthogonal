@@ -6,10 +6,9 @@
 
 ## Source Artifact Note
 
-Sprint 158 was planned and executed from the Epic 14 Sprint 158 package under
-`docs/planning/EPIC_14/SPRINT_158/`. This retrospective is written to the
-requested path, `docs/planning/EPIC_13/SPRINT_158/RETROSPECTIVE.md`, and links
-back to the Epic 14 Sprint 158 source artifacts for evidence.
+Sprint 158 was planned, executed, and retrospectively closed from the Epic 14
+Sprint 158 package under `docs/planning/EPIC_14/SPRINT_158/`. The retrospective
+now lives beside the plan, working notes, and daily artifacts it summarizes.
 
 ## Definition Of Done Checklist
 
@@ -63,10 +62,11 @@ back to the Epic 14 Sprint 158 source artifacts for evidence.
 
 ## What Didn't Go Well
 
-1. **The retrospective path is inconsistent with the execution package.** The
-   Sprint 158 plan and artifacts live under `EPIC_14/SPRINT_158`, while this
-   requested retrospective path is under `EPIC_13/SPRINT_158`. The retrospective
-   records that mismatch explicitly to avoid hiding the evidence path.
+1. **The retrospective path was initially inconsistent with the execution
+   package.** The Sprint 158 plan and artifacts live under
+   `EPIC_14/SPRINT_158`, while the retrospective was first written outside
+   that package. It has been moved into the Epic 14 Sprint 158 package so the
+   evidence path is now coherent.
 
 2. **Generated HTML remains unhosted.** This was the correct Sprint 158 product
    decision, but users still do not have hosted Doxygen API HTML.
@@ -132,22 +132,22 @@ generated Doxygen HTML.
 
 This claim is supported by:
 
-- [PLAN.md](../../EPIC_14/SPRINT_158/PLAN.md);
-- [WORKING_NOTES.md](../../EPIC_14/SPRINT_158/WORKING_NOTES.md);
-- [day1-api-docs-intake.md](../../EPIC_14/SPRINT_158/artifacts/day1-api-docs-intake.md);
-- [day2-doxygen-baseline.md](../../EPIC_14/SPRINT_158/artifacts/day2-doxygen-baseline.md);
-- [day3-public-header-coverage-map.md](../../EPIC_14/SPRINT_158/artifacts/day3-public-header-coverage-map.md);
-- [day4-warning-triage-policy.md](../../EPIC_14/SPRINT_158/artifacts/day4-warning-triage-policy.md);
-- [day5-publication-options.md](../../EPIC_14/SPRINT_158/artifacts/day5-publication-options.md);
-- [day6-publication-decision.md](../../EPIC_14/SPRINT_158/artifacts/day6-publication-decision.md);
-- [day7-page-coverage-check-design.md](../../EPIC_14/SPRINT_158/artifacts/day7-page-coverage-check-design.md);
-- [day8-coverage-implementation.md](../../EPIC_14/SPRINT_158/artifacts/day8-coverage-implementation.md);
-- [day9-warning-fix-batch.md](../../EPIC_14/SPRINT_158/artifacts/day9-warning-fix-batch.md);
-- [day10-policy-alignment.md](../../EPIC_14/SPRINT_158/artifacts/day10-policy-alignment.md);
-- [day11-publication-finalization.md](../../EPIC_14/SPRINT_158/artifacts/day11-publication-finalization.md);
-- [day12-validation-evidence.md](../../EPIC_14/SPRINT_158/artifacts/day12-validation-evidence.md);
-- [day13-claim-reconciliation.md](../../EPIC_14/SPRINT_158/artifacts/day13-claim-reconciliation.md);
-- [day14-closeout-handoff.md](../../EPIC_14/SPRINT_158/artifacts/day14-closeout-handoff.md).
+- [PLAN.md](./PLAN.md);
+- [WORKING_NOTES.md](./WORKING_NOTES.md);
+- [day1-api-docs-intake.md](./artifacts/day1-api-docs-intake.md);
+- [day2-doxygen-baseline.md](./artifacts/day2-doxygen-baseline.md);
+- [day3-public-header-coverage-map.md](./artifacts/day3-public-header-coverage-map.md);
+- [day4-warning-triage-policy.md](./artifacts/day4-warning-triage-policy.md);
+- [day5-publication-options.md](./artifacts/day5-publication-options.md);
+- [day6-publication-decision.md](./artifacts/day6-publication-decision.md);
+- [day7-page-coverage-check-design.md](./artifacts/day7-page-coverage-check-design.md);
+- [day8-coverage-implementation.md](./artifacts/day8-coverage-implementation.md);
+- [day9-warning-fix-batch.md](./artifacts/day9-warning-fix-batch.md);
+- [day10-policy-alignment.md](./artifacts/day10-policy-alignment.md);
+- [day11-publication-finalization.md](./artifacts/day11-publication-finalization.md);
+- [day12-validation-evidence.md](./artifacts/day12-validation-evidence.md);
+- [day13-claim-reconciliation.md](./artifacts/day13-claim-reconciliation.md);
+- [day14-closeout-handoff.md](./artifacts/day14-closeout-handoff.md).
 
 ## Sprint 159 Readiness
 
@@ -197,20 +197,20 @@ Still consciously constrained rather than silently solved:
 
 ## Key Deliverables
 
-- [PLAN.md](../../EPIC_14/SPRINT_158/PLAN.md)
-- [WORKING_NOTES.md](../../EPIC_14/SPRINT_158/WORKING_NOTES.md)
+- [PLAN.md](./PLAN.md)
+- [WORKING_NOTES.md](./WORKING_NOTES.md)
 - [RETROSPECTIVE.md](./RETROSPECTIVE.md)
-- [day1-api-docs-intake.md](../../EPIC_14/SPRINT_158/artifacts/day1-api-docs-intake.md)
-- [day2-doxygen-baseline.md](../../EPIC_14/SPRINT_158/artifacts/day2-doxygen-baseline.md)
-- [day3-public-header-coverage-map.md](../../EPIC_14/SPRINT_158/artifacts/day3-public-header-coverage-map.md)
-- [day4-warning-triage-policy.md](../../EPIC_14/SPRINT_158/artifacts/day4-warning-triage-policy.md)
-- [day5-publication-options.md](../../EPIC_14/SPRINT_158/artifacts/day5-publication-options.md)
-- [day6-publication-decision.md](../../EPIC_14/SPRINT_158/artifacts/day6-publication-decision.md)
-- [day7-page-coverage-check-design.md](../../EPIC_14/SPRINT_158/artifacts/day7-page-coverage-check-design.md)
-- [day8-coverage-implementation.md](../../EPIC_14/SPRINT_158/artifacts/day8-coverage-implementation.md)
-- [day9-warning-fix-batch.md](../../EPIC_14/SPRINT_158/artifacts/day9-warning-fix-batch.md)
-- [day10-policy-alignment.md](../../EPIC_14/SPRINT_158/artifacts/day10-policy-alignment.md)
-- [day11-publication-finalization.md](../../EPIC_14/SPRINT_158/artifacts/day11-publication-finalization.md)
-- [day12-validation-evidence.md](../../EPIC_14/SPRINT_158/artifacts/day12-validation-evidence.md)
-- [day13-claim-reconciliation.md](../../EPIC_14/SPRINT_158/artifacts/day13-claim-reconciliation.md)
-- [day14-closeout-handoff.md](../../EPIC_14/SPRINT_158/artifacts/day14-closeout-handoff.md)
+- [day1-api-docs-intake.md](./artifacts/day1-api-docs-intake.md)
+- [day2-doxygen-baseline.md](./artifacts/day2-doxygen-baseline.md)
+- [day3-public-header-coverage-map.md](./artifacts/day3-public-header-coverage-map.md)
+- [day4-warning-triage-policy.md](./artifacts/day4-warning-triage-policy.md)
+- [day5-publication-options.md](./artifacts/day5-publication-options.md)
+- [day6-publication-decision.md](./artifacts/day6-publication-decision.md)
+- [day7-page-coverage-check-design.md](./artifacts/day7-page-coverage-check-design.md)
+- [day8-coverage-implementation.md](./artifacts/day8-coverage-implementation.md)
+- [day9-warning-fix-batch.md](./artifacts/day9-warning-fix-batch.md)
+- [day10-policy-alignment.md](./artifacts/day10-policy-alignment.md)
+- [day11-publication-finalization.md](./artifacts/day11-publication-finalization.md)
+- [day12-validation-evidence.md](./artifacts/day12-validation-evidence.md)
+- [day13-claim-reconciliation.md](./artifacts/day13-claim-reconciliation.md)
+- [day14-closeout-handoff.md](./artifacts/day14-closeout-handoff.md)

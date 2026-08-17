@@ -271,8 +271,9 @@ Focused install/package regression ownership:
   platform parity claims
 - Windows CI carries reviewed CMake install/downstream validation for the
   maintained static-first package surface; this lane checks installed static
-  `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
-  maintained installed CMake consumers, exact-version behavior,
+  `.lib`, headers, CMake package metadata, metadata-only `sparse.pc`
+  inspection, generated and maintained installed CMake consumers,
+  exact-version behavior,
   mismatched-version rejection, absence of DLL/shared imported metadata, and
   absence of unsupported loader/static-shared selector metadata
 - Windows still does not claim Makefile parity, `pkg-config` execution parity,
@@ -323,10 +324,16 @@ Sprint 112 package/platform proof snapshot:
   temp-file helpers
 - Sprint 149 promotes reviewed Windows CMake install/downstream validation for
   the maintained static-first package surface, including installed static
-  `.lib`, headers, CMake package metadata, `sparse.pc` metadata, generated and
-  maintained installed CMake consumers, exact-version behavior,
+  `.lib`, headers, CMake package metadata, metadata-only `sparse.pc`
+  inspection, generated and maintained installed CMake consumers,
+  exact-version behavior,
   mismatched-version rejection, no DLL/shared imported metadata, and no
   unsupported loader/static-shared selector metadata
+- Sprint 162 hardens the retained package non-claim boundary: Windows
+  `sparse.pc` inspection remains metadata-only, while Windows Makefile
+  install/uninstall parity and Windows `pkg-config` command execution parity
+  remain unsupported unless a future product decision adds provider-specific
+  proof.
 - do not infer shared-library support, ABI stability, package-manager support,
   runtime-loader behavior, Windows Makefile parity, Windows `pkg-config`
   execution parity, or broader macOS platform parity from package evidence

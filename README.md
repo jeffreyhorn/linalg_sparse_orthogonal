@@ -937,6 +937,11 @@ the install proof checks downstream compile/link/run behavior plus exact
 package version handling. These checks are package proof, not package-manager
 distribution or dynamic-loader evidence.
 
+On Windows, `sparse.pc` is installed and inspected as static package metadata
+by the reviewed CMake install/downstream lane. That lane does not run
+`pkg-config` and does not claim Windows Makefile or `pkg-config` execution
+parity.
+
 Shared-library packaging is intentionally deferred; the maintained install
 contract is the static archive surface described in [INSTALL.md](INSTALL.md).
 CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a

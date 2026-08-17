@@ -121,7 +121,9 @@ you only need commands.
 
 This install/export story is real and maintained, but it is not a broad shared
 library or dynamic-ABI promise. On Windows, the maintained consumer path
-remains the reviewed CMake workflow.
+remains the reviewed CMake workflow. The installed `sparse.pc` is inspected as
+static package metadata there, but Windows CI does not run `pkg-config` and
+does not claim Windows `pkg-config` execution parity.
 
 Shared-library packaging is deferred until a future change adds explicit
 export/import and symbol visibility policies, a dynamic ABI policy, Linux
@@ -147,8 +149,9 @@ Use the split below when deciding how much package detail you need:
   - macOS CI carries reviewed static-first install/export proof for those
     local scripts plus the static deferral guard
   - Windows carries reviewed CMake install/downstream validation for the
-    maintained static-first package surface, but remains narrower than the
-    Unix Makefile and `pkg-config` script surface
+    maintained static-first package surface, including metadata-only
+    `sparse.pc` inspection, but remains narrower than the Unix Makefile and
+    `pkg-config` script surface
 
 ## Supported platforms
 
@@ -363,8 +366,8 @@ Use the split below when reading install confidence:
     install/export proof for the maintained static archive package contract
   - Windows carries reviewed CMake install/downstream validation for the
     maintained static-first package surface, including installed static `.lib`,
-    headers, CMake package metadata, `sparse.pc` metadata, generated and
-    maintained installed CMake consumers, exact-version behavior,
+    headers, CMake package metadata, metadata-only `sparse.pc` inspection,
+    generated and maintained installed CMake consumers, exact-version behavior,
     mismatch-version rejection, and no DLL/shared imported metadata
 
 Do not widen that reading into a broader platform or package claim:

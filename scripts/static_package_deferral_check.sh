@@ -172,11 +172,86 @@ check_support_wording() {
     pass "support wording remains deferred"
 }
 
+check_windows_package_nonclaim_wording() {
+    require_grep \
+        'Windows remains CMake-first' \
+        "$ROOT_DIR/README.md" \
+        "README no longer states that Windows package support remains CMake-first"
+    require_grep \
+        'Windows still does not claim Makefile' \
+        "$ROOT_DIR/README.md" \
+        "README no longer keeps Windows Makefile parity as a non-claim"
+    require_grep \
+        '`pkg-config` execution parity' \
+        "$ROOT_DIR/README.md" \
+        "README no longer keeps Windows pkg-config execution parity as a non-claim"
+
+    require_grep \
+        'Windows carries reviewed CMake install/downstream validation' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer describes Windows CMake install/downstream validation"
+    require_grep \
+        'Windows reviewed CMake install/downstream validation does not claim Windows' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer scopes Windows CMake install/downstream validation as a non-claim boundary"
+    require_grep \
+        'Makefile parity, Windows `pkg-config` execution parity' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer keeps Windows Makefile/pkg-config execution parity as non-claims"
+
+    require_grep \
+        'Windows CI carries reviewed CMake install/downstream validation' \
+        "$ROOT_DIR/docs/maintainer_guide.md" \
+        "maintainer guide no longer describes Windows CMake install/downstream validation"
+    require_grep \
+        'Windows still does not claim Makefile parity, `pkg-config` execution parity' \
+        "$ROOT_DIR/docs/maintainer_guide.md" \
+        "maintainer guide no longer keeps Windows Makefile/pkg-config execution parity as non-claims"
+
+    require_grep \
+        '`sparse\.pc` metadata' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow no longer identifies sparse.pc as metadata"
+    require_grep \
+        'Windows does not claim Makefile parity, pkg-config execution parity' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow no longer keeps Makefile/pkg-config execution parity as non-claims"
+    require_grep \
+        'CMake install/downstream scoped: sparse\.pc is metadata-only inspection; no reviewed Makefile parity and no pkg-config execution parity' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow no longer separates CMake install proof from Makefile/pkg-config execution parity"
+
+    pass "Windows package non-claim wording"
+}
+
+check_windows_workflow_no_unselected_package_execution() {
+    require_absent_grep \
+        '^[[:space:]]*(-[[:space:]]*)?run:[[:space:]]*pkg-config([[:space:]]|$)' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow started executing pkg-config without a selected provider and downstream proof"
+    require_absent_grep \
+        '^[[:space:]]*pkg-config([[:space:]]|$)' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow started executing pkg-config inside a script block without a selected provider and downstream proof"
+    require_absent_grep \
+        '^[[:space:]]*(-[[:space:]]*)?run:[[:space:]]*make[[:space:]]+(install|uninstall)([[:space:]]|$)' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow started executing make install/uninstall without a reviewed Windows Makefile parity decision"
+    require_absent_grep \
+        '^[[:space:]]*make[[:space:]]+(install|uninstall)([[:space:]]|$)' \
+        "$ROOT_DIR/.github/workflows/windows-ci.yml" \
+        "Windows workflow started executing make install/uninstall inside a script block without a reviewed Windows Makefile parity decision"
+
+    pass "Windows workflow has no unselected package execution"
+}
+
 check_build_shared_rejected
 check_static_target
 check_static_install_metadata
 check_no_export_or_abi_metadata
 check_no_package_selector
 check_support_wording
+check_windows_package_nonclaim_wording
+check_windows_workflow_no_unselected_package_execution
 
 echo "static-package-deferral-check: passed"

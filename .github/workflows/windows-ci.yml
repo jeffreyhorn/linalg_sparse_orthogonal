@@ -6,9 +6,10 @@ name: Windows CI
 # Sprint 148 source-portability work. Windows also carries reviewed CMake
 # install/downstream validation for the maintained static-first package
 # surface: installed static `.lib`, headers, CMake package metadata,
-# `sparse.pc` metadata, downstream consumers, exact-version behavior,
-# mismatch-version rejection, absence of DLL/shared imported metadata, and
-# absence of unsupported loader/static-shared selector metadata.
+# `sparse.pc` metadata-only inspection, CMake downstream consumers,
+# exact-version behavior, mismatch-version rejection, absence of DLL/shared
+# imported metadata, and absence of unsupported loader/static-shared selector
+# metadata.
 # The Makefile reviewed wrappers and dead-code flow remain staged/deferred;
 # Windows does not claim Makefile parity, pkg-config execution parity,
 # package-manager support, shared-library support, dynamic ABI support,
@@ -60,7 +61,7 @@ jobs:
           }
           Write-Host "Windows reviewed CMake CTest surface includes promoted portable tests: test_threads, test_sprint4_integration, test_fuzz."
           Write-Host "Windows promoted-test proof remains CMake-first: ctest -N count plus full ctest on the hosted MSVC lane."
-          Write-Host "Windows reviewed install validation remains CMake install/downstream scoped: no reviewed Makefile parity and no pkg-config execution parity."
+          Write-Host "Windows reviewed install validation remains CMake install/downstream scoped: sparse.pc is metadata-only inspection; no reviewed Makefile parity and no pkg-config execution parity."
         shell: pwsh
 
       - name: Run enforced reviewed CMake execution path (ctest)
@@ -69,9 +70,9 @@ jobs:
 
   # Verify the reviewed static-first CMake install and installed downstream
   # consumer path on Windows. This lane is CMake install/downstream scoped; it
-  # does not claim Windows Makefile parity, pkg-config execution parity,
-  # shared-library support, dynamic ABI support, runtime-loader behavior, or
-  # package-manager support.
+  # inspects sparse.pc as installed metadata only and does not claim Windows
+  # Makefile parity, pkg-config execution parity, shared-library support,
+  # dynamic ABI support, runtime-loader behavior, or package-manager support.
   install-and-downstream:
     name: Windows reviewed CMake install/downstream validation path
     runs-on: windows-2022
@@ -205,6 +206,7 @@ jobs:
           if ($pcText -match "(?im)^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan") {
             throw "Installed sparse.pc unexpectedly contains unsupported package or ABI wording."
           }
+          Write-Host "Windows sparse.pc validation is metadata-only: no pkg-config command execution is part of this lane."
 
           New-Item -ItemType Directory -Force -Path $basicConsumerSrc | Out-Null
           Set-Content -Path (Join-Path $basicConsumerSrc "CMakeLists.txt") -Encoding utf8 -Value @(
@@ -252,6 +254,7 @@ jobs:
               $basicConsumerText -notmatch "OK") {
             throw "Basic generated consumer output was unexpected: $basicConsumerText"
           }
+          Write-Host "Windows generated downstream consumer passed through installed CMake package metadata."
 
           Invoke-Checked "Installed example configure" {
             cmake -S examples/cmake_example -B $exampleBuild `
@@ -271,6 +274,7 @@ jobs:
               $outputText -notmatch "OK") {
             throw "Installed CMake example output was unexpected: $outputText"
           }
+          Write-Host "Windows maintained downstream example passed through installed CMake package metadata."
 
           New-Item -ItemType Directory -Force -Path $versionExactSrc | Out-Null
           $mainSource = ((Get-Location).Path -replace "\\", "/") + "/examples/cmake_example/main.c"
@@ -300,6 +304,7 @@ jobs:
               $versionExactText -notmatch "OK") {
             throw "Exact version consumer output was unexpected: $versionExactText"
           }
+          Write-Host "Windows exact-version downstream consumer passed through installed CMake package metadata."
 
           $parts = $version.Split(".")
           $major = [int]$parts[0]
@@ -325,5 +330,6 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Mismatched package version $mismatchVersion unexpectedly configured."
           }
+          Write-Host "Windows mismatched-version CMake package consumer rejected $mismatchVersion as expected."
           $global:LASTEXITCODE = 0
         shell: pwsh

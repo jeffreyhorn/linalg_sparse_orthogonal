@@ -583,7 +583,20 @@ def benchmark_generated_rows(
                             f"build_mode={benchmark.get('build_mode', 'unknown')};"
                             f"omp_num_threads={benchmark.get('omp_num_threads', 'unknown')};"
                             f"command={benchmark.get('command', 'unknown')};"
-                            f"relative_path={benchmark.get('relative_path', 'unknown')}"
+                            f"relative_path={benchmark.get('relative_path', 'unknown')};"
+                            f"row_report_family={benchmark.get('report_family', 'unknown')};"
+                            f"row_status={benchmark.get('status', 'unknown')};"
+                            f"row_support_tier={benchmark.get('support_tier', 'unknown')};"
+                            f"claim_boundary={benchmark.get('claim_boundary', 'unknown')};"
+                            f"fixture_or_workload={benchmark.get('fixture_or_workload', 'unknown')};"
+                            f"matrix_size={benchmark.get('matrix_size', 'unknown')};"
+                            f"repeat_semantics={benchmark.get('repeat_semantics', 'unknown')};"
+                            f"warmup={benchmark.get('warmup', 'unknown')};"
+                            f"variance={benchmark.get('variance', 'unknown')};"
+                            f"baseline={benchmark.get('baseline', 'unknown')};"
+                            f"threshold={benchmark.get('threshold', 'unknown')};"
+                            f"backend_context={benchmark.get('backend_context', 'unknown')};"
+                            f"methodology_notes={benchmark.get('methodology_notes', 'unknown')}"
                         ),
                         "artifact_path": artifact,
                         "freshness_status": "generated_present_unchecked",
@@ -651,9 +664,14 @@ def sentinel_generated_rows(
                             f"value={sentinel.get('value', 'unknown')};"
                             f"baseline={sentinel.get('baseline', 'unknown')};"
                             f"threshold={sentinel.get('threshold', 'unknown')};"
+                            f"baseline_provenance={sentinel.get('baseline_provenance', 'unknown')};"
+                            f"repeat_semantics={sentinel.get('repeat_semantics', 'unknown')};"
+                            f"warmup={sentinel.get('warmup', 'unknown')};"
+                            f"variance={sentinel.get('variance', 'unknown')};"
                             f"backend_request={sentinel.get('backend_request', 'unknown')};"
                             f"backend_selected={sentinel.get('backend_selected', 'unknown')};"
-                            f"backend_fallback={sentinel.get('backend_fallback', 'unknown')}"
+                            f"backend_fallback={sentinel.get('backend_fallback', 'unknown')};"
+                            f"methodology_notes={sentinel.get('methodology_notes', 'unknown')}"
                         ),
                         "artifact_path": artifact,
                         "freshness_status": "generated_present_unchecked",

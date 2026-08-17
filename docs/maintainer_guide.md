@@ -1331,8 +1331,17 @@ Current threshold-free reporting surface:
       comparison context
   - writes `index.tsv` with one structured row per emitted canonical artifact
     and the same platform/compiler/build/thread context
+  - appends methodology fields for `report_family`, `status`,
+    `support_tier`, `claim_boundary`, `fixture_or_workload`, `matrix_size`,
+    `repeat_semantics`, `warmup`, `variance`, `baseline`, `threshold`,
+    `backend_context`, and `methodology_notes`
   - is acceptable for local before/after comparison or CI artifact capture
   - is intentionally not a timing threshold gate
+  - uses `status=measurement`, `support_tier=local_only`,
+    `claim_boundary=local_threshold_free`, `baseline=n/a`, and
+    `threshold=n/a`; do not reinterpret those rows as pass/fail evidence
+  - records `warmup=not_recorded` and `variance=not_recorded` until a later
+    sprint adds explicit warmup or statistical methodology
   - should stay limited to the canonical maintained surface unless a later
     sprint proves a wider report remains cheap and stable
 
@@ -1347,11 +1356,17 @@ Current bounded local sentinel bundle:
   - records per-row support tier, claim boundary, artifact, backend
     request/selection/fallback, dense-kernel descriptor, and panel-solver
     descriptor where applicable
+  - appends `baseline_provenance`, `repeat_semantics`, `warmup`, `variance`,
+    and `methodology_notes` for publication review
   - uses `n/a` for backend fields on rows such as S5 that do not own a dense
     backend seam
   - treats S5 as the existing hard `wall-check` threshold gate
   - treats S2 Cholesky CSC rows as threshold-free report context only
   - treats S3 LDLT KKT rows as threshold-free backend report context only
+  - treats S5 status as meaningful only with the recorded baseline, threshold,
+    fixture, command, baseline provenance, and machine context
+  - treats S2/S3 `status=report` rows as backend-context rows, not passing
+    evidence
   - should not add new hard timing thresholds without a fresh local-baseline
     or same-worktree comparison design
   - should not be described as portable performance evidence
@@ -1377,14 +1392,25 @@ Report-index handoff:
 
 - keep canonical report rows threshold-free even though the generated index
   now records platform, compiler, build mode, and `OMP_NUM_THREADS`
+- preserve canonical row methodology fields in downstream summaries:
+  `support_tier`, `claim_boundary`, `repeat_semantics`, `warmup`, `variance`,
+  `baseline`, `threshold`, and `methodology_notes`
 - preserve sentinel row `support_tier` and `claim_boundary` fields so reviewed
   thresholded rows, reviewed threshold-free rows, skips, and report-only rows
   remain distinguishable
+- preserve sentinel row `baseline_provenance`, `repeat_semantics`, `warmup`,
+  `variance`, and `methodology_notes`; S5 baseline provenance is part of the
+  local-gate interpretation
 - preserve backend `n/a`, `unknown`, selected, and fallback fields instead of
   inferring builtin or optional-backend availability from missing data
+- keep generated benchmark, sentinel, and normalized-index artifacts under
+  ignored `build/` paths unless a future sprint explicitly promotes a stable
+  checked-in example with its own freshness and claim-boundary contract
 - do not promote supplemental guardrail rows or benchmark-local rows into
   reviewed recurring evidence without a separate owner, runtime budget, and
   claim-boundary decision
+- do not cite package/install, package-manager, shared-library, dynamic ABI,
+  or runtime-loader proof as performance evidence
 
 Current large-matrix structural guardrail bundle:
 
@@ -1448,6 +1474,11 @@ python3 scripts/normalize_report_index.py --check-freshness
 Generated output belongs under ignored `build/report-index/`. Do not commit
 the generated TSV unless a later sprint explicitly promotes a stable checked-in
 example.
+
+For Sprint 163 performance rows, the normalized index is a navigation surface:
+it should keep methodology fields visible in `configuration`, but it is not
+hosted CI proof, package proof, ABI proof, broad platform proof, backend
+superiority proof, OpenMP speedup evidence, or state-of-the-art evidence.
 
 Common focused checks:
 

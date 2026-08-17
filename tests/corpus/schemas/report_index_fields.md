@@ -120,6 +120,15 @@ state-of-the-art evidence.
   `unknown`, not silently omitted when the family is selected.
 - Benchmark, sentinel, coverage, and dead-code rows remain local or advisory
   unless a reviewed lane explicitly promotes them.
+- Sprint 163 benchmark rows may expose methodology fields such as
+  `support_tier`, `claim_boundary`, `repeat_semantics`, `warmup`, `variance`,
+  `baseline`, `threshold`, and `methodology_notes` through generated report
+  indexes or normalized `configuration` text. These fields preserve local
+  context; they do not create pass/fail benchmark proof.
+- Sprint 163 sentinel rows may expose `baseline_provenance`,
+  `repeat_semantics`, `warmup`, `variance`, and `methodology_notes`. S5 remains
+  the local wall-check hard gate; S2 and S3 remain threshold-free
+  backend-context rows.
 - Package/install rows identify maintained proof owners and static-first
   scope; they do not claim package-manager availability, shared-library ABI,
   or broad platform support.

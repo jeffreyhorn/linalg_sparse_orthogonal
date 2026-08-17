@@ -27,6 +27,15 @@ manifest_txt="$report_dir/manifest.txt"
 wall_output="$report_dir/wall_check.txt"
 chol_output="$report_dir/bench_chol_csc_nos4.csv"
 ldlt_output="$report_dir/bench_refactor_csc_kkt.csv"
+threshold_free_baseline_provenance="n/a"
+s5_repeat_semantics="wall_check_configured_single_runs"
+s2_repeat_semantics="configured_repeat_1"
+s3_repeat_semantics="configured_repeat_1"
+warmup="not_recorded"
+variance="not_recorded"
+s5_methodology_notes="thresholded_local_wall_gate;not_portable_performance_claim"
+s2_methodology_notes="threshold_free_local_backend_context;not_backend_superiority_claim"
+s3_methodology_notes="threshold_free_local_ldlt_backend_context;not_backend_superiority_claim"
 
 rm -f "$wall_output" "$chol_output" "$ldlt_output"
 
@@ -96,6 +105,16 @@ reject_tsv_control_chars "SPARSE_SENTINEL_BUILD_MODE" "$build_mode"
 reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
 reject_tsv_control_chars "SPARSE_CHOL_DENSE_BACKEND" "$chol_dense_backend"
 reject_tsv_control_chars "SPARSE_LDLT_DENSE_BACKEND" "$ldlt_dense_backend"
+reject_tsv_control_chars "wall-check baseline provenance" "$wall_baseline"
+reject_tsv_control_chars "threshold-free baseline provenance" "$threshold_free_baseline_provenance"
+reject_tsv_control_chars "S5 repeat semantics" "$s5_repeat_semantics"
+reject_tsv_control_chars "S2 repeat semantics" "$s2_repeat_semantics"
+reject_tsv_control_chars "S3 repeat semantics" "$s3_repeat_semantics"
+reject_tsv_control_chars "sentinel warmup" "$warmup"
+reject_tsv_control_chars "sentinel variance" "$variance"
+reject_tsv_control_chars "S5 methodology notes" "$s5_methodology_notes"
+reject_tsv_control_chars "S2 methodology notes" "$s2_methodology_notes"
+reject_tsv_control_chars "S3 methodology notes" "$s3_methodology_notes"
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -107,23 +126,38 @@ elif [ "$git_branch" = "HEAD" ]; then
 fi
 
 cat > "$report_tsv" <<EOF
-report_family	sentinel_id	status	support_tier	claim_boundary	command	build_mode	omp_num_threads	matrix_or_fixture	metric	value	baseline	threshold	artifact	backend_request	backend_selected	backend_fallback	dense_kernel	panel_solver	notes
+report_family	sentinel_id	status	support_tier	claim_boundary	command	build_mode	omp_num_threads	matrix_or_fixture	metric	value	baseline	threshold	artifact	backend_request	backend_selected	backend_fallback	dense_kernel	panel_solver	notes	baseline_provenance	repeat_semantics	warmup	variance	methodology_notes
 EOF
 
 append_row() {
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    local baseline_provenance="${18:-n/a}"
+    local repeat_semantics="${19:-not_recorded}"
+    local row_warmup="${20:-$warmup}"
+    local row_variance="${21:-$variance}"
+    local methodology_notes="${22:-${17}}"
+
+    reject_tsv_control_chars "sentinel notes" "${17}"
+    reject_tsv_control_chars "sentinel baseline provenance" "$baseline_provenance"
+    reject_tsv_control_chars "sentinel repeat semantics" "$repeat_semantics"
+    reject_tsv_control_chars "sentinel row warmup" "$row_warmup"
+    reject_tsv_control_chars "sentinel row variance" "$row_variance"
+    reject_tsv_control_chars "sentinel methodology notes" "$methodology_notes"
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "sentinel" "$1" "$2" "$3" "$4" "$5" "$build_mode" "$omp_num_threads" "$6" "$7" \
-        "$8" "$9" "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" >> "$report_tsv"
+        "$8" "$9" "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" \
+        "$baseline_provenance" "$repeat_semantics" "$row_warmup" "$row_variance" \
+        "$methodology_notes" >> "$report_tsv"
 }
 
 wall_status="skip"
 wall_note="not_run"
 if [ ! -x "$bench_amd_qg" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_amd_qg_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_amd_qg_missing" "$wall_baseline" "$s5_repeat_semantics" "$warmup" "$variance" "$s5_methodology_notes"
 elif [ ! -x "$bench_reorder" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_reorder_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_reorder_missing" "$wall_baseline" "$s5_repeat_semantics" "$warmup" "$variance" "$s5_methodology_notes"
 elif [ ! -r "$wall_baseline" ]; then
-    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "baseline_missing"
+    append_row "S5" "skip" "reviewed_thresholded" "local_wall_gate" "make wall-check" "n/a" "wall_check" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "baseline_missing" "$wall_baseline" "$s5_repeat_semantics" "$warmup" "$variance" "$s5_methodology_notes"
 else
     if scripts/wall_check.sh "$bench_amd_qg" "$bench_reorder" "$wall_baseline" > "$wall_output" 2>&1; then
         wall_status="pass"
@@ -138,25 +172,30 @@ else
         -v build_mode="$build_mode" \
         -v omp="$omp_num_threads" \
         -v artifact="$(basename "$wall_output")" \
+        -v baseline_provenance="$wall_baseline" \
+        -v repeat_semantics="$s5_repeat_semantics" \
+        -v warmup="$warmup" \
+        -v variance="$variance" \
+        -v methodology_notes="$s5_methodology_notes" \
         -v note="$wall_note" '
         BEGIN { OFS="\t" }
         /^wall-check: bcsstk14/ {
-            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "bcsstk14", "qg_amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "bcsstk14", "qg_amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
         }
         /^wall-check: Pres_Poisson AMD/ {
-            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "amd_reorder_ms", $5, $8, "2x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
         }
         /^wall-check: Pres_Poisson ND/ {
-            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "nd_reorder_ms", $5, $8, "1.5x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note
+            print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "nd_reorder_ms", $5, $8, "1.5x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
         }
     ' "$wall_output" >> "$report_tsv"
 fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"
 if [ ! -x "$bench_chol_csc" ]; then
-    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_chol_csc_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_chol_csc_missing" "$threshold_free_baseline_provenance" "$s2_repeat_semantics" "$warmup" "$variance" "$s2_methodology_notes"
 elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
-    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "fixture_missing"
+    append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "n/a" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "fixture_missing" "$threshold_free_baseline_provenance" "$s2_repeat_semantics" "$warmup" "$variance" "$s2_methodology_notes"
 else
     if "$bench_chol_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$chol_output"; then
         awk -F, -v cmd="$chol_cmd" \
@@ -164,35 +203,45 @@ else
             -v omp="$omp_num_threads" \
             -v chol_env="$chol_dense_backend" \
             -v ldlt_env="$ldlt_dense_backend" \
+            -v baseline_provenance="$threshold_free_baseline_provenance" \
+            -v repeat_semantics="$s2_repeat_semantics" \
+            -v warmup="$warmup" \
+            -v variance="$variance" \
+            -v methodology_notes="$s2_methodology_notes" \
             -v artifact="$(basename "$chol_output")" '
             BEGIN { OFS="\t" }
             NR == 2 {
                 fixture = $3
                 note = "threshold_free;chol_env=" chol_env ";ldlt_env=" ldlt_env
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_ll_ms", $11, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_ms", $12, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_sn_ms", $13, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_ll_ms", $14, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $15, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_sn_ms", $16, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc", $17, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
-                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc_sn", $18, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_ll_ms", $11, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_ms", $12, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "factor_csc_sn_ms", $13, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_ll_ms", $14, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $15, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_sn_ms", $16, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc", $17, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S2", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_csc_sn", $18, "n/a", "n/a", artifact, chol_env, $9, "n/a", $9, $10, note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
             }
         ' "$chol_output" >> "$report_tsv"
     else
-        append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "$(basename "$chol_output")" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_run_failed"
+        append_row "S2" "skip" "reviewed_threshold_free" "local_threshold_free" "$chol_cmd" "nos4.mtx" "bench_chol_csc" "n/a" "n/a" "n/a" "$(basename "$chol_output")" "$chol_dense_backend" "unknown" "n/a" "unknown" "unknown" "bench_run_failed" "$threshold_free_baseline_provenance" "$s2_repeat_semantics" "$warmup" "$variance" "$s2_methodology_notes"
     fi
 fi
 
 ldlt_cmd="$bench_refactor_csc --indefinite-kkt --repeat 1"
 if [ ! -x "$bench_refactor_csc" ]; then
-    append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "n/a" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_refactor_csc_missing"
+    append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "n/a" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_refactor_csc_missing" "$threshold_free_baseline_provenance" "$s3_repeat_semantics" "$warmup" "$variance" "$s3_methodology_notes"
 else
     if "$bench_refactor_csc" --indefinite-kkt --repeat 1 > "$ldlt_output"; then
         awk -F, -v cmd="$ldlt_cmd" \
             -v build_mode="$build_mode" \
             -v omp="$omp_num_threads" \
             -v env_request="$ldlt_dense_backend" \
+            -v baseline_provenance="$threshold_free_baseline_provenance" \
+            -v repeat_semantics="$s3_repeat_semantics" \
+            -v warmup="$warmup" \
+            -v variance="$variance" \
+            -v methodology_notes="$s3_methodology_notes" \
             -v artifact="$(basename "$ldlt_output")" '
             BEGIN { OFS="\t" }
             NR == 2 {
@@ -201,18 +250,18 @@ else
                 backend_selected = $8
                 backend_fallback = $9
                 note = "threshold_free;ldlt_env=" env_request ";scenario=" $4
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "analyze_ms", $10, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_public_ms", $11, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_csc_ms", $12, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_public_ms", $13, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $14, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_refactor", $15, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_public", $16, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
-                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_csc", $17, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "analyze_ms", $10, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_public_ms", $11, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "refactor_csc_ms", $12, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_public_ms", $13, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "solve_csc_ms", $14, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "speedup_refactor", $15, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_public", $16, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
+                print "sentinel", "S3", "report", "reviewed_threshold_free", "local_threshold_free", cmd, build_mode, omp, fixture, "res_csc", $17, "n/a", "n/a", artifact, backend_request, backend_selected, backend_fallback, "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
             }
         ' "$ldlt_output" >> "$report_tsv"
     else
-        append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "$(basename "$ldlt_output")" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_run_failed"
+        append_row "S3" "skip" "reviewed_threshold_free" "local_threshold_free" "$ldlt_cmd" "kkt-150" "bench_refactor_csc" "n/a" "n/a" "n/a" "$(basename "$ldlt_output")" "$ldlt_dense_backend" "unknown" "unknown" "n/a" "n/a" "bench_run_failed" "$threshold_free_baseline_provenance" "$s3_repeat_semantics" "$warmup" "$variance" "$s3_methodology_notes"
     fi
 fi
 
@@ -229,6 +278,12 @@ build_mode=$build_mode
 omp_num_threads=$omp_num_threads
 sparse_chol_dense_backend=$chol_dense_backend
 sparse_ldlt_dense_backend=$ldlt_dense_backend
+s5_baseline_provenance=$wall_baseline
+s5_repeat_semantics=$s5_repeat_semantics
+s2_repeat_semantics=$s2_repeat_semantics
+s3_repeat_semantics=$s3_repeat_semantics
+warmup=$warmup
+variance=$variance
 
 commands:
 - S5: make wall-check
@@ -257,6 +312,9 @@ notes:
 - S2 is threshold-free local reporting; compare across local runs only.
 - S3 is threshold-free LDLT KKT backend reporting; compare across local runs only.
 - This bundle is local regression evidence, not a portable performance claim.
+- S5 status is meaningful only with the recorded baseline, threshold, fixture, command, and machine context. It is not a portable timing promise.
+- S2 and S3 rows are threshold-free local backend-context rows. They preserve backend request, selected backend, fallback, dense-kernel, and panel-solver context where emitted, but they do not pass or fail and do not prove backend superiority.
+- These rows are not state-of-the-art claims, broad platform parity claims, package evidence, package-manager claims, shared-library or ABI guarantees, runtime-loader claims, external-library parity claims, OpenMP speedup claims, or backend superiority claims.
 EOF
 } > "$manifest_txt"
 

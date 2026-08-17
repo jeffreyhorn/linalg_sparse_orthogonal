@@ -244,6 +244,20 @@ plus a bounded bundle-level metadata surface:
     mode, and `OMP_NUM_THREADS`
   - keeps the same bounded canonical surface identity and command mapping in a
     machine-readable comparison form
+  - appends methodology fields for publication review:
+    - `report_family`
+    - `status`
+    - `support_tier`
+    - `claim_boundary`
+    - `fixture_or_workload`
+    - `matrix_size`
+    - `repeat_semantics`
+    - `warmup`
+    - `variance`
+    - `baseline`
+    - `threshold`
+    - `backend_context`
+    - `methodology_notes`
 
 This is intentionally not a pass/fail timing gate:
 
@@ -253,6 +267,12 @@ This is intentionally not a pass/fail timing gate:
   easier to line up without widening the benchmark claim surface
 - read platform, compiler, build mode, and `OMP_NUM_THREADS` as local
   comparison context, not as a portability or OpenMP speedup claim
+- read `status=measurement`, `support_tier=local_only`, and
+  `claim_boundary=local_threshold_free` as the canonical row boundary
+- read `baseline=n/a` and `threshold=n/a` as proof that canonical rows are not
+  hard timing gates
+- read `warmup=not_recorded` and `variance=not_recorded` literally; do not
+  infer warmup, samples, statistical variance, or confidence intervals
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
@@ -278,11 +298,19 @@ with these artifacts:
     command, build mode, `OMP_NUM_THREADS`, fixture, metric, value, baseline,
     threshold, artifact, backend request/selection/fallback, dense-kernel
     descriptor, panel-solver descriptor, and notes
+  - appends methodology fields:
+    - `baseline_provenance`
+    - `repeat_semantics`
+    - `warmup`
+    - `variance`
+    - `methodology_notes`
 - `manifest.txt`
   - git commit and branch when available
   - platform and compiler string
   - `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND`
   - exact sentinel commands
+  - S5 baseline provenance, S5/S2/S3 repeat semantics, warmup state, variance
+    state, and non-superiority caveats
 - `wall_check.txt`
   - raw output from the existing thresholded `wall-check` lane when that lane
     runs
@@ -309,6 +337,14 @@ Interpret the bundle narrowly:
 - The bundle is local regression evidence, not a portable timing guarantee.
 - Timing rows are meaningful only with the recorded backend request/fallback
   context and OpenMP runtime settings.
+- S5 `pass` or `fail` status is meaningful only with the recorded baseline,
+  threshold, fixture, command, baseline provenance, and local machine context.
+- S2 and S3 `status=report` rows are not pass/fail rows and do not prove
+  backend superiority.
+- Rows with `warmup=not_recorded` or `variance=not_recorded` must not be
+  described as warmup-controlled or statistical summaries.
+- Generated sentinel artifacts under `build/bench-reports/sentinels/` should
+  be regenerated from `make performance-sentinels`; do not hand-edit them.
 
 Report-index handoff:
 
@@ -318,6 +354,11 @@ Report-index handoff:
 - `support_tier` and `claim_boundary` fields in sentinel rows should be
   preserved by any report index instead of collapsed into pass/fail timing
   status
+- canonical `support_tier`, `claim_boundary`, `repeat_semantics`, `warmup`,
+  `variance`, `baseline`, `threshold`, and `methodology_notes` fields should
+  remain visible in downstream summaries
+- sentinel `baseline_provenance`, `repeat_semantics`, `warmup`, `variance`,
+  and `methodology_notes` fields should remain visible in downstream summaries
 - backend fields that report `n/a`, `unknown`, or fallback context must remain
   visible in any downstream index because they limit comparison scope
 - canonical rows remain threshold-free even when their index includes

@@ -202,11 +202,15 @@ When to widen beyond the first examples:
   machine, compiler, dependency, fixture, and configuration
 - tests own regression, oracle, and property guarantees
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
-  benchmark surface with generated `index.tsv` / `manifest.txt` context and
-  is intentionally not a pass/fail timing gate
+  benchmark surface with generated `index.tsv` / `manifest.txt` methodology
+  context and is intentionally not a pass/fail timing gate; canonical rows are
+  `status=measurement`, `support_tier=local_only`, and
+  `claim_boundary=local_threshold_free`
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing wall-check lane, while
-  Cholesky CSC and LDLT KKT rows are threshold-free measurement context
+  Cholesky CSC and LDLT KKT rows are threshold-free measurement context; S5
+  rows carry baseline provenance, while S2/S3 rows carry backend-context
+  caveats rather than pass/fail meaning
 
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
@@ -241,7 +245,11 @@ portable performance claims.
 Runtime/backend sentinels follow the same boundary: `S5` is the existing
 local `wall-check` hard gate, while `S2` Cholesky CSC and `S3` LDLT KKT rows
 are threshold-free local context rows in
-`build/bench-reports/sentinels/sentinels.tsv`.
+`build/bench-reports/sentinels/sentinels.tsv`. Generated benchmark,
+sentinel, and normalized report-index artifacts stay under ignored `build/`
+paths and are not hosted CI proof, package proof, ABI proof, runtime-loader
+proof, external-library parity, OpenMP speedup evidence, backend superiority
+evidence, or state-of-the-art evidence.
 
 ## Building
 
@@ -786,10 +794,13 @@ Current benchmark surfaces cover:
 
 Use `make bench-canonical-report` for one bounded local snapshot of the
 maintained benchmark surface. Treat emitted benchmark rows as branch-local
-measurement artifacts, not portable performance guarantees. Use
-`make performance-sentinels` when you need the bounded local sentinel bundle:
-it reports the existing hard `wall-check` gate plus threshold-free Cholesky CSC
-and LDLT KKT backend context under the current backend and thread settings.
+measurement artifacts, not portable performance guarantees; the generated
+`index.tsv` records methodology fields such as support tier, claim boundary,
+repeat semantics, warmup and variance state, baseline, threshold, and
+methodology notes. Use `make performance-sentinels` when you need the bounded
+local sentinel bundle: it reports the existing hard `wall-check` gate plus
+threshold-free Cholesky CSC and LDLT KKT backend context under the current
+backend and thread settings.
 
 ## Thread Safety
 

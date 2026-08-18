@@ -304,9 +304,10 @@ The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
 benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof. The reviewed Linux hosted report-freshness lane runs only the
-selected oracle and selected QR plus partial-SVD comparison gates above; it
-does not promote broad report-index freshness or any unselected local-only
-family.
+selected oracle gate and the selected comparison gate above. The comparison
+gate is limited to QR minimum-norm, QR compatible least-squares, and
+partial-SVD diag6 k2 generated rows and artifacts; it does not promote broad
+report-index freshness or any unselected local-only family.
 
 ### With CMake
 
@@ -686,13 +687,15 @@ source-controlled proof owner is
 [`tests/test_qr_corpus.c`](tests/test_qr_corpus.c), and the opt-in local
 oracle/report freshness gate is `make report-index-oracle-freshness`. That
 selected oracle gate and the split oracle artifacts are also run in the
-reviewed Linux hosted report-freshness lane. The narrow local comparison
-freshness gate is
+reviewed Linux hosted report-freshness lane. The selected comparison freshness
+gate is
 `make report-index-comparison-freshness`, which checks selected fixture-local
 QR minimum-norm and compatible least-squares comparisons plus the selected
 fixture-local partial-SVD diagonal top-k comparison for `partial_svd_diag6_k2`
-against the selected source-controlled dense reference helpers. These gates do
-not prove raw QR basis parity, raw singular-vector identity, broad
+against the selected source-controlled dense reference helpers. The same gate
+is mirrored by the reviewed Linux hosted report-freshness lane for selected
+comparison artifacts only. These gates do not prove raw QR basis parity, raw
+singular-vector identity, broad
 rank-threshold policy, broad rank-deficient solve, broad minimum-norm
 behavior, broad SVD or partial-SVD correctness, SuiteSparse, LAPACK, NumPy,
 SciPy, platform parity, performance, package/ABI, release, or

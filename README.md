@@ -206,6 +206,11 @@ When to widen beyond the first examples:
   context and is intentionally not a pass/fail timing gate; canonical rows are
   `status=measurement`, `support_tier=local_only`, and
   `claim_boundary=local_threshold_free`
+- `make bench-canonical-report-freshness` regenerates that canonical bundle
+  and checks only the selected `bench_refactor_csc` row for
+  `nos4.mtx --repeat 1`; the reviewed Linux hosted performance lane runs the
+  same selected-row freshness check with hosted metadata, still without a
+  timing threshold or portable performance claim
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing wall-check lane, while
   Cholesky CSC and LDLT KKT rows are threshold-free measurement context; S5
@@ -284,6 +289,7 @@ python3 scripts/normalize_report_index.py --check  # validate normalized report-
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
 make report-index-comparison-freshness  # selected QR + partial-SVD comparison freshness
+make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
@@ -308,6 +314,16 @@ selected oracle gate and the selected comparison gate above. The comparison
 gate is limited to QR minimum-norm, QR compatible least-squares, and
 partial-SVD diag6 k2 generated rows and artifacts; it does not promote broad
 report-index freshness or any unselected local-only family.
+
+The reviewed Linux hosted selected-performance lane runs only the selected
+`bench_refactor_csc` canonical row for `nos4.mtx --repeat 1` through
+`make bench-canonical-report` and
+`scripts/check_bench_canonical_freshness.py --mode hosted`. It checks artifact
+presence, selected row identity, methodology metadata, manifest agreement, and
+`hosted_selected_threshold_free` claim boundaries. It does not compare timing
+values, set a regression threshold, claim portable speed, promote the other
+canonical benchmark rows, or provide external-library, package, ABI, broad
+platform, release, or state-of-the-art evidence.
 
 ### With CMake
 

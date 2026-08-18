@@ -6,6 +6,7 @@ name: CI
 # - dead-code report/check path
 # - reviewed static-first package contract path
 # - selected hosted oracle/comparison freshness path
+# - selected hosted threshold-free performance report freshness path
 # It also carries Linux-specific supplemental signals (`make test`,
 # `bench-fast`, TSan, coverage). The package contract lane covers the
 # maintained static archive install/export/downstream surface only, including
@@ -232,6 +233,107 @@ jobs:
             build/comparison/partial_svd_diag6_k2/study.tsv
             build/comparison/partial_svd_diag6_k2/summary.md
             build/comparison/partial_svd_diag6_k2/manifest.tsv
+
+  hosted-performance-freshness:
+    name: Linux reviewed hosted selected performance freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BENCH_CANONICAL_REPORT_LABEL: sprint-168-hosted-performance
+      SPARSE_CANONICAL_SUPPORT_TIER: hosted_selected
+      SPARSE_CANONICAL_CLAIM_BOUNDARY: hosted_selected_threshold_free
+      SPARSE_CANONICAL_RUNNER_CONTEXT: github-actions-ubuntu-latest
+      SPARSE_CANONICAL_BUILD_FLAGS: default_make_flags
+      SPARSE_CANONICAL_BUILD_MODE: serial
+    steps:
+      - uses: actions/checkout@v4
+
+      # This lane promotes only the selected `bench_refactor_csc`
+      # canonical report row on `nos4.mtx --repeat 1` to reviewed
+      # hosted freshness evidence. It checks methodology metadata,
+      # selected row identity, artifact paths, and threshold-free
+      # claim boundaries. It is not a timing threshold, portable
+      # performance claim, external-library comparison, broad
+      # benchmark-family publication, package/ABI claim, or
+      # state-of-the-art sparse linear algebra claim.
+      - name: Set selected performance metadata
+        run: |
+          cpu_model="$(awk -F': ' '/model name/ { print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
+          if [ -z "$cpu_model" ]; then
+            cpu_model="unknown"
+          fi
+          echo "SPARSE_CANONICAL_CPU_MODEL=$cpu_model" >> "$GITHUB_ENV"
+
+      - name: Run reviewed hosted selected performance report
+        run: make bench-canonical-report
+
+      - name: Check reviewed hosted selected performance freshness
+        run: |
+          python3 scripts/check_bench_canonical_freshness.py \
+            --report-dir build/bench-reports/canonical \
+            --mode hosted
+
+      - name: Summarize reviewed hosted selected performance freshness
+        run: |
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          report_dir = Path("build/bench-reports/canonical")
+          index_path = report_dir / "index.tsv"
+          manifest_path = report_dir / "manifest.txt"
+          rows = list(csv.DictReader(index_path.open(newline=""), delimiter="\t"))
+          selected = [row for row in rows if row["artifact"] == "bench_refactor_csc"]
+          if len(selected) != 1:
+              raise SystemExit(
+                  f"expected one selected bench_refactor_csc row, got {len(selected)}"
+              )
+          row = selected[0]
+          manifest = {}
+          for line in manifest_path.read_text(encoding="utf-8").splitlines():
+              if "=" in line:
+                  key, value = line.split("=", 1)
+                  manifest[key] = value
+          print(
+              "sprint168-performance-summary: "
+              f"artifact={row['artifact']} "
+              f"command={row['command']} "
+              f"fixture={row['fixture_or_workload']} "
+              f"repeat={row['repeat_semantics']} "
+              f"support_tier={row['support_tier']} "
+              f"claim_boundary={row['claim_boundary']}"
+          )
+          print(
+              "sprint168-performance-summary: "
+              f"report_label={row['report_label']} "
+              f"runner_context={row['runner_context']} "
+              f"build_flags={row['build_flags']} "
+              f"cpu_model={row['cpu_model']} "
+              f"build_mode={row['build_mode']} "
+              f"omp_num_threads={row['omp_num_threads']}"
+          )
+          print(
+              "sprint168-performance-summary: "
+              f"manifest_report_label={manifest.get('report_label', 'unknown')} "
+              f"manifest_claim_boundary={manifest.get('claim_boundary', 'unknown')} "
+              "non_claims=threshold_free_no_portable_performance_claim"
+          )
+          PY
+
+      - name: Upload reviewed selected performance freshness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint168-selected-performance-freshness
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            build/bench-reports/canonical/bench_refactor_csc.csv
+            build/bench-reports/canonical/bench_chol_csc.csv
+            build/bench-reports/canonical/bench_iterative_reuse.csv
+            build/bench-reports/canonical/bench_eigs_reuse.csv
+            build/bench-reports/canonical/index.tsv
+            build/bench-reports/canonical/manifest.txt
 
   tsan:
     name: Linux supplemental ThreadSanitizer coverage

@@ -7,6 +7,8 @@
  *
  * SparseMatrix is the public mutable matrix shell. Each non-zero is linked in
  * both row and column order, so public helpers can traverse either direction.
+ * Objects returned as `SparseMatrix *` are caller-owned unless a function
+ * explicitly documents otherwise; release them with `sparse_free()`.
  *
  * Memory is managed by a slab pool allocator with a free-list for node reuse.
  * Tuning constants (slab size, drop tolerance) can be overridden at compile
@@ -24,6 +26,11 @@
  * Dense scalar buffers on helper paths use `sparse_scalar_t`. The current
  * scalar contract is real-only `double`; this does not imply broad numeric
  * genericity or complex support.
+ *
+ * For first-use paths from hand-built, CSR, CSC, or Matrix Market data, start
+ * with `docs/cookbook.md`, `docs/tutorial.md`, `docs/solver_selection.md`,
+ * and `examples/README.md`. Use this header for exact matrix-shell
+ * declarations and ownership contracts.
  */
 
 #include "sparse_types.h"
@@ -62,7 +69,9 @@
  * Callers with a known structure can override with
  * `-DSPARSE_CSC_THRESHOLD=N` at compile time, or set
  * `sparse_cholesky_opts_t::backend` explicitly to force one branch
- * per call.
+ * per call. Forcing a branch requests that implementation path only; it does
+ * not imply package, ABI, platform, or broad performance support beyond the
+ * direct-solver contract documented in `sparse_cholesky.h`.
  */
 #ifndef SPARSE_CSC_THRESHOLD
 #define SPARSE_CSC_THRESHOLD 100
@@ -103,7 +112,8 @@ void sparse_free(SparseMatrix *mat);
  * @brief Create a deep copy of a sparse matrix.
  *
  * Copies all non-zero elements, permutation arrays, and allocates a fresh
- * pool. The copy is independent — modifying one does not affect the other.
+ * pool. The returned matrix is caller-owned and independent — modifying one
+ * matrix does not affect the other.
  * Any current one-shot factor/permutation compatibility state on the source
  * matrix is copied too, so copying a factored matrix preserves its matrix-shell
  * solve contract until later matrix-shell mutation or `sparse_reset_perms()`
@@ -118,16 +128,16 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat);
 /**
  * @brief Compute the transpose of a sparse matrix.
  *
- * Returns a new matrix B = A^T where B(j,i) = A(i,j) for every nonzero
- * entry in physical storage. The result has dimensions (cols_A × rows_A).
- * Works on rectangular matrices.
+ * Returns a new caller-owned matrix B = A^T where B(j,i) = A(i,j) for every
+ * nonzero entry in physical storage. The result has dimensions
+ * (cols_A × rows_A). Works on rectangular matrices.
  *
  * @note Operates on physical storage indices. If A has non-identity
  *       row/col permutations, the transpose reflects the physical layout,
  *       not the logical view.
  *
- * @param A  The matrix to transpose (not modified). May be NULL, in which case
- *           NULL is returned.
+ * @param A  The matrix to transpose (not modified and not retained). May be
+ *           NULL, in which case NULL is returned.
  * @return A new SparseMatrix containing A^T, or NULL on failure or if A is NULL.
  */
 SparseMatrix *sparse_transpose(const SparseMatrix *A);
@@ -333,12 +343,15 @@ sparse_err_t sparse_mark_factored(SparseMatrix *mat);
  * @brief Compute y = A * x (sparse matrix-vector product).
  *
  * Computes the product by traversing each row's entries in physical ordering.
- * The caller must allocate y (length = rows) and x (length = cols).
- * Each y[i] is fully overwritten (not accumulated into).
+ * The caller owns and must allocate x (length = cols) and y (length = rows).
+ * The library borrows both buffers only for the duration of the call. Each
+ * y[i] is fully overwritten (not accumulated into). If argument validation
+ * fails, y is not a completed output and callers should treat its contents as
+ * unchanged/unspecified by this call.
  *
- * @param mat  The matrix.
- * @param x    Input vector of length cols.
- * @param y    Output vector of length rows (overwritten).
+ * @param mat  The matrix (borrowed, not modified).
+ * @param x    Caller-owned input vector of length cols.
+ * @param y    Caller-owned output vector of length rows (overwritten).
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
  */
 sparse_err_t sparse_matvec(const SparseMatrix *mat, const sparse_scalar_t *x, sparse_scalar_t *y);
@@ -353,13 +366,16 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const sparse_scalar_t *x, sp
  * SPARSE_OK without reading from @p X or writing to @p Y.
  *
  * @param mat   Sparse matrix (m × n, not modified).
- * @param X     Dense input matrix, n × nrhs column-major. Must be non-NULL
- *              even when @p nrhs is 0.
+ * @param X     Caller-owned dense input matrix, n × nrhs column-major. Must be
+ *              non-NULL even when @p nrhs is 0. Borrowed for the call only.
  * @param nrhs  Number of columns in X and Y. If 0, the call is a no-op.
- * @param Y     Dense output matrix, m × nrhs column-major (overwritten).
- *              Must be non-NULL even when @p nrhs is 0.
+ * @param Y     Caller-owned dense output matrix, m × nrhs column-major
+ *              (overwritten on success). Must be non-NULL even when @p nrhs
+ *              is 0. On error, callers should not consume @p Y as a
+ *              completed block product.
  * @return SPARSE_OK on success (including the no-op case when @p nrhs is 0).
  * @return SPARSE_ERR_NULL if @p mat, @p X, or @p Y is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative.
  * @return SPARSE_ERR_ALLOC if any internal size calculation overflows @c size_t
  *         (including output or input stride calculations).
  */
@@ -385,18 +401,21 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
 /**
  * @brief Compute C = alpha*A + beta*B (sparse matrix addition with scaling).
  *
- * A and B must have the same dimensions. C is a newly allocated matrix.
+ * A and B must have the same dimensions. After A, B, and C_out are validated,
+ * *C_out is set to NULL before shape checks/allocation; on success it receives
+ * a newly allocated caller-owned matrix.
  * Entries that cancel to zero (|value| < 1e-15) are not stored.
  *
  * @note Operates in physical index space. Do not use on matrices with
  *       non-identity permutations (e.g., after LU factorization).
  *
- * @param A       First input matrix.
- * @param B       Second input matrix.
+ * @param A       First input matrix (borrowed, not modified).
+ * @param B       Second input matrix (borrowed, not modified).
  * @param alpha   Scalar for A.
  * @param beta    Scalar for B.
- * @param[out] C_out  Pointer to receive the result matrix. The caller must
- *                    free with sparse_free().
+ * @param[out] C_out  Pointer to receive the result matrix. Set to NULL after
+ *                    pointer validation and left NULL on later errors. The
+ *                    caller must free a successful result with sparse_free().
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
  *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
  *         memory failure.
@@ -413,7 +432,9 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_sca
  * @note Operates in physical index space. Do not use on matrices with
  *       non-identity permutations (e.g., after LU factorization).
  *
- * @param A       Matrix to modify in-place (receives the result).
+ * @param A       Matrix to modify in-place (receives the result). May already
+ *                be partially updated if an allocation or insertion error is
+ *                reported after validation succeeds.
  * @param B       Second input matrix (read-only).
  * @param alpha   Scalar for A.
  * @param beta    Scalar for B.
@@ -438,8 +459,9 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
  *
  * @param A       Left input matrix (m×k).
  * @param B       Right input matrix (k×n).
- * @param[out] C  Pointer to receive the product matrix. Caller must free
- *                with sparse_free(). Set to NULL on error.
+ * @param[out] C  Pointer to receive the caller-owned product matrix. Set to
+ *                NULL on entry and left NULL on error. Caller must free a
+ *                successful result with sparse_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if inner dimensions mismatch (A->cols != B->rows).
@@ -483,8 +505,10 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * out-of-range coordinates, zero coordinates, or rectangular symmetric
  * input) return SPARSE_ERR_PARSE.
  *
- * @param[out] mat_out  Pointer to receive the loaded matrix. Set to NULL on error.
- *                      The caller must free the matrix with sparse_free().
+ * @param[out] mat_out  Pointer to receive the loaded caller-owned matrix. Set
+ *                      to NULL after argument validation and left NULL on later
+ *                      errors. The caller must free a successful matrix with
+ *                      sparse_free().
  * @param      filename Path to the input .mtx file.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
  *         SPARSE_ERR_IO on file open/read failure, SPARSE_ERR_PARSE on

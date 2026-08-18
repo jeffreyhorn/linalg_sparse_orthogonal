@@ -534,7 +534,7 @@ sparse_eigs_opts_t opts = {
     .tol = 1e-10,
     .compute_vectors = 1,
 };
-sparse_eigs_result_t result = {
+sparse_eigs_t result = {
     .eigenvalues = eigenvalues,
     .eigenvectors = eigenvectors,
 };

@@ -68,12 +68,19 @@
  *     themselves from `result.eigenvectors`.
  *
  * **Ownership.** Eigenvalue and eigenvector arrays are caller-owned buffers.
- * The library writes scalar output fields into `sparse_eigs_t` on return but
- * does not allocate result buffers, so there is no `sparse_eigs_free()` helper.
+ * The library borrows `A`, `opts`, callback contexts, and result buffers only
+ * for the duration of the call. It writes scalar output fields into
+ * `sparse_eigs_t` on return but does not allocate result buffers, so there is
+ * no `sparse_eigs_free()` helper.
  *
- * @see sparse_ldlt.h — factorisation backend used by shift-invert.
- * @see sparse_svd.h — related decomposition for rectangular A.
- * @see docs/algorithm.md — Lanczos theory and implementation notes.
+ * For workflow selection and runnable examples, start with
+ * `docs/solver_selection.md`, `docs/tutorial.md`, `docs/cookbook.md`, and
+ * `examples/README.md`. Use this header for exact option/result fields and
+ * `docs/algorithm.md` for algorithm notes.
+ *
+ * @see sparse_ldlt.h - factorization backend used by shift-invert.
+ * @see sparse_svd.h - related decomposition for rectangular A.
+ * @see sparse_iterative.h - preconditioner callback type shared with LOBPCG.
  */
 
 #include "sparse_iterative.h" /* sparse_precond_fn for LOBPCG */
@@ -108,11 +115,12 @@ typedef enum {
  * @brief Eigensolver backend selector.
  *
  * - `SPARSE_EIGS_BACKEND_AUTO` (default, zero-initialised): let the
- *   library pick. AUTO prefers LOBPCG when a preconditioner is supplied and
- *   the problem is large enough to benefit from a block method; otherwise it
- *   chooses between grow-m Lanczos and thick-restart Lanczos using the
- *   compile-time thresholds below. `result->backend_used` records AUTO's
- *   choice on every successful call.
+ *   library pick by the implementation's dispatch policy. AUTO routes to
+ *   LOBPCG only when a preconditioner is supplied, the matrix is large enough,
+ *   and the effective block size is at least 4; otherwise it chooses between
+ *   grow-m Lanczos and thick-restart Lanczos using the compile-time thresholds
+ *   below. `result->backend_used` records the concrete backend on successful
+ *   calls. AUTO is a convenience policy, not a backend-superiority claim.
  * - `SPARSE_EIGS_BACKEND_LANCZOS`: Lanczos with a growing-subspace
  *   outer loop and optional full reorthogonalization. Peak memory is
  *   `O(m_cap · n)` across retries.
@@ -124,8 +132,8 @@ typedef enum {
  *   Preconditioned Conjugate Gradient. Iterates a block of `block_size`
  *   approximate eigenvectors X by block Rayleigh-Ritz on `[X, W, P]`, where
  *   W is the residual (optionally preconditioned) and P is the previous
- *   search direction. Best suited to ill-conditioned SPD problems where a
- *   useful preconditioner is available. All three `which` modes are
+ *   search direction. Intended for workloads where a useful preconditioner is
+ *   available. All three `which` modes are
  *   supported; `NEAREST_SIGMA` composes with the same shift-invert LDL^T
  *   pipeline the Lanczos backends use.
  */
@@ -149,7 +157,7 @@ typedef enum {
  * effective block size is at least 4).  In that Lanczos-only branch,
  * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` routes to
  * the bounded-memory thick-restart backend rather than the grow-m path.
- * Below the threshold the grow-m path wins because its
+ * Below the threshold AUTO selects the grow-m path because its
  * full-basis Ritz extraction converges in slightly fewer matvecs on
  * small problems and memory isn't a concern — bcsstk04 (n = 132)
  * grow-m holds ~160 KB of V at m_cap = 130, which is cheap on modern
@@ -161,7 +169,8 @@ typedef enum {
  *
  * Default: 500. Override at compile time with
  * `-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N` when profiling on a different
- * corpus.
+ * corpus. This threshold is local dispatch policy, not portable performance
+ * evidence.
  */
 #ifndef SPARSE_EIGS_THICK_RESTART_THRESHOLD
 #define SPARSE_EIGS_THICK_RESTART_THRESHOLD 500
@@ -179,11 +188,10 @@ typedef enum {
  *
  * Rationale: LOBPCG's per-iteration cost is `O(block_size · matvec
  * + block_size² · Jacobi)`, so it amortises well only when the
- * preconditioner makes the iteration count tiny relative to
- * Lanczos's per-Ritz-pair work.  Without a preconditioner LOBPCG
- * generally underperforms thick-restart Lanczos on the same n; the
- * AUTO path therefore declines to pick LOBPCG when `precond ==
- * NULL`.
+ * preconditioner reduces the iteration count enough for the local workload.
+ * Without a preconditioner, the AUTO path declines to pick LOBPCG when
+ * `precond == NULL`; callers can still request LOBPCG explicitly when they
+ * want that algorithm for profiling or comparison.
  *
  * Default: 1000. Override at compile time with
  * `-DSPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD=N` when profiling on a different
@@ -204,6 +212,10 @@ typedef enum {
  * Lanczos), `precond = NULL` / `precond_ctx = NULL` (vanilla
  * LOBPCG; ignored for Lanczos), `lobpcg_soft_lock = 1` (per-column
  * freezing on; ignored for Lanczos).
+ * A zero-initialized explicit options struct is valid, but not identical to
+ * NULL defaults for fields whose documented default is nonzero; set those
+ * fields explicitly when you need NULL-options behavior with designated
+ * initialization.
  *
  * @warning **Source rebuild required for v2.2.0 options layout.** The
  * `block_size`, `precond`, `precond_ctx`, and `lobpcg_soft_lock` fields were
@@ -214,7 +226,7 @@ typedef enum {
  * objects compiled against the older struct layout must be rebuilt.
  */
 typedef struct {
-    /** Which portion of the spectrum to return. */
+    /** Which portion of the spectrum to return. 0 means LARGEST. */
     sparse_eigs_which_t which;
     /** Shift point for `SPARSE_EIGS_NEAREST_SIGMA`; ignored
      *  otherwise.  Default: 0.0. */
@@ -259,8 +271,9 @@ typedef struct {
      *  the reliability requirement — `compute_vectors = 1` is only
      *  meaningful when `reorthogonalize = 1`. */
     int compute_vectors;
-    /** Backend selector — see `sparse_eigs_backend_t`.  Default
-     *  AUTO routes to Lanczos. */
+    /** Backend selector — see `sparse_eigs_backend_t`. 0 means AUTO. AUTO may
+     *  resolve to grow-m Lanczos, thick-restart Lanczos, or LOBPCG depending on
+     *  `n`, `precond`, and effective block size. */
     sparse_eigs_backend_t backend;
     /** LOBPCG block size — number of approximate eigenvector columns
      *  iterated together. Ignored unless
@@ -268,8 +281,9 @@ typedef struct {
      *  there).  0 (the designated-init default) selects the library
      *  default `block_size = k`, which is the minimum that produces
      *  k Ritz pairs per Rayleigh-Ritz step.  Larger blocks accelerate
-     *  convergence on clustered spectra at the cost of more memory
-     *  (peak `O((3 · block_size) · n)`).  Must satisfy
+     *  convergence on some clustered spectra at the cost of more memory
+     *  (peak `O((3 · block_size) · n)`). This is a workload-control knob, not
+     *  a portable speedup guarantee. Must satisfy
      *  `0 <= block_size` and, when nonzero, `k <= block_size <= n`.
      *  Values of `block_size < k` are rejected with
      *  SPARSE_ERR_BADARG.
@@ -284,13 +298,15 @@ typedef struct {
      *  LOBPCG. See `sparse_iterative.h` for the callback typedef and
      *  `sparse_ic.h` / `sparse_ldlt.h` for preconditioner-building APIs.
      *
-     *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
+     *  Used by explicit LOBPCG and by AUTO only when AUTO resolves to LOBPCG;
+     *  ignored by Lanczos-family backends. */
     sparse_precond_fn precond;
-    /** Opaque context pointer passed through unchanged to the
+    /** Opaque caller-owned context pointer passed through unchanged to the
      *  `precond` callback.  Typically a pointer to a factored
      *  preconditioner struct (e.g. `sparse_ilu_t *` for IC(0),
-     *  `sparse_ldlt_t *` for LDL^T).  When `precond == NULL` this
-     *  field is ignored — but `precond_ctx != NULL` while
+     *  `sparse_ldlt_t *` for LDL^T).  The eigensolver borrows the context for
+     *  callback invocations and does not retain or free it.  When
+     *  `precond == NULL` this field is ignored — but `precond_ctx != NULL` while
      *  `precond == NULL` is rejected as SPARSE_ERR_BADARG (the
      *  obvious user error of forgetting to set the callback). */
     const void *precond_ctx;
@@ -306,7 +322,8 @@ typedef struct {
      *  problems where the spectrum has a wide gap between the
      *  bottom-k and the rest.
      *
-     *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
+     *  Used by explicit LOBPCG and by AUTO only when AUTO resolves to LOBPCG;
+     *  ignored by Lanczos-family backends. */
     int lobpcg_soft_lock;
     /** Opt-in eigenpair refinement post-pass. Nonzero enables
      *  Rayleigh-quotient iteration on each converged
@@ -362,7 +379,8 @@ typedef struct {
      *  the higher peak-basis memory.
      *
      *  Return 0 to continue. Non-zero cancels, frees intermediate state, and
-     *  returns `SPARSE_ERR_CANCELLED`. NULL leaves progress/cancel disabled. */
+     *  returns `SPARSE_ERR_CANCELLED`. The progress payload is borrowed for
+     *  the callback invocation only. NULL leaves progress/cancel disabled. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
@@ -375,8 +393,13 @@ typedef struct {
  * The `eigenvalues` and `eigenvectors` fields are caller-owned
  * buffers that the caller must allocate (to length `>= k` and
  * `>= n * k` respectively) before the call and free after.  The
- * library writes at most `k` entries into each.  The remaining
- * fields are library-written outputs populated on return.
+ * library writes at most `k` entries into each and does not retain or free
+ * those buffers.  The remaining fields are scalar outputs populated after
+ * validation succeeds; on validation errors they retain their pre-call values.
+ * Interpret telemetry fields (`iterations`, `residual_norm`,
+ * `used_csc_path_ldlt`, `peak_basis_size`, and `backend_used`) with the return
+ * code: they are authoritative on `SPARSE_OK` and bounded
+ * `SPARSE_ERR_NOT_CONVERGED`, but best-effort on later hard errors.
  *
  * **Partial convergence.** When Lanczos hits `max_iterations`
  * without converging all `k` requested pairs, the call returns
@@ -384,6 +407,9 @@ typedef struct {
  * filled in.  Unfilled slots retain their pre-call values.
  * Callers that want partial results in the unconverged case
  * should inspect `n_converged` before consuming `eigenvalues[]`.
+ * On cancellation, allocation failure, callback/preconditioner failure, or
+ * shift-invert factorization failure, result fields and caller buffers are
+ * best-effort/unspecified except for fields already documented as telemetry.
  *
  * @warning **Source rebuild required for v2.2.0 result layout.** The
  * `peak_basis_size` and `backend_used` fields were added after the v2.1.x
@@ -394,13 +420,15 @@ typedef struct {
     /** Caller-owned buffer of length `>= k`.  The library writes
      *  converged eigenvalues into indices [0, n_converged),
      *  ordered as `which` selects (LARGEST → descending,
-     *  SMALLEST → ascending, NEAREST_SIGMA → ascending |lambda − sigma|). */
+     *  SMALLEST → ascending, NEAREST_SIGMA → ascending |lambda − sigma|).
+     *  Entries at indices >= n_converged are not outputs of the call. */
     sparse_scalar_t *eigenvalues;
     /** Caller-owned buffer of length `>= n * k` (column-major).
      *  Ignored when `opts->compute_vectors == 0`; must be non-NULL
      *  when compute_vectors is set.  The library writes normalized
      *  eigenvectors into columns [0, n_converged); each column
-     *  corresponds to the eigenvalue at the same index. */
+     *  corresponds to the eigenvalue at the same index. Columns at indices
+     *  >= n_converged are not outputs of the call. */
     sparse_scalar_t *eigenvectors;
     /** Output: the `k` passed to `sparse_eigs_sym()`.  Written on
      *  return so the result struct is self-describing. */
@@ -408,7 +436,9 @@ typedef struct {
     /** Output: number of Ritz pairs that met the convergence
      *  tolerance within `max_iterations`.  0 <= n_converged <= k. */
     idx_t n_converged;
-    /** Output: total Lanczos iterations across all restarts. */
+    /** Output: total outer iterations for the selected backend. For
+     *  Lanczos-family backends this is Lanczos iteration count; for LOBPCG it
+     *  is LOBPCG outer iterations. */
     idx_t iterations;
     /** Output: maximum relative Ritz residual across the converged
      *  pairs.  Always <= `opts->tol` when the call returns
@@ -421,12 +451,12 @@ typedef struct {
      *  `sparse_ldlt_opts_t`. Always 0 for
      *  LARGEST / SMALLEST (no LDL^T factor involved). */
     int used_csc_path_ldlt;
-    /** Output: peak Lanczos basis size (number of length-n columns
+    /** Output: peak basis/workspace size (number of length-n columns
      *  held simultaneously in the dominant allocation) observed
      *  during the run. Lets callers compare the grow-m path's
      *  monotonically-growing `m_cap` to
      *  the thick-restart path's bounded peak to verify the
-     *  memory-savings claim on large-n problems.  Per-backend
+     *  memory behavior on local large-n problems.  Per-backend
      *  formula:
      *   - **grow-m**: `m_cap` (the largest V actually allocated
      *     across grow-m retries).
@@ -452,7 +482,8 @@ typedef struct {
      *  Set on every successful return.  On error returns, treat
      *  this field as unspecified / best-effort telemetry: backend
      *  selection may already have been recorded before a later
-     *  failure is detected. */
+     *  failure is detected. This field documents routing; it is not evidence
+     *  that one backend is broadly superior to another. */
     sparse_eigs_backend_t backend_used;
 } sparse_eigs_t;
 
@@ -474,9 +505,11 @@ typedef struct {
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_eigs_handle_init() before first use,
- * then use the prepare / run / free helpers below. Re-preparing or re-running
- * the handle may preserve allocation capacity, but it does not preserve prior
- * Krylov, Ritz, restart, or search-direction state as a numerical feature.
+ * then use the prepare / run / free helpers below. The caller owns the handle
+ * object, while the library owns any internal workspace reachable through it.
+ * Re-preparing or re-running the handle may preserve allocation capacity, but
+ * it does not preserve prior Krylov, Ritz, restart, or search-direction state
+ * as a numerical feature.
  *
  * sparse_eigs_handle_free() is safe on a zeroed struct.
  */
@@ -555,8 +588,9 @@ sparse_err_t sparse_eigs_handle_prepare(sparse_eigs_handle_t *handle, idx_t n, i
  * @param k       Number of eigenpairs to compute (1 <= k <= n).
  * @param opts    Options (NULL for defaults; see `sparse_eigs_opts_t`).
  * @param result  Output: caller-owned eigenvalue / eigenvector
- *                buffers filled in place, plus library-written
- *                scalar outputs.  Must be non-NULL.
+ *                buffers filled in place on SPARSE_OK or
+ *                SPARSE_ERR_NOT_CONVERGED, plus library-written scalar
+ *                outputs. Must be non-NULL.
  * @return SPARSE_OK if all k pairs converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iterations was reached
  *         with fewer than k pairs converged.  Partial results in
@@ -575,6 +609,7 @@ sparse_err_t sparse_eigs_handle_prepare(sparse_eigs_handle_t *handle, idx_t n, i
  * @return SPARSE_ERR_SINGULAR when shift-invert mode factors
  *         `A - sigma*I` and that matrix is (near-)singular.
  * @return SPARSE_ERR_ALLOC if Lanczos workspace allocation fails.
+ * @return SPARSE_ERR_CANCELLED if progress_cb requests cancellation.
  *
  * @par Thread safety: read-only on A.  Safe to call concurrently
  *              on the same matrix with different result buffers.
@@ -592,15 +627,16 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
  * This has the same numerical contract as sparse_eigs_sym(), but reuses a
  * caller-owned handle across repeated solves. Callers may explicitly prepare
  * the handle via sparse_eigs_handle_prepare() first; if the handle is zeroed
- * or underprepared, the implementation may grow it on demand. This remains
- * the only public repeated-run eigensolver lifecycle surface even when the
- * solve routes to explicit LOBPCG.
+ * or underprepared, the implementation may grow its internal workspace on
+ * demand. This remains the only public repeated-run eigensolver lifecycle
+ * surface even when the solve routes to explicit LOBPCG.
  *
  * @param A       Symmetric sparse matrix (not modified). Must be square.
  * @param k       Number of eigenpairs to compute (1 <= k <= n).
  * @param opts    Options (NULL for defaults; see `sparse_eigs_opts_t`).
  * @param result  Output: caller-owned eigenvalue / eigenvector buffers
- *                filled in place, plus library-written scalar outputs.
+ *                filled in place on SPARSE_OK or SPARSE_ERR_NOT_CONVERGED,
+ *                plus library-written scalar outputs.
  * @param handle  Reusable handle. Must be non-NULL.
  * @return Same error contract as sparse_eigs_sym(), plus SPARSE_ERR_NULL when
  *         handle is NULL.

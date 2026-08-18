@@ -11,13 +11,21 @@
  * handles are available for CG, GMRES, and MINRES when the problem dimension is
  * stable and workspace reuse matters.
  *
- * Preconditioners are caller-supplied callbacks. Match each preconditioner to
- * the solver assumptions, inspect `sparse_iter_result_t` for convergence and
- * residual diagnostics, and use `examples/README.md` plus
- * `docs/solver_selection.md` for runnable first-use examples.
+ * Preconditioners are caller-supplied callbacks and contexts. Solver calls
+ * borrow those pointers only for the duration of a solve; callers own the
+ * callback context and any factor/preconditioner object it references. Match
+ * each preconditioner to the solver assumptions, inspect
+ * `sparse_iter_result_t` for convergence and residual diagnostics, and use
+ * `docs/solver_selection.md`, `docs/tutorial.md`, `docs/cookbook.md`, and
+ * `examples/README.md` for the public workflow path before using this header
+ * as the exact declaration and option/result reference.
  */
 
 #include "sparse_matrix.h"
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Shared callbacks, options, and result types
+ * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
  * @par Breakdown behavior summary
@@ -34,7 +42,9 @@
  * @brief Progress information passed to the verbose callback.
  *
  * Populated by the solver at each iteration (or restart boundary for GMRES)
- * and passed to the user callback if one is provided.
+ * and passed to the user callback if one is provided. The pointer is borrowed
+ * for the callback invocation only; do not store it after the callback
+ * returns.
  */
 typedef struct {
     idx_t iteration;               /**< Current iteration number (0-based) */
@@ -59,6 +69,10 @@ typedef void (*sparse_iter_callback_fn)(const sparse_iter_progress_t *progress, 
  *
  * Pass NULL to sparse_solve_cg() to use defaults:
  * max_iter = 1000, tol = 1e-10, verbose = 0.
+ * A zero-initialized explicit struct is not identical to NULL defaults:
+ * `max_iter = 0` requests a zero-iteration budget, `tol = 0` requires a
+ * zero relative residual, and optional callback/history fields remain off
+ * unless the caller supplies them.
  */
 typedef struct {
     idx_t max_iter; /**< Maximum number of CG iterations (default: 1000) */
@@ -69,8 +83,11 @@ typedef struct {
                                             tracks the last N residual norms and declares stagnation
                                             if max/min in the window differ by less than 1%.
                                             0 = disabled (default). Typical value: 10-20. */
-    sparse_scalar_t *residual_history; /**< Caller-allocated array for per-iteration residual norms.
-                                            If non-NULL, the solver stores ||r_k||/||b|| at index k.
+    sparse_scalar_t *residual_history; /**< Caller-owned array for per-iteration residual norms.
+                                            If non-NULL, the solver writes ||r_k||/||b|| at index k
+                                            but does not allocate, retain, or free the buffer.
+                                            On non-convergence or cancellation, only the first
+                                            result.residual_history_count entries are meaningful.
                                             NULL = no recording (default). */
     idx_t residual_history_len;        /**< Capacity of the residual_history array. The solver
                                             writes at most this many entries. */
@@ -106,6 +123,9 @@ typedef enum {
  *
  * Pass NULL to sparse_solve_gmres() to use defaults:
  * max_iter = 1000, restart = 30, tol = 1e-10, verbose = 0, precond_side = LEFT.
+ * A zero-initialized explicit struct is not identical to NULL defaults:
+ * `restart = 0` is invalid, `max_iter = 0` requests only the initial-residual
+ * check, and optional callback/history fields remain off unless supplied.
  */
 typedef struct {
     idx_t max_iter;      /**< Maximum total number of GMRES iterations (default: 1000) */
@@ -131,8 +151,14 @@ typedef struct {
 /**
  * @brief Result information from an iterative solve.
  *
- * Populated by sparse_solve_cg() and sparse_solve_gmres() on return.
- * Pass NULL if result information is not needed.
+ * Populated by solve functions on return. The struct storage is caller-owned;
+ * the library writes scalar fields only and does not allocate nested result
+ * buffers. Pass NULL if result information is not needed.
+ * Interpret fields only together with the function return code: successful
+ * convergence, non-convergence, stagnation, and breakdown use the same struct
+ * but have different meanings for the approximation in `x`/`X`.
+ * `residual_history_count` is 0 when no residual history buffer was supplied
+ * or no entries were recorded.
  */
 typedef struct {
     idx_t iterations;              /**< Number of iterations performed */
@@ -141,8 +167,7 @@ typedef struct {
     int stagnated;                 /**< Nonzero if stagnation was detected (residual stopped
                                         decreasing over the stagnation window). Only set when
                                         stagnation_window > 0 in opts. */
-    idx_t residual_history_count;  /**< Number of entries written to residual_history.
-                                        0 if residual_history was NULL. */
+    idx_t residual_history_count;  /**< Number of entries written to residual_history. */
     int breakdown;                 /**< Nonzero if a solver breakdown was detected.
                                         For CG: p^T*A*p = 0 or r^T*z = 0.
                                         For GMRES: lucky breakdown (Krylov subspace
@@ -156,12 +181,16 @@ typedef struct {
  *
  * A preconditioner approximates the solve M*z = r, where M approximates A.
  * Given an input vector r, the callback writes z = M^{-1}*r into the output
- * vector z. Both r and z have length n (the matrix dimension).
+ * vector z. Both r and z have length n (the matrix dimension). The solver
+ * owns neither buffer; it supplies temporary borrowed storage for the
+ * invocation. The callback must not retain r or z after returning.
  *
  * @param ctx   User-supplied context (e.g., a factored preconditioner struct).
  * @param n     Vector length (matrix dimension).
  * @param r     Input vector (residual).
- * @param z     Output vector (preconditioned residual).
+ * @param z     Output vector (preconditioned residual). The callback should
+ *              fully write z on SPARSE_OK; on callback error, solver behavior
+ *              is limited to propagating that error.
  * @return SPARSE_OK on success, or an error code on failure.
  */
 typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse_scalar_t *r,
@@ -183,9 +212,11 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_iter_handle_init() before first use,
- * then use the prepare / solve / free helpers below. Reuse may preserve
- * allocation capacity, but it does not preserve prior Krylov state,
- * residual history contents, or convergence status as a numerical feature.
+ * then use the prepare / solve / free helpers below. The caller owns the
+ * handle object, while the library owns any internal workspace reachable
+ * through it. Reuse may preserve allocation capacity, but it does not
+ * preserve prior Krylov state, residual history contents, or convergence
+ * status as a numerical feature.
  *
  * sparse_iter_handle_free() is safe on a zeroed struct.
  */
@@ -280,11 +311,16 @@ sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx
  *
  * @param A           The SPD coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for no preconditioning).
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Populated on SPARSE_OK and
+ *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
+ *                    cancellation, or callback errors, fields are
+ *                    best-effort/unspecified unless documented otherwise.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
@@ -305,15 +341,19 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const sparse_scalar_t *b, sp
  * This has the same numerical contract as sparse_solve_cg(), but reuses a
  * caller-owned handle across repeated solves. Callers may explicitly prepare
  * the handle via sparse_iter_handle_prepare_cg() first; if the handle is
- * zeroed or underprepared, the implementation may grow it on demand.
+ * zeroed or underprepared, the implementation may grow its internal workspace
+ * on demand.
  *
  * @param A           The SPD coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for no preconditioning).
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Same population rules as
+ *                    sparse_solve_cg().
  * @param handle      Reusable handle. Must be non-NULL.
  * @return Same error contract as sparse_solve_cg(), plus SPARSE_ERR_NULL when
  *         handle is NULL.
@@ -337,12 +377,17 @@ sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const sparse_sca
  *
  * @param A           The coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Used for both left
  *                    and right preconditioning, controlled by opts->precond_side.
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Populated on SPARSE_OK and
+ *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
+ *                    cancellation, or callback errors, fields are
+ *                    best-effort/unspecified unless documented otherwise.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
@@ -364,16 +409,20 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const sparse_scalar_t *b,
  * This has the same numerical contract as sparse_solve_gmres(), but reuses a
  * caller-owned handle across repeated solves. Callers may explicitly prepare
  * the handle via sparse_iter_handle_prepare_gmres() first; if the handle is
- * zeroed or underprepared, the implementation may grow it on demand.
+ * zeroed or underprepared, the implementation may grow its internal workspace
+ * on demand.
  *
  * @param A           The coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Used for both left
  *                    and right preconditioning, controlled by opts->precond_side.
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Same population rules as
+ *                    sparse_solve_gmres().
  * @param handle      Reusable handle. Must be non-NULL.
  * @return Same error contract as sparse_solve_gmres(), plus SPARSE_ERR_NULL
  *         when handle is NULL.
@@ -395,11 +444,16 @@ sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const sparse_
  * @param A           SPD coefficient matrix (not modified).
  * @param B           RHS matrix, n × nrhs column-major.
  * @param nrhs        Number of RHS vectors.
- * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param X           Solution matrix, n × nrhs column-major. On entry, initial
+ *                    guesses; on SPARSE_OK or SPARSE_ERR_NOT_CONVERGED,
+ *                    per-column approximate solutions.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Applied per-column.
  * @param precond_ctx Context pointer passed to precond.
- * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @param result      Output: iterations = max across columns, residual = max
+ *                    across columns (may be NULL). Populated after per-column
+ *                    solves complete; on hard errors, fields are
+ *                    best-effort/unspecified.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
  * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
@@ -425,11 +479,16 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const sparse_scalar_t 
  * @param A           General (possibly unsymmetric) coefficient matrix.
  * @param B           RHS matrix, n × nrhs column-major.
  * @param nrhs        Number of RHS vectors.
- * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param X           Solution matrix, n × nrhs column-major. On entry, initial
+ *                    guesses; on SPARSE_OK or SPARSE_ERR_NOT_CONVERGED,
+ *                    per-column approximate solutions.
  * @param opts        GMRES options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Applied per-column.
  * @param precond_ctx Context pointer passed to precond.
- * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @param result      Output: iterations = max across columns, residual = max
+ *                    across columns (may be NULL). Populated after per-column
+ *                    solves complete; on hard errors, fields are
+ *                    best-effort/unspecified.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
  * @return SPARSE_ERR_BADARG if @p nrhs is negative.
@@ -474,12 +533,17 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const sparse_scalar
  *
  * @param A           The symmetric coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults: max_iter=1000, tol=1e-10).
  * @param precond     Preconditioner callback (NULL for no preconditioning).
  *                    Must be SPD if provided.
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Populated on SPARSE_OK and
+ *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
+ *                    cancellation, or callback errors, fields are
+ *                    best-effort/unspecified unless documented otherwise.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
@@ -502,16 +566,20 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const sparse_scalar_t *b
  * This has the same numerical contract as sparse_solve_minres(), but reuses a
  * caller-owned handle across repeated solves. Callers may explicitly prepare
  * the handle via sparse_iter_handle_prepare_minres() first; if the handle is
- * zeroed or underprepared, the implementation may grow it on demand.
+ * zeroed or underprepared, the implementation may grow its internal workspace
+ * on demand.
  *
  * @param A           The symmetric coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for no preconditioning).
  *                    Must be SPD if provided.
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Same population rules as
+ *                    sparse_solve_minres().
  * @param handle      Reusable handle. Must be non-NULL.
  * @return Same error contract as sparse_solve_minres(), plus SPARSE_ERR_NULL
  *         when handle is NULL.
@@ -537,11 +605,16 @@ sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const sparse
  * @param A           Symmetric coefficient matrix (not modified).
  * @param B           RHS matrix, n × nrhs column-major.
  * @param nrhs        Number of RHS vectors.
- * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param X           Solution matrix, n × nrhs column-major. On entry, initial
+ *                    guesses; on SPARSE_OK or SPARSE_ERR_NOT_CONVERGED,
+ *                    per-column approximate solutions.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Must be SPD if provided.
  * @param precond_ctx Context pointer passed to precond.
- * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @param result      Output: iterations = max across columns, residual = max
+ *                    across columns (may be NULL). Populated after per-column
+ *                    solves complete; on hard errors, fields are
+ *                    best-effort/unspecified.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
  * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
@@ -579,12 +652,17 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const sparse_scala
  *
  * @param A           The coefficient matrix (not modified). Must be square.
  * @param b           Right-hand side vector of length n.
- * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param x           On entry, initial guess; on SPARSE_OK or
+ *                    SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts        Solver options (NULL for defaults: max_iter=1000, tol=1e-10).
  * @param precond     Preconditioner callback (NULL for no preconditioning).
  *                    Left preconditioning only: solves M*z = r.
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result      Output: iteration count, residual, convergence flag
+ *                    (may be NULL). Populated on SPARSE_OK and
+ *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
+ *                    cancellation, numeric, or callback errors, fields are
+ *                    best-effort/unspecified unless documented otherwise.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
@@ -610,11 +688,16 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const sparse_scalar_t 
  * @param A           General (possibly unsymmetric) coefficient matrix.
  * @param B           RHS matrix, n × nrhs column-major.
  * @param nrhs        Number of RHS vectors.
- * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param X           Solution matrix, n × nrhs column-major. On entry, initial
+ *                    guesses; on SPARSE_OK or SPARSE_ERR_NOT_CONVERGED,
+ *                    per-column approximate solutions.
  * @param opts        Solver options (NULL for defaults).
  * @param precond     Preconditioner callback (NULL for none). Applied per-column.
  * @param precond_ctx Context pointer passed to precond.
- * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @param result      Output: iterations = max across columns, residual = max
+ *                    across columns (may be NULL). Populated after block
+ *                    iteration completes; on hard errors, fields are
+ *                    best-effort/unspecified.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
  * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
@@ -637,13 +720,14 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const sparse_sca
  * @brief Matrix-free matrix-vector product callback.
  *
  * Computes y = A*x for an implicit linear operator. The operator is
- * defined by the context pointer (e.g., a struct containing the operator
- * parameters).
+ * defined by the caller-owned context pointer (e.g., a struct containing the
+ * operator parameters). The solver borrows the context for the duration of
+ * each callback invocation and does not retain or free it.
  *
  * @param ctx  User-supplied context (e.g., operator parameters).
  * @param n    Vector length (operator dimension — square operator assumed).
  * @param x    Input vector of length n.
- * @param y    Output vector of length n (overwritten with A*x).
+ * @param y    Output vector of length n (overwritten with A*x on SPARSE_OK).
  * @return SPARSE_OK on success, or an error code on failure.
  */
 typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const sparse_scalar_t *x,
@@ -659,11 +743,15 @@ typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const sparse_
  * @param matvec_ctx Context pointer passed to matvec callback.
  * @param n          System dimension (A is n×n).
  * @param b          Right-hand side vector of length n.
- * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param x          On entry, initial guess; on SPARSE_OK or
+ *                   SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts       Solver options (NULL for defaults).
  * @param precond    Preconditioner callback (NULL for none).
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result     Output: iteration count, residual, convergence flag
+ *                   (may be NULL). Populated on SPARSE_OK and
+ *                   SPARSE_ERR_NOT_CONVERGED; on validation, allocation, or
+ *                   callback errors, fields are best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
  * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.
@@ -685,11 +773,15 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
  * @param matvec_ctx Context pointer passed to matvec callback.
  * @param n          System dimension (A is n×n).
  * @param b          Right-hand side vector of length n.
- * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param x          On entry, initial guess; on SPARSE_OK or
+ *                   SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts       Solver options (NULL for defaults).
  * @param precond    Preconditioner callback (NULL for none).
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result     Output: iteration count, residual, convergence flag
+ *                   (may be NULL). Populated on SPARSE_OK and
+ *                   SPARSE_ERR_NOT_CONVERGED; on validation, allocation, or
+ *                   callback errors, fields are best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
  * @return SPARSE_ERR_BADARG if n < 0, restart <= 0, or opts has invalid fields.
@@ -711,11 +803,16 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
  * @param matvec_ctx Context pointer passed to matvec callback.
  * @param n          System dimension (A is n×n).
  * @param b          Right-hand side vector of length n.
- * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param x          On entry, initial guess; on SPARSE_OK or
+ *                   SPARSE_ERR_NOT_CONVERGED, approximate solution.
  * @param opts       Solver options (NULL for defaults).
  * @param precond    Preconditioner callback (NULL for none).
  * @param precond_ctx Context pointer passed to precond callback.
- * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @param result     Output: iteration count, residual, convergence flag
+ *                   (may be NULL). Populated on SPARSE_OK and
+ *                   SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
+ *                   numeric, or callback errors, fields are
+ *                   best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
  * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.

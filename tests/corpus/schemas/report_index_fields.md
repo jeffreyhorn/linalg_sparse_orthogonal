@@ -96,7 +96,7 @@ python3 scripts/normalize_report_index.py --family comparison --require-generate
 ```
 
 The selected comparison gate expects three source-controlled comparison
-contract rows plus `22` generated-local comparison rows under
+contract rows plus `22` generated comparison rows under
 `build/comparison/*/study.tsv` with the current source commit:
 
 - `6` generated rows for `qr_underdetermined_minnorm_2x4`;
@@ -106,7 +106,9 @@ contract rows plus `22` generated-local comparison rows under
 Required selected comparison freshness fails missing artifacts, stale commits,
 generated comparison failures, skipped or deferred selected rows, duplicate
 rows, unexpected rows, row-count mismatches, and missing selected families.
-The generated rows are local fixture evidence only. They are not broad QR,
+The generated rows are local fixture evidence by default. The reviewed Linux
+hosted report-freshness lane promotes only this selected comparison gate and
+its uploaded selected artifacts after hosted CI passes. They are not broad QR,
 SVD, or partial-SVD correctness; raw QR basis identity; raw singular-vector
 identity; vector sign/orientation identity; external-library parity; platform
 proof; package proof; ABI proof; performance proof; release proof; or

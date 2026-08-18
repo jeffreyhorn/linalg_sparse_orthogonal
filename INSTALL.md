@@ -29,7 +29,7 @@ Choose the smallest install/setup path that matches what you actually need.
 The maintained install contract is static-first. Shared-library packaging,
 dynamic ABI compatibility, runtime-loader behavior, package-manager
 distribution, static/shared selectors, Windows Makefile parity, and Windows
-`pkg-config` parity are intentionally out of scope.
+`pkg-config` execution parity are intentionally out of scope.
 
 ## Prerequisites
 

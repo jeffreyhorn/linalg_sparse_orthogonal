@@ -165,13 +165,15 @@ The selected `partial_svd_diag6_k2` family contributes ten generated rows:
 `u_orthogonality`, `v_orthogonality`, `u_projector_diag`, and
 `v_projector_diag`.
 
-These rows are local generated evidence for the named fixtures only. They do
-not prove broad QR, SVD, or partial-SVD correctness; raw QR basis identity;
-raw singular-vector identity; vector sign/orientation identity; global
-rank-threshold behavior; broad rank-deficient solve behavior; external-library
-parity; platform support; package/ABI support; performance; release readiness;
-or state-of-the-art status. Optional NumPy/SciPy dependency rows are deferred
-context only and never pass evidence.
+These rows are local generated evidence for the named fixtures by default. The
+reviewed Linux hosted report-freshness lane promotes only this selected
+comparison gate and its uploaded selected artifacts after hosted CI passes.
+They do not prove broad QR, SVD, or partial-SVD correctness; raw QR basis
+identity; raw singular-vector identity; vector sign/orientation identity;
+global rank-threshold behavior; broad rank-deficient solve behavior;
+external-library parity; platform support; package/ABI support; performance;
+release readiness; or state-of-the-art status. Optional NumPy/SciPy dependency
+rows are deferred context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 

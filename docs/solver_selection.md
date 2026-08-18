@@ -254,11 +254,12 @@ The selected comparison freshness gate also includes
 `partial_svd_diag6_k2`. That generated comparison is fixture-local and checks
 top-k singular-value agreement, residual, left/right orthogonality, and
 diagonal projector diagnostics against the source-controlled dense SVD
-reference helper. It remains `local_only` evidence and does not claim broad
-partial-SVD correctness, raw singular-vector identity, vector sign or
-orientation identity, repeated-spectrum ordering, external-library parity,
-hosted/release/platform/package/ABI proof, performance, or state-of-the-art
-status.
+reference helper. It is local generated evidence by default and reviewed Linux
+hosted evidence only when the hosted report-freshness lane runs the selected
+comparison gate and uploads the selected comparison artifacts. It does not
+claim broad partial-SVD correctness, raw singular-vector identity, vector sign
+or orientation identity, repeated-spectrum ordering, external-library parity,
+release/platform/package/ABI proof, performance, or state-of-the-art status.
 
 Useful starting example:
 

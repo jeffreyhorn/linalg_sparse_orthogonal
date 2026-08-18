@@ -125,9 +125,9 @@ check_static_install_metadata() {
 
 check_no_export_or_abi_metadata() {
     require_absent_grep \
-        '(^|[^[:alnum:]_])(SPARSE_API|SPARSE_EXPORT|SPARSE_IMPORT)([^[:alnum:]_]|$)' \
+        '(^|[^[:alnum:]_])(SPARSE_API|SPARSE_EXPORT|SPARSE_IMPORT|SPARSE_SHARED|SPARSE_STATIC|SPARSE_ABI)([^[:alnum:]_]|$)' \
         "$ROOT_DIR/include" \
-        "public export/import macro appeared without a shared ABI decision"
+        "public export/import or static/shared ABI macro appeared without a shared ABI decision"
 
     require_absent_grep \
         '(^|[^[:alnum:]_])(SOVERSION|WINDOWS_EXPORT_ALL_SYMBOLS|C_VISIBILITY_PRESET|VISIBILITY_INLINES_HIDDEN|INSTALL_NAME_DIR|MACOSX_RPATH)([^[:alnum:]_]|$)' \

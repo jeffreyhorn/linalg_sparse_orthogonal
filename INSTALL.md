@@ -338,7 +338,9 @@ bash tests/test_install.sh
 
 This installs to a temporary directory, checks all files, compiles a test
 program and the maintained example with `pkg-config`, verifies their runtime
-output, and cleans up.
+output, and cleans up. The `pkg-config` prefix, libdir, includedir, cflags, and
+libs path checks compare installed directories by filesystem identity so staged
+temporary-prefix spelling differences do not create false failures.
 
 For CMake integration verification:
 
@@ -352,6 +354,9 @@ the maintained static-first install/export contract:
 - `tests/test_install.sh` covers Make install/uninstall plus `pkg-config`
 - `tests/test_cmake_install.sh` covers CMake install/export plus
   `find_package(Sparse)`, including exact-version configure/build/run proof
+- both scripts check static archive metadata and reject unsupported
+  shared-library, loader, package-manager, or dynamic ABI wording in the
+  installed package files they own
 
 They complement, rather than replace, the reviewed platform lanes.
 Use the split below when reading install confidence:
@@ -380,6 +385,8 @@ Do not widen that reading into a broader platform or package claim:
   Makefile parity, Windows `pkg-config` execution parity, package-manager
   support, shared-library packaging, dynamic ABI compatibility,
   runtime-loader behavior, or broad Windows parity
+- Windows `sparse.pc` checks are metadata-only inspection and must not be read
+  as `pkg-config` command execution
 - Linux reviewed package-contract proof does not claim shared-library
   packaging, dynamic ABI compatibility, runtime-loader behavior, or
   package-manager support

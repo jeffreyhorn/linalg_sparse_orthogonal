@@ -433,7 +433,7 @@ install(FILES
 )
 
 # pkg-config metadata for the maintained static archive package surface.
-# Keep the generated flags aligned with sparse.pc.in and the install tests.
+# Keep generated flags aligned with sparse.pc.in and semantic install tests.
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(VERSION ${PROJECT_VERSION})
 set(SPARSE_PC_LIBS_EXTRA "")

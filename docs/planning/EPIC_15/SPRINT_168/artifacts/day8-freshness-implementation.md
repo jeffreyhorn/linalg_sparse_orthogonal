@@ -57,8 +57,8 @@ The target:
 
 | Mode | Use | Strictness |
 | --- | --- | --- |
-| `local` | Maintainer/local target and pre-CI dry runs. | Allows `local_only` or `hosted_selected` support tier, `local_threshold_free` or `hosted_selected_threshold_free` claim boundary, `not_recorded` build flags, and `unknown` CPU model. |
-| `hosted` | Future hosted CI invocation after Day 9/Day 10 wiring. | Requires `hosted_selected`, `hosted_selected_threshold_free`, non-`local` runner context, build flags other than `not_recorded`, and a report label other than `unlabeled`. |
+| `local` | Maintainer/local target and pre-CI dry runs. | Allows the selected row to use `local_only` or `hosted_selected` support tier, `local_threshold_free` or `hosted_selected_threshold_free` claim boundary, `not_recorded` build flags, and `unknown` CPU model; unselected rows must remain `local_only` / `local_threshold_free`. |
+| `hosted` | Future hosted CI invocation after Day 9/Day 10 wiring. | Requires the selected row to use `hosted_selected`, `hosted_selected_threshold_free`, non-`local` runner context, build flags other than `not_recorded`, and a report label other than `unlabeled`; unselected rows must remain `local_only` / `local_threshold_free`. |
 
 ## Failure Behavior
 

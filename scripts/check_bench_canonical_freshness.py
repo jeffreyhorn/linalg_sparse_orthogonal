@@ -126,6 +126,8 @@ LOCAL_SUPPORT_TIERS = {"local_only", "hosted_selected"}
 LOCAL_CLAIM_BOUNDARIES = {"local_threshold_free", "hosted_selected_threshold_free"}
 HOSTED_SUPPORT_TIER = "hosted_selected"
 HOSTED_CLAIM_BOUNDARY = "hosted_selected_threshold_free"
+UNSELECTED_SUPPORT_TIER = "local_only"
+UNSELECTED_CLAIM_BOUNDARY = "local_threshold_free"
 
 
 class FreshnessError(RuntimeError):
@@ -314,6 +316,27 @@ def check_claim_boundary(row: dict[str, str], mode: str) -> None:
         )
 
 
+def check_unselected_rows(rows: list[dict[str, str]]) -> None:
+    for row in rows:
+        artifact = row.get("artifact", "")
+        if artifact == SELECTED_ARTIFACT:
+            continue
+        support_tier = row.get("support_tier", "")
+        claim_boundary = row.get("claim_boundary", "")
+        if support_tier != UNSELECTED_SUPPORT_TIER:
+            error(
+                "freshness: error: benchmark_unselected_claim_boundary: "
+                f"artifact={artifact} field=support_tier "
+                f"expected={UNSELECTED_SUPPORT_TIER} observed={support_tier}"
+            )
+        if claim_boundary != UNSELECTED_CLAIM_BOUNDARY:
+            error(
+                "freshness: error: benchmark_unselected_claim_boundary: "
+                f"artifact={artifact} field=claim_boundary "
+                f"expected={UNSELECTED_CLAIM_BOUNDARY} observed={claim_boundary}"
+            )
+
+
 def check_manifest(row: dict[str, str], manifest: dict[str, str]) -> None:
     for field in MANIFEST_MATCH_FIELDS:
         observed = row.get(field, "")
@@ -330,6 +353,7 @@ def check_report(report_dir: Path, mode: str) -> None:
     rows = read_tsv(report_dir / "index.tsv")
     row = selected_row(rows)
     manifest = read_manifest(report_dir / "manifest.txt")
+    check_unselected_rows(rows)
     check_nonempty(row)
     check_selected_values(row, report_dir)
     check_claim_boundary(row, mode)

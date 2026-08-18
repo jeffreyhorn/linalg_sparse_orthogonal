@@ -203,14 +203,14 @@ When to widen beyond the first examples:
 - tests own regression, oracle, and property guarantees
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
   benchmark surface with generated `index.tsv` / `manifest.txt` methodology
-  context and is intentionally not a pass/fail timing gate; canonical rows are
-  `status=measurement`, `support_tier=local_only`, and
+  context and is intentionally not a pass/fail timing gate; unselected
+  canonical rows are `status=measurement`, `support_tier=local_only`, and
   `claim_boundary=local_threshold_free`
 - `make bench-canonical-report-freshness` regenerates that canonical bundle
   and checks only the selected `bench_refactor_csc` row for
   `nos4.mtx --repeat 1`; the reviewed Linux hosted performance lane runs the
-  same selected-row freshness check with hosted metadata, still without a
-  timing threshold or portable performance claim
+  same selected-row freshness check with hosted metadata on that selected row
+  only, still without a timing threshold or portable performance claim
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing wall-check lane, while
   Cholesky CSC and LDLT KKT rows are threshold-free measurement context; S5

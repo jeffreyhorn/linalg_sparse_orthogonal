@@ -1342,7 +1342,8 @@ Current threshold-free reporting surface:
   - is intentionally not a timing threshold gate
   - uses `status=measurement`, `support_tier=local_only`,
     `claim_boundary=local_threshold_free`, `baseline=n/a`, and
-    `threshold=n/a`; do not reinterpret those rows as pass/fail evidence
+    `threshold=n/a` for unselected canonical rows; do not reinterpret those
+    rows as pass/fail evidence
   - records `warmup=not_recorded` and `variance=not_recorded` until a later
     sprint adds explicit warmup or statistical methodology
   - should stay limited to the canonical maintained surface unless a later
@@ -1355,7 +1356,7 @@ Current threshold-free reporting surface:
     values, `methodology_notes`, and `manifest.txt` agreement
   - is mirrored by the reviewed Linux hosted selected-performance freshness
     job, which runs the checker in hosted mode with `hosted_selected` and
-    `hosted_selected_threshold_free` metadata
+    `hosted_selected_threshold_free` metadata on the selected row only
   - does not compare timing values, define a regression threshold, promote the
     other canonical rows, or claim portable performance, external-library
     parity, package/ABI support, broad platform support, release proof, or

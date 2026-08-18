@@ -278,8 +278,10 @@ The reviewed Linux hosted selected-performance lane runs the same selected-row
 check in hosted mode with `support_tier=hosted_selected` and
 `claim_boundary=hosted_selected_threshold_free`. Hosted mode also requires a
 non-local runner context, recorded build flags, and a non-`unlabeled` report
-label. `cpu_model=unknown` remains acceptable because GitHub-hosted runner CPU
-assignment can vary.
+label. Those hosted-selected support and claim fields apply only to the
+selected `bench_refactor_csc` row; unselected canonical rows remain
+`local_only` / `local_threshold_free`. `cpu_model=unknown` remains acceptable
+because GitHub-hosted runner CPU assignment can vary.
 
 This is intentionally not a pass/fail timing gate:
 
@@ -290,7 +292,8 @@ This is intentionally not a pass/fail timing gate:
 - read platform, compiler, build mode, and `OMP_NUM_THREADS` as local
   comparison context, not as a portability or OpenMP speedup claim
 - read `status=measurement`, `support_tier=local_only`, and
-  `claim_boundary=local_threshold_free` as the canonical row boundary
+  `claim_boundary=local_threshold_free` as the unselected canonical row
+  boundary
 - read `baseline=n/a` and `threshold=n/a` as proof that canonical rows are not
   hard timing gates
 - read `warmup=not_recorded` and `variance=not_recorded` literally; do not

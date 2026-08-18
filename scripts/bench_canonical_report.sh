@@ -25,6 +25,8 @@ report_family="benchmark"
 row_status="measurement"
 support_tier="${SPARSE_CANONICAL_SUPPORT_TIER:-local_only}"
 claim_boundary="${SPARSE_CANONICAL_CLAIM_BOUNDARY:-local_threshold_free}"
+unselected_support_tier="local_only"
+unselected_claim_boundary="local_threshold_free"
 runner_context="${SPARSE_CANONICAL_RUNNER_CONTEXT:-local}"
 build_flags="${SPARSE_CANONICAL_BUILD_FLAGS:-not_recorded}"
 cpu_model="${SPARSE_CANONICAL_CPU_MODEL:-unknown}"
@@ -55,6 +57,8 @@ reject_tsv_control_chars "canonical report family" "$report_family"
 reject_tsv_control_chars "canonical row status" "$row_status"
 reject_tsv_control_chars "SPARSE_CANONICAL_SUPPORT_TIER" "$support_tier"
 reject_tsv_control_chars "SPARSE_CANONICAL_CLAIM_BOUNDARY" "$claim_boundary"
+reject_tsv_control_chars "canonical unselected support tier" "$unselected_support_tier"
+reject_tsv_control_chars "canonical unselected claim boundary" "$unselected_claim_boundary"
 reject_tsv_control_chars "SPARSE_CANONICAL_RUNNER_CONTEXT" "$runner_context"
 reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_FLAGS" "$build_flags"
 reject_tsv_control_chars "SPARSE_CANONICAL_CPU_MODEL" "$cpu_model"
@@ -146,18 +150,27 @@ fi
         local command="$3"
         local fixture_or_workload="$4"
         local repeat_semantics="$5"
+        local row_support_tier="$unselected_support_tier"
+        local row_claim_boundary="$unselected_claim_boundary"
+
+        if [ "$artifact" = "bench_refactor_csc" ]; then
+            row_support_tier="$support_tier"
+            row_claim_boundary="$claim_boundary"
+        fi
 
         reject_tsv_control_chars "canonical artifact" "$artifact"
         reject_tsv_control_chars "canonical relative_path" "$relative_path"
         reject_tsv_control_chars "canonical command" "$command"
         reject_tsv_control_chars "canonical fixture_or_workload" "$fixture_or_workload"
         reject_tsv_control_chars "canonical repeat_semantics" "$repeat_semantics"
+        reject_tsv_control_chars "canonical row support_tier" "$row_support_tier"
+        reject_tsv_control_chars "canonical row claim_boundary" "$row_claim_boundary"
 
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "canonical" "measurement" "$report_label" "$timestamp_utc" "$git_commit" "$git_branch" \
             "$platform" "$cc_version" "$runner_context" "$build_flags" "$cpu_model" "$build_mode" \
             "$omp_num_threads" "$artifact" "$relative_path" "$command" "$report_family" "$row_status" \
-            "$support_tier" "$claim_boundary" "$fixture_or_workload" "$matrix_size" "$repeat_semantics" \
+            "$row_support_tier" "$row_claim_boundary" "$fixture_or_workload" "$matrix_size" "$repeat_semantics" \
             "$warmup" "$variance" "$baseline" "$threshold" "$backend_context" "$methodology_notes"
     }
 
@@ -192,6 +205,9 @@ report_family=$report_family
 status=$row_status
 support_tier=$support_tier
 claim_boundary=$claim_boundary
+selected_artifact=bench_refactor_csc
+unselected_support_tier=$unselected_support_tier
+unselected_claim_boundary=$unselected_claim_boundary
 baseline=$baseline
 threshold=$threshold
 warmup=$warmup

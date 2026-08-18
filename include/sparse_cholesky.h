@@ -62,11 +62,11 @@ typedef enum {
 /**
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
  *
- * @warning **ABI break in v2.0.0.** Adding `backend` and
- * `used_csc_path` changed this struct's size relative to v1.x.
- * Source compatibility is preserved for callers that zero-initialize
- * `sparse_cholesky_opts_t`, but downstream binaries built against
- * v1.x must be recompiled against v2.x.
+ * @warning **Source rebuild required for v2.0.0 options layout.** The
+ * `backend` and `used_csc_path` fields were added after the v1.x fields.
+ * Source initializers that zero-initialize `sparse_cholesky_opts_t` remain
+ * valid, but downstream objects compiled against the older struct layout must
+ * be rebuilt.
  *
  * @note **Transparent CSC dispatch.**  `sparse_cholesky_factor_opts`
  * routes to the CSC supernodal kernel whenever `mat->rows >=

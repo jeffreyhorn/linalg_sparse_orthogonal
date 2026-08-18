@@ -243,10 +243,11 @@ Focused install/package regression ownership:
 - `tests/test_install.sh` is the local Unix-side proof for Make
   install/uninstall plus `pkg-config`; it checks exact installed header count,
   static archive/no-shared-artifact install shape, `.pc` prefix/libdir/include
-  variables, installed include and link flags, exact package version
+  variables by filesystem identity, installed include and link flags by
+  filesystem identity plus expected library flags, exact package version
   resolution, no `Libs.private` stanza for the current self-contained link
   surface, static archive `.pc` description, absence of unsupported
-  package/ABI claims in `sparse.pc`, stricter output checks for two
+  package/ABI claims in `sparse.pc`, semantic output checks for two
   compile/link/run consumers, and uninstall cleanup
 - `tests/test_cmake_install.sh` is the local Unix-side proof for CMake
   install/export plus `find_package(Sparse)`; it checks exact installed
@@ -276,6 +277,8 @@ Focused install/package regression ownership:
   exact-version behavior,
   mismatched-version rejection, absence of DLL/shared imported metadata, and
   absence of unsupported loader/static-shared selector metadata
+- Windows `sparse.pc` inspection remains metadata-only and must not be cited as
+  Windows `pkg-config` command execution
 - Windows still does not claim Makefile parity, `pkg-config` execution parity,
   package-manager support, shared-library support, dynamic ABI support,
   runtime-loader behavior, or broad Windows parity

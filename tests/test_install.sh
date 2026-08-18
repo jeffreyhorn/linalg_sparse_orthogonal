@@ -15,6 +15,9 @@ FAIL=0
 
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
+same_dir() {
+    [ -n "$1" ] && [ -n "$2" ] && [ -d "$1" ] && [ -d "$2" ] && [ "$1" -ef "$2" ]
+}
 
 echo "=== Install Validation Tests ==="
 echo "  root:   $ROOT_DIR"
@@ -88,21 +91,21 @@ else
 fi
 
 PC_PREFIX="$(pkg-config --variable=prefix sparse 2>/dev/null || true)"
-if [ "$PC_PREFIX" = "$PREFIX" ]; then
+if same_dir "$PC_PREFIX" "$PREFIX"; then
     pass "pkg-config prefix points at install prefix"
 else
     fail "pkg-config prefix expected $PREFIX, got '$PC_PREFIX'"
 fi
 
 PC_LIBDIR="$(pkg-config --variable=libdir sparse 2>/dev/null || true)"
-if [ "$PC_LIBDIR" = "$PREFIX/lib" ]; then
+if same_dir "$PC_LIBDIR" "$PREFIX/lib"; then
     pass "pkg-config libdir points at installed libdir"
 else
     fail "pkg-config libdir expected $PREFIX/lib, got '$PC_LIBDIR'"
 fi
 
 PC_INCLUDEDIR="$(pkg-config --variable=includedir sparse 2>/dev/null || true)"
-if [ "$PC_INCLUDEDIR" = "$PREFIX/include" ]; then
+if same_dir "$PC_INCLUDEDIR" "$PREFIX/include"; then
     pass "pkg-config includedir points at installed includedir"
 else
     fail "pkg-config includedir expected $PREFIX/include, got '$PC_INCLUDEDIR'"
@@ -116,8 +119,7 @@ if [ "$#" -gt 0 ]; then
 fi
 if [ "$#" -eq 1 ] && \
     [ "${1#-I}" != "$1" ] && \
-    [ -d "$PC_CFLAGS_INCLUDE" ] && \
-    [ "$PC_CFLAGS_INCLUDE" -ef "$PREFIX/include" ]; then
+    same_dir "$PC_CFLAGS_INCLUDE" "$PREFIX/include"; then
     pass "pkg-config --cflags returns installed include path"
 else
     fail "pkg-config --cflags expected installed include path, got '$PC_CFLAGS'"
@@ -131,8 +133,7 @@ if [ "$#" -gt 0 ]; then
 fi
 if [ "$#" -eq 3 ] && \
     [ "${1#-L}" != "$1" ] && \
-    [ -d "$PC_LIBDIR_FLAG" ] && \
-    [ "$PC_LIBDIR_FLAG" -ef "$PREFIX/lib" ] && \
+    same_dir "$PC_LIBDIR_FLAG" "$PREFIX/lib" && \
     [ "$2" = "-lsparse_lu_ortho" ] && \
     [ "$3" = "-lm" ]; then
     pass "pkg-config --libs returns installed static archive link flags"

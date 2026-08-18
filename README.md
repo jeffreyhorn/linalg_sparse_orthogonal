@@ -945,8 +945,10 @@ After installation, downstream projects can use either `pkg-config` or
 
 The installed `sparse.pc` metadata is intentionally static-archive scoped, and
 the install proof checks downstream compile/link/run behavior plus exact
-package version handling. These checks are package proof, not package-manager
-distribution or dynamic-loader evidence.
+package version handling. The Unix proof validates installed include and
+library paths by filesystem identity so staged-prefix spelling differences do
+not masquerade as package failures. These checks are package proof, not
+package-manager distribution or dynamic-loader evidence.
 
 On Windows, `sparse.pc` is installed and inspected as static package metadata
 by the reviewed CMake install/downstream lane. That lane does not run

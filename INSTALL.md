@@ -130,6 +130,8 @@ export/import and symbol visibility policies, a dynamic ABI policy, Linux
 SONAME metadata, macOS install-name/RPATH metadata, Windows
 DLL/import-library behavior, installed shared consumer proof, and
 runtime-loader validation.
+The canonical Sprint 170 package and ABI product decision is recorded in
+`docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
 
 Use the split below when deciding how much package detail you need:
 

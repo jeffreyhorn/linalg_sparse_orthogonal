@@ -997,6 +997,8 @@ CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a
 shared-library request as supported, and the rejection names the missing
 export/import, symbol visibility, dynamic ABI, platform loader metadata,
 installed shared consumer, and runtime-loader validation policies.
+The canonical Sprint 170 package and ABI product decision is recorded in
+`docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
 
 ## Documentation
 

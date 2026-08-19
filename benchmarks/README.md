@@ -283,6 +283,30 @@ selected `bench_refactor_csc` row; unselected canonical rows remain
 `local_only` / `local_threshold_free`. `cpu_model=unknown` remains acceptable
 because GitHub-hosted runner CPU assignment can vary.
 
+Selected lane platform and backend caveats:
+
+- hosted selected-performance freshness currently means the reviewed Linux
+  GitHub Actions lane with
+  `runner_context=github-actions-ubuntu-latest`,
+  `build_flags=default_make_flags`, and `build_mode=serial`;
+- the hosted lane records `platform`, `compiler`, and `cpu_model` as context,
+  but those strings are not normalized into a stable machine class and CPU
+  assignment can vary across GitHub-hosted runners;
+- local canonical report runs may record different compiler, platform,
+  `build_mode`, `OMP_NUM_THREADS`, build flags, and CPU context; compare them
+  only as local branch evidence;
+- the selected canonical `bench_refactor_csc` row is the default SPD/Cholesky
+  scenario and reports `backend_context=n/a`; do not infer LDLT dense-helper,
+  optional-backend, or backend-superiority evidence from this row;
+- S6 uses the same selected fixture/command as a local smoke ceiling and also
+  reports backend fields as `n/a`;
+- `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND` are runtime
+  report context for sentinel rows that own those backend fields, not selected
+  canonical publication controls;
+- `matrix_size=n=100` is the benchmark-emitted selected dimension for
+  `nos4.mtx`; do not reinterpret it as a nonzero count, SuiteSparse corpus
+  breadth claim, or broad matrix-family coverage.
+
 This is intentionally not a pass/fail timing gate:
 
 - compare the emitted CSV rows across branches or runs
@@ -296,8 +320,9 @@ This is intentionally not a pass/fail timing gate:
   boundary
 - read `baseline=n/a` and `threshold=n/a` as proof that canonical rows are not
   hard timing gates
-- read `warmup=not_recorded` and `variance=not_recorded` literally; do not
-  infer warmup, samples, statistical variance, or confidence intervals
+- read canonical selected performance `warmup=none_configured` and
+  `variance=not_computed_single_sample` literally; do not infer warmup,
+  repeated samples, statistical variance, or confidence intervals
 - read the hosted selected-performance lane as freshness and methodology
   evidence for the selected `bench_refactor_csc` row only, not as portable
   speed evidence or broad benchmark publication
@@ -337,11 +362,14 @@ with these artifacts:
   - platform and compiler string
   - `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND`
   - exact sentinel commands
-  - S5 baseline provenance, S5/S2/S3 repeat semantics, warmup state, variance
-    state, and non-superiority caveats
+  - S5/S6 baseline provenance, S5/S2/S3/S6 repeat semantics, warmup state,
+    variance state, and non-superiority/non-portable caveats
 - `wall_check.txt`
   - raw output from the existing thresholded `wall-check` lane when that lane
     runs
+- `bench_refactor_csc_nos4.csv`
+  - raw selected-lane output for the S6 local large-regression smoke ceiling
+    when that lane runs
 - `bench_chol_csc_nos4.csv`
   - raw threshold-free Cholesky CSC row when the S2 lane runs
 - `bench_refactor_csc_kkt.csv`
@@ -351,6 +379,9 @@ Interpret the bundle narrowly:
 
 - S5 wraps the existing `make wall-check` threshold gate and may fail the
   target.
+- S6 captures
+  `bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1` as a broad
+  local selected-lane smoke ceiling and may fail the target.
 - S2 captures `bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1` as
   threshold-free report context only.
 - S3 captures `bench_refactor_csc --indefinite-kkt --repeat 1` as
@@ -358,6 +389,10 @@ Interpret the bundle narrowly:
 - S5 rows report backend-specific fields as `n/a`; S2 rows preserve the
   Cholesky dense-kernel and panel-solver descriptors parsed from
   `bench_chol_csc`.
+- S6 rows report backend-specific fields as `n/a` and preserve only the
+  selected `refactor_csc_ms` timing, local smoke ceiling, build mode, thread
+  state, repeat semantics, warmup policy, variance policy, and baseline
+  provenance.
 - S3 rows preserve the LDLT dense-backend request, selected backend, and
   fallback fields parsed from `bench_refactor_csc`.
 - Missing binaries, fixtures, or baselines are reported as explicit skip rows
@@ -367,10 +402,16 @@ Interpret the bundle narrowly:
   context and OpenMP runtime settings.
 - S5 `pass` or `fail` status is meaningful only with the recorded baseline,
   threshold, fixture, command, baseline provenance, and local machine context.
+- S6 `pass` or `fail` status is meaningful only with the selected fixture,
+  command, local smoke ceiling, build mode, `OMP_NUM_THREADS`, and machine
+  context. It is not a portable timing promise or hosted publication claim.
 - S2 and S3 `status=report` rows are not pass/fail rows and do not prove
   backend superiority.
 - Rows with `warmup=not_recorded` or `variance=not_recorded` must not be
   described as warmup-controlled or statistical summaries.
+- Rows with `warmup=none_configured` or
+  `variance=not_computed_single_sample` must not be described as
+  warmup-controlled or statistical summaries.
 - Generated sentinel artifacts under `build/bench-reports/sentinels/` should
   be regenerated from `make performance-sentinels`; do not hand-edit them.
 
@@ -426,11 +467,44 @@ Use generated report indexes to find artifacts and freshness context after a
 report target runs. They are navigation and interpretation aids, not broader
 performance, scalability, coverage, or platform guarantees.
 
+Selected performance evidence starts at the focused freshness target:
+
+```sh
+make bench-canonical-report-freshness
+```
+
+That target regenerates `build/bench-reports/canonical/index.tsv` and validates
+only the selected `bench_refactor_csc` row for
+`tests/data/suitesparse/nos4.mtx --repeat 1`. In the generated canonical
+index, find it with:
+
+- `artifact=bench_refactor_csc`;
+- `relative_path=bench_refactor_csc.csv`;
+- `fixture_or_workload=nos4.mtx`;
+- `claim_boundary=local_threshold_free` locally, or
+  `hosted_selected_threshold_free` only in the reviewed hosted freshness lane.
+
+Local selected regression smoke evidence comes from:
+
+```sh
+make performance-sentinels
+```
+
+In `build/bench-reports/sentinels/sentinels.tsv`, find the S6 row with
+`sentinel_id=S6`, `matrix_or_fixture=nos4.mtx`, and
+`metric=refactor_csc_ms`. The S6 row is a local smoke ceiling only; it is not a
+replacement for the threshold-free canonical selected publication row.
+
+Read hosted selected-performance rows and local S6 rows with their recorded
+platform, compiler, build mode, thread, CPU, fixture, and command context.
+Neither row creates Windows/macOS performance parity, OpenMP speedup evidence,
+backend parity, or portable performance evidence.
+
 | Report target | Report directory | Index artifact | Freshness/context artifact | Read as |
 |---|---|---|---|---|
 | `make bench-canonical-report` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Threshold-free local snapshot of the maintained benchmark surface. |
 | `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected `bench_refactor_csc` artifact and methodology freshness for `nos4.mtx --repeat 1`; not a timing gate. |
-| `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; only the existing wall-check lane is thresholded. |
+| `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; S5 and S6 are narrow local thresholded gates, while S2/S3 remain threshold-free context. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
 | `make report-index-comparison-freshness` | `build/comparison/qr_minnorm/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm comparison against the selected source-controlled dense reference helper. |
 
@@ -458,8 +532,9 @@ python3 scripts/normalize_report_index.py \
 ```
 
 The normalized index preserves benchmark rows as local/advisory measurements,
-sentinel S5 rows as the existing wall-check hard gate, sentinel S2 and S3 rows
-as threshold-free context, and large-matrix guardrail reviewed/supplemental
+sentinel S5 rows as the existing wall-check hard gate, sentinel S6 as the
+selected-lane local smoke ceiling, sentinel S2 and S3 rows as threshold-free
+context, and large-matrix guardrail reviewed/supplemental
 lanes as separate row meanings. Comparison rows remain fixture-local
 correctness evidence for the selected QR minimum-norm study only. Freshness
 diagnostics do not convert local timing rows into portable performance claims

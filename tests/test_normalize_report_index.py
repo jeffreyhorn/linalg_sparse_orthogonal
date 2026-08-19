@@ -397,6 +397,32 @@ def write_runtime_fixture(build_root: Path) -> None:
         + "\t".join(
             [
                 "sentinel",
+                "S6",
+                "pass",
+                "reviewed_thresholded",
+                "local_selected_regression_gate",
+                "build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1",
+                "serial",
+                "unset",
+                "nos4.mtx",
+                "refactor_csc_ms",
+                "0.5",
+                "500.0",
+                "500.0",
+                "bench_refactor_csc_nos4.csv",
+                "n/a",
+                "n/a",
+                "n/a",
+                "n/a",
+                "n/a",
+                "selected_local_smoke_ceiling_passed",
+                "selected_local_large_regression_gate;not_portable_performance_claim",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "sentinel",
                 "S2",
                 "report",
                 "reviewed_threshold_free",
@@ -515,6 +541,16 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
             row["row_meaning"] == "sentinel_hard_gate" and row["status"] == "pass"
             for row in by_family["sentinel"]
         )
+        s6_rows = [
+            row
+            for row in by_family["sentinel"]
+            if row["native_row_id"] == "S6_nos4.mtx_refactor_csc_ms"
+        ]
+        assert len(s6_rows) == 1
+        assert s6_rows[0]["row_meaning"] == "sentinel_hard_gate"
+        assert "claim_boundary=local_selected_regression_gate" in s6_rows[0]["configuration"]
+        assert "threshold=500.0" in s6_rows[0]["configuration"]
+        assert "not_portable_performance_claim" in s6_rows[0]["configuration"]
         assert any(
             row["row_meaning"] == "sentinel_advisory_measurement"
             and row["status"] == "advisory"

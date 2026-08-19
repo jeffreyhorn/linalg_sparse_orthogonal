@@ -2,8 +2,9 @@
 # performance_sentinels.sh — bounded local performance sentinel bundle.
 #
 # This wrapper records runtime context, runs the existing thresholded
-# wall-check gate, and captures threshold-free Cholesky CSC and LDLT KKT
-# benchmark rows.
+# wall-check gate, captures threshold-free Cholesky CSC and LDLT KKT
+# benchmark rows, and checks the selected refactor CSC lane with a broad local
+# smoke ceiling.
 # It is local regression evidence, not a portable performance claim.
 
 set -euo pipefail
@@ -27,17 +28,24 @@ manifest_txt="$report_dir/manifest.txt"
 wall_output="$report_dir/wall_check.txt"
 chol_output="$report_dir/bench_chol_csc_nos4.csv"
 ldlt_output="$report_dir/bench_refactor_csc_kkt.csv"
+selected_refactor_output="$report_dir/bench_refactor_csc_nos4.csv"
 threshold_free_baseline_provenance="n/a"
+s6_baseline_provenance="sprint169_selected_nos4_local_smoke_ceiling"
+s6_refactor_csc_ms_ceiling="${SPARSE_SELECTED_REFACTOR_CSC_MS_CEILING:-500.0}"
 s5_repeat_semantics="wall_check_configured_single_runs"
 s2_repeat_semantics="configured_repeat_1"
 s3_repeat_semantics="configured_repeat_1"
+s6_repeat_semantics="configured_repeat_1"
 warmup="not_recorded"
 variance="not_recorded"
+s6_warmup="none_configured"
+s6_variance="not_computed_single_sample"
 s5_methodology_notes="thresholded_local_wall_gate;not_portable_performance_claim"
 s2_methodology_notes="threshold_free_local_backend_context;not_backend_superiority_claim"
 s3_methodology_notes="threshold_free_local_ldlt_backend_context;not_backend_superiority_claim"
+s6_methodology_notes="selected_local_large_regression_gate;not_portable_performance_claim"
 
-rm -f "$wall_output" "$chol_output" "$ldlt_output"
+rm -f "$wall_output" "$chol_output" "$ldlt_output" "$selected_refactor_output"
 
 detect_openmp_runtime() {
     local binary="$1"
@@ -107,14 +115,26 @@ reject_tsv_control_chars "SPARSE_CHOL_DENSE_BACKEND" "$chol_dense_backend"
 reject_tsv_control_chars "SPARSE_LDLT_DENSE_BACKEND" "$ldlt_dense_backend"
 reject_tsv_control_chars "wall-check baseline provenance" "$wall_baseline"
 reject_tsv_control_chars "threshold-free baseline provenance" "$threshold_free_baseline_provenance"
+reject_tsv_control_chars "S6 baseline provenance" "$s6_baseline_provenance"
+reject_tsv_control_chars "S6 refactor CSC ceiling" "$s6_refactor_csc_ms_ceiling"
 reject_tsv_control_chars "S5 repeat semantics" "$s5_repeat_semantics"
 reject_tsv_control_chars "S2 repeat semantics" "$s2_repeat_semantics"
 reject_tsv_control_chars "S3 repeat semantics" "$s3_repeat_semantics"
+reject_tsv_control_chars "S6 repeat semantics" "$s6_repeat_semantics"
 reject_tsv_control_chars "sentinel warmup" "$warmup"
 reject_tsv_control_chars "sentinel variance" "$variance"
+reject_tsv_control_chars "S6 warmup" "$s6_warmup"
+reject_tsv_control_chars "S6 variance" "$s6_variance"
 reject_tsv_control_chars "S5 methodology notes" "$s5_methodology_notes"
 reject_tsv_control_chars "S2 methodology notes" "$s2_methodology_notes"
 reject_tsv_control_chars "S3 methodology notes" "$s3_methodology_notes"
+reject_tsv_control_chars "S6 methodology notes" "$s6_methodology_notes"
+
+if ! awk -v value="$s6_refactor_csc_ms_ceiling" \
+    'BEGIN { exit !((value + 0) > 0 && value ~ /^[0-9]+([.][0-9]+)?$/) }'; then
+    echo "performance-sentinels: SPARSE_SELECTED_REFACTOR_CSC_MS_CEILING must be a positive numeric millisecond ceiling" >&2
+    exit 2
+fi
 
 if [ -z "$git_commit" ]; then
     git_commit="unknown"
@@ -189,6 +209,36 @@ else
             print "sentinel", "S5", status, "reviewed_thresholded", "local_wall_gate", cmd, build_mode, omp, "Pres_Poisson", "nd_reorder_ms", $5, $8, "1.5x", artifact, "n/a", "n/a", "n/a", "n/a", "n/a", note, baseline_provenance, repeat_semantics, warmup, variance, methodology_notes
         }
     ' "$wall_output" >> "$report_tsv"
+fi
+
+selected_refactor_status="skip"
+selected_refactor_note="not_run"
+selected_refactor_cmd="$bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1"
+if [ ! -x "$bench_refactor_csc" ]; then
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_refactor_csc_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "fixture_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+elif "$bench_refactor_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$selected_refactor_output"; then
+    selected_refactor_ms="$(awk -F, 'NR == 2 && $1 == "bench_refactor_csc" && $3 == "nos4.mtx" && $4 == "chol_spd" { print $12; exit }' "$selected_refactor_output")"
+    if [ -z "$selected_refactor_ms" ] || ! awk -v value="$selected_refactor_ms" \
+        'BEGIN { exit !(value ~ /^[0-9]+([.][0-9]+)?$/) }'; then
+        selected_refactor_status="fail"
+        selected_refactor_note="selected_refactor_csc_parse_failed"
+        append_row "S6" "fail" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+        echo "performance-sentinels: FAIL S6 could not parse selected refactor_csc_ms from $(basename "$selected_refactor_output")" >&2
+    elif awk -v actual="$selected_refactor_ms" -v threshold="$s6_refactor_csc_ms_ceiling" \
+        'BEGIN { exit !((actual + 0) > threshold) }'; then
+        selected_refactor_status="fail"
+        selected_refactor_note="selected_local_smoke_ceiling_failed"
+        append_row "S6" "fail" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "$selected_refactor_ms" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+        echo "performance-sentinels: FAIL S6 selected refactor_csc_ms=$selected_refactor_ms ms > $s6_refactor_csc_ms_ceiling ms local smoke ceiling for nos4.mtx --repeat 1" >&2
+    else
+        selected_refactor_status="pass"
+        selected_refactor_note="selected_local_smoke_ceiling_passed"
+        append_row "S6" "pass" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "$selected_refactor_ms" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+    fi
+else
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_run_failed" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
 fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"
@@ -279,14 +329,20 @@ omp_num_threads=$omp_num_threads
 sparse_chol_dense_backend=$chol_dense_backend
 sparse_ldlt_dense_backend=$ldlt_dense_backend
 s5_baseline_provenance=$wall_baseline
+s6_baseline_provenance=$s6_baseline_provenance
+s6_refactor_csc_ms_ceiling=$s6_refactor_csc_ms_ceiling
 s5_repeat_semantics=$s5_repeat_semantics
 s2_repeat_semantics=$s2_repeat_semantics
 s3_repeat_semantics=$s3_repeat_semantics
+s6_repeat_semantics=$s6_repeat_semantics
 warmup=$warmup
 variance=$variance
+s6_warmup=$s6_warmup
+s6_variance=$s6_variance
 
 commands:
 - S5: make wall-check
+- S6: $selected_refactor_cmd
 - S2: $chol_cmd
 - S3: $ldlt_cmd
 
@@ -297,6 +353,9 @@ EOF
 
 if [ -e "$wall_output" ]; then
     echo "- $(basename "$wall_output")"
+fi
+if [ -e "$selected_refactor_output" ]; then
+    echo "- $(basename "$selected_refactor_output")"
 fi
 if [ -e "$chol_output" ]; then
     echo "- $(basename "$chol_output")"
@@ -309,10 +368,12 @@ cat <<EOF
 
 notes:
 - S5 is the existing thresholded wall-check gate and may fail this script.
+- S6 is a broad local selected-lane smoke ceiling for bench_refactor_csc on nos4.mtx --repeat 1 and may fail this script.
 - S2 is threshold-free local reporting; compare across local runs only.
 - S3 is threshold-free LDLT KKT backend reporting; compare across local runs only.
 - This bundle is local regression evidence, not a portable performance claim.
 - S5 status is meaningful only with the recorded baseline, threshold, fixture, command, and machine context. It is not a portable timing promise.
+- S6 status is meaningful only with the selected fixture, command, local smoke ceiling, build mode, OMP_NUM_THREADS, and machine context. It is not a portable timing promise or hosted publication claim.
 - S2 and S3 rows are threshold-free local backend-context rows. They preserve backend request, selected backend, fallback, dense-kernel, and panel-solver context where emitted, but they do not pass or fail and do not prove backend superiority.
 - These rows are not state-of-the-art claims, broad platform parity claims, package evidence, package-manager claims, shared-library or ABI guarantees, runtime-loader claims, external-library parity claims, OpenMP speedup claims, or backend superiority claims.
 EOF
@@ -324,6 +385,9 @@ echo "  - $(basename "$manifest_txt")"
 if [ -e "$wall_output" ]; then
     echo "  - $(basename "$wall_output")"
 fi
+if [ -e "$selected_refactor_output" ]; then
+    echo "  - $(basename "$selected_refactor_output")"
+fi
 if [ -e "$chol_output" ]; then
     echo "  - $(basename "$chol_output")"
 fi
@@ -332,6 +396,9 @@ if [ -e "$ldlt_output" ]; then
 fi
 
 if [ "$wall_status" = "fail" ]; then
+    exit 1
+fi
+if [ "$selected_refactor_status" = "fail" ]; then
     exit 1
 fi
 exit 0

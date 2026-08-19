@@ -212,10 +212,23 @@ When to widen beyond the first examples:
   same selected-row freshness check with hosted metadata on that selected row
   only, still without a timing threshold or portable performance claim
 - `make performance-sentinels` writes a local sentinel bundle: its hard
-  pass/fail behavior is limited to the existing wall-check lane, while
-  Cholesky CSC and LDLT KKT rows are threshold-free measurement context; S5
-  rows carry baseline provenance, while S2/S3 rows carry backend-context
-  caveats rather than pass/fail meaning
+  pass/fail behavior is limited to the existing S5 wall-check lane and the S6
+  selected `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and
+  LDLT KKT rows are threshold-free measurement context; S5/S6 rows carry
+  baseline provenance, while S2/S3 rows carry backend-context caveats rather
+  than pass/fail meaning
+
+Selected performance evidence path:
+
+| Need | Start here | Detailed interpretation |
+| --- | --- | --- |
+| Selected hosted/local freshness | `make bench-canonical-report-freshness` | [benchmarks/README.md#report-index-handoff](benchmarks/README.md#report-index-handoff) |
+| Local selected regression smoke gate | `make performance-sentinels` | [benchmarks/README.md#report-index-handoff](benchmarks/README.md#report-index-handoff) |
+| Cross-report navigation | `python3 scripts/normalize_report_index.py --check-freshness` | [docs/maintainer_guide.md#normalized-report-index-workflow](docs/maintainer_guide.md#normalized-report-index-workflow) |
+
+Generated report artifacts remain under ignored `build/` paths. Regenerate
+them before interpreting rows, and treat them as navigation or local evidence
+within their recorded fixture, command, branch, build, and machine context.
 
 If you still need the original coefficient view later, start one-shot direct
 paths from a fresh matrix or a fresh `sparse_copy()`.
@@ -292,7 +305,7 @@ make report-index-comparison-freshness  # selected QR + partial-SVD comparison f
 make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
-make performance-sentinels  # local sentinel bundle: wall-check gate + threshold-free Cholesky CSC/LDLT KKT context
+make performance-sentinels  # local sentinel bundle: S5/S6 hard gates + threshold-free Cholesky CSC/LDLT KKT context
 make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed structural report artifacts
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
@@ -816,10 +829,14 @@ maintained benchmark surface. Treat emitted benchmark rows as branch-local
 measurement artifacts, not portable performance guarantees; the generated
 `index.tsv` records methodology fields such as support tier, claim boundary,
 repeat semantics, warmup and variance state, baseline, threshold, and
-methodology notes. Use `make performance-sentinels` when you need the bounded
-local sentinel bundle: it reports the existing hard `wall-check` gate plus
-threshold-free Cholesky CSC and LDLT KKT backend context under the current
-backend and thread settings.
+methodology notes. Use `make bench-canonical-report-freshness` for the
+selected `bench_refactor_csc` row freshness check. Use
+`make performance-sentinels` when you need the bounded local sentinel bundle:
+it reports the existing hard `wall-check` gate, the S6 selected-lane local
+smoke ceiling, and threshold-free Cholesky CSC / LDLT KKT backend context
+under the current backend and thread settings. See
+[benchmarks/README.md#report-index-handoff](benchmarks/README.md#report-index-handoff)
+for generated row interpretation.
 
 ## Thread Safety
 

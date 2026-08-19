@@ -214,6 +214,8 @@ Current authoritative packaging contract:
 
 - the shipped install/export surface is real and maintained
 - the maintained release shape is static-first
+- the canonical Sprint 170 package and ABI product decision is
+  `docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`
 - downstream `pkg-config` and `find_package(Sparse)` both describe that same
   installed static archive surface
 - version metadata is single-sourced from the repo `VERSION` file and
@@ -259,9 +261,11 @@ Focused install/package regression ownership:
   behavior, mismatched-version rejection, and installed consumer
   configure/build/run
 - `scripts/static_package_deferral_check.sh` is the local package-contract
-  guard that checks `BUILD_SHARED_LIBS=ON` rejection, the explicit static
-  CMake target, exact shared deferral blocker wording, absence of unsupported
-  shared ABI metadata/selectors, and deferred support wording
+  guard that checks the canonical Sprint 170 decision record,
+  `BUILD_SHARED_LIBS=ON` rejection, the explicit static CMake target,
+  Makefile static archive install/uninstall source expectations, exact static
+  `sparse.pc` metadata, exact shared deferral blocker wording, absence of
+  unsupported shared ABI metadata/selectors, and deferred support wording
 - Linux CI carries a reviewed static-first package-contract lane that runs the
   Make install/`pkg-config` proof, CMake install/export proof, and static
   deferral guard

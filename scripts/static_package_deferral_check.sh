@@ -43,6 +43,41 @@ require_absent_grep() {
     fi
 }
 
+check_decision_record() {
+    local decision_record="$ROOT_DIR/docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md"
+
+    if [ ! -f "$decision_record" ]; then
+        fail "Sprint 170 shared-library ABI product decision record is missing"
+    fi
+
+    require_grep \
+        'static-first-only package' \
+        "$decision_record" \
+        "Sprint 170 decision record no longer selects the static-first-only package posture"
+    require_grep \
+        'Shared-library packaging and dynamic ABI compatibility remain explicitly' \
+        "$decision_record" \
+        "Sprint 170 decision record lost the shared-library/dynamic ABI non-claim"
+    require_grep \
+        'unsupported and deferred' \
+        "$decision_record" \
+        "Sprint 170 decision record no longer states unsupported shared ABI work is deferred"
+    require_grep \
+        'BUILD_SHARED_LIBS=ON' \
+        "$decision_record" \
+        "Sprint 170 decision record no longer names the rejected shared-build input"
+    require_grep \
+        'Sparse::sparse_lu_ortho' \
+        "$decision_record" \
+        "Sprint 170 decision record no longer names the maintained static imported target"
+    require_grep \
+        'Windows `pkg-config` command execution parity' \
+        "$decision_record" \
+        "Sprint 170 decision record no longer keeps Windows pkg-config execution parity as a non-claim"
+
+    pass "Sprint 170 product decision record"
+}
+
 check_build_shared_rejected() {
     local build_dir="$TMPDIR/build-shared-request"
     local stdout_file="$TMPDIR/cmake-shared-request.stdout"
@@ -104,6 +139,27 @@ check_static_target() {
     pass "static target declaration"
 }
 
+check_makefile_static_archive_contract() {
+    require_grep \
+        '^LIB[[:space:]]*=[[:space:]]*\$\(BUILDDIR\)/libsparse_lu_ortho\.a$' \
+        "$ROOT_DIR/Makefile" \
+        "Makefile no longer defines the maintained library as a static archive"
+    require_grep \
+        'install -m 644 \$\(LIB\) \$\(INSTALL_LIB\)/' \
+        "$ROOT_DIR/Makefile" \
+        "Makefile install target no longer installs the static archive to the install libdir"
+    require_grep \
+        'rm -f[[:space:]]+\$\(INSTALL_LIB\)/\$\(notdir \$\(LIB\)\)' \
+        "$ROOT_DIR/Makefile" \
+        "Makefile uninstall target no longer removes the installed static archive"
+    require_absent_grep \
+        'install[[:space:]].*\.(so|so\.[0-9]|dylib|dll)([^[:alnum:]_]|$)' \
+        "$ROOT_DIR/Makefile" \
+        "Makefile gained shared-library install behavior without a shared ABI decision"
+
+    pass "Makefile static archive contract"
+}
+
 check_static_install_metadata() {
     require_grep \
         'ARCHIVE DESTINATION \$\{CMAKE_INSTALL_LIBDIR\}' \
@@ -119,6 +175,14 @@ check_static_install_metadata() {
         '^Description: Static archive package metadata for sparse linear algebra$' \
         "$ROOT_DIR/sparse.pc.in" \
         "pkg-config description no longer states the static archive package contract"
+    require_grep \
+        '^Cflags: -I\$\{includedir\}$' \
+        "$ROOT_DIR/sparse.pc.in" \
+        "pkg-config cflags no longer use the installed include directory"
+    require_grep \
+        '^Libs: -L\$\{libdir\} -lsparse_lu_ortho -lm @SPARSE_PC_LIBS_EXTRA@$' \
+        "$ROOT_DIR/sparse.pc.in" \
+        "pkg-config libs no longer describe the maintained static archive link flags"
 
     pass "static install metadata"
 }
@@ -157,13 +221,25 @@ check_support_wording() {
         "$ROOT_DIR/README.md" \
         "README no longer keeps shared-library packaging deferred"
     require_grep \
+        'docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision\.md' \
+        "$ROOT_DIR/README.md" \
+        "README no longer cites the Sprint 170 package and ABI product decision"
+    require_grep \
         '`?BUILD_SHARED_LIBS=ON`? is intentionally rejected' \
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer documents BUILD_SHARED_LIBS rejection"
     require_grep \
+        'docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision\.md' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer cites the Sprint 170 package and ABI product decision"
+    require_grep \
         'dynamic ABI compatibility remain explicit non-claims' \
         "$ROOT_DIR/docs/maintainer_guide.md" \
         "maintainer guide no longer keeps dynamic ABI compatibility as a non-claim"
+    require_grep \
+        'docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision\.md' \
+        "$ROOT_DIR/docs/maintainer_guide.md" \
+        "maintainer guide no longer cites the Sprint 170 package and ABI product decision"
     require_grep \
         'package-manager support' \
         "$ROOT_DIR/docs/maintainer_guide.md" \
@@ -245,8 +321,10 @@ check_windows_workflow_no_unselected_package_execution() {
     pass "Windows workflow has no unselected package execution"
 }
 
+check_decision_record
 check_build_shared_rejected
 check_static_target
+check_makefile_static_archive_contract
 check_static_install_metadata
 check_no_export_or_abi_metadata
 check_no_package_selector

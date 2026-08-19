@@ -63,6 +63,7 @@ Recommended handoff from API adoption:
 | Learn the API workflow | `examples/README.md` | runnable usage, not timing evidence |
 | Choose a solver family | `docs/solver_selection.md` | problem-shape guidance |
 | Capture the maintained local benchmark surface | `make bench-canonical-report` | threshold-free branch-local CSV bundle |
+| Check selected canonical report freshness | `make bench-canonical-report-freshness` | selected `bench_refactor_csc` metadata/artifact freshness, not timing proof |
 | Check bounded local sentinel behavior | `make performance-sentinels` | local sentinel report plus the existing `wall-check` gate |
 | Investigate a specific backend or algorithm | individual `bench_*` binary | focused local measurement |
 | Validate correctness or public contract | `make test` and focused tests | regression/oracle/property evidence |
@@ -237,11 +238,13 @@ plus a bounded bundle-level metadata surface:
   - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
   - git commit / branch when locally available
   - platform and compiler string
+  - runner context, build flags, and CPU model when supplied by local or
+    hosted report generation
   - build mode and `OMP_NUM_THREADS`
 - `index.tsv`
   - one structured row per emitted canonical artifact
   - includes generated time, git branch/commit, platform, compiler, build
-    mode, and `OMP_NUM_THREADS`
+    mode, runner context, build flags, CPU model, and `OMP_NUM_THREADS`
   - keeps the same bounded canonical surface identity and command mapping in a
     machine-readable comparison form
   - appends methodology fields for publication review:
@@ -259,6 +262,27 @@ plus a bounded bundle-level metadata surface:
     - `backend_context`
     - `methodology_notes`
 
+Use `make bench-canonical-report-freshness` when you need the selected
+canonical performance report to be current and interpretable. That target
+regenerates the canonical bundle and checks only:
+
+- `artifact=bench_refactor_csc`
+- `relative_path=bench_refactor_csc.csv`
+- `command=tests/data/suitesparse/nos4.mtx --repeat 1`
+- `fixture_or_workload=nos4.mtx`
+- `repeat_semantics=configured_repeat_1`
+- `baseline=n/a`
+- `threshold=n/a`
+
+The reviewed Linux hosted selected-performance lane runs the same selected-row
+check in hosted mode with `support_tier=hosted_selected` and
+`claim_boundary=hosted_selected_threshold_free`. Hosted mode also requires a
+non-local runner context, recorded build flags, and a non-`unlabeled` report
+label. Those hosted-selected support and claim fields apply only to the
+selected `bench_refactor_csc` row; unselected canonical rows remain
+`local_only` / `local_threshold_free`. `cpu_model=unknown` remains acceptable
+because GitHub-hosted runner CPU assignment can vary.
+
 This is intentionally not a pass/fail timing gate:
 
 - compare the emitted CSV rows across branches or runs
@@ -268,11 +292,15 @@ This is intentionally not a pass/fail timing gate:
 - read platform, compiler, build mode, and `OMP_NUM_THREADS` as local
   comparison context, not as a portability or OpenMP speedup claim
 - read `status=measurement`, `support_tier=local_only`, and
-  `claim_boundary=local_threshold_free` as the canonical row boundary
+  `claim_boundary=local_threshold_free` as the unselected canonical row
+  boundary
 - read `baseline=n/a` and `threshold=n/a` as proof that canonical rows are not
   hard timing gates
 - read `warmup=not_recorded` and `variance=not_recorded` literally; do not
   infer warmup, samples, statistical variance, or confidence intervals
+- read the hosted selected-performance lane as freshness and methodology
+  evidence for the selected `bench_refactor_csc` row only, not as portable
+  speed evidence or broad benchmark publication
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
@@ -401,6 +429,7 @@ performance, scalability, coverage, or platform guarantees.
 | Report target | Report directory | Index artifact | Freshness/context artifact | Read as |
 |---|---|---|---|---|
 | `make bench-canonical-report` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Threshold-free local snapshot of the maintained benchmark surface. |
+| `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected `bench_refactor_csc` artifact and methodology freshness for `nos4.mtx --repeat 1`; not a timing gate. |
 | `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; only the existing wall-check lane is thresholded. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
 | `make report-index-comparison-freshness` | `build/comparison/qr_minnorm/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm comparison against the selected source-controlled dense reference helper. |
@@ -435,6 +464,13 @@ lanes as separate row meanings. Comparison rows remain fixture-local
 correctness evidence for the selected QR minimum-norm study only. Freshness
 diagnostics do not convert local timing rows into portable performance claims
 or local comparison rows into broad external-library parity.
+
+The selected performance freshness check is deliberately outside broad
+normalized-index promotion: it validates the `bench_refactor_csc` canonical
+row, generated artifact paths, methodology metadata, manifest agreement, and
+threshold-free claim boundary. It does not make `bench_chol_csc`,
+`bench_iterative_reuse`, or `bench_eigs_reuse` reviewed hosted performance
+evidence.
 
 Generated benchmark, sentinel, guardrail, and normalized-index outputs belong
 under ignored `build/` paths such as `build/bench-reports/sentinels/` and

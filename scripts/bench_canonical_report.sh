@@ -23,15 +23,20 @@ canonical_build_mode_override="${SPARSE_CANONICAL_BUILD_MODE:-}"
 omp_num_threads="${OMP_NUM_THREADS:-unset}"
 report_family="benchmark"
 row_status="measurement"
-support_tier="local_only"
-claim_boundary="local_threshold_free"
+support_tier="${SPARSE_CANONICAL_SUPPORT_TIER:-local_only}"
+claim_boundary="${SPARSE_CANONICAL_CLAIM_BOUNDARY:-local_threshold_free}"
+unselected_support_tier="local_only"
+unselected_claim_boundary="local_threshold_free"
+runner_context="${SPARSE_CANONICAL_RUNNER_CONTEXT:-local}"
+build_flags="${SPARSE_CANONICAL_BUILD_FLAGS:-not_recorded}"
+cpu_model="${SPARSE_CANONICAL_CPU_MODEL:-unknown}"
 baseline="n/a"
 threshold="n/a"
 warmup="not_recorded"
 variance="not_recorded"
 matrix_size="not_recorded"
 backend_context="n/a"
-methodology_notes="threshold_free_local_measurement;not_portable_performance_claim"
+methodology_notes="${SPARSE_CANONICAL_METHODOLOGY_NOTES:-threshold_free_local_measurement;not_portable_performance_claim}"
 
 reject_tsv_control_chars() {
     local field_name="$1"
@@ -50,15 +55,20 @@ reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_MODE" "$canonical_build_mode_ov
 reject_tsv_control_chars "OMP_NUM_THREADS" "$omp_num_threads"
 reject_tsv_control_chars "canonical report family" "$report_family"
 reject_tsv_control_chars "canonical row status" "$row_status"
-reject_tsv_control_chars "canonical support tier" "$support_tier"
-reject_tsv_control_chars "canonical claim boundary" "$claim_boundary"
+reject_tsv_control_chars "SPARSE_CANONICAL_SUPPORT_TIER" "$support_tier"
+reject_tsv_control_chars "SPARSE_CANONICAL_CLAIM_BOUNDARY" "$claim_boundary"
+reject_tsv_control_chars "canonical unselected support tier" "$unselected_support_tier"
+reject_tsv_control_chars "canonical unselected claim boundary" "$unselected_claim_boundary"
+reject_tsv_control_chars "SPARSE_CANONICAL_RUNNER_CONTEXT" "$runner_context"
+reject_tsv_control_chars "SPARSE_CANONICAL_BUILD_FLAGS" "$build_flags"
+reject_tsv_control_chars "SPARSE_CANONICAL_CPU_MODEL" "$cpu_model"
 reject_tsv_control_chars "canonical baseline" "$baseline"
 reject_tsv_control_chars "canonical threshold" "$threshold"
 reject_tsv_control_chars "canonical warmup" "$warmup"
 reject_tsv_control_chars "canonical variance" "$variance"
 reject_tsv_control_chars "canonical matrix size" "$matrix_size"
 reject_tsv_control_chars "canonical backend context" "$backend_context"
-reject_tsv_control_chars "canonical methodology notes" "$methodology_notes"
+reject_tsv_control_chars "SPARSE_CANONICAL_METHODOLOGY_NOTES" "$methodology_notes"
 
 mkdir -p "$report_dir"
 
@@ -132,7 +142,7 @@ elif [ "$git_branch" = "HEAD" ]; then
 fi
 
 {
-    printf '%s\n' "surface	category	report_label	generated_at_utc	git_commit	git_branch	platform	compiler	build_mode	omp_num_threads	artifact	relative_path	command	report_family	status	support_tier	claim_boundary	fixture_or_workload	matrix_size	repeat_semantics	warmup	variance	baseline	threshold	backend_context	methodology_notes"
+    printf '%s\n' "surface	category	report_label	generated_at_utc	git_commit	git_branch	platform	compiler	runner_context	build_flags	cpu_model	build_mode	omp_num_threads	artifact	relative_path	command	report_family	status	support_tier	claim_boundary	fixture_or_workload	matrix_size	repeat_semantics	warmup	variance	baseline	threshold	backend_context	methodology_notes"
 
     emit_index_row() {
         local artifact="$1"
@@ -140,19 +150,28 @@ fi
         local command="$3"
         local fixture_or_workload="$4"
         local repeat_semantics="$5"
+        local row_support_tier="$unselected_support_tier"
+        local row_claim_boundary="$unselected_claim_boundary"
+
+        if [ "$artifact" = "bench_refactor_csc" ]; then
+            row_support_tier="$support_tier"
+            row_claim_boundary="$claim_boundary"
+        fi
 
         reject_tsv_control_chars "canonical artifact" "$artifact"
         reject_tsv_control_chars "canonical relative_path" "$relative_path"
         reject_tsv_control_chars "canonical command" "$command"
         reject_tsv_control_chars "canonical fixture_or_workload" "$fixture_or_workload"
         reject_tsv_control_chars "canonical repeat_semantics" "$repeat_semantics"
+        reject_tsv_control_chars "canonical row support_tier" "$row_support_tier"
+        reject_tsv_control_chars "canonical row claim_boundary" "$row_claim_boundary"
 
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "canonical" "measurement" "$report_label" "$timestamp_utc" "$git_commit" "$git_branch" \
-            "$platform" "$cc_version" "$build_mode" "$omp_num_threads" "$artifact" "$relative_path" \
-            "$command" "$report_family" "$row_status" "$support_tier" "$claim_boundary" \
-            "$fixture_or_workload" "$matrix_size" "$repeat_semantics" "$warmup" "$variance" \
-            "$baseline" "$threshold" "$backend_context" "$methodology_notes"
+            "$platform" "$cc_version" "$runner_context" "$build_flags" "$cpu_model" "$build_mode" \
+            "$omp_num_threads" "$artifact" "$relative_path" "$command" "$report_family" "$row_status" \
+            "$row_support_tier" "$row_claim_boundary" "$fixture_or_workload" "$matrix_size" "$repeat_semantics" \
+            "$warmup" "$variance" "$baseline" "$threshold" "$backend_context" "$methodology_notes"
     }
 
     emit_index_row "bench_refactor_csc" "$(basename "$refactor_csv")" \
@@ -174,6 +193,9 @@ git_commit=$git_commit
 git_branch=$git_branch
 platform=$platform
 compiler=$cc_version
+runner_context=$runner_context
+build_flags=$build_flags
+cpu_model=$cpu_model
 build_mode=$build_mode
 omp_num_threads=$omp_num_threads
 
@@ -183,6 +205,9 @@ report_family=$report_family
 status=$row_status
 support_tier=$support_tier
 claim_boundary=$claim_boundary
+selected_artifact=bench_refactor_csc
+unselected_support_tier=$unselected_support_tier
+unselected_claim_boundary=$unselected_claim_boundary
 baseline=$baseline
 threshold=$threshold
 warmup=$warmup

@@ -366,6 +366,12 @@ bench-canonical-report: $(BENCH_CANONICAL_REPORT_BINS)
 		"$(BUILDDIR)/bench_iterative_reuse" \
 		"$(BUILDDIR)/bench_eigs_reuse"
 
+.PHONY: bench-canonical-report-freshness
+bench-canonical-report-freshness: bench-canonical-report
+	@echo "bench-canonical-report-freshness: checking selected canonical performance report"
+	@python3 scripts/check_bench_canonical_freshness.py --report-dir "$(BENCH_CANONICAL_REPORT_DIR)" --mode local
+	@echo "bench-canonical-report-freshness: passed (selected threshold-free performance report freshness)"
+
 # Bounded local performance sentinels.  Hard pass/fail behavior is limited to
 # the existing wall-check lane; Cholesky CSC and LDLT KKT rows are
 # threshold-free local report context under build/bench-reports/sentinels/.

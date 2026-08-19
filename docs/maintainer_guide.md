@@ -1330,10 +1330,10 @@ Current threshold-free reporting surface:
     - generated timestamp
     - bounded report label from `BENCH_CANONICAL_REPORT_LABEL`
     - git commit / branch when locally available
-    - platform, compiler, build mode, and `OMP_NUM_THREADS` for local
-      comparison context
+    - platform, compiler, runner context, build flags, CPU model, build mode,
+      and `OMP_NUM_THREADS` for local or hosted comparison context
   - writes `index.tsv` with one structured row per emitted canonical artifact
-    and the same platform/compiler/build/thread context
+    and the same platform/compiler/runner/build/thread context
   - appends methodology fields for `report_family`, `status`,
     `support_tier`, `claim_boundary`, `fixture_or_workload`, `matrix_size`,
     `repeat_semantics`, `warmup`, `variance`, `baseline`, `threshold`,
@@ -1342,11 +1342,25 @@ Current threshold-free reporting surface:
   - is intentionally not a timing threshold gate
   - uses `status=measurement`, `support_tier=local_only`,
     `claim_boundary=local_threshold_free`, `baseline=n/a`, and
-    `threshold=n/a`; do not reinterpret those rows as pass/fail evidence
+    `threshold=n/a` for unselected canonical rows; do not reinterpret those
+    rows as pass/fail evidence
   - records `warmup=not_recorded` and `variance=not_recorded` until a later
     sprint adds explicit warmup or statistical methodology
   - should stay limited to the canonical maintained surface unless a later
     sprint proves a wider report remains cheap and stable
+- `make bench-canonical-report-freshness`
+  - regenerates the canonical report bundle and checks only the selected
+    `bench_refactor_csc` row for `nos4.mtx --repeat 1`
+  - validates selected artifact presence, `index.tsv` schema, selected row
+    identity, required methodology metadata, threshold-free baseline/threshold
+    values, `methodology_notes`, and `manifest.txt` agreement
+  - is mirrored by the reviewed Linux hosted selected-performance freshness
+    job, which runs the checker in hosted mode with `hosted_selected` and
+    `hosted_selected_threshold_free` metadata on the selected row only
+  - does not compare timing values, define a regression threshold, promote the
+    other canonical rows, or claim portable performance, external-library
+    parity, package/ABI support, broad platform support, release proof, or
+    state-of-the-art performance
 
 Current bounded local sentinel bundle:
 
@@ -1488,6 +1502,7 @@ Common focused checks:
 ```sh
 make report-index-oracle-freshness
 make report-index-comparison-freshness
+make bench-canonical-report-freshness
 python3 scripts/normalize_report_index.py --family oracle --check-freshness
 python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness
 python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
@@ -1541,6 +1556,17 @@ The reviewed Linux hosted report-freshness lane promotes only this selected
 comparison gate and its uploaded selected artifacts; it does not promote broad
 report-index freshness or unselected comparison families. Optional NumPy/SciPy
 defers remain context, not pass evidence.
+
+For selected canonical performance freshness, prefer
+`make bench-canonical-report-freshness` over hand-running the report script.
+The Makefile target regenerates the canonical bundle and runs the selected
+freshness checker for only `bench_refactor_csc` on `nos4.mtx --repeat 1`.
+Generated benchmark outputs remain ignored local artifacts by default. The
+reviewed Linux hosted selected-performance lane promotes only the selected row
+freshness and uploaded canonical bundle metadata; it does not promote raw
+timing values, unselected canonical rows, broad benchmark publication,
+external-library parity, package/ABI support, broad platform proof, release
+proof, or state-of-the-art performance.
 
 ## Stable Repo Norms
 

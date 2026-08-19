@@ -1344,8 +1344,9 @@ Current threshold-free reporting surface:
     `claim_boundary=local_threshold_free`, `baseline=n/a`, and
     `threshold=n/a` for unselected canonical rows; do not reinterpret those
     rows as pass/fail evidence
-  - records `warmup=not_recorded` and `variance=not_recorded` until a later
-    sprint adds explicit warmup or statistical methodology
+  - records canonical report `warmup=none_configured` and
+    `variance=not_computed_single_sample`; do not reinterpret those values as
+    a warmup-controlled or statistically summarized timing distribution
   - should stay limited to the canonical maintained surface unless a later
     sprint proves a wider report remains cheap and stable
 - `make bench-canonical-report-freshness`
@@ -1362,6 +1363,33 @@ Current threshold-free reporting surface:
     parity, package/ABI support, broad platform support, release proof, or
     state-of-the-art performance
 
+Selected performance platform/build caveats:
+
+- the reviewed hosted selected-performance lane is Linux GitHub Actions
+  oriented; its workflow sets
+  `SPARSE_CANONICAL_RUNNER_CONTEXT=github-actions-ubuntu-latest`,
+  `SPARSE_CANONICAL_BUILD_FLAGS=default_make_flags`, and
+  `SPARSE_CANONICAL_BUILD_MODE=serial`
+- the hosted workflow captures `SPARSE_CANONICAL_CPU_MODEL` from
+  `/proc/cpuinfo` when available, but GitHub-hosted CPU assignment can vary;
+  the CPU model is context, not a stable baseline class
+- local runs may infer a different `build_mode` from OpenMP runtime linkage
+  unless `SPARSE_CANONICAL_BUILD_MODE` is set; compare local generated rows
+  only after checking `platform`, `compiler`, `runner_context`, `build_flags`,
+  `cpu_model`, `build_mode`, and `OMP_NUM_THREADS`
+- the selected canonical row uses the default SPD/Cholesky
+  `bench_refactor_csc` path with `backend_context=n/a`; do not cite it as
+  LDLT dense-helper, optional-backend, backend-superiority, or runtime-loader
+  evidence
+- the S6 local smoke ceiling uses the same selected fixture/command and
+  preserves backend fields as `n/a`; it is separate local regression
+  governance, not hosted selected-performance publication
+- `matrix_size=n=100` is the benchmark-emitted dimension for the selected
+  `nos4.mtx` row; do not use it as nonzero-count evidence or as coverage for
+  a broader matrix family
+- Windows and macOS CI/install evidence remains separate platform/package
+  evidence and does not inherit selected Linux hosted performance meaning
+
 Current bounded local sentinel bundle:
 
 - `make performance-sentinels`
@@ -1375,13 +1403,17 @@ Current bounded local sentinel bundle:
     descriptor where applicable
   - appends `baseline_provenance`, `repeat_semantics`, `warmup`, `variance`,
     and `methodology_notes` for publication review
-  - uses `n/a` for backend fields on rows such as S5 that do not own a dense
-    backend seam
+  - uses `n/a` for backend fields on rows such as S5/S6 that do not own a
+    dense backend seam
   - treats S5 as the existing hard `wall-check` threshold gate
+  - treats S6 as a broad local selected-lane smoke ceiling for
+    `bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
   - treats S2 Cholesky CSC rows as threshold-free report context only
   - treats S3 LDLT KKT rows as threshold-free backend report context only
   - treats S5 status as meaningful only with the recorded baseline, threshold,
     fixture, command, baseline provenance, and machine context
+  - treats S6 status as meaningful only with the selected fixture, command,
+    local smoke ceiling, build mode, `OMP_NUM_THREADS`, and machine context
   - treats S2/S3 `status=report` rows as backend-context rows, not passing
     evidence
   - should not add new hard timing thresholds without a fresh local-baseline
@@ -1467,7 +1499,8 @@ Interpretation:
 - do not turn the runtime lane into threshold-heavy pseudo-governance
 - do not reinterpret `bench-canonical-report` as a pass/fail portability claim
 - do not reinterpret `performance-sentinels` as a broader timing proof; its
-  only hard timing gate is the existing wall-check lane
+  hard timing gates are the existing wall-check lane and the selected-lane
+  local smoke ceiling
 - do not reinterpret the Sprint 98 reorder/fill artifact as a replacement for
   the canonical maintained performance surface or as a portable timing claim
 - do not reinterpret `large-matrix-guardrails` as broad large-matrix
@@ -1492,8 +1525,15 @@ Generated output belongs under ignored `build/report-index/`. Do not commit
 the generated TSV unless a later sprint explicitly promotes a stable checked-in
 example.
 
-For Sprint 163 performance rows, the normalized index is a navigation surface:
-it should keep methodology fields visible in `configuration`, but it is not
+For performance rows, the focused freshness target remains authoritative:
+
+```sh
+make bench-canonical-report-freshness
+```
+
+Use normalized report-index output as a navigation surface after running the
+focused checks. It should keep methodology fields visible in `configuration`,
+including the selected canonical row and S6 local smoke ceiling, but it is not
 hosted CI proof, package proof, ABI proof, broad platform proof, backend
 superiority proof, OpenMP speedup evidence, or state-of-the-art evidence.
 

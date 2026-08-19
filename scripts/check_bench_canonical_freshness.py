@@ -101,7 +101,10 @@ SELECTED_VALUES = {
     "report_family": "benchmark",
     "status": "measurement",
     "fixture_or_workload": SELECTED_FIXTURE,
+    "matrix_size": "n=100",
     "repeat_semantics": SELECTED_REPEAT,
+    "warmup": "none_configured",
+    "variance": "not_computed_single_sample",
     "baseline": "n/a",
     "threshold": "n/a",
 }
@@ -120,6 +123,9 @@ MANIFEST_MATCH_FIELDS = (
     "claim_boundary",
     "baseline",
     "threshold",
+    "warmup",
+    "variance",
+    "matrix_size",
     "methodology_notes",
 )
 LOCAL_SUPPORT_TIERS = {"local_only", "hosted_selected"}
@@ -340,7 +346,8 @@ def check_unselected_rows(rows: list[dict[str, str]]) -> None:
 def check_manifest(row: dict[str, str], manifest: dict[str, str]) -> None:
     for field in MANIFEST_MATCH_FIELDS:
         observed = row.get(field, "")
-        manifest_value = manifest.get(field, "")
+        manifest_key = "selected_matrix_size" if field == "matrix_size" else field
+        manifest_value = manifest.get(manifest_key, "")
         if observed != manifest_value:
             error(
                 "freshness: error: benchmark_selected_manifest_mismatch: "

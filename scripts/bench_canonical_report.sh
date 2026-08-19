@@ -32,9 +32,8 @@ build_flags="${SPARSE_CANONICAL_BUILD_FLAGS:-not_recorded}"
 cpu_model="${SPARSE_CANONICAL_CPU_MODEL:-unknown}"
 baseline="n/a"
 threshold="n/a"
-warmup="not_recorded"
-variance="not_recorded"
-matrix_size="not_recorded"
+warmup="none_configured"
+variance="not_computed_single_sample"
 backend_context="n/a"
 methodology_notes="${SPARSE_CANONICAL_METHODOLOGY_NOTES:-threshold_free_local_measurement;not_portable_performance_claim}"
 
@@ -66,7 +65,6 @@ reject_tsv_control_chars "canonical baseline" "$baseline"
 reject_tsv_control_chars "canonical threshold" "$threshold"
 reject_tsv_control_chars "canonical warmup" "$warmup"
 reject_tsv_control_chars "canonical variance" "$variance"
-reject_tsv_control_chars "canonical matrix size" "$matrix_size"
 reject_tsv_control_chars "canonical backend context" "$backend_context"
 reject_tsv_control_chars "SPARSE_CANONICAL_METHODOLOGY_NOTES" "$methodology_notes"
 
@@ -150,6 +148,7 @@ fi
         local command="$3"
         local fixture_or_workload="$4"
         local repeat_semantics="$5"
+        local matrix_size="$6"
         local row_support_tier="$unselected_support_tier"
         local row_claim_boundary="$unselected_claim_boundary"
 
@@ -163,6 +162,7 @@ fi
         reject_tsv_control_chars "canonical command" "$command"
         reject_tsv_control_chars "canonical fixture_or_workload" "$fixture_or_workload"
         reject_tsv_control_chars "canonical repeat_semantics" "$repeat_semantics"
+        reject_tsv_control_chars "canonical matrix size" "$matrix_size"
         reject_tsv_control_chars "canonical row support_tier" "$row_support_tier"
         reject_tsv_control_chars "canonical row claim_boundary" "$row_claim_boundary"
 
@@ -175,13 +175,13 @@ fi
     }
 
     emit_index_row "bench_refactor_csc" "$(basename "$refactor_csv")" \
-        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1"
+        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1" "n=100"
     emit_index_row "bench_chol_csc" "$(basename "$chol_csv")" \
-        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1"
+        "tests/data/suitesparse/nos4.mtx --repeat 1" "nos4.mtx" "configured_repeat_1" "n=100"
     emit_index_row "bench_iterative_reuse" "$(basename "$iter_csv")" \
-        "default" "default" "benchmark_default"
+        "default" "default" "benchmark_default" "not_recorded"
     emit_index_row "bench_eigs_reuse" "$(basename "$eigs_csv")" \
-        "default" "default" "benchmark_default"
+        "default" "default" "benchmark_default" "not_recorded"
 } > "$index_tsv"
 
 cat > "$manifest_txt" <<EOF
@@ -212,7 +212,7 @@ baseline=$baseline
 threshold=$threshold
 warmup=$warmup
 variance=$variance
-matrix_size=$matrix_size
+selected_matrix_size=n=100
 backend_context=$backend_context
 methodology_notes=$methodology_notes
 

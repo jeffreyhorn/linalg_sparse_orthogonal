@@ -372,9 +372,14 @@ bench-canonical-report-freshness: bench-canonical-report
 	@python3 scripts/check_bench_canonical_freshness.py --report-dir "$(BENCH_CANONICAL_REPORT_DIR)" --mode local
 	@echo "bench-canonical-report-freshness: passed (selected threshold-free performance report freshness)"
 
+.PHONY: bench-canonical-report-freshness-tests
+bench-canonical-report-freshness-tests: $(BENCH_CANONICAL_REPORT_BINS)
+	@python3 tests/test_bench_canonical_freshness.py
+
 # Bounded local performance sentinels.  Hard pass/fail behavior is limited to
-# the existing wall-check lane; Cholesky CSC and LDLT KKT rows are
-# threshold-free local report context under build/bench-reports/sentinels/.
+# the existing wall-check lane and selected refactor CSC smoke ceiling;
+# Cholesky CSC and LDLT KKT rows are threshold-free local report context under
+# build/bench-reports/sentinels/.
 PERFORMANCE_SENTINEL_BUILD_MODE = $(if $(findstring -DSPARSE_OPENMP,$(CFLAGS)),openmp,)
 .PHONY: performance-sentinels
 performance-sentinels: $(BUILDDIR)/bench_chol_csc $(BUILDDIR)/bench_refactor_csc $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder

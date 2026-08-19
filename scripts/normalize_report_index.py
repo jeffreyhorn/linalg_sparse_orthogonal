@@ -626,16 +626,20 @@ def sentinel_generated_rows(
     branch: str,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    hard_gate_boundaries = {"local_wall_gate", "local_selected_regression_gate"}
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
         manifest = read_manifest(path.parent / "manifest.txt")
         for sentinel in read_tsv(path):
             claim_boundary = sentinel.get("claim_boundary", "")
-            if contract["row_meaning"] == "sentinel_hard_gate" and claim_boundary != "local_wall_gate":
+            if (
+                contract["row_meaning"] == "sentinel_hard_gate"
+                and claim_boundary not in hard_gate_boundaries
+            ):
                 continue
             if (
                 contract["row_meaning"] == "sentinel_advisory_measurement"
-                and claim_boundary == "local_wall_gate"
+                and claim_boundary in hard_gate_boundaries
             ):
                 continue
             native_id = "_".join(

@@ -986,6 +986,9 @@ library paths by filesystem identity so staged-prefix spelling differences do
 not masquerade as package failures. These checks are package proof, not
 package-manager distribution or dynamic-loader evidence.
 
+Package-manager support is not currently provided; use source install via Make
+or CMake and see `INSTALL.md` for the exact package boundary.
+
 On Windows, `sparse.pc` is installed and inspected as static package metadata
 by the reviewed CMake install/downstream lane. That lane does not run
 `pkg-config` and does not claim Windows Makefile or `pkg-config` execution

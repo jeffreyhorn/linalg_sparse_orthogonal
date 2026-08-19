@@ -57,6 +57,12 @@ Use each support surface for the layer it owns:
   - `cmake --install`
   - `find_package(Sparse)`
   - `tests/test_cmake_install.sh`
+- package-manager deferral:
+  - package-manager support is not currently provided
+  - vcpkg, Homebrew, Conan, pkgsrc, distro/system packages, provider
+    registries, taps, recipes, and binary packages remain unsupported
+  - use source install via Make or CMake until a future sprint selects and
+    validates a specific provider recipe
 - reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
 
@@ -410,8 +416,10 @@ These rows identify maintained proof owners and templates:
 - `sparse.pc.in`
 - `cmake/SparseConfig.cmake.in`
 - `scripts/static_package_deferral_check.sh`
+- `scripts/package_manager_deferral_check.sh`
 
 They use `freshness_status=source_controlled`. Read them as ownership and
 static-first scope metadata, not as proof that an install validation command
 was just run. To prove the install surface locally, run the install validation
-scripts above.
+scripts above. The package-manager deferral guard protects provider non-claims
+and does not prove provider install behavior.

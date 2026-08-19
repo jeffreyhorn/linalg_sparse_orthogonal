@@ -215,16 +215,16 @@ selected_refactor_status="skip"
 selected_refactor_note="not_run"
 selected_refactor_cmd="$bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1"
 if [ ! -x "$bench_refactor_csc" ]; then
-    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "n/a" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_refactor_csc_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_refactor_csc_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
 elif [ ! -r "tests/data/suitesparse/nos4.mtx" ]; then
-    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "n/a" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "fixture_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "fixture_missing" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
 elif "$bench_refactor_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$selected_refactor_output"; then
     selected_refactor_ms="$(awk -F, 'NR == 2 && $1 == "bench_refactor_csc" && $3 == "nos4.mtx" && $4 == "chol_spd" { print $12; exit }' "$selected_refactor_output")"
     if [ -z "$selected_refactor_ms" ] || ! awk -v value="$selected_refactor_ms" \
         'BEGIN { exit !(value ~ /^[0-9]+([.][0-9]+)?$/) }'; then
         selected_refactor_status="fail"
         selected_refactor_note="selected_refactor_csc_parse_failed"
-        append_row "S6" "fail" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "n/a" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+        append_row "S6" "fail" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
         echo "performance-sentinels: FAIL S6 could not parse selected refactor_csc_ms from $(basename "$selected_refactor_output")" >&2
     elif awk -v actual="$selected_refactor_ms" -v threshold="$s6_refactor_csc_ms_ceiling" \
         'BEGIN { exit !((actual + 0) > threshold) }'; then
@@ -238,7 +238,7 @@ elif "$bench_refactor_csc" tests/data/suitesparse/nos4.mtx --repeat 1 > "$select
         append_row "S6" "pass" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "$selected_refactor_ms" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "$selected_refactor_note" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
     fi
 else
-    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "n/a" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_run_failed" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
+    append_row "S6" "skip" "reviewed_thresholded" "local_selected_regression_gate" "$selected_refactor_cmd" "nos4.mtx" "refactor_csc_ms" "n/a" "$s6_refactor_csc_ms_ceiling" "$s6_refactor_csc_ms_ceiling" "$(basename "$selected_refactor_output")" "n/a" "n/a" "n/a" "n/a" "n/a" "bench_run_failed" "$s6_baseline_provenance" "$s6_repeat_semantics" "$s6_warmup" "$s6_variance" "$s6_methodology_notes"
 fi
 
 chol_cmd="$bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1"

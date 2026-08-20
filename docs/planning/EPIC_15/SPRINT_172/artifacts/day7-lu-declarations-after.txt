@@ -1,0 +1,14 @@
+1:#ifndef SPARSE_LU_H
+2:#define SPARSE_LU_H
+58:typedef struct {
+114:sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *opts);
+163:sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol);
+185:sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x);
+209:sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx_t nrhs, double *X);
+236:sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,
+262:sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x);
+277:sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat, const double *b, double *pb);
+291:sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat, const double *z, double *x);
+305:sparse_err_t sparse_forward_sub(const SparseMatrix *mat, const double *pb, double *y);
+320:sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, double *z);
+343:sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,

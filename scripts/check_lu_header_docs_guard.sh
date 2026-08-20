@@ -75,19 +75,19 @@ check_header_sections() {
 }
 
 check_header_declarations() {
-    require_fixed 'sparse_lu_factor_opts' "$HEADER" "missing sparse_lu_factor_opts declaration"
-    require_fixed 'sparse_lu_factor' "$HEADER" "missing sparse_lu_factor declaration"
+    require_fixed 'sparse_lu_factor_opts(' "$HEADER" "missing sparse_lu_factor_opts declaration"
+    require_fixed 'sparse_lu_factor(' "$HEADER" "missing sparse_lu_factor declaration"
     require_fixed 'sparse_lu_solve(' "$HEADER" "missing sparse_lu_solve declaration"
-    require_fixed 'sparse_lu_solve_block' "$HEADER" "missing sparse_lu_solve_block declaration"
-    require_fixed 'sparse_lu_condest' "$HEADER" "missing sparse_lu_condest declaration"
-    require_fixed 'sparse_lu_solve_transpose' "$HEADER" \
+    require_fixed 'sparse_lu_solve_block(' "$HEADER" "missing sparse_lu_solve_block declaration"
+    require_fixed 'sparse_lu_condest(' "$HEADER" "missing sparse_lu_condest declaration"
+    require_fixed 'sparse_lu_solve_transpose(' "$HEADER" \
         "missing sparse_lu_solve_transpose declaration"
-    require_fixed 'sparse_apply_row_perm' "$HEADER" "missing sparse_apply_row_perm declaration"
-    require_fixed 'sparse_apply_inv_col_perm' "$HEADER" \
+    require_fixed 'sparse_apply_row_perm(' "$HEADER" "missing sparse_apply_row_perm declaration"
+    require_fixed 'sparse_apply_inv_col_perm(' "$HEADER" \
         "missing sparse_apply_inv_col_perm declaration"
-    require_fixed 'sparse_forward_sub' "$HEADER" "missing sparse_forward_sub declaration"
-    require_fixed 'sparse_backward_sub' "$HEADER" "missing sparse_backward_sub declaration"
-    require_fixed 'sparse_lu_refine' "$HEADER" "missing sparse_lu_refine declaration"
+    require_fixed 'sparse_forward_sub(' "$HEADER" "missing sparse_forward_sub declaration"
+    require_fixed 'sparse_backward_sub(' "$HEADER" "missing sparse_backward_sub declaration"
+    require_fixed 'sparse_lu_refine(' "$HEADER" "missing sparse_lu_refine declaration"
 
     pass "header declarations"
 }

@@ -170,7 +170,8 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
  * Chains: row permutation → forward substitution (L) → backward
  * substitution (U) → inverse column permutation to produce x.
  *
- * @param mat  A matrix that has been factored by sparse_lu_factor().
+ * @param mat  A matrix with LU factors produced by sparse_lu_factor() or
+ *             sparse_lu_factor_opts().
  * @param b    Right-hand side vector of length n.
  * @param x    Solution vector of length n; overwritten and may alias @p b.
  * @return SPARSE_OK on success.
@@ -191,7 +192,8 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x
  * amortizing sparse pattern traversal across all RHS vectors for better
  * cache efficiency.
  *
- * @param mat   A matrix that has been factored by sparse_lu_factor().
+ * @param mat   A matrix with LU factors produced by sparse_lu_factor() or
+ *              sparse_lu_factor_opts().
  * @param B     Right-hand side matrix of size n × nrhs (column-major:
  *              B[i + n*k] = B(i,k)). Not modified. Must be non-NULL even
  *              if @p nrhs is 0.
@@ -225,7 +227,8 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
  * ||A||_1 from the original coefficients.
  *
  * @param mat_orig  The original (unfactored) matrix A. Used to compute ||A||_1.
- * @param mat_lu    The LU-factored matrix from sparse_lu_factor().
+ * @param mat_lu    The LU-factored matrix from sparse_lu_factor() or
+ *                  sparse_lu_factor_opts().
  * @param[out] condest  Pointer to receive the condition number estimate.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
@@ -250,7 +253,8 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
  *  3. Backward-substitute with L^T (upper triangular solve, unit diagonal)
  *  4. Apply P^{-1} permutation: x[i] = result[inv_row_perm[i]]
  *
- * @param mat  A matrix that has been factored by sparse_lu_factor().
+ * @param mat  A matrix with LU factors produced by sparse_lu_factor() or
+ *             sparse_lu_factor_opts().
  * @param b    Right-hand side vector of length n.
  * @param x    Solution vector of length n; overwritten and may alias @p b.
  * @return SPARSE_OK on success.

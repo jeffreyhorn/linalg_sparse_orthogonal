@@ -266,6 +266,13 @@ Focused install/package regression ownership:
   Makefile static archive install/uninstall source expectations, exact static
   `sparse.pc` metadata, exact shared deferral blocker wording, absence of
   unsupported shared ABI metadata/selectors, and deferred support wording
+- `scripts/package_manager_deferral_check.sh` is the local package-manager
+  deferral guard that checks the Sprint 171 deferral record, provider recipe
+  absence, provider-neutral package metadata templates, and public
+  package-manager non-claim wording
+- Run `bash scripts/package_manager_deferral_check.sh` when changing
+  package-manager wording, adding provider recipe files, editing package
+  metadata templates, or modifying provider support claims
 - Linux CI carries a reviewed static-first package-contract lane that runs the
   Make install/`pkg-config` proof, CMake install/export proof, and static
   deferral guard
@@ -293,7 +300,8 @@ Normalized report-index interpretation:
   expands the package contract into source-controlled proof-owner rows for
   `tests/test_install.sh`, `tests/test_cmake_install.sh`, `sparse.pc.in`,
   `cmake/SparseConfig.cmake.in`, and
-  `scripts/static_package_deferral_check.sh`
+  `scripts/static_package_deferral_check.sh`, and
+  `scripts/package_manager_deferral_check.sh`
 - package proof-owner rows use `freshness_status=source_controlled`; they
   prove ownership and scope of maintained checks/templates, not that an
   install validation command was just run

@@ -869,6 +869,12 @@ def package_proof_owner_rows(
             "command": "bash scripts/static_package_deferral_check.sh",
             "scope": "Static-first package decision guardrail for deferred shared-library or ABI claims.",
         },
+        {
+            "proof_name": "package_manager_deferral",
+            "path": "scripts/package_manager_deferral_check.sh",
+            "command": "bash scripts/package_manager_deferral_check.sh",
+            "scope": "Package-manager deferral guardrail for provider support non-claims.",
+        },
     ]
     rows: list[dict[str, str]] = []
     for owner in proof_owners:

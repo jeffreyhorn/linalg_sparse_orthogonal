@@ -144,9 +144,9 @@ check_public_nonclaims() {
         "$ROOT_DIR/README.md" \
         "README no longer separates package-manager distribution from source install evidence"
     require_grep \
-        'package-manager[[:space:]]*$' \
+        '^[[:space:]]*-[[:space:]]+package-manager deferral:' \
         "$ROOT_DIR/INSTALL.md" \
-        "INSTALL no longer starts the package-manager distribution non-claim"
+        "INSTALL no longer has the package-manager deferral support-split entry"
     require_grep \
         'distribution, static/shared selectors' \
         "$ROOT_DIR/INSTALL.md" \

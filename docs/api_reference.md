@@ -41,16 +41,21 @@ Installed packages also include a generated `sparse_version.h` derived from
 HTML under `docs/api/html/`, and checks generated page coverage for the
 checked-in public headers.
 
+`make api-docs-freshness` runs the selected local freshness proof: Doxygen
+generation, generated page coverage, and local-only staging enforcement for the
+generated API tree.
+
 The generated HTML tree is local-only generated output. It remains ignored by
 the repository and is not a hosted or source-controlled publication surface.
-Treat it as current only for the branch and checkout where `make docs-check`
-has just passed.
+Treat it as current only for the branch and checkout where
+`make api-docs-freshness` has just passed.
 
 The current Doxygen configuration reads checked-in headers under `include/`.
 Generated install headers such as `sparse_version.h` are owned by install
 artifacts, `VERSION`, and install-validation tests rather than by a generated
 Doxygen page. If local generated HTML is missing, stale, or incomplete, prefer
-the public headers above for exact declarations until `make docs-check` passes.
+the public headers above for exact declarations until `make api-docs-freshness`
+passes.
 
 ## Workflow Guides
 

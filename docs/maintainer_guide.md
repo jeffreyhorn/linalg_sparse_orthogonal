@@ -1005,34 +1005,38 @@ ignored rather than committed or hosted.
 Use this command to refresh and validate the local generated API view:
 
 ```bash
-make docs-check
+make api-docs-freshness
 ```
 
 Interpretation:
 
 - `make docs-check` runs Doxygen and then checks generated page coverage for
   checked-in public headers under `include/`;
+- `make api-docs-freshness` runs `docs-check` plus the local-only generated
+  output guard, which proves `docs/api/` remains ignored, untracked, and
+  unstaged;
 - the generated HTML is current only for the branch and checkout where the
-  command just passed;
+  selected freshness command just passed;
 - generated `sparse_version.h` remains an installed-header policy row derived
   from `VERSION` and `include/sparse_version.h.in`, not an expected Doxygen
   page under the current input set;
 - local generated output under `docs/api/html/` is not source-controlled,
-  hosted, or release evidence.
+  hosted, artifact-published, or release evidence.
 
 Treat generated API HTML as stale or partial when public header comments changed
-after the last successful `make docs-check`, new checked-in public headers do
-not have generated pages, Doxygen warnings appear without triage, or generated
-installed headers are expected to appear even though they are outside the
-configured Doxygen input set.
+after the last successful `make api-docs-freshness`, new checked-in public
+headers do not have generated pages, Doxygen warnings appear without triage, or
+generated installed headers are expected to appear even though they are outside
+the configured Doxygen input set.
 
 API reference guidance may say that public headers own exact declarations and
-call-site contracts and that `make docs-check` generates and validates local
-Doxygen HTML. It must not imply dynamic ABI compatibility, shared-library
-support, package-manager distribution, broad Windows Makefile or Windows
-`pkg-config` parity, external-library parity, portable runtime guarantees,
-hosted documentation publication, source-controlled generated HTML, or
-completeness beyond the configured Doxygen input set.
+call-site contracts and that `make api-docs-freshness` generates and validates
+local Doxygen HTML while enforcing local-only generated-output staging. It must
+not imply dynamic ABI compatibility, shared-library support, package-manager
+distribution, broad Windows Makefile or Windows `pkg-config` parity,
+external-library parity, portable runtime guarantees, hosted documentation
+publication, source-controlled generated HTML, artifact-published generated
+HTML, or completeness beyond the configured Doxygen input set.
 
 ### Local benchmark/example READMEs
 

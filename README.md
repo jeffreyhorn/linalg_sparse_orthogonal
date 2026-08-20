@@ -310,6 +310,7 @@ make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make docs-check # generate and check local Doxygen API page coverage
+make api-docs-freshness # selected local Doxygen freshness plus local-only staging guard
 # API reference entry point: docs/api_reference.md
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer

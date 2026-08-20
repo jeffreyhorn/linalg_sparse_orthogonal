@@ -807,7 +807,7 @@ wall-check: $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
 
 # ─── API documentation ────────────────────────────────────────────────
 
-.PHONY: docs api-docs-coverage docs-check
+.PHONY: docs api-docs-coverage api-docs-local-only docs-check api-docs-validate api-docs-freshness
 docs:
 	@echo "Generating API documentation with Doxygen..."
 	doxygen Doxyfile
@@ -816,7 +816,14 @@ docs:
 api-docs-coverage:
 	@python3 scripts/check_api_docs_coverage.py
 
+api-docs-local-only:
+	@bash scripts/check_api_docs_local_only.sh
+
 docs-check: docs api-docs-coverage
+
+api-docs-validate: docs-check api-docs-local-only
+
+api-docs-freshness: api-docs-validate
 
 # ─── Tree-mutating coverage modes ─────────────────────────────────────
 #

@@ -617,6 +617,7 @@ report-index-comparison-freshness: $(LIB)
 	@python3 scripts/run_external_comparison.py --target qr-minnorm
 	@python3 scripts/run_external_comparison.py --target qr-compatible-ls
 	@python3 scripts/run_external_comparison.py --target partial-svd-diag6-k2
+	@python3 scripts/run_external_comparison.py --target lu-nonsym-square-5
 	@echo "report-index-comparison-freshness: checking selected comparison freshness"
 	@python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
 	@echo "report-index-comparison-freshness: passed (local-only generated comparison freshness)"

@@ -110,10 +110,10 @@ platform parity claims, or portable performance claims.
 
 | Problem | Use | Notes |
 |---|---|---|
-| General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. |
+| General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. The selected comparison freshness gate includes fixture-local linked-list LU square-solve evidence for `lu_nonsym_square_5` against the selected source-controlled dense LU reference helper. This is not broad LU correctness, nonsymmetric solve parity, LU CSR parity, or external-library parity. |
 | Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. |
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
-| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD comparison described below. This is not broad QR or external-library parity. |
+| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD and LU comparisons described below. This is not broad QR or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 
@@ -260,6 +260,18 @@ comparison gate and uploads the selected comparison artifacts. It does not
 claim broad partial-SVD correctness, raw singular-vector identity, vector sign
 or orientation identity, repeated-spectrum ordering, external-library parity,
 release/platform/package/ABI proof, performance, or state-of-the-art status.
+
+The selected comparison freshness gate also includes `lu_nonsym_square_5`.
+That generated comparison is fixture-local and checks linked-list LU square
+solve status, residual norm, solution norm, solution values, and
+project-vs-baseline max absolute delta against the source-controlled dense LU
+reference helper with `1e-10` tolerances. It is local generated evidence by
+default and reviewed Linux hosted evidence only when the hosted
+report-freshness lane runs the selected comparison gate and uploads the
+selected comparison artifacts. It does not claim broad LU correctness,
+nonsymmetric solve parity, LU CSR parity, pivoting superiority,
+external-library parity, release/platform/package/ABI proof, performance, or
+state-of-the-art status.
 
 Useful starting example:
 

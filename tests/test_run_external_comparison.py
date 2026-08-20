@@ -83,6 +83,25 @@ TARGET_EXPECTATIONS = {
             "external-comparison: partial-svd-diag6-k2 project-vs-baseline comparison passed"
         ),
     },
+    "lu-nonsym-square-5": {
+        "fixture_key": "lu_nonsym_square_5",
+        "subfamily": "lu_nonsym_square_5",
+        "operation": "square_solve",
+        "required_helper": "tests/lu_external_dense_reference.py",
+        "generator_command": "python3 scripts/run_external_comparison.py --target lu-nonsym-square-5",
+        "artifact_pattern": "build/comparison/lu_nonsym_square_5/study.tsv",
+        "expected_metrics": {
+            "project_status",
+            "baseline_status",
+            "residual_norm",
+            "solution_norm",
+            "solution_values",
+            "project_vs_baseline_max_abs_delta",
+        },
+        "success_message": (
+            "external-comparison: lu-nonsym-square-5 project-vs-baseline comparison passed"
+        ),
+    },
 }
 
 
@@ -170,6 +189,9 @@ def assert_target_output(target: str, output_dir: Path) -> None:
         assert row["status_reason"] == "optional_package_baseline_not_selected"
         assert row["caveat"] == "deferred rows are not pass evidence"
 
+    if not expected.get("require_report_family_metadata", True):
+        return
+
     metadata = read_report_family_rows()[expected["subfamily"]]
     assert metadata["row_meaning"] == "external_process_dense_reference_comparison"
     assert metadata["row_origin"] == "generated_local"
@@ -192,6 +214,7 @@ def test_unsupported_target_reports_supported_targets() -> None:
     assert "qr-compatible-ls" in result.stderr
     assert "qr-minnorm" in result.stderr
     assert "partial-svd-diag6-k2" in result.stderr
+    assert "lu-nonsym-square-5" in result.stderr
 
 
 def test_selected_targets_generate_expected_rows_and_metadata() -> None:

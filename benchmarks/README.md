@@ -506,7 +506,7 @@ backend parity, or portable performance evidence.
 | `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected `bench_refactor_csc` artifact and methodology freshness for `nos4.mtx --repeat 1`; not a timing gate. |
 | `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; S5 and S6 are narrow local thresholded gates, while S2/S3 remain threshold-free context. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
-| `make report-index-comparison-freshness` | `build/comparison/qr_minnorm/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm comparison against the selected source-controlled dense reference helper. |
+| `make report-index-comparison-freshness` | `build/comparison/{qr_minnorm,qr_compatible_ls,partial_svd_diag6_k2,lu_nonsym_square_5}/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm, QR compatible least-squares, partial-SVD diagonal top-k, and linked-list LU square-solve comparisons against selected source-controlled dense reference helpers. |
 
 When reading any generated report index:
 
@@ -536,9 +536,10 @@ sentinel S5 rows as the existing wall-check hard gate, sentinel S6 as the
 selected-lane local smoke ceiling, sentinel S2 and S3 rows as threshold-free
 context, and large-matrix guardrail reviewed/supplemental
 lanes as separate row meanings. Comparison rows remain fixture-local
-correctness evidence for the selected QR minimum-norm study only. Freshness
-diagnostics do not convert local timing rows into portable performance claims
-or local comparison rows into broad external-library parity.
+correctness evidence for the selected QR, partial-SVD, and LU comparison
+studies only. Freshness diagnostics do not convert local timing rows into
+portable performance claims or local comparison rows into broad
+external-library parity.
 
 The selected performance freshness check is deliberately outside broad
 normalized-index promotion: it validates the `bench_refactor_csc` canonical
@@ -550,8 +551,8 @@ evidence.
 Generated benchmark, sentinel, guardrail, and normalized-index outputs belong
 under ignored `build/` paths such as `build/bench-reports/sentinels/` and
 `build/report-index/`. The generated comparison artifacts under
-`build/comparison/qr_minnorm/` follow the same local-output rule. Regenerate
-those outputs from the maintained commands; do not edit or commit generated
+`build/comparison/*/` follow the same local-output rule. Regenerate those
+outputs from the maintained commands; do not edit or commit generated
 timing/report/comparison rows by hand.
 
 Supplemental report mode is opt-in:

@@ -229,7 +229,7 @@ double x[3];
 sparse_lu_solve(LU, b, x);
 
 // Iterative refinement for higher accuracy
-sparse_lu_refine(A, LU, b, x, 3);
+sparse_lu_refine(A, LU, b, x, 3, 1e-15);
 
 sparse_free(LU);
 ```

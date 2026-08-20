@@ -8,10 +8,10 @@
  * Provides in-place LU factorization with row and column pivoting
  * (P·A·Q = L·U), forward/backward substitution, and iterative refinement.
  *
- * The factorization stores L and U in the same matrix: L occupies the
- * strictly lower triangle (with an implicit unit diagonal), and U occupies
- * the upper triangle (including the diagonal). The permutations P and Q
- * are stored in the matrix's row_perm and col_perm arrays.
+ * LU factorization overwrites the caller-owned matrix with the factors:
+ * L occupies the strictly lower triangle with an implicit unit diagonal, and
+ * U occupies the upper triangle including the diagonal. Row and column
+ * permutations are stored on the matrix and used by the solve routines.
  *
  * **Usage pattern:**
  * @code
@@ -28,15 +28,15 @@
  *   if (cond > 1e12) fprintf(stderr, "Warning: ill-conditioned (cond ~%.1e)\n", cond);
  * @endcode
  *
- * For stable-pattern repeated runs, prefer the shared direct lifecycle path
- * in `sparse_analysis.h` (`sparse_analyze` → `sparse_factor_numeric` →
- * `sparse_factor_solve` → `sparse_refactor_numeric`), which is the clearer
- * owner of reusable symbolic and factor/workspace state. The LU APIs in this
- * header remain first-class one-shot peer entry points and the simple/default
- * path for copied-matrix solves.
+ * For stable-pattern repeated runs, prefer the shared direct lifecycle in
+ * `sparse_analysis.h`: analyze once, factor/refactor numerically, solve, then
+ * free the analysis and factor objects. The APIs in this header are the
+ * one-shot LU path for callers that factor a fresh matrix or a copy.
  */
 
 #include "sparse_matrix.h"
+
+/* Options */
 
 /**
  * @brief Options for LU factorization with optional fill-reducing reordering.
@@ -56,63 +56,60 @@
  * @endcode
  */
 typedef struct {
-    sparse_pivot_t pivot;     /**< Pivoting strategy */
-    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, AMD, or ND —
-                                   ND is best on 2D / 3D PDE meshes, see
-                                   sparse_reorder.h) */
-    double tol;               /**< Pivot tolerance */
-    /** Optional progress / cancellation callback.  Invoked at the top of each
-     *  column-elimination iteration with `phase = "lu_factor"`, `step = k`,
-     *  `total = n`.
-     *  Return 0 to continue; non-zero cancels the factorisation —
-     *  the library frees intermediate state and returns
-     *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step > 0` leaves
-     *  the matrix with the first `step` columns fully eliminated.
-     *  Cancellation at `step == 0` leaves the entry-value data with no
-     *  in-loop mutation and restores the pre-entry factored-state
-     *  compatibility mirrors (`factored`, `factor_norm`) on the
-     *  no-reorder path. Reordered one-shot calls that use the callback
-     *  path factor a temporary reordered working copy and only publish
-     *  back on success, so cancellation leaves the caller-owned matrix
-     *  in its original coordinate space.  NULL (default) disables the
-     *  callback with zero overhead.  See `sparse_progress_cb_t` in
-     *  `sparse_types.h` for the generic callback contract.  Trailing field for
-     *  designated-init compatibility. */
+    sparse_pivot_t pivot;     /**< Pivoting strategy. */
+    sparse_reorder_t reorder; /**< Optional fill-reducing reordering (NONE, RCM,
+                                   AMD, or ND). See sparse_reorder.h for
+                                   reorder-mode details. */
+    double tol;               /**< Absolute pivot tolerance used during elimination. */
+    /** Optional progress/cancellation callback.
+     *
+     *  The callback is invoked at the top of each column-elimination
+     *  iteration with `phase = "lu_factor"`, `step = k`, and `total = n`.
+     *  Return 0 to continue. Returning non-zero cancels the factorization and
+     *  returns `SPARSE_ERR_CANCELLED`.
+     *
+     *  Cancellation after completed steps may leave the one-shot matrix
+     *  partially eliminated. Cancellation at step 0 restores the no-reorder
+     *  compatibility state before returning. Reordered callback paths factor a
+     *  temporary working copy and publish it back only on success, so a
+     *  cancelled reordered call leaves the caller-owned matrix in its original
+     *  coordinate space. NULL disables callbacks. This trailing field preserves
+     *  designated-initializer compatibility. */
     sparse_progress_cb_t progress_cb;
-    /** Opaque context pointer passed through unchanged to
-     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    /** Opaque context pointer passed unchanged to `progress_cb`; ignored when
+     *  `progress_cb == NULL`. */
     void *progress_user;
 } sparse_lu_opts_t;
+
+/* Factorization */
 
 /**
  * @brief Compute LU factorization with options including fill-reducing reordering.
  *
- * This remains a one-shot entry point. Call it on a fresh matrix (or a fresh
- * `sparse_copy()` of the original coefficients), not on a matrix that has
+ * This is a one-shot entry point. Call it on a fresh matrix, or on a fresh
+ * `sparse_copy()` of the original coefficients, not on a matrix that has
  * already been factored, pivoted, or reordered by an earlier direct-solver
  * call. For stable-pattern repeated runs, use the shared direct lifecycle in
- * `sparse_analysis.h` instead of re-entering this wrapper on an old factor
- * container.
+ * `sparse_analysis.h`.
  *
  * If opts->reorder != SPARSE_REORDER_NONE, the matrix is symmetrically
  * permuted before factorization. The reordering permutation is stored in
  * the matrix so that sparse_lu_solve() can automatically unpermute the
- * solution. When `opts->reorder == SPARSE_REORDER_NONE`, this wrapper stays
- * on the same one-shot matrix contract as `sparse_lu_factor()`. When
- * reordering is requested under the default-compatible option shape, the
- * implementation may internally reuse shared lifecycle plumbing, but the
- * public contract remains one-shot on the caller-owned matrix. Invalid pivot
- * or reorder enums are rejected before reorder or factor mutation begins.
- * For reordered one-shot calls outside that default-compatible fast path, the
- * implementation factors a temporary reordered working copy and only publishes
- * it back to `mat` on success, so failed or cancelled attempts do not strand
- * the caller matrix in an intermediate reordered state.
+ * solution. Invalid pivot or reorder enums are rejected before reorder or
+ * factor mutation begins. Some reordered paths factor a temporary working copy
+ * and publish it back to @p mat only on success, so failed or cancelled calls
+ * do not strand the caller matrix in an intermediate reordered state.
  *
- * @param mat   The matrix to factor (modified in-place: reordered, then factored).
- * @param opts  Factorization options.
- * @return SPARSE_OK on success, or an error code.
+ * @param mat   The matrix to factor; modified in-place on success.
+ * @param opts  Factorization options. Must be non-NULL.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if @p mat or @p opts is NULL.
+ * @return SPARSE_ERR_SHAPE if @p mat is not square.
  * @return SPARSE_ERR_BADARG if @p opts->pivot or @p opts->reorder is invalid,
  *         or if @p mat is already factored/pivoted/reordered.
+ * @return SPARSE_ERR_SINGULAR if factorization encounters a below-tolerance pivot.
+ * @return SPARSE_ERR_ALLOC if allocation fails.
+ * @return SPARSE_ERR_CANCELLED if @p opts->progress_cb cancels factorization.
  */
 sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *opts);
 
@@ -134,8 +131,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * @pre mat must still be in its original row/column state. This one-shot
  *      entry point rejects matrices that have already been factored, pivoted,
  *      or reordered. Use a fresh matrix or `sparse_copy()` of the original.
- * @pre mat must not be needed after factorization — use sparse_copy() first
- *      to preserve the original.  The matrix is overwritten with L and U.
+ * @pre mat must not be needed after factorization; use sparse_copy() first to
+ *      preserve the original. The matrix is overwritten with L and U.
  *
  * @param mat    The matrix to factor (modified in-place). Must be square.
  * @param pivot  Pivoting strategy:
@@ -147,13 +144,10 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  *               the matrix is declared singular.
  *
  * @note **Tolerance semantics:** The @p tol parameter is an absolute pivot
- *       threshold used during elimination.  Separately, the backward
+ *       threshold used during elimination. Separately, the backward
  *       substitution (solve) phase uses a norm-relative singularity check:
  *       a diagonal U(i,i) is rejected if |U(i,i)| < SPARSE_DROP_TOL ×
- *       ||A||_inf, where ||A||_inf was cached at factorization time.  This
- *       prevents false-singular detection on small-scale matrices and catches
- *       ill-conditioning on large-scale matrices.  See sparse_rel_tol() in
- *       sparse_matrix_internal.h for details.
+ *       ||A||_inf, where ||A||_inf was cached at factorization time.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat is NULL.
@@ -168,6 +162,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  */
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol);
 
+/* Solves */
+
 /**
  * @brief Solve A*x = b using a previously factored matrix.
  *
@@ -176,10 +172,12 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
  *
  * @param mat  A matrix that has been factored by sparse_lu_factor().
  * @param b    Right-hand side vector of length n.
- * @param x    Solution vector of length n (overwritten). May alias b.
+ * @param x    Solution vector of length n; overwritten and may alias @p b.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_BADARG if mat has not been factored.
+ * @return SPARSE_ERR_ALLOC if temporary workspace allocation fails.
+ * @return SPARSE_ERR_SINGULAR if a near-zero U diagonal is encountered.
  *
  * @par Thread safety: Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
@@ -204,51 +202,34 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x
  *              Must be non-NULL even if @p nrhs is 0.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any pointer is NULL, including when @p nrhs is 0.
- * @return SPARSE_ERR_BADARG if @p nrhs is negative.
  * @return SPARSE_ERR_BADARG if mat has not been factored, or if @p nrhs is negative.
  * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
 sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx_t nrhs, double *X);
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Condition number estimation
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* Conditioning and transpose solves */
 
 /**
  * @brief Estimate the 1-norm condition number of A from its LU factors.
  *
- * Uses Hager's algorithm (Hager 1984, refined by Higham 2000) to estimate
- * ||A^{-1}||_1 without forming the inverse. The condition estimate is:
+ * Uses a bounded Hager/Higham-style 1-norm estimator to estimate
+ * ||A^{-1}||_1 without forming the inverse. The reported estimate is:
  *
  *     condest = ||A||_1 * ||A^{-1}||_1_estimate
  *
- * **Algorithm outline (Hager/Higham 1-norm estimator):**
- *  1. Start with x = [1/n, ..., 1/n]
- *  2. Solve A*w = x  (using existing LU factors)
- *  3. Set xi = sign(w)
- *  4. Solve A^T*z = xi  (transpose solve)
- *  5. If ||z||_inf <= z^T * w, converged: ||A^{-1}||_1 ~ ||w||_1
- *  6. Otherwise, set x = e_j where j = argmax|z_j|, go to step 2
- *  7. Limit to 5 iterations to bound cost
- *
- * **Design decisions:**
- *  - Requires a transpose solve (A^T * z = b). This is implemented internally
- *    as sparse_lu_solve_transpose(), which solves Q^T U^T L^T P^T x = b
- *    using the same LU factors stored in the matrix.
- *  - The 1-norm ||A||_1 (max column sum) is computed from the original matrix.
- *    Since LU factorization overwrites A, the caller must pass the original
- *    matrix separately (via mat_orig), or we compute ||A||_1 from ||L||_1*||U||_1
- *    as an upper bound. We take the mat_orig approach for accuracy.
- *  - Returns SPARSE_ERR_BADARG if the matrix has not been factored
- *    (detected via factor_norm < 0, which is set to ||A||_inf during
- *    sparse_lu_factor()).
+ * The estimator repeatedly solves with the existing LU factors and the
+ * transposed system through sparse_lu_solve_transpose(). Because LU
+ * factorization overwrites A, callers must pass the original unfactored
+ * matrix separately through @p mat_orig so the implementation can compute
+ * ||A||_1 from the original coefficients.
  *
  * @param mat_orig  The original (unfactored) matrix A. Used to compute ||A||_1.
- * @param mat_lu    The LU-factored matrix (from sparse_lu_factor).
+ * @param mat_lu    The LU-factored matrix from sparse_lu_factor().
  * @param[out] condest  Pointer to receive the condition number estimate.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_SHAPE if matrix dimensions are incompatible.
  * @return SPARSE_ERR_BADARG if mat_lu has not been factored.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
@@ -271,7 +252,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
  *
  * @param mat  A matrix that has been factored by sparse_lu_factor().
  * @param b    Right-hand side vector of length n.
- * @param x    Solution vector of length n (overwritten). May alias b.
+ * @param x    Solution vector of length n; overwritten and may alias @p b.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_BADARG if mat has not been factored.
@@ -280,19 +261,18 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
  */
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x);
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Individual solver phases (exposed for testing and advanced use)
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* Advanced solver phases */
 
 /**
  * @brief Apply row permutation: pb[i] = b[row_perm[i]].
  *
  * Reorders the right-hand side vector according to the row permutation P.
  *
- * @param mat  Factored matrix (provides row_perm).
+ * @param mat  Factored matrix that provides row_perm.
  * @param b    Input vector of length n.
  * @param pb   Output permuted vector of length n (overwritten).
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
  */
 sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat, const double *b, double *pb);
 
@@ -302,10 +282,11 @@ sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat, const double *b, dou
  * Recovers the solution in the original column ordering after backward
  * substitution.
  *
- * @param mat  Factored matrix (provides inv_col_perm).
+ * @param mat  Factored matrix that provides inv_col_perm.
  * @param z    Input vector of length n (from backward substitution).
  * @param x    Output solution vector of length n (overwritten).
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
  */
 sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat, const double *z, double *x);
 
@@ -319,6 +300,7 @@ sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat, const double *z,
  * @param pb   Permuted right-hand side (length n).
  * @param y    Output vector (length n, overwritten).
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
  */
 sparse_err_t sparse_forward_sub(const SparseMatrix *mat, const double *pb, double *y);
 
@@ -332,12 +314,12 @@ sparse_err_t sparse_forward_sub(const SparseMatrix *mat, const double *pb, doubl
  * @param y    Input vector from forward substitution (length n).
  * @param z    Output vector (length n, overwritten).
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_SINGULAR if a near-zero U diagonal is encountered.
  */
 sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, double *z);
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Iterative refinement
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* Refinement */
 
 /**
  * @brief Iterative refinement to improve solution accuracy.
@@ -347,12 +329,16 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
  * the relative residual ||r|| / ||b|| drops below tol or max_iters is reached.
  *
  * @param mat_orig   The original (unfactored) matrix A.
- * @param mat_lu     The LU-factored matrix (from sparse_lu_factor).
+ * @param mat_lu     The LU-factored matrix from sparse_lu_factor().
  * @param b          Right-hand side vector of length n.
  * @param x          Solution vector of length n (modified in-place).
  * @param max_iters  Maximum number of refinement iterations.
  * @param tol        Convergence tolerance on relative residual.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if @p mat_lu has not been factored.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return Any error propagated from sparse_lu_solve().
  */
 sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,
                               const double *b, double *x, int max_iters, double tol);

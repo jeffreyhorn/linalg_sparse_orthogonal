@@ -506,7 +506,7 @@ backend parity, or portable performance evidence.
 | `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected `bench_refactor_csc` artifact and methodology freshness for `nos4.mtx --repeat 1`; not a timing gate. |
 | `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; S5 and S6 are narrow local thresholded gates, while S2/S3 remain threshold-free context. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
-| `make report-index-comparison-freshness` | `build/comparison/{qr_minnorm,qr_compatible_ls,partial_svd_diag6_k2,lu_nonsym_square_5}/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm, QR compatible least-squares, partial-SVD diagonal top-k, and linked-list LU square-solve comparisons against selected source-controlled dense reference helpers. |
+| `make report-index-comparison-freshness` | `build/comparison/{qr_minnorm,qr_compatible_ls,partial_svd_diag6_k2,lu_nonsym_square_5}/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm, QR compatible least-squares, partial-SVD diagonal top-k, and linked-list LU square-solve comparisons against selected source-controlled dense reference helpers; mirrored by reviewed Linux/macOS hosted selected-artifact lanes only. |
 
 When reading any generated report index:
 

@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "normalize_report_index.py"
 ORACLE_SCRIPT = REPO_ROOT / "scripts" / "run_corpus_oracle.py"
 CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
+REPORT_FAMILIES = CORPUS_ROOT / "manifests" / "report_families.tsv"
 SPRINT151_PARTIAL_SVD_ROW_COUNTS = {
     "partial_svd_rankdef_diag6x4_k2_range_projector_v1": 7,
     "partial_svd_lowrank_rect5x7_k3_sparse_output_v1": 6,
@@ -1553,6 +1554,45 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
         assert all("no broad LU correctness" in row["non_claims"] for row in lu_rows)
 
 
+def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
+    rows = read_tsv(REPORT_FAMILIES)
+    comparison_rows = {
+        row["subfamily"]: row for row in rows if row["report_family"] == "comparison"
+    }
+    expected_subfamilies = {
+        "qr_minnorm",
+        "qr_compatible_ls",
+        "partial_svd_diag6_k2",
+        "lu_nonsym_square_5",
+    }
+    assert set(comparison_rows) == expected_subfamilies
+    for subfamily, row in comparison_rows.items():
+        assert row["row_origin"] == "generated_local", subfamily
+        assert row["support_tier"] == "local_only", subfamily
+        assert row["freshness_policy"] == "generated_compare_inputs", subfamily
+        assert row["artifact_pattern"] == f"build/comparison/{subfamily}/study.tsv"
+        assert "no hosted CI proof from generated-local row metadata" in row["non_claims"]
+        assert "no broad platform portability proof" in row["non_claims"]
+        assert "no Windows report freshness" in row["non_claims"]
+        assert "no package-manager proof" in row["non_claims"]
+        assert "no shared-library ABI proof" in row["non_claims"]
+        assert "no performance superiority" in row["non_claims"]
+        assert "no state-of-the-art claim" in row["non_claims"]
+
+    ci_row = next(
+        row
+        for row in rows
+        if row["report_family"] == "ci" and row["subfamily"] == "reviewed_lanes"
+    )
+    assert ci_row["support_tier"] == "reviewed_cross_platform"
+    assert ci_row["freshness_policy"] == "hosted_ci_external"
+    assert "Linux selected oracle/comparison freshness" in ci_row["claim_scope"]
+    assert "macOS selected comparison freshness" in ci_row["claim_scope"]
+    assert "no local report freshness proof from CI metadata alone" in ci_row["non_claims"]
+    assert "no Windows report freshness" in ci_row["non_claims"]
+    assert "no benchmark release claim" in ci_row["non_claims"]
+
+
 def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -1727,6 +1767,7 @@ def main() -> int:
     test_selected_oracle_required_freshness_rejects_missing_fixture_key()
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     test_selected_comparison_required_freshness_accepts_complete_row_set()
+    test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()
     test_selected_comparison_required_freshness_rejects_duplicate_rows()
     test_selected_comparison_required_freshness_rejects_stale_and_invalid_rows()

@@ -140,14 +140,15 @@ needs them.
   [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
   in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
   Linux is the strongest reviewed source of truth, macOS carries reviewed
-  static-first install/export proof, Windows remains CMake-first and now
-  includes the promoted `test_threads`, `test_sprint4_integration`, and
+  static-first install/export proof plus reviewed hosted selected comparison
+  freshness for selected generated comparison artifacts, and Windows remains CMake-first
+  with the promoted `test_threads`, `test_sprint4_integration`, and
   `test_fuzz` CTest targets plus reviewed CMake install/downstream validation
   for the static-first package surface. Windows still does not claim Makefile
   parity, `pkg-config` execution parity, package-manager support,
-  shared-library support, dynamic ABI support, runtime-loader behavior, or
-  broad Windows parity. Benchmark/report rows remain bounded local evidence
-  rather than portable performance claims.
+  shared-library support, dynamic ABI support, runtime-loader behavior,
+  report freshness, or broad Windows parity. Benchmark/report rows remain
+  bounded local evidence rather than portable performance claims.
 
 ## Choose a Workflow
 
@@ -301,7 +302,7 @@ make deadcode-check   # verify report completeness invariants
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
-make report-index-comparison-freshness  # selected QR + partial-SVD + LU comparison freshness
+make report-index-comparison-freshness  # selected QR + partial-SVD + LU comparison freshness, mirrored by reviewed Linux/macOS hosted CI
 make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
@@ -324,10 +325,12 @@ The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
 benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof. The reviewed Linux hosted report-freshness lane runs only the
-selected oracle gate and the selected comparison gate above. The comparison
-gate is limited to QR minimum-norm, QR compatible least-squares, partial-SVD
-diag6 k2, and linked-list LU nonsymmetric square-solve generated rows and
-artifacts; it does not promote broad report-index freshness or any unselected
+selected oracle gate and the selected comparison gate above. The reviewed macOS
+hosted report-freshness lane runs only the selected comparison gate above. The
+comparison gate is limited to QR minimum-norm, QR compatible least-squares,
+partial-SVD diag6 k2, and linked-list LU nonsymmetric square-solve generated
+rows and artifacts; it does not promote broad report-index freshness, selected
+oracle freshness on macOS, Windows report freshness, or any unselected
 local-only family.
 
 The reviewed Linux hosted selected-performance lane runs only the selected
@@ -725,13 +728,14 @@ QR minimum-norm and compatible least-squares comparisons, the selected
 fixture-local partial-SVD diagonal top-k comparison for `partial_svd_diag6_k2`,
 and the selected fixture-local linked-list LU square-solve comparison for
 `lu_nonsym_square_5` against the selected source-controlled dense reference
-helpers. The same gate is mirrored by the reviewed Linux hosted
-report-freshness lane for selected comparison artifacts only. These gates do
+helpers. The same gate is mirrored by reviewed Linux and macOS hosted
+report-freshness lanes for selected comparison artifacts only. These gates do
 not prove raw QR basis parity, raw singular-vector identity, broad LU or
 nonsymmetric solve correctness, LU CSR parity, broad
 rank-threshold policy, broad rank-deficient solve, broad minimum-norm
 behavior, broad SVD or partial-SVD correctness, SuiteSparse, LAPACK, NumPy,
-SciPy, platform parity, performance, package/ABI, release, or
+SciPy, Windows report freshness, broad platform parity, performance,
+package/ABI, release, or
 state-of-the-art evidence.
 
 **SVD:**

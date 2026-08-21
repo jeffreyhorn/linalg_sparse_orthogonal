@@ -235,10 +235,11 @@ Interpretation:
 - keep platform truth explicit: Linux is still the strongest reviewed source of
   truth and now includes a reviewed static-first package-contract lane; macOS
   now carries reviewed static-first Make install/`pkg-config` and CMake
-  install/export proof for the maintained static archive package contract; and
-  Windows remains CMake-first with reviewed CTest coverage plus reviewed CMake
-  install/downstream validation for the maintained static-first package
-  surface
+  install/export proof for the maintained static archive package contract plus
+  reviewed hosted selected comparison freshness for selected generated
+  comparison artifacts; and Windows remains CMake-first with reviewed CTest
+  coverage plus reviewed CMake install/downstream validation for the
+  maintained static-first package surface
 
 Focused install/package regression ownership:
 
@@ -332,7 +333,8 @@ Sprint 112 package/platform proof snapshot:
 - macOS keeps the reviewed Apple Clang lane plus supplemental Homebrew GCC, and
   Sprint 144 promotes static-first Make install/`pkg-config` and CMake
   install/export proof to reviewed macOS package lanes for the maintained
-  static archive package contract
+  static archive package contract; Sprint 175 adds reviewed hosted selected
+  comparison freshness for selected generated comparison artifacts only
 - Windows keeps the reviewed MSVC CMake-first subset with 59 registered CTest
   tests; Sprint 148 promotes `test_threads`, `test_sprint4_integration`, and
   `test_fuzz` into that CMake subset through portable test-only thread and
@@ -558,6 +560,13 @@ contract rows plus 28 generated selected rows:
 - `6` rows for `qr_overdetermined_compatible_5x3`;
 - `10` rows for `partial_svd_diag6_k2`;
 - `6` rows for `lu_nonsym_square_5`.
+
+The selected comparison gate is mirrored by reviewed Linux and macOS hosted
+report-freshness lanes. Those hosted lanes upload selected generated
+comparison artifacts only; they do not promote selected oracle freshness on
+macOS, Windows report freshness, broad report-index freshness, unselected
+comparison families, package/ABI support, performance, release readiness,
+external-library parity, or state-of-the-art status.
 
 The selected QR and LU families use these six row names:
 
@@ -1621,10 +1630,12 @@ For selected QR, partial-SVD, and LU comparison freshness, prefer
 commands. The Makefile target regenerates current local comparison output for
 all selected targets and runs the required comparison freshness gate. Generated
 comparison and report-index outputs remain ignored local artifacts by default.
-The reviewed Linux hosted report-freshness lane promotes only this selected
-comparison gate and its uploaded selected artifacts; it does not promote broad
-report-index freshness or unselected comparison families. Optional NumPy/SciPy
-defers remain context, not pass evidence.
+The reviewed Linux and macOS hosted report-freshness lanes promote only this
+selected comparison gate and their uploaded selected artifacts; they do not
+promote selected oracle freshness on macOS, Windows report freshness, broad
+report-index freshness, unselected comparison families, package/ABI support,
+performance, release readiness, external-library parity, or state-of-the-art
+status. Optional NumPy/SciPy defers remain context, not pass evidence.
 
 For selected canonical performance freshness, prefer
 `make bench-canonical-report-freshness` over hand-running the report script.

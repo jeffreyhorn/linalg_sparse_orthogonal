@@ -44,7 +44,7 @@ Fixture properties:
 | --- | --- |
 | Rows | 5 |
 | Columns | 5 |
-| Nonzeros | 18 |
+| Nonzeros | 19 |
 | Structural class | square nonsymmetric sparse matrix |
 | Value class | deterministic double values |
 | Solver family | linked-list LU |

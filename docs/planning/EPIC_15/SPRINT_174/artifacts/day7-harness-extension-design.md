@@ -62,7 +62,7 @@ consulting generated artifacts:
 ```text
 rows: 5
 cols: 5
-nnz: 18
+nnz: 19
 rhs: 12.5,10.5,18.0,24.0,48.0
 expected_solution: 1.0,2.0,3.0,4.0,5.0
 expected_solution_norm: 7.416198487095663
@@ -114,7 +114,7 @@ Day 8 should extend the project-probe branch with `comparison_kind == "lu"` or
 with a dedicated `solve_mode == "lu_square_solve"` source generator. The probe
 must:
 
-- construct the Day 4 5x5 sparse matrix with the exact 18 nonzero entries;
+- construct the Day 4 5x5 sparse matrix with the exact 19 nonzero entries;
 - build the right-hand side from the selected target metadata;
 - copy the matrix into an LU working matrix if the public API mutates factor
   input;

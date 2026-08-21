@@ -54,14 +54,24 @@ SELECTED_COMPARISON_ROW_IDS = [
     "comparison_partial_svd_diag6_k2_v_orthogonality_v1",
     "comparison_partial_svd_diag6_k2_u_projector_diag_v1",
     "comparison_partial_svd_diag6_k2_v_projector_diag_v1",
+    "comparison_lu_nonsym_square_5_project_status_v1",
+    "comparison_lu_nonsym_square_5_baseline_status_v1",
+    "comparison_lu_nonsym_square_5_residual_norm_v1",
+    "comparison_lu_nonsym_square_5_solution_norm_v1",
+    "comparison_lu_nonsym_square_5_solution_values_v1",
+    "comparison_lu_nonsym_square_5_project_vs_baseline_max_abs_delta_v1",
 ]
 SELECTED_PARTIAL_SVD_COMPARISON_ROW_IDS = {
     row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "partial_svd_diag6_k2" in row_id
 }
+SELECTED_LU_COMPARISON_ROW_IDS = {
+    row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "lu_nonsym_square_5" in row_id
+}
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/qr_minnorm/study.tsv,"
     "build/comparison/qr_compatible_ls/study.tsv,"
-    "build/comparison/partial_svd_diag6_k2/study.tsv"
+    "build/comparison/partial_svd_diag6_k2/study.tsv,"
+    "build/comparison/lu_nonsym_square_5/study.tsv"
 )
 ORACLE_FIELDS = [
     "oracle_row_id",
@@ -948,7 +958,7 @@ def write_selected_comparison_rows(
 ) -> None:
     row_ids = list(SELECTED_COMPARISON_ROW_IDS)
     if drop_last:
-        row_ids.remove("comparison_partial_svd_diag6_k2_v_projector_diag_v1")
+        row_ids.remove("comparison_lu_nonsym_square_5_project_vs_baseline_max_abs_delta_v1")
     if unexpected_first:
         row_ids[0] = "comparison_partial_svd_diag6_k2_unexpected_metric_v1"
     if duplicate_first:
@@ -962,6 +972,7 @@ def write_selected_comparison_rows(
         "qr_minnorm": [],
         "qr_compatible_ls": [],
         "partial_svd_diag6_k2": [],
+        "lu_nonsym_square_5": [],
     }
     for index, row_id in enumerate(row_ids):
         if "partial_svd_diag6_k2" in row_id:
@@ -972,6 +983,15 @@ def write_selected_comparison_rows(
             non_claims = (
                 "synthetic test rows only; no broad partial-SVD correctness; "
                 "no raw singular-vector identity claim"
+            )
+        elif "lu_nonsym_square_5" in row_id:
+            subfamily = "lu_nonsym_square_5"
+            fixture_key = "lu_nonsym_square_5"
+            operation = "square_solve"
+            artifact_path = "build/comparison/lu_nonsym_square_5/study.tsv"
+            non_claims = (
+                "synthetic test rows only; no broad LU correctness; "
+                "no broad nonsymmetric solve parity"
             )
         elif "qr_overdetermined_compatible_5x3" in row_id:
             subfamily = "qr_compatible_ls"
@@ -1516,6 +1536,22 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
         )
         assert all("raw singular-vector identity" in row["non_claims"] for row in partial_svd_rows)
 
+        lu_rows = [
+            row
+            for row in rows
+            if row["subfamily"] == "lu_nonsym_square_5"
+            and row["row_origin"] == "generated_local"
+            and row["row_id"].startswith("comparison_")
+        ]
+        assert {row["row_id"] for row in lu_rows} == SELECTED_LU_COMPARISON_ROW_IDS
+        assert {row["status"] for row in lu_rows} == {"pass"}
+        assert {row["support_tier"] for row in lu_rows} == {"local_only"}
+        assert all(
+            row["artifact_path"].endswith("comparison/lu_nonsym_square_5/study.tsv")
+            for row in lu_rows
+        )
+        assert all("no broad LU correctness" in row["non_claims"] for row in lu_rows)
+
 
 def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -1540,7 +1576,10 @@ def test_selected_comparison_required_freshness_rejects_row_set_mismatch() -> No
         assert "comparison_selected_rows" in result.stdout
         assert "row_set_mismatch" in result.stdout
         assert SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC in result.stdout
-        assert "missing=comparison_partial_svd_diag6_k2_v_projector_diag_v1" in result.stdout
+        assert (
+            "missing=comparison_lu_nonsym_square_5_project_vs_baseline_max_abs_delta_v1"
+            in result.stdout
+        )
 
         write_selected_comparison_rows(build_root, unexpected_first=True)
         result = run_command(

@@ -41,6 +41,28 @@ QR_COMPATIBLE_LS_ENTRIES = [
     (4, 2, -2.0),
 ]
 
+LU_NONSYM_SQUARE_5_ENTRIES = [
+    (0, 0, 4.0),
+    (0, 1, -1.0),
+    (0, 3, 2.0),
+    (0, 4, 0.5),
+    (1, 0, 1.5),
+    (1, 1, 5.0),
+    (1, 2, -2.0),
+    (1, 4, 1.0),
+    (2, 1, 2.0),
+    (2, 2, 6.0),
+    (2, 3, -1.0),
+    (3, 0, 3.0),
+    (3, 2, 1.0),
+    (3, 3, 7.0),
+    (3, 4, -2.0),
+    (4, 0, -1.0),
+    (4, 1, 0.5),
+    (4, 3, 2.0),
+    (4, 4, 8.0),
+]
+
 TARGETS = {
     "qr-minnorm": {
         "comparison_kind": "qr",
@@ -127,6 +149,40 @@ TARGETS = {
         ),
         "success_message": (
             "external-comparison: partial-svd-diag6-k2 project-vs-baseline comparison passed"
+        ),
+    },
+    "lu-nonsym-square-5": {
+        "comparison_kind": "lu",
+        "fixture_key": "lu_nonsym_square_5",
+        "entries": LU_NONSYM_SQUARE_5_ENTRIES,
+        "rows": 5,
+        "cols": 5,
+        "subfamily": "lu_nonsym_square_5",
+        "operation": "square_solve",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "lu_nonsym_square_5",
+        "rhs": [12.5, 10.5, 18.0, 24.0, 48.0],
+        "expected_solution": [1.0, 2.0, 3.0, 4.0, 5.0],
+        "expected_solution_norm": 7.416198487095663,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "solution_tolerance": SOLUTION_TOLERANCE_DEFAULT,
+        "baseline_value_count": 5,
+        "solve_mode": "lu_square_solve",
+        "claim_scope": "fixture-local linked-list LU square-solve comparison only",
+        "summary_title": "Linked-List LU External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local linked-list "
+            "LU square solve against the source-controlled dense reference helper."
+        ),
+        "non_claims": (
+            "no broad LU correctness;no broad nonsymmetric solve parity;no LU CSR parity;"
+            "no sparse-direct solver parity;no pivoting superiority;no factor-layout identity;"
+            "no NumPy parity;no SciPy parity;no LAPACK parity;no SuiteSparse parity;"
+            "no Eigen parity;no external-library ecosystem parity;no hosted CI proof;"
+            "no release proof;no platform portability proof;no package-manager proof;"
+            "no shared-library ABI proof;no performance superiority;no state-of-the-art claim"
+        ),
+        "success_message": (
+            "external-comparison: lu-nonsym-square-5 project-vs-baseline comparison passed"
         ),
     },
 }
@@ -537,9 +593,16 @@ def project_probe_source(
         cleanup_block = """    if (qr_factored)
         sparse_qr_free(&qr);
 """
+    elif solve_mode == "lu_square_solve":
+        solve_block = """    sparse_err_t err = sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12);
+    if (err == SPARSE_OK)
+        err = sparse_lu_solve(A, rhs, x);
+"""
+        cleanup_block = ""
     else:
         raise ComparisonError("unsupported_target", f"unsupported project solve mode {solve_mode!r}")
     return f"""#include \"sparse_matrix.h\"
+#include \"sparse_lu.h\"
 #include \"sparse_qr.h\"
 #include \"sparse_types.h\"
 #include <math.h>
@@ -755,6 +818,32 @@ def python_version() -> str:
     return " ".join(sys.version.split())
 
 
+def baseline_name(target: dict[str, object]) -> str:
+    if target.get("comparison_kind") == "partial_svd":
+        return "source-controlled-dense-svd-reference"
+    if target.get("comparison_kind") == "lu":
+        return "source-controlled-dense-lu-reference"
+    return "source-controlled-dense-qr-reference"
+
+
+def baseline_version(target: dict[str, object]) -> str:
+    if target.get("comparison_kind") == "partial_svd":
+        return "svd_external_dense_reference.py"
+    if target.get("comparison_kind") == "lu":
+        return "lu_external_dense_reference.py"
+    return "qr_external_dense_reference.py"
+
+
+def comparison_configuration(target: dict[str, object]) -> str:
+    if target.get("comparison_kind") == "partial_svd":
+        stage = "sprint161_day5_comparison_logic"
+    elif target.get("comparison_kind") == "lu":
+        stage = "sprint174_day8_comparison_logic"
+    else:
+        stage = "sprint160_day5_comparison_logic"
+    return f"stage={stage};baseline_status=integrated_and_compared;support_tier=local_only"
+
+
 def parse_vector(text: str) -> list[float]:
     if not text:
         raise ComparisonError("project_probe_failed", "empty solution_values field")
@@ -771,9 +860,100 @@ def parse_baseline_vector(text: str) -> list[float]:
         raise ComparisonError("baseline_malformed_output", f"malformed baseline vector {text!r}") from exc
 
 
+def vector_norm(values: list[float]) -> float:
+    return sum(value * value for value in values) ** 0.5
+
+
+def residual_norm_from_entries(
+    entries: list[tuple[int, int, float]],
+    rows: int,
+    rhs: list[float],
+    solution: list[float],
+) -> float:
+    residual_sq = 0.0
+    for row in range(rows):
+        accum = 0.0
+        for entry_row, entry_col, value in entries:
+            if entry_row == row:
+                accum += value * solution[entry_col]
+        diff = accum - rhs[row]
+        residual_sq += diff * diff
+    return residual_sq**0.5
+
+
+def run_lu_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
+    helper = root / "tests" / "lu_external_dense_reference.py"
+    if not helper.is_file():
+        raise ComparisonError(
+            "missing_baseline_helper",
+            f"selected baseline helper is missing: {helper}",
+        )
+
+    fixture_key = str(target["fixture_key"])
+    baseline_value_count = int(target["baseline_value_count"])
+    command = [sys.executable, str(helper), fixture_key]
+    output = run_capture(command, cwd=root, failure_class="baseline_command_failed")
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not lines:
+        raise ComparisonError("baseline_malformed_output", "baseline emitted no output")
+
+    header = lines[0].split()
+    if len(header) != 2 or header[0] != "OK":
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline first line must be 'OK {baseline_value_count}', got {lines[0]!r}",
+        )
+    try:
+        value_count = int(header[1])
+    except ValueError as exc:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline value count is not an integer: {header[1]!r}",
+        ) from exc
+    if value_count != baseline_value_count:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline value count must be {baseline_value_count} for {fixture_key}, got {value_count}",
+        )
+
+    value_lines = lines[1:]
+    if len(value_lines) != value_count:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline emitted {len(value_lines)} values, expected {value_count}",
+        )
+    try:
+        solution = [float(value) for value in value_lines]
+    except ValueError as exc:
+        raise ComparisonError(
+            "baseline_malformed_output",
+            f"baseline emitted non-numeric values: {', '.join(value_lines)}",
+        ) from exc
+
+    entries, rows, _ = descriptor_entries(target)
+    residual = residual_norm_from_entries(
+        entries,
+        rows,
+        list(target["rhs"]),  # type: ignore[arg-type]
+        solution,
+    )
+    return {
+        "status": "success",
+        "solution_values": ",".join(f"{value:.17g}" for value in solution),
+        "residual_norm": f"{residual:.17g}",
+        "solution_norm": f"{vector_norm(solution):.17g}",
+        "baseline_command": shlex.join(command),
+        "baseline_helper_path": str(helper.relative_to(root)),
+        "baseline_python_executable": sys.executable,
+        "baseline_python_version": python_version(),
+    }
+
+
 def run_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
     if target.get("comparison_kind") == "partial_svd":
         return run_partial_svd_baseline_reference(root, target)
+    if target.get("comparison_kind") == "lu":
+        return run_lu_baseline_reference(root, target)
     helper = root / "tests" / "qr_external_dense_reference.py"
     if not helper.is_file():
         raise ComparisonError(
@@ -1132,6 +1312,8 @@ def partial_svd_baseline_observation_rows(
 def dependency_status_rows(root: Path, target: dict[str, object]) -> list[dict[str, str]]:
     if target.get("comparison_kind") == "partial_svd":
         helper_name = "tests/svd_external_dense_reference.py"
+    elif target.get("comparison_kind") == "lu":
+        helper_name = "tests/lu_external_dense_reference.py"
     else:
         helper_name = "tests/qr_external_dense_reference.py"
     helper = root / helper_name
@@ -1750,22 +1932,10 @@ def run(args: argparse.Namespace) -> int:
         "project_version": project_version(root),
         "platform": f"{platform.system().lower()}-{platform.machine().lower()}",
         "compiler": compiler,
-        "configuration": (
-            "stage=sprint161_day5_comparison_logic;"
-            "baseline_status=integrated_and_compared;support_tier=local_only"
-        )
-        if target.get("comparison_kind") == "partial_svd"
-        else (
-            "stage=sprint160_day5_comparison_logic;"
-            "baseline_status=integrated_and_compared;support_tier=local_only"
-        ),
-        "baseline_name": "source-controlled-dense-svd-reference"
-        if target.get("comparison_kind") == "partial_svd"
-        else "source-controlled-dense-qr-reference",
+        "configuration": comparison_configuration(target),
+        "baseline_name": baseline_name(target),
         "baseline_type": "external-process-source-controlled-helper",
-        "baseline_version": "svd_external_dense_reference.py"
-        if target.get("comparison_kind") == "partial_svd"
-        else "qr_external_dense_reference.py",
+        "baseline_version": baseline_version(target),
         "baseline_command": baseline_observations["baseline_command"],
         "baseline_helper_path": baseline_observations["baseline_helper_path"],
         "baseline_python_executable": baseline_observations["baseline_python_executable"],

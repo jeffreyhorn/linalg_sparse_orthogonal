@@ -67,6 +67,8 @@ def test_linux_selected_comparison_lane() -> None:
     text = read_text(LINUX_WORKFLOW)
     assert_contains(text, "Linux reviewed hosted oracle/comparison freshness", label="linux")
     assert_contains(text, "Run reviewed hosted selected comparison freshness", label="linux")
+    assert_contains(text, "Run selected comparison workflow guard", label="linux")
+    assert_contains(text, "python3 tests/test_selected_comparison_workflow.py", label="linux")
     assert_contains(text, "make report-index-comparison-freshness", label="linux")
     assert_contains(text, "sprint175-linux-selected-comparison-freshness", label="linux")
     assert_contains(text, "if-no-files-found: error", label="linux")

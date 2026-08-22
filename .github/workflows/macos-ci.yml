@@ -159,9 +159,21 @@ jobs:
               ("partial-svd-diag6-k2", Path("build/comparison/partial_svd_diag6_k2"), 10),
               ("lu-nonsym-square-5", Path("build/comparison/lu_nonsym_square_5"), 6),
           ]
+          uploaded_files = [
+              "project_observations.tsv",
+              "baseline_observations.tsv",
+              "dependency_status.tsv",
+              "study.tsv",
+              "summary.md",
+              "manifest.tsv",
+          ]
           total_rows = 0
           total_pass_rows = 0
           for label, directory, expected_rows in targets:
+              for filename in uploaded_files:
+                  artifact_path = directory / filename
+                  if not artifact_path.is_file():
+                      raise SystemExit(f"{label}: missing uploaded artifact {artifact_path}")
               study_path = directory / "study.tsv"
               deps_path = directory / "dependency_status.tsv"
               manifest_path = directory / "manifest.tsv"

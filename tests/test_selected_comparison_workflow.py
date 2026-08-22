@@ -37,9 +37,11 @@ def assert_contains(text: str, needle: str, *, label: str) -> None:
 
 def assert_selected_targets(text: str, *, label: str) -> None:
     for target, directory, expected_rows in SELECTED_TARGETS:
-        assert_contains(text, target, label=label)
-        assert_contains(text, f'Path("{directory}")', label=label)
-        assert_contains(text, f'{expected_rows})', label=label)
+        assert_contains(
+            text,
+            f'("{target}", Path("{directory}"), {expected_rows})',
+            label=label,
+        )
 
 
 def assert_selected_artifacts(text: str, *, label: str) -> None:

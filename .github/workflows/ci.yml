@@ -167,11 +167,17 @@ jobs:
               study_path = directory / "study.tsv"
               deps_path = directory / "dependency_status.tsv"
               manifest_path = directory / "manifest.tsv"
-              study_rows = list(csv.DictReader(study_path.open(newline=""), delimiter="\t"))
-              deps = list(csv.DictReader(deps_path.open(newline=""), delimiter="\t"))
+              study_rows = list(
+                  csv.DictReader(study_path.open(encoding="utf-8", newline=""), delimiter="\t")
+              )
+              deps = list(
+                  csv.DictReader(deps_path.open(encoding="utf-8", newline=""), delimiter="\t")
+              )
               manifest = {
                   row["key"]: row["value"]
-                  for row in csv.DictReader(manifest_path.open(newline=""), delimiter="\t")
+                  for row in csv.DictReader(
+                      manifest_path.open(encoding="utf-8", newline=""), delimiter="\t"
+                  )
               }
               status_counts = {}
               for row in study_rows:

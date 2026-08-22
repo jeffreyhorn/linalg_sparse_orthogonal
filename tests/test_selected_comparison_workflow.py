@@ -63,12 +63,26 @@ def assert_summary_fail_closed(text: str, *, label: str) -> None:
         assert_contains(text, needle, label=label)
 
 
+def assert_linux_guard_runs_outside_validated_lane(text: str) -> None:
+    build_job_start = text.index("  build-and-test:")
+    next_job_start = text.index("  cmake-build-and-test:")
+    freshness_job_start = text.index("  generated-report-freshness:")
+    guard_step = "Run selected comparison workflow guard"
+    guard_command = "python3 tests/test_selected_comparison_workflow.py"
+    build_job = text[build_job_start:next_job_start]
+    freshness_job = text[freshness_job_start:]
+
+    assert_contains(build_job, guard_step, label="linux build-and-test")
+    assert_contains(build_job, guard_command, label="linux build-and-test")
+    if guard_step in freshness_job or guard_command in freshness_job:
+        raise AssertionError("linux generated-report-freshness must not host its own guard")
+
+
 def test_linux_selected_comparison_lane() -> None:
     text = read_text(LINUX_WORKFLOW)
     assert_contains(text, "Linux reviewed hosted oracle/comparison freshness", label="linux")
     assert_contains(text, "Run reviewed hosted selected comparison freshness", label="linux")
-    assert_contains(text, "Run selected comparison workflow guard", label="linux")
-    assert_contains(text, "python3 tests/test_selected_comparison_workflow.py", label="linux")
+    assert_linux_guard_runs_outside_validated_lane(text)
     assert_contains(text, "make report-index-comparison-freshness", label="linux")
     assert_contains(text, "sprint175-linux-selected-comparison-freshness", label="linux")
     assert_contains(text, "if-no-files-found: error", label="linux")

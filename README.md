@@ -141,14 +141,14 @@ needs them.
   in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
   Linux is the strongest reviewed source of truth, macOS carries reviewed
   static-first install/export proof plus reviewed hosted selected comparison
-  freshness for selected generated comparison artifacts, and Windows remains CMake-first
-  with the promoted `test_threads`, `test_sprint4_integration`, and
-  `test_fuzz` CTest targets plus reviewed CMake install/downstream validation
-  for the static-first package surface. Windows still does not claim Makefile
-  parity, `pkg-config` execution parity, package-manager support,
-  shared-library support, dynamic ABI support, runtime-loader behavior,
-  report freshness, or broad Windows parity. Benchmark/report rows remain
-  bounded local evidence rather than portable performance claims.
+  freshness for selected generated comparison artifacts, and Windows remains
+  CMake-first with the promoted `test_threads`, `test_sprint4_integration`,
+  and `test_fuzz` CTest targets plus reviewed CMake install/downstream
+  validation for the static-first package surface. Windows still does not
+  claim Makefile parity, `pkg-config` execution parity, package-manager
+  support, shared-library support, dynamic ABI support, runtime-loader
+  behavior, report freshness, or broad Windows parity. Benchmark/report rows
+  remain bounded local evidence rather than portable performance claims.
 
 ## Choose a Workflow
 

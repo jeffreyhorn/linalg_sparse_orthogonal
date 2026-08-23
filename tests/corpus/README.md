@@ -134,9 +134,12 @@ by default and become errors only when `--require-generated oracle` is used.
 Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
 records observed status. The reviewed Linux hosted lane mirrors the selected
-required oracle and QR plus partial-SVD plus LU comparison freshness gates;
-that hosted lane covers only the selected generated rows and split artifacts,
-not broad report-index freshness or all local-only families.
+required oracle gate and the selected QR plus partial-SVD plus LU comparison
+freshness gate. The reviewed macOS hosted lane mirrors only the selected QR
+plus partial-SVD plus LU comparison freshness gate. Those hosted lanes cover
+only their selected generated rows and split artifacts, not broad report-index
+freshness, selected oracle freshness on macOS, Windows report freshness, or all
+local-only families.
 
 ## Selected QR, Partial-SVD, And LU Comparison Freshness
 
@@ -170,15 +173,15 @@ The selected `partial_svd_diag6_k2` family contributes ten generated rows:
 `v_projector_diag`.
 
 These rows are local generated evidence for the named fixtures by default. The
-reviewed Linux hosted report-freshness lane promotes only this selected
-comparison gate and its uploaded selected artifacts after hosted CI passes.
-They do not prove broad QR, LU, nonsymmetric solve, SVD, or partial-SVD
+reviewed Linux and macOS hosted report-freshness lanes promote only this
+selected comparison gate and their uploaded selected artifacts after hosted CI
+passes. They do not prove broad QR, LU, nonsymmetric solve, SVD, or partial-SVD
 correctness; LU CSR parity; raw QR basis identity; raw singular-vector
 identity; vector sign/orientation identity; global rank-threshold behavior;
-broad rank-deficient solve behavior; external-library parity; platform
-support; package/ABI support; performance; release readiness; or
-state-of-the-art status. Optional NumPy/SciPy dependency rows are deferred
-context only and never pass evidence.
+broad rank-deficient solve behavior; external-library parity; Windows report
+freshness; broad platform support; package/ABI support; performance; release
+readiness; or state-of-the-art status. Optional NumPy/SciPy dependency rows are
+deferred context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 
@@ -384,11 +387,11 @@ python3 scripts/normalize_report_index.py --family oracle --check-freshness
 
 Use `--require-generated oracle` only when the current review actually requires
 local generated oracle artifacts to exist and match the selected freshness
-policy. Hosted CI runs the selected oracle gate and the selected QR plus
-partial-SVD comparison gate as reviewed Linux evidence, but generated
-corpus/report rows remain
-fixture-local and do not imply broad solver, platform, package, performance,
-external-parity, or state-of-the-art claims.
+policy. Hosted CI runs the selected oracle gate as reviewed Linux evidence and
+runs the selected QR plus partial-SVD plus LU comparison gate as reviewed Linux
+and macOS selected-artifact evidence, but generated corpus/report rows remain
+fixture-local and do not imply broad solver, Windows report freshness, broad
+platform, package, performance, external-parity, or state-of-the-art claims.
 
 ## Optional Data
 

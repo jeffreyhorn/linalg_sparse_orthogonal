@@ -93,13 +93,18 @@ def assert_summary_fail_closed(text: str, *, label: str) -> None:
 def assert_linux_guard_runs_outside_validated_lane(text: str) -> None:
     build_job_start = text.index("  build-and-test:")
     freshness_job_start = text.index("  generated-report-freshness:")
+    next_job_match = re.search(r"\n  [A-Za-z0-9_-]+:", text[build_job_start + 1 :])
+    if next_job_match is None:
+        raise AssertionError("linux build-and-test missing following job boundary")
+    next_job_start = build_job_start + 1 + next_job_match.start()
+    build_job_end = min(next_job_start, freshness_job_start)
     guard_step = "Run selected comparison workflow guard"
     guard_command = "python3 tests/test_selected_comparison_workflow.py"
-    build_region_before_freshness = text[build_job_start:freshness_job_start]
+    build_job = text[build_job_start:build_job_end]
     freshness_job = text[freshness_job_start:]
 
-    assert_contains(build_region_before_freshness, guard_step, label="linux build-and-test")
-    assert_contains(build_region_before_freshness, guard_command, label="linux build-and-test")
+    assert_contains(build_job, guard_step, label="linux build-and-test")
+    assert_contains(build_job, guard_command, label="linux build-and-test")
     if guard_step in freshness_job or guard_command in freshness_job:
         raise AssertionError("linux generated-report-freshness must not host its own guard")
 

@@ -10,8 +10,10 @@ void sparse_alloc_test_reset(void) { sparse_alloc_fail_after = -1; }
 static int sparse_alloc_test_should_fail(void) {
     if (sparse_alloc_fail_after < 0)
         return 0;
-    if (sparse_alloc_fail_after == 0)
+    if (sparse_alloc_fail_after == 0) {
+        sparse_alloc_fail_after = -1;
         return 1;
+    }
     sparse_alloc_fail_after--;
     return 0;
 }

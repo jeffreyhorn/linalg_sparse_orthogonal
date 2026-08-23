@@ -517,6 +517,25 @@ static void test_internal_alloc_helpers(void) {
     ASSERT_ERR(sparse_calloc_array(4, sizeof(double), &ptr), SPARSE_OK);
     ASSERT_NOT_NULL(ptr);
     free(ptr);
+
+    sparse_alloc_test_fail_after(0);
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+    sparse_alloc_test_reset();
+
+    sparse_alloc_test_fail_after(1);
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(ptr);
+    ASSERT_ERR(sparse_malloc_array(4, sizeof(double), &ptr), SPARSE_OK);
+    ASSERT_NOT_NULL(ptr);
+    free(ptr);
+    sparse_alloc_test_reset();
 }
 
 static void test_internal_idx_alloc_helpers(void) {

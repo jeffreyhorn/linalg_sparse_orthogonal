@@ -79,6 +79,7 @@ static void test_gmres_public_handle_prepare_reuse_and_growth(void) {
     sparse_iter_handle_t zero_handle = {0};
 
     ASSERT_ERR(sparse_iter_handle_prepare_gmres(NULL, 8, opts_small.restart), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(NULL, 8, 0), SPARSE_ERR_NULL);
     ASSERT_ERR(
         sparse_solve_gmres_with_handle(A_small, b_small, x1, &opts_small, NULL, NULL, &r1, NULL),
         SPARSE_ERR_NULL);

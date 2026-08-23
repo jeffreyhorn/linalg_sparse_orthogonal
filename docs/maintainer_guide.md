@@ -436,7 +436,7 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
   - maintained focused Make command: `make iterative-allocation-failure-gate`
   - maintained focused CTest selector: `ctest -L allocation_failure`
   - maintained proof stays family-local to CG, GMRES, and MINRES repeated-run
-    handle prepare/growth cleanup; it is not broad allocator-failure coverage
+    handle prepare/growth cleanup; it is not broad allocation-failure coverage
     for every solver family or public allocation path
   - Sprint 176 Day 9/Day 10 claim recalibration records this as an earned
     local focused proof, not hosted CI, package, report-index, performance,

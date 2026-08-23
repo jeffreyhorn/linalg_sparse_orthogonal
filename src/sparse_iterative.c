@@ -134,6 +134,8 @@ sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n
 
 sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_t n,
                                               idx_t restart) {
+    if (!handle)
+        return SPARSE_ERR_NULL;
     if (n < 1)
         return SPARSE_ERR_BADARG;
     if (restart <= 0)

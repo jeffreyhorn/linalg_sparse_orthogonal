@@ -70,7 +70,7 @@ environment-specific allocator behavior, or generated artifacts.
 Remaining limitations:
 
 - the proof covers only the iterative repeated-run workspace owner;
-- it is not a broad allocator-failure guarantee for every solver family;
+- it is not a broad allocation-failure guarantee for every solver family;
 - the hook remains private/internal and is not product API.
 
 ## Validation

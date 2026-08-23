@@ -139,7 +139,7 @@ needs them.
 - **Selected allocation-failure proof** — `make
   iterative-allocation-failure-gate` owns a family-local proof for CG, GMRES,
   and MINRES repeated-run handle prepare/growth cleanup. This is not broad
-  allocator-failure coverage for direct solvers, eigensolvers, matrix
+  allocation-failure coverage for direct solvers, eigensolvers, matrix
   construction, package/install flows, generated-report tooling, or unrelated
   allocation paths.
 - **Continuous integration** — support tiers are summarized in

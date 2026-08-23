@@ -136,6 +136,12 @@ needs them.
   signatures emit `phase`, `step`, `total`, and `elapsed_s`; a non-zero return
   cancels with `SPARSE_ERR_CANCELLED`. See the relevant option headers for
   family-local cancellation and input-mutation contracts.
+- **Selected allocation-failure proof** — `make
+  iterative-allocation-failure-gate` owns a family-local proof for CG, GMRES,
+  and MINRES repeated-run handle prepare/growth cleanup. This is not broad
+  allocation-failure coverage for direct solvers, eigensolvers, matrix
+  construction, package/install flows, generated-report tooling, or unrelated
+  allocation paths.
 - **Continuous integration** — support tiers are summarized in
   [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
   in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
@@ -300,6 +306,7 @@ make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + cte
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
+make iterative-allocation-failure-gate  # focused local CG/GMRES/MINRES repeated-run handle allocation-failure proof
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
@@ -560,6 +567,10 @@ Important behavior:
   state
 - re-preparing may grow capacity and discards prior Krylov / Ritz /
   search-direction state
+- public repeated-run iterative handles are safe to free when NULL, zeroed, or
+  already freed; invalid prepare arguments do not publish internal handle
+  state, and maintained allocation-failure proof is limited to the iterative
+  repeated-run workspace owner
 - public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`

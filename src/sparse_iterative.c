@@ -122,6 +122,8 @@ void sparse_iter_handle_free(sparse_iter_handle_t *handle) {
 }
 
 sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n) {
+    if (!handle)
+        return SPARSE_ERR_NULL;
     if (n < 1)
         return SPARSE_ERR_BADARG;
     sparse_iter_workspace_t *workspace = NULL;
@@ -134,7 +136,11 @@ sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n
 
 sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_t n,
                                               idx_t restart) {
+    if (!handle)
+        return SPARSE_ERR_NULL;
     if (n < 1)
+        return SPARSE_ERR_BADARG;
+    if (restart <= 0)
         return SPARSE_ERR_BADARG;
     sparse_iter_workspace_t *workspace = NULL;
     sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
@@ -145,6 +151,8 @@ sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_
 }
 
 sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx_t n) {
+    if (!handle)
+        return SPARSE_ERR_NULL;
     if (n < 1)
         return SPARSE_ERR_BADARG;
     sparse_iter_workspace_t *workspace = NULL;

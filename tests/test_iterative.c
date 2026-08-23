@@ -2904,6 +2904,11 @@ int main(void) {
     RUN_TEST(test_cg_public_handle_validation_reuse_and_on_demand);
     RUN_TEST(test_gmres_public_handle_prepare_reuse_and_growth);
     RUN_TEST(test_minres_public_handle_prepare_reuse_and_growth);
+    RUN_TEST(test_iter_handle_owner_allocation_failure_leaves_handle_empty);
+    RUN_TEST(test_cg_handle_workspace_allocation_failure_recovers);
+    RUN_TEST(test_iter_handle_invalid_prepare_calls_do_not_publish_state);
+    RUN_TEST(test_gmres_handle_growth_allocation_failure_preserves_existing_workspace);
+    RUN_TEST(test_minres_handle_growth_allocation_failure_preserves_existing_workspace);
 
     /* Matrix-free CG (Sprint 8 Day 2) */
     RUN_TEST(test_cg_mf_basic);

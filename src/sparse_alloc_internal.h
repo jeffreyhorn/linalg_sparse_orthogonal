@@ -60,4 +60,7 @@ sparse_err_t sparse_calloc_array(size_t count, size_t elem_size, void **out);
 sparse_err_t sparse_malloc_idx_array(idx_t count, size_t elem_size, void **out);
 sparse_err_t sparse_calloc_idx_array(idx_t count, size_t elem_size, void **out);
 
+void sparse_alloc_test_fail_after(long remaining);
+void sparse_alloc_test_reset(void);
+
 #endif /* SPARSE_ALLOC_INTERNAL_H */

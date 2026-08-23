@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -50,6 +51,30 @@ def assert_selected_artifacts(text: str, *, label: str) -> None:
             assert_contains(text, f"{directory}/{filename}", label=label)
 
 
+def upload_block(text: str, artifact_name: str, *, label: str) -> str:
+    name_index = text.find(f"name: {artifact_name}")
+    if name_index == -1:
+        raise AssertionError(f"{label} missing upload artifact name {artifact_name!r}")
+    block_start = text.rfind("- name:", 0, name_index)
+    if block_start == -1:
+        raise AssertionError(f"{label} missing upload step for {artifact_name!r}")
+    next_step = text.find("\n      - name:", name_index)
+    next_job_match = re.search(r"\n  [A-Za-z0-9_-]+:", text[name_index:])
+    next_job = name_index + next_job_match.start() if next_job_match else -1
+    candidates = [index for index in [next_step, next_job] if index != -1]
+    block_end = min(candidates) if candidates else len(text)
+    return text[block_start:block_end]
+
+
+def assert_selected_upload_fail_closed(text: str, artifact_name: str, *, label: str) -> None:
+    block = upload_block(text, artifact_name, label=label)
+    assert_contains(block, "uses: actions/upload-artifact@v4", label=label)
+    assert_contains(block, "if-no-files-found: error", label=label)
+    for _target, directory, _expected_rows in SELECTED_TARGETS:
+        for filename in SELECTED_FILES:
+            assert_contains(block, f"{directory}/{filename}", label=label)
+
+
 def assert_summary_fail_closed(text: str, *, label: str) -> None:
     for needle in [
         "uploaded_files = [",
@@ -85,10 +110,12 @@ def test_linux_selected_comparison_lane() -> None:
     assert_contains(text, "Run reviewed hosted selected comparison freshness", label="linux")
     assert_linux_guard_runs_outside_validated_lane(text)
     assert_contains(text, "make report-index-comparison-freshness", label="linux")
-    assert_contains(text, "sprint175-linux-selected-comparison-freshness", label="linux")
-    assert_contains(text, "if-no-files-found: error", label="linux")
     assert_selected_targets(text, label="linux")
-    assert_selected_artifacts(text, label="linux")
+    assert_selected_upload_fail_closed(
+        text,
+        "sprint175-linux-selected-comparison-freshness",
+        label="linux selected comparison upload",
+    )
     assert_summary_fail_closed(text, label="linux")
 
 
@@ -97,10 +124,12 @@ def test_macos_selected_comparison_lane() -> None:
     assert_contains(text, "macOS reviewed selected comparison freshness", label="macos")
     assert_contains(text, "Run reviewed selected comparison freshness", label="macos")
     assert_contains(text, "make report-index-comparison-freshness", label="macos")
-    assert_contains(text, "sprint175-macos-selected-comparison-freshness", label="macos")
-    assert_contains(text, "if-no-files-found: error", label="macos")
     assert_selected_targets(text, label="macos")
-    assert_selected_artifacts(text, label="macos")
+    assert_selected_upload_fail_closed(
+        text,
+        "sprint175-macos-selected-comparison-freshness",
+        label="macos selected comparison upload",
+    )
     assert_summary_fail_closed(text, label="macos")
     for non_claim in [
         "Windows report freshness",

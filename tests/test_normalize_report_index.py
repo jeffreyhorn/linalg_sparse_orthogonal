@@ -1556,9 +1556,13 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
 
 def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     rows = read_tsv(REPORT_FAMILIES)
-    comparison_rows = {
-        row["subfamily"]: row for row in rows if row["report_family"] == "comparison"
-    }
+    comparison_rows = {}
+    for row in rows:
+        if row["report_family"] != "comparison":
+            continue
+        subfamily = row["subfamily"]
+        assert subfamily not in comparison_rows, f"duplicate comparison subfamily: {subfamily}"
+        comparison_rows[subfamily] = row
     expected_subfamilies = {
         "qr_minnorm",
         "qr_compatible_ls",

@@ -24,6 +24,7 @@ static void test_cg_public_handle_validation_reuse_and_on_demand(void) {
     sparse_iter_handle_t zero_handle = {0};
 
     ASSERT_ERR(sparse_iter_handle_prepare_cg(NULL, 8), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_iter_handle_prepare_cg(NULL, 0), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_solve_cg_with_handle(A, b, x1, &opts, NULL, NULL, &r1, NULL),
                SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_iter_handle_prepare_cg(&handle, 8), SPARSE_OK);
@@ -153,6 +154,7 @@ static void test_minres_public_handle_prepare_reuse_and_growth(void) {
     sparse_iter_handle_t zero_handle = {0};
 
     ASSERT_ERR(sparse_iter_handle_prepare_minres(NULL, 8), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(NULL, 0), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_solve_minres_with_handle(A_small, b_small, x1, &opts, NULL, NULL, &r1, NULL),
                SPARSE_ERR_NULL);
 

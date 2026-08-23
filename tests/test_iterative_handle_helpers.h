@@ -1,6 +1,8 @@
 #ifndef TEST_ITERATIVE_HANDLE_HELPERS_H
 #define TEST_ITERATIVE_HANDLE_HELPERS_H
 
+#include "sparse_alloc_internal.h"
+
 /* Public repeated-run CG handle: NULL validation, explicit prepare + reuse,
  * and zero-init on-demand growth should all follow the final public contract. */
 static void test_cg_public_handle_validation_reuse_and_on_demand(void) {
@@ -190,6 +192,95 @@ static void test_minres_public_handle_prepare_reuse_and_growth(void) {
     sparse_iter_handle_free(&zero_handle);
     sparse_free(A_small);
     sparse_free(A_large);
+}
+
+static void test_iter_handle_owner_allocation_failure_leaves_handle_empty(void) {
+    sparse_iter_handle_t handle = {0};
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(0);
+    ASSERT_ERR(sparse_iter_handle_prepare_cg(&handle, 8), SPARSE_ERR_ALLOC);
+    sparse_alloc_test_reset();
+
+    ASSERT_NULL(handle.internal_state);
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&handle);
+    ASSERT_NULL(handle.internal_state);
+}
+
+static void test_cg_handle_workspace_allocation_failure_recovers(void) {
+    sparse_iter_handle_t handle = {0};
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(1);
+    ASSERT_ERR(sparse_iter_handle_prepare_cg(&handle, 8), SPARSE_ERR_ALLOC);
+    sparse_alloc_test_reset();
+
+    ASSERT_NOT_NULL(handle.internal_state);
+    ASSERT_ERR(sparse_iter_handle_prepare_cg(&handle, 8), SPARSE_OK);
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&handle);
+    ASSERT_NULL(handle.internal_state);
+}
+
+static void test_iter_handle_invalid_prepare_calls_do_not_publish_state(void) {
+    sparse_iter_handle_t handle = {0};
+
+    sparse_iter_handle_free(NULL);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(0);
+    ASSERT_ERR(sparse_iter_handle_prepare_cg(&handle, 0), SPARSE_ERR_BADARG);
+    ASSERT_NULL(handle.internal_state);
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 0), SPARSE_ERR_BADARG);
+    ASSERT_NULL(handle.internal_state);
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 8, 0), SPARSE_ERR_BADARG);
+    ASSERT_NULL(handle.internal_state);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 8, 4), SPARSE_OK);
+    ASSERT_NOT_NULL(handle.internal_state);
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&handle);
+    ASSERT_NULL(handle.internal_state);
+}
+
+static void test_gmres_handle_growth_allocation_failure_preserves_existing_workspace(void) {
+    sparse_iter_handle_t handle = {0};
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 8, 4), SPARSE_OK);
+    ASSERT_NOT_NULL(handle.internal_state);
+
+    sparse_alloc_test_fail_after(0);
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 12, 6), SPARSE_ERR_ALLOC);
+    sparse_alloc_test_reset();
+
+    ASSERT_NOT_NULL(handle.internal_state);
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 8, 4), SPARSE_OK);
+    ASSERT_ERR(sparse_iter_handle_prepare_gmres(&handle, 12, 6), SPARSE_OK);
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&handle);
+    ASSERT_NULL(handle.internal_state);
+}
+
+static void test_minres_handle_growth_allocation_failure_preserves_existing_workspace(void) {
+    sparse_iter_handle_t handle = {0};
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 8), SPARSE_OK);
+    ASSERT_NOT_NULL(handle.internal_state);
+
+    sparse_alloc_test_fail_after(0);
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 12), SPARSE_ERR_ALLOC);
+    sparse_alloc_test_reset();
+
+    ASSERT_NOT_NULL(handle.internal_state);
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 8), SPARSE_OK);
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 12), SPARSE_OK);
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&handle);
+    ASSERT_NULL(handle.internal_state);
 }
 
 #endif

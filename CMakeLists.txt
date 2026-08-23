@@ -206,6 +206,7 @@ add_sparse_test(test_cholesky)
 add_sparse_test(test_csr)
 add_sparse_test(test_matmul)
 add_sparse_test(test_iterative)
+set_tests_properties(test_iterative PROPERTIES LABELS "iterative;allocation_failure")
 add_sparse_test(test_ilu)
 add_sparse_test(test_omp)
 

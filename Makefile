@@ -287,6 +287,12 @@ test: $(TEST_BINS)
 	@$(RUN_TEST_BINS_WITH_BANNERS)
 	@echo "All tests passed."
 
+.PHONY: iterative-allocation-failure-gate
+iterative-allocation-failure-gate: $(BUILDDIR)/test_iterative
+	@echo "=== Running iterative allocation-failure regression gate ==="
+	@$(BUILDDIR)/test_iterative
+	@echo "iterative-allocation-failure-gate: passed"
+
 # Run benchmarks
 .PHONY: bench
 bench: $(BENCH_BINS)

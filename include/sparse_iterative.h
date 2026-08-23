@@ -218,7 +218,13 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse
  * preserve prior Krylov state, residual history contents, or convergence
  * status as a numerical feature.
  *
- * sparse_iter_handle_free() is safe on a zeroed struct.
+ * sparse_iter_handle_free() is safe on NULL, on a zeroed struct, and after
+ * a prior free. Invalid prepare arguments return SPARSE_ERR_BADARG before
+ * publishing internal handle state. Allocation failures during the maintained
+ * repeated-run iterative prepare/growth paths leave either an empty handle or
+ * the previously usable handle capacity intact; callers should still treat
+ * SPARSE_ERR_ALLOC as a failed prepare/solve and retry only after handling the
+ * error.
  */
 typedef struct {
     void *internal_state; /**< Opaque internal repeated-run workspace owner.

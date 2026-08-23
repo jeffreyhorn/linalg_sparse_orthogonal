@@ -136,6 +136,8 @@ sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_
                                               idx_t restart) {
     if (n < 1)
         return SPARSE_ERR_BADARG;
+    if (restart <= 0)
+        return SPARSE_ERR_BADARG;
     sparse_iter_workspace_t *workspace = NULL;
     sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
     if (err != SPARSE_OK)

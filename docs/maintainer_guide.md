@@ -426,6 +426,21 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
   - deterministic singular expected-failure coverage on `lu_singular_square_4`
   - maintained proof stays family-local to linked-list LU solve correctness and
     singular detection for these deterministic fixtures
+- `tests/test_iterative.c` owns the Sprint 176 bounded allocation-failure lane
+  for iterative repeated-run workspace handles:
+  - `test_iter_handle_owner_allocation_failure_leaves_handle_empty`
+  - `test_cg_handle_workspace_allocation_failure_recovers`
+  - `test_iter_handle_invalid_prepare_calls_do_not_publish_state`
+  - `test_gmres_handle_growth_allocation_failure_preserves_existing_workspace`
+  - `test_minres_handle_growth_allocation_failure_preserves_existing_workspace`
+  - maintained focused Make command: `make iterative-allocation-failure-gate`
+  - maintained focused CTest selector: `ctest -L allocation_failure`
+  - maintained proof stays family-local to CG, GMRES, and MINRES repeated-run
+    handle prepare/growth cleanup; it is not broad allocator-failure coverage
+    for every solver family or public allocation path
+  - Sprint 176 Day 9/Day 10 claim recalibration records this as an earned
+    local focused proof, not hosted CI, package, report-index, performance,
+    release, or state-of-the-art evidence
 
 Interpretation:
 
@@ -440,6 +455,9 @@ Interpretation:
   external factorization parity, or proof of pivot/CSC-layout internals
 - do not present the linked-list LU lane as LU CSR external coverage, direct
   compressed-format LU API coverage, or broad nonsymmetric ecosystem parity
+- do not present the iterative repeated-run handle allocation-failure lane as
+  proof of broad allocation-failure cleanup across direct solvers, eigensolvers,
+  matrix construction, package/install flows, or generated-report tooling
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
 

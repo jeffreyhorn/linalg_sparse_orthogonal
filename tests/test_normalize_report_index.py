@@ -1583,11 +1583,14 @@ def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
         assert "no performance superiority" in row["non_claims"]
         assert "no state-of-the-art claim" in row["non_claims"]
 
-    ci_row = next(
+    ci_rows = [
         row
         for row in rows
         if row["report_family"] == "ci" and row["subfamily"] == "reviewed_lanes"
-    )
+    ]
+    assert ci_rows, "missing ci/reviewed_lanes report family row"
+    assert len(ci_rows) == 1, "duplicate ci/reviewed_lanes report family rows"
+    ci_row = ci_rows[0]
     assert ci_row["support_tier"] == "reviewed_cross_platform"
     assert ci_row["freshness_policy"] == "hosted_ci_external"
     assert "Linux selected oracle/comparison freshness" in ci_row["claim_scope"]

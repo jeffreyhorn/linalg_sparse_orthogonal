@@ -45,12 +45,6 @@ def assert_selected_targets(text: str, *, label: str) -> None:
         )
 
 
-def assert_selected_artifacts(text: str, *, label: str) -> None:
-    for _target, directory, _expected_rows in SELECTED_TARGETS:
-        for filename in SELECTED_FILES:
-            assert_contains(text, f"{directory}/{filename}", label=label)
-
-
 def upload_block(text: str, artifact_name: str, *, label: str) -> str:
     name_index = text.find(f"name: {artifact_name}")
     if name_index == -1:
@@ -58,7 +52,7 @@ def upload_block(text: str, artifact_name: str, *, label: str) -> str:
     block_start = text.rfind("- name:", 0, name_index)
     if block_start == -1:
         raise AssertionError(f"{label} missing upload step for {artifact_name!r}")
-    next_step = text.find("\n      - name:", name_index)
+    next_step = text.find("\n      - ", name_index)
     next_job_match = re.search(r"\n  [A-Za-z0-9_-]+:", text[name_index:])
     next_job = name_index + next_job_match.start() if next_job_match else -1
     candidates = [index for index in [next_step, next_job] if index != -1]

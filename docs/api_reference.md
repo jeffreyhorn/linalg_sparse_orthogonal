@@ -50,6 +50,10 @@ the repository and is not a hosted or source-controlled publication surface.
 Treat it as current only for the branch and checkout where
 `make api-docs-freshness` has just passed.
 
+The Sprint 179 product decision keeps this generated tree local-only rather
+than hosted, artifact-published, or committed. Use this page and the public
+headers above as the source-controlled API reference path.
+
 The current Doxygen configuration reads checked-in headers under `include/`.
 Generated install headers such as `sparse_version.h` are owned by install
 artifacts, `VERSION`, and install-validation tests rather than by a generated

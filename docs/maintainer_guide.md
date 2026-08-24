@@ -441,6 +441,23 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
   - Sprint 176 Day 9/Day 10 claim recalibration records this as an earned
     local focused proof, not hosted CI, package, report-index, performance,
     release, or state-of-the-art evidence
+- `tests/test_matmul.c` owns the Sprint 178 bounded allocation-failure lane
+  for selected `sparse_matmul()` workspace allocation:
+  - `test_matmul_acc_allocation_failure_clears_stale_output`
+  - `test_matmul_remaining_workspace_allocation_failures_clear_stale_output`
+  - `test_matmul_workspace_allocation_failure_recovers`
+  - `test_matmul_error_precedence_clears_stale_output`
+  - maintained focused Make command: `make matmul-allocation-failure-gate`
+  - maintained focused CTest selector:
+    `ctest --test-dir <build-dir> -L matmul`
+  - maintained registration guard:
+    `python3 tests/test_matmul_allocation_failure_gate_registration.py`
+  - maintained proof stays local to `sparse_matmul()` accumulator,
+    nonzero-flag, and touched-column workspace cleanup, stale-output
+    suppression, and retry-after-reset behavior; it is not broad
+    allocation-failure coverage for matrix shell construction,
+    insertion/product flush, conversion paths, solver families, package/install
+    flows, generated-report tooling, or unrelated allocation paths
 
 Interpretation:
 
@@ -458,6 +475,9 @@ Interpretation:
 - do not present the iterative repeated-run handle allocation-failure lane as
   proof of broad allocation-failure cleanup across direct solvers, eigensolvers,
   matrix construction, package/install flows, or generated-report tooling
+- do not present the `sparse_matmul()` allocation-failure lane as broad sparse
+  matrix allocation coverage; it covers only the selected workspace allocation
+  sites named above
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
 

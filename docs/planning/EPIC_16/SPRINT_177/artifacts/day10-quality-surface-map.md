@@ -2,7 +2,7 @@
 
 **Sprint:** 177 - Epic 16 Baseline, Evidence Matrix & Closure Gates
 **Epic source:** `docs/planning/EPIC_16/PROJECT_PLAN.md`
-**Requested sprint path:** `docs/planning/EPIC_15/SPRINT_177/`
+**Sprint path:** `docs/planning/EPIC_16/SPRINT_177/`
 **Status:** Complete
 
 ## Purpose

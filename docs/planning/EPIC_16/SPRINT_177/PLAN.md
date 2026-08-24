@@ -7,10 +7,9 @@ distribution, generated API status, and report metadata. This sprint
 implements the Sprint 177 section of
 `docs/planning/EPIC_16/PROJECT_PLAN.md`.
 
-**Source Artifact Note:** The prompt asks for this plan under
-`docs/planning/EPIC_15/SPRINT_177/PLAN.md` while the source project-plan
-section lives in `docs/planning/EPIC_16/PROJECT_PLAN.md`. This plan follows
-the Epic 16 Sprint 177 scope and preserves the requested output path.
+**Source Artifact Note:** This plan lives under
+`docs/planning/EPIC_16/SPRINT_177/PLAN.md` and implements the Sprint 177
+section of `docs/planning/EPIC_16/PROJECT_PLAN.md`.
 
 **Starting Point:** Sprint 177 begins from:
 
@@ -46,8 +45,8 @@ plan totals `166` hours, matching the Sprint 177 project-plan estimate.
 ## Day 1: Sprint Intake And Source Baseline
 
 **Title:** Sprint Intake
-**Theme:** Establish Sprint 177 scope, source-plan authority, output-path
-note, and initial working structure
+**Theme:** Establish Sprint 177 scope, source-plan authority, sprint path, and
+initial working structure
 **Time estimate:** 12 hours
 
 ### Tasks
@@ -56,7 +55,7 @@ note, and initial working structure
    `docs/planning/EPIC_16/PROJECT_PLAN.md`.
 2. Review the Epic 16 review and gap-closure todo.
 3. Create Sprint 177 working notes and artifact directory structure.
-4. Record the prompt output-path/source-plan mismatch.
+4. Record the sprint output path and source-plan authority.
 5. Capture the starting branch, relevant prior PRs, and baseline
    documentation surfaces.
 6. Write the Day 1 sprint-intake artifact.
@@ -72,7 +71,7 @@ note, and initial working structure
 ### Completion Criteria
 
 - Sprint 177 scope is tied to the Epic 16 project plan
-- requested output path is explicitly recorded
+- sprint output path is explicitly recorded
 - no closure target is selected before the residual audit begins
 
 ---
@@ -503,4 +502,3 @@ and prepare closeout
 - Sprint 177 is ready for retrospective creation
 - Sprint 178 has actionable allocation-failure prerequisites
 - working tree contains only intended Sprint 177 planning artifacts
-

@@ -12,10 +12,9 @@ post-Epic-15 baseline, classified residual gaps, selected bounded Epic 16
 closure targets, defined acceptance gates, froze public claim boundaries, and
 prepared the first implementation handoffs.
 
-The sprint artifacts intentionally live under
-`docs/planning/EPIC_15/SPRINT_177/` because that was the requested output
-path. Their source authority is the Epic 16 project-plan section for Sprint
-177.
+The sprint artifacts now live under
+`docs/planning/EPIC_16/SPRINT_177/`, matching the Epic 16 project-plan section
+for Sprint 177.
 
 ## Final Artifact Inventory
 
@@ -78,8 +77,8 @@ The first implementation sprint should preserve these constraints:
 - Completed work: all six Sprint 177 project-plan items are complete.
 - Validation scope: documentation-only planning work; no C source or header
   files were modified.
-- Path caveat: Sprint artifacts are under Epic 15 by request while using Epic
-  16 project-plan scope.
+- Path update: Sprint artifacts now live under Epic 16 with the Epic 16
+  project-plan scope.
 - Next work: Sprint 178 should begin implementation using the allocation-
   failure proof handoff and gate.
 
@@ -101,9 +100,8 @@ documentation-only.
 - Broad state-of-the-art, broad package-manager, broad Windows parity,
   shared-library ABI, dynamic loading, and broad allocation-failure claims
   remain non-claims until evidence exists.
-- The requested Epic 15 output path for an Epic 16 source plan should be
-  preserved in the retrospective so future readers do not infer the wrong
-  project-plan authority.
+- The retrospective should preserve that the package was moved to Epic 16 so
+  future readers infer the correct project-plan authority.
 
 ## Completion Criteria Check
 

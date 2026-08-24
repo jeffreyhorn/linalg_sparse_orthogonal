@@ -2,7 +2,7 @@
 
 **Sprint:** 177 - Epic 16 Baseline, Evidence Matrix & Closure Gates
 **Epic source:** `docs/planning/EPIC_16/PROJECT_PLAN.md`
-**Requested sprint path:** `docs/planning/EPIC_15/SPRINT_177/`
+**Sprint path:** `docs/planning/EPIC_16/SPRINT_177/`
 **Status:** Complete
 
 ## Purpose
@@ -74,7 +74,7 @@ Day 14 can close the sprint without creating new scope because:
 
 | Ambiguity | Disposition |
 | --- | --- |
-| Sprint 177 source is Epic 16, but requested path is `docs/planning/EPIC_15/SPRINT_177/`. | Preserve the requested path and keep the source artifact note in every Sprint 177 artifact. This is documented and not a blocker. |
+| Sprint 177 source and current artifact path are both Epic 16. | No remaining source/path ambiguity after the directory move; keep the source artifact note for traceability. |
 | Sprint 177 does not implement Sprint 178-186 code changes. | Expected by scope. Sprint 177 creates the baseline, target selection, gates, quality map, and handoffs only. |
 | Future sprints may select promotion or deferral variants. | Expected by gate design. A later sprint must record its decision artifact before public wording changes. |
 
@@ -83,7 +83,7 @@ Day 14 can close the sprint without creating new scope because:
 Day 14 should:
 
 1. mark Sprint 177 working notes ready for closeout;
-2. confirm all artifacts remain under the requested sprint path;
+2. confirm all artifacts remain under the current sprint path;
 3. run `git diff --check`;
 4. record the final artifact inventory and Sprint 178 handoff confirmation;
 5. prepare retrospective inputs.

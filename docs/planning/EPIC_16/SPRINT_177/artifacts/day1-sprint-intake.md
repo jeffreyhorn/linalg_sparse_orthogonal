@@ -3,7 +3,7 @@
 ## Purpose
 
 Day 1 establishes the Sprint 177 baseline before residual selection begins.
-It records the source-plan authority, requested output path, starting branch,
+It records the source-plan authority, sprint output path, starting branch,
 baseline inputs, and initial documentation/evidence surfaces for the rest of
 the sprint.
 
@@ -14,13 +14,11 @@ The active Sprint 177 project-plan section is:
 - `docs/planning/EPIC_16/PROJECT_PLAN.md`
 - section: `Sprint 177: Epic 16 Baseline, Evidence Matrix & Closure Gates`
 
-The requested sprint artifact path is:
+The sprint artifact path is:
 
-- `docs/planning/EPIC_15/SPRINT_177/`
+- `docs/planning/EPIC_16/SPRINT_177/`
 
-This path mismatch is intentional in the prompt. Sprint 177 artifacts in this
-directory should follow Epic 16 scope while preserving the requested output
-location.
+Sprint 177 artifacts in this directory follow Epic 16 scope.
 
 ## Starting Snapshot
 
@@ -29,9 +27,9 @@ location.
 | Branch | `sprint-177` |
 | Starting commit | `bd639e2d5b4ef79bf5637708f4c816a77caa75ef` |
 | Source project plan | `docs/planning/EPIC_16/PROJECT_PLAN.md` |
-| Sprint plan path | `docs/planning/EPIC_15/SPRINT_177/PLAN.md` |
-| Working notes path | `docs/planning/EPIC_15/SPRINT_177/WORKING_NOTES.md` |
-| Artifact directory | `docs/planning/EPIC_15/SPRINT_177/artifacts/` |
+| Sprint plan path | `docs/planning/EPIC_16/SPRINT_177/PLAN.md` |
+| Working notes path | `docs/planning/EPIC_16/SPRINT_177/WORKING_NOTES.md` |
+| Artifact directory | `docs/planning/EPIC_16/SPRINT_177/artifacts/` |
 
 ## Recent Prior PR Context
 
@@ -74,8 +72,7 @@ location.
 
 - Treat `docs/planning/EPIC_16/PROJECT_PLAN.md` as the Sprint 177 source
   authority.
-- Keep all Sprint 177 outputs under `docs/planning/EPIC_15/SPRINT_177/` per
-  the prompt.
+- Keep all Sprint 177 outputs under `docs/planning/EPIC_16/SPRINT_177/`.
 - Do not select Epic 16 closure targets on Day 1. Target selection depends on
   Day 2 residual extraction, Day 3 classification, and Day 6 evidence matrix
   population.
@@ -86,9 +83,9 @@ location.
 
 ## Day 1 Deliverables
 
-- `docs/planning/EPIC_15/SPRINT_177/WORKING_NOTES.md`
-- `docs/planning/EPIC_15/SPRINT_177/artifacts/day1-sprint-intake.md`
-- Source-plan/output-path note
+- `docs/planning/EPIC_16/SPRINT_177/WORKING_NOTES.md`
+- `docs/planning/EPIC_16/SPRINT_177/artifacts/day1-sprint-intake.md`
+- Source-plan/sprint-path note
 - Starting branch and prior PR context
 - Initial baseline evidence and documentation surface inventory
 
@@ -97,6 +94,5 @@ location.
 | Criterion | Status | Evidence |
 | --- | --- | --- |
 | Sprint 177 scope is tied to the Epic 16 project plan | Complete | Source authority recorded above and in working notes. |
-| Requested output path is explicitly recorded | Complete | Source/path note records `EPIC_15/SPRINT_177` as requested output path. |
+| Sprint output path is explicitly recorded | Complete | Source/path note records `EPIC_16/SPRINT_177` as the sprint output path. |
 | No closure target is selected before residual audit begins | Complete | Day 1 records baseline only; target selection is deferred to Day 7. |
-

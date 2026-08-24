@@ -7,10 +7,8 @@
 ## Source Artifact Note
 
 Sprint 177 was executed from the Epic 16 project-plan section for Sprint 177
-and lives under `docs/planning/EPIC_15/SPRINT_177/` because that was the
-requested output path. The sprint artifacts preserve this source/path mismatch
-explicitly so future readers do not infer that the work came from an Epic 15
-project-plan section.
+and now lives under `docs/planning/EPIC_16/SPRINT_177/`, matching the Epic 16
+source-plan authority.
 
 ## Definition Of Done Checklist
 
@@ -70,10 +68,10 @@ project-plan section.
 
 ## What Didn't Go Well
 
-1. **The requested output path is confusing.** Sprint 177 is an Epic 16
-   baseline sprint, but the requested path is under Epic 15. The sprint
-   handled this by recording the mismatch in the plan, working notes, and
-   artifacts.
+1. **The initial output path was corrected late.** Sprint 177 began as an
+   Epic 16 baseline sprint under an Epic 15 sprint path from the original
+   request. The package has now been moved under Epic 16 and internal path
+   references were updated.
 
 2. **The claim surface remains distributed.** README, INSTALL, maintainer
    guide, API docs, benchmark docs, workflow comments, package guards,

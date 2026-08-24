@@ -2,16 +2,15 @@
 
 **Sprint:** 177 - Epic 16 Baseline, Evidence Matrix & Closure Gates
 **Epic source:** `docs/planning/EPIC_16/PROJECT_PLAN.md`
-**Requested sprint path:** `docs/planning/EPIC_15/SPRINT_177/`
+**Sprint path:** `docs/planning/EPIC_16/SPRINT_177/`
 **Status:** Complete
 
 ## Source Artifact Note
 
 The Sprint 177 source section lives in
 `docs/planning/EPIC_16/PROJECT_PLAN.md`, lines 28-62 in the prompt. The
-requested output path is `docs/planning/EPIC_15/SPRINT_177/`. Sprint 177
-artifacts in this directory follow the Epic 16 scope while preserving the
-requested path.
+sprint artifact path is `docs/planning/EPIC_16/SPRINT_177/`. Sprint 177
+artifacts in this directory follow the Epic 16 scope.
 
 ## Sprint Goal
 
@@ -73,7 +72,7 @@ Completed:
 
 - Re-read Sprint 177 project-plan scope.
 - Reviewed Epic 16 review and gap-closure todo.
-- Recorded source-plan/output-path mismatch.
+- Recorded source-plan authority and sprint output path.
 - Created Sprint 177 working notes and artifacts directory structure.
 - Captured starting branch, recent prior PR context, and baseline surfaces.
 - Created the Day 1 sprint-intake artifact.
@@ -84,9 +83,8 @@ Validation:
 
 ## Open Risks
 
-- Sprint 177 artifacts live under `EPIC_15/SPRINT_177/` by request even
-  though their source plan is Epic 16. Every artifact should continue to note
-  the source-plan authority to avoid later confusion.
+- Sprint 177 artifacts now live under `EPIC_16/SPRINT_177/`, matching the
+  Epic 16 source-plan authority.
 - Day 1 intentionally does not select closure targets. Selection should wait
   for the residual audit, classification matrix, and evidence/status matrix.
 - Epic 16 depends on keeping broad state-of-the-art, package-manager,
@@ -436,8 +434,8 @@ Completed:
   178/179 handoffs are present.
 - Confirmed every selected Sprint 178-186 target has an acceptance gate.
 - Recorded the current artifact inventory.
-- Identified remaining ambiguity: Sprint 177 follows Epic 16 scope while
-  preserving the requested `docs/planning/EPIC_15/SPRINT_177/` output path.
+- Confirmed Sprint 177 follows Epic 16 scope and lives under
+  `docs/planning/EPIC_16/SPRINT_177/`.
 - Created the Day 13 sprint-reconciliation artifact.
 
 Validation:
@@ -447,7 +445,7 @@ Validation:
 Handoff:
 
 - Day 14 should finalize working notes, confirm all artifacts remain under the
-  requested sprint directory, run `git diff --check`, record the Sprint 178
+  current sprint directory, run `git diff --check`, record the Sprint 178
   handoff confirmation, and prepare retrospective inputs.
 
 ### Day 14 - Sprint Closeout
@@ -460,13 +458,13 @@ Completed:
 - Confirmed selected-gap register, evidence/status matrix, acceptance gates,
   quality map, claim-boundary freeze, reconciliation, and handoff artifacts
   are present.
-- Confirmed artifacts remain under the requested
-  `docs/planning/EPIC_15/SPRINT_177/` directory while preserving the Epic 16
+- Confirmed artifacts remain under the
+  `docs/planning/EPIC_16/SPRINT_177/` directory while preserving the Epic 16
   source-plan note.
 - Confirmed Sprint 178 handoff is actionable from the Day 12 handoff package
   and Day 8 acceptance gate template.
 - Prepared retrospective inputs covering timeline, completed items, produced
-  artifacts, validation, source/path caveat, and residual implementation
+  artifacts, validation, source/path update, and residual implementation
   handoff.
 - Created the Day 14 closeout artifact.
 

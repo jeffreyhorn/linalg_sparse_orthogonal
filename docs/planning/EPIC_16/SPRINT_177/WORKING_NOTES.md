@@ -8,9 +8,10 @@
 ## Source Artifact Note
 
 The Sprint 177 source section lives in
-`docs/planning/EPIC_16/PROJECT_PLAN.md`, lines 28-62 in the prompt. The
-sprint artifact path is `docs/planning/EPIC_16/SPRINT_177/`. Sprint 177
-artifacts in this directory follow the Epic 16 scope.
+`docs/planning/EPIC_16/PROJECT_PLAN.md` under "Sprint 177: Epic 16 Baseline,
+Evidence Matrix & Closure Gates". The sprint artifact path is
+`docs/planning/EPIC_16/SPRINT_177/`. Sprint 177 artifacts in this directory
+follow the Epic 16 scope.
 
 ## Sprint Goal
 

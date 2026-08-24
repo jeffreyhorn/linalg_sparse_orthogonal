@@ -293,6 +293,13 @@ iterative-allocation-failure-gate: $(BUILDDIR)/test_iterative
 	@$(BUILDDIR)/test_iterative
 	@echo "iterative-allocation-failure-gate: passed"
 
+.PHONY: matmul-allocation-failure-gate
+matmul-allocation-failure-gate: $(BUILDDIR)/test_matmul
+	@echo "=== Running sparse_matmul allocation-failure regression gate ==="
+	@python3 tests/test_matmul_allocation_failure_gate_registration.py
+	@$(BUILDDIR)/test_matmul
+	@echo "matmul-allocation-failure-gate: passed"
+
 # Run benchmarks
 .PHONY: bench
 bench: $(BENCH_BINS)

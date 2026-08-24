@@ -1,3 +1,4 @@
+#include "sparse_alloc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -295,6 +296,180 @@ static void test_matmul_single_nnz(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Allocation-failure harness
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+#define MATMUL_FAIL_AFTER_ACC 6L
+#define MATMUL_FAIL_AFTER_NZ_FLAG 7L
+#define MATMUL_FAIL_AFTER_TOUCHED 8L
+
+typedef struct {
+    const char *name;
+    long fail_after;
+} MatmulWorkspaceFailureCase;
+
+static SparseMatrix *build_matmul_failure_A(void) {
+    SparseMatrix *A = sparse_create(2, 3);
+    if (!A)
+        return NULL;
+
+    if (sparse_insert(A, 0, 0, 1.0) != SPARSE_OK || sparse_insert(A, 0, 2, 2.0) != SPARSE_OK ||
+        sparse_insert(A, 1, 1, 3.0) != SPARSE_OK) {
+        sparse_free(A);
+        return NULL;
+    }
+
+    return A;
+}
+
+static SparseMatrix *build_matmul_failure_B(void) {
+    SparseMatrix *B = sparse_create(3, 2);
+    if (!B)
+        return NULL;
+
+    if (sparse_insert(B, 0, 0, 4.0) != SPARSE_OK || sparse_insert(B, 2, 1, 5.0) != SPARSE_OK ||
+        sparse_insert(B, 1, 0, 6.0) != SPARSE_OK) {
+        sparse_free(B);
+        return NULL;
+    }
+
+    return B;
+}
+
+static void assert_matmul_failure_retry_product(const SparseMatrix *C) {
+    ASSERT_NOT_NULL(C);
+    ASSERT_EQ(sparse_rows(C), 2);
+    ASSERT_EQ(sparse_cols(C), 2);
+    ASSERT_EQ(sparse_nnz(C), 3);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 1), 10.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 0), 18.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 1), 0.0, 0.0);
+}
+
+static void
+expect_matmul_workspace_allocation_failure(const MatmulWorkspaceFailureCase *failure_case) {
+    SparseMatrix *A = build_matmul_failure_A();
+    SparseMatrix *B = build_matmul_failure_B();
+    SparseMatrix *C = NULL;
+
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(B);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    ASSERT_ERR(sparse_matmul(A, B, &C), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(C);
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_matmul(A, B, &C), SPARSE_OK);
+    assert_matmul_failure_retry_product(C);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(C);
+    sparse_alloc_test_reset();
+}
+
+static void test_matmul_workspace_allocation_failure_recovers(void) {
+    static const MatmulWorkspaceFailureCase cases[] = {
+        {"accumulator workspace", MATMUL_FAIL_AFTER_ACC},
+        {"nonzero flag workspace", MATMUL_FAIL_AFTER_NZ_FLAG},
+        {"touched column workspace", MATMUL_FAIL_AFTER_TOUCHED},
+    };
+    const size_t case_count = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t i = 0; i < case_count; ++i) {
+        printf("    allocation-failure site: %s\n", cases[i].name);
+        expect_matmul_workspace_allocation_failure(&cases[i]);
+    }
+}
+
+static void expect_matmul_workspace_allocation_failure_clears_stale_output(
+    const MatmulWorkspaceFailureCase *failure_case) {
+    SparseMatrix *A = build_matmul_failure_A();
+    SparseMatrix *B = build_matmul_failure_B();
+    SparseMatrix *stale = sparse_create(1, 1);
+    SparseMatrix *C = stale;
+
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(stale);
+    ASSERT_ERR(sparse_insert(stale, 0, 0, 42.0), SPARSE_OK);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    ASSERT_ERR(sparse_matmul(A, B, &C), SPARSE_ERR_ALLOC);
+    ASSERT_NULL(C);
+    ASSERT_NEAR(sparse_get_phys(stale, 0, 0), 42.0, 0.0);
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_matmul(A, B, &C), SPARSE_OK);
+    assert_matmul_failure_retry_product(C);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(stale);
+    sparse_free(C);
+    sparse_alloc_test_reset();
+}
+
+static void test_matmul_acc_allocation_failure_clears_stale_output(void) {
+    static const MatmulWorkspaceFailureCase failure_case = {"accumulator workspace",
+                                                            MATMUL_FAIL_AFTER_ACC};
+
+    expect_matmul_workspace_allocation_failure_clears_stale_output(&failure_case);
+}
+
+static void test_matmul_remaining_workspace_allocation_failures_clear_stale_output(void) {
+    static const MatmulWorkspaceFailureCase cases[] = {
+        {"nonzero flag workspace", MATMUL_FAIL_AFTER_NZ_FLAG},
+        {"touched column workspace", MATMUL_FAIL_AFTER_TOUCHED},
+    };
+    const size_t case_count = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t i = 0; i < case_count; ++i) {
+        printf("    stale-output allocation-failure site: %s\n", cases[i].name);
+        expect_matmul_workspace_allocation_failure_clears_stale_output(&cases[i]);
+    }
+}
+
+static void test_matmul_error_precedence_clears_stale_output(void) {
+    SparseMatrix *A = build_matmul_failure_A();
+    SparseMatrix *B = build_matmul_failure_B();
+    SparseMatrix *shape_bad = sparse_create(4, 2);
+    SparseMatrix *stale = sparse_create(1, 1);
+    SparseMatrix *C = stale;
+
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(shape_bad);
+    ASSERT_NOT_NULL(stale);
+    ASSERT_ERR(sparse_insert(stale, 0, 0, 42.0), SPARSE_OK);
+
+    ASSERT_ERR(sparse_matmul(NULL, NULL, NULL), SPARSE_ERR_NULL);
+
+    ASSERT_ERR(sparse_matmul(NULL, B, &C), SPARSE_ERR_NULL);
+    ASSERT_NULL(C);
+    ASSERT_NEAR(sparse_get_phys(stale, 0, 0), 42.0, 0.0);
+
+    C = stale;
+    ASSERT_ERR(sparse_matmul(A, shape_bad, &C), SPARSE_ERR_SHAPE);
+    ASSERT_NULL(C);
+    ASSERT_NEAR(sparse_get_phys(stale, 0, 0), 42.0, 0.0);
+
+    C = NULL;
+    ASSERT_ERR(sparse_matmul(A, B, &C), SPARSE_OK);
+    assert_matmul_failure_retry_product(C);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(shape_bad);
+    sparse_free(stale);
+    sparse_free(C);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * SuiteSparse validation
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -425,6 +600,12 @@ int main(void) {
     RUN_TEST(test_matmul_empty);
     RUN_TEST(test_matmul_row_col);
     RUN_TEST(test_matmul_single_nnz);
+
+    /* Allocation-failure harness */
+    RUN_TEST(test_matmul_error_precedence_clears_stale_output);
+    RUN_TEST(test_matmul_acc_allocation_failure_clears_stale_output);
+    RUN_TEST(test_matmul_remaining_workspace_allocation_failures_clear_stale_output);
+    RUN_TEST(test_matmul_workspace_allocation_failure_recovers);
 
     /* SuiteSparse */
     RUN_TEST(test_matmul_associativity);

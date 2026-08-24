@@ -136,12 +136,14 @@ needs them.
   signatures emit `phase`, `step`, `total`, and `elapsed_s`; a non-zero return
   cancels with `SPARSE_ERR_CANCELLED`. See the relevant option headers for
   family-local cancellation and input-mutation contracts.
-- **Selected allocation-failure proof** — `make
+- **Selected allocation-failure proofs** — `make
   iterative-allocation-failure-gate` owns a family-local proof for CG, GMRES,
-  and MINRES repeated-run handle prepare/growth cleanup. This is not broad
-  allocation-failure coverage for direct solvers, eigensolvers, matrix
-  construction, package/install flows, generated-report tooling, or unrelated
-  allocation paths.
+  and MINRES repeated-run handle prepare/growth cleanup. `make
+  matmul-allocation-failure-gate` owns a focused `sparse_matmul()` workspace
+  allocation proof for the accumulator, nonzero-flag, and touched-column
+  workspaces. These are not broad allocation-failure coverage for direct
+  solvers, eigensolvers, matrix construction, package/install flows,
+  generated-report tooling, or unrelated allocation paths.
 - **Continuous integration** — support tiers are summarized in
   [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
   in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
@@ -307,6 +309,7 @@ make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 make iterative-allocation-failure-gate  # focused local CG/GMRES/MINRES repeated-run handle allocation-failure proof
+make matmul-allocation-failure-gate  # focused local sparse_matmul workspace allocation-failure proof
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
@@ -571,6 +574,10 @@ Important behavior:
   already freed; invalid prepare arguments do not publish internal handle
   state, and maintained allocation-failure proof is limited to the iterative
   repeated-run workspace owner
+- matrix multiply allocation-failure proof is separately limited to the
+  `sparse_matmul()` accumulator, nonzero-flag, and touched-column workspaces;
+  it does not cover matrix shell construction, insertion/product flush, matrix
+  conversions, solvers, package/install flows, or generated tooling
 - public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`

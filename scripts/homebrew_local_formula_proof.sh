@@ -15,7 +15,7 @@ FORMULA_NAME="sparse-lu-ortho-local"
 FORMULA_CLASS="SparseLuOrthoLocal"
 KEEP_TEMP=0
 TMPROOT=""
-INSTALLED=0
+UNINSTALL_ON_EXIT=0
 
 usage() {
     cat <<'EOF'
@@ -49,7 +49,7 @@ unavailable() {
 cleanup() {
     local status=$?
 
-    if [ "$INSTALLED" -eq 1 ] && command -v brew >/dev/null 2>&1; then
+    if [ "$UNINSTALL_ON_EXIT" -eq 1 ] && command -v brew >/dev/null 2>&1; then
         brew uninstall --force "$FORMULA_NAME" >/dev/null 2>&1 || {
             echo "homebrew-local-formula-proof: WARN: cleanup could not uninstall $FORMULA_NAME" >&2
         }
@@ -88,6 +88,19 @@ require_tool() {
     local message="$2"
 
     if ! command -v "$tool" >/dev/null 2>&1; then
+        unavailable "$message"
+    fi
+}
+
+require_command() {
+    local command_text="$1"
+    local message="$2"
+    local executable
+
+    read -r executable _ <<EOF
+$command_text
+EOF
+    if [ -z "$executable" ] || ! command -v "$executable" >/dev/null 2>&1; then
         unavailable "$message"
     fi
 }
@@ -227,7 +240,7 @@ require_tool brew "brew not found; local Homebrew proof cannot run on this host"
 require_tool cmake "cmake not found; local Homebrew proof prerequisites are unavailable"
 require_tool ruby "ruby not found; local Homebrew proof prerequisites are unavailable"
 require_tool tar "tar not found; local Homebrew proof prerequisites are unavailable"
-require_tool "${CC:-cc}" "C compiler '${CC:-cc}' not found; local Homebrew proof prerequisites are unavailable"
+require_command "${CC:-cc}" "C compiler '${CC:-cc}' not found; local Homebrew proof prerequisites are unavailable"
 checksum_file "$VERSION_FILE" >/dev/null
 
 require_placeholder "__SPARSE_HOMEBREW_HOMEPAGE__"
@@ -261,11 +274,11 @@ render_formula "$FORMULA_FILE"
 ruby -c "$FORMULA_FILE" >/dev/null
 
 info "installing local formula from source"
+UNINSTALL_ON_EXIT=1
 if ! brew install --build-from-source "$FORMULA_FILE" >"$INSTALL_LOG" 2>&1; then
     cat "$INSTALL_LOG" >&2
     fail "local Homebrew formula install proof failed; see $INSTALL_LOG"
 fi
-INSTALLED=1
 
 info "checking static installed package surface"
 check_installed_static_surface
@@ -278,6 +291,6 @@ fi
 
 info "uninstalling local formula"
 brew uninstall --force "$FORMULA_NAME" >/dev/null
-INSTALLED=0
+UNINSTALL_ON_EXIT=0
 
 info "passed: local Homebrew formula proof completed for static source formula scope only"

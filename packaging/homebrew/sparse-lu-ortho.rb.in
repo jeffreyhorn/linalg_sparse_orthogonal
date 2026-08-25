@@ -1,0 +1,83 @@
+# Sprint 180 local-proof Homebrew formula template.
+#
+# This template is rendered by scripts/homebrew_local_formula_proof.sh into a
+# temporary local formula. Do not install this .in file directly and do not
+# commit rendered formula, tap, archive, cache, bottle, or install outputs.
+
+class SparseLuOrthoLocal < Formula
+  desc "Static sparse linear algebra library local formula proof"
+  homepage "__SPARSE_HOMEBREW_HOMEPAGE__"
+  url "__SPARSE_FORMULA_URL__"
+  sha256 "__SPARSE_FORMULA_SHA256__"
+  version "__SPARSE_VERSION__"
+  license "__SPARSE_HOMEBREW_LICENSE__"
+
+  depends_on "cmake" => :build
+
+  def install
+    system "cmake", "-S", ".", "-B", "build",
+                    "-DCMAKE_INSTALL_PREFIX=#{prefix}",
+                    "-DCMAKE_INSTALL_LIBDIR=lib",
+                    "-DCMAKE_C_STANDARD=11",
+                    "-DSPARSE_OPENMP=OFF",
+                    "-DSPARSE_MUTEX=OFF"
+    system "cmake", "--build", "build"
+    system "cmake", "--install", "build"
+
+    static_archive = lib/"libsparse_lu_ortho.a"
+    raise "static archive was not installed: #{static_archive}" unless static_archive.exist?
+
+    shared_artifacts = Dir[lib/"*.dylib"] + Dir[lib/"*.so"] + Dir[lib/"*.so.*"] + Dir[bin/"*.dll"]
+    raise "shared-library artifacts are outside the local proof boundary: #{shared_artifacts}" unless shared_artifacts.empty?
+  end
+
+  test do
+    expected_version = "__SPARSE_VERSION__"
+
+    (testpath/"CMakeLists.txt").write <<~CMAKE
+      cmake_minimum_required(VERSION 3.14)
+      project(sparse_homebrew_local_formula_test C)
+      set(CMAKE_C_STANDARD 11)
+      set(CMAKE_C_STANDARD_REQUIRED ON)
+      find_package(Sparse #{expected_version} EXACT REQUIRED)
+      add_executable(homebrew_local_formula_test main.c)
+      target_link_libraries(homebrew_local_formula_test PRIVATE Sparse::sparse_lu_ortho)
+    CMAKE
+
+    (testpath/"main.c").write <<~C
+      #include <sparse/sparse_matrix.h>
+      #include <sparse/sparse_types.h>
+      #include <stdio.h>
+
+      int main(void) {
+          SparseMatrix *A = sparse_create(3, 3);
+          if (!A) {
+              return 1;
+          }
+          sparse_insert(A, 0, 0, 1.0);
+          if (sparse_nnz(A) != 1) {
+              sparse_free(A);
+              return 2;
+          }
+          printf("sparse version: %s\\n", SPARSE_VERSION_STRING);
+          printf("OK\\n");
+          sparse_free(A);
+          return 0;
+      }
+    C
+
+    system "cmake", "-S", testpath, "-B", testpath/"build",
+                    "-DCMAKE_PREFIX_PATH=#{prefix}"
+    system "cmake", "--build", testpath/"build"
+    output = shell_output(testpath/"build/homebrew_local_formula_test")
+    assert_match "sparse version:", output
+    assert_match "OK", output
+
+    raise "static archive missing after install" unless (lib/"libsparse_lu_ortho.a").exist?
+    raise "CMake package config missing after install" unless (lib/"cmake/Sparse/SparseConfig.cmake").exist?
+    raise "pkg-config metadata missing after install" unless (lib/"pkgconfig/sparse.pc").exist?
+
+    shared_artifacts = Dir[lib/"*.dylib"] + Dir[lib/"*.so"] + Dir[lib/"*.so.*"] + Dir[bin/"*.dll"]
+    raise "shared-library artifacts are outside the local proof boundary: #{shared_artifacts}" unless shared_artifacts.empty?
+  end
+end

@@ -1021,7 +1021,10 @@ not masquerade as package failures. These checks are package proof, not
 package-manager distribution or dynamic-loader evidence.
 
 Package-manager support is not currently provided; use source install via Make
-or CMake and see `INSTALL.md` for the exact package boundary.
+or CMake and see `INSTALL.md` for the exact package boundary. Sprint 180 adds
+local Homebrew formula proof artifacts, but the local Homebrew formula proof
+remains unclaimed because it currently exits before install on missing
+standalone license metadata.
 
 On Windows, `sparse.pc` is installed and inspected as static package metadata
 by the reviewed CMake install/downstream lane. That lane does not run

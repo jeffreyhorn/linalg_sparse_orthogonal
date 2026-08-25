@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# package_manager_deferral_check.sh - package-manager non-claim guard.
+# package_manager_deferral_check.sh - package-manager provider claim guard.
 #
-# This script proves that package-manager support remains formally deferred.
-# It does not invoke provider tooling because Sprint 171 selected deferral,
-# not a provider recipe or package-manager proof.
+# This script preserves the Sprint 171 package-manager non-claim baseline and
+# the Sprint 180 selected local Homebrew proof boundary. The selected Homebrew
+# proof artifacts are allowed, but public Homebrew support remains unclaimed
+# while the local proof exits at the missing standalone-license gate.
 
 set -euo pipefail
 
@@ -121,6 +122,76 @@ check_provider_recipe_absence() {
     pass "provider recipe absence"
 }
 
+check_selected_homebrew_local_proof() {
+    local template="$ROOT_DIR/packaging/homebrew/sparse-lu-ortho.rb.in"
+    local notes="$ROOT_DIR/packaging/homebrew/README.md"
+    local proof="$ROOT_DIR/scripts/homebrew_local_formula_proof.sh"
+    local output
+    local status
+    local generated
+
+    [ -f "$template" ] || fail "selected Homebrew local formula template is missing"
+    [ -f "$notes" ] || fail "selected Homebrew local proof notes are missing"
+    [ -x "$proof" ] || fail "selected Homebrew local proof script is missing or not executable"
+
+    require_grep \
+        'temporary local formula' \
+        "$template" \
+        "Homebrew formula template no longer states rendered formula is temporary"
+    require_grep \
+        'Homebrew/core, bottles, Linuxbrew' \
+        "$notes" \
+        "Homebrew provider notes no longer reject broader Homebrew claims"
+    require_grep \
+        'local Homebrew formula proof only' \
+        "$proof" \
+        "Homebrew proof script no longer states local-only scope"
+    require_grep \
+        'no standalone LICENSE, COPYING, or NOTICE' \
+        "$proof" \
+        "Homebrew proof script no longer has the missing-license stop condition"
+
+    generated="$(
+        find "$ROOT_DIR/packaging/homebrew" \
+            \( -name '*.tar.gz' \
+            -o -name '*.tgz' \
+            -o -name '*.zip' \
+            -o -name '*.log' \
+            -o -name '*.bottle.*' \
+            -o -path '*/Formula/*' \) -print
+    )"
+    if [ -n "$generated" ]; then
+        echo "$generated" >&2
+        fail "generated Homebrew proof output appeared in source-controlled packaging path"
+    fi
+
+    set +e
+    output="$("$proof" 2>&1)"
+    status=$?
+    set -e
+
+    case "$status" in
+        0)
+            require_grep \
+                'local Homebrew formula proof' \
+                "$proof" \
+                "Homebrew proof script lost local proof scope after success path"
+            ;;
+        2)
+            if ! printf '%s\n' "$output" | grep -Fq 'local Homebrew proof remains unclaimed'; then
+                printf '%s\n' "$output" >&2
+                fail "Homebrew proof unavailable path no longer keeps support unclaimed"
+            fi
+            ;;
+        *)
+            printf '%s\n' "$output" >&2
+            fail "Homebrew local proof script exited with unexpected status $status"
+            ;;
+    esac
+
+    pass "selected Homebrew local proof boundary"
+}
+
 check_package_metadata_neutrality() {
     require_absent_grep \
         'vcpkg|Homebrew|Conan|pkgsrc|apt|dnf|pacman|registry-ready|binary package|package-manager support' \
@@ -140,6 +211,10 @@ check_public_nonclaims() {
         "$ROOT_DIR/README.md" \
         "README no longer keeps package-manager support scoped as a non-claim"
     require_grep \
+        'local Homebrew formula proof' \
+        "$ROOT_DIR/README.md" \
+        "README no longer records current local Homebrew proof status"
+    require_grep \
         'package-manager distribution' \
         "$ROOT_DIR/README.md" \
         "README no longer separates package-manager distribution from source install evidence"
@@ -148,6 +223,10 @@ check_public_nonclaims() {
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer has the package-manager deferral support-split entry"
     require_grep \
+        'Homebrew local formula proof artifacts exist' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer records the current Homebrew local proof blocker"
+    require_grep \
         'distribution, static/shared selectors' \
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer keeps package-manager distribution out of scope"
@@ -155,6 +234,10 @@ check_public_nonclaims() {
         'package-manager support' \
         "$ROOT_DIR/docs/maintainer_guide.md" \
         "maintainer guide no longer keeps package-manager support scoped as a non-claim"
+    require_grep \
+        'scripts/homebrew_local_formula_proof\.sh' \
+        "$ROOT_DIR/docs/maintainer_guide.md" \
+        "maintainer guide no longer documents the Homebrew local proof script"
     require_grep \
         'do not infer shared-library support, ABI stability, package-manager support' \
         "$ROOT_DIR/docs/maintainer_guide.md" \
@@ -165,6 +248,7 @@ check_public_nonclaims() {
 
 check_deferral_record
 check_provider_recipe_absence
+check_selected_homebrew_local_proof
 check_package_metadata_neutrality
 check_public_nonclaims
 

@@ -268,9 +268,17 @@ Focused install/package regression ownership:
   `sparse.pc` metadata, exact shared deferral blocker wording, absence of
   unsupported shared ABI metadata/selectors, and deferred support wording
 - `scripts/package_manager_deferral_check.sh` is the local package-manager
-  deferral guard that checks the Sprint 171 deferral record, provider recipe
-  absence, provider-neutral package metadata templates, and public
-  package-manager non-claim wording
+  provider claim guard that checks the Sprint 171 deferral record, rejects
+  unselected provider artifacts, allows only the selected Sprint 180 Homebrew
+  local proof artifacts, checks provider-neutral package metadata templates,
+  runs the selected local proof script, and checks public package-manager
+  non-claim wording
+- `scripts/homebrew_local_formula_proof.sh` is the selected Sprint 180
+  Homebrew local formula proof command. It currently exits claim-safely before
+  install because no standalone `LICENSE`, `COPYING`, or `NOTICE` file exists
+  for provider metadata. Do not cite it as Homebrew support, Homebrew/core
+  readiness, bottle support, Linuxbrew support, or broad package-manager
+  support.
 - Run `bash scripts/package_manager_deferral_check.sh` when changing
   package-manager wording, adding provider recipe files, editing package
   metadata templates, or modifying provider support claims

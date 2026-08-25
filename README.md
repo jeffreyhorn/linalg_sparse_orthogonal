@@ -332,6 +332,13 @@ make uninstall  # remove installed files
 make clean      # remove build artifacts
 ```
 
+For API documentation, the supported source-controlled entry point is
+`docs/api_reference.md` backed by public headers under `include/`. Sprint 179
+keeps generated Doxygen HTML as a local-only convenience view: run
+`make api-docs-freshness` immediately before inspecting `docs/api/html/`.
+Generated API HTML is not hosted documentation, a retained CI artifact,
+source-controlled output, or release evidence.
+
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands and does not turn local
 benchmark, coverage, dead-code, comparison, or package metadata rows into

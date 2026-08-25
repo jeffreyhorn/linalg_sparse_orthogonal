@@ -1059,8 +1059,8 @@ stay compact and should route exact declarations back to the public headers
 under `include/`.
 
 `docs/api/html/` is generated Doxygen output from the configured input set in
-`Doxyfile`. The maintained Sprint 158 policy keeps this tree local-only and
-ignored rather than committed or hosted.
+`Doxyfile`. The maintained Sprint 179 product decision keeps this tree
+local-only and ignored rather than committed, hosted, or artifact-published.
 
 Use this command to refresh and validate the local generated API view:
 
@@ -1075,6 +1075,9 @@ Interpretation:
 - `make api-docs-freshness` runs `docs-check` plus the local-only generated
   output guard, which proves `docs/api/` remains ignored, untracked, and
   unstaged;
+- the generated API support tier is `local_only`; the supported
+  source-controlled reference path is `docs/api_reference.md` plus checked-in
+  public headers under `include/`;
 - the generated HTML is current only for the branch and checkout where the
   selected freshness command just passed;
 - generated `sparse_version.h` remains an installed-header policy row derived

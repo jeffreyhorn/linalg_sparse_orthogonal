@@ -193,7 +193,9 @@ make_source_archive() {
         \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) \
         -print | sort)
 
-    tar -czf "$archive" -C "$ROOT_DIR" "${entries[@]}"
+    if ! tar -czf "$archive" -C "$ROOT_DIR" "${entries[@]}"; then
+        fail "could not create local Homebrew proof source archive: $archive"
+    fi
 }
 
 check_installed_static_surface() {

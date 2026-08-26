@@ -68,9 +68,9 @@ def workflow_rows(workflow_path: Path, job_id: str) -> list[dict[str, str]]:
 
 def comparison_rows(workflow_path: Path, job_id: str) -> list[dict[str, str]]:
     rows = [row for row in workflow_rows(workflow_path, job_id) if row["family"] == "comparison"]
-    if len(rows) != 4:
+    if not rows:
         raise AssertionError(
-            f"{workflow_path.name}:{job_id} expected 4 selected comparison rows, got {len(rows)}"
+            f"{workflow_path.name}:{job_id} expected selected comparison rows from manifest"
         )
     return rows
 

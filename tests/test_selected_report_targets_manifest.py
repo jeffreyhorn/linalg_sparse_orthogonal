@@ -146,6 +146,19 @@ def test_missing_hosted_workflow_metadata_fails_clearly() -> None:
     )
 
 
+def test_mismatched_workflow_artifact_platforms_fail_clearly() -> None:
+    rows = manifest_rows()
+    rows[1]["workflow_artifact"] = "linux-upload;macos-upload"
+    rows[1]["workflow_platforms"] = "linux"
+    assert_invalid_with_all(
+        rows,
+        [
+            "target_id=SRT-COMP-QR-MINNORM",
+            "workflow_artifact must contain either one shared artifact name",
+        ],
+    )
+
+
 def test_missing_report_family_mapping_fails_clearly() -> None:
     rows = manifest_rows()
     rows[0]["subfamily"] = "unregistered_selected_target"
@@ -188,6 +201,7 @@ def main() -> int:
     test_missing_expected_row_ids_fails_clearly()
     test_missing_generated_required_files_fails_clearly()
     test_missing_hosted_workflow_metadata_fails_clearly()
+    test_mismatched_workflow_artifact_platforms_fail_clearly()
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()

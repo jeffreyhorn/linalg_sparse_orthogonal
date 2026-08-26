@@ -701,6 +701,12 @@ def validate_selected_report_targets(
                     "hosted selected targets require workflow_file, "
                     "workflow_job, workflow_artifact, and workflow_platforms"
                 )
+            if len(workflow_artifacts) not in {1, len(workflow_platforms)}:
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: workflow_artifact "
+                    "must contain either one shared artifact name or one artifact "
+                    "per workflow_platforms entry"
+                )
 
         artifact_key = (
             row["family"],

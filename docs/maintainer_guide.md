@@ -519,7 +519,11 @@ Interpretation:
 ### Selected Oracle Freshness Gate
 
 Use the selected oracle freshness gate when you need the maintained
-Sprint 152 QR + partial-SVD generated report family to be current:
+QR + partial-SVD generated report family to be current. The selected target
+authority is `tests/corpus/manifests/selected_report_targets.tsv`, specifically
+`SRT-ORACLE-QR-PSVD-LOCAL`; update that row when the selected fixture set,
+expected rows, required artifacts, workflow artifact, support tier, freshness
+policy, claim scope, non-claims, or owner changes.
 
 ```sh
 make report-index-oracle-freshness
@@ -530,20 +534,21 @@ The target builds the static library if needed, runs
 and then runs
 `python3 scripts/normalize_report_index.py --family oracle --require-generated oracle --check-freshness`.
 
-Expected selected oracle output:
+Expected selected oracle output paths are derived from the manifest-owned
+artifact contract and current generator:
 
 - `build/corpus/oracle/corpus.oracle.tsv`
 - `build/corpus-reports/index.tsv`
 - `build/corpus-reports/skips.tsv`
 - `build/corpus-reports/manifest.txt`
 
-The required gate expects `52` generated oracle rows: `3`
-generated-reference rows, `23` `solver_family=qr` rows, and `26`
-`solver_family=partial_svd` rows. It also expects the selected QR and
-partial-SVD fixture-key set to be present. It fails missing, stale, failing,
+The required gate reads its total expected row count and selected fixture-key
+set from the selected-target manifest. It fails missing, stale, failing,
 partial, missing-solver-family, or missing-fixture-key selected oracle output
 with diagnostics that name the artifact or manifest path and the regeneration
-command.
+command. Per-solver-family bucket checks remain normalizer-owned compatibility
+guards because the selected-target manifest owns the total count and fixture
+keys rather than bucketed solver-family counts.
 
 Generated oracle/report artifacts stay under ignored `build/` paths. Do not
 commit them as Sprint 152 proof. Sprint 159 mirrors this selected gate in the
@@ -558,54 +563,24 @@ state-of-the-art evidence.
 ### Selected Comparison Freshness Gate
 
 Use the selected comparison freshness gate when you need the selected QR,
-partial-SVD, and LU comparison report families to be current:
+partial-SVD, and LU comparison report families to be current. The selected
+target authority is `tests/corpus/manifests/selected_report_targets.tsv`;
+update the `SRT-COMP-*` rows when selected targets, expected rows, expected row
+IDs, commands, artifacts, required files, workflow artifacts, support tiers,
+freshness policies, claim scopes, non-claims, or owners change.
 
 ```sh
 make report-index-comparison-freshness
 ```
 
-The target builds the static library if needed, runs
-`python3 scripts/run_external_comparison.py --target qr-minnorm`, runs
-`python3 scripts/run_external_comparison.py --target qr-compatible-ls`, runs
-`python3 scripts/run_external_comparison.py --target partial-svd-diag6-k2`,
-runs `python3 scripts/run_external_comparison.py --target lu-nonsym-square-5`,
-and then runs
+The target builds the static library if needed, runs the manifest-selected
+comparison generators, and then runs
 `python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness`.
 
-Expected selected comparison output:
-
-- `build/comparison/qr_minnorm/project_observations.tsv`
-- `build/comparison/qr_minnorm/baseline_observations.tsv`
-- `build/comparison/qr_minnorm/dependency_status.tsv`
-- `build/comparison/qr_minnorm/study.tsv`
-- `build/comparison/qr_minnorm/summary.md`
-- `build/comparison/qr_minnorm/manifest.tsv`
-- `build/comparison/qr_compatible_ls/project_observations.tsv`
-- `build/comparison/qr_compatible_ls/baseline_observations.tsv`
-- `build/comparison/qr_compatible_ls/dependency_status.tsv`
-- `build/comparison/qr_compatible_ls/study.tsv`
-- `build/comparison/qr_compatible_ls/summary.md`
-- `build/comparison/qr_compatible_ls/manifest.tsv`
-- `build/comparison/partial_svd_diag6_k2/project_observations.tsv`
-- `build/comparison/partial_svd_diag6_k2/baseline_observations.tsv`
-- `build/comparison/partial_svd_diag6_k2/dependency_status.tsv`
-- `build/comparison/partial_svd_diag6_k2/study.tsv`
-- `build/comparison/partial_svd_diag6_k2/summary.md`
-- `build/comparison/partial_svd_diag6_k2/manifest.tsv`
-- `build/comparison/lu_nonsym_square_5/project_observations.tsv`
-- `build/comparison/lu_nonsym_square_5/baseline_observations.tsv`
-- `build/comparison/lu_nonsym_square_5/dependency_status.tsv`
-- `build/comparison/lu_nonsym_square_5/study.tsv`
-- `build/comparison/lu_nonsym_square_5/summary.md`
-- `build/comparison/lu_nonsym_square_5/manifest.tsv`
-
-The required comparison freshness gate expects four source-controlled
-contract rows plus 28 generated selected rows:
-
-- `6` rows for `qr_underdetermined_minnorm_2x4`;
-- `6` rows for `qr_overdetermined_compatible_5x3`;
-- `10` rows for `partial_svd_diag6_k2`;
-- `6` rows for `lu_nonsym_square_5`.
+Expected selected comparison output paths, selected row IDs, and expected row
+counts are the `artifact_pattern`, `required_files`, `expected_row_ids`, and
+`expected_rows` fields in the selected-target manifest. Do not add a second
+authoritative target list to this guide.
 
 The selected comparison gate is mirrored by reviewed Linux and macOS hosted
 report-freshness lanes. Those hosted lanes upload selected generated
@@ -1677,8 +1652,9 @@ freshness and unselected generated families remain local/advisory.
 For selected QR, partial-SVD, and LU comparison freshness, prefer
 `make report-index-comparison-freshness` over hand-running the underlying
 commands. The Makefile target regenerates current local comparison output for
-all selected targets and runs the required comparison freshness gate. Generated
-comparison and report-index outputs remain ignored local artifacts by default.
+the targets named in `tests/corpus/manifests/selected_report_targets.tsv` and
+runs the required comparison freshness gate. Generated comparison and
+report-index outputs remain ignored local artifacts by default.
 The reviewed Linux and macOS hosted report-freshness lanes promote only this
 selected comparison gate and their uploaded selected artifacts; they do not
 promote selected oracle freshness on macOS, Windows report freshness, broad
@@ -1688,8 +1664,13 @@ status. Optional NumPy/SciPy defers remain context, not pass evidence.
 
 For selected canonical performance freshness, prefer
 `make bench-canonical-report-freshness` over hand-running the report script.
-The Makefile target regenerates the canonical bundle and runs the selected
-freshness checker for only `bench_refactor_csc` on `nos4.mtx --repeat 1`.
+The selected target authority is `SRT-BENCH-REFACTOR-CSC-NOS4` in
+`tests/corpus/manifests/selected_report_targets.tsv`. The Makefile target
+regenerates the canonical bundle and runs the selected freshness checker for
+that manifest-selected row only. Benchmark-specific workload and methodology
+fields remain owned by `scripts/check_bench_canonical_freshness.py` until the
+manifest schema grows typed columns for them.
+
 Generated benchmark outputs remain ignored local artifacts by default. The
 reviewed Linux hosted selected-performance lane promotes only the selected row
 freshness and uploaded canonical bundle metadata; it does not promote raw

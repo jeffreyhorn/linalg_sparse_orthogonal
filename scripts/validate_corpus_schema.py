@@ -87,6 +87,29 @@ REPORT_FAMILY_REQUIRED = {
     "owner",
     "introduced_in",
 }
+SELECTED_REPORT_TARGET_REQUIRED = {
+    "target_id",
+    "family",
+    "subfamily",
+    "target_key",
+    "row_meaning",
+    "selection_scope",
+    "support_tier",
+    "freshness_policy",
+    "generator_command",
+    "artifact_pattern",
+    "required_files",
+    "expected_rows",
+    "expected_row_ids",
+    "workflow_file",
+    "workflow_job",
+    "workflow_artifact",
+    "workflow_platforms",
+    "claim_scope",
+    "non_claims",
+    "owner",
+    "introduced_in",
+}
 EXPECTED_REQUIRED = {
     "oracle_row_id",
     "fixture_key",
@@ -194,6 +217,14 @@ REPORT_FRESHNESS_POLICIES = {
     "optional_data_skip",
     "deferred_governance",
 }
+SELECTED_REPORT_SELECTION_SCOPES = {
+    "local_selected",
+    "hosted_selected",
+    "reviewed_cross_platform_selected",
+    "documentation_selected",
+}
+SELECTED_REPORT_SUPPORT_TIERS = SUPPORT_TIERS | {"hosted_selected"}
+SELECTED_REPORT_FRESHNESS_POLICIES = REPORT_FRESHNESS_POLICIES
 CANONICAL_FORMAT = "coo_zero_based_row_col_value_f64_text_v1"
 STRUCTURE_FORMAT = "coo_zero_based_row_col_text_v1"
 
@@ -462,6 +493,21 @@ def assert_enum(path: Path, line: int, field: str, value: str, allowed: set[str]
         )
 
 
+def assert_selected_enum(
+    path: Path,
+    line: int,
+    target_id: str,
+    field: str,
+    value: str,
+    allowed: set[str],
+) -> None:
+    if value not in allowed:
+        raise CorpusValidationError(
+            f"{path}:{line}: target_id={target_id}: invalid {field}={value!r}; "
+            f"expected one of {sorted(allowed)}"
+        )
+
+
 def is_lower_snake(value: str) -> bool:
     if not value:
         return False
@@ -522,6 +568,171 @@ def validate_known_generator(path: Path, line: int, row: dict[str, str]) -> None
             )
 
 
+def split_values(value: str) -> list[str]:
+    if value == "none":
+        return []
+    return [part for part in value.split(";") if part]
+
+
+def validate_selected_report_targets(
+    path: Path,
+    rows: list[dict[str, str]],
+    report_family_rows: list[dict[str, str]],
+) -> None:
+    report_family_pairs = {
+        (row["report_family"], row["subfamily"]) for row in report_family_rows
+    }
+    target_ids: dict[str, int] = {}
+    target_keys: dict[tuple[str, str, str], int] = {}
+    artifact_commands: dict[tuple[str, str, str, str], tuple[int, str]] = {}
+    hosted_uploads: dict[tuple[str, str, str], tuple[int, str]] = {}
+
+    for line, row in enumerate(rows, start=2):
+        target_id = row["target_id"]
+        if target_id in target_ids:
+            raise CorpusValidationError(
+                f"{path}:{line}: duplicate target_id {target_id!r}; "
+                f"first seen on line {target_ids[target_id]}"
+            )
+        target_ids[target_id] = line
+
+        key = (row["family"], row["subfamily"], row["target_key"])
+        if key in target_keys:
+            raise CorpusValidationError(
+                f"{path}:{line}: duplicate family/subfamily/target_key {key!r}; "
+                f"first seen on line {target_keys[key]}"
+            )
+        target_keys[key] = line
+
+        if (row["family"], row["subfamily"]) not in report_family_pairs:
+            raise CorpusValidationError(
+                f"{path}:{line}: family/subfamily "
+                f"{(row['family'], row['subfamily'])!r} not found in report_families.tsv"
+            )
+
+        assert_selected_enum(
+            path,
+            line,
+            target_id,
+            "selection_scope",
+            row["selection_scope"],
+            SELECTED_REPORT_SELECTION_SCOPES,
+        )
+        assert_selected_enum(
+            path,
+            line,
+            target_id,
+            "support_tier",
+            row["support_tier"],
+            SELECTED_REPORT_SUPPORT_TIERS,
+        )
+        assert_selected_enum(
+            path,
+            line,
+            target_id,
+            "freshness_policy",
+            row["freshness_policy"],
+            SELECTED_REPORT_FRESHNESS_POLICIES,
+        )
+
+        if row["artifact_pattern"] == "none":
+            raise CorpusValidationError(
+                f"{path}:{line}: target_id={target_id}: selected targets require artifact_pattern"
+            )
+        artifact_path = Path(row["artifact_pattern"])
+        if artifact_path.is_absolute() or ".." in artifact_path.parts:
+            raise CorpusValidationError(
+                f"{path}:{line}: target_id={target_id}: artifact_pattern must be "
+                "a repo-relative path without parent traversal"
+            )
+
+        expected_rows = row["expected_rows"]
+        if expected_rows != "none":
+            try:
+                parsed_expected_rows = int(expected_rows)
+            except ValueError as exc:
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "expected_rows must be a positive integer or 'none'"
+                ) from exc
+            if parsed_expected_rows <= 0:
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "expected_rows must be a positive integer or 'none'"
+                )
+            if row["expected_row_ids"] == "none":
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "countable selected targets require expected_row_ids"
+                )
+
+        generated = row["freshness_policy"] in {
+            "generated_compare_inputs",
+            "generated_local_advisory",
+        }
+        if generated:
+            if row["generator_command"] == "none":
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "generated selected targets require generator_command"
+                )
+            if row["required_files"] == "none":
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "generated selected targets require required_files"
+                )
+
+        workflow_files = split_values(row["workflow_file"])
+        workflow_jobs = split_values(row["workflow_job"])
+        workflow_artifacts = split_values(row["workflow_artifact"])
+        workflow_platforms = split_values(row["workflow_platforms"])
+        has_hosted_metadata = any(
+            [workflow_files, workflow_jobs, workflow_artifacts, workflow_platforms]
+        )
+        if row["selection_scope"] in {
+            "hosted_selected",
+            "reviewed_cross_platform_selected",
+        } or has_hosted_metadata:
+            if not (
+                workflow_files and workflow_jobs and workflow_artifacts and workflow_platforms
+            ):
+                raise CorpusValidationError(
+                    f"{path}:{line}: target_id={target_id}: "
+                    "hosted selected targets require workflow_file, "
+                    "workflow_job, workflow_artifact, and workflow_platforms"
+                )
+
+        artifact_key = (
+            row["family"],
+            row["subfamily"],
+            row["artifact_pattern"],
+            row["generator_command"],
+        )
+        existing_artifact = artifact_commands.get(artifact_key)
+        if existing_artifact and existing_artifact[1] != row["expected_rows"]:
+            raise CorpusValidationError(
+                f"{path}:{line}: duplicate artifact/generator key {artifact_key!r} "
+                f"has expected_rows={row['expected_rows']!r}; first seen on line "
+                f"{existing_artifact[0]} with expected_rows={existing_artifact[1]!r}"
+            )
+        artifact_commands[artifact_key] = (line, row["expected_rows"])
+
+        if workflow_files and workflow_jobs and workflow_artifacts:
+            for workflow_file in workflow_files:
+                for workflow_job in workflow_jobs:
+                    for workflow_artifact in workflow_artifacts:
+                        upload_key = (workflow_file, workflow_job, workflow_artifact)
+                        existing_upload = hosted_uploads.get(upload_key)
+                        if existing_upload and existing_upload[1] != row["family"]:
+                            raise CorpusValidationError(
+                                f"{path}:{line}: duplicate hosted workflow artifact "
+                                f"{upload_key!r} spans families {existing_upload[1]!r} "
+                                f"and {row['family']!r}; first seen on line "
+                                f"{existing_upload[0]}"
+                            )
+                        hosted_uploads[upload_key] = (line, row["family"])
+
+
 def validate(root: Path) -> None:
     manifests = root / "manifests"
     expected = root / "expected"
@@ -529,11 +740,13 @@ def validate(root: Path) -> None:
     generators_path = manifests / "generators.tsv"
     optional_path = manifests / "optional_data.tsv"
     report_families_path = manifests / "report_families.tsv"
+    selected_report_targets_path = manifests / "selected_report_targets.tsv"
 
     fixture_rows = read_tsv(fixtures_path)
     generator_rows = read_tsv(generators_path)
     optional_rows = read_tsv(optional_path)
     report_family_rows = read_tsv(report_families_path)
+    selected_report_target_rows = read_tsv(selected_report_targets_path)
     require_fields(
         fixtures_path,
         fixture_rows,
@@ -548,6 +761,11 @@ def validate(root: Path) -> None:
         allow_empty={"skip_reason", "defer_reason"},
     )
     require_fields(report_families_path, report_family_rows, REPORT_FAMILY_REQUIRED)
+    require_fields(
+        selected_report_targets_path,
+        selected_report_target_rows,
+        SELECTED_REPORT_TARGET_REQUIRED,
+    )
 
     fixture_keys = {row["fixture_key"] for row in fixture_rows}
     generator_keys = {row["generator_key"] for row in generator_rows}
@@ -703,6 +921,12 @@ def validate(root: Path) -> None:
             raise CorpusValidationError(
                 f"{report_families_path}:{line}: non_claims must preserve boundaries"
             )
+
+    validate_selected_report_targets(
+        selected_report_targets_path,
+        selected_report_target_rows,
+        report_family_rows,
+    )
 
     for path in sorted(expected.glob("*.tsv")):
         expected_rows = read_tsv(path)

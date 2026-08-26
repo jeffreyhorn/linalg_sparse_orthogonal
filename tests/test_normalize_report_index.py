@@ -6,6 +6,7 @@ from __future__ import annotations
 import csv
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -15,6 +16,10 @@ SCRIPT = REPO_ROOT / "scripts" / "normalize_report_index.py"
 ORACLE_SCRIPT = REPO_ROOT / "scripts" / "run_corpus_oracle.py"
 CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
 REPORT_FAMILIES = CORPUS_ROOT / "manifests" / "report_families.tsv"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+import normalize_report_index as normalize_index  # noqa: E402
+
 SPRINT151_PARTIAL_SVD_ROW_COUNTS = {
     "partial_svd_rankdef_diag6x4_k2_range_projector_v1": 7,
     "partial_svd_lowrank_rect5x7_k3_sparse_output_v1": 6,
@@ -73,6 +78,12 @@ SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "build/comparison/qr_compatible_ls/study.tsv,"
     "build/comparison/partial_svd_diag6_k2/study.tsv,"
     "build/comparison/lu_nonsym_square_5/study.tsv"
+)
+SELECTED_COMPARISON_ARTIFACTS = (
+    "build/comparison/qr_minnorm/study.tsv",
+    "build/comparison/qr_compatible_ls/study.tsv",
+    "build/comparison/partial_svd_diag6_k2/study.tsv",
+    "build/comparison/lu_nonsym_square_5/study.tsv",
 )
 ORACLE_FIELDS = [
     "oracle_row_id",
@@ -1068,6 +1079,31 @@ def write_selected_comparison_rows(
             writer.writerows(rows)
 
 
+def test_selected_target_manifest_matches_legacy_normalizer_expectations() -> None:
+    selected_targets = normalize_index.selected_report_targets(CORPUS_ROOT)
+
+    assert normalize_index.selected_oracle_expected_rows(selected_targets) == 52
+    assert (
+        normalize_index.selected_oracle_fixture_keys(selected_targets)
+        == SELECTED_ORACLE_FIXTURE_KEYS
+    )
+    assert (
+        normalize_index.selected_comparison_row_ids(selected_targets)
+        == set(SELECTED_COMPARISON_ROW_IDS)
+    )
+    assert normalize_index.selected_comparison_expected_rows(selected_targets) == len(
+        SELECTED_COMPARISON_ROW_IDS
+    )
+    assert (
+        normalize_index.selected_comparison_artifacts(selected_targets)
+        == SELECTED_COMPARISON_ARTIFACTS
+    )
+    assert (
+        normalize_index.selected_comparison_artifact_diagnostic(selected_targets)
+        == SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC
+    )
+
+
 def test_generated_oracle_rows_are_preserved() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -1763,6 +1799,7 @@ def main() -> int:
     test_quality_and_package_rows_preserve_scope()
     test_freshness_missing_generated_and_deferred_rows()
     test_freshness_stale_and_advisory_runtime_rows()
+    test_selected_target_manifest_matches_legacy_normalizer_expectations()
     test_generated_oracle_rows_are_preserved()
     test_sprint151_partial_svd_oracle_freshness_strictness()
     test_selected_oracle_required_freshness_requires_complete_family_set()

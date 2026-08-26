@@ -12,7 +12,6 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEMPLATE="$ROOT_DIR/packaging/homebrew/sparse-lu-ortho.rb.in"
 VERSION_FILE="$ROOT_DIR/VERSION"
 FORMULA_NAME="sparse-lu-ortho-local"
-FORMULA_CLASS="SparseLuOrthoLocal"
 KEEP_TEMP=0
 TMPROOT=""
 UNINSTALL_ON_EXIT=0

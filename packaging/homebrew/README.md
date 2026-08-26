@@ -8,8 +8,8 @@ The source-controlled template is:
 
 - `sparse-lu-ortho.rb.in`
 
-The template is not installed directly. The future proof script renders it into
-a temporary local formula by injecting:
+The template is not installed directly. The proof script renders it into a
+temporary local formula by injecting:
 
 - the current checkout version from `VERSION`;
 - a temporary `file://` source archive URL;

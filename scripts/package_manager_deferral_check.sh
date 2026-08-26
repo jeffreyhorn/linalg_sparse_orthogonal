@@ -157,6 +157,7 @@ check_selected_homebrew_local_proof() {
             -o -name '*.tgz' \
             -o -name '*.zip' \
             -o -name '*.log' \
+            -o -name '*.rb' \
             -o -name '*.bottle.*' \
             -o -path '*/Formula/*' \) -print
     )"

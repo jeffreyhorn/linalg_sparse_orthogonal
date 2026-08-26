@@ -345,14 +345,15 @@ benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof. The reviewed Linux hosted report-freshness lane runs only the
 selected oracle gate and the selected comparison gate above. The reviewed macOS
 hosted report-freshness lane runs only the selected comparison gate above. The
-comparison gate is limited to QR minimum-norm, QR compatible least-squares,
-partial-SVD diag6 k2, and linked-list LU nonsymmetric square-solve generated
-rows and artifacts; it does not promote broad report-index freshness, selected
-oracle freshness on macOS, Windows report freshness, or any unselected
-local-only family.
+selected target list, expected row counts, required artifacts, workflow upload
+names, support tiers, freshness policies, claim scopes, and non-claims live in
+`tests/corpus/manifests/selected_report_targets.tsv`; update that manifest
+rather than copying target lists through docs. The comparison gate does not
+promote broad report-index freshness, selected oracle freshness on macOS,
+Windows report freshness, or any unselected local-only family.
 
 The reviewed Linux hosted selected-performance lane runs only the selected
-`bench_refactor_csc` canonical row for `nos4.mtx --repeat 1` through
+canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
 `make bench-canonical-report` and
 `scripts/check_bench_canonical_freshness.py --mode hosted`. It checks artifact
 presence, selected row identity, methodology metadata, manifest agreement, and
@@ -749,20 +750,17 @@ oracle/report freshness gate is `make report-index-oracle-freshness`. That
 selected oracle gate and the split oracle artifacts are also run in the
 reviewed Linux hosted report-freshness lane. The selected comparison freshness
 gate is
-`make report-index-comparison-freshness`, which checks selected fixture-local
-QR minimum-norm and compatible least-squares comparisons, the selected
-fixture-local partial-SVD diagonal top-k comparison for `partial_svd_diag6_k2`,
-and the selected fixture-local linked-list LU square-solve comparison for
-`lu_nonsym_square_5` against the selected source-controlled dense reference
-helpers. The same gate is mirrored by reviewed Linux and macOS hosted
-report-freshness lanes for selected comparison artifacts only. These gates do
-not prove raw QR basis parity, raw singular-vector identity, broad LU or
-nonsymmetric solve correctness, LU CSR parity, broad
-rank-threshold policy, broad rank-deficient solve, broad minimum-norm
-behavior, broad SVD or partial-SVD correctness, SuiteSparse, LAPACK, NumPy,
-SciPy, Windows report freshness, broad platform parity, performance,
-package/ABI, release, or
-state-of-the-art evidence.
+`make report-index-comparison-freshness`, which checks the selected
+fixture-local comparison targets named in
+`tests/corpus/manifests/selected_report_targets.tsv` against the selected
+source-controlled dense reference helpers. The same gate is mirrored by
+reviewed Linux and macOS hosted report-freshness lanes for selected comparison
+artifacts only. These gates do not prove raw QR basis parity, raw
+singular-vector identity, broad LU or nonsymmetric solve correctness, LU CSR
+parity, broad rank-threshold policy, broad rank-deficient solve, broad
+minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,
+LAPACK, NumPy, SciPy, Windows report freshness, broad platform parity,
+performance, package/ABI, release, or state-of-the-art evidence.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

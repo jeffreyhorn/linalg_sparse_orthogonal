@@ -7,14 +7,38 @@ import csv
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+import check_bench_canonical_freshness as checker  # noqa: E402
+from normalize_report_index import (  # noqa: E402
+    expected_int,
+    selected_report_targets,
+    split_manifest_values,
+)
+
+
 CHECKER = REPO_ROOT / "scripts" / "check_bench_canonical_freshness.py"
 REPORT_DIR = REPO_ROOT / "build" / "bench-reports" / "canonical"
-SELECTED_ARTIFACT = "bench_refactor_csc"
+SELECTED_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
+
+
+def selected_benchmark_target() -> dict[str, str]:
+    rows = selected_report_targets(REPO_ROOT / "tests" / "corpus")
+    selected = [row for row in rows if row["target_id"] == SELECTED_TARGET_ID]
+    if len(selected) != 1:
+        raise AssertionError(
+            f"expected exactly one {SELECTED_TARGET_ID} row, found {len(selected)}"
+        )
+    return selected[0]
+
+
+SELECTED_ARTIFACT = checker.selected_benchmark_artifact(selected_benchmark_target())
 
 
 def run_command(
@@ -162,6 +186,22 @@ def test_positive_local_report() -> None:
         assert "bench-canonical-freshness: passed" in output
 
 
+def test_selected_benchmark_manifest_matches_checker_contract() -> None:
+    target = selected_benchmark_target()
+    assert target["family"] == "benchmark"
+    assert target["subfamily"] == "canonical"
+    assert target["target_key"] == SELECTED_ARTIFACT
+    assert target["support_tier"] == checker.HOSTED_SUPPORT_TIER
+    assert target["freshness_policy"] == "generated_local_advisory"
+    assert target["generator_command"] == "make bench-canonical-report-freshness"
+    assert checker.selected_benchmark_relative_path(target) == "bench_refactor_csc.csv"
+    assert tuple(split_manifest_values(target["required_files"])) == checker.required_artifacts(
+        target
+    )
+    assert target["workflow_artifact"] == "sprint168-selected-performance-freshness"
+    assert expected_int(target, "expected_rows") == 1
+
+
 def test_selected_matrix_size_is_required() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -232,6 +272,7 @@ def test_positive_hosted_report_keeps_unselected_rows_local() -> None:
 def main() -> None:
     tests = [
         test_positive_local_report,
+        test_selected_benchmark_manifest_matches_checker_contract,
         test_selected_matrix_size_is_required,
         test_selected_warmup_is_required,
         test_selected_variance_is_required,

@@ -15,22 +15,24 @@ import re
 import sys
 from pathlib import Path
 
+from normalize_report_index import (  # noqa: E402
+    ReportIndexError,
+    selected_report_targets,
+    split_manifest_values,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT_DIR = REPO_ROOT / "build" / "bench-reports" / "canonical"
+DEFAULT_CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
 REMEDIATION = "run make bench-canonical-report-freshness"
-SELECTED_ARTIFACT = "bench_refactor_csc"
-SELECTED_RELATIVE_PATH = "bench_refactor_csc.csv"
+SELECTED_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
+SELECTED_TARGET_VALIDATION_COMMAND = "python3 scripts/validate_corpus_schema.py"
 SELECTED_COMMAND = "tests/data/suitesparse/nos4.mtx --repeat 1"
 SELECTED_FIXTURE = "nos4.mtx"
 SELECTED_REPEAT = "configured_repeat_1"
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
-REQUIRED_ARTIFACTS = (
-    SELECTED_RELATIVE_PATH,
-    "index.tsv",
-    "manifest.txt",
-)
 REQUIRED_COLUMNS = (
     "surface",
     "category",
@@ -95,10 +97,7 @@ REQUIRED_NONEMPTY_FIELDS = (
 SELECTED_VALUES = {
     "surface": "canonical",
     "category": "measurement",
-    "artifact": SELECTED_ARTIFACT,
-    "relative_path": SELECTED_RELATIVE_PATH,
     "command": SELECTED_COMMAND,
-    "report_family": "benchmark",
     "status": "measurement",
     "fixture_or_workload": SELECTED_FIXTURE,
     "matrix_size": "n=100",
@@ -206,13 +205,86 @@ def read_manifest(path: Path) -> dict[str, str]:
     return values
 
 
-def require_artifacts(report_dir: Path) -> None:
+def selected_benchmark_contract(
+    corpus_root: Path = DEFAULT_CORPUS_ROOT,
+) -> dict[str, str]:
+    try:
+        rows = selected_report_targets(corpus_root)
+    except (OSError, ReportIndexError) as exc:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"target_id={SELECTED_TARGET_ID} detail={exc}; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+
+    selected = [row for row in rows if row.get("target_id") == SELECTED_TARGET_ID]
+    if len(selected) != 1:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"expected target_id={SELECTED_TARGET_ID} observed_count={len(selected)}; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    return selected[0]
+
+
+def selected_benchmark_artifact(target: dict[str, str]) -> str:
+    row_ids = split_manifest_values(target["expected_row_ids"])
+    if len(row_ids) != 1:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"target_id={SELECTED_TARGET_ID} expected one expected_row_id "
+            f"observed={len(row_ids)}; run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    artifact = row_ids[0]
+    if target["target_key"] != artifact:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"target_id={SELECTED_TARGET_ID} target_key={target['target_key']} "
+            f"expected_row_id={artifact}; run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    return artifact
+
+
+def selected_benchmark_relative_path(target: dict[str, str]) -> str:
+    relative_path = Path(target["artifact_pattern"]).name
+    required = split_manifest_values(target["required_files"])
+    if not relative_path or relative_path not in required:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"target_id={SELECTED_TARGET_ID} artifact_pattern={target['artifact_pattern']} "
+            f"required_files={target['required_files']}; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    return relative_path
+
+
+def selected_benchmark_values(target: dict[str, str]) -> dict[str, str]:
+    return {
+        **SELECTED_VALUES,
+        "artifact": selected_benchmark_artifact(target),
+        "relative_path": selected_benchmark_relative_path(target),
+        "report_family": target["family"],
+    }
+
+
+def required_artifacts(target: dict[str, str]) -> tuple[str, ...]:
+    artifacts = tuple(split_manifest_values(target["required_files"]))
+    if not artifacts:
+        error(
+            "freshness: error: benchmark_selected_manifest: "
+            f"target_id={SELECTED_TARGET_ID} missing required_files; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    return artifacts
+
+
+def require_artifacts(report_dir: Path, artifacts: tuple[str, ...]) -> None:
     if not report_dir.is_dir():
         error(
             "freshness: error: benchmark_selected_report_dir_missing: "
             f"expected={display_path(report_dir)}"
         )
-    for artifact in REQUIRED_ARTIFACTS:
+    for artifact in artifacts:
         path = report_dir / artifact
         if not path.is_file():
             error(
@@ -221,17 +293,17 @@ def require_artifacts(report_dir: Path) -> None:
             )
 
 
-def selected_row(rows: list[dict[str, str]]) -> dict[str, str]:
-    selected = [row for row in rows if row.get("artifact") == SELECTED_ARTIFACT]
+def selected_row(rows: list[dict[str, str]], artifact: str) -> dict[str, str]:
+    selected = [row for row in rows if row.get("artifact") == artifact]
     if not selected:
         error(
             "freshness: error: benchmark_selected_row_missing: "
-            f"artifact={SELECTED_ARTIFACT}"
+            f"artifact={artifact}"
         )
     if len(selected) != 1:
         error(
             "freshness: error: benchmark_selected_row_duplicate: "
-            f"artifact={SELECTED_ARTIFACT} observed_count={len(selected)}"
+            f"artifact={artifact} observed_count={len(selected)}"
         )
     return selected[0]
 
@@ -245,8 +317,12 @@ def check_nonempty(row: dict[str, str]) -> None:
             )
 
 
-def check_selected_values(row: dict[str, str], report_dir: Path) -> None:
-    for field, expected in SELECTED_VALUES.items():
+def check_selected_values(
+    row: dict[str, str],
+    report_dir: Path,
+    expected_values: dict[str, str],
+) -> None:
+    for field, expected in expected_values.items():
         observed = row.get(field, "")
         if observed != expected:
             error(
@@ -277,14 +353,16 @@ def check_selected_values(row: dict[str, str], report_dir: Path) -> None:
         )
 
 
-def check_claim_boundary(row: dict[str, str], mode: str) -> None:
+def check_claim_boundary(row: dict[str, str], mode: str, target: dict[str, str]) -> None:
     support_tier = row["support_tier"]
     claim_boundary = row["claim_boundary"]
     if mode == "hosted":
-        if support_tier != HOSTED_SUPPORT_TIER:
+        hosted_support_tier = target["support_tier"]
+        if support_tier != hosted_support_tier:
             error(
                 "freshness: error: benchmark_selected_claim_boundary: "
-                f"field=support_tier expected={HOSTED_SUPPORT_TIER} observed={support_tier}"
+                f"field=support_tier expected={hosted_support_tier} "
+                f"observed={support_tier}"
             )
         if claim_boundary != HOSTED_CLAIM_BOUNDARY:
             error(
@@ -322,10 +400,10 @@ def check_claim_boundary(row: dict[str, str], mode: str) -> None:
         )
 
 
-def check_unselected_rows(rows: list[dict[str, str]]) -> None:
+def check_unselected_rows(rows: list[dict[str, str]], selected_artifact: str) -> None:
     for row in rows:
         artifact = row.get("artifact", "")
-        if artifact == SELECTED_ARTIFACT:
+        if artifact == selected_artifact:
             continue
         support_tier = row.get("support_tier", "")
         claim_boundary = row.get("claim_boundary", "")
@@ -356,18 +434,20 @@ def check_manifest(row: dict[str, str], manifest: dict[str, str]) -> None:
 
 
 def check_report(report_dir: Path, mode: str) -> None:
-    require_artifacts(report_dir)
+    target = selected_benchmark_contract()
+    selected_artifact = selected_benchmark_artifact(target)
+    require_artifacts(report_dir, required_artifacts(target))
     rows = read_tsv(report_dir / "index.tsv")
-    row = selected_row(rows)
+    row = selected_row(rows, selected_artifact)
     manifest = read_manifest(report_dir / "manifest.txt")
-    check_unselected_rows(rows)
+    check_unselected_rows(rows, selected_artifact)
     check_nonempty(row)
-    check_selected_values(row, report_dir)
-    check_claim_boundary(row, mode)
+    check_selected_values(row, report_dir, selected_benchmark_values(target))
+    check_claim_boundary(row, mode, target)
     check_manifest(row, manifest)
     print(
         "bench-canonical-freshness: passed "
-        f"(mode={mode}; artifact={SELECTED_ARTIFACT}; report_dir={display_path(report_dir)})"
+        f"(mode={mode}; artifact={selected_artifact}; report_dir={display_path(report_dir)})"
     )
 
 

@@ -22,6 +22,7 @@ DEFAULT_CORPUS_ROOT = REPO_ROOT / "tests" / "corpus"
 DEFAULT_BUILD_ROOT = REPO_ROOT / "build"
 DEFAULT_OUTPUT = DEFAULT_BUILD_ROOT / "report-index" / "normalized-index.tsv"
 REPORT_FAMILY_MANIFEST = Path("manifests") / "report_families.tsv"
+SELECTED_REPORT_TARGET_MANIFEST = Path("manifests") / "selected_report_targets.tsv"
 GENERATED_PREFIXES = ("build/", "coverage/")
 ORACLE_STATUS_MAP = {
     "pass": "pass",
@@ -109,6 +110,8 @@ SELECTED_COMPARISON_ARTIFACTS = (
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = "artifacts=" + ",".join(
     SELECTED_COMPARISON_ARTIFACTS
 )
+SELECTED_ORACLE_TARGET_ID = "SRT-ORACLE-QR-PSVD-LOCAL"
+SELECTED_TARGET_VALIDATION_COMMAND = "python3 scripts/validate_corpus_schema.py"
 
 NORMALIZED_FIELDS = [
     "row_id",
@@ -153,6 +156,103 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
     if len(set(header)) != len(header):
         raise ReportIndexError(f"{path}: duplicate header fields")
     return [dict(zip(header, row)) for row in rows[1:]]
+
+
+def split_manifest_values(value: str) -> list[str]:
+    if value == "none":
+        return []
+    return [part for part in value.split(";") if part]
+
+
+def expected_int(row: dict[str, str], field: str) -> int:
+    target_id = row.get("target_id", "unknown")
+    value = row.get(field, "")
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ReportIndexError(
+            f"selected_report_targets.tsv: target_id={target_id}: "
+            f"{field} must be a positive integer"
+        ) from exc
+    if parsed <= 0:
+        raise ReportIndexError(
+            f"selected_report_targets.tsv: target_id={target_id}: "
+            f"{field} must be a positive integer"
+        )
+    return parsed
+
+
+def selected_report_targets(corpus_root: Path) -> list[dict[str, str]]:
+    return read_tsv(corpus_root / SELECTED_REPORT_TARGET_MANIFEST)
+
+
+def selected_targets_by_family(
+    selected_targets: list[dict[str, str]], family: str
+) -> list[dict[str, str]]:
+    return [row for row in selected_targets if row.get("family") == family]
+
+
+def selected_oracle_contract(selected_targets: list[dict[str, str]]) -> dict[str, str]:
+    oracle_rows = [
+        row
+        for row in selected_targets_by_family(selected_targets, "oracle")
+        if row.get("target_id") == SELECTED_ORACLE_TARGET_ID
+    ]
+    if len(oracle_rows) != 1:
+        raise ReportIndexError(
+            "selected_report_targets.tsv: expected exactly one selected oracle "
+            f"target_id={SELECTED_ORACLE_TARGET_ID}, found {len(oracle_rows)}; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    return oracle_rows[0]
+
+
+def selected_comparison_contracts(
+    selected_targets: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    rows = selected_targets_by_family(selected_targets, "comparison")
+    if not rows:
+        raise ReportIndexError(
+            "selected_report_targets.tsv: missing selected comparison targets; "
+            f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
+        )
+    target_keys: set[str] = set()
+    for row in rows:
+        target_key = row.get("target_key", "")
+        if target_key in target_keys:
+            raise ReportIndexError(
+                "selected_report_targets.tsv: duplicate selected comparison "
+                f"target_key={target_key!r}; run {SELECTED_TARGET_VALIDATION_COMMAND}"
+            )
+        target_keys.add(target_key)
+    return rows
+
+
+def selected_oracle_expected_rows(selected_targets: list[dict[str, str]]) -> int:
+    return expected_int(selected_oracle_contract(selected_targets), "expected_rows")
+
+
+def selected_oracle_fixture_keys(selected_targets: list[dict[str, str]]) -> set[str]:
+    return set(split_manifest_values(selected_oracle_contract(selected_targets)["expected_row_ids"]))
+
+
+def selected_comparison_row_ids(selected_targets: list[dict[str, str]]) -> set[str]:
+    row_ids: set[str] = set()
+    for row in selected_comparison_contracts(selected_targets):
+        row_ids.update(split_manifest_values(row["expected_row_ids"]))
+    return row_ids
+
+
+def selected_comparison_expected_rows(selected_targets: list[dict[str, str]]) -> int:
+    return sum(expected_int(row, "expected_rows") for row in selected_comparison_contracts(selected_targets))
+
+
+def selected_comparison_artifacts(selected_targets: list[dict[str, str]]) -> tuple[str, ...]:
+    return tuple(row["artifact_pattern"] for row in selected_comparison_contracts(selected_targets))
+
+
+def selected_comparison_artifact_diagnostic(selected_targets: list[dict[str, str]]) -> str:
+    return "artifacts=" + ",".join(selected_comparison_artifacts(selected_targets))
 
 
 def write_tsv(path: Path, rows: list[dict[str, str]]) -> None:
@@ -1195,6 +1295,7 @@ def selected_oracle_policy_diagnostics(
     rows: list[dict[str, str]],
     *,
     build_root: Path,
+    selected_targets: list[dict[str, str]],
     required_families: set[str],
     strict_generated: bool,
 ) -> tuple[list[str], bool]:
@@ -1205,6 +1306,10 @@ def selected_oracle_policy_diagnostics(
     if not oracle_rows:
         return [], False
 
+    oracle_contract = selected_oracle_contract(selected_targets)
+    oracle_target_id = oracle_contract["target_id"]
+    expected_total_rows = selected_oracle_expected_rows(selected_targets)
+    expected_fixture_keys = selected_oracle_fixture_keys(selected_targets)
     counts = {solver_family: 0 for solver_family in SELECTED_ORACLE_ROW_COUNTS}
     observed_solver_families: set[str] = set()
     observed_fixture_keys: set[str] = set()
@@ -1218,11 +1323,12 @@ def selected_oracle_policy_diagnostics(
 
     diagnostics: list[str] = []
     has_error = False
-    if len(oracle_rows) != SELECTED_ORACLE_TOTAL_ROWS or counts != SELECTED_ORACLE_ROW_COUNTS:
+    if len(oracle_rows) != expected_total_rows or counts != SELECTED_ORACLE_ROW_COUNTS:
         has_error = True
         diagnostics.append(
             "freshness: error: oracle_selected_row_count: row_count_mismatch: "
-            f"expected total={SELECTED_ORACLE_TOTAL_ROWS} counts={SELECTED_ORACLE_ROW_COUNTS}; "
+            f"target_id={oracle_target_id}; "
+            f"expected total={expected_total_rows} counts={SELECTED_ORACLE_ROW_COUNTS}; "
             f"observed total={len(oracle_rows)} counts={counts}; "
             f"{oracle_artifact_detail(build_root)}; "
             f"run {CANONICAL_ORACLE_REMEDIATION}"
@@ -1240,13 +1346,14 @@ def selected_oracle_policy_diagnostics(
             f"run {CANONICAL_ORACLE_REMEDIATION}"
         )
 
-    missing_fixture_keys = sorted(SELECTED_ORACLE_FIXTURE_KEYS - observed_fixture_keys)
+    missing_fixture_keys = sorted(expected_fixture_keys - observed_fixture_keys)
     if missing_fixture_keys:
         has_error = True
         diagnostics.append(
             "freshness: error: oracle_selected_fixture_keys: missing_fixture_key: "
-            f"missing={','.join(missing_fixture_keys)}; "
+            f"target_id={oracle_target_id}; missing={','.join(missing_fixture_keys)}; "
             f"{oracle_manifest_detail(build_root)}; "
+            f"manifest={SELECTED_REPORT_TARGET_MANIFEST}; "
             f"run {CANONICAL_ORACLE_REMEDIATION}"
         )
 
@@ -1272,6 +1379,7 @@ def selected_comparison_generated_rows(rows: list[dict[str, str]]) -> list[dict[
 def selected_comparison_policy_diagnostics(
     rows: list[dict[str, str]],
     *,
+    selected_targets: list[dict[str, str]],
     required_families: set[str],
     strict_generated: bool,
 ) -> tuple[list[str], bool]:
@@ -1284,33 +1392,37 @@ def selected_comparison_policy_diagnostics(
 
     diagnostics: list[str] = []
     has_error = False
+    expected_row_ids = selected_comparison_row_ids(selected_targets)
+    expected_rows = selected_comparison_expected_rows(selected_targets)
+    artifact_diagnostic = selected_comparison_artifact_diagnostic(selected_targets)
+    target_ids = ",".join(row["target_id"] for row in selected_comparison_contracts(selected_targets))
     row_ids = [row["row_id"] for row in comparison_rows]
     observed_ids = set(row_ids)
-    missing = sorted(SELECTED_COMPARISON_ROW_IDS - observed_ids)
+    missing = sorted(expected_row_ids - observed_ids)
     duplicates = sorted(row_id for row_id in observed_ids if row_ids.count(row_id) > 1)
-    unexpected = sorted(observed_ids - SELECTED_COMPARISON_ROW_IDS)
-    if missing or duplicates or unexpected or len(comparison_rows) != len(SELECTED_COMPARISON_ROW_IDS):
+    unexpected = sorted(observed_ids - expected_row_ids)
+    if missing or duplicates or unexpected or len(comparison_rows) != expected_rows:
         has_error = True
         diagnostics.append(
             "freshness: error: comparison_selected_rows: row_set_mismatch: "
-            f"expected={len(SELECTED_COMPARISON_ROW_IDS)}; observed={len(comparison_rows)}; "
+            f"target_ids={target_ids}; expected={expected_rows}; observed={len(comparison_rows)}; "
             f"missing={','.join(missing) or 'none'}; "
             f"duplicates={','.join(duplicates) or 'none'}; "
             f"unexpected={','.join(unexpected) or 'none'}; "
-            f"{SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
+            f"{artifact_diagnostic}; "
             "run make report-index-comparison-freshness"
         )
 
     non_pass = [
         f"{row['row_id']}={row['status']}/{row['status_reason']}"
         for row in comparison_rows
-        if row["row_id"] in SELECTED_COMPARISON_ROW_IDS and row["status"] != "pass"
+        if row["row_id"] in expected_row_ids and row["status"] != "pass"
     ]
     if non_pass:
         has_error = True
         diagnostics.append(
             "freshness: error: comparison_selected_status: non_pass_selected_row: "
-            f"{';'.join(non_pass)}; {SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
+            f"target_ids={target_ids}; {';'.join(non_pass)}; {artifact_diagnostic}; "
             "run make report-index-comparison-freshness"
         )
 
@@ -1351,6 +1463,7 @@ def is_selected_required_generated_row(
 def freshness_severity(
     row: dict[str, str],
     *,
+    selected_targets: list[dict[str, str]],
     state: str,
     current_commit: str,
     required_families: set[str],
@@ -1408,7 +1521,7 @@ def freshness_severity(
                 return (
                     "error",
                     "required generated family missing: comparison; "
-                    f"{SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC}; "
+                    f"{selected_comparison_artifact_diagnostic(selected_targets)}; "
                     "run make report-index-comparison-freshness",
                 )
             return ("error", f"required generated family missing: {row['report_family']}")
@@ -1452,6 +1565,7 @@ def freshness_diagnostics(
     rows: list[dict[str, str]],
     *,
     build_root: Path,
+    selected_targets: list[dict[str, str]],
     current_commit: str,
     required_families: set[str],
     strict_generated: bool,
@@ -1469,6 +1583,7 @@ def freshness_diagnostics(
             state = "fresh"
         severity, reason = freshness_severity(
             row,
+            selected_targets=selected_targets,
             state=state,
             current_commit=current_commit,
             required_families=required_families,
@@ -1483,6 +1598,7 @@ def freshness_diagnostics(
     oracle_diagnostics, oracle_has_error = selected_oracle_policy_diagnostics(
         rows,
         build_root=build_root,
+        selected_targets=selected_targets,
         required_families=required_families,
         strict_generated=strict_generated,
     )
@@ -1490,6 +1606,7 @@ def freshness_diagnostics(
     has_error = has_error or oracle_has_error
     comparison_diagnostics, comparison_has_error = selected_comparison_policy_diagnostics(
         rows,
+        selected_targets=selected_targets,
         required_families=required_families,
         strict_generated=strict_generated,
     )
@@ -1535,9 +1652,20 @@ def main() -> int:
 
     required_families = set(args.require_generated)
     if args.check_freshness:
+        selected_policy_families = {"oracle", "comparison"}
+        requested_families = set(args.family)
+        needs_selected_targets = (
+            args.strict_generated
+            or bool(required_families & selected_policy_families)
+            or bool(requested_families & selected_policy_families)
+        )
+        selected_targets = (
+            selected_report_targets(args.corpus_root) if needs_selected_targets else []
+        )
         diagnostics, has_error = freshness_diagnostics(
             rows,
             build_root=args.build_root,
+            selected_targets=selected_targets,
             current_commit=commit,
             required_families=required_families,
             strict_generated=args.strict_generated,

@@ -474,9 +474,12 @@ make bench-canonical-report-freshness
 ```
 
 That target regenerates `build/bench-reports/canonical/index.tsv` and validates
-only the selected `bench_refactor_csc` row for
-`tests/data/suitesparse/nos4.mtx --repeat 1`. In the generated canonical
-index, find it with:
+only the selected canonical row named by
+`tests/corpus/manifests/selected_report_targets.tsv`. The current selected
+target is `SRT-BENCH-REFACTOR-CSC-NOS4`; the manifest owns its target key,
+artifact path, required files, expected row count, workflow artifact, support
+tier, freshness policy, claim scope, non-claims, and owner. In the generated
+canonical index, find it with:
 
 - `artifact=bench_refactor_csc`;
 - `relative_path=bench_refactor_csc.csv`;
@@ -503,10 +506,10 @@ backend parity, or portable performance evidence.
 | Report target | Report directory | Index artifact | Freshness/context artifact | Read as |
 |---|---|---|---|---|
 | `make bench-canonical-report` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Threshold-free local snapshot of the maintained benchmark surface. |
-| `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected `bench_refactor_csc` artifact and methodology freshness for `nos4.mtx --repeat 1`; not a timing gate. |
+| `make bench-canonical-report-freshness` | `build/bench-reports/canonical/` | `index.tsv` | `manifest.txt` | Selected canonical artifact and methodology freshness described by `SRT-BENCH-REFACTOR-CSC-NOS4`; not a timing gate. |
 | `make performance-sentinels` | `build/bench-reports/sentinels/` | `sentinels.tsv` | `manifest.txt` | Local sentinel bundle; S5 and S6 are narrow local thresholded gates, while S2/S3 remain threshold-free context. |
 | `make large-matrix-guardrails` | `build/bench-reports/large-matrix-guardrails/` | `index.tsv` | `manifest.txt` | Reviewed/supplemental guardrail lanes with explicit pass, fail, or skip rows. |
-| `make report-index-comparison-freshness` | `build/comparison/{qr_minnorm,qr_compatible_ls,partial_svd_diag6_k2,lu_nonsym_square_5}/` | `study.tsv` | `manifest.tsv` | Local fixture-level QR minimum-norm, QR compatible least-squares, partial-SVD diagonal top-k, and linked-list LU square-solve comparisons against selected source-controlled dense reference helpers; mirrored by reviewed Linux/macOS hosted selected-artifact lanes only. |
+| `make report-index-comparison-freshness` | manifest-owned `build/comparison/*/` selected paths | `study.tsv` | `manifest.tsv` | Local fixture-level selected comparison targets from `selected_report_targets.tsv` against selected source-controlled dense reference helpers; mirrored by reviewed Linux/macOS hosted selected-artifact lanes only. |
 
 When reading any generated report index:
 
@@ -543,8 +546,9 @@ external-library parity.
 
 The selected performance freshness check is deliberately outside broad
 normalized-index promotion: it validates the `bench_refactor_csc` canonical
-row, generated artifact paths, methodology metadata, manifest agreement, and
-threshold-free claim boundary. It does not make `bench_chol_csc`,
+row currently named by the selected-target manifest, generated artifact paths,
+methodology metadata, manifest agreement, and threshold-free claim boundary.
+It does not make `bench_chol_csc`,
 `bench_iterative_reuse`, or `bench_eigs_reuse` reviewed hosted performance
 evidence.
 

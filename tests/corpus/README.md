@@ -18,6 +18,7 @@ completeness, or state-of-the-art status.
 | `manifests/generators.tsv` | Deterministic generated-matrix metadata rows. |
 | `manifests/optional_data.tsv` | Optional external-data skip/defer policy rows. |
 | `manifests/report_families.tsv` | Report-family contract rows for normalized index generation. |
+| `manifests/selected_report_targets.tsv` | Selected oracle, comparison, and performance target metadata for report/workflow guards. |
 | `expected/` | Small committed expected-result rows for maintained fixtures. |
 | `schemas/fixture_fields.md` | Fixture, generator, and optional-data field definitions. |
 | `schemas/oracle_fields.md` | Observed oracle row field definitions and status semantics. |
@@ -59,6 +60,7 @@ package, ABI, performance, or state-of-the-art claims.
 | `manifests/generators.tsv` | Corpus maintainer. | Defines deterministic generator metadata, canonical format, hashes, seed policy, and regeneration command. Hash changes require an explicit generator or fixture revision. |
 | `manifests/optional_data.tsv` | Corpus maintainer. | Defines external-data availability, skip/defer policy, and non-claim wording. Optional payloads stay outside the repository. |
 | `manifests/report_families.tsv` | Report maintainer, with corpus, benchmark, package, CI, and documentation owners for family-specific semantics. | Defines report-family row meanings, support tiers, freshness policies, commands, artifact patterns, claim scopes, and non-claim boundaries for normalized indexing. |
+| `manifests/selected_report_targets.tsv` | Report maintainer, with corpus, benchmark, and CI-owner review for target-specific semantics. | Defines selected report target identity, commands, expected rows, required files, workflow artifacts, support tiers, claim scopes, and non-claims for selected report/workflow guards. |
 | `expected/*.tsv` | Corpus maintainer for schema; solver owner for expected numerical meaning. | Source-controlled target rows are prerequisites for observed evidence, not observed pass evidence by themselves. |
 | `schemas/*.md` | Corpus and report maintainers. | Defines row semantics. Field or status changes need migration notes and validator updates. |
 | `../../scripts/validate_corpus_schema.py` | Corpus maintainer. | Enforces TSV shape, required references, selected enums, first-lane generator hashes, and false-pass guardrails. |
@@ -94,6 +96,12 @@ Report-family contract rows in `manifests/report_families.tsv` are the
 source-controlled vocabulary for normalized report indexing. They define how a
 family should be discovered and interpreted, but they do not prove that any
 generated report exists, is fresh, or passed.
+
+Selected report target rows in `manifests/selected_report_targets.tsv` are the
+source-controlled authority for the selected oracle, comparison, and
+performance targets that report and workflow guards consume. They narrow
+existing report-family semantics to named selected targets; they do not widen
+family-level claims or turn unselected report families into selected proof.
 
 ## Stale Reports
 

@@ -173,10 +173,10 @@ check_selected_homebrew_local_proof() {
 
     case "$status" in
         0)
-            require_grep \
-                'local Homebrew formula proof' \
-                "$proof" \
-                "Homebrew proof script lost local proof scope after success path"
+            if ! printf '%s\n' "$output" | grep -Fq 'local Homebrew formula proof'; then
+                printf '%s\n' "$output" >&2
+                fail "Homebrew proof success path no longer emits local proof scope"
+            fi
             ;;
         2)
             if ! printf '%s\n' "$output" | grep -Fq 'local Homebrew proof remains unclaimed'; then

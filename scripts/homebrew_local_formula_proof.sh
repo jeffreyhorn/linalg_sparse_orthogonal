@@ -65,6 +65,9 @@ cleanup() {
 
 trap cleanup EXIT
 
+export HOMEBREW_NO_AUTO_UPDATE=1
+export HOMEBREW_NO_INSTALL_CLEANUP=1
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --keep-temp)
@@ -199,25 +202,41 @@ make_source_archive() {
 }
 
 check_installed_static_surface() {
+    local cmake_package_dir
+    local config_file
     local prefix
     local shared_artifacts
     local pc_file
     local targets_file
+    local targets_noconfig_file
+    local version_file
 
     prefix="$(brew --prefix "$FORMULA_NAME")"
+    cmake_package_dir="$prefix/lib/cmake/Sparse"
+    config_file="$cmake_package_dir/SparseConfig.cmake"
     pc_file="$prefix/lib/pkgconfig/sparse.pc"
-    targets_file="$prefix/lib/cmake/Sparse/SparseTargets.cmake"
+    targets_file="$cmake_package_dir/SparseTargets.cmake"
+    targets_noconfig_file="$cmake_package_dir/SparseTargets-noconfig.cmake"
+    version_file="$cmake_package_dir/SparseConfigVersion.cmake"
 
     [ -f "$prefix/lib/libsparse_lu_ortho.a" ] || fail "static archive missing after Homebrew local formula install"
     [ -d "$prefix/include/sparse" ] || fail "installed sparse headers missing after Homebrew local formula install"
-    [ -f "$prefix/lib/cmake/Sparse/SparseConfig.cmake" ] || fail "SparseConfig.cmake missing after Homebrew local formula install"
+    [ -f "$config_file" ] || fail "SparseConfig.cmake missing after Homebrew local formula install"
+    [ -f "$version_file" ] || fail "SparseConfigVersion.cmake missing after Homebrew local formula install"
+    [ -f "$targets_file" ] || fail "SparseTargets.cmake missing after Homebrew local formula install"
+    [ -f "$targets_noconfig_file" ] || fail "SparseTargets-noconfig.cmake missing after Homebrew local formula install"
     [ -f "$pc_file" ] || fail "sparse.pc missing after Homebrew local formula install"
 
-    if [ -f "$targets_file" ] && ! grep -Fq "Sparse::sparse_lu_ortho STATIC IMPORTED" "$targets_file"; then
+    if ! grep -Fq "Sparse::sparse_lu_ortho STATIC IMPORTED" "$targets_file"; then
         fail "installed CMake target metadata no longer proves static imported target"
     fi
 
-    if grep -Eiq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$pc_file"; then
+    if ! grep -Fq '${_IMPORT_PREFIX}/lib/libsparse_lu_ortho.a' "$targets_noconfig_file"; then
+        fail "installed CMake target metadata no longer points at static archive"
+    fi
+
+    if grep -Eiv '^(prefix|exec_prefix|libdir|includedir)=' "$pc_file" | \
+        grep -Eiq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan'; then
         fail "installed sparse.pc gained unsupported provider, shared-library, or ABI wording"
     fi
 

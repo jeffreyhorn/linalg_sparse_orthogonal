@@ -13,7 +13,11 @@ name: Windows CI
 # The Makefile reviewed wrappers and dead-code flow remain staged/deferred;
 # Windows does not claim Makefile parity, pkg-config execution parity,
 # package-manager support, shared-library support, dynamic ABI support,
-# runtime-loader behavior, or broad Windows parity.
+# runtime-loader behavior, generated report freshness, or broad Windows parity.
+# Sprint 182 formally defers Windows report freshness; this workflow must stay
+# free of selected report generation commands and selected report upload
+# artifact names until a Windows-safe generator path and selected-target
+# manifest promotion are reviewed together.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -72,7 +76,8 @@ jobs:
   # consumer path on Windows. This lane is CMake install/downstream scoped; it
   # inspects sparse.pc as installed metadata only and does not claim Windows
   # Makefile parity, pkg-config execution parity, shared-library support,
-  # dynamic ABI support, runtime-loader behavior, or package-manager support.
+  # dynamic ABI support, runtime-loader behavior, package-manager support, or
+  # generated report freshness.
   install-and-downstream:
     name: Windows reviewed CMake install/downstream validation path
     runs-on: windows-2022

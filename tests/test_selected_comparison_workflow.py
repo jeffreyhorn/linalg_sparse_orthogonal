@@ -22,6 +22,15 @@ LINUX_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 MACOS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "macos-ci.yml"
 WINDOWS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "windows-ci.yml"
 SELECTED_TARGET_MANIFEST = REPO_ROOT / "tests" / "corpus"
+WINDOWS_DEFERRAL_RECORD = (
+    REPO_ROOT
+    / "docs"
+    / "planning"
+    / "EPIC_16"
+    / "SPRINT_182"
+    / "artifacts"
+    / "windows-report-freshness-deferral-decision.md"
+)
 ORACLE_UPLOAD_PATHS = [
     "build/corpus/oracle/corpus.oracle.tsv",
     "build/corpus-reports/index.tsv",
@@ -32,6 +41,23 @@ BENCHMARK_UNSELECTED_CONTEXT_FILES = [
     "build/bench-reports/canonical/bench_chol_csc.csv",
     "build/bench-reports/canonical/bench_iterative_reuse.csv",
     "build/bench-reports/canonical/bench_eigs_reuse.csv",
+]
+WINDOWS_FORBIDDEN_SELECTED_FRESHNESS = [
+    "report-index-oracle-freshness",
+    "report-index-comparison-freshness",
+    "bench-canonical-report-freshness",
+    "check_bench_canonical_freshness.py",
+    "sprint159-oracle-freshness",
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+    "sprint168-selected-performance-freshness",
+]
+WINDOWS_DEFERRAL_REQUIRED_TEXT = [
+    "Windows report freshness remains formally deferred",
+    "no reviewed Windows Makefile parity",
+    "no Windows-safe CMake/MSVC project probe path",
+    "no Windows-native canonical benchmark report generator",
+    "selected target manifest rows do not list `windows`",
 ]
 
 
@@ -191,21 +217,52 @@ def assert_linux_guard_runs_outside_validated_lane(text: str) -> None:
 
 
 def assert_no_report_freshness_lane(text: str, *, label: str) -> None:
-    forbidden = [
-        "report-index-oracle-freshness",
-        "report-index-comparison-freshness",
-        "bench-canonical-report-freshness",
-        "check_bench_canonical_freshness.py",
-        "sprint159-oracle-freshness",
-        "sprint175-linux-selected-comparison-freshness",
-        "sprint175-macos-selected-comparison-freshness",
-        "sprint168-selected-performance-freshness",
-    ]
-    for needle in forbidden:
+    for needle in WINDOWS_FORBIDDEN_SELECTED_FRESHNESS:
         if needle in text:
             raise AssertionError(
                 f"{label} must not run or upload selected report freshness {needle!r}"
             )
+
+
+def assert_windows_workflow_contract(text: str) -> None:
+    build_job = job_block(text, "build-and-test", label="windows")
+    install_job = job_block(text, "install-and-downstream", label="windows")
+    assert_contains(
+        build_job,
+        "Run enforced reviewed CMake configure path",
+        label="windows build-and-test",
+    )
+    assert_contains(
+        install_job,
+        "Run reviewed CMake install/downstream validation proof",
+        label="windows install-and-downstream",
+    )
+    assert_contains(
+        text,
+        "Sprint 182 formally defers Windows report freshness",
+        label="windows workflow",
+    )
+    assert_contains(
+        text,
+        "generated report freshness",
+        label="windows workflow",
+    )
+
+
+def assert_no_windows_selected_manifest_platform() -> None:
+    for row in selected_report_targets(SELECTED_TARGET_MANIFEST):
+        platforms = split_manifest_values(row["workflow_platforms"])
+        if "windows" in platforms:
+            raise AssertionError(
+                "selected_report_targets.tsv must not list windows for selected "
+                f"report freshness while Sprint 182 deferral is active: {row['target_id']}"
+            )
+
+
+def assert_windows_deferral_record() -> None:
+    text = read_text(WINDOWS_DEFERRAL_RECORD)
+    for needle in WINDOWS_DEFERRAL_REQUIRED_TEXT:
+        assert_contains(text, needle, label="windows deferral record")
 
 
 def test_linux_selected_oracle_lane() -> None:
@@ -291,11 +348,70 @@ def test_macos_selected_comparison_lane() -> None:
         assert_contains(text, non_claim, label="macos")
 
 
-def test_windows_report_freshness_remains_unselected() -> None:
+def test_windows_report_freshness_remains_formally_deferred() -> None:
     text = read_text(WINDOWS_WORKFLOW)
+    assert_windows_workflow_contract(text)
     assert_no_report_freshness_lane(text, label="windows")
+    assert_no_windows_selected_manifest_platform()
+    assert_windows_deferral_record()
     assert_contains(text, "Windows does not claim Makefile parity", label="windows")
     assert_contains(text, "package-manager support", label="windows")
+
+
+def test_windows_drift_selected_command_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text + "\n# drift\nrun: make report-index-comparison-freshness\n"
+    assert_raises_with(
+        lambda: assert_no_report_freshness_lane(drifted, label="windows"),
+        "windows must not run or upload selected report freshness "
+        "'report-index-comparison-freshness'",
+    )
+
+
+def test_windows_drift_selected_artifact_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text + "\n# drift\nname: sprint175-macos-selected-comparison-freshness\n"
+    assert_raises_with(
+        lambda: assert_no_report_freshness_lane(drifted, label="windows"),
+        "windows must not run or upload selected report freshness "
+        "'sprint175-macos-selected-comparison-freshness'",
+    )
+
+
+def test_windows_deferral_record_missing_blocker_fails_clearly() -> None:
+    original = read_text(WINDOWS_DEFERRAL_RECORD)
+    drifted = original.replace("no Windows-native canonical benchmark report generator", "")
+    assert_raises_with(
+        lambda: [
+            assert_contains(drifted, needle, label="windows deferral record")
+            for needle in WINDOWS_DEFERRAL_REQUIRED_TEXT
+        ],
+        "windows deferral record missing "
+        "'no Windows-native canonical benchmark report generator'",
+    )
+
+
+def test_windows_workflow_missing_reviewed_job_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    job = job_block(text, "install-and-downstream", label="windows")
+    drifted = text.replace(job, "", 1)
+    assert_raises_with(
+        lambda: assert_windows_workflow_contract(drifted),
+        "windows missing job 'install-and-downstream'",
+    )
+
+
+def test_windows_workflow_missing_deferral_comment_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "# Sprint 182 formally defers Windows report freshness; this workflow must stay\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_workflow_contract(drifted),
+        "windows workflow missing 'Sprint 182 formally defers Windows report freshness'",
+    )
 
 
 def test_workflow_drift_missing_job_fails_clearly() -> None:
@@ -365,16 +481,44 @@ def test_workflow_drift_broad_comparison_upload_fails_clearly() -> None:
     )
 
 
+def test_workflow_drift_missing_required_upload_file_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "generated-report-freshness", label="linux")
+    rows = comparison_rows(LINUX_WORKFLOW, "generated-report-freshness")
+    artifact_name = shared_workflow_artifact_name(rows, "linux")
+    drifted = job.replace(
+        "            build/comparison/qr_minnorm/project_observations.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_comparison_upload_paths(
+            drifted,
+            rows,
+            artifact_name,
+            label="linux selected comparison upload",
+        ),
+        "linux selected comparison upload missing "
+        "'build/comparison/qr_minnorm/project_observations.tsv'",
+    )
+
+
 def main() -> int:
     test_linux_selected_oracle_lane()
     test_linux_selected_comparison_lane()
     test_linux_selected_performance_lane()
     test_macos_selected_comparison_lane()
-    test_windows_report_freshness_remains_unselected()
+    test_windows_report_freshness_remains_formally_deferred()
+    test_windows_drift_selected_command_fails_clearly()
+    test_windows_drift_selected_artifact_fails_clearly()
+    test_windows_deferral_record_missing_blocker_fails_clearly()
+    test_windows_workflow_missing_reviewed_job_fails_clearly()
+    test_windows_workflow_missing_deferral_comment_fails_clearly()
     test_workflow_drift_missing_job_fails_clearly()
     test_workflow_drift_wrong_upload_artifact_fails_clearly()
     test_workflow_drift_missing_fail_closed_setting_fails_clearly()
     test_workflow_drift_broad_comparison_upload_fails_clearly()
+    test_workflow_drift_missing_required_upload_file_fails_clearly()
     print("test-selected-comparison-workflow: ok")
     return 0
 

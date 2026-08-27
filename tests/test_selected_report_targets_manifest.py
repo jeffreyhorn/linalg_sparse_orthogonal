@@ -20,6 +20,15 @@ from validate_corpus_schema import (  # noqa: E402
 
 MANIFEST_PATH = REPO_ROOT / "tests" / "corpus" / "manifests" / "selected_report_targets.tsv"
 REPORT_FAMILIES_PATH = REPO_ROOT / "tests" / "corpus" / "manifests" / "report_families.tsv"
+WINDOWS_DEFERRAL_RECORD = (
+    REPO_ROOT
+    / "docs"
+    / "planning"
+    / "EPIC_16"
+    / "SPRINT_182"
+    / "artifacts"
+    / "windows-report-freshness-deferral-decision.md"
+)
 
 
 def manifest_rows() -> list[dict[str, str]]:
@@ -51,6 +60,26 @@ def assert_invalid_with_all(rows: list[dict[str, str]], expected: list[str]) -> 
             raise AssertionError(f"expected {missing!r} in {message!r}") from exc
         return
     raise AssertionError(f"expected validation failure containing {expected!r}")
+
+
+def split_manifest_values(value: str) -> list[str]:
+    if value == "none":
+        return []
+    return [part for part in value.split(";") if part]
+
+
+def assert_no_windows_selected_platform(rows: list[dict[str, str]]) -> None:
+    deferral_text = WINDOWS_DEFERRAL_RECORD.read_text(encoding="utf-8")
+    if "Windows report freshness remains formally deferred" not in deferral_text:
+        raise AssertionError("Windows report freshness deferral record is missing")
+    for row in rows:
+        platforms = split_manifest_values(row["workflow_platforms"])
+        if "windows" in platforms:
+            raise AssertionError(
+                "selected_report_targets.tsv must not list windows while "
+                "Windows report freshness remains formally deferred: "
+                f"{row['target_id']}"
+            )
 
 
 def test_current_manifest_validates() -> None:
@@ -189,6 +218,27 @@ def test_unpromoted_report_families_remain_unselected() -> None:
     }
 
 
+def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
+    assert_no_windows_selected_platform(manifest_rows())
+
+
+def test_windows_platform_drift_fails_clearly() -> None:
+    rows = manifest_rows()
+    rows[1]["workflow_platforms"] = f"{rows[1]['workflow_platforms']};windows"
+    try:
+        assert_no_windows_selected_platform(rows)
+    except AssertionError as exc:
+        message = str(exc)
+        expected = (
+            "selected_report_targets.tsv must not list windows while "
+            "Windows report freshness remains formally deferred"
+        )
+        if expected not in message or "SRT-COMP-QR-MINNORM" not in message:
+            raise AssertionError(f"expected Windows drift diagnostic in {message!r}") from exc
+        return
+    raise AssertionError("expected Windows selected platform drift to fail")
+
+
 def main() -> int:
     test_current_manifest_validates()
     test_duplicate_target_id_fails_clearly()
@@ -205,6 +255,8 @@ def main() -> int:
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
+    test_windows_report_freshness_deferral_keeps_manifest_unselected()
+    test_windows_platform_drift_fails_clearly()
     print("test-selected-report-targets-manifest: ok")
     return 0
 

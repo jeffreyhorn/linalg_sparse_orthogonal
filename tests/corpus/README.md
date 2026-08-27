@@ -102,6 +102,13 @@ source-controlled authority for the selected oracle, comparison, and
 performance targets that report and workflow guards consume. They narrow
 existing report-family semantics to named selected targets; they do not widen
 family-level claims or turn unselected report families into selected proof.
+The manifest is positive selected-target authority, not a general deferral
+registry. Sprint 182 records Windows report freshness as formally deferred in
+`docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`;
+while that deferral is active, selected target rows must not list `windows` in
+`workflow_platforms`. A future Windows promotion must add exact workflow file,
+job, artifact, platform, support-tier, claim-scope, and non-claim metadata
+rather than drifting an existing selected row silently.
 
 ## Stale Reports
 
@@ -147,7 +154,9 @@ freshness gate. The reviewed macOS hosted lane mirrors only the selected QR
 plus partial-SVD plus LU comparison freshness gate. Those hosted lanes cover
 only their selected generated rows and split artifacts, not broad report-index
 freshness, selected oracle freshness on macOS, Windows report freshness, or all
-local-only families.
+local-only families. Windows report freshness is formally deferred by the
+Sprint 182 decision record; Windows CMake build/test and static
+install/downstream validation do not imply generated report freshness.
 
 ## Selected QR, Partial-SVD, And LU Comparison Freshness
 

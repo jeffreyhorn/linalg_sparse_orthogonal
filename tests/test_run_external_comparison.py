@@ -102,6 +102,28 @@ TARGET_EXPECTATIONS = {
             "external-comparison: lu-nonsym-square-5 project-vs-baseline comparison passed"
         ),
     },
+    "cholesky-spd-tridiag-5": {
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "subfamily": "cholesky_spd_tridiag_5",
+        "operation": "cholesky_spd_solve",
+        "required_helper": "tests/chol_external_dense_reference.py",
+        "generator_command": (
+            "python3 scripts/run_external_comparison.py --target cholesky-spd-tridiag-5"
+        ),
+        "artifact_pattern": "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+        "expected_metrics": {
+            "project_status",
+            "baseline_status",
+            "residual_norm",
+            "solution_norm",
+            "solution_values",
+            "project_vs_baseline_max_abs_delta",
+        },
+        "success_message": (
+            "external-comparison: cholesky-spd-tridiag-5 "
+            "project-vs-baseline comparison passed"
+        ),
+    },
 }
 
 
@@ -215,6 +237,7 @@ def test_unsupported_target_reports_supported_targets() -> None:
     assert "qr-minnorm" in result.stderr
     assert "partial-svd-diag6-k2" in result.stderr
     assert "lu-nonsym-square-5" in result.stderr
+    assert "cholesky-spd-tridiag-5" in result.stderr
 
 
 def test_selected_targets_generate_expected_rows_and_metadata() -> None:

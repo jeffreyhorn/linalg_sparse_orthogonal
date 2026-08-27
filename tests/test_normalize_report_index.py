@@ -66,6 +66,12 @@ SELECTED_COMPARISON_ROW_IDS = [
     "comparison_lu_nonsym_square_5_solution_norm_v1",
     "comparison_lu_nonsym_square_5_solution_values_v1",
     "comparison_lu_nonsym_square_5_project_vs_baseline_max_abs_delta_v1",
+    "comparison_cholesky_spd_tridiag_5_project_status_v1",
+    "comparison_cholesky_spd_tridiag_5_baseline_status_v1",
+    "comparison_cholesky_spd_tridiag_5_residual_norm_v1",
+    "comparison_cholesky_spd_tridiag_5_solution_norm_v1",
+    "comparison_cholesky_spd_tridiag_5_solution_values_v1",
+    "comparison_cholesky_spd_tridiag_5_project_vs_baseline_max_abs_delta_v1",
 ]
 SELECTED_PARTIAL_SVD_COMPARISON_ROW_IDS = {
     row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "partial_svd_diag6_k2" in row_id
@@ -73,17 +79,22 @@ SELECTED_PARTIAL_SVD_COMPARISON_ROW_IDS = {
 SELECTED_LU_COMPARISON_ROW_IDS = {
     row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "lu_nonsym_square_5" in row_id
 }
+SELECTED_CHOLESKY_COMPARISON_ROW_IDS = {
+    row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "cholesky_spd_tridiag_5" in row_id
+}
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/qr_minnorm/study.tsv,"
     "build/comparison/qr_compatible_ls/study.tsv,"
     "build/comparison/partial_svd_diag6_k2/study.tsv,"
-    "build/comparison/lu_nonsym_square_5/study.tsv"
+    "build/comparison/lu_nonsym_square_5/study.tsv,"
+    "build/comparison/cholesky_spd_tridiag_5/study.tsv"
 )
 SELECTED_COMPARISON_ARTIFACTS = (
     "build/comparison/qr_minnorm/study.tsv",
     "build/comparison/qr_compatible_ls/study.tsv",
     "build/comparison/partial_svd_diag6_k2/study.tsv",
     "build/comparison/lu_nonsym_square_5/study.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/study.tsv",
 )
 ORACLE_FIELDS = [
     "oracle_row_id",
@@ -985,6 +996,7 @@ def write_selected_comparison_rows(
         "qr_compatible_ls": [],
         "partial_svd_diag6_k2": [],
         "lu_nonsym_square_5": [],
+        "cholesky_spd_tridiag_5": [],
     }
     for index, row_id in enumerate(row_ids):
         if "partial_svd_diag6_k2" in row_id:
@@ -1004,6 +1016,15 @@ def write_selected_comparison_rows(
             non_claims = (
                 "synthetic test rows only; no broad LU correctness; "
                 "no broad nonsymmetric solve parity"
+            )
+        elif "cholesky_spd_tridiag_5" in row_id:
+            subfamily = "cholesky_spd_tridiag_5"
+            fixture_key = "cholesky_spd_tridiag_5"
+            operation = "cholesky_spd_solve"
+            artifact_path = "build/comparison/cholesky_spd_tridiag_5/study.tsv"
+            non_claims = (
+                "synthetic test rows only; no broad Cholesky correctness; "
+                "no broad SPD coverage"
             )
         elif "qr_overdetermined_compatible_5x3" in row_id:
             subfamily = "qr_compatible_ls"
@@ -1589,6 +1610,22 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
         )
         assert all("no broad LU correctness" in row["non_claims"] for row in lu_rows)
 
+        cholesky_rows = [
+            row
+            for row in rows
+            if row["subfamily"] == "cholesky_spd_tridiag_5"
+            and row["row_origin"] == "generated_local"
+            and row["row_id"].startswith("comparison_")
+        ]
+        assert {row["row_id"] for row in cholesky_rows} == SELECTED_CHOLESKY_COMPARISON_ROW_IDS
+        assert {row["status"] for row in cholesky_rows} == {"pass"}
+        assert {row["support_tier"] for row in cholesky_rows} == {"local_only"}
+        assert all(
+            row["artifact_path"].endswith("comparison/cholesky_spd_tridiag_5/study.tsv")
+            for row in cholesky_rows
+        )
+        assert all("no broad Cholesky correctness" in row["non_claims"] for row in cholesky_rows)
+
 
 def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     rows = read_tsv(REPORT_FAMILIES)
@@ -1604,6 +1641,7 @@ def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
         "qr_compatible_ls",
         "partial_svd_diag6_k2",
         "lu_nonsym_square_5",
+        "cholesky_spd_tridiag_5",
     }
     assert set(comparison_rows) == expected_subfamilies
     for subfamily, row in comparison_rows.items():

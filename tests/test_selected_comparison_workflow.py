@@ -59,6 +59,7 @@ WINDOWS_DEFERRAL_REQUIRED_TEXT = [
     "no Windows-native canonical benchmark report generator",
     "selected target manifest rows do not list `windows`",
 ]
+SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
 
 
 def read_text(path: Path) -> str:
@@ -170,6 +171,14 @@ def assert_selected_targets(job: str, rows: list[dict[str, str]], *, label: str)
             f'("{row["target_key"]}", Path("{comparison_directory(row)}"), '
             f"{expected_int(row, 'expected_rows')})",
             label=label,
+        )
+
+
+def assert_selected_cholesky_target_present(rows: list[dict[str, str]], *, label: str) -> None:
+    matching = [row for row in rows if row["target_id"] == SELECTED_CHOLESKY_TARGET_ID]
+    if len(matching) != 1:
+        raise AssertionError(
+            f"{label} expected one selected Cholesky comparison target, got {len(matching)}"
         )
 
 
@@ -293,6 +302,7 @@ def test_linux_selected_comparison_lane() -> None:
     assert_contains(job, "Run reviewed hosted selected comparison freshness", label="linux")
     assert_linux_guard_runs_outside_validated_lane(text)
     assert_contains(job, "make report-index-comparison-freshness", label="linux")
+    assert_selected_cholesky_target_present(rows, label="linux")
     assert_selected_targets(job, rows, label="linux")
     assert_comparison_upload_paths(
         job,
@@ -333,6 +343,7 @@ def test_macos_selected_comparison_lane() -> None:
     assert_contains(job, "macOS reviewed selected comparison freshness", label="macos")
     assert_contains(job, "Run reviewed selected comparison freshness", label="macos")
     assert_contains(job, "make report-index-comparison-freshness", label="macos")
+    assert_selected_cholesky_target_present(rows, label="macos")
     assert_selected_targets(job, rows, label="macos")
     assert_comparison_upload_paths(
         job,
@@ -514,6 +525,28 @@ def test_workflow_drift_missing_required_upload_file_fails_clearly() -> None:
     )
 
 
+def test_workflow_drift_missing_cholesky_upload_file_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "generated-report-freshness", label="linux")
+    rows = comparison_rows(LINUX_WORKFLOW, "generated-report-freshness")
+    artifact_name = shared_workflow_artifact_name(rows, "linux")
+    drifted = job.replace(
+        "            build/comparison/cholesky_spd_tridiag_5/study.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_comparison_upload_paths(
+            drifted,
+            rows,
+            artifact_name,
+            label="linux selected comparison upload",
+        ),
+        "linux selected comparison upload missing "
+        "'build/comparison/cholesky_spd_tridiag_5/study.tsv'",
+    )
+
+
 def main() -> int:
     test_linux_selected_oracle_lane()
     test_linux_selected_comparison_lane()
@@ -531,6 +564,7 @@ def main() -> int:
     test_workflow_drift_missing_fail_closed_setting_fails_clearly()
     test_workflow_drift_broad_comparison_upload_fails_clearly()
     test_workflow_drift_missing_required_upload_file_fails_clearly()
+    test_workflow_drift_missing_cholesky_upload_file_fails_clearly()
     print("test-selected-comparison-workflow: ok")
     return 0
 

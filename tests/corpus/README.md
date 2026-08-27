@@ -149,16 +149,17 @@ by default and become errors only when `--require-generated oracle` is used.
 Source-controlled fixture, generator, optional-data, and expected-result rows
 remain advisory or skip/defer policy evidence until a generated oracle row
 records observed status. The reviewed Linux hosted lane mirrors the selected
-required oracle gate and the selected QR plus partial-SVD plus LU comparison
-freshness gate. The reviewed macOS hosted lane mirrors only the selected QR
-plus partial-SVD plus LU comparison freshness gate. Those hosted lanes cover
-only their selected generated rows and split artifacts, not broad report-index
-freshness, selected oracle freshness on macOS, Windows report freshness, or all
-local-only families. Windows report freshness is formally deferred by the
+required oracle gate and the selected QR, partial-SVD, LU, and Cholesky
+comparison freshness gate. The reviewed macOS hosted lane mirrors only the
+selected QR, partial-SVD, LU, and Cholesky comparison freshness gate. Those
+hosted lanes cover only their selected generated rows and split
+artifacts, not broad report-index freshness, selected oracle freshness on
+macOS, Windows report freshness, or all local-only families. Windows report
+freshness is formally deferred by the
 Sprint 182 decision record; Windows CMake build/test and static
 install/downstream validation do not imply generated report freshness.
 
-## Selected QR, Partial-SVD, And LU Comparison Freshness
+## Selected QR, Partial-SVD, LU, And Cholesky Comparison Freshness
 
 The selected comparison freshness gate is:
 
@@ -166,7 +167,7 @@ The selected comparison freshness gate is:
 make report-index-comparison-freshness
 ```
 
-It regenerates four fixture-local comparison families before strict
+It regenerates five fixture-local comparison families before strict
 normalization:
 
 | Target | Fixture | Comparison meaning | Artifact |
@@ -175,6 +176,7 @@ normalization:
 | `qr-compatible-ls` | `qr_overdetermined_compatible_5x3` | compatible least-squares solve against the source-controlled dense QR reference helper | `build/comparison/qr_compatible_ls/study.tsv` |
 | `partial-svd-diag6-k2` | `partial_svd_diag6_k2` | partial-SVD diagonal top-k comparison against the source-controlled dense SVD reference helper | `build/comparison/partial_svd_diag6_k2/study.tsv` |
 | `lu-nonsym-square-5` | `lu_nonsym_square_5` | linked-list LU square solve against the source-controlled dense LU reference helper | `build/comparison/lu_nonsym_square_5/study.tsv` |
+| `cholesky-spd-tridiag-5` | `cholesky_spd_tridiag_5` | Cholesky SPD tridiagonal solve against the source-controlled dense Cholesky reference helper | `build/comparison/cholesky_spd_tridiag_5/study.tsv` |
 
 Each selected QR comparison family contributes six generated rows:
 `project_status`, `baseline_status`, `residual_norm`, `solution_norm`,
@@ -182,6 +184,9 @@ Each selected QR comparison family contributes six generated rows:
 
 The selected `lu_nonsym_square_5` family contributes the same six generated
 rows as the QR comparison families.
+
+The selected `cholesky_spd_tridiag_5` family contributes the same six
+generated rows as the QR and LU solve comparison families.
 
 The selected `partial_svd_diag6_k2` family contributes ten generated rows:
 `project_status`, `baseline_status`, `singular_value_0`,
@@ -192,13 +197,14 @@ The selected `partial_svd_diag6_k2` family contributes ten generated rows:
 These rows are local generated evidence for the named fixtures by default. The
 reviewed Linux and macOS hosted report-freshness lanes promote only this
 selected comparison gate and their uploaded selected artifacts after hosted CI
-passes. They do not prove broad QR, LU, nonsymmetric solve, SVD, or partial-SVD
-correctness; LU CSR parity; raw QR basis identity; raw singular-vector
-identity; vector sign/orientation identity; global rank-threshold behavior;
-broad rank-deficient solve behavior; external-library parity; Windows report
-freshness; broad platform support; package/ABI support; performance; release
-readiness; or state-of-the-art status. Optional NumPy/SciPy dependency rows are
-deferred context only and never pass evidence.
+passes. They do not prove broad QR, LU, nonsymmetric solve, Cholesky, SPD, SVD,
+or partial-SVD correctness; LU CSR parity; Cholesky reordering parity;
+CSC-vs-linked-list parity; fill superiority; raw QR basis identity; raw
+singular-vector identity; vector sign/orientation identity; global
+rank-threshold behavior; broad rank-deficient solve behavior; external-library
+parity; Windows report freshness; broad platform support; package/ABI support;
+performance; release readiness; or state-of-the-art status. Optional
+NumPy/SciPy dependency rows are deferred context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 
@@ -405,10 +411,11 @@ python3 scripts/normalize_report_index.py --family oracle --check-freshness
 Use `--require-generated oracle` only when the current review actually requires
 local generated oracle artifacts to exist and match the selected freshness
 policy. Hosted CI runs the selected oracle gate as reviewed Linux evidence and
-runs the selected QR plus partial-SVD plus LU comparison gate as reviewed Linux
-and macOS selected-artifact evidence, but generated corpus/report rows remain
-fixture-local and do not imply broad solver, Windows report freshness, broad
-platform, package, performance, external-parity, or state-of-the-art claims.
+runs the selected QR, partial-SVD, LU, and Cholesky comparison gate as reviewed
+Linux and macOS selected-artifact evidence, but generated corpus/report rows
+remain fixture-local and do not imply broad solver, Windows report freshness,
+broad platform, package, performance, external-parity, or state-of-the-art
+claims.
 
 ## Optional Data
 

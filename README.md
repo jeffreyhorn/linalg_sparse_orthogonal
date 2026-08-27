@@ -765,6 +765,7 @@ source-controlled dense reference helpers. The same gate is mirrored by
 reviewed Linux and macOS hosted report-freshness lanes for selected comparison
 artifacts only. These gates do not prove raw QR basis parity, raw
 singular-vector identity, broad LU or nonsymmetric solve correctness, LU CSR
+parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list
 parity, broad rank-threshold policy, broad rank-deficient solve, broad
 minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,
 LAPACK, NumPy, SciPy, Windows report freshness, broad platform parity,

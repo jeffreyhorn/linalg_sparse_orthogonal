@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -68,10 +69,20 @@ def split_manifest_values(value: str) -> list[str]:
     return [part for part in value.split(";") if part]
 
 
-def assert_no_windows_selected_platform(rows: list[dict[str, str]]) -> None:
-    deferral_text = WINDOWS_DEFERRAL_RECORD.read_text(encoding="utf-8")
+def assert_no_windows_selected_platform(
+    rows: list[dict[str, str]],
+    deferral_path: Path = WINDOWS_DEFERRAL_RECORD,
+) -> None:
+    try:
+        deferral_text = deferral_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise AssertionError(
+            f"Windows report freshness deferral record file is missing: {deferral_path}"
+        ) from exc
     if "Windows report freshness remains formally deferred" not in deferral_text:
-        raise AssertionError("Windows report freshness deferral record is missing")
+        raise AssertionError(
+            "Windows report freshness deferral record marker text is missing"
+        )
     for row in rows:
         platforms = split_manifest_values(row["workflow_platforms"])
         if "windows" in platforms:
@@ -222,6 +233,36 @@ def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
     assert_no_windows_selected_platform(manifest_rows())
 
 
+def test_windows_deferral_record_missing_file_fails_clearly() -> None:
+    missing_path = WINDOWS_DEFERRAL_RECORD.with_name("missing-windows-deferral.md")
+    try:
+        assert_no_windows_selected_platform(manifest_rows(), missing_path)
+    except AssertionError as exc:
+        message = str(exc)
+        expected = f"Windows report freshness deferral record file is missing: {missing_path}"
+        if expected not in message:
+            raise AssertionError(f"expected missing-file diagnostic in {message!r}") from exc
+        return
+    raise AssertionError("expected missing Windows deferral record file to fail")
+
+
+def test_windows_deferral_record_missing_marker_fails_clearly() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        markerless_path = Path(tmp_dir) / "windows-report-freshness-deferral.md"
+        markerless_path.write_text("Windows deferral placeholder\n", encoding="utf-8")
+        try:
+            assert_no_windows_selected_platform(manifest_rows(), markerless_path)
+        except AssertionError as exc:
+            message = str(exc)
+            expected = "Windows report freshness deferral record marker text is missing"
+            if expected not in message:
+                raise AssertionError(
+                    f"expected missing-marker diagnostic in {message!r}"
+                ) from exc
+            return
+        raise AssertionError("expected missing Windows deferral marker to fail")
+
+
 def test_windows_platform_drift_fails_clearly() -> None:
     rows = manifest_rows()
     rows[1]["workflow_platforms"] = f"{rows[1]['workflow_platforms']};windows"
@@ -256,6 +297,8 @@ def main() -> int:
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
     test_windows_report_freshness_deferral_keeps_manifest_unselected()
+    test_windows_deferral_record_missing_file_fails_clearly()
+    test_windows_deferral_record_missing_marker_fails_clearly()
     test_windows_platform_drift_fails_clearly()
     print("test-selected-report-targets-manifest: ok")
     return 0

@@ -259,8 +259,11 @@ def assert_no_windows_selected_manifest_platform() -> None:
             )
 
 
-def assert_windows_deferral_record() -> None:
-    text = read_text(WINDOWS_DEFERRAL_RECORD)
+def assert_windows_deferral_record(path: Path = WINDOWS_DEFERRAL_RECORD) -> None:
+    try:
+        text = read_text(path)
+    except FileNotFoundError as exc:
+        raise AssertionError(f"windows deferral record missing file: {path}") from exc
     for needle in WINDOWS_DEFERRAL_REQUIRED_TEXT:
         assert_contains(text, needle, label="windows deferral record")
 
@@ -391,6 +394,14 @@ def test_windows_deferral_record_missing_blocker_fails_clearly() -> None:
     )
 
 
+def test_windows_deferral_record_missing_file_fails_clearly() -> None:
+    missing_path = WINDOWS_DEFERRAL_RECORD.with_name("missing-windows-deferral.md")
+    assert_raises_with(
+        lambda: assert_windows_deferral_record(missing_path),
+        f"windows deferral record missing file: {missing_path}",
+    )
+
+
 def test_windows_workflow_missing_reviewed_job_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     job = job_block(text, "install-and-downstream", label="windows")
@@ -512,6 +523,7 @@ def main() -> int:
     test_windows_drift_selected_command_fails_clearly()
     test_windows_drift_selected_artifact_fails_clearly()
     test_windows_deferral_record_missing_blocker_fails_clearly()
+    test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_workflow_missing_reviewed_job_fails_clearly()
     test_windows_workflow_missing_deferral_comment_fails_clearly()
     test_workflow_drift_missing_job_fails_clearly()

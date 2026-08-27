@@ -163,6 +163,7 @@ jobs:
               ("qr-compatible-ls", Path("build/comparison/qr_compatible_ls"), 6),
               ("partial-svd-diag6-k2", Path("build/comparison/partial_svd_diag6_k2"), 10),
               ("lu-nonsym-square-5", Path("build/comparison/lu_nonsym_square_5"), 6),
+              ("cholesky-spd-tridiag-5", Path("build/comparison/cholesky_spd_tridiag_5"), 6),
           ]
           uploaded_files = [
               "project_observations.tsv",
@@ -272,6 +273,12 @@ jobs:
             build/comparison/lu_nonsym_square_5/study.tsv
             build/comparison/lu_nonsym_square_5/summary.md
             build/comparison/lu_nonsym_square_5/manifest.tsv
+            build/comparison/cholesky_spd_tridiag_5/project_observations.tsv
+            build/comparison/cholesky_spd_tridiag_5/baseline_observations.tsv
+            build/comparison/cholesky_spd_tridiag_5/dependency_status.tsv
+            build/comparison/cholesky_spd_tridiag_5/study.tsv
+            build/comparison/cholesky_spd_tridiag_5/summary.md
+            build/comparison/cholesky_spd_tridiag_5/manifest.tsv
 
   hosted-performance-freshness:
     name: Linux reviewed hosted selected performance freshness

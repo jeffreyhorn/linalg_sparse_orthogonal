@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 import sys
+from pathlib import Path
 from typing import List, Tuple
 
 
@@ -45,6 +46,25 @@ def mm_load_dense(path: str) -> List[List[float]]:
                 raise ValueError("hermitian matrices are unsupported in this helper")
 
         return dense
+
+
+def build_cholesky_spd_tridiag_5() -> List[List[float]]:
+    return [
+        [4.0, -1.0, 0.0, 0.0, 0.0],
+        [-1.0, 4.0, -1.0, 0.0, 0.0],
+        [0.0, -1.0, 4.0, -1.0, 0.0],
+        [0.0, 0.0, -1.0, 4.0, -1.0],
+        [0.0, 0.0, 0.0, -1.0, 4.0],
+    ]
+
+
+def fixture_matrix(name: str) -> List[List[float]]:
+    if name == "cholesky_spd_tridiag_5":
+        return build_cholesky_spd_tridiag_5()
+    path = Path(name)
+    if path.suffix == ".mtx" or path.parent != Path("."):
+        return mm_load_dense(name)
+    raise ValueError(f"unknown fixture {name}")
 
 
 def dense_cholesky(a: List[List[float]]) -> List[List[float]]:
@@ -108,7 +128,7 @@ def main(argv: List[str]) -> int:
         return 1
 
     try:
-        dense = mm_load_dense(argv[1])
+        dense = fixture_matrix(argv[1])
         _, b = build_rhs(dense)
         l = dense_cholesky(dense)
         y = forward_substitute(l, b)

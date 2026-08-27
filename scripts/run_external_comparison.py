@@ -63,6 +63,22 @@ LU_NONSYM_SQUARE_5_ENTRIES = [
     (4, 4, 8.0),
 ]
 
+CHOLESKY_SPD_TRIDIAG_5_ENTRIES = [
+    (0, 0, 4.0),
+    (0, 1, -1.0),
+    (1, 0, -1.0),
+    (1, 1, 4.0),
+    (1, 2, -1.0),
+    (2, 1, -1.0),
+    (2, 2, 4.0),
+    (2, 3, -1.0),
+    (3, 2, -1.0),
+    (3, 3, 4.0),
+    (3, 4, -1.0),
+    (4, 3, -1.0),
+    (4, 4, 4.0),
+]
+
 TARGETS = {
     "qr-minnorm": {
         "comparison_kind": "qr",
@@ -183,6 +199,45 @@ TARGETS = {
         ),
         "success_message": (
             "external-comparison: lu-nonsym-square-5 project-vs-baseline comparison passed"
+        ),
+    },
+    "cholesky-spd-tridiag-5": {
+        "comparison_kind": "cholesky",
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "entries": CHOLESKY_SPD_TRIDIAG_5_ENTRIES,
+        "rows": 5,
+        "cols": 5,
+        "subfamily": "cholesky_spd_tridiag_5",
+        "operation": "cholesky_spd_solve",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "cholesky_spd_tridiag_5",
+        "rhs": [2.0, 4.0, 6.0, 8.0, 16.0],
+        "expected_solution": [1.0, 2.0, 3.0, 4.0, 5.0],
+        "expected_solution_norm": 7.416198487095663,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "solution_tolerance": SOLUTION_TOLERANCE_DEFAULT,
+        "baseline_value_count": 5,
+        "solve_mode": "cholesky_spd_solve",
+        "claim_scope": "fixture-local Cholesky SPD tridiagonal solve comparison only",
+        "summary_title": "Cholesky SPD Tridiagonal External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local Cholesky "
+            "SPD tridiagonal solve against the source-controlled dense "
+            "Cholesky reference helper."
+        ),
+        "non_claims": (
+            "no broad Cholesky correctness;no broad SPD coverage;"
+            "no broad reordering coverage;no CSC-vs-linked-list parity;"
+            "no factor-layout identity;no fill superiority;no NumPy parity;"
+            "no SciPy parity;no LAPACK parity;no SuiteSparse parity;"
+            "no Eigen parity;no external-library ecosystem parity;"
+            "no hosted CI proof;no release proof;no platform portability proof;"
+            "no Windows report freshness;no package-manager proof;"
+            "no shared-library ABI proof;no performance superiority;"
+            "no state-of-the-art claim"
+        ),
+        "success_message": (
+            "external-comparison: cholesky-spd-tridiag-5 "
+            "project-vs-baseline comparison passed"
         ),
     },
 }
@@ -599,9 +654,16 @@ def project_probe_source(
         err = sparse_lu_solve(A, rhs, x);
 """
         cleanup_block = ""
+    elif solve_mode == "cholesky_spd_solve":
+        solve_block = """    sparse_err_t err = sparse_cholesky_factor(A);
+    if (err == SPARSE_OK)
+        err = sparse_cholesky_solve(A, rhs, x);
+"""
+        cleanup_block = ""
     else:
         raise ComparisonError("unsupported_target", f"unsupported project solve mode {solve_mode!r}")
     return f"""#include \"sparse_matrix.h\"
+#include \"sparse_cholesky.h\"
 #include \"sparse_lu.h\"
 #include \"sparse_qr.h\"
 #include \"sparse_types.h\"
@@ -823,6 +885,8 @@ def baseline_name(target: dict[str, object]) -> str:
         return "source-controlled-dense-svd-reference"
     if target.get("comparison_kind") == "lu":
         return "source-controlled-dense-lu-reference"
+    if target.get("comparison_kind") == "cholesky":
+        return "source-controlled-dense-cholesky-reference"
     return "source-controlled-dense-qr-reference"
 
 
@@ -831,6 +895,8 @@ def baseline_version(target: dict[str, object]) -> str:
         return "svd_external_dense_reference.py"
     if target.get("comparison_kind") == "lu":
         return "lu_external_dense_reference.py"
+    if target.get("comparison_kind") == "cholesky":
+        return "chol_external_dense_reference.py"
     return "qr_external_dense_reference.py"
 
 
@@ -839,6 +905,8 @@ def comparison_configuration(target: dict[str, object]) -> str:
         stage = "sprint161_day5_comparison_logic"
     elif target.get("comparison_kind") == "lu":
         stage = "sprint174_day8_comparison_logic"
+    elif target.get("comparison_kind") == "cholesky":
+        stage = "sprint183_day8_comparison_logic"
     else:
         stage = "sprint160_day5_comparison_logic"
     return f"stage={stage};baseline_status=integrated_and_compared;support_tier=local_only"
@@ -881,8 +949,10 @@ def residual_norm_from_entries(
     return residual_sq**0.5
 
 
-def run_lu_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, str]:
-    helper = root / "tests" / "lu_external_dense_reference.py"
+def run_solve_baseline_reference(
+    root: Path, target: dict[str, object], helper_name: str
+) -> dict[str, str]:
+    helper = root / helper_name
     if not helper.is_file():
         raise ComparisonError(
             "missing_baseline_helper",
@@ -953,7 +1023,11 @@ def run_baseline_reference(root: Path, target: dict[str, object]) -> dict[str, s
     if target.get("comparison_kind") == "partial_svd":
         return run_partial_svd_baseline_reference(root, target)
     if target.get("comparison_kind") == "lu":
-        return run_lu_baseline_reference(root, target)
+        return run_solve_baseline_reference(root, target, "tests/lu_external_dense_reference.py")
+    if target.get("comparison_kind") == "cholesky":
+        return run_solve_baseline_reference(
+            root, target, "tests/chol_external_dense_reference.py"
+        )
     helper = root / "tests" / "qr_external_dense_reference.py"
     if not helper.is_file():
         raise ComparisonError(
@@ -1314,6 +1388,8 @@ def dependency_status_rows(root: Path, target: dict[str, object]) -> list[dict[s
         helper_name = "tests/svd_external_dense_reference.py"
     elif target.get("comparison_kind") == "lu":
         helper_name = "tests/lu_external_dense_reference.py"
+    elif target.get("comparison_kind") == "cholesky":
+        helper_name = "tests/chol_external_dense_reference.py"
     else:
         helper_name = "tests/qr_external_dense_reference.py"
     helper = root / helper_name

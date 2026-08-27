@@ -126,8 +126,8 @@ through:
 make report-index-comparison-freshness
 ```
 
-That target regenerates the manifest-selected QR, partial-SVD, and LU
-comparison reports and then runs:
+That target regenerates the manifest-selected QR, partial-SVD, LU, and
+Cholesky comparison reports and then runs:
 
 ```sh
 python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
@@ -146,9 +146,12 @@ generated comparison failures, skipped or deferred selected rows, duplicate
 rows, unexpected rows, row-count mismatches, and missing selected families.
 The generated rows are local fixture evidence by default. The reviewed Linux
 hosted report-freshness lane promotes only this selected comparison gate and
-its uploaded selected artifacts after hosted CI passes. They are not broad QR,
-LU, nonsymmetric solve, SVD, or partial-SVD correctness; LU CSR parity; raw QR
-basis identity; raw singular-vector identity; vector sign/orientation identity;
+its uploaded selected artifacts after hosted CI passes. The reviewed macOS
+hosted lane mirrors the selected comparison gate for the manifest-selected
+comparison families. They are not broad QR, LU, nonsymmetric solve, Cholesky,
+SPD, SVD, or partial-SVD correctness; LU CSR parity; Cholesky reordering
+parity; CSC-vs-linked-list parity; fill superiority; raw QR basis identity;
+raw singular-vector identity; vector sign/orientation identity;
 external-library parity; platform proof; package proof; ABI proof; performance
 proof; release proof; or state-of-the-art evidence.
 

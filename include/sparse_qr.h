@@ -181,8 +181,7 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, sparse_scalar_t *Q);
  * @param x        Caller-owned output solution vector of length n.
  * @param residual Optional caller-owned output for ||b - Ax||_2 (may be NULL).
  * @return SPARSE_OK on success.
- * @return SPARSE_ERR_NULL if qr, b, or x is NULL.
- * @return SPARSE_ERR_NULL if qr does not contain a valid factorization.
+ * @return SPARSE_ERR_NULL if qr, b, or x is NULL, or if qr does not contain a valid factorization.
  * @return SPARSE_ERR_ALLOC if temporary workspace allocation fails.
  *
  * @see sparse_qr_solve_minnorm for minimum-norm underdetermined solutions.

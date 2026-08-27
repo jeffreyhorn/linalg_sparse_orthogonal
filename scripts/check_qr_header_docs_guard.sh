@@ -70,11 +70,19 @@ require_regex() {
 }
 
 normalize_header_declarations() {
-    perl -0777 -pe '
-        s{/[*].*?[*]/}{}gs;
-        s{//.*$}{}gm;
-        s/[[:space:]]+/ /g;
-    ' "$HEADER"
+    python3 - "$HEADER" <<'PY'
+import re
+import sys
+
+header_path = sys.argv[1]
+with open(header_path, "r", encoding="utf-8") as header:
+    text = header.read()
+
+text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+text = re.sub(r"//.*$", "", text, flags=re.M)
+text = re.sub(r"\s+", " ", text)
+sys.stdout.write(text)
+PY
 }
 
 extract_tutorial_qr_section() {

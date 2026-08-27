@@ -69,6 +69,16 @@ required generated files, hosted upload artifact names, support tiers,
 freshness policies, claim scopes, or owner metadata. Update docs and tests to
 reference the manifest instead of copying a second authoritative target list.
 
+The selected-target manifest records positive selected workflow platforms. It
+does not use fake selected rows to represent deferrals. Sprint 182 records
+Windows report freshness as formally deferred in
+`docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`.
+While that deferral is active, selected target rows must not list `windows` in
+`workflow_platforms`, and Windows support-tier wording must remain a non-claim
+for generated report freshness. A future Windows promotion must add exact
+Windows workflow file, job, artifact name, platform, support tier, claim scope,
+and non-claims before any Windows selected freshness wording is allowed.
+
 ## Selected Oracle Freshness Gate
 
 Sprint 152 selects the local oracle family for required freshness through:

@@ -155,7 +155,11 @@ needs them.
   static-first package surface.
   Windows still does not claim Makefile parity, `pkg-config` execution parity,
   package-manager support, shared-library support, dynamic ABI support,
-  runtime-loader behavior, report freshness, or broad Windows parity.
+  runtime-loader behavior, report freshness, or broad Windows parity. Sprint
+  182 formally defers Windows report freshness in
+  `docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`;
+  promotion requires an explicit Windows-safe generator path, selected manifest
+  metadata, exact artifact upload scope, and guard updates.
   Benchmark/report rows remain bounded local evidence rather than portable
   performance claims.
 
@@ -350,7 +354,11 @@ names, support tiers, freshness policies, claim scopes, and non-claims live in
 `tests/corpus/manifests/selected_report_targets.tsv`; update that manifest
 rather than copying target lists through docs. The comparison gate does not
 promote broad report-index freshness, selected oracle freshness on macOS,
-Windows report freshness, or any unselected local-only family.
+Windows report freshness, or any unselected local-only family. Windows report
+freshness is formally deferred by the Sprint 182 decision record; do not add
+`windows` to selected workflow platforms until a Windows-safe generation path,
+selected artifact upload, support tier, and guard contract are reviewed
+together.
 
 The reviewed Linux hosted selected-performance lane runs only the selected
 canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
@@ -761,6 +769,8 @@ parity, broad rank-threshold policy, broad rank-deficient solve, broad
 minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,
 LAPACK, NumPy, SciPy, Windows report freshness, broad platform parity,
 performance, package/ABI, release, or state-of-the-art evidence.
+Sprint 182 keeps Windows report freshness formally deferred until a reviewed
+Windows-safe generated report path and selected-target manifest promotion exist.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

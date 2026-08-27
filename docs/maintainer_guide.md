@@ -588,6 +588,11 @@ comparison artifacts only; they do not promote selected oracle freshness on
 macOS, Windows report freshness, broad report-index freshness, unselected
 comparison families, package/ABI support, performance, release readiness,
 external-library parity, or state-of-the-art status.
+Sprint 182 formally defers Windows report freshness in
+`docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`.
+While that deferral is active, keep `windows` out of selected target
+`workflow_platforms` and keep Windows CI free of selected report generation
+commands and selected report upload artifact names.
 
 The selected QR and LU families use these six row names:
 
@@ -1660,7 +1665,10 @@ selected comparison gate and their uploaded selected artifacts; they do not
 promote selected oracle freshness on macOS, Windows report freshness, broad
 report-index freshness, unselected comparison families, package/ABI support,
 performance, release readiness, external-library parity, or state-of-the-art
-status. Optional NumPy/SciPy defers remain context, not pass evidence.
+status. Sprint 182 records Windows report freshness as formally deferred; a
+future promotion must add a Windows-safe generation path, exact selected upload
+scope, selected-target manifest metadata, and guard updates in the same change.
+Optional NumPy/SciPy defers remain context, not pass evidence.
 
 For selected canonical performance freshness, prefer
 `make bench-canonical-report-freshness` over hand-running the report script.

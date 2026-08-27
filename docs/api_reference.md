@@ -20,7 +20,7 @@ truth for API declarations and call-site contracts:
 | `sparse_cholesky.h` | Cholesky factorization and solve contracts |
 | `sparse_ldlt.h` | LDL^T factorization, solve, backend, and telemetry contracts |
 | `sparse_analysis.h` | Analyze-once/factor-many direct-solver lifecycle |
-| `sparse_qr.h` | QR, least-squares, rank, nullspace, and minimum-norm contracts |
+| `sparse_qr.h` | QR factorization/lifecycle, least-squares, minimum-norm, rank/nullspace, R-diagonal diagnostics, and cancellation contracts |
 | `sparse_svd.h` | Full SVD, partial SVD, pseudoinverse, and low-rank contracts |
 | `sparse_eigs.h` | Symmetric eigensolver options, backends, handles, and result contracts |
 | `sparse_iterative.h` | CG, GMRES, MINRES, BiCGSTAB, matrix-free, and handle contracts |

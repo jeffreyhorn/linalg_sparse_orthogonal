@@ -735,7 +735,7 @@ factor contents.
 
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R
-- `sparse_qr_factor_opts(A, &opts, &qr)` — with optional AMD column reordering
+- `sparse_qr_factor_opts(A, &opts, &qr)` — with options such as COLAMD column reordering for unsymmetric/QR workflows
 - `sparse_qr_solve(&qr, b, x, &residual)` — least-squares for overdetermined systems; basic solution for underdetermined systems
 - `sparse_qr_apply_q(&qr, transpose, x, y)` — apply Q or Q^T to a vector
 - `sparse_qr_rank(&qr, tol)` — numerical rank estimation

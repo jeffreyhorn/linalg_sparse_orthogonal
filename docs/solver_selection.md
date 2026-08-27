@@ -80,7 +80,7 @@ controls:
 | One-shot direct solve | Factorization/solve return code and a problem-local residual. | The matrix assumptions match the solver and residual behavior still needs investigation. |
 | Repeated direct lifecycle | Analyze/factor/refactor return codes, same-pattern invariant, and solve residuals. | The sparsity pattern is stable and backend/reordering policy is the real question. |
 | Iterative solve | Convergence status, residual norm/history, iteration count, stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
-| QR | Rank, residual, nullity/nullspace output from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
+| QR | Rank, residual, nullity/nullspace, minimum-norm output, and R-diagonal diagnostics from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
 | SVD or partial SVD | Rank, condition, triplet residuals, convergence status, and fail-closed status. | You are still inside the bounded SVD workflow described in [SVD and Low-Rank Workflows](#svd-and-low-rank-workflows). |
 | Eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status. | The problem is symmetric and backend or preconditioner selection is now the target. |
 | Benchmarks or reports | Matrix corpus, compiler, backend, thread settings, generated index, and manifest context. | You are measuring local behavior, not trying to prove portable runtime claims. |
@@ -219,9 +219,13 @@ The maintained QR corpus proof for
 oracle freshness gate `make report-index-oracle-freshness`, which Sprint 159
 mirrors in the reviewed Linux hosted report-freshness lane for selected
 oracle artifacts only.
-It supports only the selected fixture-local rank/nullity/nullspace residual
-claim. It does not claim raw QR basis parity, global rank-threshold policy,
-broad rank-deficient solve, SuiteSparse, LAPACK, NumPy, SciPy, broad platform
+It supports selected fixture-local rank/nullity/nullspace residual behavior.
+The selected comparison freshness gate
+`make report-index-comparison-freshness` also covers the selected QR
+minimum-norm and compatible least-squares comparison rows named in
+`tests/corpus/manifests/selected_report_targets.tsv`. These gates do not claim
+raw QR basis parity, global rank-threshold policy, broad rank-deficient solve,
+broad minimum-norm behavior, SuiteSparse, LAPACK, NumPy, SciPy, broad platform
 support, performance, package/ABI, or state-of-the-art parity.
 
 ## SVD and Low-Rank Workflows

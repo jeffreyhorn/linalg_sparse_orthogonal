@@ -294,22 +294,33 @@ For the broader solver-selection context behind this rule, see the
 #include "sparse_qr.h"
 
 sparse_qr_t qr;
-sparse_qr_factor(A, &qr);  // A can be m×n with m != n
+sparse_err_t err = sparse_qr_factor(A, &qr);  // A can be m×n with m != n
+if (err != SPARSE_OK) {
+    // Handle NULL, non-identity permutation, or allocation errors.
+    return err;
+}
 
 // Numerical rank
 idx_t rank = sparse_qr_rank(&qr, 0.0);  // 0.0 = default tolerance
 
-// Least-squares solve (minimizes ||Ax - b||)
+// Least-squares solve. x and residual_norm are caller-owned outputs.
 double x[3];
 double residual_norm;
-sparse_qr_solve(&qr, b, x, &residual_norm);
+err = sparse_qr_solve(&qr, b, x, &residual_norm);
+if (err != SPARSE_OK) {
+    sparse_qr_free(&qr);
+    return err;
+}
 
+// Releases factor data stored inside the caller-owned qr object.
 sparse_qr_free(&qr);
 ```
 
 Use `sparse_qr_solve()` for square systems and overdetermined least-squares
 problems. For underdetermined systems where you want the minimum 2-norm
-solution, call `sparse_qr_solve_minnorm()` instead.
+solution, call `sparse_qr_solve_minnorm()` instead. Options passed to
+minimum-norm solve/refine apply to the temporary QR factorizations those
+routines build internally.
 
 ---
 

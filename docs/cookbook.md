@@ -85,7 +85,10 @@ arrives as CSR or CSC data.
    The maintained QR corpus proof covers the bounded Sprint 139/Sprint 150
    fixture family owned by `tests/test_qr_corpus.c`: the
    `qr_rank_deficient_6x4_nullspace_v1` seed, two rank-deficient rectangular
-   fixtures, and three underdetermined minimum-norm fixtures. Use it as
+   fixtures, and three underdetermined minimum-norm fixtures. The selected
+   comparison freshness gate also covers selected QR minimum-norm and
+   compatible least-squares rows from
+   `tests/corpus/manifests/selected_report_targets.tsv`. Use these as
    fixture-local QR confidence, not as broad QR or external-library parity.
 
 3. If the one-shot factorization mutates its input and you still need the

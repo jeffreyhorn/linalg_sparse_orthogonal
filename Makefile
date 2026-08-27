@@ -822,7 +822,7 @@ wall-check: $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
 
 # ─── API documentation ────────────────────────────────────────────────
 
-.PHONY: docs api-docs-coverage api-docs-local-only docs-check api-docs-validate api-docs-freshness
+.PHONY: docs api-docs-coverage api-docs-local-only qr-header-docs-guard docs-check api-docs-validate api-docs-freshness
 docs:
 	@echo "Generating API documentation with Doxygen..."
 	doxygen Doxyfile
@@ -833,6 +833,9 @@ api-docs-coverage:
 
 api-docs-local-only:
 	@bash scripts/check_api_docs_local_only.sh
+
+qr-header-docs-guard:
+	@bash scripts/check_qr_header_docs_guard.sh
 
 docs-check: docs api-docs-coverage
 

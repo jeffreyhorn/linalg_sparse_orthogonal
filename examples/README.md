@@ -259,6 +259,8 @@ only fixture-local rank, nullity, and nullspace residual behavior.
 Solve an underdetermined system with the public minimum-2-norm QR path. This is
 the companion to `example_least_squares` for cases where there are fewer
 equations than unknowns and the minimum-norm solution is the desired answer.
+When options are provided, they apply to the temporary QR factorizations built
+inside the minimum-norm solve/refine path, including progress cancellation.
 
 ```bash
 ./build/example_minnorm

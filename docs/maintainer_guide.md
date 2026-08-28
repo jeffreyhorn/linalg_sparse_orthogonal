@@ -594,6 +594,13 @@ While that deferral is active, keep `windows` out of selected target
 `workflow_platforms` and keep Windows CI free of selected report generation
 commands and selected report upload artifact names.
 
+Sprint 186 closeout keeps that interpretation unchanged. Treat the selected
+target manifest as positive evidence for the listed Linux/macOS selected
+targets only; do not use it as an implicit Windows deferral registry or as
+evidence that a Windows report command was parsed locally. If a local
+PowerShell check is unavailable, record that as an environment residual rather
+than promoting or weakening the Windows report freshness deferral.
+
 The selected QR, LU, and Cholesky solve families use these six row names:
 
 - `project_status`
@@ -1090,6 +1097,15 @@ distribution, broad Windows Makefile or Windows `pkg-config` parity,
 external-library parity, portable runtime guarantees, hosted documentation
 publication, source-controlled generated HTML, artifact-published generated
 HTML, or completeness beyond the configured Doxygen input set.
+
+Sprint 186 final closeout treats generated API evidence as a guard-backed
+local freshness proof, not as a publication milestone. Keep residual
+`R186-HOSTED-API` open unless a later product decision explicitly selects and
+validates hosted HTML, retained CI artifacts, or committed generated output.
+Header-coherence claims should stay declaration-preserving: Doxygen comments
+and docs may become clearer, but the claim does not cover declaration-set
+changes, ABI support, package support, broad platform parity, external-library
+parity, or new solver behavior.
 
 ### Local benchmark/example READMEs
 
@@ -1694,6 +1710,12 @@ status. Sprint 182 records Windows report freshness as formally deferred; a
 future promotion must add a Windows-safe generation path, exact selected upload
 scope, selected-target manifest metadata, and guard updates in the same change.
 Optional NumPy/SciPy defers remain context, not pass evidence.
+
+For Epic 16 closeout, keep missing generated local reports, optional dependency
+defers, and unavailable local PowerShell checks out of pass evidence. They may
+explain why a row is advisory, skipped, deferred, or residualized, but only the
+manifest-selected generator plus its required freshness gate can support a
+selected report freshness claim.
 
 For selected canonical performance freshness, prefer
 `make bench-canonical-report-freshness` over hand-running the report script.

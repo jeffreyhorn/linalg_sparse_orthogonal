@@ -61,6 +61,17 @@ distribution, generated API status, and report metadata.
 
 166 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 177.1 | Complete | `SPRINT_177/artifacts/day2-residual-audit.md`; `SPRINT_177/artifacts/day3-residual-classification.md`; Sprint 186 Day 3 reconciled matrix. |
+| 177.2 | Complete | `SPRINT_177/artifacts/day5-matrix-schema.md`; `SPRINT_177/artifacts/day6-populated-matrix.md`; Sprint 186 Day 3 reconciled matrix. |
+| 177.3 | Complete | `SPRINT_177/artifacts/day7-target-selection.md`; Sprint 186 Day 3 reconciled matrix. |
+| 177.4 | Complete | `SPRINT_177/artifacts/day8-gate-templates.md`; `SPRINT_177/artifacts/day9-gate-completion.md`; later sprint validation records. |
+| 177.5 | Complete | `SPRINT_177/artifacts/day10-quality-surface-map.md`; Sprint 186 Day 9 validation-planning inputs. |
+| 177.6 | Complete | `SPRINT_177/artifacts/day12-handoff-package.md`; `SPRINT_177/artifacts/day13-reconciliation.md`; `SPRINT_177/artifacts/day14-closeout.md`. |
+
 ## Sprint 178: Allocation-Failure Proof Batch 2
 
 **Duration:** 14 days, approximately 168 hours
@@ -95,6 +106,17 @@ additional high-risk subsystem beyond iterative repeated-run handles.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 178.1 | Complete | `SPRINT_178/artifacts/day3-subsystem-selection.md`; Sprint 186 Day 3 reconciled matrix. |
+| 178.2 | Complete | `SPRINT_178/artifacts/day4-cleanup-invariant.md`; `SPRINT_178/artifacts/day9-cleanup-error-contracts.md`. |
+| 178.3 | Complete | `SPRINT_178/artifacts/day5-harness-design.md`; `SPRINT_178/artifacts/day6-harness-implementation.md`. |
+| 178.4 | Complete | `SPRINT_178/artifacts/day7-first-regression.md`; `SPRINT_178/artifacts/day8-coverage-expansion.md`; `SPRINT_178/RETROSPECTIVE.md`. |
+| 178.5 | Complete | `SPRINT_178/artifacts/day10-focused-gate.md`; `make matmul-allocation-failure-gate`. |
+| 178.6 | Complete | `SPRINT_178/artifacts/day11-scoped-claim-documentation.md`; `SPRINT_178/artifacts/day12-integrated-validation.md`; `SPRINT_178/RETROSPECTIVE.md`. |
+
 ## Sprint 179: Generated API HTML Publication Decision
 
 **Duration:** 14 days, approximately 166 hours
@@ -127,6 +149,17 @@ path or a stronger enforced local-only product decision.
 ### Total Estimate
 
 166 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 179.1 | Complete | `SPRINT_179/artifacts/day2-doxygen-surface-audit.md`; `SPRINT_179/artifacts/day3-warning-and-coverage-audit.md`. |
+| 179.2 | Narrowed | `SPRINT_179/artifacts/day5-publication-decision-matrix.md`; `SPRINT_179/artifacts/day6-product-decision-record.md`; residual `R186-HOSTED-API`. |
+| 179.3 | Complete | `SPRINT_179/artifacts/day7-implementation-design.md`; `SPRINT_179/artifacts/day8-core-implementation.md`; `SPRINT_179/artifacts/day9-enforcement-completion.md`. |
+| 179.4 | Complete | `SPRINT_179/artifacts/day10-freshness-and-staging-guard.md`; `make api-docs-freshness`. |
+| 179.5 | Complete | `SPRINT_179/artifacts/day11-navigation-and-claim-update.md`; Sprint 186 Day 7 API/header calibration. |
+| 179.6 | Complete | `SPRINT_179/artifacts/day12-focused-verification.md`; `SPRINT_179/artifacts/day13-integrated-validation.md`; `SPRINT_179/artifacts/day14-closeout-and-handoff.md`. |
 
 ## Sprint 180: Package-Manager Provider Decision
 
@@ -163,6 +196,17 @@ question with a stronger formal deferral and guard update.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 180.1 | Complete | `SPRINT_180/artifacts/day2-package-surface-audit.md`; `SPRINT_180/artifacts/day3-vcpkg-feasibility.md`; `SPRINT_180/artifacts/day4-homebrew-feasibility.md`; `SPRINT_180/artifacts/day5-conan-feasibility.md`; `SPRINT_180/artifacts/day6-pkgsrc-feasibility.md`; `SPRINT_180/artifacts/day7-provider-decision-matrix.md`. |
+| 180.2 | Narrowed | `SPRINT_180/artifacts/day8-product-decision-record.md`; Homebrew selected as a local proof path, not provider support. |
+| 180.3 | Complete | `SPRINT_180/artifacts/day9-artifact-design.md`; `SPRINT_180/artifacts/day10-artifact-implementation.md`; Homebrew formula template and package notes. |
+| 180.4 | Complete | `SPRINT_180/artifacts/day11-proof-script-design.md`; `SPRINT_180/artifacts/day12-proof-script-implementation.md`; `scripts/homebrew_local_formula_proof.sh`. |
+| 180.5 | Complete | `SPRINT_180/artifacts/day13-guard-and-docs-update.md`; package-manager and static-package guards. |
+| 180.6 | Residualized | `SPRINT_180/artifacts/day14-integrated-validation-and-closeout.md`; `SPRINT_180/RETROSPECTIVE.md`; residual `R186-PKG-LICENSE` for missing standalone license metadata before full Homebrew proof success. |
+
 ## Sprint 181: Selected Report Target Manifest
 
 **Duration:** 14 days, approximately 168 hours
@@ -196,6 +240,17 @@ docs, and freshness checks stop duplicating target lists by hand.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 181.1 | Complete | `SPRINT_181/artifacts/day1-report-target-intake.md`; `SPRINT_181/artifacts/day2-report-surface-inventory.md`; `SPRINT_181/artifacts/day3-workflow-and-guard-duplication.md`. |
+| 181.2 | Complete | `SPRINT_181/artifacts/day4-manifest-schema-design.md`; `SPRINT_181/artifacts/day5-manifest-prototype.md`; `SPRINT_181/artifacts/day6-parser-and-schema-checks.md`. |
+| 181.3 | Complete | `SPRINT_181/artifacts/day7-normalizer-refactor-design.md`; `SPRINT_181/artifacts/day8-report-guard-refactor-batch-1.md`; `SPRINT_181/artifacts/day9-report-guard-refactor-batch-2.md`. |
+| 181.4 | Complete | `SPRINT_181/artifacts/day10-workflow-scope-checks.md`. |
+| 181.5 | Complete | `SPRINT_181/artifacts/day11-documentation-alignment.md`; Sprint 186 Day 6 maintainer/report calibration. |
+| 181.6 | Complete | `SPRINT_181/artifacts/day12-diagnostics-and-drift-tests.md`; `SPRINT_181/artifacts/day13-integrated-validation.md`; `SPRINT_181/artifacts/day14-closeout-and-handoff.md`. |
+
 ## Sprint 182: Windows Report Freshness Decision
 
 **Duration:** 14 days, approximately 166 hours
@@ -228,6 +283,17 @@ Windows report freshness as an explicit product deferral with guard coverage.
 ### Total Estimate
 
 166 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 182.1 | Complete | `SPRINT_182/artifacts/day1-windows-freshness-scope-intake.md`; `SPRINT_182/artifacts/day2-windows-workflow-and-toolchain-audit.md`; `SPRINT_182/artifacts/day3-report-command-compatibility-audit.md`; `SPRINT_182/artifacts/day4-artifact-and-data-semantics-audit.md`. |
+| 182.2 | Deferred | `SPRINT_182/artifacts/day5-candidate-decision-matrix.md`; `SPRINT_182/artifacts/day6-decision-record-design.md`; `SPRINT_182/windows-report-freshness-deferral-decision.md`; residual `R186-WIN-REPORT-FRESHNESS`. |
+| 182.3 | Deferred | `SPRINT_182/artifacts/day7-implementation-batch-1.md`; `SPRINT_182/artifacts/day8-implementation-batch-2.md`; Windows report freshness deferral artifact and guard behavior. |
+| 182.4 | Complete | `SPRINT_182/artifacts/day9-manifest-and-support-tier-alignment.md`; selected target manifest and support-tier docs. |
+| 182.5 | Complete | `SPRINT_182/artifacts/day10-documentation-alignment.md`; `SPRINT_182/RETROSPECTIVE.md`; Sprint 186 Day 6 maintainer/report calibration. |
+| 182.6 | Residualized | `SPRINT_182/artifacts/day11-guard-and-failure-diagnostics-hardening.md`; `SPRINT_182/artifacts/day12-validation-sweep.md`; `SPRINT_182/artifacts/day13-decision-reconciliation.md`; residual `R186-WIN-PWSH` because local `pwsh` is unavailable. |
 
 ## Sprint 183: Additional Bounded External Comparison Family
 
@@ -263,6 +329,17 @@ metrics, report freshness, selected-target metadata, and scoped claims.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 183.1 | Complete | `SPRINT_183/artifacts/day1-comparison-family-intake.md`; `SPRINT_183/artifacts/day2-existing-comparison-surface-audit.md`; `SPRINT_183/artifacts/day3-candidate-family-inventory.md`; `SPRINT_183/artifacts/day4-family-selection.md`. |
+| 183.2 | Complete | `SPRINT_183/artifacts/day5-fixture-and-metric-contract.md`; `SPRINT_183/artifacts/day6-helper-and-fixture-implementation.md`. |
+| 183.3 | Complete | `SPRINT_183/artifacts/day7-runner-extension-design.md`; `SPRINT_183/artifacts/day8-runner-implementation.md`. |
+| 183.4 | Complete | `SPRINT_183/artifacts/day9-report-integration.md`; `SPRINT_183/artifacts/day10-freshness-gate-and-workflow-guard.md`; selected target manifest. |
+| 183.5 | Complete | `SPRINT_183/artifacts/day11-documentation-alignment.md`; `SPRINT_183/artifacts/day13-claim-review-and-hardening.md`; Sprint 186 Day 6-7 calibration. |
+| 183.6 | Complete | `SPRINT_183/artifacts/day12-integrated-validation.md`; `SPRINT_183/artifacts/day14-closeout-and-handoff.md`; `SPRINT_183/RETROSPECTIVE.md`. |
+
 ## Sprint 184: Public Header Coherence Batch 3
 
 **Duration:** 14 days, approximately 168 hours
@@ -297,6 +374,17 @@ declaration drift, improving API usability and generated documentation input.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 184.1 | Complete | `SPRINT_184/artifacts/day1-sprint-intake.md`; `SPRINT_184/artifacts/day2-declaration-baseline.md`; `SPRINT_184/artifacts/day3-family-selection-and-contract-map.md`. |
+| 184.2 | Complete | `SPRINT_184/artifacts/day4-core-contract-cleanup.md`; `SPRINT_184/artifacts/day5-advanced-contract-cleanup.md`. |
+| 184.3 | Complete | `SPRINT_184/artifacts/day6-organization-guardrail-design.md`; `SPRINT_184/artifacts/day7-coherent-header-sections.md`. |
+| 184.4 | Complete | `SPRINT_184/artifacts/day8-documentation-alignment-map.md`; `SPRINT_184/artifacts/day9-example-contract-alignment.md`; `SPRINT_184/artifacts/day10-reference-documentation-alignment.md`. |
+| 184.5 | Complete | `SPRINT_184/artifacts/day11-mechanical-guard-implementation.md`; `scripts/check_qr_header_docs_guard.sh`. |
+| 184.6 | Complete | `SPRINT_184/artifacts/day12-focused-validation-pass.md`; `SPRINT_184/artifacts/day13-full-validation-and-final-cleanup.md`; `SPRINT_184/RETROSPECTIVE.md`; Sprint 186 Day 7 QR guard validation. |
+
 ## Sprint 185: Large Test and Solver Review-Surface Reduction
 
 **Duration:** 14 days, approximately 168 hours
@@ -329,6 +417,17 @@ files while preserving behavior and build registration.
 ### Total Estimate
 
 168 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 185.1 | Complete | `SPRINT_185/artifacts/day1-review-surface-intake.md`; `SPRINT_185/artifacts/day2-candidate-cluster-baseline.md`; `SPRINT_185/artifacts/day3-selected-cluster-decision.md`. |
+| 185.2 | Complete | `SPRINT_185/artifacts/day4-helper-boundary-design.md`; `SPRINT_185/artifacts/day5-registration-guardrail-design.md`. |
+| 185.3 | Complete | `SPRINT_185/artifacts/day6-initial-helper-extraction.md`; `SPRINT_185/artifacts/day7-fixture-setup-extraction.md`; `SPRINT_185/artifacts/day8-proof-owner-cleanup.md`; PR #205 review-fix commit `a64c1bc0`. |
+| 185.4 | Complete | `SPRINT_185/artifacts/day9-drift-guard-update.md`; `scripts/check_ldlt_csc_helper_guard.sh`. |
+| 185.5 | Complete | `SPRINT_185/artifacts/day10-maintenance-invariants.md`; `SPRINT_185/artifacts/day11-contributor-guidance-alignment.md`; `docs/maintainer_guide.md`. |
+| 185.6 | Complete | `SPRINT_185/artifacts/day12-focused-cluster-validation.md`; `SPRINT_185/artifacts/day13-full-quality-gate.md`; `SPRINT_185/RETROSPECTIVE.md`; PR #205 review-fix validation. |
 
 ## Sprint 186: Epic 16 Final Validation, Claim Calibration & Closeout
 
@@ -364,6 +463,32 @@ final validation, and publish the Epic 16 retrospective and residual queue.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Current status | Evidence |
+| --- | --- | --- |
+| 186.1 | Complete | `SPRINT_186/artifacts/day1-final-closeout-intake.md`; `SPRINT_186/artifacts/day2-evidence-matrix-baseline.md`; `SPRINT_186/artifacts/day3-reconciled-evidence-matrix.md`. |
+| 186.2 | Complete | `SPRINT_186/artifacts/day4-public-claim-inventory.md`; `SPRINT_186/artifacts/day5-user-facing-claim-calibration.md`; `SPRINT_186/artifacts/day6-maintainer-report-claim-calibration.md`; `SPRINT_186/artifacts/day7-api-header-claim-calibration.md`. |
+| 186.3 | Complete | `SPRINT_186/artifacts/day8-project-plan-status-update.md`; project-plan closeout status tables. |
+| 186.4 | Complete | `SPRINT_186/artifacts/day9-integrated-validation-plan.md`; `SPRINT_186/artifacts/day10-focused-integrated-validation.md`; `SPRINT_186/artifacts/day11-full-repository-quality-gate.md`. |
+| 186.5 | Complete | `SPRINT_186/artifacts/day12-retrospective-draft.md`; `docs/planning/EPIC_16/EPIC_16_RETROSPECTIVE.md`. |
+| 186.6 | Complete | `SPRINT_186/artifacts/day13-residual-queue-handoff.md`; `docs/planning/EPIC_16/EPIC_16_RESIDUAL_QUEUE.md`. |
+
+### Closeout Residual Queue
+
+| Residual ID | Source | Closure target |
+| --- | --- | --- |
+| R186-PKG-LICENSE | Sprint 180 | Add approved standalone license metadata or decide an alternate formula license strategy before claiming full Homebrew proof success. |
+| R186-WIN-PWSH | Sprint 182 | Run PowerShell parse/workflow checks in an environment with `pwsh`, or document hosted-only validation ownership. |
+| R186-WIN-REPORT-FRESHNESS | Sprint 182 | Promote one Windows-safe selected freshness lane or keep the formal deferral with updated blockers. |
+| R186-HOSTED-API | Sprint 179 | Revisit hosted or retained generated API HTML publication only with explicit product value and guards. |
+| R186-BROAD-COMPARISON | Sprint 183 | Add future comparison evidence one bounded family at a time. |
+| R186-REVIEW-SURFACE-NEXT | Sprint 185 | Select exactly one future large review surface before further extraction. |
+
+The prioritized residual handoff with owner surfaces, expected evidence,
+validation commands, and deferral horizons is published in
+`docs/planning/EPIC_16/EPIC_16_RESIDUAL_QUEUE.md`.
+
 ## Epic 16 Success Criteria
 
 - One additional subsystem has deterministic allocation-failure proof with
@@ -385,4 +510,3 @@ final validation, and publish the Epic 16 retrospective and residual queue.
   broad external parity, portable performance, package-manager, shared-library,
   dynamic ABI, runtime-loader, broad Windows, and broad generated-report
   claims unless evidence exists.
-

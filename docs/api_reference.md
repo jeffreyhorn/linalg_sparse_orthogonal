@@ -54,6 +54,13 @@ The Sprint 179 product decision keeps this generated tree local-only rather
 than hosted, artifact-published, or committed. Use this page and the public
 headers above as the source-controlled API reference path.
 
+The Sprint 186 closeout calibration preserves that decision. Passing generated
+API checks is evidence for the configured local Doxygen input/output contract
+and staging guard only; it is not evidence for hosted HTML, retained CI
+artifacts, package-manager distribution, dynamic ABI compatibility, broad
+Windows parity, or completeness beyond checked-in public headers selected by
+`Doxyfile`.
+
 The current Doxygen configuration reads checked-in headers under `include/`.
 Generated install headers such as `sparse_version.h` are owned by install
 artifacts, `VERSION`, and install-validation tests rather than by a generated

@@ -129,15 +129,17 @@ static void check_native_matches_wrapper(const SparseMatrix *A, double tol) {
     LdltCsc *Fw = NULL;
     REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &Fw));
     ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
-    REQUIRE_OK(ldlt_csc_eliminate(Fw));
+    sparse_err_t wrapper_status = ldlt_csc_eliminate(Fw);
     ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
+    REQUIRE_OK(wrapper_status);
     REQUIRE_OK(ldlt_csc_validate(Fw));
 
     LdltCsc *Fn = NULL;
     REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &Fn));
     ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
-    REQUIRE_OK(ldlt_csc_eliminate(Fn));
+    sparse_err_t native_status = ldlt_csc_eliminate(Fn);
     ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
+    REQUIRE_OK(native_status);
     REQUIRE_OK(ldlt_csc_validate(Fn));
 
     ASSERT_TRUE(ldlt_factorizations_match(Fw, Fn, tol));

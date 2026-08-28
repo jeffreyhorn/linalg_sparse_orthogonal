@@ -465,7 +465,7 @@ final validation, and publish the Epic 16 retrospective and residual queue.
 
 ### Closeout Status
 
-| Item # | Current status | Evidence |
+| Item # | Final status | Evidence |
 | --- | --- | --- |
 | 186.1 | Complete | `SPRINT_186/artifacts/day1-final-closeout-intake.md`; `SPRINT_186/artifacts/day2-evidence-matrix-baseline.md`; `SPRINT_186/artifacts/day3-reconciled-evidence-matrix.md`. |
 | 186.2 | Complete | `SPRINT_186/artifacts/day4-public-claim-inventory.md`; `SPRINT_186/artifacts/day5-user-facing-claim-calibration.md`; `SPRINT_186/artifacts/day6-maintainer-report-claim-calibration.md`; `SPRINT_186/artifacts/day7-api-header-claim-calibration.md`. |

@@ -616,6 +616,10 @@ check: format-check lint test
 source-list-check:
 	@python3 scripts/check_library_sources.py
 
+.PHONY: ldlt-csc-helper-guard
+ldlt-csc-helper-guard:
+	@bash scripts/check_ldlt_csc_helper_guard.sh
+
 .PHONY: report-index-oracle-freshness
 report-index-oracle-freshness: $(LIB)
 	@echo "report-index-oracle-freshness: regenerating selected local oracle output"

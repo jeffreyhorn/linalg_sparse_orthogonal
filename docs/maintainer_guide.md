@@ -1229,6 +1229,29 @@ Sprint 106 maintainability ownership additions:
   - `tests/test_integration_fixtures.h` owns integration progress-callback
     counters and matrix fixtures used across direct, QR, iterative, and
     eigensolver workflow tests
+  - `tests/test_ldlt_csc_fixtures.h` owns LDLT CSC family-local KKT,
+    scaled-KKT, and analysis-backed two-pass fixture/setup helpers
+  - `tests/test_ldlt_csc_oracle_helpers.h` owns LDLT CSC family-local dense
+    oracles, symmetric-swap helpers, and native-wrapper comparison helpers
+  - `tests/test_ldlt_csc_supernode_helpers.h` owns LDLT CSC family-local
+    supernode fixtures, snapshots, dense-SPD setup, and factor-state
+    comparison helpers
+- `tests/test_ldlt_csc.c` remains the registered LDLT CSC proof-owner binary
+  for those Sprint 185 helper headers:
+  - keep `main`, `RUN_TEST(...)` ordering, public test bodies, test names,
+    fixture values, numerical tolerances, `_POSIX_C_SOURCE`, and
+    `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` ownership in `tests/test_ldlt_csc.c`
+  - keep external-process dense-reference state and platform skip behavior in
+    `tests/test_ldlt_csc.c` unless a later boundary review approves a narrower
+    extraction
+  - keep the Sprint 185 helper headers family-local and included by
+    `tests/test_ldlt_csc.c`; do not promote them to public, shared, or
+    production helper APIs
+  - run `make ldlt-csc-helper-guard` after helper-layout changes to check
+    helper presence, include ownership, and Make/CMake/source-list boundaries
+  - use
+    `docs/planning/EPIC_16/SPRINT_185/artifacts/day10-maintenance-invariants.md`
+    as the provenance record for the helper-placement rules
 - keep test helpers header-only unless there is a measured compile-time,
   ownership, or reuse reason to create a compiled test support target; a
   compiled helper would require explicit Make/CMake registration and reviewed

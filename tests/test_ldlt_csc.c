@@ -22,6 +22,9 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 #define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
+#include "test_ldlt_csc_fixtures.h"
+#include "test_ldlt_csc_oracle_helpers.h"
+#include "test_ldlt_csc_supernode_helpers.h"
 #include "test_solver_helpers.h"
 
 #include <math.h>
@@ -221,32 +224,6 @@ static void test_row_adj_swap_slots_moves_whole_row_state(void) {
  * Sprint 19 Day 10: 2×2-aware supernode detection
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Helper: build an LdltCsc whose embedded L is "fully dense lower
- * triangular" (every row `i >= j` stored in column `j`) and whose
- * pivot_size array is the caller-supplied pattern.  Lets the
- * detection tests focus on boundary behaviour without running a
- * real factor. */
-static LdltCsc *build_dense_ldlt_with_pivots(idx_t n, const idx_t *pivot_size) {
-    LdltCsc *F = NULL;
-    if (ldlt_csc_alloc(n, n * (n + 1) / 2, &F) != SPARSE_OK)
-        return NULL;
-    CholCsc *L = F->L;
-    idx_t p = 0;
-    for (idx_t j = 0; j < n; j++) {
-        L->col_ptr[j] = p;
-        for (idx_t i = j; i < n; i++) {
-            L->row_idx[p] = i;
-            L->values[p] = (i == j) ? 1.0 : 0.1;
-            p++;
-        }
-    }
-    L->col_ptr[n] = p;
-    L->nnz = p;
-    for (idx_t k = 0; k < n; k++)
-        F->pivot_size[k] = pivot_size[k];
-    return F;
-}
-
 /* Dense 6×6 matrix with all 1×1 pivots: a single supernode covering
  * [0, 6) of size 6. */
 static void test_detect_supernodes_dense_all_1x1(void) {
@@ -346,28 +323,6 @@ static void test_detect_supernodes_arg_checks(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 19 Day 12: supernode extract / writeback round-trips
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Compute row × column → linear index for a column-major buffer with
- * leading dimension `lda`. */
-static inline idx_t cm_idx(idx_t row, idx_t col, idx_t lda) { return row + col * lda; }
-
-/* Snapshot helper: copy `F->L->values`, `F->D`, `F->D_offdiag`,
- * `F->pivot_size` for the supernode column range so we can verify the
- * round-trip is the identity (no off-by-one in writeback). */
-static void snapshot_supernode_state(const LdltCsc *F, idx_t s_start, idx_t s_size,
-                                     double *L_values_copy, idx_t *L_nnz_in_block, double *D_copy,
-                                     double *D_offdiag_copy, idx_t *pivot_size_copy) {
-    idx_t cstart = F->L->col_ptr[s_start];
-    idx_t cend = F->L->col_ptr[s_start + s_size];
-    *L_nnz_in_block = cend - cstart;
-    for (idx_t p = 0; p < cend - cstart; p++)
-        L_values_copy[p] = F->L->values[cstart + p];
-    for (idx_t j = 0; j < s_size; j++) {
-        D_copy[j] = F->D[s_start + j];
-        D_offdiag_copy[j] = F->D_offdiag[s_start + j];
-        pivot_size_copy[j] = F->pivot_size[s_start + j];
-    }
-}
 
 /* Dense 6×6 supernode round-trip: extract → memcpy (identity) →
  * writeback reproduces every L value, D entry, D_offdiag entry, and
@@ -631,81 +586,6 @@ static void test_supernode_extract_writeback_arg_checks(void) {
  * this file (used by the existing scalar 20-matrix cross-check) and
  * the Day 13 random-indefinite test reaches it from above. */
 static SparseMatrix *build_random_symmetric(idx_t n, unsigned int seed);
-
-/* Compare two factored LdltCscs entry-by-entry on L, D, D_offdiag,
- * pivot_size.  Returns 1 on full match, 0 on first mismatch (and
- * surfaces the diff via TF_FAIL_). */
-static int ldlt_csc_factor_state_matches(const LdltCsc *A, const LdltCsc *B, double tol) {
-    if (A->n != B->n) {
-        TF_FAIL_("n mismatch: A=%d B=%d", (int)A->n, (int)B->n);
-        return 0;
-    }
-    idx_t n = A->n;
-    /* L structural pattern + values. */
-    if (A->L->col_ptr[n] != B->L->col_ptr[n]) {
-        TF_FAIL_("L nnz mismatch: A=%d B=%d", (int)A->L->col_ptr[n], (int)B->L->col_ptr[n]);
-        return 0;
-    }
-    for (idx_t j = 0; j < n; j++) {
-        if (A->L->col_ptr[j] != B->L->col_ptr[j]) {
-            TF_FAIL_("col_ptr[%d] mismatch: A=%d B=%d", (int)j, (int)A->L->col_ptr[j],
-                     (int)B->L->col_ptr[j]);
-            return 0;
-        }
-    }
-    idx_t total = A->L->col_ptr[n];
-    for (idx_t p = 0; p < total; p++) {
-        if (A->L->row_idx[p] != B->L->row_idx[p]) {
-            TF_FAIL_("row_idx[%d] mismatch: A=%d B=%d", (int)p, (int)A->L->row_idx[p],
-                     (int)B->L->row_idx[p]);
-            return 0;
-        }
-        if (fabs(A->L->values[p] - B->L->values[p]) > tol) {
-            TF_FAIL_("L.values[%d] mismatch: A=%.15g B=%.15g diff=%.3e", (int)p, A->L->values[p],
-                     B->L->values[p], fabs(A->L->values[p] - B->L->values[p]));
-            return 0;
-        }
-    }
-    /* D / D_offdiag / pivot_size. */
-    for (idx_t k = 0; k < n; k++) {
-        if (fabs(A->D[k] - B->D[k]) > tol) {
-            TF_FAIL_("D[%d] mismatch: A=%.15g B=%.15g", (int)k, A->D[k], B->D[k]);
-            return 0;
-        }
-        if (fabs(A->D_offdiag[k] - B->D_offdiag[k]) > tol) {
-            TF_FAIL_("D_offdiag[%d] mismatch: A=%.15g B=%.15g", (int)k, A->D_offdiag[k],
-                     B->D_offdiag[k]);
-            return 0;
-        }
-        if (A->pivot_size[k] != B->pivot_size[k]) {
-            TF_FAIL_("pivot_size[%d] mismatch: A=%d B=%d", (int)k, (int)A->pivot_size[k],
-                     (int)B->pivot_size[k]);
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* Build a moderately-conditioned dense SPD matrix of size n with
- * entries in [-1, 1] off-diagonal and a strong diagonal so BK picks
- * 1×1 pivots throughout (no swaps). */
-static SparseMatrix *build_dense_spd(idx_t n, unsigned int seed) {
-    srand(seed);
-    SparseMatrix *A = sparse_create(n, n);
-    for (idx_t i = 0; i < n; i++) {
-        for (idx_t j = 0; j < n; j++) {
-            if (i == j) {
-                /* Strong diagonal — guarantees SPD and dominant 1×1 pivots. */
-                sparse_insert(A, i, i, (double)(2 * n));
-            } else if (j < i) {
-                double v = ((double)rand() / (double)RAND_MAX) * 0.5 - 0.25;
-                sparse_insert(A, i, j, v);
-                sparse_insert(A, j, i, v);
-            }
-        }
-    }
-    return A;
-}
 
 /* Dense 8×8 SPD: the matrix forms one big supernode under
  * `ldlt_csc_detect_supernodes`'s default pivot_size=1 pattern.  Both
@@ -1312,161 +1192,6 @@ static void test_from_sparse_with_analysis_spd_factor_matches_heuristic(void) {
  * (F1 vs F2 bit-for-bit within 1e-10) and a solve-residual check
  * ≤ 1e-10 against the original A.
  */
-
-/* Small 5×5 KKT saddle-point fixture.  SPD 3×3 top block +
- * 2×2 zero bottom block + 2-row off-diagonal coupling.  Symmetric
- * indefinite by construction. */
-static SparseMatrix *build_kkt_5x5(void) {
-    idx_t n = 5;
-    SparseMatrix *A = sparse_create(n, n);
-    for (idx_t i = 0; i < 3; i++)
-        sparse_insert(A, i, i, 4.0);
-    sparse_insert(A, 0, 3, 1.0);
-    sparse_insert(A, 3, 0, 1.0);
-    sparse_insert(A, 1, 4, 1.0);
-    sparse_insert(A, 4, 1, 1.0);
-    return A;
-}
-
-/* Larger 10×10 KKT saddle-point: tridiagonal SPD top block (rows
- * 0..5, diag 6, off-diag -1) + 4×4 zero bottom block (rows 6..9) +
- * 4×6 full-rank coupling A = [I_4 | 0_{4×2}] (i.e. row j of the
- * bottom block couples to column j of the top block).  Rank-4
- * coupling ensures the KKT matrix is non-singular (Schur complement
- * is a permuted principal submatrix of H^{-1}, which is dense and
- * SPD for a tridiagonal diagonally-dominant H).  Symmetric
- * indefinite — 4 negative eigenvalues from the saddle, 6 positive
- * from the SPD block.  Stresses the supernodal panel beyond the
- * first block. */
-static SparseMatrix *build_kkt_10x10(void) {
-    idx_t n = 10;
-    SparseMatrix *A = sparse_create(n, n);
-    /* SPD top block H: tridiagonal, diag 6, sub-diag -1 (rows 0..5). */
-    for (idx_t i = 0; i < 6; i++) {
-        sparse_insert(A, i, i, 6.0);
-        if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
-        }
-    }
-    /* Zero bottom block at rows 6..9 — no diagonal entries. */
-    /* Coupling: A[j, k] = δ(j, k) for j ∈ [0..3], k ∈ [0..3], i.e.
-     * row 6+j couples to column j of the top block.  Gives a rank-4
-     * coupling matrix (identity pattern on the first 4 columns). */
-    for (idx_t j = 0; j < 4; j++) {
-        sparse_insert(A, 6 + j, j, 1.0);
-        sparse_insert(A, j, 6 + j, 1.0);
-    }
-    return A;
-}
-
-/* Scaled 10x10 KKT fixture for the Sprint 102 external dense-reference lane:
- * SPD top block H with moderate diagonal/off-diagonal scaling plus a 4x6
- * full-rank coupling block with mixed magnitudes and signs. */
-static SparseMatrix *build_kkt_scaled_10x10(void) {
-    const idx_t n = 10;
-    const double diag[6] = {8.0, 10.0, 12.0, 14.0, 16.0, 18.0};
-    const double offdiag[5] = {-1.0, -1.25, -1.5, -1.75, -2.0};
-    const idx_t coupling_rows[8] = {6, 6, 7, 7, 8, 8, 9, 9};
-    const idx_t coupling_cols[8] = {0, 4, 1, 5, 2, 4, 3, 5};
-    const double coupling_vals[8] = {1.0, 0.125, -2.0, 0.25, 0.5, -0.375, 3.0, 0.5};
-
-    SparseMatrix *A = sparse_create(n, n);
-    if (!A)
-        return NULL;
-    for (idx_t i = 0; i < 6; i++) {
-        sparse_insert(A, i, i, diag[i]);
-        if (i > 0) {
-            sparse_insert(A, i, i - 1, offdiag[i - 1]);
-            sparse_insert(A, i - 1, i, offdiag[i - 1]);
-        }
-    }
-    for (idx_t k = 0; k < 8; k++) {
-        sparse_insert(A, coupling_rows[k], coupling_cols[k], coupling_vals[k]);
-        sparse_insert(A, coupling_cols[k], coupling_rows[k], coupling_vals[k]);
-    }
-    return A;
-}
-
-/* Day 3 workflow helper: run the Option D two-pass factor on `A`
- * and populate *F1_out (scalar reference) and *F2_out (batched via
- * the new shim).  Caller owns F1, F2, and A_perm on success and
- * must free with `ldlt_csc_free` / `sparse_free`.  On any
- * intermediate failure, frees all partial state, leaves the
- * out-params NULL, and returns 0; caller uses ASSERT_TRUE to
- * surface the failure with the test-framework standard message. */
-static int s20_two_pass_indefinite_factor(const SparseMatrix *A, LdltCsc **F1_out, LdltCsc **F2_out,
-                                          SparseMatrix **A_perm_out) {
-    *F1_out = NULL;
-    *F2_out = NULL;
-    *A_perm_out = NULL;
-    idx_t n = sparse_rows(A);
-
-    /* Step 1: scalar pre-pass on heuristic CSC. */
-    LdltCsc *F1 = NULL;
-    if (ldlt_csc_from_sparse(A, NULL, 2.0, &F1) != SPARSE_OK)
-        return 0;
-    if (ldlt_csc_eliminate_native(F1) != SPARSE_OK) {
-        ldlt_csc_free(F1);
-        return 0;
-    }
-
-    /* Step 2: symmetrically permute A by F1->perm. */
-    SparseMatrix *A_perm = sparse_create(n, n);
-    if (!A_perm) {
-        ldlt_csc_free(F1);
-        return 0;
-    }
-    for (idx_t i_new = 0; i_new < n; i_new++) {
-        for (idx_t j_new = 0; j_new < n; j_new++) {
-            idx_t i_old = F1->perm[i_new];
-            idx_t j_old = F1->perm[j_new];
-            double v = sparse_get(A, i_old, j_old);
-            if (v != 0.0)
-                sparse_insert(A_perm, i_new, j_new, v);
-        }
-    }
-
-    /* Step 3: analyze the pre-permuted matrix. */
-    sparse_analysis_opts_t opts = {
-        .factor_type = SPARSE_FACTOR_LDLT,
-        .reorder = SPARSE_REORDER_NONE,
-    };
-    sparse_analysis_t an = {0};
-    if (sparse_analyze(A_perm, &opts, &an) != SPARSE_OK) {
-        ldlt_csc_free(F1);
-        sparse_free(A_perm);
-        return 0;
-    }
-
-    /* Step 4: build F2 via the Day 2 shim. */
-    LdltCsc *F2 = NULL;
-    if (ldlt_csc_from_sparse_with_analysis(A_perm, &an, &F2) != SPARSE_OK) {
-        ldlt_csc_free(F1);
-        sparse_analysis_free(&an);
-        sparse_free(A_perm);
-        return 0;
-    }
-
-    /* Step 5: seed pivot_size from scalar pass. */
-    for (idx_t k = 0; k < n; k++)
-        F2->pivot_size[k] = F1->pivot_size[k];
-
-    /* Step 6: batched supernodal factor. */
-    if (ldlt_csc_eliminate_supernodal(F2, /*min_size=*/2) != SPARSE_OK) {
-        ldlt_csc_free(F1);
-        ldlt_csc_free(F2);
-        sparse_analysis_free(&an);
-        sparse_free(A_perm);
-        return 0;
-    }
-
-    sparse_analysis_free(&an);
-    *F1_out = F1;
-    *F2_out = F2;
-    *A_perm_out = A_perm;
-    return 1;
-}
 
 /* Forward declaration: `rel_residual` is defined with the Day 9
  * solve tests further down the file.  Day 3's helper consumes it. */
@@ -2625,88 +2350,6 @@ static void test_workspace_alloc_rejects_negative_n(void) {
  * Sprint 18 Day 2: In-place symmetric swap primitive
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* ─── Dense helpers for cross-checking the swap ─────────────────── */
-
-/* Copy the stored lower triangle of F->L into a dense n*n row-major
- * buffer.  Zero everywhere F->L has no entry — this matches the
- * sparse convention (structurally absent == numerically zero).  The
- * upper triangle is left zero so the oracle reads only the lower
- * triangle. */
-static void ldlt_lower_to_dense(const LdltCsc *F, double *dense) {
-    idx_t n = F->n;
-    for (idx_t p = 0; p < n * n; p++)
-        dense[p] = 0.0;
-    for (idx_t c = 0; c < n; c++) {
-        idx_t start = F->L->col_ptr[c];
-        idx_t end = F->L->col_ptr[c + 1];
-        for (idx_t p = start; p < end; p++) {
-            idx_t r = F->L->row_idx[p];
-            dense[r * n + c] = F->L->values[p];
-        }
-    }
-}
-
-/* Apply the symmetric permutation σ = (i ↔ j) to a dense lower
- * triangle.  For each stored entry (r, c) with r >= c, map to
- * (σ(r), σ(c)), reflect to lower-triangle if σ(r) < σ(c), write to
- * `dst`.  `dst` must be a separate buffer (caller zero-fills). */
-static void dense_sym_swap(const double *src, double *dst, idx_t n, idx_t i, idx_t j) {
-    for (idx_t p = 0; p < n * n; p++)
-        dst[p] = 0.0;
-    for (idx_t c = 0; c < n; c++) {
-        for (idx_t r = c; r < n; r++) {
-            double v = src[r * n + c];
-            if (v == 0.0)
-                continue;
-            idx_t rn = (r == i) ? j : ((r == j) ? i : r);
-            idx_t cn = (c == i) ? j : ((c == j) ? i : c);
-            if (rn < cn) {
-                idx_t t = rn;
-                rn = cn;
-                cn = t;
-            }
-            dst[rn * n + cn] = v;
-        }
-    }
-}
-
-/* Element-wise compare two dense lower triangles.  Returns 1 if all
- * corresponding entries match to tol, 0 otherwise. */
-static int dense_lower_equal(const double *a, const double *b, idx_t n, double tol) {
-    for (idx_t r = 0; r < n; r++) {
-        for (idx_t c = 0; c <= r; c++) {
-            double diff = fabs(a[r * n + c] - b[r * n + c]);
-            if (diff > tol)
-                return 0;
-        }
-    }
-    return 1;
-}
-
-/* Build an LdltCsc from a list of (row, col, value) triples
- * representing the lower triangle of a symmetric matrix of dimension
- * n.  Inserts mirrored entries so `ldlt_csc_from_sparse`'s symmetry
- * check passes.  Each column's diagonal is inserted explicitly (add
- * `diag_fill[c]` for the diagonal value) so `chol_csc_validate`'s
- * diagonal-first invariant holds after the swap. */
-static LdltCsc *build_ldlt_from_triples(idx_t n, const double *diag, const idx_t *rows,
-                                        const idx_t *cols, const double *vals, idx_t nnz_offdiag) {
-    SparseMatrix *A = sparse_create(n, n);
-    for (idx_t c = 0; c < n; c++)
-        sparse_insert(A, c, c, diag[c]);
-    for (idx_t k = 0; k < nnz_offdiag; k++) {
-        sparse_insert(A, rows[k], cols[k], vals[k]);
-        sparse_insert(A, cols[k], rows[k], vals[k]); /* mirror */
-    }
-    LdltCsc *F = NULL;
-    if (ldlt_csc_from_sparse(A, NULL, 2.0, &F) != SPARSE_OK) {
-        sparse_free(A);
-        return NULL;
-    }
-    sparse_free(A);
-    return F;
-}
-
 /* ─── Error-path tests ──────────────────────────────────────────── */
 
 static void test_symmetric_swap_null(void) {
@@ -2997,95 +2640,6 @@ static void test_symmetric_swap_stress_random(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 18 Day 3: 1×1 Bunch-Kaufman column loop
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Compare two factored LdltCsc values field-by-field.  Returns 1 iff
- * pivot_size, perm, col_ptr, row_idx all match exactly and D, D_offdiag,
- * L->values agree within `tol` absolute.  Use a tight `tol` (1e-12) to
- * flag any computational divergence between wrapper and native; the
- * floating-point ordering of the cmod loop is the same on both paths
- * (both subtract contributions kp = 0, 1, ..., k-1 in order), so values
- * should match to round-off. */
-/* Walk column `j` of L and for every stored entry whose magnitude is
- * >= `tol`, check that B has a stored entry at the same row with a
- * matching value.  Either side may zero-pad dropped positions (e.g.,
- * Sprint 19 Day 6's `chol_csc_gather` keeps `col_ptr` immutable and
- * writes 0.0 into below-threshold slots instead of shrinking the
- * column), so the comparison filters zeros before comparing. */
-static int ldlt_column_nonzeros_match(const CholCsc *A, const CholCsc *B, idx_t j, double tol) {
-    idx_t ap = A->col_ptr[j];
-    idx_t ae = A->col_ptr[j + 1];
-    idx_t bp = B->col_ptr[j];
-    idx_t be = B->col_ptr[j + 1];
-    while (ap < ae || bp < be) {
-        /* Skip zero-valued entries on A's side. */
-        while (ap < ae && fabs(A->values[ap]) < tol && A->row_idx[ap] != j)
-            ap++;
-        while (bp < be && fabs(B->values[bp]) < tol && B->row_idx[bp] != j)
-            bp++;
-        if (ap == ae && bp == be)
-            return 1;
-        if (ap == ae || bp == be)
-            return 0;
-        if (A->row_idx[ap] != B->row_idx[bp])
-            return 0;
-        if (fabs(A->values[ap] - B->values[bp]) > tol)
-            return 0;
-        ap++;
-        bp++;
-    }
-    return 1;
-}
-
-static int ldlt_factorizations_match(const LdltCsc *A, const LdltCsc *B, double tol) {
-    if (A->n != B->n)
-        return 0;
-    idx_t n = A->n;
-    for (idx_t i = 0; i < n; i++) {
-        if (A->pivot_size[i] != B->pivot_size[i])
-            return 0;
-        if (A->perm[i] != B->perm[i])
-            return 0;
-        if (fabs(A->D[i] - B->D[i]) > tol)
-            return 0;
-        if (fabs(A->D_offdiag[i] - B->D_offdiag[i]) > tol)
-            return 0;
-    }
-    /* Sprint 19 Day 6: `chol_csc_gather` now writes in place and
-     * zero-pads dropped slots rather than shrinking `col_ptr`, so the
-     * two LdltCsc layouts can differ in zero-padding even when the
-     * underlying L factor is identical.  Compare value-wise by
-     * walking each column and filtering zeros instead of asserting
-     * `col_ptr` / `row_idx` / `values` are bit-identical. */
-    for (idx_t j = 0; j < n; j++) {
-        if (!ldlt_column_nonzeros_match(A->L, B->L, j, tol))
-            return 0;
-    }
-    return 1;
-}
-
-/* Factor the matrix with both the wrapper and the native kernel, then
- * assert the resulting LdltCsc structures agree.  Asserts via the
- * framework helpers so failure points at the calling test name. */
-static void check_native_matches_wrapper(const SparseMatrix *A, double tol) {
-    LdltCsc *Fw = NULL;
-    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &Fw));
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
-    REQUIRE_OK(ldlt_csc_eliminate(Fw));
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
-    REQUIRE_OK(ldlt_csc_validate(Fw));
-
-    LdltCsc *Fn = NULL;
-    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &Fn));
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
-    REQUIRE_OK(ldlt_csc_eliminate(Fn));
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
-    REQUIRE_OK(ldlt_csc_validate(Fn));
-
-    ASSERT_TRUE(ldlt_factorizations_match(Fw, Fn, tol));
-
-    ldlt_csc_free(Fw);
-    ldlt_csc_free(Fn);
-}
 
 /* ─── Pure-diagonal indefinite: no cmod, no swap, all criterion-1 1×1 ─ */
 

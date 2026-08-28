@@ -25,3 +25,8 @@ and macOS-local first. Homebrew/core, bottles, Linuxbrew, hosted binaries,
 registry readiness, shared-library support, dynamic ABI support, static/shared
 selectors, and broad package-manager support remain unsupported unless a later
 product decision adds separate evidence.
+
+Sprint 186 closeout keeps this directory in proof-only status. Until approved
+standalone license metadata exists at the repository root and the proof script
+completes render, install, `brew test`, uninstall, and cleanup successfully,
+do not present this template as an available Homebrew install method.

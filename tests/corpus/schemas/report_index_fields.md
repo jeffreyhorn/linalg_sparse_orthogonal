@@ -79,6 +79,11 @@ for generated report freshness. A future Windows promotion must add exact
 Windows workflow file, job, artifact name, platform, support tier, claim scope,
 and non-claims before any Windows selected freshness wording is allowed.
 
+Sprint 186 closeout preserves this split. Selected target rows are positive
+manifest authority for named freshness gates; formal deferrals and
+environment-residual checks are tracked in planning evidence and closeout
+artifacts, not by adding fake selected rows or widening `workflow_platforms`.
+
 ## Selected Oracle Freshness Gate
 
 Sprint 152 selects the local oracle family for required freshness through:

@@ -70,6 +70,8 @@ Use each support surface for the layer it owns:
     template, and binary packages remain unsupported
   - use source install via Make or CMake until the selected provider proof
     passes and docs/guards are updated to a proven support level
+  - Sprint 186 closeout classifies the missing standalone license metadata as
+    a residual proof blocker, not a user-facing Homebrew installation path
 - reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
 

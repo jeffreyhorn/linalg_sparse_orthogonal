@@ -110,6 +110,12 @@ while that deferral is active, selected target rows must not list `windows` in
 job, artifact, platform, support-tier, claim-scope, and non-claim metadata
 rather than drifting an existing selected row silently.
 
+Sprint 186 closeout keeps selected targets and residuals separate: selected
+rows are positive proof inputs for their named target, while Windows report
+freshness, unavailable local PowerShell validation, missing optional
+dependencies, and absent local generated reports remain deferral, skip,
+warning, or residual context. Do not reinterpret those states as pass evidence.
+
 ## Stale Reports
 
 Generated oracle rows and report indexes are fresh only for the recorded

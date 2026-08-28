@@ -54,7 +54,7 @@ require_absent_fixed() {
     local message="$3"
     local matches
 
-    matches="$(grep -Fn "$needle" "$file" 2>/dev/null || true)"
+    matches="$(grep --fixed-strings --line-number -- "$needle" "$file" 2>/dev/null || true)"
     if [ -n "$matches" ]; then
         echo "$matches" >&2
         fail "$message"
@@ -68,7 +68,10 @@ require_exact_fixed_count() {
     local message="$4"
     local count
 
-    count="$(grep -Fc "$needle" "$file" 2>/dev/null || true)"
+    count="$(grep --fixed-strings --count -- "$needle" "$file" 2>/dev/null || true)"
+    if [ -z "$count" ]; then
+        count=0
+    fi
     if [ "$count" -ne "$expected" ]; then
         fail "$message (expected $expected, found $count)"
     fi
@@ -109,6 +112,8 @@ check_header_only_registration() {
     local helper
     local include_name
     local stem
+
+    require_file "$LIBRARY_MANIFEST" "build-metadata/library_sources.txt is missing"
 
     for helper in "${HELPERS[@]}"; do
         include_name="$(basename "$helper")"

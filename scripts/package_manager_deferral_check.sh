@@ -129,6 +129,7 @@ check_selected_homebrew_local_proof() {
     local output
     local status
     local generated
+    local root_license_metadata
 
     [ -f "$template" ] || fail "selected Homebrew local formula template is missing"
     [ -f "$notes" ] || fail "selected Homebrew local proof notes are missing"
@@ -150,6 +151,30 @@ check_selected_homebrew_local_proof() {
         'no standalone LICENSE, COPYING, or NOTICE' \
         "$proof" \
         "Homebrew proof script no longer has the missing-license stop condition"
+    require_grep \
+        'not placeholder metadata' \
+        "$proof" \
+        "Homebrew proof script no longer rejects placeholder license metadata"
+    require_grep \
+        'source archive is missing required entry' \
+        "$proof" \
+        "Homebrew proof script no longer verifies required source archive entries"
+    require_grep \
+        'installed package metadata gained unsupported provider, shared-library, selector, or ABI wording' \
+        "$proof" \
+        "Homebrew proof script no longer rejects unsupported installed package metadata"
+    require_grep \
+        'formula test do no longer requires exact-version find_package\(Sparse\)' \
+        "$proof" \
+        "Homebrew proof script no longer guards exact-version downstream CMake test"
+    require_grep \
+        'formula test do no longer links Sparse::sparse_lu_ortho' \
+        "$proof" \
+        "Homebrew proof script no longer guards downstream imported target link"
+    require_grep \
+        'formula test do no longer rejects shared-library artifacts' \
+        "$proof" \
+        "Homebrew proof script no longer guards downstream shared-artifact rejection"
 
     generated="$(
         find "$ROOT_DIR/packaging/homebrew" \
@@ -165,6 +190,12 @@ check_selected_homebrew_local_proof() {
         echo "$generated" >&2
         fail "generated Homebrew proof output appeared in source-controlled packaging path"
     fi
+
+    root_license_metadata="$(
+        find "$ROOT_DIR" -maxdepth 1 \
+            \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) \
+            -print -quit
+    )"
 
     set +e
     output="$("$proof" 2>&1)"
@@ -182,6 +213,16 @@ check_selected_homebrew_local_proof() {
             if ! printf '%s\n' "$output" | grep -Fq 'local Homebrew proof remains unclaimed'; then
                 printf '%s\n' "$output" >&2
                 fail "Homebrew proof unavailable path no longer keeps support unclaimed"
+            fi
+            if [ -z "$root_license_metadata" ]; then
+                if ! printf '%s\n' "$output" | grep -Fq 'no standalone LICENSE, COPYING, or NOTICE'; then
+                    printf '%s\n' "$output" >&2
+                    fail "Homebrew proof missing-license blocker no longer names standalone license metadata"
+                fi
+                if printf '%s\n' "$output" | grep -Eq 'temp root:|creating local source archive|archive sha256:|rendering temporary formula|installing local formula|running brew test'; then
+                    printf '%s\n' "$output" >&2
+                    fail "Homebrew proof should stop before archive/render/install/test work when root license metadata is absent"
+                fi
             fi
             ;;
         *)
@@ -228,9 +269,17 @@ check_public_nonclaims() {
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer records the current Homebrew local proof blocker"
     require_grep \
+        'not a user-facing Homebrew installation path' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer keeps the missing-license blocker out of user-facing Homebrew support"
+    require_grep \
         'distribution, static/shared selectors' \
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer keeps package-manager distribution out of scope"
+    require_grep \
+        'do not present this template as an available Homebrew install method' \
+        "$ROOT_DIR/packaging/homebrew/README.md" \
+        "Homebrew README no longer keeps the local template unclaimed while proof is blocked"
     require_grep \
         'package-manager support' \
         "$ROOT_DIR/docs/maintainer_guide.md" \

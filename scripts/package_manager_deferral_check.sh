@@ -164,15 +164,15 @@ check_selected_homebrew_local_proof() {
         "$proof" \
         "Homebrew proof script no longer rejects unsupported installed package metadata"
     require_grep \
-        'formula test do no longer requires exact-version find_package\(Sparse\)' \
+        'formula test do block no longer requires exact-version find_package\(Sparse\)' \
         "$proof" \
         "Homebrew proof script no longer guards exact-version downstream CMake test"
     require_grep \
-        'formula test do no longer links Sparse::sparse_lu_ortho' \
+        'formula test do block no longer links Sparse::sparse_lu_ortho' \
         "$proof" \
         "Homebrew proof script no longer guards downstream imported target link"
     require_grep \
-        'formula test do no longer rejects shared-library artifacts' \
+        'formula test do block no longer rejects shared-library artifacts' \
         "$proof" \
         "Homebrew proof script no longer guards downstream shared-artifact rejection"
 

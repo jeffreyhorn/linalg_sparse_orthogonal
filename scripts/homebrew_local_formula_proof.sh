@@ -140,31 +140,31 @@ require_template_text() {
 verify_formula_test_contract() {
     require_template_text \
         'find_package(Sparse #{expected_version} EXACT REQUIRED)' \
-        "formula test do no longer requires exact-version find_package(Sparse)"
+        "formula test do block no longer requires exact-version find_package(Sparse)"
     require_template_text \
         'target_link_libraries(homebrew_local_formula_test PRIVATE Sparse::sparse_lu_ortho)' \
-        "formula test do no longer links Sparse::sparse_lu_ortho"
+        "formula test do block no longer links Sparse::sparse_lu_ortho"
     require_template_text \
         '#include <sparse/sparse_matrix.h>' \
-        "formula test do no longer compiles against installed sparse_matrix header"
+        "formula test do block no longer compiles against installed sparse_matrix header"
     require_template_text \
         '#include <sparse/sparse_types.h>' \
-        "formula test do no longer compiles against installed sparse_types header"
+        "formula test do block no longer compiles against installed sparse_types header"
     require_template_text \
         'assert_match "OK", output' \
-        "formula test do no longer asserts successful downstream executable output"
+        "formula test do block no longer asserts successful downstream executable output"
     require_template_text \
         'raise "static archive missing after install"' \
-        "formula test do no longer checks installed static archive"
+        "formula test do block no longer checks installed static archive"
     require_template_text \
         'raise "CMake package config missing after install"' \
-        "formula test do no longer checks installed CMake package config"
+        "formula test do block no longer checks installed CMake package config"
     require_template_text \
         'raise "pkg-config metadata missing after install"' \
-        "formula test do no longer checks installed pkg-config metadata"
+        "formula test do block no longer checks installed pkg-config metadata"
     require_template_text \
         'shared-library artifacts are outside the local proof boundary' \
-        "formula test do no longer rejects shared-library artifacts"
+        "formula test do block no longer rejects shared-library artifacts"
 }
 
 render_formula() {
@@ -250,15 +250,24 @@ make_source_archive() {
 }
 
 archive_contains() {
-    local archive="$1"
+    local archive_listing="$1"
     local entry="$2"
 
-    tar -tzf "$archive" | grep -Fxq "$entry" ||
-        tar -tzf "$archive" | grep -Fxq "$entry/"
+    printf '%s\n' "$archive_listing" |
+        awk -v entry="$entry" '
+            $0 == entry || $0 == entry "/" || index($0, entry "/") == 1 {
+                found = 1
+                exit
+            }
+            END {
+                exit found ? 0 : 1
+            }
+        '
 }
 
 verify_source_archive() {
     local archive="$1"
+    local archive_listing
     local required_entry
     local required_entries=(
         CMakeLists.txt
@@ -271,8 +280,11 @@ verify_source_archive() {
         examples
     )
 
+    archive_listing="$(tar -tzf "$archive")" ||
+        fail "could not list local Homebrew proof source archive: $archive"
+
     for required_entry in "${required_entries[@]}" "${LICENSE_METADATA_ENTRIES[@]}"; do
-        if ! archive_contains "$archive" "$required_entry"; then
+        if ! archive_contains "$archive_listing" "$required_entry"; then
             fail "source archive is missing required entry: $required_entry"
         fi
     done

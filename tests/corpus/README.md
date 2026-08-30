@@ -108,7 +108,10 @@ registry. Sprint 182 records Windows report freshness as formally deferred in
 while that deferral is active, selected target rows must not list `windows` in
 `workflow_platforms`. A future Windows promotion must add exact workflow file,
 job, artifact, platform, support-tier, claim-scope, and non-claim metadata
-rather than drifting an existing selected row silently.
+rather than drifting an existing selected row silently. The hosted Windows
+PowerShell validation lane owns selected workflow snippet parsing and
+structural guards only; it is not selected report freshness or selected
+artifact publication evidence.
 
 Sprint 186 closeout keeps selected targets and residuals separate: selected
 rows are positive proof inputs for their named target, while Windows report

@@ -15,6 +15,7 @@ FORMULA_NAME="sparse-lu-ortho-local"
 KEEP_TEMP=0
 TMPROOT=""
 UNINSTALL_ON_EXIT=0
+LICENSE_METADATA_ENTRIES=()
 
 usage() {
     cat <<'EOF'
@@ -127,6 +128,45 @@ require_placeholder() {
     fi
 }
 
+require_template_text() {
+    local text="$1"
+    local message="$2"
+
+    if ! grep -Fq "$text" "$TEMPLATE"; then
+        fail "$message"
+    fi
+}
+
+verify_formula_test_contract() {
+    require_template_text \
+        'find_package(Sparse #{expected_version} EXACT REQUIRED)' \
+        "formula test do block no longer requires exact-version find_package(Sparse)"
+    require_template_text \
+        'target_link_libraries(homebrew_local_formula_test PRIVATE Sparse::sparse_lu_ortho)' \
+        "formula test do block no longer links Sparse::sparse_lu_ortho"
+    require_template_text \
+        '#include <sparse/sparse_matrix.h>' \
+        "formula test do block no longer compiles against installed sparse_matrix header"
+    require_template_text \
+        '#include <sparse/sparse_types.h>' \
+        "formula test do block no longer compiles against installed sparse_types header"
+    require_template_text \
+        'assert_match "OK", output' \
+        "formula test do block no longer asserts successful downstream executable output"
+    require_template_text \
+        'raise "static archive missing after install"' \
+        "formula test do block no longer checks installed static archive"
+    require_template_text \
+        'raise "CMake package config missing after install"' \
+        "formula test do block no longer checks installed CMake package config"
+    require_template_text \
+        'raise "pkg-config metadata missing after install"' \
+        "formula test do block no longer checks installed pkg-config metadata"
+    require_template_text \
+        'shared-library artifacts are outside the local proof boundary' \
+        "formula test do block no longer rejects shared-library artifacts"
+}
+
 render_formula() {
     local output="$1"
 
@@ -158,12 +198,16 @@ RUBY
 
 detect_license_metadata() {
     local license_file_found=0
+    local license_path
 
-    if find "$ROOT_DIR" -maxdepth 1 \
-        \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) \
-        -print -quit | grep -q .; then
+    LICENSE_METADATA_ENTRIES=()
+
+    while IFS= read -r license_path; do
+        LICENSE_METADATA_ENTRIES+=("$(basename "$license_path")")
         license_file_found=1
-    fi
+    done < <(find "$ROOT_DIR" -maxdepth 1 \
+        \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) \
+        -print | sort)
 
     if [ "$license_file_found" -ne 1 ]; then
         unavailable "formula rendering blocked: no standalone LICENSE, COPYING, or NOTICE file exists for provider metadata"
@@ -172,6 +216,12 @@ detect_license_metadata() {
     if [ -z "${SPARSE_HOMEBREW_LICENSE:-}" ]; then
         unavailable "formula rendering blocked: SPARSE_HOMEBREW_LICENSE is not set to accurate local-proof license metadata"
     fi
+
+    case "$SPARSE_HOMEBREW_LICENSE" in
+        NOASSERTION|UNKNOWN|TBD|TODO|FIXME|PLACEHOLDER|__SPARSE_HOMEBREW_LICENSE__|*placeholder*|*Placeholder*|*PLACEHOLDER*)
+            unavailable "formula rendering blocked: SPARSE_HOMEBREW_LICENSE must be an accurate Homebrew license identifier, not placeholder metadata"
+            ;;
+    esac
 
     HOMEBREW_LICENSE="$SPARSE_HOMEBREW_LICENSE"
 }
@@ -188,22 +238,62 @@ make_source_archive() {
         src
         examples
     )
-    local license_path
+    local entry
 
-    while IFS= read -r license_path; do
-        entries+=("$(basename "$license_path")")
-    done < <(find "$ROOT_DIR" -maxdepth 1 \
-        \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) \
-        -print | sort)
+    for entry in "${LICENSE_METADATA_ENTRIES[@]}"; do
+        entries+=("$entry")
+    done
 
     if ! tar -czf "$archive" -C "$ROOT_DIR" "${entries[@]}"; then
         fail "could not create local Homebrew proof source archive: $archive"
     fi
 }
 
+archive_contains() {
+    local archive_listing="$1"
+    local entry="$2"
+
+    printf '%s\n' "$archive_listing" |
+        awk -v entry="$entry" '
+            $0 == entry || $0 == entry "/" || index($0, entry "/") == 1 {
+                found = 1
+                exit
+            }
+            END {
+                exit found ? 0 : 1
+            }
+        '
+}
+
+verify_source_archive() {
+    local archive="$1"
+    local archive_listing
+    local required_entry
+    local required_entries=(
+        CMakeLists.txt
+        Makefile
+        VERSION
+        sparse.pc.in
+        cmake
+        include
+        src
+        examples
+    )
+
+    archive_listing="$(tar -tzf "$archive")" ||
+        fail "could not list local Homebrew proof source archive: $archive"
+
+    for required_entry in "${required_entries[@]}" "${LICENSE_METADATA_ENTRIES[@]}"; do
+        if ! archive_contains "$archive_listing" "$required_entry"; then
+            fail "source archive is missing required entry: $required_entry"
+        fi
+    done
+}
+
 check_installed_static_surface() {
     local cmake_package_dir
     local config_file
+    local metadata_file
     local prefix
     local shared_artifacts
     local pc_file
@@ -219,6 +309,8 @@ check_installed_static_surface() {
     targets_noconfig_file="$cmake_package_dir/SparseTargets-noconfig.cmake"
     version_file="$cmake_package_dir/SparseConfigVersion.cmake"
 
+    [ -d "$prefix" ] || fail "Homebrew prefix missing after local formula install"
+    [ -d "$prefix/lib" ] || fail "installed lib directory missing after Homebrew local formula install"
     [ -f "$prefix/lib/libsparse_lu_ortho.a" ] || fail "static archive missing after Homebrew local formula install"
     [ -d "$prefix/include/sparse" ] || fail "installed sparse headers missing after Homebrew local formula install"
     [ -f "$config_file" ] || fail "SparseConfig.cmake missing after Homebrew local formula install"
@@ -239,6 +331,12 @@ check_installed_static_surface() {
         grep -Eiq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan'; then
         fail "installed sparse.pc gained unsupported provider, shared-library, or ABI wording"
     fi
+
+    for metadata_file in "$config_file" "$version_file" "$targets_file" "$targets_noconfig_file" "$pc_file"; do
+        if grep -Eiq 'Homebrew|vcpkg|Conan|pkgsrc|apt|dnf|pacman|registry-ready|binary package|package-manager support|dynamic ABI|SOVERSION|SONAME|DLL|dylib|BUILD_SHARED_LIBS|SPARSE_(ABI|SHARED|STATIC)|Libs\.private|Sparse::.*shared|shared[_ -]?library' "$metadata_file"; then
+            fail "installed package metadata gained unsupported provider, shared-library, selector, or ABI wording: $metadata_file"
+        fi
+    done
 
     shared_artifacts="$(find "$prefix/lib" "$prefix/bin" \
         \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.dll' \) \
@@ -269,6 +367,8 @@ require_placeholder "__SPARSE_FORMULA_SHA256__"
 require_placeholder "__SPARSE_VERSION__"
 require_placeholder "__SPARSE_HOMEBREW_LICENSE__"
 ruby -c "$TEMPLATE" >/dev/null
+verify_formula_test_contract
+detect_license_metadata
 
 TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/sparse-homebrew-proof.XXXXXX")"
 ARCHIVE="$TMPROOT/sparse-lu-ortho-$EXPECTED_VERSION.tar.gz"
@@ -283,11 +383,10 @@ mkdir -p "$FORMULA_DIR"
 info "temp root: $TMPROOT"
 info "creating local source archive"
 make_source_archive "$ARCHIVE"
+verify_source_archive "$ARCHIVE"
 ARCHIVE_SHA256="$(checksum_file "$ARCHIVE")"
 FORMULA_URL="file://$ARCHIVE"
 info "archive sha256: $ARCHIVE_SHA256"
-
-detect_license_metadata
 
 info "rendering temporary formula: $FORMULA_FILE"
 render_formula "$FORMULA_FILE"

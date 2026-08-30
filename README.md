@@ -1030,12 +1030,13 @@ not masquerade as package failures. These checks are package proof, not
 package-manager distribution or dynamic-loader evidence.
 
 Package-manager support is not currently provided; use source install via Make
-or CMake and see `INSTALL.md` for the exact package boundary. Sprint 180 adds
-local Homebrew formula proof artifacts, but the local Homebrew formula proof
-remains unclaimed because it currently exits before install on missing
-standalone license metadata. Sprint 186 closeout treats that as a residual
-provider-proof blocker, not as Homebrew availability, Homebrew/core readiness,
-tap support, bottles, Linuxbrew support, or broad package-manager distribution.
+or CMake and see `INSTALL.md` for the exact package boundary. The repository
+contains local Homebrew formula proof material, but Sprint 188 keeps Homebrew
+install support unclaimed because the proof exits before archive, render,
+install, or `brew test` work while approved standalone root license metadata is
+absent. Treat this as a provider-proof blocker, not as Homebrew availability,
+Homebrew/core readiness, tap support, bottles, Linuxbrew support, or broad
+package-manager distribution.
 
 On Windows, `sparse.pc` is installed and inspected as static package metadata
 by the reviewed CMake install/downstream lane. That lane does not run

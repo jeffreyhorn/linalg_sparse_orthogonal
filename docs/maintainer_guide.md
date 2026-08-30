@@ -275,13 +275,29 @@ Focused install/package regression ownership:
   non-claim wording
 - `scripts/homebrew_local_formula_proof.sh` is the selected Sprint 180
   Homebrew local formula proof command. It currently exits claim-safely before
-  install because no standalone `LICENSE`, `COPYING`, or `NOTICE` file exists
-  for provider metadata. Do not cite it as Homebrew support, Homebrew/core
-  readiness, bottle support, Linuxbrew support, or broad package-manager
-  support.
+  archive, render, install, or `brew test` work because no standalone
+  `LICENSE`, `COPYING`, or `NOTICE` file exists for provider metadata. Do not
+  cite it as Homebrew support, Homebrew/core readiness, bottle support,
+  Linuxbrew support, or broad package-manager support. When standalone
+  metadata is added, `SPARSE_HOMEBREW_LICENSE` must be an accurate matching
+  Homebrew license identifier; placeholder values such as `NOASSERTION`,
+  `UNKNOWN`, `TBD`, `TODO`, or template placeholder text remain blocker
+  evidence rather than package proof. Interpret exit `0` as local static
+  source formula proof only, exit `2` as unavailable/blocker evidence, and any
+  other nonzero exit as a proof failure.
 - Run `bash scripts/package_manager_deferral_check.sh` when changing
   package-manager wording, adding provider recipe files, editing package
   metadata templates, or modifying provider support claims
+- Run `bash scripts/static_package_deferral_check.sh` with package wording,
+  install metadata, CMake package, Makefile install, shared-library, or dynamic
+  ABI wording changes
+- Run `bash tests/test_install.sh` and `bash tests/test_cmake_install.sh` when
+  install behavior, installed consumer documentation, CMake package files,
+  `sparse.pc`, or downstream compile/link/run examples change
+- Run `python3 scripts/normalize_report_index.py --family package --check`
+  and `python3 scripts/normalize_report_index.py --family package
+  --check-freshness` only when package report metadata or package report
+  artifacts change
 - Linux CI carries a reviewed static-first package-contract lane that runs the
   Make install/`pkg-config` proof, CMake install/export proof, and static
   deferral guard

@@ -152,15 +152,18 @@ needs them.
   freshness for selected generated artifacts. Windows remains CMake-first with
   promoted `test_threads`, `test_sprint4_integration`, and `test_fuzz` CTest
   targets plus reviewed CMake install/downstream validation for the
-  static-first package surface and a hosted PowerShell validation ownership
-  job that parses the selected Windows workflow PowerShell snippets.
+  static-first package surface, a hosted PowerShell validation ownership
+  job that parses the selected Windows workflow PowerShell snippets, and one
+  bounded Windows selected Cholesky comparison freshness workflow for
+  `cholesky-spd-tridiag-5`.
   Windows still does not claim Makefile parity, `pkg-config` execution parity,
   package-manager support, shared-library support, dynamic ABI support,
-  runtime-loader behavior, report freshness, or broad Windows parity. Sprint
-  182 formally defers Windows report freshness in
-  `docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`;
-  promotion requires an explicit Windows-safe generator path, selected manifest
-  metadata, exact artifact upload scope, and guard updates.
+  runtime-loader behavior, broad report freshness, selected oracle freshness,
+  selected benchmark freshness, or broad Windows parity. Sprint 190 wires the
+  Windows Cholesky lane through an explicit CMake/MSVC generator path, exact
+  artifact upload scope, and guard updates; selected target manifest promotion
+  and hosted-pass claim language remain separate review surfaces. The Sprint
+  182 deferral record still applies to all other Windows report freshness.
   Benchmark/report rows remain bounded local evidence rather than portable
   performance claims.
 
@@ -350,17 +353,20 @@ benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof. The reviewed Linux hosted report-freshness lane runs only the
 selected oracle gate and the selected comparison gate above. The reviewed macOS
 hosted report-freshness lane runs only the selected comparison gate above. The
-selected target list, expected row counts, required artifacts, workflow upload
+Windows workflow contains one bounded selected Cholesky comparison freshness
+lane for `cholesky-spd-tridiag-5`; until hosted CI passes and selected-target
+metadata is promoted, treat it as a guarded workflow path rather than broad
+Windows report evidence. The selected target list, expected row counts,
+required artifacts, workflow upload
 names, support tiers, freshness policies, claim scopes, and non-claims live in
 `tests/corpus/manifests/selected_report_targets.tsv`; update that manifest
 rather than copying target lists through docs. The comparison gate does not
 promote broad report-index freshness, selected oracle freshness on macOS,
-Windows report freshness, or any unselected local-only family. Windows report
-freshness is formally deferred by the Sprint 182 decision record; do not add
-`windows` to selected workflow platforms until a Windows-safe generation path,
-selected artifact upload, support tier, and guard contract are reviewed
-together. The Windows PowerShell validation lane is workflow validation
-ownership only; it does not publish selected report artifacts or prove
+broad Windows report freshness, selected oracle freshness on Windows, selected
+benchmark freshness on Windows, or any unselected local-only family. Do not add
+`windows` to selected workflow platforms until the selected Cholesky metadata,
+support tier, and claim contract are reviewed together. The Windows PowerShell
+validation lane is workflow validation ownership only; it does not prove
 generated report freshness.
 
 The reviewed Linux hosted selected-performance lane runs only the selected
@@ -766,15 +772,21 @@ fixture-local comparison targets named in
 `tests/corpus/manifests/selected_report_targets.tsv` against the selected
 source-controlled dense reference helpers. The same gate is mirrored by
 reviewed Linux and macOS hosted report-freshness lanes for selected comparison
-artifacts only. These gates do not prove raw QR basis parity, raw
+artifacts only. Sprint 190 adds one bounded Windows hosted workflow path for
+`cholesky-spd-tridiag-5` using the target-specific freshness command
+`python scripts/normalize_report_index.py --family comparison --require-generated
+comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
+artifact `sprint190-windows-selected-comparison-cholesky`. These gates do not
+prove raw QR basis parity, raw
 singular-vector identity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list
 parity, broad rank-threshold policy, broad rank-deficient solve, broad
 minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,
-LAPACK, NumPy, SciPy, Windows report freshness, broad platform parity,
-performance, package/ABI, release, or state-of-the-art evidence.
-Sprint 182 keeps Windows report freshness formally deferred until a reviewed
-Windows-safe generated report path and selected-target manifest promotion exist.
+LAPACK, NumPy, SciPy, broad Windows report freshness, Windows selected oracle
+or benchmark freshness, broad platform parity, performance, package/ABI,
+release, or state-of-the-art evidence. The Sprint 182 deferral remains active
+for every Windows report freshness surface outside the one Sprint 190 Cholesky
+workflow path.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)

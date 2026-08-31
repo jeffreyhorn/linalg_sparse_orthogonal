@@ -103,21 +103,23 @@ performance targets that report and workflow guards consume. They narrow
 existing report-family semantics to named selected targets; they do not widen
 family-level claims or turn unselected report families into selected proof.
 The manifest is positive selected-target authority, not a general deferral
-registry. Sprint 182 records Windows report freshness as formally deferred in
-`docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`;
-while that deferral is active, selected target rows must not list `windows` in
-`workflow_platforms`. A future Windows promotion must add exact workflow file,
-job, artifact, platform, support-tier, claim-scope, and non-claim metadata
-rather than drifting an existing selected row silently. The hosted Windows
-PowerShell validation lane owns selected workflow snippet parsing and
-structural guards only; it is not selected report freshness or selected
-artifact publication evidence.
+registry. Sprint 190 wires one bounded Windows selected Cholesky comparison
+freshness workflow for `cholesky-spd-tridiag-5`, but the source manifest does
+not list `windows` until selected Cholesky metadata, support tier, and claim
+wording are reviewed together. The Sprint 182 deferral remains active for all
+other Windows report freshness. A broader Windows promotion must add exact
+workflow file, job, artifact, platform, support-tier, claim-scope, and
+non-claim metadata rather than drifting an existing selected row silently. The
+hosted Windows PowerShell validation lane owns selected workflow snippet
+parsing and structural guards only; it is not selected report freshness or
+selected artifact publication evidence.
 
 Sprint 186 closeout keeps selected targets and residuals separate: selected
-rows are positive proof inputs for their named target, while Windows report
-freshness, unavailable local PowerShell validation, missing optional
-dependencies, and absent local generated reports remain deferral, skip,
-warning, or residual context. Do not reinterpret those states as pass evidence.
+rows are positive proof inputs for their named target, while broad Windows
+report freshness, Windows selected oracle or benchmark freshness, unavailable
+local PowerShell validation, missing optional dependencies, and absent local
+generated reports remain deferral, skip, warning, or residual context. Do not
+reinterpret those states as pass evidence.
 
 ## Stale Reports
 
@@ -161,12 +163,14 @@ records observed status. The reviewed Linux hosted lane mirrors the selected
 required oracle gate and the selected QR, partial-SVD, LU, and Cholesky
 comparison freshness gate. The reviewed macOS hosted lane mirrors only the
 selected QR, partial-SVD, LU, and Cholesky comparison freshness gate. Those
-hosted lanes cover only their selected generated rows and split
-artifacts, not broad report-index freshness, selected oracle freshness on
-macOS, Windows report freshness, or all local-only families. Windows report
-freshness is formally deferred by the
-Sprint 182 decision record; Windows CMake build/test and static
-install/downstream validation do not imply generated report freshness.
+hosted lanes cover only their selected generated rows and split artifacts.
+Sprint 190 adds one bounded Windows hosted workflow path for
+`cholesky-spd-tridiag-5` with target-specific freshness checking. These lanes
+do not prove broad report-index freshness, selected oracle freshness on macOS,
+selected oracle freshness on Windows, selected benchmark freshness on Windows,
+broad Windows report freshness, or all local-only families. Windows CMake
+build/test, static install/downstream validation, and PowerShell validation do
+not imply generated report freshness.
 
 ## Selected QR, Partial-SVD, LU, And Cholesky Comparison Freshness
 
@@ -211,9 +215,10 @@ or partial-SVD correctness; LU CSR parity; Cholesky reordering parity;
 CSC-vs-linked-list parity; fill superiority; raw QR basis identity; raw
 singular-vector identity; vector sign/orientation identity; global
 rank-threshold behavior; broad rank-deficient solve behavior; external-library
-parity; Windows report freshness; broad platform support; package/ABI support;
-performance; release readiness; or state-of-the-art status. Optional
-NumPy/SciPy dependency rows are deferred context only and never pass evidence.
+parity; broad Windows report freshness; Windows selected oracle or benchmark
+freshness; broad platform support; package/ABI support; performance; release
+readiness; or state-of-the-art status. Optional NumPy/SciPy dependency rows are
+deferred context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 
@@ -422,9 +427,9 @@ local generated oracle artifacts to exist and match the selected freshness
 policy. Hosted CI runs the selected oracle gate as reviewed Linux evidence and
 runs the selected QR, partial-SVD, LU, and Cholesky comparison gate as reviewed
 Linux and macOS selected-artifact evidence, but generated corpus/report rows
-remain fixture-local and do not imply broad solver, Windows report freshness,
-broad platform, package, performance, external-parity, or state-of-the-art
-claims.
+remain fixture-local and do not imply broad solver, broad Windows report
+freshness, Windows selected oracle or benchmark freshness, broad platform,
+package, performance, external-parity, or state-of-the-art claims.
 
 ## Optional Data
 

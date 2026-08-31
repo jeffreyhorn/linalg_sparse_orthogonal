@@ -208,10 +208,19 @@ def selected_oracle_contract(selected_targets: list[dict[str, str]]) -> dict[str
 
 
 def selected_comparison_contracts(
-    selected_targets: list[dict[str, str]]
+    selected_targets: list[dict[str, str]],
+    target_keys: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows = selected_targets_by_family(selected_targets, "comparison")
+    if target_keys:
+        rows = [row for row in rows if row.get("target_key", "") in target_keys]
     if not rows:
+        if target_keys:
+            targets = ",".join(sorted(target_keys))
+            raise ReportIndexError(
+                "selected_report_targets.tsv: missing selected comparison "
+                f"target_key={targets}; run {SELECTED_TARGET_VALIDATION_COMMAND}"
+            )
         raise ReportIndexError(
             "selected_report_targets.tsv: missing selected comparison targets; "
             f"run {SELECTED_TARGET_VALIDATION_COMMAND}"
@@ -236,23 +245,56 @@ def selected_oracle_fixture_keys(selected_targets: list[dict[str, str]]) -> set[
     return set(split_manifest_values(selected_oracle_contract(selected_targets)["expected_row_ids"]))
 
 
-def selected_comparison_row_ids(selected_targets: list[dict[str, str]]) -> set[str]:
+def selected_comparison_row_ids(
+    selected_targets: list[dict[str, str]], target_keys: set[str] | None = None
+) -> set[str]:
     row_ids: set[str] = set()
-    for row in selected_comparison_contracts(selected_targets):
+    for row in selected_comparison_contracts(selected_targets, target_keys):
         row_ids.update(split_manifest_values(row["expected_row_ids"]))
     return row_ids
 
 
-def selected_comparison_expected_rows(selected_targets: list[dict[str, str]]) -> int:
-    return sum(expected_int(row, "expected_rows") for row in selected_comparison_contracts(selected_targets))
+def selected_comparison_expected_rows(
+    selected_targets: list[dict[str, str]], target_keys: set[str] | None = None
+) -> int:
+    return sum(
+        expected_int(row, "expected_rows")
+        for row in selected_comparison_contracts(selected_targets, target_keys)
+    )
 
 
-def selected_comparison_artifacts(selected_targets: list[dict[str, str]]) -> tuple[str, ...]:
-    return tuple(row["artifact_pattern"] for row in selected_comparison_contracts(selected_targets))
+def selected_comparison_artifacts(
+    selected_targets: list[dict[str, str]], target_keys: set[str] | None = None
+) -> tuple[str, ...]:
+    return tuple(
+        row["artifact_pattern"]
+        for row in selected_comparison_contracts(selected_targets, target_keys)
+    )
 
 
-def selected_comparison_artifact_diagnostic(selected_targets: list[dict[str, str]]) -> str:
-    return "artifacts=" + ",".join(selected_comparison_artifacts(selected_targets))
+def selected_comparison_subfamilies(
+    selected_targets: list[dict[str, str]], target_keys: set[str] | None = None
+) -> set[str]:
+    return {
+        row["subfamily"]
+        for row in selected_comparison_contracts(selected_targets, target_keys)
+    }
+
+
+def selected_comparison_artifact_diagnostic(
+    selected_targets: list[dict[str, str]], target_keys: set[str] | None = None
+) -> str:
+    return "artifacts=" + ",".join(selected_comparison_artifacts(selected_targets, target_keys))
+
+
+def selected_comparison_remediation(target_keys: set[str] | None = None) -> str:
+    if target_keys:
+        targets = " ".join(f"--selected-target {target}" for target in sorted(target_keys))
+        return (
+            "run python3 scripts/normalize_report_index.py --family comparison "
+            f"--require-generated comparison --check-freshness {targets}"
+        )
+    return "run make report-index-comparison-freshness"
 
 
 def write_tsv(path: Path, rows: list[dict[str, str]]) -> None:
@@ -1257,13 +1299,17 @@ def oracle_manifest_detail(build_root: Path) -> str:
     return f"manifest=build/corpus-reports/manifest.txt; resolved_manifest={resolved}"
 
 
-def stale_source_commit_reason(row: dict[str, str], current_commit: str) -> str:
+def stale_source_commit_reason(
+    row: dict[str, str],
+    current_commit: str,
+    selected_target_keys: set[str] | None = None,
+) -> str:
     if row["report_family"] == "comparison":
         return (
             "source_commit does not match current HEAD; "
             f"recorded={row.get('source_commit', 'unknown')}; current={current_commit}; "
             f"artifact={row.get('artifact_path', 'unknown')}; "
-            "run make report-index-comparison-freshness"
+            f"{selected_comparison_remediation(selected_target_keys)}"
         )
     if row["report_family"] != "oracle":
         return "source_commit does not match current HEAD"
@@ -1366,13 +1412,24 @@ def selected_comparison_policy_enabled(
     return "comparison" in required_families or strict_generated
 
 
-def selected_comparison_generated_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+def selected_comparison_generated_rows(
+    rows: list[dict[str, str]], selected_artifacts: set[str] | None = None
+) -> list[dict[str, str]]:
+    def matches_selected_artifact(artifact_path: str) -> bool:
+        if selected_artifacts is None:
+            return True
+        return any(
+            artifact_path == artifact or artifact_path.endswith(f"/{artifact}")
+            for artifact in selected_artifacts
+        )
+
     return [
         row
         for row in rows
         if row["report_family"] == "comparison"
         and row["row_origin"] == "generated_local"
         and row["row_id"].startswith("comparison_")
+        and matches_selected_artifact(row.get("artifact_path", ""))
     ]
 
 
@@ -1382,20 +1439,29 @@ def selected_comparison_policy_diagnostics(
     selected_targets: list[dict[str, str]],
     required_families: set[str],
     strict_generated: bool,
+    selected_target_keys: set[str] | None = None,
 ) -> tuple[list[str], bool]:
     if not selected_comparison_policy_enabled(required_families, strict_generated):
         return [], False
 
-    comparison_rows = selected_comparison_generated_rows(rows)
+    selected_artifacts = set(
+        selected_comparison_artifacts(selected_targets, selected_target_keys)
+    )
+    comparison_rows = selected_comparison_generated_rows(rows, selected_artifacts)
     if not comparison_rows:
         return [], False
 
     diagnostics: list[str] = []
     has_error = False
-    expected_row_ids = selected_comparison_row_ids(selected_targets)
-    expected_rows = selected_comparison_expected_rows(selected_targets)
-    artifact_diagnostic = selected_comparison_artifact_diagnostic(selected_targets)
-    target_ids = ",".join(row["target_id"] for row in selected_comparison_contracts(selected_targets))
+    expected_row_ids = selected_comparison_row_ids(selected_targets, selected_target_keys)
+    expected_rows = selected_comparison_expected_rows(selected_targets, selected_target_keys)
+    artifact_diagnostic = selected_comparison_artifact_diagnostic(
+        selected_targets, selected_target_keys
+    )
+    target_ids = ",".join(
+        row["target_id"]
+        for row in selected_comparison_contracts(selected_targets, selected_target_keys)
+    )
     row_ids = [row["row_id"] for row in comparison_rows]
     observed_ids = set(row_ids)
     missing = sorted(expected_row_ids - observed_ids)
@@ -1410,7 +1476,7 @@ def selected_comparison_policy_diagnostics(
             f"duplicates={','.join(duplicates) or 'none'}; "
             f"unexpected={','.join(unexpected) or 'none'}; "
             f"{artifact_diagnostic}; "
-            "run make report-index-comparison-freshness"
+            f"{selected_comparison_remediation(selected_target_keys)}"
         )
 
     non_pass = [
@@ -1423,7 +1489,7 @@ def selected_comparison_policy_diagnostics(
         diagnostics.append(
             "freshness: error: comparison_selected_status: non_pass_selected_row: "
             f"target_ids={target_ids}; {';'.join(non_pass)}; {artifact_diagnostic}; "
-            "run make report-index-comparison-freshness"
+            f"{selected_comparison_remediation(selected_target_keys)}"
         )
 
     deferred = [
@@ -1469,9 +1535,17 @@ def freshness_severity(
     required_families: set[str],
     strict_generated: bool,
     advisory_ok: bool,
+    selected_target_keys: set[str] | None = None,
 ) -> tuple[str, str]:
     policy = freshness_policy(row)
     required = is_required_family(row, required_families)
+    if (
+        selected_target_keys
+        and row["report_family"] == "comparison"
+        and row.get("subfamily", "")
+        not in selected_comparison_subfamilies(selected_targets, selected_target_keys)
+    ):
+        required = False
     advisory_policy = policy in ADVISORY_FRESHNESS_POLICIES
 
     if row["status"] == "fail":
@@ -1494,7 +1568,8 @@ def freshness_severity(
                 "error",
                 "generated comparison row reports fail; "
                 f"artifact={row.get('artifact_path', 'unknown')}; "
-                "run make report-index-comparison-freshness",
+                f"{selected_comparison_artifact_diagnostic(selected_targets, selected_target_keys)}; "
+                f"{selected_comparison_remediation(selected_target_keys)}",
             )
         if row["report_family"] == "package":
             return ("error", "source-controlled package proof owner is missing")
@@ -1521,8 +1596,8 @@ def freshness_severity(
                 return (
                     "error",
                     "required generated family missing: comparison; "
-                    f"{selected_comparison_artifact_diagnostic(selected_targets)}; "
-                    "run make report-index-comparison-freshness",
+                    f"{selected_comparison_artifact_diagnostic(selected_targets, selected_target_keys)}; "
+                    f"{selected_comparison_remediation(selected_target_keys)}",
                 )
             return ("error", f"required generated family missing: {row['report_family']}")
         if policy in STRICT_FRESHNESS_POLICIES:
@@ -1530,18 +1605,30 @@ def freshness_severity(
         return ("advisory", "local generated advisory report is absent")
     if state == "stale":
         if required or (strict_generated and not (advisory_ok and advisory_policy)):
-            return ("error", stale_source_commit_reason(row, current_commit))
+            return (
+                "error",
+                stale_source_commit_reason(row, current_commit, selected_target_keys),
+            )
         if policy in STRICT_FRESHNESS_POLICIES:
-            return ("warning", stale_source_commit_reason(row, current_commit))
+            return (
+                "warning",
+                stale_source_commit_reason(row, current_commit, selected_target_keys),
+            )
         return ("advisory", "local measurement freshness is advisory")
     if state == "fresh":
         return ("advisory", "generated row source_commit matches current HEAD")
     if state == "generated_present_unchecked":
         if row.get("source_commit") not in {"", "unknown", "not_applicable", current_commit}:
             if required or (strict_generated and not (advisory_ok and advisory_policy)):
-                return ("error", stale_source_commit_reason(row, current_commit))
+                return (
+                    "error",
+                    stale_source_commit_reason(row, current_commit, selected_target_keys),
+                )
             if policy in STRICT_FRESHNESS_POLICIES:
-                return ("warning", stale_source_commit_reason(row, current_commit))
+                return (
+                    "warning",
+                    stale_source_commit_reason(row, current_commit, selected_target_keys),
+                )
             return ("advisory", "source_commit differs, but local measurement freshness is advisory")
         if policy in ADVISORY_FRESHNESS_POLICIES:
             return ("advisory", "local generated row freshness is advisory")
@@ -1570,10 +1657,22 @@ def freshness_diagnostics(
     required_families: set[str],
     strict_generated: bool,
     advisory_ok: bool,
+    selected_target_keys: set[str] | None = None,
 ) -> tuple[list[str], bool]:
     diagnostics: list[str] = []
     has_error = False
+    selected_comparison_subfamily_filter = (
+        selected_comparison_subfamilies(selected_targets, selected_target_keys)
+        if selected_target_keys
+        else None
+    )
     for row in rows:
+        if (
+            selected_comparison_subfamily_filter is not None
+            and row["report_family"] == "comparison"
+            and row.get("subfamily", "") not in selected_comparison_subfamily_filter
+        ):
+            continue
         state = evaluate_freshness_state(row, current_commit)
         if state == "generated_present_unchecked" and is_selected_required_generated_row(
             row,
@@ -1589,6 +1688,7 @@ def freshness_diagnostics(
             required_families=required_families,
             strict_generated=strict_generated,
             advisory_ok=advisory_ok,
+            selected_target_keys=selected_target_keys,
         )
         if severity in ERROR_SEVERITIES:
             has_error = True
@@ -1609,6 +1709,7 @@ def freshness_diagnostics(
         selected_targets=selected_targets,
         required_families=required_families,
         strict_generated=strict_generated,
+        selected_target_keys=selected_target_keys,
     )
     diagnostics.extend(comparison_diagnostics)
     has_error = has_error or comparison_has_error
@@ -1626,6 +1727,12 @@ def main() -> int:
     parser.add_argument("--require-generated", action="append", default=[])
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--check-freshness", action="store_true")
+    parser.add_argument(
+        "--selected-target",
+        action="append",
+        default=[],
+        help="limit selected comparison freshness checks to the named target_key",
+    )
     parser.add_argument("--strict-generated", action="store_true")
     parser.add_argument("--advisory-ok", action="store_true")
     parser.add_argument("--format", choices=["tsv"], default="tsv")
@@ -1652,12 +1759,14 @@ def main() -> int:
 
     required_families = set(args.require_generated)
     if args.check_freshness:
+        selected_target_keys = set(args.selected_target)
         selected_policy_families = {"oracle", "comparison"}
         requested_families = set(args.family)
         needs_selected_targets = (
             args.strict_generated
             or bool(required_families & selected_policy_families)
             or bool(requested_families & selected_policy_families)
+            or bool(selected_target_keys)
         )
         selected_targets = (
             selected_report_targets(args.corpus_root) if needs_selected_targets else []
@@ -1670,6 +1779,7 @@ def main() -> int:
             required_families=required_families,
             strict_generated=args.strict_generated,
             advisory_ok=args.advisory_ok,
+            selected_target_keys=selected_target_keys or None,
         )
         for diagnostic in diagnostics:
             print(diagnostic)

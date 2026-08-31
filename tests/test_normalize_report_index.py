@@ -82,6 +82,9 @@ SELECTED_LU_COMPARISON_ROW_IDS = {
 SELECTED_CHOLESKY_COMPARISON_ROW_IDS = {
     row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "cholesky_spd_tridiag_5" in row_id
 }
+SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC = (
+    "artifacts=build/comparison/cholesky_spd_tridiag_5/study.tsv"
+)
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/qr_minnorm/study.tsv,"
     "build/comparison/qr_compatible_ls/study.tsv,"
@@ -971,6 +974,7 @@ def write_selected_oracle_rows(
 def write_selected_comparison_rows(
     build_root: Path,
     *,
+    only_subfamilies: set[str] | None = None,
     drop_last: bool = False,
     stale_first: bool = False,
     defer_first: bool = False,
@@ -1038,15 +1042,18 @@ def write_selected_comparison_rows(
             operation = "minnorm_solve"
             artifact_path = "build/comparison/qr_minnorm/study.tsv"
             non_claims = "synthetic test rows only; no broad QR parity claim"
+        if only_subfamilies is not None and subfamily not in only_subfamilies:
+            continue
+        emitted_index = sum(len(rows) for rows in rows_by_subfamily.values())
         status = "pass"
         status_reason = "synthetic_pass"
-        if index == 0 and defer_first:
+        if emitted_index == 0 and defer_first:
             status = "defer"
             status_reason = "synthetic_dependency_deferred"
-        if index == 0 and fail_first:
+        if emitted_index == 0 and fail_first:
             status = "fail"
             status_reason = "synthetic_comparison_failure"
-        if index == 0 and skip_first:
+        if emitted_index == 0 and skip_first:
             status = "skip"
             status_reason = "synthetic_comparison_skipped"
         rows_by_subfamily[subfamily].append(
@@ -1067,7 +1074,9 @@ def write_selected_comparison_rows(
                 "project_name": "sparse_lu_ortho",
                 "project_version": "synthetic",
                 "project_command": "synthetic project",
-                "source_commit": "oldcommit" if stale_first and index == 0 else current_commit(),
+                "source_commit": "oldcommit"
+                if stale_first and emitted_index == 0
+                else current_commit(),
                 "source_branch": "sprint-159",
                 "worktree_state": "clean",
                 "platform": "test",
@@ -1627,6 +1636,105 @@ def test_selected_comparison_required_freshness_accepts_complete_row_set() -> No
         assert all("no broad Cholesky correctness" in row["non_claims"] for row in cholesky_rows)
 
 
+def test_selected_comparison_target_freshness_accepts_cholesky_subset() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "required generated family missing: comparison" in result.stdout
+        assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "build/comparison/qr_minnorm/study.tsv" not in result.stdout
+
+        write_selected_comparison_rows(
+            build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+        )
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ]
+        )
+        assert "comparison_selected_rows" not in result.stdout
+        assert "comparison_selected_status" not in result.stdout
+        assert "freshness: warning:" not in result.stdout
+
+
+def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"cholesky_spd_tridiag_5"},
+            stale_first=True,
+        )
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "source_commit does not match current HEAD" in result.stdout
+        assert "--selected-target cholesky-spd-tridiag-5" in result.stdout
+
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"cholesky_spd_tridiag_5"},
+            fail_first=True,
+        )
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "generated comparison row reports fail" in result.stdout
+        assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
+
+
 def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     rows = read_tsv(REPORT_FAMILIES)
     comparison_rows = {}
@@ -1849,6 +1957,8 @@ def main() -> int:
     test_selected_oracle_required_freshness_rejects_missing_fixture_key()
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     test_selected_comparison_required_freshness_accepts_complete_row_set()
+    test_selected_comparison_target_freshness_accepts_cholesky_subset()
+    test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()
     test_selected_comparison_required_freshness_rejects_duplicate_rows()

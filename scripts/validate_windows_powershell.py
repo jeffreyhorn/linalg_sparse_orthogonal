@@ -37,7 +37,7 @@ WINDOWS_DEFERRAL_RECORD = (
 )
 
 DEFERRAL_MARKER = "Windows report freshness remains formally deferred"
-WORKFLOW_DEFERRAL_MARKER = "Sprint 182 formally defers Windows report freshness"
+WORKFLOW_SELECTED_CHOLESKY_MARKER = "Sprint 190 promotes one bounded selected Cholesky comparison"
 WINDOWS_RUNNER = "windows-2022"
 FORBIDDEN_SELECTED_FRESHNESS = (
     "report-index-oracle-freshness",
@@ -53,32 +53,54 @@ SELECTED_REPORT_FAMILIES = {"oracle", "comparison", "benchmark"}
 HOSTED_VALIDATION_JOB = "powershell-validation"
 HOSTED_VALIDATION_STEP_NAME = "Validate owned Windows PowerShell workflow material"
 HOSTED_VALIDATION_COMMAND = "python scripts/validate_windows_powershell.py --require-pwsh"
+WINDOWS_SELECTED_CHOLESKY_JOB = "selected-comparison-freshness"
+WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_SELECTED_CHOLESKY_GENERATOR = (
+    "python scripts/run_external_comparison.py --target cholesky-spd-tridiag-5 "
+    "--probe-build-system cmake --cmake-generator \"Visual Studio 17 2022\" "
+    "--cmake-arch x64 --cmake-config Release --library build/Release/sparse_lu_ortho.lib"
+)
+WINDOWS_SELECTED_CHOLESKY_FRESHNESS = (
+    "python scripts/normalize_report_index.py --family comparison --require-generated "
+    "comparison --check-freshness --selected-target cholesky-spd-tridiag-5"
+)
+WINDOWS_SELECTED_CHOLESKY_REQUIRED_FILES = (
+    "build/comparison/cholesky_spd_tridiag_5/project_observations.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/baseline_observations.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/dependency_status.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/summary.md",
+    "build/comparison/cholesky_spd_tridiag_5/manifest.tsv",
+)
 CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "README.md": (
         "Windows still does not claim Makefile parity",
         "hosted PowerShell validation ownership\n  job",
-        "workflow validation\nownership only",
-        "Windows report\nfreshness is formally deferred by the Sprint 182 decision record",
-        "Windows-safe generation path",
+        "workflow validation ownership only",
+        "bounded Windows selected Cholesky comparison freshness workflow",
+        "The Sprint\n  182 deferral record still applies to all other Windows report freshness",
     ),
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation ownership for selected Windows workflow snippets",
-        "report freshness, package-manager support",
+        "bounded selected Cholesky comparison freshness workflow",
+        "broad report freshness, selected oracle freshness, selected benchmark freshness",
         "does not imply Windows Makefile parity",
         "runtime-loader behavior, or broad Windows parity",
     ),
     REPO_ROOT / "docs" / "maintainer_guide.md": (
-        "Sprint 182 formally defers Windows report freshness",
+        "Sprint 190 adds one bounded Windows hosted workflow\npath for `cholesky-spd-tridiag-5`",
+        "The Sprint 182 deferral remains active for every Windows report freshness\nsurface outside the one Sprint 190 Cholesky workflow path",
         "make windows-powershell-validate",
         "python scripts/validate_windows_powershell.py --require-pwsh",
-        "PowerShell check is unavailable, record that as an environment residual",
+        "If a local PowerShell\ncheck is unavailable, record that as an environment residual",
         "unavailable local PowerShell checks out of pass evidence",
     ),
     REPO_ROOT / "tests" / "corpus" / "README.md": (
-        "Sprint 182 records Windows report freshness as formally deferred",
-        "hosted Windows\nPowerShell validation lane owns selected workflow snippet parsing",
-        "unavailable local PowerShell validation",
-        "Do not reinterpret those states as pass evidence",
+        "Sprint 190 wires one bounded Windows selected Cholesky comparison\nfreshness workflow",
+        "The Sprint 182 deferral remains active for all\nother Windows report freshness",
+        "hosted Windows PowerShell validation lane owns selected workflow snippet\nparsing",
+        "unavailable\nlocal PowerShell validation",
+        "reinterpret those states as pass evidence",
     ),
 }
 UNSUPPORTED_WINDOWS_CLAIM_PATTERNS = (
@@ -136,6 +158,16 @@ STEP_REQUIREMENTS = (
         "install-and-downstream",
         "Run reviewed CMake install/downstream validation proof",
         ("sparse_lu_ortho.lib", "sparse.pc", "metadata-only", "find_package", "mismatch"),
+    ),
+    StepRequirement(
+        WINDOWS_SELECTED_CHOLESKY_JOB,
+        "Configure selected Cholesky comparison library",
+        ("cmake -S . -B build", "Visual Studio 17 2022"),
+    ),
+    StepRequirement(
+        WINDOWS_SELECTED_CHOLESKY_JOB,
+        "Build selected Cholesky comparison library",
+        ("cmake --build build", "Release", "sparse_lu_ortho"),
     ),
 )
 
@@ -345,12 +377,20 @@ def validate_workflow_structure(
     text: str,
     forbidden_selected_freshness: tuple[str, ...] = FORBIDDEN_SELECTED_FRESHNESS,
 ) -> list[Step]:
-    if WORKFLOW_DEFERRAL_MARKER not in text:
-        raise ValidationError("windows workflow missing Sprint 182 deferral comment")
-    pass_msg("windows workflow deferral comment")
+    if WORKFLOW_SELECTED_CHOLESKY_MARKER not in text:
+        raise ValidationError("windows workflow missing Sprint 190 selected Cholesky comment")
+    pass_msg("windows workflow selected Cholesky comment")
+
+    selected_lane = validate_windows_selected_cholesky_lane(text)
+    text_without_selected_lane = text.replace(selected_lane, "", 1)
 
     steps: list[Step] = []
-    for job_id in ("build-and-test", "install-and-downstream", HOSTED_VALIDATION_JOB):
+    for job_id in (
+        "build-and-test",
+        "install-and-downstream",
+        HOSTED_VALIDATION_JOB,
+        WINDOWS_SELECTED_CHOLESKY_JOB,
+    ):
         block = find_job_block(text, job_id)
         runner = field_value(block, "runs-on")
         if runner != WINDOWS_RUNNER:
@@ -359,18 +399,47 @@ def validate_workflow_structure(
         steps.extend(parse_steps(job_id, block))
 
     for needle in forbidden_selected_freshness:
-        if needle in text:
+        if needle in text_without_selected_lane:
             raise ValidationError(
                 f"windows workflow must not run or upload selected report freshness {needle!r}"
             )
-    if "actions/upload-artifact" in text:
+    if "actions/upload-artifact" in text_without_selected_lane:
         raise ValidationError(
-            "windows workflow must not publish hosted artifacts while selected "
-            "Windows report evidence is absent"
+            "windows workflow must not publish hosted artifacts outside the "
+            "selected Cholesky freshness lane"
         )
-    pass_msg("windows selected report freshness non-promotion")
+    pass_msg("windows selected report freshness bounded promotion")
 
     return steps
+
+
+def validate_windows_selected_cholesky_lane(text: str) -> str:
+    block = find_job_block(text, WINDOWS_SELECTED_CHOLESKY_JOB)
+    if "timeout-minutes: 20" not in block:
+        raise ValidationError(
+            f"{WINDOWS_SELECTED_CHOLESKY_JOB} must declare timeout-minutes: 20"
+        )
+    for needle in (
+        WINDOWS_SELECTED_CHOLESKY_GENERATOR,
+        WINDOWS_SELECTED_CHOLESKY_FRESHNESS,
+        "actions/upload-artifact@v4",
+        f"name: {WINDOWS_SELECTED_CHOLESKY_ARTIFACT}",
+        "if-no-files-found: error",
+    ):
+        if needle not in block:
+            raise ValidationError(
+                f"{WINDOWS_SELECTED_CHOLESKY_JOB} missing selected Cholesky token {needle!r}"
+            )
+    if "build/comparison/**" in block:
+        raise ValidationError(
+            f"{WINDOWS_SELECTED_CHOLESKY_JOB} must not use broad comparison artifact paths"
+        )
+    for required_file in WINDOWS_SELECTED_CHOLESKY_REQUIRED_FILES:
+        if required_file not in block:
+            raise ValidationError(
+                f"{WINDOWS_SELECTED_CHOLESKY_JOB} missing upload path {required_file!r}"
+            )
+    return block
 
 
 def validate_claim_boundaries(overrides: dict[Path, str] | None = None) -> None:

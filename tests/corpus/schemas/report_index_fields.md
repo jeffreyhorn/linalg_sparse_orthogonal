@@ -70,14 +70,12 @@ freshness policies, claim scopes, or owner metadata. Update docs and tests to
 reference the manifest instead of copying a second authoritative target list.
 
 The selected-target manifest records positive selected workflow platforms. It
-does not use fake selected rows to represent deferrals. Sprint 182 records
-Windows report freshness as formally deferred in
-`docs/planning/EPIC_16/SPRINT_182/artifacts/windows-report-freshness-deferral-decision.md`.
-While that deferral is active, selected target rows must not list `windows` in
-`workflow_platforms`, and Windows support-tier wording must remain a non-claim
-for generated report freshness. A future Windows promotion must add exact
-Windows workflow file, job, artifact name, platform, support tier, claim scope,
-and non-claims before any Windows selected freshness wording is allowed.
+does not use fake selected rows to represent deferrals. Sprint 190 wires one
+bounded Windows selected Cholesky comparison workflow for
+`cholesky-spd-tridiag-5`, but selected target rows must not list `windows` in
+`workflow_platforms` until the selected Cholesky metadata, support tier, claim
+scope, and non-claims are reviewed together. The Sprint 182 deferral remains
+active for all other Windows report freshness.
 
 Sprint 186 closeout preserves this split. Selected target rows are positive
 manifest authority for named freshness gates; formal deferrals and
@@ -153,8 +151,10 @@ The generated rows are local fixture evidence by default. The reviewed Linux
 hosted report-freshness lane promotes only this selected comparison gate and
 its uploaded selected artifacts after hosted CI passes. The reviewed macOS
 hosted lane mirrors the selected comparison gate for the manifest-selected
-comparison families. They are not broad QR, LU, nonsymmetric solve, Cholesky,
-SPD, SVD, or partial-SVD correctness; LU CSR parity; Cholesky reordering
+comparison families. Sprint 190 adds one bounded Windows hosted workflow path
+for `cholesky-spd-tridiag-5`; it is not broad Windows report freshness. These
+lanes are not broad QR, LU, nonsymmetric solve, Cholesky, SPD, SVD, or
+partial-SVD correctness; LU CSR parity; Cholesky reordering
 parity; CSC-vs-linked-list parity; fill superiority; raw QR basis identity;
 raw singular-vector identity; vector sign/orientation identity;
 external-library parity; platform proof; package proof; ABI proof; performance

@@ -6,7 +6,6 @@ from __future__ import annotations
 import contextlib
 import io
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -55,6 +54,15 @@ def write_fake_pwsh(directory: Path, body: str) -> Path:
     fake.write_text("#!/usr/bin/env sh\n" + body, encoding="utf-8")
     fake.chmod(0o755)
     return fake
+
+
+def run_with_path(argv: list[str], path: str) -> int:
+    old_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = path
+    try:
+        return validator.main(argv)
+    finally:
+        os.environ["PATH"] = old_path
 
 
 def test_current_windows_workflow_structural_validation() -> None:
@@ -192,6 +200,21 @@ def test_hosted_validation_wiring_does_not_use_pwsh_shell() -> None:
     )
 
 
+def test_hosted_validation_pwsh_shell_is_unowned() -> None:
+    drifted = read_workflow().replace(
+        "        run: python scripts/validate_windows_powershell.py --require-pwsh\n"
+        "        shell: cmd",
+        "        run: python scripts/validate_windows_powershell.py --require-pwsh\n"
+        "        shell: pwsh",
+        1,
+    )
+    steps = validator.validate_workflow_structure(drifted)
+    assert_raises_with(
+        lambda: validator.validate_required_steps(steps),
+        "windows workflow has unowned PowerShell steps",
+    )
+
+
 def test_selected_report_manifest_references_validate() -> None:
     validator.validate_selected_report_references(manifest_rows())
 
@@ -262,38 +285,26 @@ test -f "$SPARSE_PWSH_SNIPPET" || exit 15
 exit 0
 """,
         )
-        old_path = os.environ.get("PATH", "")
-        os.environ["PATH"] = str(tmpdir) + os.pathsep + old_path
-        try:
-            assert validator.main([]) == 0
-            assert validator.main(["--require-pwsh"]) == 0
-        finally:
-            os.environ["PATH"] = old_path
+        fake_pwsh_path = str(tmpdir) + os.pathsep + os.environ.get("PATH", "")
+        assert run_with_path([], fake_pwsh_path) == 0
+        assert run_with_path(["--require-pwsh"], fake_pwsh_path) == 0
 
 
-def test_local_missing_pwsh_returns_unavailable_or_passes_if_installed() -> None:
-    rc = validator.main([])
-    if shutil.which("pwsh") is None:
-        assert rc == 2
-    else:
-        assert rc == 0
+def test_local_missing_pwsh_returns_unavailable() -> None:
+    with tempfile.TemporaryDirectory(prefix="sparse-no-pwsh-") as tmp:
+        assert run_with_path([], tmp) == 2
 
 
 def test_require_pwsh_fails_closed_when_missing() -> None:
-    if shutil.which("pwsh") is None:
-        assert validator.main(["--require-pwsh"]) == 1
+    with tempfile.TemporaryDirectory(prefix="sparse-no-pwsh-") as tmp:
+        assert run_with_path(["--require-pwsh"], tmp) == 1
 
 
 def test_unavailable_output_keeps_non_pass_evidence_wording() -> None:
-    old_path = os.environ.get("PATH", "")
     with tempfile.TemporaryDirectory(prefix="sparse-no-pwsh-") as tmp:
-        os.environ["PATH"] = tmp
         stderr = io.StringIO()
-        try:
-            with contextlib.redirect_stderr(stderr):
-                rc = validator.main([])
-        finally:
-            os.environ["PATH"] = old_path
+        with contextlib.redirect_stderr(stderr):
+            rc = run_with_path([], tmp)
     assert rc == 2
     output = stderr.getvalue()
     assert "UNAVAILABLE: pwsh not found; structural checks passed" in output
@@ -314,6 +325,7 @@ if __name__ == "__main__":
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()
+    test_hosted_validation_pwsh_shell_is_unowned()
     test_selected_report_manifest_references_validate()
     test_missing_manifest_workflow_file_fails_clearly()
     test_manifest_windows_deferral_validation()
@@ -321,7 +333,7 @@ if __name__ == "__main__":
     test_parse_with_fake_pwsh_accepts_selected_snippets()
     test_parse_with_fake_pwsh_failure_is_actionable()
     test_main_with_fake_pwsh_returns_pass()
-    test_local_missing_pwsh_returns_unavailable_or_passes_if_installed()
+    test_local_missing_pwsh_returns_unavailable()
     test_require_pwsh_fails_closed_when_missing()
     test_unavailable_output_keeps_non_pass_evidence_wording()
     print("test-validate-windows-powershell: ok")

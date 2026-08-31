@@ -350,7 +350,7 @@ def validate_workflow_structure(
     pass_msg("windows workflow deferral comment")
 
     steps: list[Step] = []
-    for job_id in ("build-and-test", "install-and-downstream"):
+    for job_id in ("build-and-test", "install-and-downstream", HOSTED_VALIDATION_JOB):
         block = find_job_block(text, job_id)
         runner = field_value(block, "runs-on")
         if runner != WINDOWS_RUNNER:

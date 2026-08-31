@@ -6,11 +6,15 @@ from __future__ import annotations
 import csv
 import subprocess
 import tempfile
-from pathlib import Path
+import sys
+from pathlib import Path, PureWindowsPath
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "run_external_comparison.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import run_external_comparison as runner  # noqa: E402
+
 REPORT_FAMILIES = REPO_ROOT / "tests" / "corpus" / "manifests" / "report_families.tsv"
 REQUIRED_OUTPUT_FILES = {
     "project_observations.tsv",
@@ -247,7 +251,16 @@ def test_selected_targets_generate_expected_rows_and_metadata() -> None:
             assert_target_output(target, tmp_root / target)
 
 
+def test_cmake_path_literal_uses_forward_slashes_for_windows_paths() -> None:
+    literal = runner.cmake_path_literal(
+        PureWindowsPath(r"D:\a\linalg_sparse_orthogonal\build\sparse_lu_ortho.lib")
+    )
+    assert literal == "D:/a/linalg_sparse_orthogonal/build/sparse_lu_ortho.lib"
+    assert "\\a" not in literal
+
+
 def main() -> int:
+    test_cmake_path_literal_uses_forward_slashes_for_windows_paths()
     test_unsupported_target_reports_supported_targets()
     test_selected_targets_generate_expected_rows_and_metadata()
     print("test-run-external-comparison: ok")

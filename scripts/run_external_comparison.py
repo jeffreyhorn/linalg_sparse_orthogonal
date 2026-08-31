@@ -432,6 +432,10 @@ def ensure_library(root: Path, library: Path) -> None:
         )
 
 
+def cmake_path_literal(path: os.PathLike[str] | str) -> str:
+    return str(path).replace("\\", "/").replace('"', '\\"')
+
+
 def run_cmake_project_probe(
     *,
     root: Path,
@@ -453,12 +457,12 @@ def run_cmake_project_probe(
                 "set(CMAKE_C_STANDARD_REQUIRED ON)",
                 f"add_executable({binary_name} {source.name})",
                 f"target_include_directories({binary_name} PRIVATE",
-                f'  "{root / "include"}"',
-                f'  "{root / "build" / "include"}"',
+                f'  "{cmake_path_literal(root / "include")}"',
+                f'  "{cmake_path_literal(root / "build" / "include")}"',
                 ")",
                 "add_library(sparse_lu_ortho STATIC IMPORTED GLOBAL)",
                 "set_target_properties(sparse_lu_ortho PROPERTIES",
-                f'  IMPORTED_LOCATION "{library}"',
+                f'  IMPORTED_LOCATION "{cmake_path_literal(library)}"',
                 ")",
                 f"target_link_libraries({binary_name} PRIVATE sparse_lu_ortho)",
                 "if(NOT MSVC)",

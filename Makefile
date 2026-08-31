@@ -644,6 +644,10 @@ report-index-comparison-freshness: $(LIB)
 windows-powershell-validate:
 	@python3 scripts/validate_windows_powershell.py
 
+.PHONY: windows-powershell-guard
+windows-powershell-guard:
+	@python3 tests/test_validate_windows_powershell.py
+
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the

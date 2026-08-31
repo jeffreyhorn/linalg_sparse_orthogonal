@@ -32,6 +32,9 @@ jobs:
       - name: Run selected comparison workflow guard
         run: python3 tests/test_selected_comparison_workflow.py
 
+      - name: Run Windows PowerShell ownership guard
+        run: make windows-powershell-guard
+
       - name: Run supplemental direct runtime path
         run: make test
 

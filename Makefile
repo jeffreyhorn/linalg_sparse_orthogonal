@@ -640,6 +640,14 @@ report-index-comparison-freshness: $(LIB)
 	@python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness
 	@echo "report-index-comparison-freshness: passed (local-only generated comparison freshness)"
 
+.PHONY: windows-powershell-validate
+windows-powershell-validate:
+	@python3 scripts/validate_windows_powershell.py
+
+.PHONY: windows-powershell-guard
+windows-powershell-guard:
+	@python3 tests/test_validate_windows_powershell.py
+
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the

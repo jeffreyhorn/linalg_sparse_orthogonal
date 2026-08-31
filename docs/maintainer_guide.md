@@ -617,6 +617,50 @@ evidence that a Windows report command was parsed locally. If a local
 PowerShell check is unavailable, record that as an environment residual rather
 than promoting or weakening the Windows report freshness deferral.
 
+### Windows PowerShell Validation Ownership
+
+Use the owned Windows PowerShell validation command when changing
+`.github/workflows/windows-ci.yml`, selected report target metadata, selected
+report artifact names, Windows report freshness wording, or the maintained
+Windows support interpretation:
+
+```sh
+make windows-powershell-validate
+```
+
+The Make target runs `python3 scripts/validate_windows_powershell.py`. The
+script validates the selected Windows workflow PowerShell snippets, selected
+report manifest references, Windows report freshness deferral markers, hosted
+validation wiring, and Windows/PowerShell claim-boundary anchors. It does not
+run CMake, CTest, report generators, uploads, package-manager proofs, or
+generated report freshness commands.
+
+Local interpretation:
+
+- exit `0` means `pwsh` was available locally and the selected Windows
+  PowerShell snippets parsed successfully after structural checks passed
+- exit `2` means structural checks passed but local `pwsh` was unavailable;
+  this is environment blocker evidence, not pass evidence
+- exit `1` means the validator found structural, claim-boundary, hosted
+  wiring, missing-`pwsh` fail-closed, or PowerShell parse failure
+
+Hosted interpretation:
+
+- `.github/workflows/windows-ci.yml` runs the dedicated
+  `powershell-validation` job on `windows-2022`
+- the hosted job runs
+  `python scripts/validate_windows_powershell.py --require-pwsh`
+- `--require-pwsh` makes missing PowerShell fail closed on the hosted runner
+- a passing hosted job proves validation ownership and parseability for the
+  selected PowerShell snippets only
+
+Keep the hosted validation lane separate from report freshness. The lane must
+not upload selected report artifacts, run selected report generation commands,
+add `windows` to selected target `workflow_platforms`, or claim Windows report
+freshness. A future Windows report freshness promotion must add a Windows-safe
+generation path, exact selected upload scope, selected-target manifest
+metadata, and guard updates in the same reviewed change.
+
 The selected QR, LU, and Cholesky solve families use these six row names:
 
 - `project_status`

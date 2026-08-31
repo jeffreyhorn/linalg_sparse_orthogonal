@@ -152,7 +152,8 @@ needs them.
   freshness for selected generated artifacts. Windows remains CMake-first with
   promoted `test_threads`, `test_sprint4_integration`, and `test_fuzz` CTest
   targets plus reviewed CMake install/downstream validation for the
-  static-first package surface.
+  static-first package surface and a hosted PowerShell validation ownership
+  job that parses the selected Windows workflow PowerShell snippets.
   Windows still does not claim Makefile parity, `pkg-config` execution parity,
   package-manager support, shared-library support, dynamic ABI support,
   runtime-loader behavior, report freshness, or broad Windows parity. Sprint
@@ -358,7 +359,9 @@ Windows report freshness, or any unselected local-only family. Windows report
 freshness is formally deferred by the Sprint 182 decision record; do not add
 `windows` to selected workflow platforms until a Windows-safe generation path,
 selected artifact upload, support tier, and guard contract are reviewed
-together.
+together. The Windows PowerShell validation lane is workflow validation
+ownership only; it does not publish selected report artifacts or prove
+generated report freshness.
 
 The reviewed Linux hosted selected-performance lane runs only the selected
 canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through

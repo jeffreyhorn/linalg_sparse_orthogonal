@@ -72,6 +72,20 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
         shell: pwsh
 
+  # Validate ownership of the selected Windows PowerShell workflow material.
+  # This job parses the owned snippets and structural guards only; it does not
+  # run report generation, publish selected report artifacts, or promote
+  # Windows report freshness.
+  powershell-validation:
+    name: Windows PowerShell validation ownership
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate owned Windows PowerShell workflow material
+        run: python scripts/validate_windows_powershell.py --require-pwsh
+        shell: cmd
+
   # Verify the reviewed static-first CMake install and installed downstream
   # consumer path on Windows. This lane is CMake install/downstream scoped; it
   # inspects sparse.pc as installed metadata only and does not claim Windows

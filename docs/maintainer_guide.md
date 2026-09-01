@@ -613,9 +613,9 @@ or state-of-the-art status.
 The Sprint 182 deferral remains active for every Windows report freshness
 surface outside the one Sprint 190 Cholesky workflow path. Keep `windows` out
 of selected target `workflow_platforms` until the relevant target metadata,
-support tier, and claim contract are reviewed and promoted together. If a local
-PowerShell check is unavailable, record that as an environment residual rather
-than promoting or weakening the Windows report freshness interpretation.
+support tier, and claim contract are reviewed and promoted together. If a local PowerShell
+check is unavailable, record that as an environment residual rather than
+promoting or weakening the Windows report freshness interpretation.
 
 ### Windows PowerShell Validation Ownership
 

@@ -633,6 +633,7 @@ report-index-comparison-freshness: $(LIB)
 	@echo "report-index-comparison-freshness: regenerating selected local comparison output"
 	@python3 scripts/run_external_comparison.py --target qr-minnorm
 	@python3 scripts/run_external_comparison.py --target qr-compatible-ls
+	@python3 scripts/run_external_comparison.py --target qr-incompatible-ls
 	@python3 scripts/run_external_comparison.py --target partial-svd-diag6-k2
 	@python3 scripts/run_external_comparison.py --target lu-nonsym-square-5
 	@python3 scripts/run_external_comparison.py --target cholesky-spd-tridiag-5

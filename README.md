@@ -770,15 +770,17 @@ gate is
 `make report-index-comparison-freshness`, which checks the selected
 fixture-local comparison targets named in
 `tests/corpus/manifests/selected_report_targets.tsv` against the selected
-source-controlled dense reference helpers. The same gate is mirrored by
-reviewed Linux and macOS hosted report-freshness lanes for selected comparison
-artifacts only. Sprint 190 adds one bounded Windows hosted workflow path for
+source-controlled dense reference helpers, including QR minimum-norm,
+compatible least-squares, and incompatible least-squares fixtures. The same
+gate is mirrored by reviewed Linux and macOS hosted report-freshness lanes for
+selected comparison artifacts only. Sprint 190 adds one bounded Windows hosted
+workflow path for
 `cholesky-spd-tridiag-5` using the target-specific freshness command
 `python scripts/normalize_report_index.py --family comparison --require-generated
 comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
 artifact `sprint190-windows-selected-comparison-cholesky`. These gates do not
-prove raw QR basis parity, raw
-singular-vector identity, broad LU or nonsymmetric solve correctness, LU CSR
+prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
+broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list
 parity, broad rank-threshold policy, broad rank-deficient solve, broad
 minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,

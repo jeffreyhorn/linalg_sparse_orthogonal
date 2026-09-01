@@ -42,6 +42,15 @@ QR_COMPATIBLE_LS_ENTRIES = [
     (4, 2, -2.0),
 ]
 
+QR_INCOMPATIBLE_LS_ENTRIES = [
+    (0, 0, 1.0),
+    (1, 1, 1.0),
+    (2, 0, 1.0),
+    (2, 1, 1.0),
+    (3, 0, 2.0),
+    (3, 1, -1.0),
+]
+
 LU_NONSYM_SQUARE_5_ENTRIES = [
     (0, 0, 4.0),
     (0, 1, -1.0),
@@ -129,6 +138,44 @@ TARGETS = {
         ),
         "success_message": (
             "external-comparison: qr-compatible-ls project-vs-baseline comparison passed"
+        ),
+    },
+    "qr-incompatible-ls": {
+        "comparison_kind": "qr",
+        "fixture_key": "qr_overdetermined_incompatible_4x2",
+        "entries": QR_INCOMPATIBLE_LS_ENTRIES,
+        "rows": 4,
+        "cols": 2,
+        "subfamily": "qr_incompatible_ls",
+        "operation": "least_squares_solve",
+        "output_dir": REPO_ROOT / "build" / "comparison" / "qr_incompatible_ls",
+        "rhs": [1.0, -2.0, 2.0, 5.0],
+        "expected_solution": [2.0, -1.0],
+        "expected_solution_norm": 2.2360679774997898,
+        "expected_residual_norm": 1.7320508075688772,
+        "residual_tolerance": RESIDUAL_TOLERANCE_DEFAULT,
+        "solution_tolerance": SOLUTION_TOLERANCE_DEFAULT,
+        "baseline_value_count": 3,
+        "solve_mode": "least_squares",
+        "claim_scope": "fixture-local qr incompatible least-squares comparison only",
+        "summary_title": "QR Incompatible Least-Squares External Comparison Study",
+        "summary_scope": (
+            "This local generated study compares one fixture-local QR "
+            "incompatible least-squares solve against the source-controlled "
+            "dense reference helper."
+        ),
+        "non_claims": (
+            "no broad QR parity;no broad least-squares parity;"
+            "no global rank-threshold policy;no broad rank-deficient solve claim;"
+            "no NumPy parity;no SciPy parity;no LAPACK parity;no SuiteSparse parity;"
+            "no Eigen parity;no external-library ecosystem parity;"
+            "no hosted CI proof;no release proof;no broad platform portability proof;"
+            "no Windows report freshness;no package-manager proof;"
+            "no shared-library ABI proof;no performance superiority;"
+            "no state-of-the-art claim"
+        ),
+        "success_message": (
+            "external-comparison: qr-incompatible-ls project-vs-baseline comparison passed"
         ),
     },
     "partial-svd-diag6-k2": {
@@ -1035,6 +1082,8 @@ def comparison_configuration(target: dict[str, object]) -> str:
         stage = "sprint174_day8_comparison_logic"
     elif target.get("comparison_kind") == "cholesky":
         stage = "sprint183_day8_comparison_logic"
+    elif target.get("subfamily") == "qr_incompatible_ls":
+        stage = "sprint191_day8_comparison_logic"
     else:
         stage = "sprint160_day5_comparison_logic"
     return f"stage={stage};baseline_status=integrated_and_compared;support_tier=local_only"
@@ -1300,6 +1349,8 @@ def project_observation_rows(
     expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
     solution_tolerance = float(target["solution_tolerance"])
     residual_tolerance = float(target["residual_tolerance"])
+    expected_residual = float(target.get("expected_residual_norm", 0.0))
+    residual_delta = abs(float(observations["residual_norm"]) - expected_residual)
     if len(values) != len(expected_solution):
         raise ComparisonError(
             "project_probe_failed",
@@ -1322,12 +1373,10 @@ def project_observation_rows(
             "fixture_key": str(target["fixture_key"]),
             "metric": "residual_norm",
             "value": observations["residual_norm"],
-            "status": "pass"
-            if float(observations["residual_norm"]) <= residual_tolerance
-            else "fail",
-            "status_reason": "project_residual_within_tolerance"
-            if float(observations["residual_norm"]) <= residual_tolerance
-            else "project_residual_tolerance_miss",
+            "status": "pass" if residual_delta <= residual_tolerance else "fail",
+            "status_reason": "project_residual_matches_expected"
+            if residual_delta <= residual_tolerance
+            else "project_residual_expected_mismatch",
         },
         {
             "fixture_key": str(target["fixture_key"]),
@@ -1423,6 +1472,7 @@ def baseline_observation_rows(
     expected_solution = list(target["expected_solution"])  # type: ignore[arg-type]
     solution_tolerance = float(target["solution_tolerance"])
     residual_tolerance = float(target["residual_tolerance"])
+    expected_residual = float(target.get("expected_residual_norm", 0.0))
     if len(values) != len(expected_solution):
         raise ComparisonError(
             "baseline_malformed_output",
@@ -1432,6 +1482,7 @@ def baseline_observation_rows(
         abs(expected - observed) for expected, observed in zip(expected_solution, values)
     )
     residual = float(observations["residual_norm"])
+    residual_delta = abs(residual - expected_residual)
     solution_norm = float(observations["solution_norm"])
     rows = [
         {
@@ -1447,10 +1498,10 @@ def baseline_observation_rows(
             "fixture_key": str(target["fixture_key"]),
             "metric": "baseline_residual_norm",
             "value": observations["residual_norm"],
-            "status": "pass" if residual <= residual_tolerance else "fail",
-            "status_reason": "baseline_residual_within_tolerance"
-            if residual <= residual_tolerance
-            else "baseline_residual_tolerance_miss",
+            "status": "pass" if residual_delta <= residual_tolerance else "fail",
+            "status_reason": "baseline_residual_matches_expected"
+            if residual_delta <= residual_tolerance
+            else "baseline_residual_expected_mismatch",
         },
         {
             "fixture_key": str(target["fixture_key"]),
@@ -1644,6 +1695,7 @@ def comparison_study_rows(
     )
     fixture_key = str(target["fixture_key"])
     expected_solution_values = list(target["expected_solution"])  # type: ignore[arg-type]
+    expected_residual = float(target.get("expected_residual_norm", 0.0))
     residual_tolerance = float(target["residual_tolerance"])
     solution_tolerance = float(target["solution_tolerance"])
     project_solution = parse_vector(observations["solution_values"])
@@ -1707,7 +1759,9 @@ def comparison_study_rows(
             comparison_row_id=f"comparison_{fixture_key}_residual_norm_v1",
             row_kind="metric_comparison",
             metric="residual_norm",
-            expected_value=f"<={format_float(residual_tolerance)}",
+            expected_value=format_float(expected_residual)
+            if expected_residual != 0.0
+            else f"<={format_float(residual_tolerance)}",
             project_value=observations["residual_norm"],
             baseline_value=baseline_observations["residual_norm"],
             delta_value=format_float(residual_delta),

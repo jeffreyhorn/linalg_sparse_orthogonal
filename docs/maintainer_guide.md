@@ -515,7 +515,7 @@ refreshed the direct-solver public guidance boundary.
 | Cholesky CSC SPD | Use for SPD systems; non-SPD reports `SPARSE_ERR_NOT_SPD` | `tests/test_chol_csc.c`, `tests/chol_external_dense_reference.py`, and `make report-index-comparison-freshness` | named SPD Matrix Market fixtures checked against an external-process dense reference, plus selected generated comparison for `cholesky_spd_tridiag_5` against the selected source-controlled dense Cholesky reference helper | no broad Cholesky correctness; no broad SPD coverage; no broad non-SPD recovery claim; no reordering parity claim; no CSC-vs-linked-list parity claim; no fill superiority claim; no full backend parity claim from examples, comparisons, or benchmarks |
 | LDLT CSC indefinite | Use for symmetric indefinite systems where LDL^T is the natural model | `tests/test_ldlt_csc.c` plus `tests/ldlt_external_dense_reference.py` | deterministic KKT fixtures `kkt5`, `kkt10`, and `ldlt_kkt_scaled_10` checked against an external-process dense reference | no broad indefinite ecosystem parity; no external factorization-layout or pivot-internals proof |
 | Linked-list LU | Use for general square systems; singular systems report `SPARSE_ERR_SINGULAR` | `tests/test_sparse_lu.c`, `tests/lu_external_dense_reference.py`, and `make report-index-comparison-freshness` | deterministic nonsymmetric `lu_nonsym_square_5` solve, singular `lu_singular_square_4` expected failure, and selected generated comparison for `lu_nonsym_square_5` against the selected source-controlled dense LU reference helper | no broad LU correctness; no LU CSR external oracle coverage; no direct CSR/CSC public LU solve API claim; no broad nonsymmetric ecosystem parity |
-| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_qr_corpus.c`, `tests/test_colamd.c`, `tests/qr_external_dense_reference.py`, `make report-index-oracle-freshness`, and `make report-index-comparison-freshness` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, Sprint 139 corpus fixture `qr_rank_deficient_6x4_nullspace_v1` proving rank `3`, nullity `1`, and solver-produced nullspace residual `<= 1e-10`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, bounded economy projector fixture `qr_economy_projector_5x3`, and selected generated comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper | no broad QR, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, broad hosted CI, platform, performance, package/ABI, or state-of-the-art claim |
+| QR | Use for rectangular or rank-deficient least-squares workflows | `tests/test_qr.c`, `tests/test_qr_solve.c`, `tests/test_qr_corpus.c`, `tests/test_colamd.c`, `tests/qr_external_dense_reference.py`, `make report-index-oracle-freshness`, and `make report-index-comparison-freshness` | internal invariants, rank, residual, public scalar boundary coverage, bounded external least-squares fixtures `qr_overdetermined_incompatible_4x2` and `qr_overdetermined_compatible_5x3`, bounded rank-only fixture `qr_rankdef_duplicate_5x4_rank_only`, bounded threshold-rank fixtures `qr_rank_threshold_diag4_family`, `qr_rank_threshold_diag4_scaled_family`, `qr_rank_threshold_duplicate_5x4_perturbed_family`, and `qr_rank_threshold_dependent_row_4x3_perturbed_family`, bounded residual-only fixtures `qr_rankdef_duplicate_5x4_residual_only` and `qr_rankdef_dependent_row_4x3_residual_only`, bounded nullspace projector fixtures `qr_rankdef_duplicate_5x4_nullspace_projector`, `qr_rank1_4x3_nullspace_projector`, `qr_rankdef_dependent_row_4x3_nullspace_projector`, and `qr_rankdef_wide_3x5_nullspace_subspace`, Sprint 139 corpus fixture `qr_rank_deficient_6x4_nullspace_v1` proving rank `3`, nullity `1`, and solver-produced nullspace residual `<= 1e-10`, bounded exact minimum-norm fixtures `qr_underdetermined_minnorm_2x4`, `qr_minnorm_3x6_exact_values`, and `qr_minnorm_5x10_exact_values`, bounded owner-local minimum-norm lanes for COLAMD, fallback, rank-deficient, refinement, zero-row, QR-vs-SVD-pseudoinverse cross-check, and `west0067` submatrix behavior, bounded economy projector fixture `qr_economy_projector_5x3`, and selected generated comparisons for `qr_underdetermined_minnorm_2x4`, `qr_overdetermined_compatible_5x3`, and `qr_overdetermined_incompatible_4x2` against the selected source-controlled dense reference helper | no broad QR, broad least-squares, LAPACK, NumPy, or SciPy parity; no global rank-threshold policy; no raw Q-basis, Q-sign/orientation, broad rank-deficient solve, nullspace, minimum-norm, economy-mode, sparse-mode, reorder, SVD-pseudoinverse-as-global-oracle, broad SuiteSparse corpus, broad hosted CI, platform, performance, package/ABI, or state-of-the-art claim |
 | SVD | Use for singular-value, pseudoinverse, and low-rank workflows | `tests/test_svd.c`, `tests/test_svd_partial_helpers.h`, `tests/test_svd_partial_corpus.c`, `tests/test_svd_partial_shared_helpers.h`, `tests/svd_external_dense_reference.py`, `make report-index-oracle-freshness`, and `make report-index-comparison-freshness` | internal reconstruction, rank, condition, pseudoinverse, low-rank, bounded external singular-value fixtures `svd_rect_fullrank_6x4`, `svd_rankdef_duplicate_5x4`, `svd_wide_fullrank_4x6`, `partial_svd_diag6_k2`, `partial_svd_tall_diag_8x5_k3`, and `partial_svd_nonsym_rect10x8_k3`, bounded partial-SVD vector-residual fixtures `partial_svd_vector_residual_diag6_k2`, `partial_svd_vector_residual_tall8x5_k3`, and `partial_svd_vector_residual_nonsym_rect10x8_k3`, bounded partial-SVD rank-deficient range-projector fixture `partial_svd_rankdef_diag6x4_k2_range_projector`, bounded partial-SVD dense low-rank Frobenius fixture `partial_svd_lowrank_diag6x4_k2_frobenius_optimality`, bounded partial-SVD max-iteration fail-closed fixture `partial_svd_max_iter_fail_closed_diag6_k2`, Sprint 140/Sprint 151 corpus fixtures `partial_svd_clustered_repeated_diag8x6_k3_v1`, `partial_svd_rankdef_diag6x4_k2_range_projector_v1`, `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and `partial_svd_fail_closed_diag6_k2_v1` proving generated top-k values, rank, selected subspace projectors, triplet residuals, orthogonality, sparse low-rank shape/nnz/selected-value/Frobenius behavior, tight-budget fail-closed behavior, no partial arrays on tight-budget failure, and recovery, plus the selected generated comparison for `partial_svd_diag6_k2` proving fixture-local diagonal top-k singular-value agreement, residual, orthogonality, and diagonal projector diagnostics against the source-controlled dense SVD reference helper | no LAPACK, NumPy, SciPy, or broad SVD parity; no broad partial-SVD correctness; no raw singular-vector identity; no vector sign/orientation identity; no broad vector/subspace, rectangular, nonsymmetric, repeated-spectrum, rank-deficient null-space, pseudoinverse/minimum-norm, sparse-output/drop-tolerance optimality, convergence-rate, partial-result, broad hosted CI, performance, platform, package, ABI, or state-of-the-art claim |
 
 Interpretation:
@@ -612,10 +612,10 @@ or state-of-the-art status.
 
 The Sprint 182 deferral remains active for every Windows report freshness
 surface outside the one Sprint 190 Cholesky workflow path. Keep `windows` out
-of selected target `workflow_platforms` until the selected Cholesky metadata,
-support tier, and claim contract are reviewed together. If a local PowerShell
-check is unavailable, record that as an environment residual rather than
-promoting or weakening the Windows report freshness interpretation.
+of selected target `workflow_platforms` until the relevant target metadata,
+support tier, and claim contract are reviewed and promoted together. If a local
+PowerShell check is unavailable, record that as an environment residual rather
+than promoting or weakening the Windows report freshness interpretation.
 
 ### Windows PowerShell Validation Ownership
 
@@ -687,12 +687,13 @@ The selected `partial_svd_diag6_k2` family contributes ten rows:
 - `v_projector_diag`
 
 Interpret the generated rows as fixture-local QR minimum-norm, QR compatible
-least-squares, partial-SVD diagonal top-k, linked-list LU square-solve, and
-Cholesky SPD tridiagonal solve comparison evidence only. The generated rows
-remain `local_only`. `skip` and `defer` rows are visible non-proof states, and
-optional NumPy or SciPy absence cannot create pass evidence. The comparison
-families do not claim broad QR, broad LU or nonsymmetric solve correctness, LU
-CSR parity, broad Cholesky correctness, broad SPD coverage, Cholesky reordering
+least-squares, QR incompatible least-squares, partial-SVD diagonal top-k,
+linked-list LU square-solve, and Cholesky SPD tridiagonal solve comparison
+evidence only. The generated rows remain `local_only`. `skip` and `defer` rows
+are visible non-proof states, and optional NumPy or SciPy absence cannot create
+pass evidence. The comparison families do not claim broad QR, broad
+least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
+parity, broad Cholesky correctness, broad SPD coverage, Cholesky reordering
 parity, CSC-vs-linked-list parity, fill superiority, broad SVD or partial-SVD
 correctness, raw QR basis identity, raw singular-vector identity, vector
 sign/orientation identity, LAPACK, NumPy, SciPy, SuiteSparse, Eigen, release,
@@ -1771,8 +1772,11 @@ not promote selected oracle freshness on macOS, selected oracle freshness on
 Windows, selected benchmark freshness on Windows, broad Windows report
 freshness, broad report-index freshness, unselected comparison families,
 package/ABI support, performance, release readiness, external-library parity,
-or state-of-the-art status. Any broader Windows report freshness promotion must
-add a Windows-safe generation path, exact selected upload scope,
+or state-of-the-art status. The QR incompatible least-squares target is not
+Windows selected report freshness until a future change proves its MSVC
+project probe and promotes the selected-target metadata. Any broader Windows
+report freshness promotion must add a Windows-safe generation path, exact
+selected upload scope,
 selected-target manifest metadata, and guard updates in the same reviewed
 change.
 Optional NumPy/SciPy defers remain context, not pass evidence.

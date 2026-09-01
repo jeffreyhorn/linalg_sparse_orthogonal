@@ -113,7 +113,7 @@ platform parity claims, or portable performance claims.
 | General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. The selected comparison freshness gate includes fixture-local linked-list LU square-solve evidence for `lu_nonsym_square_5` against the selected source-controlled dense LU reference helper. This is not broad LU correctness, nonsymmetric solve parity, LU CSR parity, or external-library parity. |
 | Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. The selected comparison freshness gate includes fixture-local Cholesky SPD tridiagonal solve evidence for `cholesky_spd_tridiag_5` against the selected source-controlled dense Cholesky reference helper. This is not broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list parity, reordering parity, fill superiority, or external-library parity. |
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
-| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm and compatible least-squares comparisons for `qr_underdetermined_minnorm_2x4` and `qr_overdetermined_compatible_5x3` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD, LU, and Cholesky comparisons described below. This is not broad QR or external-library parity. |
+| Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm, compatible least-squares, and incompatible least-squares comparisons for `qr_underdetermined_minnorm_2x4`, `qr_overdetermined_compatible_5x3`, and `qr_overdetermined_incompatible_4x2` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD, LU, and Cholesky comparisons described below. This is not broad QR, broad least-squares, or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 
@@ -222,11 +222,13 @@ oracle artifacts only.
 It supports selected fixture-local rank/nullity/nullspace residual behavior.
 The selected comparison freshness gate
 `make report-index-comparison-freshness` also covers the selected QR
-minimum-norm and compatible least-squares comparison rows named in
+minimum-norm, compatible least-squares, and incompatible least-squares
+comparison rows named in
 `tests/corpus/manifests/selected_report_targets.tsv`. These gates do not claim
 raw QR basis parity, global rank-threshold policy, broad rank-deficient solve,
-broad minimum-norm behavior, SuiteSparse, LAPACK, NumPy, SciPy, broad platform
-support, performance, package/ABI, or state-of-the-art parity.
+broad minimum-norm behavior, broad least-squares parity, SuiteSparse, LAPACK,
+NumPy, SciPy, broad platform support, performance, package/ABI, or
+state-of-the-art parity.
 
 ## SVD and Low-Rank Workflows
 
@@ -288,6 +290,19 @@ and upload the selected comparison artifacts. It does not claim broad Cholesky
 correctness, broad SPD coverage, reordering parity, CSC-vs-linked-list parity,
 fill superiority, external-library parity, release/platform/package/ABI proof,
 performance, or state-of-the-art status.
+
+The selected QR comparison set includes `qr_incompatible_ls` for
+`qr_overdetermined_incompatible_4x2`. That generated comparison is
+fixture-local and checks QR least-squares status, the expected nonzero
+residual norm, solution norm, solution values, and project-vs-baseline max
+absolute delta against the source-controlled dense QR reference helper with
+`1e-10` tolerances. It is local generated evidence by default and reviewed
+Linux/macOS hosted evidence only when the hosted report-freshness lanes run
+the selected comparison gate and upload the selected comparison artifacts. It
+does not claim broad QR correctness, broad least-squares parity, raw QR basis
+identity, Q sign or orientation identity, global rank-threshold policy, broad
+rank-deficient solve behavior, external-library parity,
+release/platform/package/ABI proof, performance, or state-of-the-art status.
 
 Useful starting example:
 

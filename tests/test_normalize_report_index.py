@@ -50,6 +50,12 @@ SELECTED_COMPARISON_ROW_IDS = [
     "comparison_qr_overdetermined_compatible_5x3_solution_norm_v1",
     "comparison_qr_overdetermined_compatible_5x3_solution_values_v1",
     "comparison_qr_overdetermined_compatible_5x3_project_vs_baseline_max_abs_delta_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_project_status_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_baseline_status_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_residual_norm_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_solution_norm_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_solution_values_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_project_vs_baseline_max_abs_delta_v1",
     "comparison_partial_svd_diag6_k2_project_status_v1",
     "comparison_partial_svd_diag6_k2_baseline_status_v1",
     "comparison_partial_svd_diag6_k2_singular_value_0_v1",
@@ -82,12 +88,21 @@ SELECTED_LU_COMPARISON_ROW_IDS = {
 SELECTED_CHOLESKY_COMPARISON_ROW_IDS = {
     row_id for row_id in SELECTED_COMPARISON_ROW_IDS if "cholesky_spd_tridiag_5" in row_id
 }
+SELECTED_QR_INCOMPATIBLE_COMPARISON_ROW_IDS = {
+    row_id
+    for row_id in SELECTED_COMPARISON_ROW_IDS
+    if "qr_overdetermined_incompatible_4x2" in row_id
+}
 SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/cholesky_spd_tridiag_5/study.tsv"
+)
+SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC = (
+    "artifacts=build/comparison/qr_incompatible_ls/study.tsv"
 )
 SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
     "artifacts=build/comparison/qr_minnorm/study.tsv,"
     "build/comparison/qr_compatible_ls/study.tsv,"
+    "build/comparison/qr_incompatible_ls/study.tsv,"
     "build/comparison/partial_svd_diag6_k2/study.tsv,"
     "build/comparison/lu_nonsym_square_5/study.tsv,"
     "build/comparison/cholesky_spd_tridiag_5/study.tsv"
@@ -95,6 +110,7 @@ SELECTED_COMPARISON_ARTIFACT_DIAGNOSTIC = (
 SELECTED_COMPARISON_ARTIFACTS = (
     "build/comparison/qr_minnorm/study.tsv",
     "build/comparison/qr_compatible_ls/study.tsv",
+    "build/comparison/qr_incompatible_ls/study.tsv",
     "build/comparison/partial_svd_diag6_k2/study.tsv",
     "build/comparison/lu_nonsym_square_5/study.tsv",
     "build/comparison/cholesky_spd_tridiag_5/study.tsv",
@@ -998,6 +1014,7 @@ def write_selected_comparison_rows(
     rows_by_subfamily: dict[str, list[dict[str, str]]] = {
         "qr_minnorm": [],
         "qr_compatible_ls": [],
+        "qr_incompatible_ls": [],
         "partial_svd_diag6_k2": [],
         "lu_nonsym_square_5": [],
         "cholesky_spd_tridiag_5": [],
@@ -1036,6 +1053,15 @@ def write_selected_comparison_rows(
             operation = "least_squares_solve"
             artifact_path = "build/comparison/qr_compatible_ls/study.tsv"
             non_claims = "synthetic test rows only; no broad QR parity claim"
+        elif "qr_overdetermined_incompatible_4x2" in row_id:
+            subfamily = "qr_incompatible_ls"
+            fixture_key = "qr_overdetermined_incompatible_4x2"
+            operation = "least_squares_solve"
+            artifact_path = "build/comparison/qr_incompatible_ls/study.tsv"
+            non_claims = (
+                "synthetic test rows only; no broad QR parity claim; "
+                "no broad least-squares parity"
+            )
         else:
             subfamily = "qr_minnorm"
             fixture_key = "qr_underdetermined_minnorm_2x4"
@@ -1682,6 +1708,88 @@ def test_selected_comparison_target_freshness_accepts_cholesky_subset() -> None:
         assert "freshness: warning:" not in result.stdout
 
 
+def test_selected_comparison_target_freshness_accepts_qr_incompatible_subset() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+        assert "required generated family missing: comparison" in result.stdout
+        assert SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "build/comparison/qr_minnorm/study.tsv" not in result.stdout
+        assert "--selected-target qr-incompatible-ls" in result.stdout
+
+        write_selected_comparison_rows(
+            build_root, only_subfamilies={"qr_incompatible_ls"}
+        )
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ]
+        )
+        assert "comparison_selected_rows" not in result.stdout
+        assert "comparison_selected_status" not in result.stdout
+        assert "freshness: warning:" not in result.stdout
+
+        output = Path(tmp) / "qr-incompatible-index.tsv"
+        run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--output",
+                str(output),
+            ]
+        )
+        rows = read_tsv(output)
+        qr_incompatible_rows = [
+            row
+            for row in rows
+            if row["subfamily"] == "qr_incompatible_ls"
+            and row["row_origin"] == "generated_local"
+            and row["row_id"].startswith("comparison_")
+        ]
+        assert {
+            row["row_id"] for row in qr_incompatible_rows
+        } == SELECTED_QR_INCOMPATIBLE_COMPARISON_ROW_IDS
+        assert {row["status"] for row in qr_incompatible_rows} == {"pass"}
+        assert {row["support_tier"] for row in qr_incompatible_rows} == {"local_only"}
+        assert all(
+            row["artifact_path"].endswith("comparison/qr_incompatible_ls/study.tsv")
+            for row in qr_incompatible_rows
+        )
+        assert all(
+            "no broad least-squares parity" in row["non_claims"]
+            for row in qr_incompatible_rows
+        )
+
+
 def test_selected_target_requires_check_freshness() -> None:
     result = run_command(
         [
@@ -1752,6 +1860,46 @@ def test_selected_comparison_target_freshness_rejects_windows_path_stale_rows() 
         assert "--selected-target cholesky-spd-tridiag-5" in result.stdout
 
 
+def test_qr_incompatible_selected_freshness_rejects_windows_path_stale_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+            stale_first=True,
+        )
+        study = build_root / "comparison" / "qr_incompatible_ls" / "study.tsv"
+        text = study.read_text(encoding="utf-8")
+        study.write_text(
+            text.replace(
+                "build/comparison/qr_incompatible_ls/study.tsv",
+                r"build\comparison\qr_incompatible_ls\study.tsv",
+            ),
+            encoding="utf-8",
+        )
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "source_commit does not match current HEAD" in result.stdout
+        assert "--selected-target qr-incompatible-ls" in result.stdout
+        assert "comparison/qr_incompatible_ls/study.tsv" in result.stdout
+
+
 def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -1805,6 +1953,55 @@ def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
         assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
 
 
+def test_qr_incompatible_selected_freshness_rejects_dependency_only_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+        )
+        study = build_root / "comparison" / "qr_incompatible_ls" / "study.tsv"
+        rows = [
+            row
+            for row in read_tsv(study)
+            if row["comparison_row_id"]
+            == "comparison_qr_overdetermined_incompatible_4x2_baseline_status_v1"
+        ]
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t"
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_rows" in result.stdout
+        assert "row_set_mismatch" in result.stdout
+        assert "observed=1" in result.stdout
+        assert (
+            "missing=comparison_qr_overdetermined_incompatible_4x2_project_status_v1"
+            in result.stdout
+        )
+        assert SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "--selected-target qr-incompatible-ls" in result.stdout
+
+
 def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     rows = read_tsv(REPORT_FAMILIES)
     comparison_rows = {}
@@ -1817,6 +2014,7 @@ def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     expected_subfamilies = {
         "qr_minnorm",
         "qr_compatible_ls",
+        "qr_incompatible_ls",
         "partial_svd_diag6_k2",
         "lu_nonsym_square_5",
         "cholesky_spd_tridiag_5",
@@ -2028,10 +2226,13 @@ def main() -> int:
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     test_selected_comparison_required_freshness_accepts_complete_row_set()
     test_selected_comparison_target_freshness_accepts_cholesky_subset()
+    test_selected_comparison_target_freshness_accepts_qr_incompatible_subset()
     test_selected_target_requires_check_freshness()
     test_selected_comparison_generated_rows_match_windows_artifact_paths()
     test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
+    test_qr_incompatible_selected_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
+    test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()
     test_selected_comparison_required_freshness_rejects_duplicate_rows()

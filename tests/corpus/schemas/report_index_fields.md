@@ -153,8 +153,8 @@ its uploaded selected artifacts after hosted CI passes. The reviewed macOS
 hosted lane mirrors the selected comparison gate for the manifest-selected
 comparison families. Sprint 190 adds one bounded Windows hosted workflow path
 for `cholesky-spd-tridiag-5`; it is not broad Windows report freshness. These
-lanes are not broad QR, LU, nonsymmetric solve, Cholesky, SPD, SVD, or
-partial-SVD correctness; LU CSR parity; Cholesky reordering
+lanes are not broad QR, broad least-squares, LU, nonsymmetric solve, Cholesky,
+SPD, SVD, or partial-SVD correctness; LU CSR parity; Cholesky reordering
 parity; CSC-vs-linked-list parity; fill superiority; raw QR basis identity;
 raw singular-vector identity; vector sign/orientation identity;
 external-library parity; platform proof; package proof; ABI proof; performance

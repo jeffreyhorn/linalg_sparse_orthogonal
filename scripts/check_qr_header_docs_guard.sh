@@ -168,19 +168,19 @@ check_docs_alignment() {
         "README QR factor_opts bullet must name COLAMD for unsymmetric/QR workflows"
     require_fixed 'QR factorization/lifecycle, least-squares, minimum-norm, rank/nullspace, R-diagonal diagnostics, and cancellation contracts' "$API_REFERENCE" \
         "API reference QR row must include lifecycle, diagnostics, and cancellation scope"
-    require_fixed 'selected QR minimum-norm and' "$COOKBOOK" \
+    require_fixed 'selected QR minimum-norm, compatible' "$COOKBOOK" \
         "cookbook QR evidence note must include selected minimum-norm comparison scope"
-    require_fixed 'compatible least-squares rows from' "$COOKBOOK" \
-        "cookbook QR evidence note must include selected compatible least-squares scope"
+    require_fixed 'incompatible least-squares rows from' "$COOKBOOK" \
+        "cookbook QR evidence note must include selected incompatible least-squares scope"
     require_fixed 'minimum-norm output, and R-diagonal diagnostics' "$SOLVER_SELECTION" \
         "solver-selection QR diagnostics row must include minimum-norm and R-diagonal diagnostics"
     require_fixed 'broad minimum-norm behavior' "$SOLVER_SELECTION" \
         "solver-selection QR evidence boundary must reject broad minimum-norm behavior"
     require_fixed 'selected QR' "$SOLVER_SELECTION" \
         "solver-selection QR evidence boundary must name selected QR comparison scope"
-    require_fixed 'minimum-norm and compatible least-squares comparison rows named in' \
+    require_fixed 'minimum-norm, compatible least-squares, and incompatible least-squares' \
         "$SOLVER_SELECTION" \
-        "solver-selection QR evidence boundary must name minimum-norm and compatible least-squares rows"
+        "solver-selection QR evidence boundary must name selected QR comparison rows"
     require_fixed 'temporary QR factorizations built' \
         "$EXAMPLES_README" \
         "examples README minimum-norm note must mention internal QR factorizations"

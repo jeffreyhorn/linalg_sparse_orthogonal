@@ -180,13 +180,14 @@ The selected comparison freshness gate is:
 make report-index-comparison-freshness
 ```
 
-It regenerates five fixture-local comparison families before strict
+It regenerates six fixture-local comparison families before strict
 normalization:
 
 | Target | Fixture | Comparison meaning | Artifact |
 | --- | --- | --- | --- |
 | `qr-minnorm` | `qr_underdetermined_minnorm_2x4` | minimum-norm solve against the source-controlled dense QR reference helper | `build/comparison/qr_minnorm/study.tsv` |
 | `qr-compatible-ls` | `qr_overdetermined_compatible_5x3` | compatible least-squares solve against the source-controlled dense QR reference helper | `build/comparison/qr_compatible_ls/study.tsv` |
+| `qr-incompatible-ls` | `qr_overdetermined_incompatible_4x2` | incompatible least-squares solve against the source-controlled dense QR reference helper | `build/comparison/qr_incompatible_ls/study.tsv` |
 | `partial-svd-diag6-k2` | `partial_svd_diag6_k2` | partial-SVD diagonal top-k comparison against the source-controlled dense SVD reference helper | `build/comparison/partial_svd_diag6_k2/study.tsv` |
 | `lu-nonsym-square-5` | `lu_nonsym_square_5` | linked-list LU square solve against the source-controlled dense LU reference helper | `build/comparison/lu_nonsym_square_5/study.tsv` |
 | `cholesky-spd-tridiag-5` | `cholesky_spd_tridiag_5` | Cholesky SPD tridiagonal solve against the source-controlled dense Cholesky reference helper | `build/comparison/cholesky_spd_tridiag_5/study.tsv` |
@@ -211,14 +212,14 @@ These rows are local generated evidence for the named fixtures by default. The
 reviewed Linux and macOS hosted report-freshness lanes promote only this
 selected comparison gate and their uploaded selected artifacts after hosted CI
 passes. They do not prove broad QR, LU, nonsymmetric solve, Cholesky, SPD, SVD,
-or partial-SVD correctness; LU CSR parity; Cholesky reordering parity;
-CSC-vs-linked-list parity; fill superiority; raw QR basis identity; raw
-singular-vector identity; vector sign/orientation identity; global
-rank-threshold behavior; broad rank-deficient solve behavior; external-library
-parity; broad Windows report freshness; Windows selected oracle or benchmark
-freshness; broad platform support; package/ABI support; performance; release
-readiness; or state-of-the-art status. Optional NumPy/SciPy dependency rows are
-deferred context only and never pass evidence.
+or partial-SVD correctness; broad least-squares parity; LU CSR parity;
+Cholesky reordering parity; CSC-vs-linked-list parity; fill superiority; raw
+QR basis identity; raw singular-vector identity; vector sign/orientation
+identity; global rank-threshold behavior; broad rank-deficient solve behavior;
+external-library parity; broad Windows report freshness; Windows selected
+oracle or benchmark freshness; broad platform support; package/ABI support;
+performance; release readiness; or state-of-the-art status. Optional
+NumPy/SciPy dependency rows are deferred context only and never pass evidence.
 
 ## Sprint 139/Sprint 150 QR Lane
 

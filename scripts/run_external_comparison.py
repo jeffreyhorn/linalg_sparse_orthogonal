@@ -2202,9 +2202,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="auto",
         help="build temporary project probe directly with CC or through CMake",
     )
-    parser.add_argument("--cmake-generator", default=None)
-    parser.add_argument("--cmake-arch", default=None)
-    parser.add_argument("--cmake-config", default=DEFAULT_CMAKE_CONFIG)
+    parser.add_argument(
+        "--cmake-generator",
+        default=None,
+        help="CMake generator to use for temporary project probes",
+    )
+    parser.add_argument(
+        "--cmake-arch",
+        default=None,
+        help="CMake generator architecture for temporary project probes",
+    )
+    parser.add_argument(
+        "--cmake-config",
+        default=DEFAULT_CMAKE_CONFIG,
+        help="CMake build configuration for temporary project probes",
+    )
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--self-check", action="store_true")
     args = parser.parse_args(argv)

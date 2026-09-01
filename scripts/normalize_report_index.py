@@ -291,7 +291,7 @@ def selected_comparison_remediation(target_keys: set[str] | None = None) -> str:
     if target_keys:
         targets = " ".join(f"--selected-target {target}" for target in sorted(target_keys))
         return (
-            "run python3 scripts/normalize_report_index.py --family comparison "
+            "run python scripts/normalize_report_index.py --family comparison "
             f"--require-generated comparison --check-freshness {targets}"
         )
     return "run make report-index-comparison-freshness"

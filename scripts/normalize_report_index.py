@@ -1415,12 +1415,17 @@ def selected_comparison_policy_enabled(
 def selected_comparison_generated_rows(
     rows: list[dict[str, str]], selected_artifacts: set[str] | None = None
 ) -> list[dict[str, str]]:
+    def normalize_artifact_path(path: str) -> str:
+        return path.replace("\\", "/")
+
     def matches_selected_artifact(artifact_path: str) -> bool:
         if selected_artifacts is None:
             return True
+        normalized_path = normalize_artifact_path(artifact_path)
+        normalized_artifacts = {normalize_artifact_path(artifact) for artifact in selected_artifacts}
         return any(
-            artifact_path == artifact or artifact_path.endswith(f"/{artifact}")
-            for artifact in selected_artifacts
+            normalized_path == artifact or normalized_path.endswith(f"/{artifact}")
+            for artifact in normalized_artifacts
         )
 
     return [

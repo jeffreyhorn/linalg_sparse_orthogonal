@@ -1682,6 +1682,61 @@ def test_selected_comparison_target_freshness_accepts_cholesky_subset() -> None:
         assert "freshness: warning:" not in result.stdout
 
 
+def test_selected_comparison_generated_rows_match_windows_artifact_paths() -> None:
+    rows = [
+        {
+            "report_family": "comparison",
+            "row_origin": "generated_local",
+            "row_id": "comparison_cholesky_spd_tridiag_5_project_status_v1",
+            "artifact_path": r"build\comparison\cholesky_spd_tridiag_5\study.tsv",
+        }
+    ]
+    selected = {"build/comparison/cholesky_spd_tridiag_5/study.tsv"}
+
+    matched = normalize_index.selected_comparison_generated_rows(rows, selected)
+
+    assert matched == rows
+
+
+def test_selected_comparison_target_freshness_rejects_windows_path_stale_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"cholesky_spd_tridiag_5"},
+            stale_first=True,
+        )
+        study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+        text = study.read_text(encoding="utf-8")
+        study.write_text(
+            text.replace(
+                "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+                r"build\comparison\cholesky_spd_tridiag_5\study.tsv",
+            ),
+            encoding="utf-8",
+        )
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "source_commit does not match current HEAD" in result.stdout
+        assert "--selected-target cholesky-spd-tridiag-5" in result.stdout
+
+
 def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -1958,6 +2013,8 @@ def main() -> int:
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     test_selected_comparison_required_freshness_accepts_complete_row_set()
     test_selected_comparison_target_freshness_accepts_cholesky_subset()
+    test_selected_comparison_generated_rows_match_windows_artifact_paths()
+    test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()

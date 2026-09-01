@@ -1682,6 +1682,21 @@ def test_selected_comparison_target_freshness_accepts_cholesky_subset() -> None:
         assert "freshness: warning:" not in result.stdout
 
 
+def test_selected_target_requires_check_freshness() -> None:
+    result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "comparison",
+            "--selected-target",
+            "cholesky-spd-tridiag-5",
+        ],
+        expect_success=False,
+    )
+    assert "--selected-target requires --check-freshness" in result.stderr
+
+
 def test_selected_comparison_generated_rows_match_windows_artifact_paths() -> None:
     rows = [
         {
@@ -2013,6 +2028,7 @@ def main() -> int:
     test_selected_oracle_gate_preserves_advisory_and_source_controlled_families()
     test_selected_comparison_required_freshness_accepts_complete_row_set()
     test_selected_comparison_target_freshness_accepts_cholesky_subset()
+    test_selected_target_requires_check_freshness()
     test_selected_comparison_generated_rows_match_windows_artifact_paths()
     test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()

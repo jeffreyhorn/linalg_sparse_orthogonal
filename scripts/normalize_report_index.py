@@ -1549,13 +1549,6 @@ def freshness_severity(
 ) -> tuple[str, str]:
     policy = freshness_policy(row)
     required = is_required_family(row, required_families)
-    if (
-        selected_target_keys
-        and row["report_family"] == "comparison"
-        and row.get("subfamily", "")
-        not in selected_comparison_subfamilies(selected_targets, selected_target_keys)
-    ):
-        required = False
     advisory_policy = policy in ADVISORY_FRESHNESS_POLICIES
 
     if row["status"] == "fail":
@@ -1748,6 +1741,8 @@ def main() -> int:
     parser.add_argument("--format", choices=["tsv"], default="tsv")
     parser.set_defaults(include_generated=True)
     args = parser.parse_args()
+    if args.selected_target and not args.check_freshness:
+        parser.error("--selected-target requires --check-freshness")
 
     manifest_path = args.corpus_root / REPORT_FAMILY_MANIFEST
     contracts = selected_contracts(read_tsv(manifest_path), set(args.family))

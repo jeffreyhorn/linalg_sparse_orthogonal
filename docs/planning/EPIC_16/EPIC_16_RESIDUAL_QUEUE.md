@@ -13,7 +13,7 @@ evidence, validation commands, and deferral horizons.
 | ---: | --- | --- | --- |
 | 1 | R186-PKG-LICENSE | Homebrew local proof blocker | Near-term product/legal metadata decision |
 | 2 | R186-WIN-PWSH | PowerShell validation environment | Near-term validation infrastructure |
-| 3 | R186-WIN-REPORT-FRESHNESS | Windows selected report freshness | Product/workflow promotion decision |
+| 3 | R186-WIN-REPORT-FRESHNESS | Windows selected report freshness | Hosted evidence and manifest promotion decision |
 | 4 | R186-HOSTED-API | Generated API publication | Product documentation decision |
 | 5 | R186-BROAD-COMPARISON | Future bounded comparison breadth | Incremental implementation |
 | 6 | R186-REVIEW-SURFACE-NEXT | Future review-surface reduction | Incremental maintainability |
@@ -51,14 +51,14 @@ evidence, validation commands, and deferral horizons.
 | Field | Value |
 | --- | --- |
 | Source | Sprint 182, items 182.2 and 182.3. |
-| Current status | Deferred. |
+| Current status | Renewed and narrowed by Sprint 190. |
 | Owner surfaces | `.github/workflows/windows-ci.yml`; selected report target manifest; report generator/normalizer scripts; Windows report freshness deferral artifact; maintainer/report docs. |
-| Why it remains | Sprint 182 selected a formal guarded deferral instead of promoting a Windows-safe selected report freshness lane. |
-| Closure target | Select and prove one Windows-safe selected freshness lane, or renew the deferral with refreshed blockers and guard expectations. |
-| Expected evidence | Exact Windows workflow file, job, artifact, platform, selected manifest row, expected row IDs, generated report artifact, freshness command, and hosted/local pass evidence. |
-| Validation commands | Future selected Windows freshness command; `python3 tests/test_selected_report_targets_manifest.py`; `python3 tests/test_selected_comparison_workflow.py`; `python3 tests/test_normalize_report_index.py`; `python3 scripts/validate_corpus_schema.py`. |
-| Claim boundary | Until closed, Windows report freshness and broad Windows generated-report parity remain non-claims. |
-| Deferral horizon | Product/workflow promotion decision after PowerShell validation ownership is available. |
+| Why it remains | Sprint 190 wires one bounded hosted Windows selected Cholesky comparison freshness job and local CMake-probe generator path, but hosted `windows-2022` evidence has not been observed in this local sprint pass and the source selected-target manifest still does not list `windows`. |
+| Closure target | Review hosted `selected-comparison-freshness` evidence for `cholesky-spd-tridiag-5`, then either promote exactly that manifest row to `windows` metadata or retain the staged boundary with refreshed blockers. |
+| Expected evidence | `.github/workflows/windows-ci.yml` job `selected-comparison-freshness`; artifact `sprint190-windows-selected-comparison-cholesky`; exact target `cholesky-spd-tridiag-5`; six expected row IDs; required generated files; target-specific freshness command; hosted Windows pass evidence; and aligned selected manifest metadata if promotion lands. |
+| Validation commands | `python3 tests/test_selected_report_targets_manifest.py`; `python3 tests/test_selected_comparison_workflow.py`; `python3 tests/test_normalize_report_index.py`; `python3 tests/test_run_external_comparison.py`; `python3 tests/test_validate_windows_powershell.py`; `python3 scripts/validate_corpus_schema.py`; `python3 scripts/run_external_comparison.py --target cholesky-spd-tridiag-5 --probe-build-system cmake`; `python3 scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5`; hosted `selected-comparison-freshness` on `windows-2022`. |
+| Claim boundary | Until hosted evidence and manifest promotion are reviewed together, Windows has one bounded selected Cholesky workflow path only; broad Windows report freshness, Windows selected oracle freshness, Windows selected benchmark freshness, broad selected comparison freshness, and broad Windows generated-report parity remain non-claims. |
+| Deferral horizon | Hosted evidence and manifest promotion decision. |
 
 ## Priority 4: R186-HOSTED-API
 

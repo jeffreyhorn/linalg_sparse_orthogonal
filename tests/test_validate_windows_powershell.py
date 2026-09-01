@@ -114,11 +114,51 @@ def test_forbidden_windows_report_freshness_command_fails_clearly() -> None:
     )
 
 
-def test_windows_upload_artifact_fails_while_selected_evidence_absent() -> None:
+def test_extra_windows_upload_artifact_fails_outside_selected_lane() -> None:
     drifted = read_workflow() + "\n      - uses: actions/upload-artifact@v4\n"
     assert_raises_with(
         lambda: validator.validate_workflow_structure(drifted),
-        "must not publish hosted artifacts",
+        "must not publish hosted artifacts outside the selected Cholesky freshness lane",
+    )
+
+
+def test_selected_cholesky_lane_missing_target_fails_clearly() -> None:
+    drifted = read_workflow().replace("--selected-target cholesky-spd-tridiag-5", "", 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing selected Cholesky token",
+    )
+
+
+def test_selected_cholesky_lane_missing_timeout_fails_clearly() -> None:
+    drifted = read_workflow().replace("    timeout-minutes: 20\n", "", 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "must declare timeout-minutes: 20",
+    )
+
+
+def test_selected_cholesky_lane_broad_upload_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "            build/comparison/cholesky_spd_tridiag_5/project_observations.tsv",
+        "            build/comparison/**",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "must not use broad comparison artifact paths",
+    )
+
+
+def test_selected_cholesky_lane_missing_required_upload_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "            build/comparison/cholesky_spd_tridiag_5/manifest.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing upload path",
     )
 
 
@@ -141,7 +181,7 @@ def test_claim_boundaries_validate_current_docs() -> None:
 def test_claim_boundary_missing_marker_fails_clearly() -> None:
     path = validator.REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8").replace(
-        "Windows report\nfreshness is formally deferred by the Sprint 182 decision record",
+        "bounded Windows selected Cholesky comparison freshness workflow",
         "Windows report freshness follows the hosted validation lane",
         1,
     )
@@ -317,7 +357,11 @@ if __name__ == "__main__":
     test_command_anchor_drift_fails_clearly()
     test_unowned_powershell_step_fails_clearly()
     test_forbidden_windows_report_freshness_command_fails_clearly()
-    test_windows_upload_artifact_fails_while_selected_evidence_absent()
+    test_extra_windows_upload_artifact_fails_outside_selected_lane()
+    test_selected_cholesky_lane_missing_target_fails_clearly()
+    test_selected_cholesky_lane_missing_timeout_fails_clearly()
+    test_selected_cholesky_lane_broad_upload_fails_clearly()
+    test_selected_cholesky_lane_missing_required_upload_fails_clearly()
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
     test_claim_boundary_missing_marker_fails_clearly()

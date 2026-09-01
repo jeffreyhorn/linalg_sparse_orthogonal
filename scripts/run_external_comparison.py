@@ -20,6 +20,7 @@ from validate_corpus_schema import GENERATED_FIXTURES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LIBRARY = REPO_ROOT / "build" / "libsparse_lu_ortho.a"
+DEFAULT_CMAKE_CONFIG = "Release"
 
 RESIDUAL_TOLERANCE_DEFAULT = 1e-10
 SOLUTION_TOLERANCE_DEFAULT = 1e-10
@@ -410,20 +411,143 @@ def compiler_identity(cc_argv: list[str]) -> str:
 def ensure_library(root: Path, library: Path) -> None:
     if library.is_file():
         return
+    if library.resolve() != DEFAULT_LIBRARY.resolve():
+        raise ComparisonError(
+            "project_build_failed",
+            f"required static library is missing: {library}",
+        )
+    if platform.system().lower() == "windows":
+        raise ComparisonError(
+            "project_build_failed",
+            "default Unix static library is missing on Windows; build with CMake "
+            "and pass --library with the generated .lib path",
+        )
     target = str(library.relative_to(root)) if library.is_relative_to(root) else str(library)
+    try:
+        completed = subprocess.run(
+            ["make", target],
+            cwd=root,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError as exc:
+        raise ComparisonError(
+            "project_build_failed",
+            f"failed to invoke make for required static library {library}: {exc}",
+        ) from exc
+    if completed.returncode != 0 or not library.is_file():
+        raise ComparisonError(
+            "project_build_failed",
+            f"failed to build required static library {library}:\n{completed.stdout}",
+        )
+
+
+def cmake_path_literal(path: os.PathLike[str] | str) -> str:
+    return str(path).replace("\\", "/").replace('"', '\\"')
+
+
+def run_cmake_project_probe(
+    *,
+    root: Path,
+    source: Path,
+    binary_name: str,
+    library: Path,
+    generator: str | None,
+    arch: str | None,
+    config: str,
+) -> tuple[str, str, str]:
+    build_dir = source.parent / "cmake-build"
+    cmake_lists = source.parent / "CMakeLists.txt"
+    cmake_lists.write_text(
+        "\n".join(
+            [
+                "cmake_minimum_required(VERSION 3.14)",
+                "project(sparse_external_comparison_probe C)",
+                "set(CMAKE_C_STANDARD 99)",
+                "set(CMAKE_C_STANDARD_REQUIRED ON)",
+                f"add_executable({binary_name} {source.name})",
+                f"target_include_directories({binary_name} PRIVATE",
+                f'  "{cmake_path_literal(root / "include")}"',
+                f'  "{cmake_path_literal(root / "build" / "include")}"',
+                ")",
+                "add_library(sparse_lu_ortho STATIC IMPORTED GLOBAL)",
+                "set_target_properties(sparse_lu_ortho PROPERTIES",
+                f'  IMPORTED_LOCATION "{cmake_path_literal(library)}"',
+                ")",
+                f"target_link_libraries({binary_name} PRIVATE sparse_lu_ortho)",
+                "if(NOT MSVC)",
+                f"  target_link_libraries({binary_name} PRIVATE m)",
+                "endif()",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    configure_cmd = ["cmake", "-S", str(source.parent), "-B", str(build_dir)]
+    if generator:
+        configure_cmd.extend(["-G", generator])
+    if arch:
+        configure_cmd.extend(["-A", arch])
+    run_capture(configure_cmd, cwd=root, failure_class="project_build_failed")
+    build_cmd = ["cmake", "--build", str(build_dir), "--config", config]
+    run_capture(build_cmd, cwd=root, failure_class="project_build_failed")
+    binary_candidates = [
+        build_dir / config / f"{binary_name}.exe",
+        build_dir / config / binary_name,
+        build_dir / f"{binary_name}.exe",
+        build_dir / binary_name,
+    ]
+    binary = next((candidate for candidate in binary_candidates if candidate.is_file()), None)
+    if binary is None:
+        raise ComparisonError(
+            "project_build_failed",
+            f"CMake probe build did not produce {binary_name}",
+        )
+    output = run_capture([str(binary)], cwd=root)
+    command = shlex.join(configure_cmd) + " && " + shlex.join(build_cmd) + " && " + str(binary)
+    compiler = f"cmake-probe:{generator or 'default'}:{config}"
+    return output, compiler, command
+
+
+def run_compiler_project_probe(
+    *,
+    root: Path,
+    source: Path,
+    binary: Path,
+    library: Path,
+) -> tuple[str, str, str]:
+    cc = compiler_argv()
+    compiler = compiler_identity(cc)
+    compile_cmd = [
+        *cc,
+        "-std=c99",
+        "-I",
+        str(root / "include"),
+        "-I",
+        str(root / "build" / "include"),
+        str(source),
+        str(library),
+        "-lm",
+        "-o",
+        str(binary),
+    ]
     completed = subprocess.run(
-        ["make", target],
+        compile_cmd,
         cwd=root,
         check=False,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    if completed.returncode != 0 or not library.is_file():
+    if completed.returncode != 0:
         raise ComparisonError(
             "project_build_failed",
-            f"failed to build required static library {library}:\n{completed.stdout}",
+            f"failed to compile project comparison probe:\n{completed.stdout}",
         )
+    output = run_capture([str(binary)], cwd=root)
+    return output, compiler, shlex.join(compile_cmd) + " && " + str(binary)
 
 
 def c_literal_for_entries(entries: list[tuple[int, int, float]]) -> str:
@@ -797,11 +921,17 @@ def descriptor_entries(target: dict[str, object]) -> tuple[list[tuple[int, int, 
 
 
 def run_project_probe(
-    root: Path, library: Path, keep_temp: bool, target: dict[str, object]
+    root: Path,
+    library: Path,
+    keep_temp: bool,
+    target: dict[str, object],
+    *,
+    probe_build_system: str,
+    cmake_generator: str | None,
+    cmake_arch: str | None,
+    cmake_config: str,
 ) -> tuple[dict[str, str], str]:
     ensure_library(root, library)
-    cc = compiler_argv()
-    compiler = compiler_identity(cc)
 
     temp_dir = Path(tempfile.mkdtemp(prefix="sparse-comparison-"))
     try:
@@ -841,35 +971,33 @@ def run_project_probe(
                 encoding="utf-8",
             )
             required_fields = {"status", "residual_norm", "solution_norm", "solution_values"}
-        compile_cmd = [
-            *cc,
-            "-std=c99",
-            "-I",
-            str(root / "include"),
-            "-I",
-            str(root / "build" / "include"),
-            str(source),
-            str(library),
-            "-lm",
-            "-o",
-            str(binary),
-        ]
-        completed = subprocess.run(
-            compile_cmd,
-            cwd=root,
-            check=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        if completed.returncode != 0:
-            raise ComparisonError(
-                "project_build_failed",
-                f"failed to compile project comparison probe:\n{completed.stdout}",
+        if probe_build_system == "auto":
+            selected_build_system = (
+                "cmake"
+                if library.suffix.lower() == ".lib" or platform.system().lower() == "windows"
+                else "compiler"
             )
-        output = run_capture([str(binary)], cwd=root)
+        else:
+            selected_build_system = probe_build_system
+        if selected_build_system == "cmake":
+            output, compiler, project_probe_command = run_cmake_project_probe(
+                root=root,
+                source=source,
+                binary_name=str(target["subfamily"]) + "_probe",
+                library=library,
+                generator=cmake_generator,
+                arch=cmake_arch,
+                config=cmake_config,
+            )
+        else:
+            output, compiler, project_probe_command = run_compiler_project_probe(
+                root=root,
+                source=source,
+                binary=binary,
+                library=library,
+            )
         parsed = parse_key_values(output, required_fields)
-        parsed["project_probe_command"] = shlex.join(compile_cmd) + " && " + str(binary)
+        parsed["project_probe_command"] = project_probe_command
         return parsed, compiler
     finally:
         if not keep_temp:
@@ -1986,7 +2114,16 @@ def run(args: argparse.Namespace) -> int:
     reset_output_dir(output_dir)
 
     generated_at = utc_timestamp()
-    observations, compiler = run_project_probe(root, library, args.keep_temp, target)
+    observations, compiler = run_project_probe(
+        root,
+        library,
+        args.keep_temp,
+        target,
+        probe_build_system=args.probe_build_system,
+        cmake_generator=args.cmake_generator,
+        cmake_arch=args.cmake_arch,
+        cmake_config=args.cmake_config,
+    )
     baseline_observations = run_baseline_reference(root, target)
     observation_rows = project_observation_rows(observations, target)
     baseline_rows = baseline_observation_rows(baseline_observations, target)
@@ -2071,6 +2208,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--library", type=Path, default=DEFAULT_LIBRARY)
+    parser.add_argument(
+        "--probe-build-system",
+        choices=("auto", "compiler", "cmake"),
+        default="auto",
+        help="build temporary project probe directly with CC or through CMake",
+    )
+    parser.add_argument(
+        "--cmake-generator",
+        default=None,
+        help="CMake generator to use for temporary project probes",
+    )
+    parser.add_argument(
+        "--cmake-arch",
+        default=None,
+        help="CMake generator architecture for temporary project probes",
+    )
+    parser.add_argument(
+        "--cmake-config",
+        default=DEFAULT_CMAKE_CONFIG,
+        help="CMake build configuration for temporary project probes",
+    )
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--self-check", action="store_true")
     args = parser.parse_args(argv)

@@ -30,6 +30,19 @@ WINDOWS_DEFERRAL_RECORD = (
     / "artifacts"
     / "windows-report-freshness-deferral-decision.md"
 )
+WINDOWS_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
+WINDOWS_CHOLESKY_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
+WINDOWS_CHOLESKY_WORKFLOW_JOB = "selected-comparison-freshness"
+WINDOWS_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_CHOLESKY_EXPECTED_ROWS = "6"
+WINDOWS_CHOLESKY_REQUIRED_FILES = (
+    "project_observations.tsv",
+    "baseline_observations.tsv",
+    "dependency_status.tsv",
+    "study.tsv",
+    "summary.md",
+    "manifest.tsv",
+)
 
 
 def manifest_rows() -> list[dict[str, str]]:
@@ -67,6 +80,87 @@ def split_manifest_values(value: str) -> list[str]:
     if value == "none":
         return []
     return [part for part in value.split(";") if part]
+
+
+def cholesky_row_index(rows: list[dict[str, str]]) -> int:
+    matches = [
+        index
+        for index, row in enumerate(rows)
+        if row["target_id"] == WINDOWS_CHOLESKY_TARGET_ID
+    ]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"expected one {WINDOWS_CHOLESKY_TARGET_ID} row, got {len(matches)}"
+        )
+    return matches[0]
+
+
+def with_windows_cholesky_metadata(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    rows = copy.deepcopy(rows)
+    row = rows[cholesky_row_index(rows)]
+    row["workflow_file"] += f";{WINDOWS_CHOLESKY_WORKFLOW_FILE}"
+    row["workflow_job"] += f";{WINDOWS_CHOLESKY_WORKFLOW_JOB}"
+    row["workflow_artifact"] += f";{WINDOWS_CHOLESKY_ARTIFACT}"
+    row["workflow_platforms"] += ";windows"
+    return rows
+
+
+def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> None:
+    windows_rows = [
+        row
+        for row in rows
+        if "windows" in split_manifest_values(row["workflow_platforms"])
+    ]
+    if len(windows_rows) != 1:
+        raise AssertionError(
+            f"expected exactly one Windows selected target, got {len(windows_rows)}"
+        )
+    row = windows_rows[0]
+    if row["target_id"] != WINDOWS_CHOLESKY_TARGET_ID:
+        raise AssertionError(
+            "only selected Cholesky may list windows, got "
+            f"{row['target_id']}"
+        )
+    platforms = split_manifest_values(row["workflow_platforms"])
+    files = split_manifest_values(row["workflow_file"])
+    jobs = split_manifest_values(row["workflow_job"])
+    artifacts = split_manifest_values(row["workflow_artifact"])
+    try:
+        windows_index = platforms.index("windows")
+    except ValueError as exc:
+        raise AssertionError(f"{WINDOWS_CHOLESKY_TARGET_ID} missing windows platform") from exc
+    for field_name, values, expected in (
+        ("workflow_file", files, WINDOWS_CHOLESKY_WORKFLOW_FILE),
+        ("workflow_job", jobs, WINDOWS_CHOLESKY_WORKFLOW_JOB),
+        ("workflow_artifact", artifacts, WINDOWS_CHOLESKY_ARTIFACT),
+    ):
+        if len(values) != len(platforms):
+            raise AssertionError(
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must align with workflow_platforms"
+            )
+        if values[windows_index] != expected:
+            raise AssertionError(
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} windows entry must be {expected!r}"
+            )
+    if row["expected_rows"] != WINDOWS_CHOLESKY_EXPECTED_ROWS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} expected_rows must remain "
+            f"{WINDOWS_CHOLESKY_EXPECTED_ROWS}"
+        )
+    required_files = tuple(split_manifest_values(row["required_files"]))
+    if required_files != WINDOWS_CHOLESKY_REQUIRED_FILES:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} required_files drifted for Windows promotion"
+        )
+    reused_artifacts = {
+        artifact
+        for artifact, platform in zip(artifacts, platforms)
+        if platform != "windows" and artifact == WINDOWS_CHOLESKY_ARTIFACT
+    }
+    if reused_artifacts:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} reuses Windows artifact on non-Windows platform"
+        )
 
 
 def assert_no_windows_selected_platform(
@@ -280,6 +374,67 @@ def test_windows_platform_drift_fails_clearly() -> None:
     raise AssertionError("expected Windows selected platform drift to fail")
 
 
+def test_future_windows_cholesky_metadata_allowlist_accepts_exact_row() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    assert_windows_cholesky_manifest_allowlist(rows)
+
+
+def test_future_windows_metadata_rejects_unselected_target() -> None:
+    rows = manifest_rows()
+    rows[1]["workflow_platforms"] = f"{rows[1]['workflow_platforms']};windows"
+    rows[1]["workflow_file"] = f"{rows[1]['workflow_file']};{WINDOWS_CHOLESKY_WORKFLOW_FILE}"
+    rows[1]["workflow_job"] = f"{rows[1]['workflow_job']};{WINDOWS_CHOLESKY_WORKFLOW_JOB}"
+    rows[1]["workflow_artifact"] = f"{rows[1]['workflow_artifact']};{WINDOWS_CHOLESKY_ARTIFACT}"
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "only selected Cholesky may list windows" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected unselected Windows manifest target to fail")
+
+
+def test_future_windows_metadata_rejects_wrong_artifact() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = rows[cholesky_row_index(rows)]
+    row["workflow_artifact"] = row["workflow_artifact"].replace(
+        WINDOWS_CHOLESKY_ARTIFACT,
+        "sprint175-macos-selected-comparison-freshness",
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "workflow_artifact windows entry" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected wrong Windows Cholesky artifact to fail")
+
+
+def test_future_windows_metadata_rejects_row_count_drift() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    rows[cholesky_row_index(rows)]["expected_rows"] = "7"
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "expected_rows must remain 6" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected Windows Cholesky row-count drift to fail")
+
+
+def test_future_windows_metadata_rejects_missing_artifact_file() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = rows[cholesky_row_index(rows)]
+    row["required_files"] = row["required_files"].replace(";manifest.tsv", "")
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "required_files drifted" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected Windows Cholesky required-file drift to fail")
+
+
 def main() -> int:
     test_current_manifest_validates()
     test_duplicate_target_id_fails_clearly()
@@ -300,6 +455,11 @@ def main() -> int:
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_deferral_record_missing_marker_fails_clearly()
     test_windows_platform_drift_fails_clearly()
+    test_future_windows_cholesky_metadata_allowlist_accepts_exact_row()
+    test_future_windows_metadata_rejects_unselected_target()
+    test_future_windows_metadata_rejects_wrong_artifact()
+    test_future_windows_metadata_rejects_row_count_drift()
+    test_future_windows_metadata_rejects_missing_artifact_file()
     print("test-selected-report-targets-manifest: ok")
     return 0
 

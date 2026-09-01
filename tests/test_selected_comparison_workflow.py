@@ -60,6 +60,15 @@ WINDOWS_DEFERRAL_REQUIRED_TEXT = [
     "selected target manifest rows do not list `windows`",
 ]
 SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
+WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_SELECTED_CHOLESKY_FILES = [
+    "build/comparison/cholesky_spd_tridiag_5/project_observations.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/baseline_observations.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/dependency_status.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+    "build/comparison/cholesky_spd_tridiag_5/summary.md",
+    "build/comparison/cholesky_spd_tridiag_5/manifest.tsv",
+]
 
 
 def read_text(path: Path) -> str:
@@ -226,11 +235,44 @@ def assert_linux_guard_runs_outside_validated_lane(text: str) -> None:
 
 
 def assert_no_report_freshness_lane(text: str, *, label: str) -> None:
+    try:
+        selected_job = job_block(text, "selected-comparison-freshness", label=label)
+    except AssertionError:
+        selected_job = ""
+    searchable = text.replace(selected_job, "", 1)
     for needle in WINDOWS_FORBIDDEN_SELECTED_FRESHNESS:
-        if needle in text:
+        if needle in searchable:
             raise AssertionError(
                 f"{label} must not run or upload selected report freshness {needle!r}"
             )
+
+
+def assert_windows_selected_cholesky_lane(text: str) -> None:
+    job = job_block(text, "selected-comparison-freshness", label="windows")
+    assert_contains(job, "timeout-minutes: 20", label="windows selected cholesky")
+    assert_contains(job, "python scripts/run_external_comparison.py", label="windows selected cholesky")
+    assert_contains(job, "--target cholesky-spd-tridiag-5", label="windows selected cholesky")
+    assert_contains(job, "--probe-build-system cmake", label="windows selected cholesky")
+    assert_contains(
+        job,
+        "--library build/Release/sparse_lu_ortho.lib",
+        label="windows selected cholesky",
+    )
+    assert_contains(
+        job,
+        "python scripts/normalize_report_index.py --family comparison --require-generated "
+        "comparison --check-freshness --selected-target cholesky-spd-tridiag-5",
+        label="windows selected cholesky",
+    )
+    block = assert_upload_fail_closed(
+        job,
+        WINDOWS_SELECTED_CHOLESKY_ARTIFACT,
+        label="windows selected cholesky upload",
+    )
+    if "build/comparison/**" in block:
+        raise AssertionError("windows selected cholesky upload must not use broad paths")
+    for path in WINDOWS_SELECTED_CHOLESKY_FILES:
+        assert_contains(block, path, label="windows selected cholesky upload")
 
 
 def assert_windows_workflow_contract(text: str) -> None:
@@ -248,7 +290,7 @@ def assert_windows_workflow_contract(text: str) -> None:
     )
     assert_contains(
         text,
-        "Sprint 182 formally defers Windows report freshness",
+        "Sprint 190 promotes one bounded selected Cholesky comparison",
         label="windows workflow",
     )
     assert_contains(
@@ -362,9 +404,10 @@ def test_macos_selected_comparison_lane() -> None:
         assert_contains(text, non_claim, label="macos")
 
 
-def test_windows_report_freshness_remains_formally_deferred() -> None:
+def test_windows_report_freshness_keeps_bounded_cholesky_only() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     assert_windows_workflow_contract(text)
+    assert_windows_selected_cholesky_lane(text)
     assert_no_report_freshness_lane(text, label="windows")
     assert_no_windows_selected_manifest_platform()
     assert_windows_deferral_record()
@@ -389,6 +432,74 @@ def test_windows_drift_selected_artifact_fails_clearly() -> None:
         lambda: assert_no_report_freshness_lane(drifted, label="windows"),
         "windows must not run or upload selected report freshness "
         "'sprint175-macos-selected-comparison-freshness'",
+    )
+
+
+def test_windows_selected_cholesky_missing_timeout_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace("    timeout-minutes: 20\n", "", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky missing 'timeout-minutes: 20'",
+    )
+
+
+def test_windows_selected_cholesky_wrong_target_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace("--target cholesky-spd-tridiag-5", "--target qr-minnorm", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky missing '--target cholesky-spd-tridiag-5'",
+    )
+
+
+def test_windows_selected_cholesky_missing_freshness_target_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(" --selected-target cholesky-spd-tridiag-5", "", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky missing "
+        "'python scripts/normalize_report_index.py --family comparison",
+    )
+
+
+def test_windows_selected_cholesky_wrong_artifact_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        f"          name: {WINDOWS_SELECTED_CHOLESKY_ARTIFACT}",
+        "          name: sprint175-macos-selected-comparison-freshness",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky upload missing upload artifact name",
+    )
+
+
+def test_windows_selected_cholesky_broad_upload_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "            build/comparison/cholesky_spd_tridiag_5/project_observations.tsv",
+        "            build/comparison/**",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky upload must not use broad paths",
+    )
+
+
+def test_windows_selected_cholesky_missing_required_file_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "            build/comparison/cholesky_spd_tridiag_5/manifest.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky upload missing "
+        "'build/comparison/cholesky_spd_tridiag_5/manifest.tsv'",
     )
 
 
@@ -426,13 +537,13 @@ def test_windows_workflow_missing_reviewed_job_fails_clearly() -> None:
 def test_windows_workflow_missing_deferral_comment_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     drifted = text.replace(
-        "# Sprint 182 formally defers Windows report freshness; this workflow must stay\n",
+        "# parity. Sprint 190 promotes one bounded selected Cholesky comparison\n",
         "",
         1,
     )
     assert_raises_with(
         lambda: assert_windows_workflow_contract(drifted),
-        "windows workflow missing 'Sprint 182 formally defers Windows report freshness'",
+        "windows workflow missing 'Sprint 190 promotes one bounded selected Cholesky comparison'",
     )
 
 
@@ -552,9 +663,15 @@ def main() -> int:
     test_linux_selected_comparison_lane()
     test_linux_selected_performance_lane()
     test_macos_selected_comparison_lane()
-    test_windows_report_freshness_remains_formally_deferred()
+    test_windows_report_freshness_keeps_bounded_cholesky_only()
     test_windows_drift_selected_command_fails_clearly()
     test_windows_drift_selected_artifact_fails_clearly()
+    test_windows_selected_cholesky_missing_timeout_fails_clearly()
+    test_windows_selected_cholesky_wrong_target_fails_clearly()
+    test_windows_selected_cholesky_missing_freshness_target_fails_clearly()
+    test_windows_selected_cholesky_wrong_artifact_fails_clearly()
+    test_windows_selected_cholesky_broad_upload_fails_clearly()
+    test_windows_selected_cholesky_missing_required_file_fails_clearly()
     test_windows_deferral_record_missing_blocker_fails_clearly()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_workflow_missing_reviewed_job_fails_clearly()

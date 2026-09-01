@@ -13,11 +13,11 @@ name: Windows CI
 # The Makefile reviewed wrappers and dead-code flow remain staged/deferred;
 # Windows does not claim Makefile parity, pkg-config execution parity,
 # package-manager support, shared-library support, dynamic ABI support,
-# runtime-loader behavior, generated report freshness, or broad Windows parity.
-# Sprint 182 formally defers Windows report freshness; this workflow must stay
-# free of selected report generation commands and selected report upload
-# artifact names until a Windows-safe generator path and selected-target
-# manifest promotion are reviewed together.
+# runtime-loader behavior, broad generated report freshness, or broad Windows
+# parity. Sprint 190 promotes one bounded selected Cholesky comparison
+# freshness lane; all other Windows report freshness remains deferred until a
+# Windows-safe generator path and selected-target manifest promotion are
+# reviewed for each target.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -85,6 +85,42 @@ jobs:
       - name: Validate owned Windows PowerShell workflow material
         run: python scripts/validate_windows_powershell.py --require-pwsh
         shell: cmd
+
+  selected-comparison-freshness:
+    name: Windows selected Cholesky comparison freshness (MSVC)
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure selected Cholesky comparison library
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+
+      - name: Build selected Cholesky comparison library
+        run: cmake --build build --config Release --target sparse_lu_ortho
+        shell: pwsh
+
+      - name: Generate selected Cholesky comparison report
+        run: python scripts/run_external_comparison.py --target cholesky-spd-tridiag-5 --probe-build-system cmake --cmake-generator "Visual Studio 17 2022" --cmake-arch x64 --cmake-config Release --library build/Release/sparse_lu_ortho.lib
+        shell: cmd
+
+      - name: Check selected Cholesky comparison freshness
+        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5
+        shell: cmd
+
+      - name: Upload selected Cholesky comparison freshness artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint190-windows-selected-comparison-cholesky
+          if-no-files-found: error
+          path: |
+            build/comparison/cholesky_spd_tridiag_5/project_observations.tsv
+            build/comparison/cholesky_spd_tridiag_5/baseline_observations.tsv
+            build/comparison/cholesky_spd_tridiag_5/dependency_status.tsv
+            build/comparison/cholesky_spd_tridiag_5/study.tsv
+            build/comparison/cholesky_spd_tridiag_5/summary.md
+            build/comparison/cholesky_spd_tridiag_5/manifest.tsv
 
   # Verify the reviewed static-first CMake install and installed downstream
   # consumer path on Windows. This lane is CMake install/downstream scoped; it

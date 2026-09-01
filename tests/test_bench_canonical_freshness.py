@@ -178,6 +178,64 @@ def assert_fails_with(report_dir: Path, expected: str, mode: str = "local") -> N
         raise AssertionError(f"expected {expected!r} in checker output:\n{output}")
 
 
+def selected_index_row(report_dir: Path) -> dict[str, str]:
+    _fieldnames, rows = read_index(report_dir)
+    selected = [row for row in rows if row["artifact"] == SELECTED_ARTIFACT]
+    if len(selected) != 1:
+        raise AssertionError(f"expected one selected row, found {len(selected)}")
+    return selected[0]
+
+
+def selected_benchmark_csv_row(report_dir: Path) -> dict[str, str]:
+    path = report_dir / "bench_refactor_csc.csv"
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    if len(rows) != 1:
+        raise AssertionError(f"expected one bench_refactor_csc row, found {len(rows)}")
+    return rows[0]
+
+
+def write_selected_benchmark_csv(report_dir: Path, rows: list[dict[str, str]]) -> None:
+    path = report_dir / "bench_refactor_csc.csv"
+    if not rows:
+        path.write_text("benchmark,matrix,n,scenario\n", encoding="utf-8")
+        return
+    fieldnames = list(rows[0])
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def mutate_selected_benchmark_csv_field(report_dir: Path, field: str, value: str) -> None:
+    path = report_dir / "bench_refactor_csc.csv"
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    if field not in fieldnames:
+        raise AssertionError(f"selected benchmark CSV missing field {field!r}")
+    for row in rows:
+        row[field] = value
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def remove_selected_benchmark_csv_column(report_dir: Path, field: str) -> None:
+    path = report_dir / "bench_refactor_csc.csv"
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = [name for name in list(reader.fieldnames or []) if name != field]
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row[key] for key in fieldnames})
+
+
 def test_positive_local_report() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -200,6 +258,71 @@ def test_selected_benchmark_manifest_matches_checker_contract() -> None:
     )
     assert target["workflow_artifact"] == "sprint168-selected-performance-freshness"
     assert expected_int(target, "expected_rows") == 1
+    assert "threshold-free methodology fields" in target["claim_scope"]
+    for non_claim in [
+        "no portable performance claim",
+        "no release benchmark claim",
+        "no algorithmic superiority claim",
+        "no platform parity",
+        "no state-of-the-art claim",
+        "no package or ABI support claim",
+    ]:
+        assert non_claim in split_manifest_values(target["non_claims"])
+
+
+def test_selected_benchmark_csv_matches_index_fixture_contract() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        index_row = selected_index_row(report)
+        csv_row = selected_benchmark_csv_row(report)
+        assert index_row["artifact"] == csv_row["benchmark"] == "bench_refactor_csc"
+        assert index_row["fixture_or_workload"] == csv_row["matrix"] == "nos4.mtx"
+        assert index_row["command"] == "tests/data/suitesparse/nos4.mtx --repeat 1"
+        assert index_row["matrix_size"] == f"n={csv_row['n']}" == "n=100"
+        assert index_row["repeat_semantics"] == "configured_repeat_1"
+        assert csv_row["scenario"] == "chol_spd"
+        assert csv_row["nnz"] == "594"
+        assert csv_row["ldlt_dense_backend_request"] == "n/a"
+        assert csv_row["ldlt_dense_backend_selected"] == "n/a"
+        assert csv_row["ldlt_dense_backend_fallback"] == "n/a"
+
+
+def test_selected_benchmark_csv_wrong_fixture_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_benchmark_csv_field(report, "matrix", "bcsstk14.mtx")
+        assert_fails_with(
+            report,
+            "benchmark_selected_csv_value: artifact=bench_refactor_csc.csv "
+            "field=matrix expected=nos4.mtx observed=bcsstk14.mtx",
+        )
+
+
+def test_selected_benchmark_csv_missing_required_column_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        remove_selected_benchmark_csv_column(report, "scenario")
+        assert_fails_with(
+            report,
+            "benchmark_selected_csv_schema: artifact=bench_refactor_csc.csv "
+            "missing_columns=scenario",
+        )
+
+
+def test_selected_benchmark_csv_extra_row_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        row = selected_benchmark_csv_row(report)
+        write_selected_benchmark_csv(report, [row, row])
+        assert_fails_with(
+            report,
+            "benchmark_selected_csv_rows: artifact=bench_refactor_csc.csv "
+            "expected_rows=1 observed_rows=2",
+        )
 
 
 def test_selected_matrix_size_is_required() -> None:
@@ -227,6 +350,30 @@ def test_selected_variance_is_required() -> None:
             report,
             "field=variance expected=not_computed_single_sample observed=not_recorded",
         )
+
+
+def test_selected_baseline_stays_threshold_free() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "baseline", "100.0")
+        assert_fails_with(report, "field=baseline expected=n/a observed=100.0")
+
+
+def test_selected_threshold_stays_threshold_free() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "threshold", "200.0")
+        assert_fails_with(report, "field=threshold expected=n/a observed=200.0")
+
+
+def test_selected_status_cannot_become_performance_pass_claim() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "status", "pass")
+        assert_fails_with(report, "field=status expected=measurement observed=pass")
 
 
 def test_manifest_selected_matrix_size_must_match() -> None:
@@ -269,17 +416,36 @@ def test_positive_hosted_report_keeps_unselected_rows_local() -> None:
                 assert row["claim_boundary"] == "local_threshold_free"
 
 
+def test_generator_rejects_tsv_control_characters_in_methodology_metadata() -> None:
+    output = run_command(
+        ["make", "bench-canonical-report"],
+        env={"BENCH_CANONICAL_REPORT_LABEL": "bad\tlabel"},
+        expect_success=False,
+    )
+    combined = output.stdout + output.stderr
+    if "BENCH_CANONICAL_REPORT_LABEL must not contain tabs or newlines" not in combined:
+        raise AssertionError(f"expected control-character failure:\n{combined}")
+
+
 def main() -> None:
     tests = [
         test_positive_local_report,
         test_selected_benchmark_manifest_matches_checker_contract,
+        test_selected_benchmark_csv_matches_index_fixture_contract,
+        test_selected_benchmark_csv_wrong_fixture_fails,
+        test_selected_benchmark_csv_missing_required_column_fails,
+        test_selected_benchmark_csv_extra_row_fails,
         test_selected_matrix_size_is_required,
         test_selected_warmup_is_required,
         test_selected_variance_is_required,
+        test_selected_baseline_stays_threshold_free,
+        test_selected_threshold_stays_threshold_free,
+        test_selected_status_cannot_become_performance_pass_claim,
         test_manifest_selected_matrix_size_must_match,
         test_row_width_mismatch_is_rejected,
         test_unselected_rows_cannot_be_hosted_selected,
         test_positive_hosted_report_keeps_unselected_rows_local,
+        test_generator_rejects_tsv_control_characters_in_methodology_metadata,
     ]
     for test in tests:
         test()

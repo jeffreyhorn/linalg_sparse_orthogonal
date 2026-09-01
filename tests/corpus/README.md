@@ -102,6 +102,12 @@ source-controlled authority for the selected oracle, comparison, and
 performance targets that report and workflow guards consume. They narrow
 existing report-family semantics to named selected targets; they do not widen
 family-level claims or turn unselected report families into selected proof.
+The selected performance target is the threshold-free
+`SRT-BENCH-REFACTOR-CSC-NOS4` benchmark row for `bench_refactor_csc` on
+`tests/data/suitesparse/nos4.mtx --repeat 1`; it records methodology and
+freshness evidence only, with `baseline=n/a`, `threshold=n/a`, and no portable
+performance, release benchmark, algorithmic superiority, platform parity,
+package/ABI, or state-of-the-art claim.
 The manifest is positive selected-target authority, not a general deferral
 registry. Sprint 190 wires one bounded Windows selected Cholesky comparison
 freshness workflow for `cholesky-spd-tridiag-5`, but the source manifest does

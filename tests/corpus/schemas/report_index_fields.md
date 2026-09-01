@@ -170,6 +170,10 @@ proof; release proof; or state-of-the-art evidence.
   `selected_report_targets.tsv`; sentinel, coverage, dead-code, package, CI,
   and documentation rows remain local, source-controlled, or advisory unless a
   later reviewed manifest row explicitly promotes them.
+- The selected benchmark target is `SRT-BENCH-REFACTOR-CSC-NOS4`, covering only
+  `bench_refactor_csc` on `tests/data/suitesparse/nos4.mtx --repeat 1`; its
+  selected policy is `status=measurement`, `baseline=n/a`, `threshold=n/a`,
+  `warmup=none_configured`, and `variance=not_computed_single_sample`.
 - Sprint 163 benchmark rows may expose methodology fields such as
   `support_tier`, `claim_boundary`, `repeat_semantics`, `warmup`, `variance`,
   `baseline`, `threshold`, and `methodology_notes` through generated report

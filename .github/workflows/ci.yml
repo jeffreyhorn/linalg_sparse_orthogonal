@@ -375,6 +375,13 @@ jobs:
               f"manifest_claim_boundary={manifest.get('claim_boundary', 'unknown')} "
               "non_claims=threshold_free_no_portable_performance_claim"
           )
+          print(
+              "sprint168-performance-summary: "
+              "uploaded_paths="
+              "build/bench-reports/canonical/bench_refactor_csc.csv,"
+              "build/bench-reports/canonical/index.tsv,"
+              "build/bench-reports/canonical/manifest.txt"
+          )
           PY
 
       - name: Upload reviewed selected performance freshness artifacts
@@ -386,9 +393,6 @@ jobs:
           if-no-files-found: error
           path: |
             build/bench-reports/canonical/bench_refactor_csc.csv
-            build/bench-reports/canonical/bench_chol_csc.csv
-            build/bench-reports/canonical/bench_iterative_reuse.csv
-            build/bench-reports/canonical/bench_eigs_reuse.csv
             build/bench-reports/canonical/index.tsv
             build/bench-reports/canonical/manifest.txt
 

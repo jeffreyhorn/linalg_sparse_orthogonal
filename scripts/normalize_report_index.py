@@ -1418,11 +1418,16 @@ def selected_comparison_generated_rows(
     def normalize_artifact_path(path: str) -> str:
         return path.replace("\\", "/")
 
+    normalized_artifacts = (
+        None
+        if selected_artifacts is None
+        else {normalize_artifact_path(artifact) for artifact in selected_artifacts}
+    )
+
     def matches_selected_artifact(artifact_path: str) -> bool:
-        if selected_artifacts is None:
+        if normalized_artifacts is None:
             return True
         normalized_path = normalize_artifact_path(artifact_path)
-        normalized_artifacts = {normalize_artifact_path(artifact) for artifact in selected_artifacts}
         return any(
             normalized_path == artifact or normalized_path.endswith(f"/{artifact}")
             for artifact in normalized_artifacts

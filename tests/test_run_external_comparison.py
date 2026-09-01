@@ -259,8 +259,59 @@ def test_cmake_path_literal_uses_forward_slashes_for_windows_paths() -> None:
     assert "\\a" not in literal
 
 
+def test_ensure_library_fails_structurally_for_default_library_on_windows() -> None:
+    original_default_library = runner.DEFAULT_LIBRARY
+    original_platform_system = runner.platform.system
+    with tempfile.TemporaryDirectory(prefix="sparse-missing-default-lib-") as tmp:
+        missing_library = Path(tmp) / "build" / "libsparse_lu_ortho.a"
+        runner.DEFAULT_LIBRARY = missing_library
+        runner.platform.system = lambda: "Windows"
+        try:
+            try:
+                runner.ensure_library(Path(tmp), missing_library)
+            except runner.ComparisonError as exc:
+                assert exc.failure_class == "project_build_failed"
+                assert "default Unix static library is missing on Windows" in str(exc)
+                assert "--library" in str(exc)
+            else:
+                raise AssertionError("missing Windows default library unexpectedly succeeded")
+        finally:
+            runner.DEFAULT_LIBRARY = original_default_library
+            runner.platform.system = original_platform_system
+
+
+def test_ensure_library_wraps_missing_make_as_comparison_error() -> None:
+    original_default_library = runner.DEFAULT_LIBRARY
+    original_platform_system = runner.platform.system
+    original_subprocess_run = runner.subprocess.run
+    with tempfile.TemporaryDirectory(prefix="sparse-missing-make-") as tmp:
+        missing_library = Path(tmp) / "build" / "libsparse_lu_ortho.a"
+        runner.DEFAULT_LIBRARY = missing_library
+        runner.platform.system = lambda: "Linux"
+
+        def raise_missing_make(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            raise OSError("make not found")
+
+        runner.subprocess.run = raise_missing_make
+        try:
+            try:
+                runner.ensure_library(Path(tmp), missing_library)
+            except runner.ComparisonError as exc:
+                assert exc.failure_class == "project_build_failed"
+                assert "failed to invoke make" in str(exc)
+                assert "make not found" in str(exc)
+            else:
+                raise AssertionError("missing make unexpectedly succeeded")
+        finally:
+            runner.DEFAULT_LIBRARY = original_default_library
+            runner.platform.system = original_platform_system
+            runner.subprocess.run = original_subprocess_run
+
+
 def main() -> int:
     test_cmake_path_literal_uses_forward_slashes_for_windows_paths()
+    test_ensure_library_fails_structurally_for_default_library_on_windows()
+    test_ensure_library_wraps_missing_make_as_comparison_error()
     test_unsupported_target_reports_supported_targets()
     test_selected_targets_generate_expected_rows_and_metadata()
     print("test-run-external-comparison: ok")

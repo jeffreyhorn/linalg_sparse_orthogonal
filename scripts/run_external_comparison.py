@@ -416,15 +416,27 @@ def ensure_library(root: Path, library: Path) -> None:
             "project_build_failed",
             f"required static library is missing: {library}",
         )
+    if platform.system().lower() == "windows":
+        raise ComparisonError(
+            "project_build_failed",
+            "default Unix static library is missing on Windows; build with CMake "
+            "and pass --library with the generated .lib path",
+        )
     target = str(library.relative_to(root)) if library.is_relative_to(root) else str(library)
-    completed = subprocess.run(
-        ["make", target],
-        cwd=root,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        completed = subprocess.run(
+            ["make", target],
+            cwd=root,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError as exc:
+        raise ComparisonError(
+            "project_build_failed",
+            f"failed to invoke make for required static library {library}: {exc}",
+        ) from exc
     if completed.returncode != 0 or not library.is_file():
         raise ComparisonError(
             "project_build_failed",

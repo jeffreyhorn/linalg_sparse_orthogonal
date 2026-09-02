@@ -620,6 +620,10 @@ source-list-check:
 ldlt-csc-helper-guard:
 	@bash scripts/check_ldlt_csc_helper_guard.sh
 
+.PHONY: qr-external-ref-helper-guard
+qr-external-ref-helper-guard:
+	@bash scripts/check_qr_external_ref_helper_guard.sh
+
 .PHONY: report-index-oracle-freshness
 report-index-oracle-freshness: $(LIB)
 	@echo "report-index-oracle-freshness: regenerating selected local oracle output"

@@ -19,7 +19,7 @@ generated report surface was intentionally changed.
 | `Makefile` | Adds `qr-external-ref-helper-guard` |
 | `scripts/check_qr_external_ref_helper_guard.sh` | Mechanically checks the helper boundary and source-list absence |
 | `tests/test_qr_external_ref_helper_guard.py` | Covers positive and negative guard behavior |
-| `docs/maintainer_guide.md` | Documents the helper/proof-owner split, formatter-stable include dependency, and forced focused rebuild caveat |
+| `docs/maintainer_guide.md` | Documents the helper/proof-owner split, formatter-stable QR/solver helper include dependencies, and forced focused rebuild caveat |
 | `docs/planning/EPIC_17/SPRINT_193/*` | Records the Sprint 193 plan, working notes, and day-by-day artifacts |
 
 ## Final Metrics
@@ -27,7 +27,7 @@ generated report surface was intentionally changed.
 | Measure | Before Sprint 193 branch edits | Final branch state | Result |
 | --- | ---: | ---: | --- |
 | `tests/test_qr.c` line count | 3970 | 3040 | Main QR proof owner reduced by 930 lines |
-| Selected helper line count | 0 | 1003 | Selected cluster isolated in a family-local helper |
+| Selected helper line count | 0 | 1004 | Selected cluster isolated in a family-local helper |
 | `test_qr` registered tests | 77 | 79 | Existing selected tests preserved; 2 reader failure tests added |
 | Production source changes under `src/` | 0 | 0 | No production algorithm change |
 | Public header changes under `include/` | 0 | 0 | No API or ABI surface change |
@@ -77,8 +77,9 @@ What worked:
   reduction measurable and behavior-preserving.
 - The guard target gives future reviewers a fast way to detect helper boundary
   drift.
-- Day 12 exposed and fixed the formatter-stability issue by making the helper
-  own its `test_solver_helpers.h` dependency.
+- Day 12 and PR review exposed and fixed formatter-stability issues by making
+  the helper own its `test_qr_helpers.h` and `test_solver_helpers.h`
+  dependencies.
 
 What was constrained:
 

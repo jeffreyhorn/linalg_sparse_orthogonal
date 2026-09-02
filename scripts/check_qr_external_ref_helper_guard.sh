@@ -130,6 +130,10 @@ check_helper_boundary() {
         "$HELPER is missing include guard define TEST_QR_EXTERNAL_REF_HELPERS_H"
     require_exact_fixed_count "#include \"$HELPER_NAME\"" "$TEST_FILE" 1 \
         "tests/test_qr.c must include $HELPER_NAME exactly once"
+    require_fixed '#include "test_qr_helpers.h"' "$HELPER_PATH" \
+        "$HELPER must include test_qr_helpers.h for QR-specific helper dependencies"
+    require_fixed '#include "test_solver_helpers.h"' "$HELPER_PATH" \
+        "$HELPER must include test_solver_helpers.h for external-reference helper dependencies"
 
     pass "helper boundary"
 }

@@ -18,8 +18,9 @@ The guide now records:
   external-reference test body.
 - `tests/test_qr.c` must define `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` before
   including `test_qr_external_ref_helpers.h`; the helper header includes
-  `test_solver_helpers.h` itself so formatter-driven include sorting cannot
-  hide the external-reference reader API.
+  `test_qr_helpers.h` and `test_solver_helpers.h` itself so formatter-driven
+  include sorting cannot hide either the QR-specific helper declarations or the
+  external-reference reader API.
 - `tests/test_qr_external_ref_helpers.h` remains family-local and header-only.
 - `make qr-external-ref-helper-guard` is the focused ownership/source-list/docs
   guard after helper-layout changes.

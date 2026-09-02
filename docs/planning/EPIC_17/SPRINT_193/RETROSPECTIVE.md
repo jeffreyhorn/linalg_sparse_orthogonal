@@ -42,7 +42,7 @@ notes, daily artifacts, closeout artifact, and retrospective in one package.
 
 2. **The review-surface reduction is measurable.** `tests/test_qr.c` dropped
    from 3970 lines to 3040 lines while the selected cluster became a named
-   1003-line family-local helper.
+   1004-line family-local helper.
 
 3. **The proof-owner boundary stayed explicit.** `tests/test_qr.c` still owns
    executable registration and the selected economy test, while the helper owns
@@ -54,9 +54,10 @@ notes, daily artifacts, closeout artifact, and retrospective in one package.
    source-list absence, and maintainer documentation markers.
 
 5. **The formatter-stability issue was caught before closeout.** Day 12 exposed
-   that clang-format could reorder helper includes in a way that hid external
-   reference declarations; the helper now owns its `test_solver_helpers.h`
-   dependency after defining `TF_ENABLE_EXTERNAL_REFERENCE_HELPER`.
+   that clang-format could reorder helper includes in a way that hid helper
+   declarations; the helper now owns its `test_qr_helpers.h` and
+   `test_solver_helpers.h` dependencies after defining
+   `TF_ENABLE_EXTERNAL_REFERENCE_HELPER`.
 
 6. **The final validation was broad enough for the changed surface.** The
    sprint ran source-list checks, guard tests, CMake compile/parity, formatting,
@@ -131,7 +132,7 @@ notes, daily artifacts, closeout artifact, and retrospective in one package.
 | `tests/test_qr.c` baseline lines | 3970 |
 | `tests/test_qr.c` final lines | 3040 |
 | Main QR proof-owner reduction | 930 lines |
-| `tests/test_qr_external_ref_helpers.h` lines | 1003 |
+| `tests/test_qr_external_ref_helpers.h` lines | 1004 |
 | `test_qr` baseline registered tests | 77 |
 | `test_qr` final registered tests | 79 |
 | Reader failure-path tests added | 2 |

@@ -14,7 +14,7 @@ reference success-path behavior.
 | Measure | Before Sprint 193 branch edits | Current branch state | Result |
 | --- | ---: | ---: | --- |
 | `tests/test_qr.c` line count | 3970 | 3040 | Main QR proof owner reduced by 930 lines |
-| Selected helper line count | 0 | 1003 | Selected cluster isolated in a family-local helper |
+| Selected helper line count | 0 | 1004 | Selected cluster isolated in a family-local helper |
 | `test_qr` registered tests | 77 | 79 | Existing selected tests preserved; 2 reader failure tests added |
 | Selected helper-owned tests/readers | 0 | 8 moved selected tests, 2 reader helpers, and 2 reader failure tests | Reviewable boundary is explicit |
 | Production source changes under `src/` | 0 | 0 | No production algorithm change |

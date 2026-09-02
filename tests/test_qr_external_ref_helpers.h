@@ -14,6 +14,7 @@
 #ifndef TF_ENABLE_EXTERNAL_REFERENCE_HELPER
 #define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
 #endif
+#include "test_qr_helpers.h"
 #include "test_solver_helpers.h"
 
 static int read_qr_basis_external_reference(const char *fixture_key, double *values_out, idx_t n,

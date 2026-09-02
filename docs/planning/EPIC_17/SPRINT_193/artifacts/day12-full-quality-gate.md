@@ -12,11 +12,12 @@ issue: clang-format sorted `test_qr_external_ref_helpers.h` before
 `test_solver_helpers.h`, hiding the `TF_EXTERNAL_REFERENCE_*` declarations that
 the extracted helper uses.
 
-The fix made `tests/test_qr_external_ref_helpers.h` include its own
+The initial fix made `tests/test_qr_external_ref_helpers.h` include its own
 `test_solver_helpers.h` dependency after ensuring
-`TF_ENABLE_EXTERNAL_REFERENCE_HELPER` is defined. The maintainer documentation
-and Day 10 artifact were updated to describe that formatter-stable dependency
-contract.
+`TF_ENABLE_EXTERNAL_REFERENCE_HELPER` is defined. PR review then strengthened
+the same boundary by making the helper include `test_qr_helpers.h` itself for
+QR-specific declarations. The maintainer documentation and Day 10 artifact were
+updated to describe that formatter-stable dependency contract.
 
 ## Required Gate
 

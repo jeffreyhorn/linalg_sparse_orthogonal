@@ -80,6 +80,8 @@ def write_fixture(root: Path) -> None:
     (root / "tests" / "test_qr_external_ref_helpers.h").write_text(
         "#ifndef TEST_QR_EXTERNAL_REF_HELPERS_H\n"
         "#define TEST_QR_EXTERNAL_REF_HELPERS_H\n\n"
+        '#include "test_qr_helpers.h"\n'
+        '#include "test_solver_helpers.h"\n\n'
         + "\n".join(MOVED_MARKERS)
         + "\n#endif\n",
         encoding="utf-8",
@@ -142,6 +144,20 @@ def test_missing_helper_include_fails_clearly() -> None:
     )
 
 
+def test_missing_qr_helper_dependency_include_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_qr_external_ref_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_qr_helpers.h"\n',
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must include test_qr_helpers.h")
+
+
 def test_moved_definition_in_test_qr_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_qr.c"
@@ -202,6 +218,7 @@ if __name__ == "__main__":
     test_current_tree_passes_guard()
     test_fixture_passes_guard()
     test_missing_helper_include_fails_clearly()
+    test_missing_qr_helper_dependency_include_fails_clearly()
     test_moved_definition_in_test_qr_fails_clearly()
     test_economy_body_moved_to_helper_fails_clearly()
     test_helper_makefile_registration_fails_clearly()

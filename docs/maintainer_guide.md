@@ -1343,8 +1343,9 @@ Sprint 106 maintainability ownership additions:
     test body there
   - keep `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` defined before
     `test_qr_external_ref_helpers.h`; the helper header includes
-    `test_solver_helpers.h` itself so formatter-driven include sorting cannot
-    hide the external-reference reader API
+    `test_qr_helpers.h` and `test_solver_helpers.h` itself so
+    formatter-driven include sorting cannot hide either the QR-specific helper
+    declarations or the external-reference reader API
   - keep the helper header family-local and header-only; do not add it to
     Makefile test lists, CMake `add_sparse_test(...)`, or
     `build-metadata/library_sources.txt`

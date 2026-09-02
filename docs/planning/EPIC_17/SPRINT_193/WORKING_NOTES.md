@@ -1019,8 +1019,9 @@ The guide now states:
    external-reference test body.
 4. `tests/test_qr.c` must define `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` before
    including `test_qr_external_ref_helpers.h`; the helper header includes
-   `test_solver_helpers.h` itself so formatter-driven include sorting cannot
-   hide the external-reference reader API.
+   `test_qr_helpers.h` and `test_solver_helpers.h` itself so
+   formatter-driven include sorting cannot hide either the QR-specific helper
+   declarations or the external-reference reader API.
 5. The helper stays family-local and header-only, absent from Makefile test
    lists, CMake `add_sparse_test(...)`, and
    `build-metadata/library_sources.txt`.
@@ -1120,7 +1121,7 @@ Fix applied:
 
 - `tests/test_qr_external_ref_helpers.h` now defines
   `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` if needed before including
-  `test_solver_helpers.h`.
+  `test_qr_helpers.h` and `test_solver_helpers.h`.
 - `docs/maintainer_guide.md` and the Day 10 artifact now describe the
   formatter-stable dependency contract.
 
@@ -1181,7 +1182,7 @@ validation evidence.
 | Measure | Before Sprint 193 branch edits | Current branch state | Result |
 | --- | ---: | ---: | --- |
 | `tests/test_qr.c` line count | 3970 | 3040 | Main QR proof owner reduced by 930 lines |
-| Selected helper line count | 0 | 1003 | Selected cluster isolated in `tests/test_qr_external_ref_helpers.h` |
+| Selected helper line count | 0 | 1004 | Selected cluster isolated in `tests/test_qr_external_ref_helpers.h` |
 | `test_qr` registered tests | 77 | 79 | Existing selected tests preserved; 2 reader failure tests added |
 | Production source changes under `src/` | 0 | 0 | No production algorithm change |
 | Public header changes under `include/` | 0 | 0 | No API or ABI surface change |
@@ -1245,7 +1246,7 @@ generated report surface was intentionally changed.
 | Measure | Before Sprint 193 branch edits | Final branch state | Result |
 | --- | ---: | ---: | --- |
 | `tests/test_qr.c` line count | 3970 | 3040 | Main QR proof owner reduced by 930 lines |
-| Selected helper line count | 0 | 1003 | Selected cluster isolated in `tests/test_qr_external_ref_helpers.h` |
+| Selected helper line count | 0 | 1004 | Selected cluster isolated in `tests/test_qr_external_ref_helpers.h` |
 | `test_qr` registered tests | 77 | 79 | Existing selected tests preserved; 2 reader failure tests added |
 | Production source changes under `src/` | 0 | 0 | No production algorithm change |
 | Public header changes under `include/` | 0 | 0 | No API or ABI surface change |
@@ -1304,8 +1305,8 @@ The artifact records:
   to audit.
 - The guard target and maintainer docs now make the helper/proof-owner boundary
   mechanically enforceable.
-- The Day 12 formatter-stability issue was resolved by making the helper own
-  its `test_solver_helpers.h` dependency.
+- The Day 12/PR review formatter-stability issue was resolved by making the
+  helper own its `test_qr_helpers.h` and `test_solver_helpers.h` dependencies.
 - Header-only helper edits still require forced focused rebuild validation when
   the full Makefile gate is not run.
 

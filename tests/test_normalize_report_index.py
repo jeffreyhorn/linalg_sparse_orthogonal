@@ -353,11 +353,26 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "git_branch",
                 "platform",
                 "compiler",
+                "runner_context",
+                "build_flags",
+                "cpu_model",
                 "build_mode",
                 "omp_num_threads",
                 "artifact",
                 "relative_path",
                 "command",
+                "report_family",
+                "status",
+                "support_tier",
+                "claim_boundary",
+                "fixture_or_workload",
+                "matrix_size",
+                "repeat_semantics",
+                "warmup",
+                "variance",
+                "baseline",
+                "threshold",
+                "backend_context",
                 "methodology_notes",
             ]
         )
@@ -372,11 +387,26 @@ def write_runtime_fixture(build_root: Path) -> None:
                 "sprint-141",
                 "linux-x86_64",
                 "cc",
+                "github-actions-ubuntu-latest",
+                "default_make_flags",
+                "unknown",
                 "serial",
                 "unset",
                 "bench_refactor_csc",
                 "bench_refactor_csc.csv",
                 "tests/data/suitesparse/nos4.mtx --repeat 1",
+                "benchmark",
+                "measurement",
+                "hosted_selected",
+                "hosted_selected_threshold_free",
+                "nos4.mtx",
+                "n=100",
+                "configured_repeat_1",
+                "none_configured",
+                "not_computed_single_sample",
+                "n/a",
+                "n/a",
+                "n/a",
                 "threshold_free_local_measurement;not_portable_performance_claim",
             ]
         )
@@ -582,12 +612,41 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
             row for row in by_family["benchmark"] if row["native_row_id"] == "bench_refactor_csc"
         ]
         assert len(benchmark_rows) == 1
+        benchmark = benchmark_rows[0]
+        assert benchmark["status"] == "advisory"
+        assert benchmark["status_reason"] == "measurement"
+        assert benchmark["source_commit"] == "abc123"
+        assert benchmark["source_branch"] == "sprint-141"
+        assert benchmark["platform"] == "linux-x86_64"
+        assert benchmark["compiler"] == "cc"
+        for expected in (
+            "surface=canonical",
+            "category=measurement",
+            "report_label=test",
+            "build_mode=serial",
+            "omp_num_threads=unset",
+            "command=tests/data/suitesparse/nos4.mtx --repeat 1",
+            "relative_path=bench_refactor_csc.csv",
+            "row_report_family=benchmark",
+            "row_status=measurement",
+            "row_support_tier=hosted_selected",
+            "claim_boundary=hosted_selected_threshold_free",
+            "fixture_or_workload=nos4.mtx",
+            "matrix_size=n=100",
+            "repeat_semantics=configured_repeat_1",
+            "warmup=none_configured",
+            "variance=not_computed_single_sample",
+            "baseline=n/a",
+            "threshold=n/a",
+            "backend_context=n/a",
+        ):
+            assert expected in benchmark["configuration"]
         assert (
             "methodology_notes=threshold_free_local_measurement%3Bnot_portable_performance_claim"
-            in benchmark_rows[0]["configuration"]
+            in benchmark["configuration"]
         )
         assert "not_portable_performance_claim" not in {
-            part.split("=", 1)[0] for part in benchmark_rows[0]["configuration"].split(";")
+            part.split("=", 1)[0] for part in benchmark["configuration"].split(";")
         }
         assert any(
             row["row_meaning"] == "sentinel_hard_gate" and row["status"] == "pass"
@@ -635,6 +694,28 @@ def test_runtime_report_rows_preserve_boundaries() -> None:
                     or "performance" in row["non_claims"]
                     or "platform" in row["non_claims"]
                 )
+
+
+def test_required_benchmark_freshness_reports_missing_artifacts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        build_root = tmp_path / "build"
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "benchmark",
+                "--require-generated",
+                "benchmark",
+                "--check-freshness",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "required generated family missing: benchmark" in result.stdout
 
 
 def test_quality_and_package_rows_preserve_scope() -> None:
@@ -2210,6 +2291,7 @@ def main() -> int:
     test_family_filter_and_required_missing()
     test_generated_artifact_presence()
     test_runtime_report_rows_preserve_boundaries()
+    test_required_benchmark_freshness_reports_missing_artifacts()
     test_quality_and_package_rows_preserve_scope()
     test_freshness_missing_generated_and_deferred_rows()
     test_freshness_stale_and_advisory_runtime_rows()

@@ -1530,10 +1530,23 @@ Current threshold-free reporting surface:
   - is mirrored by the reviewed Linux hosted selected-performance freshness
     job, which runs the checker in hosted mode with `hosted_selected` and
     `hosted_selected_threshold_free` metadata on the selected row only
+  - publishes only the selected hosted workflow artifact
+    `sprint168-selected-performance-freshness` with `retention-days: 7` and
+    these exact paths:
+    - `build/bench-reports/canonical/bench_refactor_csc.csv`
+    - `build/bench-reports/canonical/index.tsv`
+    - `build/bench-reports/canonical/manifest.txt`
+  - does not upload unselected canonical benchmark CSV files such as
+    `bench_chol_csc.csv`, `bench_iterative_reuse.csv`, or
+    `bench_eigs_reuse.csv`
   - does not compare timing values, define a regression threshold, promote the
     other canonical rows, or claim portable performance, external-library
     parity, package/ABI support, broad platform support, release proof, or
     state-of-the-art performance
+  - should remain `baseline=n/a`, `threshold=n/a`, and `status=measurement`
+    until a future sprint records a hosted-runner baseline, variance model,
+    tolerance, and same-machine comparison policy; do not promote this lane to
+    `status=pass` as a shortcut for performance regression governance
 
 Selected performance platform/build caveats:
 
@@ -1588,6 +1601,9 @@ Current bounded local sentinel bundle:
     local smoke ceiling, build mode, `OMP_NUM_THREADS`, and machine context
   - treats S2/S3 `status=report` rows as backend-context rows, not passing
     evidence
+  - does not supply the hosted selected-performance baseline; local sentinel
+    thresholds and hosted threshold-free freshness remain separate policy
+    surfaces
   - should not add new hard timing thresholds without a fresh local-baseline
     or same-worktree comparison design
   - should not be described as portable performance evidence

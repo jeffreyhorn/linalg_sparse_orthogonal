@@ -107,6 +107,15 @@ SELECTED_VALUES = {
     "baseline": "n/a",
     "threshold": "n/a",
 }
+SELECTED_CSV_VALUES = {
+    "benchmark": "bench_refactor_csc",
+    "matrix": SELECTED_FIXTURE,
+    "n": "100",
+    "scenario": "chol_spd",
+    "ldlt_dense_backend_request": "n/a",
+    "ldlt_dense_backend_selected": "n/a",
+    "ldlt_dense_backend_fallback": "n/a",
+}
 MANIFEST_MATCH_FIELDS = (
     "report_label",
     "git_commit",
@@ -353,6 +362,50 @@ def check_selected_values(
         )
 
 
+def check_selected_artifact_csv(row: dict[str, str], report_dir: Path) -> None:
+    relative_path = report_dir / row["relative_path"]
+    try:
+        with relative_path.open(newline="") as handle:
+            reader = csv.DictReader(handle)
+            csv_rows = list(reader)
+    except OSError as exc:
+        error(
+            "freshness: error: benchmark_selected_artifact_missing: "
+            f"artifact={row['relative_path']} path={display_path(relative_path)} detail={exc}"
+        )
+
+    fieldnames = list(reader.fieldnames or [])
+    missing = [field for field in SELECTED_CSV_VALUES if field not in fieldnames]
+    if missing:
+        error(
+            "freshness: error: benchmark_selected_csv_schema: "
+            f"artifact={row['relative_path']} missing_columns={','.join(missing)}"
+        )
+    if len(csv_rows) != 1:
+        error(
+            "freshness: error: benchmark_selected_csv_rows: "
+            f"artifact={row['relative_path']} expected_rows=1 observed_rows={len(csv_rows)}"
+        )
+
+    csv_row = csv_rows[0]
+    for field, expected in SELECTED_CSV_VALUES.items():
+        observed = csv_row.get(field, "")
+        if observed != expected:
+            error(
+                "freshness: error: benchmark_selected_csv_value: "
+                f"artifact={row['relative_path']} field={field} "
+                f"expected={expected} observed={observed}"
+            )
+
+    expected_matrix_size = f"n={csv_row['n']}"
+    if row["matrix_size"] != expected_matrix_size:
+        error(
+            "freshness: error: benchmark_selected_csv_value: "
+            f"artifact={row['relative_path']} field=matrix_size "
+            f"row={row['matrix_size']} csv={expected_matrix_size}"
+        )
+
+
 def check_claim_boundary(row: dict[str, str], mode: str, target: dict[str, str]) -> None:
     support_tier = row["support_tier"]
     claim_boundary = row["claim_boundary"]
@@ -443,6 +496,7 @@ def check_report(report_dir: Path, mode: str) -> None:
     check_unselected_rows(rows, selected_artifact)
     check_nonempty(row)
     check_selected_values(row, report_dir, selected_benchmark_values(target))
+    check_selected_artifact_csv(row, report_dir)
     check_claim_boundary(row, mode, target)
     check_manifest(row, manifest)
     print(

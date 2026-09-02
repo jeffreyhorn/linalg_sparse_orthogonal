@@ -37,7 +37,7 @@ ORACLE_UPLOAD_PATHS = [
     "build/corpus-reports/skips.tsv",
     "build/corpus-reports/manifest.txt",
 ]
-BENCHMARK_UNSELECTED_CONTEXT_FILES = [
+BENCHMARK_FORBIDDEN_UPLOAD_PATHS = [
     "build/bench-reports/canonical/bench_chol_csc.csv",
     "build/bench-reports/canonical/bench_iterative_reuse.csv",
     "build/bench-reports/canonical/bench_eigs_reuse.csv",
@@ -207,6 +207,29 @@ def assert_comparison_upload_paths(
             assert_contains(block, f"{directory}/{filename}", label=label)
 
 
+def assert_performance_upload_paths(
+    job: str,
+    row: dict[str, str],
+    artifact_name: str,
+    *,
+    label: str,
+) -> None:
+    block = assert_upload_fail_closed(job, artifact_name, label=label)
+    assert_contains(block, "retention-days: 7", label=label)
+    for pattern in [
+        "build/bench-reports/**",
+        "build/bench-reports/canonical/**",
+    ]:
+        if pattern in block:
+            raise AssertionError(f"{label} must not use broad benchmark upload paths")
+    directory = str(Path(row["artifact_pattern"]).parent)
+    for filename in split_manifest_values(row["required_files"]):
+        assert_contains(block, f"{directory}/{filename}", label=label)
+    for path in BENCHMARK_FORBIDDEN_UPLOAD_PATHS:
+        if path in block:
+            raise AssertionError(f"{label} must not upload unselected benchmark path {path!r}")
+
+
 def assert_summary_fail_closed(job: str, *, label: str) -> None:
     for needle in [
         "uploaded_files = [",
@@ -364,16 +387,33 @@ def test_linux_selected_performance_lane() -> None:
     selected_path = row["artifact_pattern"]
 
     assert_contains(job, "Linux reviewed hosted selected performance freshness", label="linux")
+    assert_contains(job, "timeout-minutes: 10", label="linux")
+    assert_contains(job, "BENCH_CANONICAL_REPORT_LABEL: sprint-168-hosted-performance", label="linux")
+    assert_contains(job, "SPARSE_CANONICAL_SUPPORT_TIER: hosted_selected", label="linux")
+    assert_contains(
+        job,
+        "SPARSE_CANONICAL_CLAIM_BOUNDARY: hosted_selected_threshold_free",
+        label="linux",
+    )
     assert_contains(job, "Run reviewed hosted selected performance report", label="linux")
     assert_contains(job, "make bench-canonical-report", label="linux")
     assert_contains(job, "check_bench_canonical_freshness.py", label="linux")
+    assert_contains(job, "--mode hosted", label="linux")
     assert_contains(job, f'row["artifact"] == "{selected_artifact}"', label="linux")
-    block = assert_upload_fail_closed(job, artifact_name, label="linux performance upload")
-    assert_contains(block, selected_path, label="linux performance upload")
-    for path in BENCHMARK_UNSELECTED_CONTEXT_FILES:
-        assert_contains(block, path, label="linux performance upload")
-    if "build/bench-reports/**" in block or "build/bench-reports/canonical/**" in block:
-        raise AssertionError("linux performance upload must not use broad benchmark paths")
+    assert_contains(job, selected_path, label="linux")
+    assert_contains(job, "uploaded_paths=", label="linux")
+    for path in [
+        "build/bench-reports/canonical/bench_refactor_csc.csv,",
+        "build/bench-reports/canonical/index.tsv,",
+        "build/bench-reports/canonical/manifest.txt",
+    ]:
+        assert_contains(job, path, label="linux")
+    assert_performance_upload_paths(
+        job,
+        row,
+        artifact_name,
+        label="linux performance upload",
+    )
 
 
 def test_macos_selected_comparison_lane() -> None:
@@ -658,6 +698,119 @@ def test_workflow_drift_missing_cholesky_upload_file_fails_clearly() -> None:
     )
 
 
+def test_performance_workflow_missing_timeout_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    drifted = job.replace("    timeout-minutes: 10\n", "", 1)
+    assert_raises_with(
+        lambda: assert_contains(drifted, "timeout-minutes: 10", label="linux"),
+        "linux missing 'timeout-minutes: 10'",
+    )
+
+
+def test_performance_workflow_wrong_upload_artifact_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    row = single_row(LINUX_WORKFLOW, "hosted-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "linux")
+    drifted = job.replace(
+        f"          name: {artifact_name}",
+        "          name: broad-performance-freshness",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="linux performance upload",
+        ),
+        "linux performance upload missing upload artifact name",
+    )
+
+
+def test_performance_workflow_broad_upload_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    row = single_row(LINUX_WORKFLOW, "hosted-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "linux")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/bench_refactor_csc.csv",
+        "            build/bench-reports/canonical/**",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="linux performance upload",
+        ),
+        "linux performance upload must not use broad benchmark upload paths",
+    )
+
+
+def test_performance_workflow_unselected_upload_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    row = single_row(LINUX_WORKFLOW, "hosted-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "linux")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/bench_refactor_csc.csv\n",
+        "            build/bench-reports/canonical/bench_refactor_csc.csv\n"
+        "            build/bench-reports/canonical/bench_chol_csc.csv\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="linux performance upload",
+        ),
+        "linux performance upload must not upload unselected benchmark path "
+        "'build/bench-reports/canonical/bench_chol_csc.csv'",
+    )
+
+
+def test_performance_workflow_missing_retention_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    row = single_row(LINUX_WORKFLOW, "hosted-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "linux")
+    drifted = job.replace("          retention-days: 7\n", "", 1)
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="linux performance upload",
+        ),
+        "linux performance upload missing 'retention-days: 7'",
+    )
+
+
+def test_performance_workflow_missing_required_upload_file_fails_clearly() -> None:
+    text = read_text(LINUX_WORKFLOW)
+    job = job_block(text, "hosted-performance-freshness", label="linux")
+    row = single_row(LINUX_WORKFLOW, "hosted-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "linux")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/manifest.txt\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="linux performance upload",
+        ),
+        "linux performance upload missing 'build/bench-reports/canonical/manifest.txt'",
+    )
+
+
 def main() -> int:
     test_linux_selected_oracle_lane()
     test_linux_selected_comparison_lane()
@@ -682,6 +835,12 @@ def main() -> int:
     test_workflow_drift_broad_comparison_upload_fails_clearly()
     test_workflow_drift_missing_required_upload_file_fails_clearly()
     test_workflow_drift_missing_cholesky_upload_file_fails_clearly()
+    test_performance_workflow_missing_timeout_fails_clearly()
+    test_performance_workflow_wrong_upload_artifact_fails_clearly()
+    test_performance_workflow_broad_upload_fails_clearly()
+    test_performance_workflow_unselected_upload_fails_clearly()
+    test_performance_workflow_missing_retention_fails_clearly()
+    test_performance_workflow_missing_required_upload_file_fails_clearly()
     print("test-selected-comparison-workflow: ok")
     return 0
 

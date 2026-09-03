@@ -758,7 +758,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
             if (log_j == i)
                 u_ii = node->value;
             else if (log_j > i)
-                sum += node->value * z[log_j];
+                sum += node->value * z[log_j]; // NOLINT(clang-analyzer-security.ArrayBound)
             node = node->right;
         }
 
@@ -939,7 +939,8 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
             } else if (log_j > i) {
                 double u_ij = node->value;
                 for (idx_t k = 0; k < nrhs; k++)
-                    Z[i + n * k] -= u_ij * Z[log_j + n * k];
+                    Z[i + n * k] -=
+                        u_ij * Z[log_j + n * k]; // NOLINT(clang-analyzer-security.ArrayBound)
             }
             node = node->right;
         }

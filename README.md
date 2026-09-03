@@ -508,10 +508,10 @@ int main(void)
                                            sparse_ilu_precond, &ilu, &result);
 
     if (err == SPARSE_OK) {
-        printf("Converged in %d iterations, relative residual = %e\n",
+        printf("Converged in %" SPARSE_PRIDX " iterations, relative residual = %e\n",
                result.iterations, result.residual_norm);
     } else if (err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("Iteration budget ended at %d iterations, relative residual = %e\n",
+        printf("Iteration budget ended at %" SPARSE_PRIDX " iterations, relative residual = %e\n",
                result.iterations, result.residual_norm);
     } else {
         printf("Solver returned: %s\n", sparse_strerror(err));
@@ -1053,11 +1053,12 @@ Shared-library packaging is intentionally deferred; the canonical package and
 ABI decision remains
 `docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
 Windows remains CMake-first, and Windows still does not claim Makefile parity
-or `pkg-config` execution parity. The Windows workflow keeps a hosted PowerShell validation ownership
-  job for selected workflow snippets and one bounded Windows selected Cholesky comparison freshness workflow; this is not broad Windows report freshness.
-The Sprint
-  182 deferral record still applies to all other Windows report freshness.
-package-manager support and package-manager distribution are not currently
+or `pkg-config` execution parity. The Windows workflow keeps a hosted
+PowerShell validation ownership job for selected workflow snippets and one
+bounded Windows selected Cholesky comparison freshness workflow; this is not
+broad Windows report freshness. The Sprint 182 deferral record still applies
+to all other Windows report freshness. Package-manager support and
+package-manager distribution are not currently
 provided; local Homebrew formula proof material remains blocker/provenance
 evidence, not a user-facing install path.
 

@@ -5,9 +5,10 @@ you want the shortest route from that data into a supported public workflow.
 It complements the [solver-selection guide](solver_selection.md), the
 [tutorial](tutorial.md), and the runnable [examples](../examples/README.md).
 
-For install or downstream consumer setup, use [INSTALL.md](../INSTALL.md). For
-current algorithm behavior, use [algorithm.md](algorithm.md); historical
-measurement notes live in [algorithm_history.md](algorithm_history.md).
+For install, downstream consumer setup, or current support/readiness status,
+use [INSTALL.md](../INSTALL.md). For current algorithm behavior, use
+[algorithm.md](algorithm.md); historical measurement notes live in
+[algorithm_history.md](algorithm_history.md).
 For exact declarations, option/result structs, ownership rules, and return-code
 contracts after you choose a workflow, use [api_reference.md](api_reference.md)
 and the public headers under [`include/`](../include/).
@@ -35,7 +36,8 @@ Use this ladder when you are moving from data to the first maintained example:
 
 The ladder is a routing aid. It does not widen QR, SVD, runtime, package,
 platform, performance, or state-of-the-art claims beyond the maintained proof
-named in the linked sections.
+named in the linked sections and the
+[support/readiness matrix](../INSTALL.md#support-readiness-matrix).
 
 ## Start From Your Data
 
@@ -128,7 +130,9 @@ Diagnostics for this first-use route are deliberately simple:
   `NULL` for invalid input or allocation failure;
 - `sparse_from_csr(...)` and `sparse_from_csc(...)` return explicit
   `sparse_err_t` values when the caller needs a diagnostic owner;
-- direct factorization and solve calls return `sparse_err_t`;
+- direct factorization, solve, refinement, and condition-estimate calls return
+  `sparse_err_t`; inspect the function-specific return code before changing
+  solver family or backend;
 - residual checks in examples are local confidence checks for the shown
   matrix, not broad numerical or performance proof.
 
@@ -159,6 +163,13 @@ iterative family by matrix assumptions.
 
 Use the input `x` vector as the initial guess. Pass a zeroed vector when there
 is no useful prior guess.
+
+Inspect iterative diagnostics through `sparse_iter_result_t`: iteration count,
+final relative residual, convergence, stagnation, residual-history count, and
+breakdown. For APIs that document it, `x` remains the approximate solution and
+`result` is populated on both `SPARSE_OK` and `SPARSE_ERR_NOT_CONVERGED`.
+Treat non-convergence as iteration-budget exhaustion for that call, not as a
+singularity or invalid-input diagnostic.
 
 Choose preconditioners by the same assumptions:
 
@@ -210,7 +221,9 @@ Use SVD APIs after CSR, CSC, or Matrix Market input has been converted into the
 normal public matrix shell. Keep the original matrix view unfactored and
 unreordered for SVD calls; if matrix state is uncertain, start from a fresh
 `sparse_copy()` of the original coefficients before mutating another working
-matrix elsewhere.
+matrix elsewhere. SVD rank, condition, triplet residual, orthogonality, and
+low-rank output wording is SVD-local unless a named fixture or public API
+explicitly owns a stronger statement.
 
 Choose the SVD path by output need:
 
@@ -233,12 +246,13 @@ The maintained corpus includes fixture-local partial-SVD rows for
 `partial_svd_rankdef_diag6x4_k2_range_projector_v1`,
 `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and
 `partial_svd_fail_closed_diag6_k2_v1`. Use them as regression proof for those
-generated cases only: top-k values, projector/residual/orthogonality checks,
-sparse low-rank shape/nnz/selected values/Frobenius behavior, tight-budget
-fail-closed behavior, and recovery. They do not claim broad partial-SVD
-correctness, raw singular-vector identity, broad sparse-output optimality,
-external-library parity, performance, platform/package/ABI support, or
-state-of-the-art behavior.
+generated cases only: top-k values, projector/triplet-residual/orthogonality
+checks, sparse low-rank shape/nnz/selected values/Frobenius behavior,
+tight-budget `SPARSE_ERR_NOT_CONVERGED` fail-closed behavior, and recovery.
+They do not claim broad partial-SVD correctness, raw singular-vector identity,
+vector sign/orientation identity, repeated-spectrum ordering, broad
+sparse-output optimality, external-library parity, performance,
+platform/package/ABI support, or state-of-the-art behavior.
 
 Use [`examples/example_svd_lowrank.c`](../examples/example_svd_lowrank.c) for
 the smallest runnable SVD, rank, condition, and low-rank workflow. Use
@@ -262,10 +276,13 @@ sparse_eigs_opts_t opts = {
 ```
 
 Leave `opts.backend` at its zero default unless profiling or workload-specific
-control justifies an explicit backend request. Shift-invert,
-preconditioning, and explicit repeated-run eigensolver handles are advanced
-paths; use them when the matrix assumptions and repeated-dimension reuse model
-are clear.
+control justifies an explicit backend request. AUTO is a documented routing
+policy, not a universal backend superiority claim. Inspect `sparse_eigs_t`
+fields such as `n_converged`, `residual_norm`, `backend_used`,
+`peak_basis_size`, and `used_csc_path_ldlt` before changing backend,
+shift-invert, or preconditioner settings. Shift-invert, preconditioning, and
+explicit repeated-run eigensolver handles are advanced paths; use them when
+the matrix assumptions and repeated-dimension reuse model are clear.
 
 Use [`examples/example_eigs.c`](../examples/example_eigs.c) for the runnable
 symmetric eigensolver workflow, including shift-invert and a preconditioned

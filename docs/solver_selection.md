@@ -7,9 +7,11 @@ arrives, then choose the solver family whose assumptions match the problem.
 For compressed-first CSR, CSC, and Matrix Market adoption paths, use the
 [cookbook](cookbook.md). For runnable examples, use
 [`examples/README.md`](../examples/README.md). For API details, use the public
-headers under [`include/`](../include/). For install support, use
-[`INSTALL.md`](../INSTALL.md). For local performance measurement and generated
-report indexes, use [`benchmarks/README.md`](../benchmarks/README.md).
+headers under [`include/`](../include/). For install support and current
+support/readiness status, use
+[`INSTALL.md#support-readiness-matrix`](../INSTALL.md#support-readiness-matrix).
+For local performance measurement and generated report indexes, use
+[`benchmarks/README.md`](../benchmarks/README.md).
 
 ## First-Use Solver Route
 
@@ -32,7 +34,9 @@ Use this short route before reading the family-specific detail below:
 5. **Escalate only after the first solve is understood.** Runtime/backend
    controls and benchmarks are advanced tools for an already chosen workflow;
    they do not create portable performance, package, platform, or
-   state-of-the-art claims.
+   state-of-the-art claims. Use the
+   [support/readiness matrix](../INSTALL.md#support-readiness-matrix) for the
+   current support boundary.
 
 ## Start From Your Matrix
 
@@ -77,9 +81,9 @@ controls:
 |---|---|---|
 | CSR/CSC construction | `NULL` constructor result or explicit `sparse_err_t` from `sparse_from_*`. | The input arrays are valid and copied, but later solver behavior is still unclear. |
 | Matrix Market input | `sparse_errno()` after `sparse_load_mm(...)` failure. | File parsing succeeds and solver choice remains the issue. |
-| One-shot direct solve | Factorization/solve return code and a problem-local residual. | The matrix assumptions match the solver and residual behavior still needs investigation. |
+| One-shot direct solve | Factorization or solve return code and a problem-local residual. | The matrix assumptions match the solver and residual behavior still needs investigation. |
 | Repeated direct lifecycle | Analyze/factor/refactor return codes, same-pattern invariant, and solve residuals. | The sparsity pattern is stable and backend/reordering policy is the real question. |
-| Iterative solve | Convergence status, residual norm/history, iteration count, stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
+| Iterative solve | `sparse_iter_result_t` convergence, final relative residual, residual-history count, iteration count, stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
 | QR | Rank, residual, nullity/nullspace, minimum-norm output, and R-diagonal diagnostics from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
 | SVD or partial SVD | Rank, condition, triplet residuals, convergence status, and fail-closed status. | You are still inside the bounded SVD workflow described in [SVD and Low-Rank Workflows](#svd-and-low-rank-workflows). |
 | Eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status. | The problem is symmetric and backend or preconditioner selection is now the target. |
@@ -110,9 +114,9 @@ platform parity claims, or portable performance claims.
 
 | Problem | Use | Notes |
 |---|---|---|
-| General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. The selected comparison freshness gate includes fixture-local linked-list LU square-solve evidence for `lu_nonsym_square_5` against the selected source-controlled dense LU reference helper. This is not broad LU correctness, nonsymmetric solve parity, LU CSR parity, or external-library parity. |
-| Symmetric positive-definite matrix | Cholesky | Non-SPD inputs report an error; do not use Cholesky as a general fallback. The selected comparison freshness gate includes fixture-local Cholesky SPD tridiagonal solve evidence for `cholesky_spd_tridiag_5` against the selected source-controlled dense Cholesky reference helper. This is not broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list parity, reordering parity, fill superiority, or external-library parity. |
-| Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. |
+| General square matrix | LU | Use a fresh matrix or `sparse_copy(...)` if you need the original later. Singular or near-singular pivots report `SPARSE_ERR_SINGULAR` through the factorization or solve return code. The selected comparison freshness gate includes fixture-local linked-list LU square-solve evidence for `lu_nonsym_square_5` against the selected source-controlled dense LU reference helper. This is not broad LU correctness, nonsymmetric solve parity, LU CSR parity, or external-library parity. |
+| Symmetric positive-definite matrix | Cholesky | Inputs that are not symmetric positive-definite report `SPARSE_ERR_NOT_SPD` through the factorization return code; do not use Cholesky as a general fallback. The selected comparison freshness gate includes fixture-local Cholesky SPD tridiagonal solve evidence for `cholesky_spd_tridiag_5` against the selected source-controlled dense Cholesky reference helper. This is not broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list parity, reordering parity, fill superiority, or external-library parity. |
+| Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. Singular pivots report `SPARSE_ERR_SINGULAR`; non-symmetric inputs use the documented `SPARSE_ERR_NOT_SPD` symmetry-check status. |
 | Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm, compatible least-squares, and incompatible least-squares comparisons for `qr_underdetermined_minnorm_2x4`, `qr_overdetermined_compatible_5x3`, and `qr_overdetermined_incompatible_4x2` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD, LU, and Cholesky comparisons described below. This is not broad QR, broad least-squares, or external-library parity. |
 
 Use the explicit repeated-run direct lifecycle when reuse is the point:
@@ -165,9 +169,13 @@ Relevant header: [`sparse_reorder.h`](../include/sparse_reorder.h).
 | Symmetric indefinite | MINRES | Repeated-run handle supported. |
 | General nonsymmetric compatibility path | BiCGSTAB | One-shot only. |
 
-Use the solver result fields to inspect convergence, residual norm,
-stagnation, and breakdown. Use the input `x` vector as the initial guess; pass
-a zeroed vector when you want no prior guess.
+Use `sparse_iter_result_t` to inspect `iterations`, final relative
+`residual_norm`, `converged`, `stagnated`, `residual_history_count`, and
+`breakdown`. For APIs that document it, result fields and the approximate
+solution `x` are populated on both `SPARSE_OK` and
+`SPARSE_ERR_NOT_CONVERGED`. Treat `SPARSE_ERR_NOT_CONVERGED` as iteration
+budget exhaustion, not as singularity or invalid input. Use the input `x`
+vector as the initial guess; pass a zeroed vector when you want no prior guess.
 
 Preconditioners are acceleration tools, not universal guarantees:
 
@@ -219,32 +227,34 @@ The maintained QR corpus proof for
 oracle freshness gate `make report-index-oracle-freshness`, which Sprint 159
 mirrors in the reviewed Linux hosted report-freshness lane for selected
 oracle artifacts only.
-It supports selected fixture-local rank/nullity/nullspace residual behavior.
+It supports selected fixture-local rank/nullity/nullspace residual behavior
+under the fixture tolerances owned by that gate.
 The selected comparison freshness gate
 `make report-index-comparison-freshness` also covers the selected QR
 minimum-norm, compatible least-squares, and incompatible least-squares
 comparison rows named in
 `tests/corpus/manifests/selected_report_targets.tsv`. These gates do not claim
-raw QR basis parity, global rank-threshold policy, broad rank-deficient solve,
-broad minimum-norm behavior, broad least-squares parity, SuiteSparse, LAPACK,
-NumPy, SciPy, broad platform support, performance, package/ABI, or
-state-of-the-art parity.
+raw QR basis parity, sign/orientation identity, global rank-threshold policy,
+broad rank-deficient solve, broad minimum-norm behavior, broad least-squares
+parity, SuiteSparse, LAPACK, NumPy, SciPy, broad platform support,
+performance, package/ABI, or state-of-the-art parity.
 
 ## SVD and Low-Rank Workflows
 
-Use SVD APIs when you need singular values, numerical rank, condition
-estimates, pseudoinverse behavior, or low-rank approximations. Treat dense
-outputs and low-rank buffers according to the ownership rules of the public
-SVD APIs; do not depend on private dense workspaces.
+Use SVD APIs when you need singular values, SVD-local numerical rank,
+condition estimates, pseudoinverse behavior, or low-rank approximations. Treat
+dense outputs and low-rank buffers according to the ownership rules of the
+public SVD APIs; do not depend on private dense workspaces.
 
 For partial SVD, the maintained corpus proof is intentionally fixture-local.
 It covers `partial_svd_clustered_repeated_diag8x6_k3_v1` plus the Sprint 151
 families `partial_svd_rankdef_diag6x4_k2_range_projector_v1`,
 `partial_svd_lowrank_rect5x7_k3_sparse_output_v1`, and
 `partial_svd_fail_closed_diag6_k2_v1`. Those rows check generated top-k
-singular values, rank, subspace projectors, triplet residuals, orthogonality,
-sparse low-rank shape/nnz/selected values/Frobenius behavior, default-budget
-success, tight-budget fail-closed behavior, and recovery through
+singular values, SVD-local rank, subspace projectors, triplet residuals,
+orthogonality, sparse low-rank shape/nnz/selected values/Frobenius behavior,
+default-budget success, tight-budget `SPARSE_ERR_NOT_CONVERGED` fail-closed
+behavior, and recovery through
 `tests/test_svd_partial_corpus.c` and
 the selected local oracle freshness gate `make report-index-oracle-freshness`,
 which Sprint 159 mirrors in the reviewed Linux hosted report-freshness lane

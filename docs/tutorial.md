@@ -31,7 +31,7 @@ eigensolver, and benchmark handoff workflows.
 | Runnable first-use examples | [examples/README.md](../examples/README.md) |
 | Data-first CSR, CSC, and Matrix Market recipes | [cookbook.md](cookbook.md) |
 | Compact problem-shape decision tree | [solver_selection.md](solver_selection.md) |
-| Installed package and downstream consumer setup | [INSTALL.md](../INSTALL.md) |
+| Installed package, downstream consumer setup, and support/readiness status | [INSTALL.md](../INSTALL.md) |
 | Benchmark commands and generated report indexes | [benchmarks/README.md](../benchmarks/README.md) |
 | Exact declarations and ownership contracts | [api_reference.md](api_reference.md) and public headers under [`include/`](../include/) |
 | Current algorithm reference | [algorithm.md](algorithm.md) |
@@ -66,13 +66,14 @@ That command links against the local build-tree static archive. For installed
 downstream consumers, use [`INSTALL.md#start-here`](../INSTALL.md#start-here)
 instead of copying install/package detail into this tutorial:
 
-- [`INSTALL.md#using-via-pkg-config`](../INSTALL.md#using-via-pkg-config) for
-  Makefile-style installed consumers;
-- [`INSTALL.md#using-from-a-cmake-project`](../INSTALL.md#using-from-a-cmake-project)
-  for CMake installed consumers.
+- [`INSTALL.md#unix-makepkg-config-consumer`](../INSTALL.md#unix-makepkg-config-consumer)
+  for Unix Make/`pkg-config` installed consumers;
+- [`INSTALL.md#cmake-consumer`](../INSTALL.md#cmake-consumer) for CMake
+  installed consumers.
 
-The maintained package story is static-first and owned by `INSTALL.md`; this
-tutorial only shows the local build-tree path.
+The maintained package story is static-first and owned by `INSTALL.md`; use
+its [support/readiness matrix](../INSTALL.md#support-readiness-matrix) for
+current support boundaries. This tutorial only shows the local build-tree path.
 
 Include the headers needed by the workflow you are using:
 

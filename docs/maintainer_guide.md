@@ -30,6 +30,8 @@ Those audiences should start with:
 - [tutorial](tutorial.md)
 - [benchmarks/README](../benchmarks/README.md)
 - [examples/README](../examples/README.md)
+- [INSTALL support/readiness matrix](../INSTALL.md#support-readiness-matrix)
+  for current user-facing support status
 
 ## Authoritative Surfaces
 
@@ -65,8 +67,10 @@ Current support surfaces should keep a clear owner split:
 
 - `README.md` owns the project front door, first local build path, compact
   workflow chooser, and links to deeper support surfaces.
-- `INSTALL.md` owns operational setup, staged installs, installed-consumer
-  detail, and local install-surface validation.
+- `INSTALL.md` owns operational setup, staged installs, the
+  [installed-consumer tutorial](../INSTALL.md#installed-consumer-tutorial),
+  local install-surface validation, and the current user-facing
+  support/readiness matrix.
 - `benchmarks/README.md` owns benchmark command groups, CSV schema,
   report-artifact meaning, and measurement caveats.
 - `examples/README.md` owns executable example selection and example-local
@@ -892,11 +896,23 @@ Documentation wording rules:
 - avoid "external parity", "ecosystem parity", "state of the art proof", or
   broad package-comparison wording unless a future sprint adds and validates a
   maintained helper-backed lane
-- treat iterative solver iteration counts as fixture-local diagnostics unless
-  a test artifact defines an explicit threshold
+- treat iterative solver iteration counts, final relative residuals,
+  convergence flags, stagnation flags, residual-history counts, and breakdown
+  flags as `sparse_iter_result_t` diagnostics unless a test artifact defines
+  an explicit threshold
+- treat `SPARSE_ERR_NOT_CONVERGED` as iteration-budget exhaustion for APIs that
+  document populated approximate-solution/result fields, not as a generic hard
+  failure or singularity diagnostic
 - use `result.residual_norm` carefully: iterative solvers report solve
   residuals, eigensolvers report Ritz residual summaries, and SVD reconstruction
   residuals are test-computed metrics rather than a public SVD result field
+- treat QR rank/nullity/nullspace diagnostics as QR-local and tolerance-local
+  unless a named fixture owns a narrower evidence row
+- treat SVD rank, condition, triplet residual, orthogonality, and low-rank
+  diagnostics as SVD-local; do not rewrite them as raw singular-vector
+  identity, repeated-spectrum ordering, or broad sparse-output optimality
+- treat eigensolver AUTO backend selection as routing telemetry through
+  `sparse_eigs_t.backend_used`; do not cite it as backend superiority
 
 ## Sprint 98 Assurance Topology Snapshot
 

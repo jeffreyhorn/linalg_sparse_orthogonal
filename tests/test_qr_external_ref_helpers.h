@@ -388,7 +388,7 @@ static void test_qr_external_dense_reference_rankdef_dependent_row_4x3_nullspace
     enum { QR_DEPENDENT_ROW_NULLSPACE_N = 3 };
     enum {
         QR_DEPENDENT_ROW_NULLSPACE_PROJECTOR_VALUES =
-            4 + QR_DEPENDENT_ROW_NULLSPACE_N * QR_DEPENDENT_ROW_NULLSPACE_N
+            (4 + QR_DEPENDENT_ROW_NULLSPACE_N * QR_DEPENDENT_ROW_NULLSPACE_N)
     };
     double ref[QR_DEPENDENT_ROW_NULLSPACE_PROJECTOR_VALUES] = {0.0};
     char reason[256] = {0};
@@ -820,7 +820,7 @@ static void test_qr_external_dense_reference_rank_threshold_duplicate_5x4_pertur
     enum { QR_THRESHOLD_PERTURBED_FIELDS = 3 };
     enum {
         QR_THRESHOLD_PERTURBED_VALUES =
-            QR_THRESHOLD_PERTURBED_RECORDS * QR_THRESHOLD_PERTURBED_FIELDS
+            (QR_THRESHOLD_PERTURBED_RECORDS * QR_THRESHOLD_PERTURBED_FIELDS)
     };
     double ref[QR_THRESHOLD_PERTURBED_VALUES] = {0.0};
     char reason[256] = {0};

@@ -49,7 +49,9 @@ first-use ladder is:
     [cookbook](../docs/cookbook.md) for the load/use handoff.
 - **Need an installed downstream-consumer example instead of a local build-tree example?**
   - Use `examples/cmake_example/` and the install flow in
-    [INSTALL.md](../INSTALL.md).
+    [INSTALL.md](../INSTALL.md); use the
+    [support/readiness matrix](../INSTALL.md#support-readiness-matrix) for the
+    current support boundary.
 - **Need the fuller repeated-run and API walkthrough?**
   - Use the [tutorial](../docs/tutorial.md).
 - **Need benchmark/report interpretation after choosing an API workflow?**
@@ -83,7 +85,7 @@ Then branch by problem shape:
 | Symmetric indefinite direct solve | `./build/example_ldlt` |
 | SVD, rank, condition, or low-rank workflow | `./build/example_svd_lowrank` or `./build/example_condition` |
 | Matrix Market load/use | `./build/example_matrix_market` |
-| Installed CMake consumer | `examples/cmake_example/` plus [INSTALL.md](../INSTALL.md) |
+| Installed CMake consumer | `examples/cmake_example/` plus [INSTALL.md#cmake-consumer](../INSTALL.md#cmake-consumer) |
 
 Keep `example_eigs`, `example_matrix_free`, `example_colamd`, and
 `example_ic_minres` as solver-specific second steps. They remain maintained and
@@ -132,14 +134,16 @@ them. For the solver-family escalation view, use
 
 - construction helpers either return `NULL` or a `sparse_err_t` depending on
   which constructor family you call;
-- direct examples check factorization/solve return codes and report residuals
-  only for the shown system;
-- iterative examples report convergence, residual, stagnation, and breakdown
-  fields for the local solve;
-- QR and SVD examples report rank, residual, condition, or low-rank summaries
-  as teaching output, not broad external-library parity;
-- installed-consumer examples prove static-first downstream use, not
-  package-manager, shared-library, ABI, or platform parity support.
+- direct examples check factorization or solve return codes and report
+  problem-local residuals only for the shown system;
+- iterative examples report `sparse_iter_result_t` convergence, final relative
+  residual, stagnation, residual-history count, and breakdown fields for the
+  local solve;
+- QR and SVD examples report API-local rank, residual, condition, or low-rank
+  summaries as teaching output, not broad external-library parity;
+- installed-consumer examples prove static-first downstream use within the
+  boundary summarized by
+  [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix).
 
 ## Programs
 
@@ -147,7 +151,8 @@ them. For the solver-family escalation view, use
 
 Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial
 pivoting. Demonstrates matrix creation, copying before in-place
-factorization, solve, and residual computation.
+factorization, solve return-code handling, and problem-local residual
+computation.
 
 This is the smallest shipped reference for the one-shot direct rule: if you
 still need the original matrix view after factorization, start from a fresh
@@ -241,14 +246,15 @@ Next step after this example:
 ### Rectangular Least-Squares: example_least_squares
 
 Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows
-how to find the least-squares solution that minimizes `||Ax - b||` and reports
+how to find the QR least-squares solution and reports problem-local
 per-equation residuals. For underdetermined minimum-2-norm solves, use the
 public API path `sparse_qr_solve_minnorm()`, documented in the
 [README](../README.md) and [`sparse_qr.h`](../include/sparse_qr.h).
 The maintained QR corpus proof for
 `qr_rank_deficient_6x4_nullspace_v1` is separate from these teaching examples:
-it lives in [`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and proves
-only fixture-local rank, nullity, and nullspace residual behavior.
+it lives in [`tests/test_qr_corpus.c`](../tests/test_qr_corpus.c) and supports
+only fixture-local rank, nullity, and nullspace residual behavior under the
+fixture tolerances.
 
 ```bash
 ./build/example_least_squares
@@ -281,13 +287,14 @@ in the solver-selection guide.
 ### SVD / Low-Rank: example_svd_lowrank
 
 Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows
-the singular value spectrum, condition number, rank estimation at different
-tolerances, and compression ratios for various ranks.
+the singular value spectrum, SVD-local condition estimate, SVD-local rank
+estimation at different tolerances, and compression ratios for various ranks.
 
 For partial-SVD edge-case confidence, the maintained corpus has a separate
 fixture-local proof for one generated 8x6 clustered/repeated diagonal case with
 `k = 3`. That proof lives in `tests/test_svd_partial_corpus.c` and is not part
-of the example's user-facing output or a broad performance/parity claim.
+of the example's user-facing output, raw singular-vector identity, broad
+performance, or parity claim.
 
 ```bash
 ./build/example_svd_lowrank
@@ -306,9 +313,10 @@ need the conditioning workflow rather than the full low-rank SVD workflow.
 ### One-Shot Iterative: example_iterative
 
 Solve a 200x200 sparse system using GMRES with and without ILU(0)
-preconditioning. Compares iteration counts and convergence behavior, and builds
-the ILU(0) preconditioner from a fresh matrix copy so the original matrix view
-remains available to the iterative solve.
+preconditioning. Compares `sparse_iter_result_t` iteration counts, final
+relative residuals, and convergence fields, and builds the ILU(0)
+preconditioner from a fresh matrix copy so the original matrix view remains
+available to the iterative solve.
 
 This stays on the one-shot path by design. For stable-dimension repeated runs,
 the public iterative-handle path now covers `CG`, `GMRES`, and `MINRES`.
@@ -321,7 +329,8 @@ the public iterative-handle path now covers `CG`, `GMRES`, and `MINRES`.
 
 Demonstrate IC(0)-preconditioned CG on an SPD system and MINRES on symmetric
 indefinite systems. This is the strongest local example for matching
-preconditioner assumptions to iterative solver assumptions.
+preconditioner assumptions to iterative solver assumptions. Treat
+preconditioners as tuning tools, not convergence guarantees.
 
 ```bash
 ./build/example_ic_minres
@@ -356,15 +365,19 @@ separate public Matrix I/O module or builder API. I/O failures report
 
 Compute symmetric eigenpairs with `sparse_eigs_sym` across three representative
 workflows. Part (a) finds the five largest eigenvalues of a small SPD
-SuiteSparse matrix (nos4, n = 100) and reports per-pair eigen-equation
-residuals. Part (b) exercises shift-invert mode: three eigenvalues nearest
-σ = 0 on a KKT indefinite saddle-point matrix, composing with the LDL^T path.
-Part (c) runs explicit LOBPCG with IC(0) preconditioning on `bcsstk04`. Run
-from the project root so the SuiteSparse fixtures resolve.
+SuiteSparse matrix (nos4, n = 100) and reports problem-local per-pair
+eigen-equation residuals. Part (b) exercises shift-invert mode: three
+eigenvalues nearest sigma = 0 on a KKT indefinite saddle-point matrix,
+composing with the LDL^T path. Part (c) runs explicit LOBPCG with IC(0)
+preconditioning on `bcsstk04`. Run from the project root so the SuiteSparse
+fixtures resolve.
 
 This example still uses the one-shot eigensolver entry point by design. For
 stable-dimension repeated runs, the public eigensolver handle path covers
-grow-m Lanczos, thick-restart Lanczos, and explicit `LOBPCG`.
+grow-m Lanczos, thick-restart Lanczos, and explicit `LOBPCG`. Inspect
+`sparse_eigs_t` fields such as `n_converged`, `residual_norm`,
+`backend_used`, and `peak_basis_size` before treating backend selection as the
+next tuning target.
 
 ```bash
 ./build/example_eigs
@@ -381,7 +394,7 @@ For that installed-consumer path, use:
 
 - `examples/cmake_example/CMakeLists.txt`
 - `examples/cmake_example/main.c`
-- [INSTALL.md](../INSTALL.md)
+- [INSTALL.md#installed-consumer-tutorial](../INSTALL.md#installed-consumer-tutorial)
 
 ## Writing Your Own
 

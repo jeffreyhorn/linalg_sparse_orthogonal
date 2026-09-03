@@ -17,14 +17,15 @@ Choose the smallest install/setup path that matches what you actually need.
    [Quick Start (Makefile)](#quick-start-makefile). With CMake, use
    [CMake Build](#cmake-build).
 3. **Consume from another project:** use
-   [pkg-config](#using-via-pkg-config) for Makefile-style consumers or
-   [find_package(Sparse)](#using-from-a-cmake-project) for CMake consumers.
+   [Unix Make/pkg-config consumer](#unix-makepkg-config-consumer) for
+   Makefile-style consumers or
+   [CMake consumer](#cmake-consumer) for CMake consumers.
 4. **Validate the installed surface:** run
    [Verifying the Installation](#verifying-the-installation) when changing
    install rules, package metadata, CI lanes, or downstream-consumer examples.
-5. **Read platform support precisely:** use
-   [Supported platforms](#supported-platforms) before interpreting CI coverage
-   as a platform claim.
+5. **Read support precisely:** use the
+   [Support readiness matrix](#support-readiness-matrix) before interpreting
+   install, CI, report, package, or platform evidence as a support claim.
 
 The maintained install contract is static-first. Shared-library packaging,
 dynamic ABI compatibility, runtime-loader behavior, package-manager
@@ -82,6 +83,29 @@ This file owns operational setup, installed-consumer detail, and local
 install-surface validation. It is not the front-door adoption guide, benchmark
 command reference, or maintainer-policy home.
 
+## Support Readiness Matrix
+
+Use this matrix for current user-facing support status. It separates the
+active user path from proof-owner detail and retained non-claims. For
+maintainer interpretation of the same evidence, use
+[docs/maintainer_guide.md](docs/maintainer_guide.md).
+
+| Surface | Current user status | Primary user path | Evidence owner | Retained non-claims |
+|---|---|---|---|---|
+| Local source build and first solve | supported | [README.md](README.md), [examples/README.md](examples/README.md), `make`, `make examples` | Makefile, examples, `make examples-build`, `make test` | Not an install, package-manager, performance, or broad platform-parity claim. |
+| Unix Make static install | supported | [Quick Start (Makefile)](#quick-start-makefile) | `tests/test_install.sh`, `sparse.pc.in`, Linux/macOS install lanes | No shared-library, dynamic ABI, runtime-loader, or package-manager support. |
+| Unix `pkg-config` consumer | validated | [Unix Make/pkg-config consumer](#unix-makepkg-config-consumer) | `tests/test_install.sh`, `sparse.pc.in` | No Windows `pkg-config` execution parity. |
+| Installed CMake consumer | supported | [CMake consumer](#cmake-consumer), [`examples/cmake_example/`](examples/cmake_example/) | `tests/test_cmake_install.sh`, `cmake/SparseConfig.cmake.in` | No shared-library or dynamic ABI promise. |
+| Windows MSVC CMake install/downstream | validated | [Windows (MSVC)](#windows-msvc), `.github/workflows/windows-ci.yml` | Windows CMake install/downstream lane, PowerShell validator | No Windows Makefile parity, Windows `pkg-config` execution parity, package-manager support, shared-library support, dynamic ABI support, runtime-loader behavior, or broad Windows parity. |
+| Windows selected Cholesky comparison freshness | hosted-evidence | Windows selected comparison workflow and selected target manifest | Windows selected Cholesky lane, `normalize_report_index.py --selected-target cholesky-spd-tridiag-5`, PowerShell guard | No broad Windows report freshness, Windows selected oracle freshness, Windows selected benchmark freshness, or unselected Windows comparison families. |
+| Linux/macOS selected comparison freshness | hosted-evidence | `make report-index-comparison-freshness` | `tests/corpus/manifests/selected_report_targets.tsv`, Linux/macOS hosted selected comparison lanes, comparison tests | No broad external-library parity, broad report freshness, package/ABI support, performance superiority, or state-of-the-art claim. |
+| Linux selected performance freshness | hosted-evidence | `make bench-canonical-report-freshness` | `tests/corpus/manifests/selected_report_targets.tsv`, `benchmarks/README.md`, `scripts/check_bench_canonical_freshness.py`, Linux hosted lane | No portable performance, timing threshold, release benchmark, platform parity, package/ABI proof, or state-of-the-art claim. |
+| Local benchmark and sentinel reports | local-only | `make bench-canonical-report`, `make performance-sentinels` | `benchmarks/README.md`, benchmark scripts/tests | Not hosted proof unless named by a hosted lane; no portable speedup claim. |
+| Local generated API HTML | local-only | `docs/api_reference.md`, `make api-docs-freshness` | `Doxyfile`, API docs coverage/local-only scripts | No hosted API publication or completeness beyond checked-in public headers selected by Doxyfile. |
+| Package-manager distribution | not claimed | Use source install via Make or CMake | Homebrew proof material, package-manager deferral guard, Sprint 188 artifacts | No Homebrew/core, bottles, Linuxbrew, tap, vcpkg, Conan, pkgsrc, distro/system package, or broad provider support. |
+| Shared-library and dynamic ABI support | deferred | Static install only | Static package deferral guard, Sprint 170 package/ABI decision | No `.so`, `.dylib`, `.dll`, import-library, loader, SONAME, install-name/RPATH, selector, or dynamic ABI support. |
+| Broad ecosystem or state-of-the-art parity | not claimed | Use selected evidence docs only for scoped proof | Epic 17 review/todo, selected target manifest, benchmark/corpus docs | No broad SuiteSparse/PETSc/Trilinos/Eigen/SciPy parity, portable superiority, or unqualified state-of-the-art status. |
+
 ## Quick Start (Makefile)
 
 Use this path when you want the maintained Unix-side static install surface and
@@ -101,6 +125,9 @@ After installation, a downstream Makefile-style consumer can compile with:
 ```sh
 cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse)
 ```
+
+For a complete copy-pasteable installed-consumer walkthrough, use
+[Installed Consumer Tutorial](#installed-consumer-tutorial).
 
 `make quality-review-compile` is the maintained local compile-quality wrapper
 (`format-check` + `source-list-check` + `lint`). `make quality-review` adds
@@ -197,7 +224,92 @@ Linux CI.
 | `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | Exported CMake package metadata and version file |
 | `$(PREFIX)/lib/cmake/Sparse/SparseTargets.cmake` | Exported CMake target definitions |
 
-### Using via pkg-config
+## Installed Consumer Tutorial
+
+Use this tutorial when a separate downstream project consumes an installed
+static package. It is separate from the source-tree examples in
+`examples/README.md`, which compile against the checkout and run binaries from
+`./build/...`.
+
+The examples below use a staged local prefix so the commands do not require
+system-wide write access. Replace `$PWD/_install` with another prefix when
+installing into a controlled package or system location.
+
+### Unix Make/pkg-config consumer
+
+Use this path for Unix-like downstream projects that build with Make,
+`pkg-config`, or a direct compiler command. It requires a C11 compiler, Make,
+and `pkg-config` or `pkgconf`.
+
+Install the static package:
+
+```sh
+make
+make install PREFIX="$PWD/_install"
+export PKG_CONFIG_PATH="$PWD/_install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+pkg-config --exists sparse
+```
+
+Create `main.c` in the downstream project:
+
+```c
+#include <stdio.h>
+
+#include <sparse/sparse_matrix.h>
+#include <sparse/sparse_types.h>
+
+int main(void) {
+    printf("sparse version: %s\n", SPARSE_VERSION_STRING);
+    printf("version int:    %d\n", SPARSE_VERSION);
+
+    SparseMatrix *A = sparse_create(3, 3);
+    if (!A) {
+        fprintf(stderr, "failed to create sparse matrix\n");
+        return 1;
+    }
+
+    sparse_insert(A, 0, 0, 1.0);
+    printf("nnz: %d\n", (int)sparse_nnz(A));
+    sparse_free(A);
+    printf("OK\n");
+    return 0;
+}
+```
+
+Compile and run:
+
+```sh
+cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse) -o sparse_pkgconfig_smoke
+./sparse_pkgconfig_smoke
+```
+
+Expected output includes:
+
+- `sparse version:`
+- `version int:`
+- `nnz: 1`
+- `OK`
+
+`pkg-config --cflags sparse` should resolve one installed include directory.
+`pkg-config --libs sparse` should resolve the installed library directory,
+`-lsparse_lu_ortho`, and `-lm`.
+
+If `pkg-config --exists sparse` fails, check that `PKG_CONFIG_PATH` includes
+the selected prefix's `lib/pkgconfig` directory. If `<sparse/...>` headers or
+`-lsparse_lu_ortho` cannot be found, check that the same `PREFIX` was used for
+installing and for the consumer build.
+
+Validate this path after install-rule, package-metadata, or tutorial changes
+with:
+
+```sh
+bash tests/test_install.sh
+```
+
+This `pkg-config` path is a Unix-side installed consumer surface. It is not a
+Windows `pkg-config` execution claim.
+
+### pkg-config command summary
 
 ```sh
 cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse)
@@ -238,22 +350,71 @@ policies, a dynamic ABI policy, Linux SONAME metadata, macOS
 install-name/RPATH metadata, Windows DLL/import-library behavior, installed
 shared consumer proof, and runtime-loader validation exist.
 
-### Using from a CMake project
+### CMake consumer
 
-After installing, downstream projects can use `find_package`:
+After installing, downstream projects can use `find_package`. If you have not
+already installed to the staged prefix used above, install with CMake first:
 
-```cmake
-find_package(Sparse REQUIRED)
-target_link_libraries(myapp PRIVATE Sparse::sparse_lu_ortho)
+```sh
+cmake -S . -B build/install -DCMAKE_INSTALL_PREFIX="$PWD/_install" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_C_STANDARD=11
+cmake --build build/install
+cmake --install build/install
 ```
 
-Headers are included as `#include <sparse/sparse_types.h>`.
+For a minimal consumer project, create this `CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.14)
+project(sparse_consumer C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+find_package(Sparse REQUIRED)
+
+add_executable(sparse_cmake_smoke main.c)
+target_link_libraries(sparse_cmake_smoke PRIVATE Sparse::sparse_lu_ortho)
+```
+
+Use the same installed-header form shown above, such as
+`#include <sparse/sparse_types.h>` and
+`#include <sparse/sparse_matrix.h>`. Configure, build, and run from the
+downstream project with:
+
+```sh
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$PWD/_install"
+cmake --build build
+./build/sparse_cmake_smoke
+```
+
+For exact version checks, use the current project version from `VERSION`:
+
+```cmake
+find_package(Sparse <VERSION> EXACT REQUIRED)
+```
+
+The exported CMake target is the installed static archive target
+`Sparse::sparse_lu_ortho`. It is not a shared-library, dynamic ABI, runtime
+loader, or package-manager support claim.
 
 See `examples/cmake_example/` for a complete working example.
 
 On Windows, this CMake route is the maintained consumer path. The Makefile and
 `pkg-config` install flows are Unix-side validation surfaces, not Windows
 parity claims.
+
+```cmd
+cmake -S . -B build -G "Visual Studio 17 2022"
+cmake --build build --config Release
+cmake --install build --config Release --prefix C:\sparse
+```
+
+Validate this path after CMake install/export, package metadata, downstream
+example, or tutorial changes with:
+
+```sh
+bash tests/test_cmake_install.sh
+```
 
 For the reviewed local CMake parity path used alongside the install flow, run
 `make quality-review-cmake-compile` or `make quality-review-cmake` from the

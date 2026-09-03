@@ -10,11 +10,9 @@
  * extraction. Q is stored implicitly as Householder reflectors; use
  * sparse_qr_apply_q() to apply Q or Q^T without forming Q explicitly.
  *
- * Start with `examples/README.md` and `docs/solver_selection.md` for runnable
- * workflow guidance and evidence boundaries. This header owns the API-local
- * contracts: identity-permutation preconditions, borrowed inputs,
- * caller-owned output buffers, rank/residual diagnostics, and
- * sparse_qr_free() cleanup for factor objects.
+ * This header owns the API-local contracts: identity-permutation
+ * preconditions, borrowed inputs, caller-owned output buffers, rank/residual
+ * diagnostics, and sparse_qr_free() cleanup for factor objects.
  */
 
 #include "sparse_matrix.h"
@@ -26,13 +24,11 @@
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE).
-                                   SPARSE_REORDER_COLAMD is recommended for
-                                   unsymmetric matrices — operates directly on
+                                   SPARSE_REORDER_COLAMD operates directly on
                                    A's column structure without forming A^T*A.
                                    SPARSE_REORDER_AMD / _RCM / _ND are also
                                    accepted: they form A^T*A and reorder
-                                   symmetrically; ND is best on 2D / 3D PDE
-                                   meshes. */
+                                   symmetrically. */
     int economy;              /**< When nonzero and m > n, compute economy (thin) QR:
                                    form_q produces m×n instead of m×m. Has no effect
                                    when m <= n (Q is already m×m = m×k where k=min(m,n)).
@@ -373,8 +369,7 @@ typedef struct {
  *
  * Use tol = 0 for the default threshold. For noisy data or known-rank
  * problems, callers may choose a problem-specific tolerance from the R
- * diagonal; see `docs/solver_selection.md#qr-evidence-boundary` for the
- * bounded QR evidence interpretation.
+ * diagonal. This remains a QR-local diagnostic, not a global rank policy.
  *
  * @param qr    Borrowed QR factorization.
  * @param tol   Relative rank tolerance (0 or negative for default).

@@ -6,10 +6,9 @@
  * @brief Sparse Singular Value Decomposition (SVD).
  *
  * Computes A = U * diag(sigma) * V^T via Golub-Kahan bidiagonalization
- * followed by implicit QR iteration on the bidiagonal. Start with
- * `examples/README.md` and `docs/solver_selection.md` for runnable workflow
- * guidance. This header owns API contracts: output shapes, caller ownership,
- * convergence errors, and sparse_svd_free() cleanup.
+ * followed by implicit QR iteration on the bidiagonal. This header owns API
+ * contracts: output shapes, caller ownership, convergence errors, and
+ * sparse_svd_free() cleanup.
  */
 
 #include "sparse_bidiag.h"
@@ -105,12 +104,9 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * When `opts->compute_uv` is set with `opts->economy = 1`, approximate
  * thin left and right singular vectors are recovered from the Lanczos basis.
  * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top-k triplets.
- * Maintained corpus evidence is fixture-local to one generated 8x6
- * clustered/repeated diagonal case with top-3 residual, projector,
- * orthogonality, default-budget success, and tight-budget fail-closed checks.
- * It is not a broad repeated-spectrum, external-library parity, performance,
- * or partial-result guarantee; see `docs/solver_selection.md`.
- * Partial SVD does not support the full-U / full-V^T mode.
+ * This is an API-local approximation contract. Fixture evidence and broader
+ * support interpretation live outside this declaration header.
+ * Partial SVD does not support full-U/full-V^T mode.
  *
  * @param A    The matrix (not modified). Must have identity permutations.
  * @param k    Number of singular values to compute.
@@ -204,11 +200,8 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  *
  * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to use an
  *       alternative per-cell outer-product accumulator that avoids the m*n
- *       dense intermediate. Output is validated for numerical agreement with
- *       the dense-accumulator path under the same inputs and drop tolerance,
- *       but it is not a bit-level equivalence guarantee. The path trades dense
- *       temporary memory for sparse insert overhead. Default off preserves the
- *       dense-intermediate path.
+ *       dense intermediate. The path trades dense temporary memory for sparse
+ *       insert overhead. Default off preserves the dense-intermediate path.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

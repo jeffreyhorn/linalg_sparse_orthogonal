@@ -14,11 +14,9 @@
  * Preconditioners are caller-supplied callbacks and contexts. Solver calls
  * borrow those pointers only for the duration of a solve; callers own the
  * callback context and any factor/preconditioner object it references. Match
- * each preconditioner to the solver assumptions, inspect
- * `sparse_iter_result_t` for convergence and residual diagnostics, and use
- * `docs/solver_selection.md`, `docs/tutorial.md`, `docs/cookbook.md`, and
- * `examples/README.md` for the public workflow path before using this header
- * as the exact declaration and option/result reference.
+ * each preconditioner to the solver assumptions and inspect
+ * `sparse_iter_result_t` for convergence and residual diagnostics. Use this
+ * header as the exact declaration and option/result reference.
  */
 
 #include "sparse_matrix.h"
@@ -204,11 +202,9 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const sparse
  * @brief Reusable handle for repeated iterative solves on stable-dimension
  *        problems.
  *
- * The one-shot public entries (`sparse_solve_cg()`,
- * `sparse_solve_gmres()`, `sparse_solve_minres()`, and related wrappers)
- * remain first-class and fully supported. This handle exposes the explicit
- * repeated-run lifecycle for callers that want to preserve workspace
- * capacity across solves while keeping the existing option/result contracts.
+ * This handle exposes the explicit repeated-run lifecycle for callers that
+ * want to preserve workspace capacity across solves while keeping the
+ * existing option/result contracts.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_iter_handle_init() before first use,

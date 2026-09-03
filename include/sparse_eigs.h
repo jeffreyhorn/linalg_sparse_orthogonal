@@ -14,39 +14,10 @@
  * compose with the LDL^T factorization path in `sparse_ldlt.h`. The SVD in
  * `sparse_svd.h` is a related decomposition for rectangular matrices.
  *
- * **Usage pattern:**
- * @code
- *   SparseMatrix *A = ...;  // symmetric matrix
- *   idx_t n = sparse_rows(A);
- *   idx_t k = 5;            // want 5 eigenpairs
- *
- *   sparse_scalar_t *vals = malloc((size_t)k * sizeof(sparse_scalar_t));
- *   sparse_scalar_t *vecs =
- *       malloc((size_t)k * (size_t)n * sizeof(sparse_scalar_t));  // column-major
- *   sparse_eigs_t result = {
- *       .eigenvalues = vals,
- *       .eigenvectors = vecs,
- *   };
- *   sparse_eigs_opts_t opts = {
- *       .which = SPARSE_EIGS_LARGEST,
- *       .compute_vectors = 1,
- *       .tol = 1e-10,
- *       .reorthogonalize = 1,  // explicit — designated init zeros
- *                              // unset fields, so set this to 1 for
- *                              // reorth (the library default when
- *                              // opts==NULL).
- *   };
- *   sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
- *   if (err == SPARSE_OK) {
- *       printf("%td of %td eigenpairs converged in %td Lanczos iterations\n",
- *              (ptrdiff_t)result.n_converged, (ptrdiff_t)result.n_requested,
- *              (ptrdiff_t)result.iterations);
- *       for (idx_t i = 0; i < result.n_converged; i++)
- *           printf("  lambda[%td] = %.12e\n", (ptrdiff_t)i, vals[i]);
- *   }
- *   free(vals);
- *   free(vecs);
- * @endcode
+ * Callers provide `sparse_eigs_t` with caller-owned eigenvalue and optional
+ * eigenvector buffers, configure `sparse_eigs_opts_t`, and call
+ * `sparse_eigs_sym()`. The library writes scalar result fields and requested
+ * Ritz pairs into those buffers according to the return-code contract below.
  *
  * **Convergence.** `sparse_eigs_sym()` dispatches to grow-m Lanczos,
  * thick-restart Lanczos, or explicit LOBPCG. The Lanczos-family paths start
@@ -73,10 +44,8 @@
  * `sparse_eigs_t` on return but does not allocate result buffers, so there is
  * no `sparse_eigs_free()` helper.
  *
- * For workflow selection and runnable examples, start with
- * `docs/solver_selection.md`, `docs/tutorial.md`, `docs/cookbook.md`, and
- * `examples/README.md`. Use this header for exact option/result fields and
- * `docs/algorithm.md` for algorithm notes.
+ * Use this header for exact option/result fields, caller ownership, and
+ * return-code semantics.
  *
  * @see sparse_ldlt.h - factorization backend used by shift-invert.
  * @see sparse_svd.h - related decomposition for rectangular A.
@@ -157,15 +126,8 @@ typedef enum {
  * effective block size is at least 4).  In that Lanczos-only branch,
  * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` routes to
  * the bounded-memory thick-restart backend rather than the grow-m path.
- * Below the threshold AUTO selects the grow-m path because its
- * full-basis Ritz extraction converges in slightly fewer matvecs on
- * small problems and memory isn't a concern — bcsstk04 (n = 132)
- * grow-m holds ~160 KB of V at m_cap = 130, which is cheap on modern
- * machines.  Above the threshold the memory bound matters —
- * bcsstk14 (n = 1806) grow-m at m_cap = 500 holds ~7 MB of V, which
- * grows to ~26 MB if max_iterations = n.  Thick-restart caps peak V
- * at `m_restart + k_locked ≈ 35` columns regardless of total
- * iteration count.
+ * Below the threshold AUTO selects the grow-m path. Above the threshold AUTO
+ * selects thick-restart to bound peak basis storage across restart phases.
  *
  * Default: 500. Override at compile time with
  * `-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N` when profiling on a different
@@ -495,13 +457,12 @@ typedef struct {
  * @brief Reusable handle for repeated symmetric eigensolves on
  *        stable-dimension problems.
  *
- * The one-shot public entry (`sparse_eigs_sym()`) remains first-class and
- * fully supported. This handle exposes the explicit repeated-run lifecycle
- * for callers that want to preserve workspace capacity across solves while
- * keeping the existing options and result structs. The same handle surface
- * covers the supported symmetric eigensolver backends:
- * grow-m Lanczos, thick-restart Lanczos, and explicit LOBPCG. There are no
- * separate backend-specific public handle types.
+ * This handle exposes the explicit repeated-run lifecycle for callers that
+ * want to preserve workspace capacity across solves while keeping the
+ * existing options and result structs. The same handle surface covers the
+ * supported symmetric eigensolver backends: grow-m Lanczos, thick-restart
+ * Lanczos, and explicit LOBPCG. There are no separate backend-specific public
+ * handle types.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_eigs_handle_init() before first use,

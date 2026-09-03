@@ -27,10 +27,8 @@
  * scalar contract is real-only `double`; this does not imply broad numeric
  * genericity or complex support.
  *
- * For first-use paths from hand-built, CSR, CSC, or Matrix Market data, start
- * with `docs/cookbook.md`, `docs/tutorial.md`, `docs/solver_selection.md`,
- * and `examples/README.md`. Use this header for exact matrix-shell
- * declarations and ownership contracts.
+ * Use this header for exact matrix-shell declarations, ownership contracts,
+ * and matrix helper status semantics.
  */
 
 #include "sparse_types.h"
@@ -62,16 +60,14 @@
  * `sparse_cholesky_factor_opts` with `backend == SPARSE_CHOL_BACKEND_AUTO`
  * dispatches matrices with `rows >= SPARSE_CSC_THRESHOLD` to the CSC
  * working-format kernel and routes smaller matrices through the linked-list
- * scalar kernel. The default is a conservative measured crossover from the
- * maintained Cholesky CSC benchmark corpus; treat it as local dispatch policy,
- * not a portable performance claim.
+ * scalar kernel. The default is local dispatch policy, not a portable
+ * performance threshold.
  *
  * Callers with a known structure can override with
  * `-DSPARSE_CSC_THRESHOLD=N` at compile time, or set
- * `sparse_cholesky_opts_t::backend` explicitly to force one branch
- * per call. Forcing a branch requests that implementation path only; it does
- * not imply package, ABI, platform, or broad performance support beyond the
- * direct-solver contract documented in `sparse_cholesky.h`.
+ * `sparse_cholesky_opts_t::backend` explicitly to force one branch per call.
+ * Forcing a branch requests that implementation path only and does not change
+ * package, ABI, platform, or solver correctness support.
  */
 #ifndef SPARSE_CSC_THRESHOLD
 #define SPARSE_CSC_THRESHOLD 100

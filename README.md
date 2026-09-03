@@ -45,6 +45,7 @@ solve, then routes deeper support detail to the maintained docs that own it.
 | CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder) | Maintained examples linked from the cookbook |
 | Diagnostics after a first run | [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff) | [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff) |
 | Installed consumer setup | [Installation](#installation) | [INSTALL.md#start-here](INSTALL.md#start-here) |
+| Current support/readiness status | [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix) | [docs/maintainer_guide.md](docs/maintainer_guide.md) for proof interpretation |
 | Exact API declarations and ownership contracts | [docs/api_reference.md](docs/api_reference.md) | Public headers under [`include/`](include/) |
 | Local benchmark/report interpretation | [benchmarks/README.md](benchmarks/README.md) | Generated report index/manifest artifacts |
 | Current algorithm behavior | [docs/algorithm.md](docs/algorithm.md) | [docs/algorithm_history.md](docs/algorithm_history.md) for historical measurement notes |
@@ -69,8 +70,8 @@ needs them.
 ### Singular Value Decomposition (SVD)
 - **Full and partial SVD** — dense full SVD plus Lanczos-based partial SVD for the largest singular values.
 - **Conditioning and inverse-style tools** — numerical rank, condition number estimation, pseudoinverse, and low-rank approximation.
-- **Low-rank output choices** — dense and sparse low-rank approximations stay available under the same public SVD surface.
-- **Maintained partial-SVD corpus proof** — generated diagonal fixtures now cover the 8x6 clustered/repeated top-3 lane plus Sprint 151 rank-deficient rectangular projectors, sparse low-rank output, and non-repeated fail-closed recovery rows. This is fixture-local evidence, not broad partial-SVD correctness, raw singular-vector identity, external-library parity, performance, platform/package/ABI, or state-of-the-art support.
+- **Low-rank output choices** — dense and sparse low-rank approximation APIs stay available under the same public SVD surface.
+- **Maintained partial-SVD corpus proof** — generated diagonal fixtures now cover the 8x6 clustered/repeated top-3 lane plus Sprint 151 rank-deficient rectangular projectors, sparse low-rank output, and non-repeated fail-closed recovery rows. This is fixture-local evidence for named top-k, rank, projector, triplet-residual, orthogonality, sparse-output, and recovery diagnostics, not broad partial-SVD correctness, raw singular-vector identity, external-library parity, performance, platform/package/ABI, or state-of-the-art support.
 
 ### Iterative Solvers
 - **Core one-shot solvers** — CG for SPD systems, GMRES for general unsymmetric systems, MINRES for symmetric indefinite systems, and BiCGSTAB as a one-shot compatibility path.
@@ -90,8 +91,8 @@ needs them.
   - **LOBPCG** (`SPARSE_EIGS_BACKEND_LOBPCG`) — Knyazev's Locally Optimal Block Preconditioned Conjugate Gradient with block Rayleigh-Ritz over the `[X | W | P]` subspace, BLOPEX-style conditioning guard, and per-column soft-locking. It composes with the existing IC(0) and LDL^T preconditioner callbacks and AUTO routes here for `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (1000) when `opts->precond != NULL` and the block size is at least 4.
 - Three `which` modes across all backends — `LARGEST`, `SMALLEST`, `NEAREST_SIGMA`. Shift-invert composes with `sparse_ldlt_factor_opts` and the existing LDL^T backend dispatch.
 - **Parallel MGS reorthogonalization** — both Lanczos backends parallelise the inner-product / daxpy bodies under `-DSPARSE_OPENMP`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (500) so small problems don't pay OMP fork/join overhead.
-- **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; `result.residual_norm` reports the maximum relative Ritz residual across the converged pairs.
-- **Observability** — `result.used_csc_path_ldlt` reports the LDL^T backend chosen on the shift-invert path; `result.peak_basis_size` reports the simultaneously-live `V` columns for memory budgeting; `result.backend_used` reports which backend AUTO actually picked.
+- **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; `sparse_eigs_t.residual_norm` reports the maximum relative Ritz residual across the converged pairs.
+- **Observability** — `sparse_eigs_t.used_csc_path_ldlt` reports the LDL^T backend chosen on the shift-invert path; `sparse_eigs_t.peak_basis_size` reports the simultaneously-live `V` columns for memory budgeting; `sparse_eigs_t.backend_used` reports which backend AUTO actually picked.
 - **Optional inverse-iteration refinement post-pass** — `opts->refine = 1` runs Rayleigh-quotient inverse iteration on each converged Ritz pair, refactoring `(A − λ_j I) = L D L^T` per-pair via `sparse_ldlt_factor_opts` (with retry under a small perturbation if the shifted matrix is singular at the converged Ritz value). Default off; budget-bound via `opts->refine_max_iters` (default 5).
 - **Preconditioning evidence** — fixture-level LOBPCG runs show IC(0) and
   LDL^T preconditioners reducing iterations on the maintained bcsstk04
@@ -99,7 +100,7 @@ needs them.
   portable speedup guarantee.
 - **`bench_eigs`** — permanent benchmark driver at `benchmarks/bench_eigs.c`; CLI with `--sweep default`, `--compare`, and `--matrix <path>` modes, CSV output, and configurable `--repeats`. `benchmarks/README.md` documents the current CLI and CSV schema.
 
-**Picking a backend** — pass `SPARSE_EIGS_BACKEND_AUTO` (the zero default) and let the library choose: small problems run on grow-m Lanczos; medium-to-large problems route to thick-restart Lanczos for the bounded memory; large problems with a preconditioner route to LOBPCG.  Override with an explicit `opts->backend` when profiling or when the workload differs from the bench-corpus heuristics.
+**Picking a backend** — pass `SPARSE_EIGS_BACKEND_AUTO` (the zero default) and let the library route by the documented policy: small problems run on grow-m Lanczos; medium-to-large problems route to thick-restart Lanczos for bounded memory; large problems with a preconditioner route to LOBPCG. Override with an explicit `opts->backend` when profiling or when the workload differs from the bench-corpus heuristics. AUTO routing is not a universal backend superiority claim.
 
 ### Matrix Operations
 - **Sparse matrix-vector product** (SpMV) with optional OpenMP parallelization
@@ -144,28 +145,12 @@ needs them.
   workspaces. These are not broad allocation-failure coverage for direct
   solvers, eigensolvers, matrix construction, package/install flows,
   generated-report tooling, or unrelated allocation paths.
-- **Continuous integration** — support tiers are summarized in
-  [INSTALL.md#supported-platforms](INSTALL.md#supported-platforms) and owned
-  in detail by [docs/maintainer_guide.md](docs/maintainer_guide.md). In short:
-  Linux is the strongest reviewed source of truth, macOS carries reviewed
-  static-first install/export proof plus reviewed hosted selected comparison
-  freshness for selected generated artifacts. Windows remains CMake-first with
-  promoted `test_threads`, `test_sprint4_integration`, and `test_fuzz` CTest
-  targets plus reviewed CMake install/downstream validation for the
-  static-first package surface, a hosted PowerShell validation ownership
-  job that parses the selected Windows workflow PowerShell snippets, and one
-  bounded Windows selected Cholesky comparison freshness workflow for
-  `cholesky-spd-tridiag-5`.
-  Windows still does not claim Makefile parity, `pkg-config` execution parity,
-  package-manager support, shared-library support, dynamic ABI support,
-  runtime-loader behavior, broad report freshness, selected oracle freshness,
-  selected benchmark freshness, or broad Windows parity. Sprint 190 wires the
-  Windows Cholesky lane through an explicit CMake/MSVC generator path, exact
-  artifact upload scope, and guard updates; selected target manifest promotion
-  and hosted-pass claim language remain separate review surfaces. The Sprint
-  182 deferral record still applies to all other Windows report freshness.
-  Benchmark/report rows remain bounded local evidence rather than portable
-  performance claims.
+- **Continuous integration** — current support/readiness status is summarized
+  in [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix)
+  and interpreted in detail by
+  [docs/maintainer_guide.md](docs/maintainer_guide.md). Use that matrix before
+  reading CI, install, report, package, Windows, benchmark, or generated API
+  evidence as a support claim.
 
 ## Choose a Workflow
 
@@ -173,10 +158,11 @@ Start with the smallest surface that matches your real workload:
 
 - **One-shot direct solve:** use LU, Cholesky, LDL^T, or QR when you are
   solving once or only occasionally.
-  - Use LU for general square systems; singular systems report
-    `SPARSE_ERR_SINGULAR`.
-  - Use Cholesky for symmetric positive-definite systems; non-SPD systems
-    report `SPARSE_ERR_NOT_SPD`.
+  - Use LU for general square systems; singular or near-singular pivots report
+    `SPARSE_ERR_SINGULAR` through the factorization or solve return code.
+  - Use Cholesky for symmetric positive-definite systems; inputs that are not
+    symmetric positive-definite report `SPARSE_ERR_NOT_SPD` through the
+    factorization return code.
   - Use LDL^T for symmetric indefinite systems where the LDL^T API is the
     natural model.
   - Use QR for rectangular or rank-deficient least-squares workflows. The
@@ -461,8 +447,10 @@ Next steps after the first solve:
   [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff)
   when you need to decide whether diagnostics justify changing solver family,
   backend, preconditioner, tolerance, or benchmark settings
-- use [Installation](#installation) and [INSTALL.md](INSTALL.md) when you need
-  installed consumer workflows instead of local build-tree linking
+- use [Installation](#installation) and
+  [INSTALL.md#installed-consumer-tutorial](INSTALL.md#installed-consumer-tutorial)
+  when you need installed consumer workflows instead of local build-tree
+  linking
 
 If your coefficients already live in compressed sparse storage, the smallest
 one-shot direct entry path is now:
@@ -519,11 +507,15 @@ int main(void)
     sparse_err_t err = sparse_solve_gmres(A, b, x, &opts,
                                            sparse_ilu_precond, &ilu, &result);
 
-    if (err == SPARSE_OK)
-        printf("Converged in %d iterations, residual = %e\n",
+    if (err == SPARSE_OK) {
+        printf("Converged in %d iterations, relative residual = %e\n",
                result.iterations, result.residual_norm);
-    else
+    } else if (err == SPARSE_ERR_NOT_CONVERGED) {
+        printf("Iteration budget ended at %d iterations, relative residual = %e\n",
+               result.iterations, result.residual_norm);
+    } else {
         printf("Solver returned: %s\n", sparse_strerror(err));
+    }
 
     sparse_ilu_free(&ilu);
     free(b); free(x);
@@ -724,7 +716,7 @@ Important behavior:
 - `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A through the public AUTO/Lanczos/thick-restart/LOBPCG backend surface
 - `sparse_eigs_handle_init(&handle)` / `sparse_eigs_handle_prepare(&handle, n, k, &opts)` / `sparse_eigs_sym_with_handle(A, k, &opts, &result, &handle)` / `sparse_eigs_handle_free(&handle)` — explicit repeated-run lifecycle path for stable-dimension symmetric eigensolves
 - `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts`
-- `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert; `result.backend_used` records the concrete backend selected on successful AUTO calls
+- `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.residual_norm` reports the maximum relative Ritz residual across converged pairs; `result.n_converged`, `result.used_csc_path_ldlt`, `result.peak_basis_size`, and `result.backend_used` record convergence count, shift-invert LDL^T backend, basis memory telemetry, and concrete AUTO routing
 
 **Symbolic analysis & refactorization:**
 - `sparse_analyze(A, &opts, &analysis)` — compute elimination tree, column counts, symbolic structure
@@ -745,14 +737,14 @@ factor contents.
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R
 - `sparse_qr_factor_opts(A, &opts, &qr)` — with options such as COLAMD column reordering for unsymmetric/QR workflows
-- `sparse_qr_solve(&qr, b, x, &residual)` — least-squares for overdetermined systems; basic solution for underdetermined systems
+- `sparse_qr_solve(&qr, b, x, &residual)` — least-squares for overdetermined systems; basic solution for underdetermined systems; `residual` is the QR-local `||b - A*x||_2` diagnostic
 - `sparse_qr_apply_q(&qr, transpose, x, y)` — apply Q or Q^T to a vector
-- `sparse_qr_rank(&qr, tol)` — numerical rank estimation
+- `sparse_qr_rank(&qr, tol)` — QR-local numerical rank estimate under the supplied tolerance
 - `sparse_qr_nullspace(&qr, tol, basis, &ndim)` — null-space basis extraction
 - `sparse_qr_solve_minnorm(A, b, x, &opts)` — minimum 2-norm solution for underdetermined systems
 - `sparse_qr_diag_r(&qr, diag)` — extract R diagonal for rank inspection
-- `sparse_qr_rank_info(&qr, tol, &info)` — comprehensive rank diagnostics with condition estimate
-- `sparse_qr_condest(&qr)` — quick condition estimate from R diagonal
+- `sparse_qr_rank_info(&qr, tol, &info)` — QR-local rank, threshold, R-diagonal, and condition-estimate diagnostics
+- `sparse_qr_condest(&qr)` — quick QR-local condition estimate from R diagonal
 - `sparse_qr_refine_minnorm(A, b, x, iters, &resid, &opts)` — iterative refinement for minimum-norm
 - `sparse_qr_free(&qr)` — free QR factors
 - `sparse_reorder_colamd(A, perm)` — COLAMD column ordering for unsymmetric/QR (handles rectangular)
@@ -791,13 +783,13 @@ for every Windows report freshness surface outside the one Sprint 190 Cholesky
 workflow path.
 
 **SVD:**
-- `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)
+- `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors); returns `SPARSE_ERR_NOT_CONVERGED` if the SVD iteration does not converge
 - `sparse_svd_partial(A, k, &opts, &svd)` — k largest singular values via Lanczos bidiagonalization; maintained corpus evidence is fixture-local to clustered/repeated top-k, rank-deficient projector, sparse low-rank output, and fail-closed recovery rows
-- `sparse_cond(A, &err)` — 2-norm condition number via SVD
-- `sparse_svd_rank(A, tol, &rank)` — numerical rank estimation
+- `sparse_cond(A, &err)` — 2-norm condition estimate via SVD
+- `sparse_svd_rank(A, tol, &rank)` — SVD-local numerical rank estimate under the supplied tolerance
 - `sparse_pinv(A, tol, &pinv)` — Moore-Penrose pseudoinverse
-- `sparse_svd_lowrank(A, k, &dense)` — best rank-k approximation (dense output)
-- `sparse_svd_lowrank_sparse(A, k, drop_tol, &sparse)` — best rank-k approximation (sparse output)
+- `sparse_svd_lowrank(A, k, &dense)` — rank-k approximation from the SVD API (dense output)
+- `sparse_svd_lowrank_sparse(A, k, drop_tol, &sparse)` — sparse dropped rank-k approximation from the SVD API (sparse output)
 - `sparse_svd_free(&svd)` — free SVD result
 
 **Iterative solvers:**
@@ -811,6 +803,14 @@ workflow path.
 - `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG
 - `sparse_solve_gmres_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free GMRES
 - `sparse_solve_minres(A, b, x, &opts, precond, ctx, &result)` — MINRES for symmetric (possibly indefinite) systems
+
+Iterative solver calls report convergence diagnostics through
+`sparse_iter_result_t`: `iterations`, final relative `residual_norm`,
+`converged`, `stagnated`, `residual_history_count`, and `breakdown`.
+For APIs that document it, `result` and the approximate solution `x` are
+populated on both `SPARSE_OK` and `SPARSE_ERR_NOT_CONVERGED`.
+Treat `SPARSE_ERR_NOT_CONVERGED` as iteration-budget exhaustion, not as a
+singularity or invalid-input result.
 - `sparse_minres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block MINRES for multiple RHS
 - `sparse_solve_bicgstab(A, b, x, &opts, precond, ctx, &result)` — BiCGSTAB for general nonsymmetric systems
 - `sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block BiCGSTAB for multiple RHS
@@ -1019,8 +1019,10 @@ linalg_sparse_orthogonal/
 ## Installation
 
 Use [INSTALL.md#start-here](INSTALL.md#start-here) for platform-specific
-setup, staged installs, downstream consumer workflows, and install-surface
-validation. The README keeps only the shortest static-first local summary:
+setup, staged installs, downstream consumer workflows, install-surface
+validation, and the active
+[support/readiness matrix](INSTALL.md#support-readiness-matrix). The README
+keeps only the shortest static-first local summary:
 
 ```bash
 # Makefile
@@ -1039,35 +1041,25 @@ After installation, downstream projects can use either `pkg-config` or
 - `find_package(Sparse REQUIRED)` plus
   `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
-The installed `sparse.pc` metadata is intentionally static-archive scoped, and
-the install proof checks downstream compile/link/run behavior plus exact
-package version handling. The Unix proof validates installed include and
-library paths by filesystem identity so staged-prefix spelling differences do
-not masquerade as package failures. These checks are package proof, not
-package-manager distribution or dynamic-loader evidence.
+For complete copy-pasteable downstream examples, use
+[INSTALL.md#installed-consumer-tutorial](INSTALL.md#installed-consumer-tutorial).
 
-Package-manager support is not currently provided; use source install via Make
-or CMake and see `INSTALL.md` for the exact package boundary. The repository
-contains local Homebrew formula proof material, but Sprint 188 keeps Homebrew
-install support unclaimed because the proof exits before archive, render,
-install, or `brew test` work while approved standalone root license metadata is
-absent. Treat this as a provider-proof blocker, not as Homebrew availability,
-Homebrew/core readiness, tap support, bottles, Linuxbrew support, or broad
-package-manager distribution.
-
-On Windows, `sparse.pc` is installed and inspected as static package metadata
-by the reviewed CMake install/downstream lane. That lane does not run
-`pkg-config` and does not claim Windows Makefile or `pkg-config` execution
-parity.
-
-Shared-library packaging is intentionally deferred; the maintained install
-contract is the static archive surface described in [INSTALL.md](INSTALL.md).
-CMake rejects `BUILD_SHARED_LIBS=ON` rather than silently treating a
-shared-library request as supported, and the rejection names the missing
-export/import, symbol visibility, dynamic ABI, platform loader metadata,
-installed shared consumer, and runtime-loader validation policies.
-The canonical Sprint 170 package and ABI product decision is recorded in
+The installed package contract is static-first. For exact support status,
+platform boundaries, package-manager non-claims, Windows `pkg-config`
+limitations, shared-library deferral, dynamic ABI deferral, and evidence
+owners, use
+[INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix).
+Shared-library packaging is intentionally deferred; the canonical package and
+ABI decision remains
 `docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
+Windows remains CMake-first, and Windows still does not claim Makefile parity
+or `pkg-config` execution parity. The Windows workflow keeps a hosted PowerShell validation ownership
+  job for selected workflow snippets and one bounded Windows selected Cholesky comparison freshness workflow; this is not broad Windows report freshness.
+The Sprint
+  182 deferral record still applies to all other Windows report freshness.
+package-manager support and package-manager distribution are not currently
+provided; local Homebrew formula proof material remains blocker/provenance
+evidence, not a user-facing install path.
 
 ## Documentation
 

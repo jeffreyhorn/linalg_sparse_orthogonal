@@ -33,7 +33,10 @@ truth for API declarations and call-site contracts:
 
 Installed packages also include a generated `sparse_version.h` derived from
 `VERSION` and `include/sparse_version.h.in`. Use the installed header,
-`VERSION`, and the install-validation tests for version macro behavior.
+`VERSION`, and the install-validation tests for version macro behavior. For
+the current support/readiness status of installed packages, generated API HTML,
+platforms, package managers, shared libraries, and ABI boundaries, use
+[`INSTALL.md#support-readiness-matrix`](../INSTALL.md#support-readiness-matrix).
 
 ## Generated HTML
 

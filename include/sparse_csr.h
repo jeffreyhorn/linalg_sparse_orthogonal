@@ -5,12 +5,9 @@
  * @file sparse_csr.h
  * @brief Compressed Sparse Row (CSR) and Compressed Sparse Column (CSC) formats.
  *
- * Provides conversion between the orthogonal linked-list representation
- * and standard compressed formats for interoperability with other libraries.
- * It also exposes compressed-first construction entry paths for callers that
- * already own CSR or CSC data and want to enter the public matrix-shell
- * workflow without treating linked-list mutation as the conceptual starting
- * point.
+ * Provides conversion between the orthogonal linked-list representation and
+ * standard compressed formats for interoperability with other libraries, plus
+ * compressed-first construction entry paths for caller-owned CSR or CSC data.
  *
  * @note These operate in physical index space. Do not use on matrices with
  *       non-identity permutations (e.g., after LU factorization).

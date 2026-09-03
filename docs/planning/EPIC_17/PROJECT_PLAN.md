@@ -62,6 +62,17 @@ source-controlled gap ledger, and select the exact Epic 17 closures.
 
 166 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 187.1 | Complete | `SPRINT_187/artifacts/day14-closeout-summary.md`; `SPRINT_187/RETROSPECTIVE.md`; Epic 17 gap ledger and review intake were source-controlled. |
+| 187.2 | Complete | `SPRINT_187/artifacts/day14-closeout-summary.md`; Epic 16 residuals were reconciled with the Epic 17 review findings and deduplicated. |
+| 187.3 | Complete | `SPRINT_187/artifacts/day14-closeout-summary.md`; selected closures and non-goals were recorded for package, Windows, comparison, performance, review-surface, adoption/API, and reliability work. |
+| 187.4 | Complete | `SPRINT_187/artifacts/day14-closeout-summary.md`; acceptance gates and artifact expectations were defined for each selected closure. |
+| 187.5 | Complete | `SPRINT_187/artifacts/day14-closeout-summary.md`; quality-surface map covered docs, scripts, workflows, generated reports, benchmarks, and C/header changes. |
+| 187.6 | Complete | `SPRINT_187/RETROSPECTIVE.md`; Sprint 188-195 handoff records were created. |
+
 ## Sprint 188: Homebrew Proof Completion
 
 **Duration:** 14 days, approximately 168 hours
@@ -95,6 +106,17 @@ standalone license metadata and proving the full local formula workflow.
 ### Total Estimate
 
 168 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 188.1 | Residualized | `SPRINT_188/artifacts/day14-closeout-summary.md`; `SPRINT_188/RETROSPECTIVE.md`; approved standalone root license metadata and exact Homebrew license identifier remained unresolved. |
+| 188.2 | Deferred | `SPRINT_188/artifacts/day14-closeout-summary.md`; metadata implementation was not completed because the license decision could not be invented. |
+| 188.3 | Complete | `SPRINT_188/artifacts/day14-closeout-summary.md`; local Homebrew proof script and diagnostics were hardened around the current unavailable-support state. |
+| 188.4 | Complete | `SPRINT_188/artifacts/day14-closeout-summary.md`; package-manager and static package guards were aligned to keep support claims dependent on proof evidence. |
+| 188.5 | Complete with guarded residual | `SPRINT_188/RETROSPECTIVE.md`; README, INSTALL, Homebrew README, and maintainer guidance retained package-manager support non-claims. |
+| 188.6 | Complete with guarded residual | `SPRINT_188/artifacts/day14-closeout-summary.md`; validation passed for the guarded unavailable state, with full Homebrew proof success still blocked by license metadata. |
 
 ## Sprint 189: PowerShell Validation Ownership
 
@@ -130,6 +152,17 @@ owned local/hosted validation command for Windows report workflow material.
 
 166 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 189.1 | Complete | `SPRINT_189/artifacts/day14-sprint-closeout.md`; PowerShell workflow snippets, artifact names, and selected-report assumptions were inventoried. |
+| 189.2 | Complete | `SPRINT_189/artifacts/day14-sprint-closeout.md`; source-controlled validation command and local unavailable semantics were defined. |
+| 189.3 | Complete with hosted evidence pending at closeout | `SPRINT_189/RETROSPECTIVE.md`; hosted Windows validation wiring was added, while PR CI remained the hosted evidence owner. |
+| 189.4 | Complete | `SPRINT_189/artifacts/day14-sprint-closeout.md`; guard tests covered stale snippets, unsupported artifact names, and accidental promotion. |
+| 189.5 | Complete | `SPRINT_189/RETROSPECTIVE.md`; maintainer and Windows support docs separated PowerShell validation ownership from report freshness. |
+| 189.6 | Complete | `SPRINT_189/artifacts/day14-sprint-closeout.md`; Windows-adjacent guards, manifest/schema tests, and docs checks were run for the changed surfaces. |
+
 ## Sprint 190: Windows Selected Report Freshness Decision
 
 **Duration:** 14 days, approximately 168 hours
@@ -163,6 +196,17 @@ formal deferral with stronger guard evidence.
 ### Total Estimate
 
 168 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 190.1 | Complete | `SPRINT_190/artifacts/day14-sprint-closeout.md`; one selected Cholesky Windows candidate was chosen with bounded generator and artifact scope. |
+| 190.2 | Narrowed | `SPRINT_190/RETROSPECTIVE.md`; a guarded selected Cholesky workflow path was wired, not broad Windows report freshness promotion. |
+| 190.3 | Residualized | `SPRINT_190/artifacts/day14-sprint-closeout.md`; selected Cholesky manifest promotion stayed pending hosted evidence review. |
+| 190.4 | Complete | `SPRINT_190/artifacts/day14-sprint-closeout.md`; target-specific freshness checks and Windows path handling were added. |
+| 190.5 | Complete with residual narrowed | `SPRINT_190/RETROSPECTIVE.md`; README, maintainer guide, report docs, and support wording retained guarded-workflow boundaries. |
+| 190.6 | Complete with residual narrowed | `SPRINT_190/artifacts/day14-sprint-closeout.md`; selected workflow and report tests passed for the guarded path while hosted evidence remained a promotion prerequisite. |
 
 ## Sprint 191: Bounded External Comparison Family
 
@@ -198,6 +242,17 @@ credibility without claiming broad ecosystem parity.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 191.1 | Complete | `SPRINT_191/artifacts/day14-closeout-and-handoff.md`; exactly one `qr-incompatible-ls` comparison family was selected. |
+| 191.2 | Complete | `SPRINT_191/artifacts/day14-closeout-and-handoff.md`; source-controlled fixture and bounded external reference material were added. |
+| 191.3 | Complete | `SPRINT_191/RETROSPECTIVE.md`; comparison runner rows, dependency status, study rows, and manifest metadata were integrated. |
+| 191.4 | Complete | `SPRINT_191/artifacts/day14-closeout-and-handoff.md`; parser, dependency, tolerance, pass/fail, and stale-output tests were added. |
+| 191.5 | Complete | `SPRINT_191/RETROSPECTIVE.md`; docs kept the comparison local-only, selected-target, and fixture scoped. |
+| 191.6 | Complete | `SPRINT_191/artifacts/day14-closeout-and-handoff.md`; focused comparison, freshness, docs, and applicable C gates passed. |
+
 ## Sprint 192: Methodology-Bound Performance Evidence Lane
 
 **Duration:** 14 days, approximately 168 hours
@@ -232,6 +287,17 @@ methodology-bound hosted evidence lane with explicit limits.
 
 168 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 192.1 | Complete | `SPRINT_192/artifacts/day14-closeout-and-handoff.md`; one selected `bench_refactor_csc` Linux performance evidence lane was chosen. |
+| 192.2 | Complete | `SPRINT_192/RETROSPECTIVE.md`; methodology metadata captured compiler, flags, CPU, thread count, repeats, timestamp, branch, commit, and matrix context. |
+| 192.3 | Complete | `SPRINT_192/artifacts/day14-closeout-and-handoff.md`; hosted freshness lane and exact evidence bundle were added. |
+| 192.4 | Narrowed | `SPRINT_192/RETROSPECTIVE.md`; rows intentionally remained threshold-free with reviewed rationale instead of adding a regression sentinel. |
+| 192.5 | Complete | `SPRINT_192/artifacts/day14-closeout-and-handoff.md`; benchmark docs, maintainer guide, report normalization, and claim boundaries were updated. |
+| 192.6 | Complete | `SPRINT_192/RETROSPECTIVE.md`; benchmark freshness, report normalizer tests, docs checks, and required quality gates passed. |
+
 ## Sprint 193: Selected Large Review-Surface Reduction
 
 **Duration:** 14 days, approximately 168 hours
@@ -265,6 +331,17 @@ preserving behavior and validation.
 ### Total Estimate
 
 168 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 193.1 | Complete | `SPRINT_193/artifacts/day14-closeout.md`; large source/test candidates were ranked by size, risk, ownership, tests, and user-facing importance. |
+| 193.2 | Complete | `SPRINT_193/artifacts/day14-closeout.md`; the selected QR external-reference rank/nullspace/threshold cluster and behavior invariants were recorded. |
+| 193.3 | Complete | `SPRINT_193/RETROSPECTIVE.md`; helper boundaries, cleanup ownership, registration, and behavior-preservation rules were designed. |
+| 193.4 | Complete | `SPRINT_193/artifacts/day14-closeout.md`; selected helper extraction landed with behavior-preserving edits. |
+| 193.5 | Complete | `SPRINT_193/RETROSPECTIVE.md`; QR helper ownership guard and maintainer documentation were added. |
+| 193.6 | Complete | `SPRINT_193/artifacts/day14-closeout.md`; focused tests, source-list checks, full C quality gate, and CMake parity checks passed. |
 
 ## Sprint 194: Adoption And API Coherence Simplification
 
@@ -301,6 +378,17 @@ workflow guidance and consolidating support/readiness truth.
 
 166 hours
 
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 194.1 | Complete | `SPRINT_194/artifacts/day14-closeout-handoff.md`; README, INSTALL, tutorials, cookbook, solver selection, API reference, examples, and maintainer guide were audited. |
+| 194.2 | Complete | `SPRINT_194/RETROSPECTIVE.md`; compact support/readiness matrix became the user-facing support truth. |
+| 194.3 | Complete | `SPRINT_194/artifacts/day14-closeout-handoff.md`; installed-consumer tutorial routing covered selected Make/pkg-config and CMake paths. |
+| 194.4 | Complete | `SPRINT_194/RETROSPECTIVE.md`; diagnostics wording was normalized across selected solver and adoption docs. |
+| 194.5 | Complete | `SPRINT_194/artifacts/day14-closeout-handoff.md`; selected header narrative was reduced while preserving declarations and generated API coverage. |
+| 194.6 | Complete | `SPRINT_194/RETROSPECTIVE.md`; docs, Doxygen/API freshness, examples, install checks, and required C quality gates passed. |
+
 ## Sprint 195: Selected Reliability And Failure-Path Proof
 
 **Duration:** 14 days, approximately 168 hours
@@ -334,6 +422,17 @@ allocation-heavy or failure-prone owner beyond prior proof lanes.
 ### Total Estimate
 
 168 hours
+
+### Closeout Status
+
+| Item # | Final status | Evidence |
+| --- | --- | --- |
+| 195.1 | Complete | `SPRINT_195/artifacts/day14-closeout-review-package.md`; `sparse_symbolic_cholesky()` was selected as the bounded reliability owner. |
+| 195.2 | Complete | `SPRINT_195/RETROSPECTIVE.md`; cleanup, publication, retry, stale-output, caller-owned input, and unsupported-breadth invariants were documented. |
+| 195.3 | Complete | `SPRINT_195/artifacts/day14-closeout-review-package.md`; deterministic allocation-failure harness coverage reached the selected non-empty symbolic `col_ptr` allocation. |
+| 195.4 | Complete | `SPRINT_195/RETROSPECTIVE.md`; failure, cleanup, stale-output suppression, repeated cleanup, input preservation, and retry tests were added. |
+| 195.5 | Complete | `SPRINT_195/artifacts/day14-closeout-review-package.md`; focused Make/CTest gate, registration guard, and selected-owner claim docs were added. |
+| 195.6 | Complete | `SPRINT_195/RETROSPECTIVE.md`; focused gate, registration guard, source-list check, docs checks, and `make format && make lint && make test` passed. |
 
 ## Sprint 196: Epic 17 Final Validation, Claim Calibration & Closeout
 
@@ -370,3 +469,24 @@ claims, and publish the Epic 17 retrospective and residual queue.
 
 166 hours
 
+### Closeout Status
+
+| Item # | Current status | Evidence |
+| --- | --- | --- |
+| 196.1 | Complete | `SPRINT_196/artifacts/day2-outcome-ledger.md`; Sprint 187-195 outcomes, decisions, validation records, and residuals were reconciled. |
+| 196.2 | Complete | `SPRINT_196/artifacts/day4-claim-surface-audit.md`; `SPRINT_196/artifacts/day5-public-claim-recalibration.md`; `SPRINT_196/artifacts/day6-maintainer-api-recalibration.md`; `SPRINT_196/artifacts/day13-final-claim-retrospective-review.md`; public, maintainer, planning, retrospective, residual, benchmark, and API-adjacent claim surfaces were reviewed against earned Epic 17 evidence and retained non-claims. |
+| 196.3 | Complete | `SPRINT_196/artifacts/day7-project-plan-status.md`; this project-plan status pass marks complete, narrowed, deferred, residualized, and pending closeout work with evidence links. |
+| 196.4 | Complete | `SPRINT_196/artifacts/day11-integrated-focused-validation.md`; `SPRINT_196/artifacts/day12-full-quality-decision.md`; focused package, install, Windows, selected report, selected performance, review-surface, reliability, docs/API, format, and lint gates passed. `make test` was not required because no `.c` or `.h` files changed. |
+| 196.5 | Complete | `EPIC_17_RETROSPECTIVE.md`; `SPRINT_196/artifacts/day8-retrospective-outline-and-metrics.md`; `SPRINT_196/artifacts/day9-epic-retrospective-draft.md`; `SPRINT_196/artifacts/day13-final-claim-retrospective-review.md`; Epic 17 retrospective now records outcomes, evidence, non-claims, residuals, and state-of-the-art assessment. |
+| 196.6 | Complete | `EPIC_17_RESIDUAL_QUEUE.md`; `SPRINT_196/artifacts/day10-prioritized-residual-queue.md`; prioritized residual queue was published with closure targets, owner surfaces, validation commands, and long-horizon deferrals. |
+
+### Closeout Residual Queue
+
+The prioritized Epic 17 residual handoff is published in
+[`EPIC_17_RESIDUAL_QUEUE.md`](./EPIC_17_RESIDUAL_QUEUE.md). It separates
+near-term next-epic candidates from validation/tooling follow-ups,
+documentation-only follow-ups, long-horizon deferrals, and one out-of-scope
+historical note.
+
+The final Sprint 196 closeout review package is published in
+[`SPRINT_196/artifacts/day14-closeout-review-package.md`](./SPRINT_196/artifacts/day14-closeout-review-package.md).

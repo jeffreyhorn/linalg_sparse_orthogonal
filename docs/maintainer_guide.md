@@ -92,6 +92,22 @@ Support cross-link rules:
 - link to planning artifacts only when historical context explains a current
   limitation, compatibility decision, or validation boundary
 
+## Epic 17 Evidence Ownership
+
+Epic 17 closed selected evidence gaps and deliberately retained broader
+non-claims. Use the owner split below when reviewing claim wording or deciding
+which focused gate applies to a change.
+
+| Evidence family | Current owner surfaces | Primary gates or proof commands | Residual interpretation |
+| --- | --- | --- | --- |
+| Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts | `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Package-manager support remains unclaimed until approved standalone root license metadata, exact Homebrew license identifier, proof exit `0`, guards, and docs all land together. |
+| Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. The Sprint 190 Cholesky path is a guarded workflow path until hosted evidence and manifest metadata are reviewed together. |
+| Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines and Windows QR incompatible freshness remain deferred. |
+| Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflow, Sprint 192 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The hosted selected lane is threshold-free methodology evidence for one row, not portable speed, release, or state-of-the-art evidence. |
+| Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, full C gate after header/test changes | One selected QR external-reference cluster was moved; other clusters and helper dependency tracking remain future work. |
+| Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194 artifacts | `make docs-check`, `make api-docs-freshness`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
+| Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, focused allocation-failure guard, README/INSTALL/maintainer wording, Sprint 195 artifacts | `make symbolic-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior; broader OOM, concurrency, direct solver, matrix construction, and hosted gate claims remain unowned. |
+
 ## Reviewed Baseline and Warning Authority
 
 ### Strongest local reviewed baseline
@@ -634,12 +650,14 @@ report-freshness lanes. Sprint 190 adds one bounded Windows hosted workflow
 path for `cholesky-spd-tridiag-5` with the target-specific freshness command
 `python scripts/normalize_report_index.py --family comparison --require-generated
 comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
-artifact `sprint190-windows-selected-comparison-cholesky`. These hosted lanes
-do not promote selected oracle freshness on macOS, selected oracle freshness on
-Windows, selected benchmark freshness on Windows, broad Windows report
-freshness, broad report-index freshness, unselected comparison families,
-package/ABI support, performance, release readiness, external-library parity,
-or state-of-the-art status.
+artifact `sprint190-windows-selected-comparison-cholesky`. Treat that Windows
+path as a guarded workflow path until hosted evidence, selected target
+metadata, support tier, and claim contract are reviewed and promoted together.
+These hosted lanes do not promote selected oracle freshness on macOS, selected
+oracle freshness on Windows, selected benchmark freshness on Windows, broad
+Windows report freshness, broad report-index freshness, unselected comparison
+families, package/ABI support, performance, release readiness,
+external-library parity, or state-of-the-art status.
 
 The Sprint 182 deferral remains active for every Windows report freshness
 surface outside the one Sprint 190 Cholesky workflow path. Keep `windows` out
@@ -1854,18 +1872,19 @@ runs the required comparison freshness gate. Generated comparison and
 report-index outputs remain ignored local artifacts by default.
 The reviewed Linux and macOS hosted report-freshness lanes promote only this
 selected comparison gate and their uploaded selected artifacts. Sprint 190 adds
-one bounded Windows hosted workflow path for `cholesky-spd-tridiag-5`; it does
-not promote selected oracle freshness on macOS, selected oracle freshness on
-Windows, selected benchmark freshness on Windows, broad Windows report
-freshness, broad report-index freshness, unselected comparison families,
-package/ABI support, performance, release readiness, external-library parity,
-or state-of-the-art status. The QR incompatible least-squares target is not
-Windows selected report freshness until a future change proves its MSVC
-project probe and promotes the selected-target metadata. Any broader Windows
-report freshness promotion must add a Windows-safe generation path, exact
-selected upload scope,
-selected-target manifest metadata, and guard updates in the same reviewed
-change.
+one bounded Windows hosted workflow path for `cholesky-spd-tridiag-5`; the
+path is guarded workflow evidence, not promoted Windows selected freshness
+until hosted evidence, selected metadata, support tier, and claim contract are
+reviewed together. It does not promote selected oracle freshness on macOS,
+selected oracle freshness on Windows, selected benchmark freshness on Windows,
+broad Windows report freshness, broad report-index freshness, unselected
+comparison families, package/ABI support, performance, release readiness,
+external-library parity, or state-of-the-art status. The QR incompatible
+least-squares target is not Windows selected report freshness until a future
+change proves its MSVC project probe and promotes the selected-target metadata.
+Any broader Windows report freshness promotion must add a Windows-safe
+generation path, exact selected upload scope, selected-target manifest
+metadata, and guard updates in the same reviewed change.
 Optional NumPy/SciPy defers remain context, not pass evidence.
 
 For Epic 16 closeout, keep missing generated local reports, optional dependency

@@ -300,6 +300,13 @@ matmul-allocation-failure-gate: $(BUILDDIR)/test_matmul
 	@$(BUILDDIR)/test_matmul
 	@echo "matmul-allocation-failure-gate: passed"
 
+.PHONY: symbolic-allocation-failure-gate
+symbolic-allocation-failure-gate: $(BUILDDIR)/test_etree
+	@echo "=== Running symbolic Cholesky allocation-failure regression gate ==="
+	@python3 tests/test_symbolic_allocation_failure_gate_registration.py
+	@$(BUILDDIR)/test_etree
+	@echo "symbolic-allocation-failure-gate: passed"
+
 # Run benchmarks
 .PHONY: bench
 bench: $(BENCH_BINS)

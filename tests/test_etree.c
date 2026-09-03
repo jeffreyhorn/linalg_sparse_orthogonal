@@ -1,3 +1,4 @@
+#include "sparse_alloc_internal.h"
 #include "sparse_analysis.h"
 #include "sparse_analysis_internal.h"
 #include "sparse_cholesky.h"
@@ -60,6 +61,26 @@ static SparseMatrix *make_arrow(idx_t n) {
             sparse_insert(A, n - 1, i, 1.0);
         }
     }
+    return A;
+}
+
+static SparseMatrix *make_known_5x5_symbolic_matrix(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    if (!A)
+        return NULL;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 2.0);
+    sparse_insert(A, 4, 4, 2.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 4, 2, 1.0);
+    sparse_insert(A, 2, 4, 1.0);
+    sparse_insert(A, 4, 3, 1.0);
+    sparse_insert(A, 3, 4, 1.0);
     return A;
 }
 
@@ -934,39 +955,31 @@ static void test_symbolic_dense(void) {
     sparse_free(A);
 }
 
+static void assert_known_5x5_symbolic_output(const sparse_symbolic_t *sym) {
+    ASSERT_EQ(sym->nnz, 9);
+
+    /* Verify row indices for each column:
+     * col 0: [0, 2]  col 1: [1, 3]  col 2: [2, 4]  col 3: [3, 4]  col 4: [4] */
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[0]], 0);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[0] + 1], 2);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[1]], 1);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[1] + 1], 3);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[2]], 2);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[2] + 1], 4);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[3]], 3);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[3] + 1], 4);
+    ASSERT_EQ(sym->row_idx[sym->col_ptr[4]], 4);
+}
+
 static void test_symbolic_known_5x5(void) {
-    SparseMatrix *A = sparse_create(5, 5);
-    sparse_insert(A, 0, 0, 2.0);
-    sparse_insert(A, 1, 1, 2.0);
-    sparse_insert(A, 2, 2, 2.0);
-    sparse_insert(A, 3, 3, 2.0);
-    sparse_insert(A, 4, 4, 2.0);
-    sparse_insert(A, 2, 0, 1.0);
-    sparse_insert(A, 0, 2, 1.0);
-    sparse_insert(A, 3, 1, 1.0);
-    sparse_insert(A, 1, 3, 1.0);
-    sparse_insert(A, 4, 2, 1.0);
-    sparse_insert(A, 2, 4, 1.0);
-    sparse_insert(A, 4, 3, 1.0);
-    sparse_insert(A, 3, 4, 1.0);
+    SparseMatrix *A = make_known_5x5_symbolic_matrix();
 
     idx_t parent[5], postorder[5], cc[5];
     sparse_symbolic_t sym;
 
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     REQUIRE_OK(run_symbolic(A, parent, postorder, cc, &sym));
-    ASSERT_EQ(sym.nnz, 9);
-
-    /* Verify row indices for each column:
-     * col 0: [0, 2]  col 1: [1, 3]  col 2: [2, 4]  col 3: [3, 4]  col 4: [4] */
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[0]], 0);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[0] + 1], 2);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[1]], 1);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[1] + 1], 3);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[2]], 2);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[2] + 1], 4);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[3]], 3);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[3] + 1], 4);
-    ASSERT_EQ(sym.row_idx[sym.col_ptr[4]], 4);
+    assert_known_5x5_symbolic_output(&sym);
 
     SparseMatrix *L = sparse_copy(A);
     REQUIRE_OK(sparse_cholesky_factor(L));
@@ -977,6 +990,158 @@ static void test_symbolic_known_5x5(void) {
     sparse_symbolic_free(&sym);
     sparse_free(L);
     sparse_free(A);
+}
+
+static void assert_symbolic_empty_state(const sparse_symbolic_t *sym) {
+    ASSERT_NULL(sym->col_ptr);
+    ASSERT_NULL(sym->row_idx);
+    ASSERT_EQ(sym->n, 0);
+    ASSERT_EQ(sym->nnz, 0);
+}
+
+static void assert_symbolic_failure_free_safe(sparse_symbolic_t *sym) {
+    assert_symbolic_empty_state(sym);
+    sparse_symbolic_free(sym);
+    assert_symbolic_empty_state(sym);
+    sparse_symbolic_free(sym);
+    assert_symbolic_empty_state(sym);
+}
+
+static void assert_known_5x5_symbolic_matrix_intact(const SparseMatrix *A) {
+    ASSERT_EQ(sparse_rows(A), 5);
+    ASSERT_EQ(sparse_cols(A), 5);
+    ASSERT_NEAR(sparse_get(A, 0, 0), 2.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 2, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 3, 1), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 4, 2), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 4, 3), 1.0, 0.0);
+}
+
+static void test_symbolic_cholesky_allocation_hook_reaches_empty_col_ptr(void) {
+    SparseMatrix A = {0};
+    idx_t dummy = 0;
+    sparse_symbolic_t sym = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(0);
+    sparse_err_t err = sparse_symbolic_cholesky(&A, &dummy, &dummy, &dummy, &sym);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_symbolic_failure_free_safe(&sym);
+
+    sparse_alloc_test_reset();
+}
+
+static void test_symbolic_cholesky_allocation_hook_reaches_nonempty_col_ptr(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    idx_t parent = -1;
+    idx_t postorder = 0;
+    idx_t cc = 1;
+    sparse_symbolic_t sym = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_insert(A, 0, 0, 5.0));
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(0);
+    sparse_err_t err = sparse_symbolic_cholesky(A, &parent, &postorder, &cc, &sym);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_symbolic_failure_free_safe(&sym);
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+typedef struct {
+    const char *name;
+    long fail_after;
+} SymbolicFailureCase;
+
+static void expect_symbolic_cholesky_allocation_failure(const SymbolicFailureCase *failure_case) {
+    SparseMatrix *A = make_known_5x5_symbolic_matrix();
+    idx_t parent[5];
+    idx_t postorder[5];
+    idx_t cc[5];
+    sparse_symbolic_t sym = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_etree_compute(A, parent));
+    REQUIRE_OK(sparse_etree_postorder(parent, 5, postorder));
+    REQUIRE_OK(sparse_colcount(A, parent, postorder, cc));
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_symbolic_cholesky(A, parent, postorder, cc, &sym);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_known_5x5_symbolic_matrix_intact(A);
+    assert_symbolic_failure_free_safe(&sym);
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void test_symbolic_cholesky_allocation_failures_clear_partial_state(void) {
+    static const SymbolicFailureCase cases[] = {
+        {"row_idx", 1}, {"child_head", 2}, {"child_next", 3}, {"marker", 4},
+        {"tmp", 5},     {"col_rows", 6},   {"col_nrows", 7},  {"propagated row set", 8},
+    };
+    const size_t case_count = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t i = 0; i < case_count; ++i) {
+        printf("    symbolic allocation-failure site: %s\n", cases[i].name);
+        expect_symbolic_cholesky_allocation_failure(&cases[i]);
+    }
+}
+
+static void
+expect_symbolic_cholesky_allocation_failure_recovers(const SymbolicFailureCase *failure_case) {
+    SparseMatrix *A = make_known_5x5_symbolic_matrix();
+    idx_t parent[5];
+    idx_t postorder[5];
+    idx_t cc[5];
+    sparse_symbolic_t failed_sym = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+    sparse_symbolic_t retry_sym = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_etree_compute(A, parent));
+    REQUIRE_OK(sparse_etree_postorder(parent, 5, postorder));
+    REQUIRE_OK(sparse_colcount(A, parent, postorder, cc));
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_symbolic_cholesky(A, parent, postorder, cc, &failed_sym);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_known_5x5_symbolic_matrix_intact(A);
+    assert_symbolic_failure_free_safe(&failed_sym);
+
+    REQUIRE_OK(sparse_symbolic_cholesky(A, parent, postorder, cc, &retry_sym));
+    assert_known_5x5_symbolic_matrix_intact(A);
+    assert_known_5x5_symbolic_output(&retry_sym);
+
+    sparse_symbolic_free(&retry_sym);
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void test_symbolic_cholesky_allocation_failures_recover_on_retry(void) {
+    static const SymbolicFailureCase cases[] = {
+        {"col_ptr", 0},    {"row_idx", 1},   {"child_head", 2},
+        {"child_next", 3}, {"marker", 4},    {"tmp", 5},
+        {"col_rows", 6},   {"col_nrows", 7}, {"propagated row set", 8},
+    };
+    const size_t case_count = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t i = 0; i < case_count; ++i) {
+        printf("    symbolic retry after allocation-failure site: %s\n", cases[i].name);
+        expect_symbolic_cholesky_allocation_failure_recovers(&cases[i]);
+    }
 }
 
 static void test_symbolic_free_zeroed(void) {
@@ -2877,6 +3042,10 @@ int main(void) {
     RUN_TEST(test_symbolic_arrow);
     RUN_TEST(test_symbolic_dense);
     RUN_TEST(test_symbolic_known_5x5);
+    RUN_TEST(test_symbolic_cholesky_allocation_hook_reaches_empty_col_ptr);
+    RUN_TEST(test_symbolic_cholesky_allocation_hook_reaches_nonempty_col_ptr);
+    RUN_TEST(test_symbolic_cholesky_allocation_failures_clear_partial_state);
+    RUN_TEST(test_symbolic_cholesky_allocation_failures_recover_on_retry);
     RUN_TEST(test_symbolic_free_zeroed);
     RUN_TEST(test_symbolic_vs_cholesky_bcsstk04);
     RUN_TEST(test_symbolic_vs_cholesky_nos4);

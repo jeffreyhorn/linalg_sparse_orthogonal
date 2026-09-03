@@ -142,9 +142,12 @@ needs them.
   and MINRES repeated-run handle prepare/growth cleanup. `make
   matmul-allocation-failure-gate` owns a focused `sparse_matmul()` workspace
   allocation proof for the accumulator, nonzero-flag, and touched-column
-  workspaces. These are not broad allocation-failure coverage for direct
-  solvers, eigensolvers, matrix construction, package/install flows,
-  generated-report tooling, or unrelated allocation paths.
+  workspaces. `make symbolic-allocation-failure-gate` owns a selected
+  `sparse_symbolic_cholesky()` proof for symbolic output cleanup,
+  stale-output suppression, and retry-after-reset on bounded known fixtures.
+  These are not broad allocation-failure coverage for direct solvers,
+  eigensolvers, matrix construction, package/install flows, generated-report
+  tooling, or unrelated allocation paths.
 - **Continuous integration** — current support/readiness status is summarized
   in [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix)
   and interpreted in detail by
@@ -304,6 +307,7 @@ make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 make iterative-allocation-failure-gate  # focused local CG/GMRES/MINRES repeated-run handle allocation-failure proof
 make matmul-allocation-failure-gate  # focused local sparse_matmul workspace allocation-failure proof
+make symbolic-allocation-failure-gate  # focused local sparse_symbolic_cholesky cleanup/retry allocation-failure proof
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
@@ -595,6 +599,12 @@ Important behavior:
   `sparse_matmul()` accumulator, nonzero-flag, and touched-column workspaces;
   it does not cover matrix shell construction, insertion/product flush, matrix
   conversions, solvers, package/install flows, or generated tooling
+- symbolic allocation-failure proof is separately limited to selected
+  `sparse_symbolic_cholesky()` output allocation, cleanup, stale-output
+  suppression, and retry-after-reset behavior; it does not cover
+  `sparse_symbolic_lu()`, `sparse_analyze()`, direct solvers, matrix
+  construction, package/install flows, generated tooling, OS OOM behavior, or
+  concurrent allocation-hook use
 - public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`

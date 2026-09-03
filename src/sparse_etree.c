@@ -254,17 +254,14 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
 
     {
         size_t col_ptr_len = 0;
-        size_t col_ptr_bytes = 0;
-        if (sparse_size_add_overflow((size_t)n, 1, &col_ptr_len) ||
-            sparse_count_bytes_overflow(col_ptr_len, sizeof(idx_t), &col_ptr_bytes))
+        if (sparse_size_add_overflow((size_t)n, 1, &col_ptr_len))
             return SPARSE_ERR_ALLOC;
 
         /* Compute total nnz and build col_ptr from column counts */
+        if (sparse_malloc_array(col_ptr_len, sizeof(idx_t), (void **)&sym->col_ptr) != SPARSE_OK)
+            return SPARSE_ERR_ALLOC;
         sym->n = n;
-        sym->col_ptr = malloc(col_ptr_bytes);
     }
-    if (!sym->col_ptr)
-        return SPARSE_ERR_ALLOC;
 
     /* Build col_ptr with overflow-safe accumulation */
     sym->col_ptr[0] = 0;

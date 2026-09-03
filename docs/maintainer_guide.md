@@ -1332,6 +1332,34 @@ Sprint 106 maintainability ownership additions:
   - use
     `docs/planning/EPIC_16/SPRINT_185/artifacts/day10-maintenance-invariants.md`
     as the provenance record for the helper-placement rules
+- Sprint 193 QR external-reference helper boundary:
+  - `tests/test_qr_external_ref_helpers.h` owns the selected QR
+    rank/nullspace/threshold external-reference readers, moved selected
+    rank/nullspace/threshold test bodies, and reader failure-path behavior
+    tests
+  - `tests/test_qr.c` remains the registered QR proof-owner binary; keep
+    `main`, selected `RUN_TEST(...)` registrations, `_POSIX_C_SOURCE`,
+    `TF_ENABLE_EXTERNAL_REFERENCE_HELPER`, and the economy external-reference
+    test body there
+  - keep `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` defined before
+    `test_qr_external_ref_helpers.h`; the helper header includes
+    `test_qr_helpers.h` and `test_solver_helpers.h` itself so
+    formatter-driven include sorting cannot hide either the QR-specific helper
+    declarations or the external-reference reader API
+  - keep the helper header family-local and header-only; do not add it to
+    Makefile test lists, CMake `add_sparse_test(...)`, or
+    `build-metadata/library_sources.txt`
+  - run `make qr-external-ref-helper-guard` after QR helper-layout changes to
+    check helper presence, proof-owner registration, selected `RUN_TEST(...)`
+    ownership, source-list absence, and maintainer-guide markers
+  - focused QR behavior validation after helper-header edits should force a
+    rebuild of `build/test_qr` before running `./build/test_qr`
+  - this boundary is a no-behavior-change review-surface reduction; it does
+    not claim new QR algorithm capability, numerical tolerance changes,
+    performance improvement, platform expansion, or broader external parity
+  - use
+    `docs/planning/EPIC_17/SPRINT_193/artifacts/day10-boundary-documentation.md`
+    as the provenance record for the helper-placement rules
 - keep test helpers header-only unless there is a measured compile-time,
   ownership, or reuse reason to create a compiled test support target; a
   compiled helper would require explicit Make/CMake registration and reviewed

@@ -1053,12 +1053,11 @@ Shared-library packaging is intentionally deferred; the canonical package and
 ABI decision remains
 `docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
 Windows remains CMake-first, and Windows still does not claim Makefile parity
-or `pkg-config` execution parity. The Windows workflow keeps a hosted
-PowerShell validation ownership job for selected workflow snippets and one
-bounded Windows selected Cholesky comparison freshness workflow; this is not
-broad Windows report freshness. The Sprint 182 deferral record still applies
-to all other Windows report freshness. Package-manager support and
-package-manager distribution are not currently
+or `pkg-config` execution parity. The Windows workflow keeps a hosted PowerShell validation ownership
+  job for selected workflow snippets and one bounded Windows selected Cholesky comparison freshness workflow; this is not broad Windows report freshness.
+The Sprint
+  182 deferral record still applies to all other Windows report freshness.
+Package-manager support and package-manager distribution are not currently
 provided; local Homebrew formula proof material remains blocker/provenance
 evidence, not a user-facing install path.
 

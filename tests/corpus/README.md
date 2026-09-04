@@ -171,12 +171,14 @@ comparison freshness gate. The reviewed macOS hosted lane mirrors only the
 selected QR, partial-SVD, LU, and Cholesky comparison freshness gate. Those
 hosted lanes cover only their selected generated rows and split artifacts.
 Sprint 190 adds one bounded Windows hosted workflow path for
-`cholesky-spd-tridiag-5` with target-specific freshness checking. These lanes
-do not prove broad report-index freshness, selected oracle freshness on macOS,
-selected oracle freshness on Windows, selected benchmark freshness on Windows,
-broad Windows report freshness, or all local-only families. Windows CMake
-build/test, static install/downstream validation, and PowerShell validation do
-not imply generated report freshness.
+`cholesky-spd-tridiag-5` with target-specific freshness checking. Treat that
+path as guarded workflow evidence until hosted evidence, selected target
+metadata, support tier, and claim contract are reviewed and promoted together.
+These lanes do not prove broad report-index freshness, selected oracle
+freshness on macOS, selected oracle freshness on Windows, selected benchmark
+freshness on Windows, broad Windows report freshness, or all local-only
+families. Windows CMake build/test, static install/downstream validation, and
+PowerShell validation do not imply generated report freshness.
 
 ## Selected QR, Partial-SVD, LU, And Cholesky Comparison Freshness
 

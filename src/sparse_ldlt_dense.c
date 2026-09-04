@@ -249,7 +249,7 @@ static sparse_err_t s64_external_ldlt_dense_factor(double *A, double *D, double 
     idx_t k = 0;
     while (k < n) {
         if (ipiv[k] > 0) {
-            if (ipiv[k] != (int)(k + 1)) {
+            if (ipiv[k] != k + 1) {
                 err = SPARSE_ERR_PIVOT_REJECTED;
                 goto cleanup;
             }

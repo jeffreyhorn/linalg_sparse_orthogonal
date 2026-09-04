@@ -776,9 +776,7 @@ compatible least-squares, and incompatible least-squares fixtures. The same
 gate is mirrored by reviewed Linux and macOS hosted report-freshness lanes for
 selected comparison artifacts only. Sprint 190 adds one guarded Windows hosted
 workflow path for `cholesky-spd-tridiag-5` using the target-specific freshness
-command `python scripts/normalize_report_index.py --family comparison
---require-generated comparison --check-freshness --selected-target
-cholesky-spd-tridiag-5` and artifact
+command `python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and artifact
 `sprint190-windows-selected-comparison-cholesky`. The selected manifest still
 controls platform promotion, so this path is not promoted Windows selected
 freshness until hosted evidence, selected metadata, support tier, and claim

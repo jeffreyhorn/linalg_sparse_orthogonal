@@ -648,8 +648,7 @@ authoritative target list to this guide.
 The selected comparison gate is mirrored by reviewed Linux and macOS hosted
 report-freshness lanes. Sprint 190 adds one bounded Windows hosted workflow
 path for `cholesky-spd-tridiag-5` with the target-specific freshness command
-`python scripts/normalize_report_index.py --family comparison --require-generated
-comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
+`python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
 artifact `sprint190-windows-selected-comparison-cholesky`. Treat that Windows
 path as a guarded workflow path until hosted evidence, selected target
 metadata, support tier, and claim contract are reviewed and promoted together.

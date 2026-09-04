@@ -28,8 +28,9 @@ Cholesky workflow path, one bounded QR external comparison family, one Linux
 selected benchmark freshness lane, one QR review-surface reduction, clearer
 adoption/API documentation, and one selected symbolic Cholesky
 allocation-failure proof. The project now has 49 library source files, 18
-checked-in public headers, 59 C test files, 16 benchmark drivers, explicit
-support/readiness tiers, and unusually detailed non-claim governance.
+checked-in public headers, 59 `make test` C sources plus the separate smoke
+test source, 16 benchmark drivers, explicit support/readiness tiers, and
+unusually detailed non-claim governance.
 
 The central limitation remains the same: the library is strong for an
 experimental static-first C sparse linear algebra project with broad local
@@ -118,10 +119,10 @@ publication if more targets are selected and promoted carefully.
 
 ### Test Volume
 
-The test inventory is large: 59 C test files and many Python/shell guards.
-Large areas have focused coverage: QR, SVD, LDLT, CSC backends, eigensolvers,
-graph routines, package install, report freshness, API docs, and selected
-allocation failures.
+The test inventory is large: 59 `make test` C sources plus the separate smoke
+test source and many Python/shell guards. Large areas have focused coverage:
+QR, SVD, LDLT, CSC backends, eigensolvers, graph routines, package install,
+report freshness, API docs, and selected allocation failures.
 
 ## Shortcomings And Gaps
 

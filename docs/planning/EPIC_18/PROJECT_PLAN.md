@@ -35,6 +35,34 @@ external ecosystem parity, release, dynamic ABI, shared-library, broad
 package-manager, and broad Windows parity claims unless exact evidence is
 added.
 
+## Sprint 197 Day 8 Interim Status Snapshot
+
+This snapshot was added from
+`SPRINT_197/artifacts/day8-project-plan-status.md`. It is an interim
+evidence-ledger update, not a final Epic 18 closeout. The requested
+`SPRINT_197` branch artifacts are executing the cited final-validation scope
+from this file's Sprint 206 section, while the source project plan still labels
+Sprint 197 as the baseline and closure-selection sprint. To avoid converting
+future plan intent into support claims, Sprints 198 through 205 remain pending
+future execution until their own artifacts, validation records, and PR evidence
+exist.
+
+| Sprint | Current disposition | Evidence |
+| --- | --- | --- |
+| 197 | In progress with numbering caveat | `SPRINT_197/PLAN.md`; `SPRINT_197/WORKING_NOTES.md`; `SPRINT_197/artifacts/day1-closeout-intake.md`; the branch currently contains final-validation scaffold and reconciliation artifacts, not completed baseline sprint closeout evidence. |
+| 198 | Pending future execution | No Sprint 198 artifact directory exists in this branch; Homebrew/package-manager proof, license metadata decision, formula proof, guard promotion, documentation promotion, and validation remain future work. |
+| 199 | Pending future execution | No Sprint 199 artifact directory exists in this branch; selected Windows Cholesky promotion evidence, manifest decision, normalizer hardening, workflow guard updates, docs calibration, and validation remain future work. |
+| 200 | Pending future execution | No Sprint 200 artifact directory exists in this branch; additional allocation-failure owner selection, invariant record, harness work, regression tests, focused gate, docs, and validation remain future work. |
+| 201 | Pending future execution | No Sprint 201 artifact directory exists in this branch; additional review-surface candidate ranking, extraction, guard, regression, docs, and validation remain future work. |
+| 202 | Pending future execution | No Sprint 202 artifact directory exists in this branch; additional hosted selected benchmark platform/row evidence, methodology metadata, workflow lane, freshness tests, docs, and validation remain future work. |
+| 203 | Pending future execution | No Sprint 203 artifact directory exists in this branch; Windows QR incompatible comparison proof or re-deferral, generator fixes, manifest decision, tests, docs, and validation remain future work. |
+| 204 | Pending future execution | No Sprint 204 artifact directory exists in this branch; generated API publication/local-only decision, guard implementation, freshness/link checks, API routing docs, claim guard, and validation remain future work. |
+| 205 | Pending future execution | No Sprint 205 artifact directory exists in this branch; support matrix/adoption quick-reference consolidation, diagnostics vocabulary, claim guards, docs, and validation remain future work. |
+| 206 | Requested final-validation evidence recorded through `SPRINT_197` artifacts | `SPRINT_197/artifacts/day2-outcome-ledger.md`; `day3-evidence-conflicts.md`; `day6-public-recalibration.md`; `day7-maintainer-api-recalibration.md`; `day8-project-plan-status.md`; `day10-focused-validation-log.md`; `day11-full-quality-gate-log.md`; `day12-retrospective-draft.md`; `day13-residual-queue-and-claim-decision.md`; `day14-final-closeout-review.md`; `EPIC_18_RETROSPECTIVE.md`; `EPIC_18_RESIDUAL_QUEUE.md`; item 206.1-206.6 evidence is recorded for the current branch state. |
+
+The full item-level Day 8 disposition ledger is
+`SPRINT_197/artifacts/day8-project-plan-status.md`.
+
 ## Sprint 197: Epic 18 Baseline, Residual Ledger & Closure Selection
 
 **Duration:** 14 days, approximately 166 hours

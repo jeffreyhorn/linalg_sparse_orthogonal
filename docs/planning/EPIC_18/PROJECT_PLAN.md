@@ -46,7 +46,7 @@ Epic 18 closure ledger, select complete closures, and define acceptance gates.
 
 - Epic 17 retrospective and residual queue are merged on `master`.
 - `docs/planning/EPIC_18/reviews/review-codex-2026-09-04.md` exists.
-- `docs/planning/EPIC_17/reviews/todo-codex-2026-09-04.md` exists.
+- `docs/planning/EPIC_18/reviews/todo-codex-2026-09-04.md` exists.
 
 ### Items
 

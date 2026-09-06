@@ -904,11 +904,9 @@ records why `make format && make lint && make test` is not required.
 
 | Check | Result | Interpretation |
 | --- | --- | --- |
-| `git diff --name-only` | `docs/planning/EPIC_18/PROJECT_PLAN.md` | The only tracked modified file outside the new Sprint 197 directory is the Epic 18 project-plan interim status snapshot. |
-| `git diff --name-only -- '*.c' '*.h'` | No output | No C source, public header, or internal header changed. |
-| `git diff --cached --name-only` | No output | No files are staged. |
-| `git ls-files docs/api build cmake-build scripts/__pycache__` | No output | Generated API/build/cache paths are not tracked. |
-| `git status --short --ignored` | Modified `PROJECT_PLAN.md`, untracked `SPRINT_197/`, ignored `.claude/`, `.swp`, `archive/sparse_lu`, `build/`, `cmake-build/`, and `docs/api/` | Generated Doxygen output remains ignored local noise; no tracked generated artifact was introduced. |
+| Committed PR diff surface | `docs/planning/EPIC_18/PROJECT_PLAN.md`; `docs/planning/EPIC_18/SPRINT_197/`; `docs/planning/EPIC_18/EPIC_18_RETROSPECTIVE.md`; `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | The PR changes planning, sprint evidence, retrospective, and residual-queue documentation only. |
+| `git diff --name-only -- '*.c' '*.h'` | No output | No C source, public header, or internal header changed, so the full C quality gate was not triggered. |
+| Generated artifact tracking check | No generated API, build, CMake build, or Python cache artifacts are committed in the PR. | Generated Doxygen/build/cache output remains local validation noise rather than tracked PR content. |
 
 ### Required Gates Executed
 

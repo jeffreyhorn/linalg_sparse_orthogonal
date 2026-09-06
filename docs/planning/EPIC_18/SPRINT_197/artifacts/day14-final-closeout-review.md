@@ -88,9 +88,10 @@ The branch does not earn stronger claims for:
 ## Clean Worktree and Generated Artifact Notes
 
 - No C source or public/internal header files changed.
-- No files are staged at closeout review time.
-- Generated Doxygen output remains ignored under `docs/api/`.
-- Build/cache outputs remain ignored and untracked.
+- No generated API, build, CMake build, or Python cache artifacts are committed
+  in the PR.
+- Generated Doxygen, build, and cache outputs remain local validation artifacts
+  rather than tracked closeout evidence.
 - The tracked changes are planning documentation only.
 
 ## PR Summary Inputs

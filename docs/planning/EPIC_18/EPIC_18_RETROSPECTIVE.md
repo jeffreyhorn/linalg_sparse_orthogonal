@@ -69,8 +69,8 @@ The evidence-linked interim status snapshot lives in
 
 | Evidence | Current result | Boundary |
 | --- | --- | --- |
-| Patch hygiene | Day 11 `git diff --check` passed. | Whitespace and patch hygiene only. |
-| Docs/API generation | Day 11 `make docs-check` passed with 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. | Documentation generation and coverage only; no hosted API publication claim. |
+| Patch hygiene | Day 14 `git diff --check` rerun passed. | Whitespace and patch hygiene only. |
+| Docs/API generation | Day 14 `make docs-check` rerun passed with 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. | Documentation generation and coverage only; no hosted API publication claim. |
 | Generated API local-only policy | Day 10 `make api-docs-freshness` passed and confirmed generated API HTML remains ignored, untracked, unstaged, and not a workflow publication path. | Local-only generated API freshness and staging guard only. |
 | Windows PowerShell ownership | Day 10 `make windows-powershell-guard` passed. | Workflow/snippet ownership and claim-boundary validation only; local `pwsh` unavailable remains an environment residual. |
 | Package-manager non-claims | Day 10 `bash scripts/package_manager_deferral_check.sh` passed. | Deferral and non-claim enforcement only; no Homebrew/package-manager support claim. |

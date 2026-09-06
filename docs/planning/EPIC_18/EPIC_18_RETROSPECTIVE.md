@@ -51,9 +51,10 @@ records interim evidence and residuals without promoting future sprint work.
 
 | Status | Current count | Rows |
 | --- | ---: | --- |
-| Complete for requested branch path, with numbering caveat | 6 | 197.1-197.6. |
+| In progress with numbering caveat | 6 | 197.1-197.6. |
 | Pending future execution | 48 | 198.1-205.6. |
-| Partial final-validation evidence | 6 | 206.1-206.6. |
+| Partial final-validation evidence | 4 | 206.1-206.4. |
+| Requested final-validation evidence recorded | 2 | 206.5-206.6. |
 | Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |
 | Complete | 0 | No Epic 18 implementation item is finally complete at Day 14. |
 | Narrowed | 0 | No Epic 18 implementation item has been narrowed at Day 14. |

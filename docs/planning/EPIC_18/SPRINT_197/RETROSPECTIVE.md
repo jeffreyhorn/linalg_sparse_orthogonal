@@ -129,9 +129,10 @@ release, ABI, or state-of-the-art claims.
 
 | Status family | Final count |
 | --- | ---: |
-| Complete for requested branch path, with numbering caveat | 6 |
+| In progress with numbering caveat | 6 |
 | Pending future execution | 48 |
-| Partial final-validation evidence | 6 |
+| Partial final-validation evidence | 4 |
+| Requested final-validation evidence recorded | 2 |
 | Pending final-validation work | 0 |
 | Complete implementation items | 0 |
 | Narrowed implementation items | 0 |

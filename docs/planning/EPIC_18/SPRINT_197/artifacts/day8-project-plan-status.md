@@ -15,6 +15,7 @@ closeout statuses.
 | In progress with numbering caveat | Evidence exists on this branch, but it maps to the requested `SPRINT_197` final-validation path rather than the project plan's Sprint 197 baseline scope. |
 | Partial final-validation evidence | The current branch has evidence for part of Sprint 206 final-validation work. |
 | Pending future execution | No sprint-specific implementation artifact directory, validation record, or PR evidence exists on this branch yet. |
+| Requested final-validation evidence recorded | Requested `SPRINT_197` artifacts provide final-validation evidence for the current branch state, while preserving the project plan's original Sprint 206 numbering. |
 | Not promoted | Current evidence does not support a stronger support, freshness, package, performance, API publication, release, ABI, or state-of-the-art claim. |
 
 ## Sprint-Level Dispositions

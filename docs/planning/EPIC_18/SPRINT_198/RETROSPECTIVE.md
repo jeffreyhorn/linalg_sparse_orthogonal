@@ -2,8 +2,8 @@
 
 **Sprint:** 198 - Homebrew License Metadata and Formula Proof Closure
 **Duration:** 14 days (Days 1-14 landed on branch `sprint-198`)
-**Status:** Closed with metadata blocker; package/Homebrew support remains
-unclaimed
+**Status:** Closed with MIT metadata added after the original blocker
+closeout; package/Homebrew support remains unclaimed until proof exit `0`
 
 ## Source Artifact Note
 
@@ -11,10 +11,12 @@ Sprint 198 was executed from the Epic 18 project-plan section for Sprint 198
 and lives under `docs/planning/EPIC_18/SPRINT_198/` with its plan, working
 notes, daily artifacts, closeout review, and retrospective in one package.
 
-The sprint goal depended on an approved standalone root license metadata file
-and an exact Homebrew formula license identifier. Those inputs were not
-present in the repository, so the sprint closed the blocker safely instead of
-inventing license terms or promoting Homebrew/package-manager support.
+The sprint goal depended on an approved standalone root license metadata file,
+an exact Homebrew formula license identifier, and a successful local formula
+proof. The branch now includes root MIT metadata and the selected
+`SPARSE_HOMEBREW_LICENSE=MIT` proof path, but the latest local proof still does
+not reach exit `0` because this host's Homebrew install step stops on outdated
+Command Line Tools before installed-surface validation or `brew test`.
 
 ## Definition Of Done Checklist
 
@@ -30,7 +32,7 @@ inventing license terms or promoting Homebrew/package-manager support.
       exits `2` before archive, checksum, formula render, install,
       installed-surface validation, `brew test`, or uninstall work.
 - [x] Updated `scripts/package_manager_deferral_check.sh` to assert Sprint 198
-      metadata-blocker artifacts and retained package-manager non-claims.
+      package proof artifacts and retained package-manager non-claims.
 - [x] Updated README, INSTALL, Homebrew README, and maintainer guidance so the
       current status is blocker/provenance wording, not support wording.
 - [x] Ran package, static package, install, CMake install, docs, and whitespace
@@ -39,6 +41,9 @@ inventing license terms or promoting Homebrew/package-manager support.
       required by the user quality-check rule.
 - [x] Confirmed no generated Homebrew proof outputs were staged and
       `scripts/__pycache__/` remains untracked generated cache.
+- [x] Added root MIT license metadata, updated the proof to render through a
+      temporary local tap, and recorded the remaining local Command Line Tools
+      proof failure without promoting support.
 
 ## What Went Well
 
@@ -64,19 +69,23 @@ inventing license terms or promoting Homebrew/package-manager support.
 
 ## What Didn't Go Well
 
-1. **The core support promotion could not happen.** Sprint 198 was planned to
-   close Homebrew proof, but the required license decision was unavailable.
+1. **The core support promotion still could not happen.** Sprint 198 now has
+   MIT metadata and a rendered temporary-tap formula path, but this host's
+   Homebrew install step stops on outdated Command Line Tools before the
+   installed-surface and `brew test` proof can complete.
 
-2. **Several implementation days became blocker-record days.** Days 3 through
-   9 reviewed and documented the guarded proof path instead of producing a
-   rendered formula, archive checksum, install run, or `brew test` result.
+2. **Several implementation days started as blocker-record days.** Days 3
+   through 9 reviewed and documented the guarded proof path before the
+   post-closeout MIT metadata addendum allowed archive/checksum/render stages
+   to run.
 
 3. **Success-state guard promotion remains future work.** The package guard
    now validates blocker evidence, but it still cannot enforce proof-backed
    support wording until a successful proof exit `0` exists.
 
-4. **Package-manager support remains a product/legal residual.** Local tool
-   availability was not the blocker; the missing approved metadata is.
+4. **Package-manager support remains an environment/proof residual.** The
+   legal metadata blocker is resolved for MIT, but the local Homebrew proof
+   still needs a current toolchain run that reaches exit `0`.
 
 ## Final Metrics
 
@@ -84,8 +93,8 @@ inventing license terms or promoting Homebrew/package-manager support.
 
 | Metric | Sprint 198 close state |
 | --- | --- |
-| Homebrew local formula proof | expected exit `2` because no standalone root license metadata exists |
-| package-manager deferral guard | passed after Sprint 198 blocker checks were added |
+| Homebrew local formula proof | exits `1` on this host after metadata/archive/render/tap stages because Homebrew rejects the local Command Line Tools version before install/test proof completion |
+| package-manager deferral guard | passed after Sprint 198 package proof checks were updated |
 | static package deferral guard | passed |
 | Make install validation | passed: 23 passed, 0 failed |
 | CMake install validation | passed: 27 passed, 0 failed, 0 skipped |
@@ -119,9 +128,10 @@ inventing license terms or promoting Homebrew/package-manager support.
 
 | Status family | Final count |
 | --- | ---: |
-| Blocked decision/proof items | 3 |
+| Blocked decision/proof items | 1 |
 | Partial blocker-state guard/docs items | 2 |
 | Complete current-surface validation items | 1 |
+| Metadata implementation items completed | 2 |
 | Homebrew support items promoted | 0 |
 | Package-manager support claims promoted | 0 |
 
@@ -131,11 +141,12 @@ The count covers Sprint 198 items 198.1 through 198.6.
 
 Sprint 198 closes this bounded claim:
 
-The current branch records the exact Homebrew/package-manager metadata blocker,
-keeps the Homebrew proof fail-safe before archive/render/install/test work,
-guards the blocker evidence and retained package-manager non-claims, aligns
-public and maintainer documentation with the current blocker state, and
-validates install/docs/package surfaces for that state.
+The current branch adds root MIT license metadata, selects
+`SPARSE_HOMEBREW_LICENSE=MIT`, renders the Homebrew proof formula through a
+temporary local tap, preserves nonzero proof exit status during cleanup, guards
+the remaining unpromoted package-manager state, aligns public and maintainer
+documentation with the current proof boundary, and validates install/docs/
+package surfaces for that state.
 
 This claim does not include local Homebrew formula support, Homebrew/core
 readiness, bottles, Linuxbrew support, public tap maintenance, binary package
@@ -166,9 +177,7 @@ This claim is supported by:
 
 | Residual | Owner condition | Evidence required to close |
 | --- | --- | --- |
-| Approved root license metadata is absent | Product/legal metadata owner | Add an approved standalone root `LICENSE`, `COPYING`, or `NOTICE` file. |
-| Exact Homebrew formula license identifier is absent | Product/legal metadata owner | Select the exact formula license value matching the approved root metadata. |
-| Formula render/install proof remains blocked | Package proof owner after metadata approval | Run source archive/checksum, render, install, installed-surface validation, `brew test`, uninstall, and cleanup to proof exit `0`. |
+| Local Homebrew install proof remains blocked on this host | Package proof owner on a current Homebrew/macOS toolchain | Run source archive/checksum, render, temporary tap install, installed-surface validation, `brew test`, uninstall, and cleanup to proof exit `0`. |
 | Success-state package guard remains future work | Package guard owner after proof exit `0` | Update guards to require proof-backed support wording and reject stale blocker-only wording. |
 | Public package-manager support remains unclaimed | Documentation owner after proof exit `0` | Promote only the exact earned support tier and retain non-claims for Homebrew/core, bottles, Linuxbrew, public taps, other package managers, binary packages, shared libraries, dynamic ABI, and broad package-manager support. |
 

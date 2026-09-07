@@ -100,7 +100,7 @@ which focused gate applies to a change.
 
 | Evidence family | Current owner surfaces | Primary gates or proof commands | Residual interpretation |
 | --- | --- | --- | --- |
-| Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 blocker artifacts | `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Package-manager support remains unclaimed until approved standalone root license metadata, exact Homebrew license identifier, proof exit `0`, guards, and docs all land together. Sprint 198 currently records the metadata blocker, not support promotion. |
+| Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 artifacts | `SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh`, `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Package-manager support remains unclaimed until the selected local Homebrew proof exits `0`, guards, and docs all land together. Sprint 198 now has root MIT metadata, but the latest local proof stops on this host's outdated Command Line Tools before `brew test`. |
 | Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. The Sprint 190 Cholesky path is a guarded workflow path until hosted evidence and manifest metadata are reviewed together. |
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines and Windows QR incompatible freshness remain deferred. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflow, Sprint 192 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The hosted selected lane is threshold-free methodology evidence for one row, not portable speed, release, or state-of-the-art evidence. |
@@ -289,26 +289,24 @@ Focused install/package regression ownership:
   unsupported shared ABI metadata/selectors, and deferred support wording
 - `scripts/package_manager_deferral_check.sh` is the local package-manager
   provider claim guard that checks the Sprint 171 deferral record, checks the
-  Sprint 198 metadata-blocker records, rejects unselected provider artifacts,
+  Sprint 198 package proof records, rejects unselected provider artifacts,
   allows only the selected Sprint 180 Homebrew local proof artifacts, checks
   provider-neutral package metadata templates, runs the selected local proof
   script, and checks public package-manager non-claim wording
 - `scripts/homebrew_local_formula_proof.sh` is the selected Sprint 180
-  Homebrew local formula proof command. It currently exits claim-safely before
-  archive, render, install, or `brew test` work because no standalone
-  `LICENSE`, `COPYING`, or `NOTICE` file exists for provider metadata. Do not
-  cite it as Homebrew support, Homebrew/core readiness, bottle support,
-  Linuxbrew support, or broad package-manager support. When standalone
-  metadata is added, `SPARSE_HOMEBREW_LICENSE` must be an accurate matching
-  Homebrew license identifier; placeholder values such as `NOASSERTION`,
-  `UNKNOWN`, `TBD`, `TODO`, or template placeholder text remain blocker
-  evidence rather than package proof. Interpret exit `0` as local static
-  source formula proof only, exit `2` as unavailable/blocker evidence, and any
-  other nonzero exit as a proof failure.
+  Homebrew local formula proof command. It now detects the root MIT `LICENSE`,
+  accepts `SPARSE_HOMEBREW_LICENSE=MIT`, creates the local source archive,
+  renders the formula through a temporary local tap, and invokes source
+  install. Do not cite it as Homebrew support, Homebrew/core readiness, bottle
+  support, Linuxbrew support, or broad package-manager support until a current
+  environment reaches proof exit `0`. Placeholder values such as
+  `NOASSERTION`, `UNKNOWN`, `TBD`, `TODO`, or template placeholder text remain
+  blocker evidence rather than package proof. Interpret exit `0` as local
+  static source formula proof only, exit `2` as unavailable/blocker evidence,
+  and any other nonzero exit as a proof failure.
 - Sprint 198 records the current Homebrew proof runbook status in
-  `docs/planning/EPIC_18/SPRINT_198/WORKING_NOTES.md`. Until the Day 2
-  metadata decision is replaced by approved root license metadata and the Day
-  9 proof exits `0`, maintainers should keep package-manager wording in the
+  `docs/planning/EPIC_18/SPRINT_198/WORKING_NOTES.md`. Until the proof exits
+  `0`, maintainers should keep package-manager wording in the
   blocker/provenance state and should not promote public install instructions
   for the Homebrew template.
 - Run `bash scripts/package_manager_deferral_check.sh` when changing

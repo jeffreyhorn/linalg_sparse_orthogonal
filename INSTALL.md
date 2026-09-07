@@ -62,20 +62,21 @@ Use each support surface for the layer it owns:
   - package-manager support is not currently provided
   - local Homebrew formula proof material exists under `packaging/homebrew/`,
     plus `scripts/homebrew_local_formula_proof.sh`
-  - Homebrew local formula proof artifacts exist, but the proof currently exits
-    before archive, render, install, or `brew test` work because no approved
-    standalone `LICENSE`, `COPYING`, or `NOTICE` file exists for provider
-    metadata
-  - no exact `SPARSE_HOMEBREW_LICENSE` value is selected until approved root
-    license metadata exists; placeholder values are blocker evidence, not
+  - Homebrew local formula proof artifacts exist, root MIT license metadata is
+    present, and the selected proof uses `SPARSE_HOMEBREW_LICENSE=MIT`
+  - the latest local proof reaches archive creation, checksum calculation,
+    temporary tap formula rendering, and source install invocation, but this
+    host stops at Homebrew's outdated Command Line Tools check before
+    installed-surface validation or `brew test`
+  - placeholder `SPARSE_HOMEBREW_LICENSE` values remain blocker evidence, not
     formula proof metadata
   - Homebrew/core, bottles, Linuxbrew, vcpkg, Conan, pkgsrc, distro/system
     packages, provider registries, taps, recipes beyond the selected local
     template, and binary packages remain unsupported
   - use source install via Make or CMake until the selected provider proof
     passes and docs/guards are updated to a proven support level
-  - Sprint 198 keeps the missing approved standalone license metadata as a
-    proof blocker, not a user-facing Homebrew installation path
+  - Sprint 198 keeps the incomplete install/`brew test` proof as a proof
+    blocker, not a user-facing Homebrew installation path
 - reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
 
@@ -597,8 +598,8 @@ static-first scope metadata, not as proof that an install validation command
 was just run. To prove the install surface locally, run the install validation
 scripts above. The package-manager guard protects provider non-claims and
 checks the selected Homebrew local proof boundary. The current Homebrew proof
-script exits claim-safely before archive, render, install, or `brew test` work
-on missing approved standalone license metadata, so it does not prove provider
-install behavior yet. Sprint 198 records the current blocker as missing
-approved standalone root license metadata plus the missing exact
-`SPARSE_HOMEBREW_LICENSE` value.
+script now accepts root MIT metadata and `SPARSE_HOMEBREW_LICENSE=MIT`, creates
+the local source archive, renders the temporary formula through a local tap,
+and invokes source install. It does not prove provider install behavior yet
+because the latest local run stops on this host's outdated Command Line Tools
+before installed-surface validation or `brew test`.

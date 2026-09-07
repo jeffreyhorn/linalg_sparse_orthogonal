@@ -3,8 +3,8 @@
 #
 # This script preserves the Sprint 171 package-manager non-claim baseline and
 # the Sprint 180 selected local Homebrew proof boundary. Sprint 198 records the
-# selected Homebrew metadata blocker until approved root license metadata and
-# an exact Homebrew formula license identifier allow the proof to pass.
+# selected Homebrew proof state until the full local proof exits 0 and support
+# wording is deliberately promoted.
 
 set -euo pipefail
 
@@ -93,48 +93,44 @@ check_deferral_record() {
 check_sprint198_blocker_record() {
     local day2_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day2-license-metadata-decision.md"
     local day9_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day9-end-to-end-proof-run.md"
+    local day14_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day14-closeout-review.md"
+    local license_file="$ROOT_DIR/LICENSE"
 
     [ -f "$day2_record" ] || fail "Sprint 198 license metadata decision record is missing"
     [ -f "$day9_record" ] || fail "Sprint 198 end-to-end proof run record is missing"
+    [ -f "$day14_record" ] || fail "Sprint 198 closeout record is missing"
+    [ -f "$license_file" ] || fail "root MIT license metadata is missing"
 
     require_grep \
-        'No approved standalone root license metadata or exact Homebrew formula license' \
-        "$day2_record" \
-        "Sprint 198 license decision no longer records the missing metadata blocker"
+        '^MIT License$' \
+        "$license_file" \
+        "root license metadata is not MIT"
     require_grep \
         'must not invent license terms' \
         "$day2_record" \
         "Sprint 198 license decision no longer rejects guessed license terms"
     require_grep \
+        'SPARSE_HOMEBREW_LICENSE=MIT' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records the selected MIT Homebrew license metadata"
+    require_grep \
+        '[Tt]emporary local tap' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records temporary tap rendering"
+    require_grep \
+        'Command Line Tools' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records the current local CLT proof blocker"
+    require_grep \
         'Homebrew/package-manager support remains unclaimed' \
-        "$day2_record" \
-        "Sprint 198 license decision no longer keeps package-manager support unclaimed"
-    require_grep \
-        'Exit | `2`' \
-        "$day9_record" \
-        "Sprint 198 proof run record no longer records unavailable exit 2"
-    require_grep \
-        '\| Source archive creation \| Not reached \|' \
-        "$day9_record" \
-        "Sprint 198 proof run record no longer keeps archive creation unearned"
-    require_grep \
-        '\| Temporary formula rendering \| Not reached \|' \
-        "$day9_record" \
-        "Sprint 198 proof run record no longer keeps formula rendering unearned"
-    require_grep \
-        '\| Local formula install \| Not reached \|' \
-        "$day9_record" \
-        "Sprint 198 proof run record no longer keeps formula install unearned"
-    require_grep \
-        '\| `brew test` downstream consumer \| Not reached \|' \
-        "$day9_record" \
-        "Sprint 198 proof run record no longer keeps brew test unearned"
+        "$day14_record" \
+        "Sprint 198 closeout no longer keeps package-manager support unclaimed"
     require_grep \
         'Homebrew/core readiness, bottles, Linuxbrew support, public tap maintenance' \
         "$day9_record" \
         "Sprint 198 proof run record no longer preserves broader Homebrew non-claims"
 
-    pass "Sprint 198 metadata blocker record"
+    pass "Sprint 198 package proof record"
 }
 
 check_provider_recipe_absence() {

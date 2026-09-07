@@ -14,6 +14,12 @@ Run the local proof command from the repository root:
 SPARSE_HOMEBREW_LICENSE=<accurate-id> scripts/homebrew_local_formula_proof.sh
 ```
 
+For the current MIT metadata path, use:
+
+```sh
+SPARSE_HOMEBREW_LICENSE=MIT scripts/homebrew_local_formula_proof.sh
+```
+
 Use the command result this way:
 
 | Exit | Meaning | Support wording |
@@ -40,6 +46,10 @@ archive. Once approved metadata exists, the archive must include the selected
 standalone license file along with the source, CMake/package metadata, and
 examples needed by the local formula proof.
 
+The current repository includes root MIT license metadata. The proof now
+renders the formula into a temporary local tap before install because current
+Homebrew rejects direct installation of generated formula files outside a tap.
+
 After install, the proof validates the static archive, installed headers,
 CMake package files, and `sparse.pc`. Installed package metadata must not gain
 provider wording, shared-library selectors, `Libs.private`, dynamic ABI
@@ -61,8 +71,7 @@ registry readiness, shared-library support, dynamic ABI support, static/shared
 selectors, and broad package-manager support remain unsupported unless a later
 product decision adds separate evidence.
 
-Sprint 198 keeps this directory in proof-only status. Until approved
-standalone license metadata exists at the repository root, the exact
+Sprint 198 keeps this directory in proof-only status. Until the exact
 `SPARSE_HOMEBREW_LICENSE` value is selected, and the proof script completes
 render, install, `brew test`, uninstall, and cleanup successfully, do not present this template as an available Homebrew install method.
 

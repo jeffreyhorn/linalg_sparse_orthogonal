@@ -2,9 +2,9 @@
 # package_manager_deferral_check.sh - package-manager provider claim guard.
 #
 # This script preserves the Sprint 171 package-manager non-claim baseline and
-# the Sprint 180 selected local Homebrew proof boundary. The selected Homebrew
-# proof artifacts are allowed, but public Homebrew support remains unclaimed
-# while the local proof exits at the missing standalone-license gate.
+# the Sprint 180 selected local Homebrew proof boundary. Sprint 198 records the
+# selected Homebrew metadata blocker until approved root license metadata and
+# an exact Homebrew formula license identifier allow the proof to pass.
 
 set -euo pipefail
 
@@ -88,6 +88,53 @@ check_deferral_record() {
         "Sprint 171 deferral record no longer requires guard coverage"
 
     pass "deferral record"
+}
+
+check_sprint198_blocker_record() {
+    local day2_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day2-license-metadata-decision.md"
+    local day9_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day9-end-to-end-proof-run.md"
+
+    [ -f "$day2_record" ] || fail "Sprint 198 license metadata decision record is missing"
+    [ -f "$day9_record" ] || fail "Sprint 198 end-to-end proof run record is missing"
+
+    require_grep \
+        'No approved standalone root license metadata or exact Homebrew formula license' \
+        "$day2_record" \
+        "Sprint 198 license decision no longer records the missing metadata blocker"
+    require_grep \
+        'must not invent license terms' \
+        "$day2_record" \
+        "Sprint 198 license decision no longer rejects guessed license terms"
+    require_grep \
+        'Homebrew/package-manager support remains unclaimed' \
+        "$day2_record" \
+        "Sprint 198 license decision no longer keeps package-manager support unclaimed"
+    require_grep \
+        'Exit | `2`' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer records unavailable exit 2"
+    require_grep \
+        '\| Source archive creation \| Not reached \|' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer keeps archive creation unearned"
+    require_grep \
+        '\| Temporary formula rendering \| Not reached \|' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer keeps formula rendering unearned"
+    require_grep \
+        '\| Local formula install \| Not reached \|' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer keeps formula install unearned"
+    require_grep \
+        '\| `brew test` downstream consumer \| Not reached \|' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer keeps brew test unearned"
+    require_grep \
+        'Homebrew/core readiness, bottles, Linuxbrew support, public tap maintenance' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer preserves broader Homebrew non-claims"
+
+    pass "Sprint 198 metadata blocker record"
 }
 
 check_provider_recipe_absence() {
@@ -297,6 +344,7 @@ check_public_nonclaims() {
 }
 
 check_deferral_record
+check_sprint198_blocker_record
 check_provider_recipe_absence
 check_selected_homebrew_local_proof
 check_package_metadata_neutrality

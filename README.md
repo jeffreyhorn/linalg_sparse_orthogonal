@@ -1071,7 +1071,10 @@ reviewed together. The Sprint
   182 deferral record still applies to all other Windows report freshness.
 Current package-manager support and package-manager distribution are not
 provided; local Homebrew formula proof material remains blocker/provenance
-evidence, not a user-facing install path.
+evidence, not a user-facing install path. Sprint 198 records that the current
+local Homebrew proof exits claim-safely before archive, render, install, or
+`brew test` work because no approved standalone root license metadata or exact
+Homebrew formula license identifier exists.
 
 ## Documentation
 

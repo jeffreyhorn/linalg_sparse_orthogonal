@@ -74,7 +74,7 @@ Use each support surface for the layer it owns:
     template, and binary packages remain unsupported
   - use source install via Make or CMake until the selected provider proof
     passes and docs/guards are updated to a proven support level
-  - Sprint 188 keeps the missing approved standalone license metadata as a
+  - Sprint 198 keeps the missing approved standalone license metadata as a
     proof blocker, not a user-facing Homebrew installation path
 - reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
@@ -599,4 +599,6 @@ scripts above. The package-manager guard protects provider non-claims and
 checks the selected Homebrew local proof boundary. The current Homebrew proof
 script exits claim-safely before archive, render, install, or `brew test` work
 on missing approved standalone license metadata, so it does not prove provider
-install behavior yet.
+install behavior yet. Sprint 198 records the current blocker as missing
+approved standalone root license metadata plus the missing exact
+`SPARSE_HOMEBREW_LICENSE` value.

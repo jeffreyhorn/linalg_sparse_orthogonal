@@ -324,9 +324,13 @@ check_public_nonclaims() {
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer records the current Homebrew local proof blocker"
     require_grep \
+        'not a user-facing' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer rejects user-facing Homebrew install wording"
+    require_grep \
         'Homebrew installation path' \
         "$ROOT_DIR/INSTALL.md" \
-        "INSTALL no longer keeps the missing-license blocker out of user-facing Homebrew support"
+        "INSTALL no longer identifies the Homebrew installation path non-claim"
     require_grep \
         'distribution, static/shared selectors' \
         "$ROOT_DIR/INSTALL.md" \

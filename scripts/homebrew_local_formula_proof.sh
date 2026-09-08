@@ -49,11 +49,12 @@ unavailable() {
 }
 
 cleanup() {
-    cleanup_status=$?
+    local cleanup_status=$?
 
     if [ "$UNINSTALL_ON_EXIT" -eq 1 ] && command -v brew >/dev/null 2>&1; then
-        brew uninstall --force "${FORMULA_REF:-$FORMULA_NAME}" >/dev/null 2>&1 || {
-            echo "homebrew-local-formula-proof: WARN: cleanup could not uninstall $FORMULA_NAME" >&2
+        local uninstall_target="${FORMULA_REF:-$FORMULA_NAME}"
+        brew uninstall --force "$uninstall_target" >/dev/null 2>&1 || {
+            echo "homebrew-local-formula-proof: WARN: cleanup could not uninstall $uninstall_target" >&2
         }
     fi
 
@@ -417,7 +418,7 @@ ruby -c "$FORMULA_FILE" >/dev/null
 
 info "installing local formula from source"
 UNINSTALL_ON_EXIT=1
-if ! brew install --build-from-source --ignore-dependencies "$FORMULA_REF" >"$INSTALL_LOG" 2>&1; then
+if ! brew install --build-from-source "$FORMULA_REF" >"$INSTALL_LOG" 2>&1; then
     cat "$INSTALL_LOG" >&2
     fail "local Homebrew formula install proof failed; see $INSTALL_LOG"
 fi

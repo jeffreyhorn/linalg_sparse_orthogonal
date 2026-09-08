@@ -1886,20 +1886,71 @@ def test_selected_target_requires_check_freshness() -> None:
     assert "--selected-target requires --check-freshness" in result.stderr
 
 
+def test_selected_target_unknown_key_fails_clearly() -> None:
+    result = run_command(
+        [
+            "python3",
+            str(SCRIPT),
+            "--family",
+            "comparison",
+            "--require-generated",
+            "comparison",
+            "--check-freshness",
+            "--selected-target",
+            "not-a-selected-target",
+        ],
+        expect_success=False,
+    )
+    assert "missing selected comparison target_key=not-a-selected-target" in result.stderr
+    assert "selected_report_targets.tsv" in result.stderr
+    assert "run python3 scripts/validate_corpus_schema.py" in result.stderr
+
+
 def test_selected_comparison_generated_rows_match_windows_artifact_paths() -> None:
+    selected = {"build/comparison/cholesky_spd_tridiag_5/study.tsv"}
+    expected_paths = [
+        "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+        r"build\comparison\cholesky_spd_tridiag_5\study.tsv",
+        r"build/comparison\cholesky_spd_tridiag_5/study.tsv",
+        r"D:\a\linalg_sparse_orthogonal\linalg_sparse_orthogonal\build\comparison\cholesky_spd_tridiag_5\study.tsv",
+    ]
     rows = [
         {
             "report_family": "comparison",
             "row_origin": "generated_local",
-            "row_id": "comparison_cholesky_spd_tridiag_5_project_status_v1",
-            "artifact_path": r"build\comparison\cholesky_spd_tridiag_5\study.tsv",
+            "row_id": f"comparison_cholesky_spd_tridiag_5_path_case_{index}_v1",
+            "artifact_path": artifact_path,
         }
+        for index, artifact_path in enumerate(expected_paths)
     ]
-    selected = {"build/comparison/cholesky_spd_tridiag_5/study.tsv"}
 
     matched = normalize_index.selected_comparison_generated_rows(rows, selected)
 
     assert matched == rows
+
+
+def test_selected_comparison_generated_rows_reject_near_match_artifact_paths() -> None:
+    selected = {"build/comparison/cholesky_spd_tridiag_5/study.tsv"}
+    rejected_paths = [
+        "build/comparison/cholesky_spd_tridiag_50/study.tsv",
+        "build/comparison/not_cholesky_spd_tridiag_5/study.tsv",
+        "build/comparison/cholesky_spd_tridiag_5_extra/study.tsv",
+        "build/comparison/cholesky_spd_tridiag_5/study.tsv.bak",
+        r"D:\a\repo\build\comparison\cholesky_spd_tridiag_50\study.tsv",
+    ]
+    rows = [
+        {
+            "report_family": "comparison",
+            "row_origin": "generated_local",
+            "row_id": f"comparison_cholesky_spd_tridiag_5_near_match_{index}_v1",
+            "artifact_path": artifact_path,
+        }
+        for index, artifact_path in enumerate(rejected_paths)
+    ]
+
+    matched = normalize_index.selected_comparison_generated_rows(rows, selected)
+
+    assert matched == []
 
 
 def test_selected_comparison_target_freshness_rejects_windows_path_stale_rows() -> None:
@@ -2032,6 +2083,44 @@ def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
         )
         assert "generated comparison row reports fail" in result.stdout
         assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
+
+
+def test_selected_comparison_target_freshness_rejects_wrong_target_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+        )
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_rows" in result.stdout
+        assert "row_set_mismatch" in result.stdout
+        assert "target_ids=SRT-COMP-CHOLESKY-SPD-TRIDIAG-5" in result.stdout
+        assert "observed=0" in result.stdout
+        assert (
+            "missing=comparison_cholesky_spd_tridiag_5_baseline_status_v1"
+            in result.stdout
+        )
+        assert "unexpected=none" in result.stdout
+        assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "--selected-target cholesky-spd-tridiag-5" in result.stdout
 
 
 def test_qr_incompatible_selected_freshness_rejects_dependency_only_rows() -> None:
@@ -2310,10 +2399,13 @@ def main() -> int:
     test_selected_comparison_target_freshness_accepts_cholesky_subset()
     test_selected_comparison_target_freshness_accepts_qr_incompatible_subset()
     test_selected_target_requires_check_freshness()
+    test_selected_target_unknown_key_fails_clearly()
     test_selected_comparison_generated_rows_match_windows_artifact_paths()
+    test_selected_comparison_generated_rows_reject_near_match_artifact_paths()
     test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
     test_qr_incompatible_selected_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
+    test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()

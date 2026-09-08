@@ -111,8 +111,10 @@ package/ABI, or state-of-the-art claim.
 The manifest is positive selected-target authority, not a general deferral
 registry. Sprint 190 wires one bounded Windows selected Cholesky comparison
 freshness workflow for `cholesky-spd-tridiag-5`, but the source manifest does
-not list `windows` until selected Cholesky metadata, support tier, and claim
-wording are reviewed together. The Sprint 182 deferral remains active for all
+not list `windows`. Sprint 199 reviewed hosted evidence for that exact path and
+re-deferred selected Windows freshness promotion because the selected manifest,
+generated support tier, and generated non-claim wording still do not promote
+Windows. The Sprint 182 deferral remains active for all
 other Windows report freshness. A broader Windows promotion must add exact
 workflow file, job, artifact, platform, support-tier, claim-scope, and
 non-claim metadata rather than drifting an existing selected row silently. The
@@ -172,8 +174,10 @@ selected QR, partial-SVD, LU, and Cholesky comparison freshness gate. Those
 hosted lanes cover only their selected generated rows and split artifacts.
 Sprint 190 adds one bounded Windows hosted workflow path for
 `cholesky-spd-tridiag-5` with target-specific freshness checking. Treat that
-path as guarded workflow evidence until hosted evidence, selected target
-metadata, support tier, and claim contract are reviewed and promoted together.
+path as guarded workflow evidence: Sprint 199 reviewed hosted evidence for the
+exact path and re-deferred Windows selected freshness promotion until selected
+target metadata, generated support tier, and generated non-claim wording are
+promoted together.
 These lanes do not prove broad report-index freshness, selected oracle
 freshness on macOS, selected oracle freshness on Windows, selected benchmark
 freshness on Windows, broad Windows report freshness, or all local-only

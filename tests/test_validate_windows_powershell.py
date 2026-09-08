@@ -130,6 +130,36 @@ def test_selected_cholesky_lane_missing_target_fails_clearly() -> None:
     )
 
 
+def test_selected_cholesky_lane_generator_target_drift_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "--target cholesky-spd-tridiag-5", "--target qr-minnorm", 1
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing selected Cholesky token",
+    )
+
+
+def test_selected_cholesky_lane_artifact_name_drift_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "name: sprint190-windows-selected-comparison-cholesky",
+        "name: sprint190-windows-selected-comparison-qr",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "sprint190-windows-selected-comparison-cholesky",
+    )
+
+
+def test_selected_cholesky_lane_upload_must_fail_closed() -> None:
+    drifted = read_workflow().replace("          if-no-files-found: error\n", "", 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "if-no-files-found: error",
+    )
+
+
 def test_selected_cholesky_lane_missing_timeout_fails_clearly() -> None:
     drifted = read_workflow().replace("    timeout-minutes: 20\n", "", 1)
     assert_raises_with(
@@ -359,6 +389,9 @@ if __name__ == "__main__":
     test_forbidden_windows_report_freshness_command_fails_clearly()
     test_extra_windows_upload_artifact_fails_outside_selected_lane()
     test_selected_cholesky_lane_missing_target_fails_clearly()
+    test_selected_cholesky_lane_generator_target_drift_fails_clearly()
+    test_selected_cholesky_lane_artifact_name_drift_fails_clearly()
+    test_selected_cholesky_lane_upload_must_fail_closed()
     test_selected_cholesky_lane_missing_timeout_fails_clearly()
     test_selected_cholesky_lane_broad_upload_fails_clearly()
     test_selected_cholesky_lane_missing_required_upload_fails_clearly()

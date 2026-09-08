@@ -344,9 +344,11 @@ Reviewed Linux hosted report freshness runs only the selected oracle and
 comparison gates above; reviewed macOS hosted report freshness runs only the
 selected comparison gate. Windows currently has one guarded workflow path for
 `cholesky-spd-tridiag-5`, but the selected target manifest still owns platform
-promotion. Until hosted CI evidence and selected-target metadata are reviewed
-together, do not treat that Windows path as promoted selected freshness or broad
-Windows report evidence.
+promotion. Sprint 199 reviewed hosted CI evidence for that exact path and kept
+Windows promotion re-deferred because selected-target metadata, generated
+support tier, and generated non-claim wording still remain local-only. Do not
+treat the Windows path as promoted selected freshness or broad Windows report
+evidence.
 
 The selected target list, expected row counts, required artifacts, workflow
 upload names, support tiers, freshness policies, claim scopes, and non-claims
@@ -777,10 +779,10 @@ gate is mirrored by reviewed Linux and macOS hosted report-freshness lanes for
 selected comparison artifacts only. Sprint 190 adds one guarded Windows hosted
 workflow path for `cholesky-spd-tridiag-5` using the target-specific freshness
 command `python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and artifact
-`sprint190-windows-selected-comparison-cholesky`. The selected manifest still
-controls platform promotion, so this path is not promoted Windows selected
-freshness until hosted evidence, selected metadata, support tier, and claim
-contract are reviewed together. These gates do not
+`sprint190-windows-selected-comparison-cholesky`. Sprint 199 reviewed hosted
+evidence for that exact path and re-deferred selected Windows freshness
+promotion because the selected manifest, generated support tier, and generated
+non-claim wording still do not promote Windows. These gates do not
 prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
 broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list
@@ -1065,9 +1067,9 @@ ABI decision remains
 Windows remains CMake-first, and Windows still does not claim Makefile parity
 or `pkg-config` execution parity. The Windows workflow keeps a hosted PowerShell validation ownership
   job for selected workflow snippets and one bounded Windows selected Cholesky comparison freshness workflow
-as a guarded path; this is not broad Windows report freshness, and it is not
-promoted selected freshness until the manifest metadata and hosted evidence are
-reviewed together. The Sprint
+as a guarded path. Sprint 199 reviewed that exact hosted path and re-deferred
+selected Windows freshness promotion until the selected manifest, generated
+support tier, and generated non-claim wording are promoted together. The Sprint
   182 deferral record still applies to all other Windows report freshness.
 Current broad package-manager support and package-manager distribution are not
 provided. Sprint 198 now includes root MIT license metadata and a completed

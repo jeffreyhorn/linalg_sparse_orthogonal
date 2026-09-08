@@ -28,7 +28,8 @@ does not claim Homebrew/core, bottle, Linuxbrew, or broad package-manager
 support.
 
 Options:
-  --keep-temp   Preserve generated archive/formula/log files for debugging.
+  --keep-temp   Preserve generated archive/formula/log files and temporary tap
+                for debugging.
   -h, --help    Show this help.
 EOF
 }
@@ -58,7 +59,12 @@ cleanup() {
         }
     fi
 
-    if [ "$TAP_CREATED" -eq 1 ] && [ -n "$TAP_NAME" ] && command -v brew >/dev/null 2>&1; then
+    if [ "$TAP_CREATED" -eq 1 ] && [ -n "$TAP_NAME" ] && [ "$KEEP_TEMP" -eq 1 ]; then
+        echo "homebrew-local-formula-proof: kept temporary tap: $TAP_NAME" >&2
+        if command -v brew >/dev/null 2>&1; then
+            echo "homebrew-local-formula-proof: kept temporary tap repo: $(brew --repo "$TAP_NAME" 2>/dev/null || true)" >&2
+        fi
+    elif [ "$TAP_CREATED" -eq 1 ] && [ -n "$TAP_NAME" ] && command -v brew >/dev/null 2>&1; then
         brew untap --force "$TAP_NAME" >/dev/null 2>&1 || {
             echo "homebrew-local-formula-proof: WARN: cleanup could not untap $TAP_NAME" >&2
         }

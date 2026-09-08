@@ -15,6 +15,8 @@ class SparseLuOrthoLocal < Formula
   depends_on "cmake" => :build
 
   def install
+    ENV.prepend_path "PATH", "__SPARSE_LOCAL_CMAKE_BINDIR__"
+
     system "cmake", "-S", ".", "-B", "build",
                     "-DCMAKE_INSTALL_PREFIX=#{prefix}",
                     "-DCMAKE_INSTALL_LIBDIR=lib",
@@ -33,6 +35,7 @@ class SparseLuOrthoLocal < Formula
 
   test do
     expected_version = "__SPARSE_VERSION__"
+    ENV.prepend_path "PATH", "__SPARSE_LOCAL_CMAKE_BINDIR__"
 
     (testpath/"CMakeLists.txt").write <<~CMAKE
       cmake_minimum_required(VERSION 3.14)

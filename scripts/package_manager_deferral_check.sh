@@ -2,9 +2,9 @@
 # package_manager_deferral_check.sh - package-manager provider claim guard.
 #
 # This script preserves the Sprint 171 package-manager non-claim baseline and
-# the Sprint 180 selected local Homebrew proof boundary. The selected Homebrew
-# proof artifacts are allowed, but public Homebrew support remains unclaimed
-# while the local proof exits at the missing standalone-license gate.
+# the Sprint 180 selected local Homebrew proof boundary. Sprint 198 records the
+# completed developer-mode local static source formula proof while preserving
+# broader package-manager non-claims.
 
 set -euo pipefail
 
@@ -88,6 +88,57 @@ check_deferral_record() {
         "Sprint 171 deferral record no longer requires guard coverage"
 
     pass "deferral record"
+}
+
+check_sprint198_package_record() {
+    local day2_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day2-license-metadata-decision.md"
+    local day9_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day9-end-to-end-proof-run.md"
+    local day14_record="$ROOT_DIR/docs/planning/EPIC_18/SPRINT_198/artifacts/day14-closeout-review.md"
+    local license_file="$ROOT_DIR/LICENSE"
+
+    [ -f "$day2_record" ] || fail "Sprint 198 license metadata decision record is missing"
+    [ -f "$day9_record" ] || fail "Sprint 198 end-to-end proof run record is missing"
+    [ -f "$day14_record" ] || fail "Sprint 198 closeout record is missing"
+    [ -f "$license_file" ] || fail "root MIT license metadata is missing"
+
+    require_grep \
+        '^MIT License$' \
+        "$license_file" \
+        "root license metadata is not MIT"
+    require_grep \
+        'must not invent license terms' \
+        "$day2_record" \
+        "Sprint 198 license decision no longer rejects guessed license terms"
+    require_grep \
+        'SPARSE_HOMEBREW_LICENSE=MIT' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records the selected MIT Homebrew license metadata"
+    require_grep \
+        'HOMEBREW_DEVELOPER=1' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records the developer-mode Homebrew proof environment"
+    require_grep \
+        '[Tt]emporary local tap' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records temporary tap rendering"
+    require_grep \
+        'proof exit `0`' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records successful proof exit"
+    require_grep \
+        'developer-mode local static source formula proof' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer records the bounded local proof scope"
+    require_grep \
+        'broad package-manager support remain unclaimed' \
+        "$day14_record" \
+        "Sprint 198 closeout no longer keeps broad package-manager support unclaimed"
+    require_grep \
+        'Homebrew/core readiness, bottles, Linuxbrew support, public tap maintenance' \
+        "$day9_record" \
+        "Sprint 198 proof run record no longer preserves broader Homebrew non-claims"
+
+    pass "Sprint 198 package proof record"
 }
 
 check_provider_recipe_absence() {
@@ -198,7 +249,7 @@ check_selected_homebrew_local_proof() {
     )"
 
     set +e
-    output="$("$proof" 2>&1)"
+    output="$(HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT "$proof" 2>&1)"
     status=$?
     set -e
 
@@ -207,6 +258,10 @@ check_selected_homebrew_local_proof() {
             if ! printf '%s\n' "$output" | grep -Fq 'local Homebrew formula proof'; then
                 printf '%s\n' "$output" >&2
                 fail "Homebrew proof success path no longer emits local proof scope"
+            fi
+            if ! printf '%s\n' "$output" | grep -Fq 'passed: local Homebrew formula proof completed for static source formula scope only'; then
+                printf '%s\n' "$output" >&2
+                fail "Homebrew proof success path no longer emits static source formula completion scope"
             fi
             ;;
         2)
@@ -253,7 +308,7 @@ check_public_nonclaims() {
         "$ROOT_DIR/README.md" \
         "README no longer keeps package-manager support scoped as a non-claim"
     require_grep \
-        'local Homebrew formula proof' \
+        'local Homebrew.*formula proof' \
         "$ROOT_DIR/README.md" \
         "README no longer records current local Homebrew proof status"
     require_grep \
@@ -269,17 +324,21 @@ check_public_nonclaims() {
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer records the current Homebrew local proof blocker"
     require_grep \
-        'not a user-facing Homebrew installation path' \
+        'not a user-facing' \
         "$ROOT_DIR/INSTALL.md" \
-        "INSTALL no longer keeps the missing-license blocker out of user-facing Homebrew support"
+        "INSTALL no longer rejects user-facing Homebrew install wording"
+    require_grep \
+        'Homebrew installation path' \
+        "$ROOT_DIR/INSTALL.md" \
+        "INSTALL no longer identifies the Homebrew installation path non-claim"
     require_grep \
         'distribution, static/shared selectors' \
         "$ROOT_DIR/INSTALL.md" \
         "INSTALL no longer keeps package-manager distribution out of scope"
     require_grep \
-        'do not present this template as an available Homebrew install method' \
+        'proof material for the local static' \
         "$ROOT_DIR/packaging/homebrew/README.md" \
-        "Homebrew README no longer keeps the local template unclaimed while proof is blocked"
+        "Homebrew README no longer keeps the local template scoped to proof-only use"
     require_grep \
         'package-manager support' \
         "$ROOT_DIR/docs/maintainer_guide.md" \
@@ -297,6 +356,7 @@ check_public_nonclaims() {
 }
 
 check_deferral_record
+check_sprint198_package_record
 check_provider_recipe_absence
 check_selected_homebrew_local_proof
 check_package_metadata_neutrality

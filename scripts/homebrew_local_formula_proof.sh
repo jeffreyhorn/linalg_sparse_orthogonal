@@ -15,6 +15,8 @@ FORMULA_NAME="sparse-lu-ortho-local"
 KEEP_TEMP=0
 TMPROOT=""
 UNINSTALL_ON_EXIT=0
+TAP_NAME=""
+TAP_CREATED=0
 LICENSE_METADATA_ENTRIES=()
 
 usage() {
@@ -26,7 +28,8 @@ does not claim Homebrew/core, bottle, Linuxbrew, or broad package-manager
 support.
 
 Options:
-  --keep-temp   Preserve generated archive/formula/log files for debugging.
+  --keep-temp   Preserve generated archive/formula/log files and temporary tap
+                for debugging.
   -h, --help    Show this help.
 EOF
 }
@@ -47,11 +50,23 @@ unavailable() {
 }
 
 cleanup() {
-    local status=$?
+    local cleanup_status=$?
 
     if [ "$UNINSTALL_ON_EXIT" -eq 1 ] && command -v brew >/dev/null 2>&1; then
-        brew uninstall --force "$FORMULA_NAME" >/dev/null 2>&1 || {
-            echo "homebrew-local-formula-proof: WARN: cleanup could not uninstall $FORMULA_NAME" >&2
+        local uninstall_target="${FORMULA_REF:-$FORMULA_NAME}"
+        brew uninstall --force "$uninstall_target" >/dev/null 2>&1 || {
+            echo "homebrew-local-formula-proof: WARN: cleanup could not uninstall $uninstall_target" >&2
+        }
+    fi
+
+    if [ "$TAP_CREATED" -eq 1 ] && [ -n "$TAP_NAME" ] && [ "$KEEP_TEMP" -eq 1 ]; then
+        echo "homebrew-local-formula-proof: kept temporary tap: $TAP_NAME" >&2
+        if command -v brew >/dev/null 2>&1; then
+            echo "homebrew-local-formula-proof: kept temporary tap repo: $(brew --repo "$TAP_NAME" 2>/dev/null || true)" >&2
+        fi
+    elif [ "$TAP_CREATED" -eq 1 ] && [ -n "$TAP_NAME" ] && command -v brew >/dev/null 2>&1; then
+        brew untap --force "$TAP_NAME" >/dev/null 2>&1 || {
+            echo "homebrew-local-formula-proof: WARN: cleanup could not untap $TAP_NAME" >&2
         }
     fi
 
@@ -61,7 +76,7 @@ cleanup() {
         echo "homebrew-local-formula-proof: kept temp root: $TMPROOT" >&2
     fi
 
-    exit "$status"
+    exit "$cleanup_status"
 }
 
 trap cleanup EXIT
@@ -175,6 +190,7 @@ render_formula() {
     SPARSE_FORMULA_SHA256="$ARCHIVE_SHA256" \
     SPARSE_VERSION="$EXPECTED_VERSION" \
     SPARSE_HOMEBREW_LICENSE="$HOMEBREW_LICENSE" \
+    SPARSE_LOCAL_CMAKE_BINDIR="$LOCAL_CMAKE_BINDIR" \
     ruby - "$TEMPLATE" "$output" <<'RUBY'
 template = ARGV.fetch(0)
 output = ARGV.fetch(1)
@@ -184,7 +200,8 @@ replacements = {
   "__SPARSE_FORMULA_URL__" => ENV.fetch("SPARSE_FORMULA_URL"),
   "__SPARSE_FORMULA_SHA256__" => ENV.fetch("SPARSE_FORMULA_SHA256"),
   "__SPARSE_VERSION__" => ENV.fetch("SPARSE_VERSION"),
-  "__SPARSE_HOMEBREW_LICENSE__" => ENV.fetch("SPARSE_HOMEBREW_LICENSE")
+  "__SPARSE_HOMEBREW_LICENSE__" => ENV.fetch("SPARSE_HOMEBREW_LICENSE"),
+  "__SPARSE_LOCAL_CMAKE_BINDIR__" => ENV.fetch("SPARSE_LOCAL_CMAKE_BINDIR")
 }
 replacements.each do |placeholder, value|
   abort("empty replacement for #{placeholder}") if value.empty?
@@ -236,7 +253,9 @@ make_source_archive() {
         cmake
         include
         src
+        benchmarks
         examples
+        tests
     )
     local entry
 
@@ -277,7 +296,9 @@ verify_source_archive() {
         cmake
         include
         src
+        benchmarks
         examples
+        tests
     )
 
     archive_listing="$(tar -tzf "$archive")" ||
@@ -301,7 +322,7 @@ check_installed_static_surface() {
     local targets_noconfig_file
     local version_file
 
-    prefix="$(brew --prefix "$FORMULA_NAME")"
+    prefix="$(brew --prefix "$FORMULA_REF")"
     cmake_package_dir="$prefix/lib/cmake/Sparse"
     config_file="$cmake_package_dir/SparseConfig.cmake"
     pc_file="$prefix/lib/pkgconfig/sparse.pc"
@@ -366,18 +387,27 @@ require_placeholder "__SPARSE_FORMULA_URL__"
 require_placeholder "__SPARSE_FORMULA_SHA256__"
 require_placeholder "__SPARSE_VERSION__"
 require_placeholder "__SPARSE_HOMEBREW_LICENSE__"
+require_placeholder "__SPARSE_LOCAL_CMAKE_BINDIR__"
 ruby -c "$TEMPLATE" >/dev/null
 verify_formula_test_contract
 detect_license_metadata
+LOCAL_CMAKE_BINDIR="$(dirname "$(command -v cmake)")"
 
 TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/sparse-homebrew-proof.XXXXXX")"
 ARCHIVE="$TMPROOT/sparse-lu-ortho-$EXPECTED_VERSION.tar.gz"
-FORMULA_DIR="$TMPROOT/tap/Formula"
-FORMULA_FILE="$FORMULA_DIR/$FORMULA_NAME.rb"
 INSTALL_LOG="$TMPROOT/brew-install.log"
 TEST_LOG="$TMPROOT/brew-test.log"
 HOMEPAGE="${SPARSE_HOMEBREW_HOMEPAGE:-https://github.com/local/sparse-lu-ortho-local-proof}"
+TAP_NAME="${SPARSE_HOMEBREW_TAP_NAME:-sparse-lu-ortho/local-proof-$$}"
+FORMULA_REF="$TAP_NAME/$FORMULA_NAME"
 
+info "creating temporary local tap: $TAP_NAME"
+if ! brew tap-new --no-git "$TAP_NAME" >/dev/null 2>&1; then
+    fail "could not create temporary local Homebrew tap: $TAP_NAME"
+fi
+TAP_CREATED=1
+FORMULA_DIR="$(brew --repo "$TAP_NAME")/Formula"
+FORMULA_FILE="$FORMULA_DIR/$FORMULA_NAME.rb"
 mkdir -p "$FORMULA_DIR"
 
 info "temp root: $TMPROOT"
@@ -394,7 +424,7 @@ ruby -c "$FORMULA_FILE" >/dev/null
 
 info "installing local formula from source"
 UNINSTALL_ON_EXIT=1
-if ! brew install --build-from-source "$FORMULA_FILE" >"$INSTALL_LOG" 2>&1; then
+if ! brew install --build-from-source "$FORMULA_REF" >"$INSTALL_LOG" 2>&1; then
     cat "$INSTALL_LOG" >&2
     fail "local Homebrew formula install proof failed; see $INSTALL_LOG"
 fi
@@ -403,13 +433,13 @@ info "checking static installed package surface"
 check_installed_static_surface
 
 info "running brew test for downstream CMake consumer"
-if ! brew test "$FORMULA_NAME" >"$TEST_LOG" 2>&1; then
+if ! brew test "$FORMULA_REF" >"$TEST_LOG" 2>&1; then
     cat "$TEST_LOG" >&2
     fail "local Homebrew formula downstream consumer proof failed; see $TEST_LOG"
 fi
 
 info "uninstalling local formula"
-brew uninstall --force "$FORMULA_NAME" >/dev/null
+brew uninstall --force "$FORMULA_REF" >/dev/null
 UNINSTALL_ON_EXIT=0
 
 info "passed: local Homebrew formula proof completed for static source formula scope only"

@@ -153,7 +153,7 @@ def test_selected_cholesky_lane_artifact_name_drift_fails_clearly() -> None:
 
 
 def test_selected_cholesky_lane_upload_must_fail_closed() -> None:
-    drifted = read_workflow().replace("          if-no-files-found: error\n", "", 1)
+    drifted = read_workflow().replace("if-no-files-found: error\n", "", 1)
     assert_raises_with(
         lambda: validator.validate_workflow_structure(drifted),
         "if-no-files-found: error",

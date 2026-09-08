@@ -1397,6 +1397,170 @@ static void test_symbolic_lu_U_only(void) {
     sparse_free(A);
 }
 
+static void assert_unsym_3x3_symbolic_lu_input_intact(const SparseMatrix *A) {
+    ASSERT_EQ(sparse_rows(A), 3);
+    ASSERT_EQ(sparse_cols(A), 3);
+    ASSERT_NEAR(sparse_get(A, 0, 0), 2.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 0, 1), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 1, 1), 3.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 1, 2), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 2, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get(A, 2, 2), 4.0, 0.0);
+}
+
+static void assert_identity_perm_intact(const idx_t *perm, idx_t n) {
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(perm[i], i);
+}
+
+typedef struct {
+    const char *name;
+    long fail_after;
+    int use_perm;
+} SymbolicLuFailureCase;
+
+static const SymbolicLuFailureCase symbolic_lu_failure_cases[] = {
+    {"perm seen", 6, 1},
+    {"perm inverse", 7, 1},
+    {"row_cols", 6, 0},
+    {"parent", 7, 0},
+    {"postorder", 8, 0},
+    {"cc", 9, 0},
+    {"sym_full col_ptr", 10, 0},
+    {"sym_full row_idx", 11, 0},
+    {"sym_full child_head", 12, 0},
+    {"sym_full child_next", 13, 0},
+    {"sym_full marker", 14, 0},
+    {"sym_full tmp", 15, 0},
+    {"sym_full col_rows", 16, 0},
+    {"sym_full col_nrows", 17, 0},
+    {"sym_full propagated row set", 18, 0},
+    {"sym_U u_cnt", 19, 0},
+    {"sym_U col_ptr", 20, 0},
+    {"sym_U row_idx", 21, 0},
+};
+static const size_t symbolic_lu_failure_case_count =
+    sizeof(symbolic_lu_failure_cases) / sizeof(symbolic_lu_failure_cases[0]);
+
+static void assert_allocation_hook_probe_after_reset(void) {
+    void *probe = NULL;
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_malloc_array(1, sizeof(idx_t), &probe), SPARSE_OK);
+    ASSERT_NOT_NULL(probe);
+    free(probe);
+    sparse_alloc_test_reset();
+}
+
+static void expect_symbolic_lu_allocation_failure(const SymbolicLuFailureCase *failure_case) {
+    SparseMatrix *A = make_unsym_3x3();
+    idx_t perm[3] = {0, 1, 2};
+    sparse_symbolic_t sym_L = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+    sparse_symbolic_t sym_U = {.n = 789, .nnz = 987, .col_ptr = NULL, .row_idx = NULL};
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_symbolic_lu(A, failure_case->use_perm ? perm : NULL, &sym_L, &sym_U);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_unsym_3x3_symbolic_lu_input_intact(A);
+    if (failure_case->use_perm)
+        assert_identity_perm_intact(perm, 3);
+    assert_symbolic_failure_free_safe(&sym_L);
+    assert_symbolic_failure_free_safe(&sym_U);
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void test_symbolic_lu_allocation_failures_clear_outputs(void) {
+    for (size_t i = 0; i < symbolic_lu_failure_case_count; ++i) {
+        printf("    symbolic LU allocation-failure site: %s\n", symbolic_lu_failure_cases[i].name);
+        expect_symbolic_lu_allocation_failure(&symbolic_lu_failure_cases[i]);
+    }
+}
+
+static void test_symbolic_lu_allocation_failures_cleanup_sweep(void) {
+    for (int round = 0; round < 2; ++round) {
+        for (size_t i = 0; i < symbolic_lu_failure_case_count; ++i) {
+            printf("    symbolic LU cleanup sweep round %d: %s\n", round + 1,
+                   symbolic_lu_failure_cases[i].name);
+            expect_symbolic_lu_allocation_failure(&symbolic_lu_failure_cases[i]);
+            assert_allocation_hook_probe_after_reset();
+        }
+    }
+}
+
+static void assert_symbolic_lu_retry_output_fresh(const SparseMatrix *A,
+                                                  const sparse_symbolic_t *sym_L,
+                                                  const sparse_symbolic_t *sym_U) {
+    ASSERT_EQ(sym_L->n, sparse_rows(A));
+    ASSERT_EQ(sym_U->n, sparse_cols(A));
+    ASSERT_TRUE(sym_L->nnz >= sparse_rows(A));
+    ASSERT_TRUE(sym_U->nnz >= sparse_cols(A));
+    ASSERT_NOT_NULL(sym_L->col_ptr);
+    ASSERT_NOT_NULL(sym_L->row_idx);
+    ASSERT_NOT_NULL(sym_U->col_ptr);
+    ASSERT_NOT_NULL(sym_U->row_idx);
+    ASSERT_EQ(sym_L->col_ptr[sparse_cols(A)], sym_L->nnz);
+    ASSERT_EQ(sym_U->col_ptr[sparse_cols(A)], sym_U->nnz);
+
+    for (idx_t j = 0; j < sparse_cols(A); ++j) {
+        ASSERT_TRUE(sym_L->col_ptr[j] <= sym_L->col_ptr[j + 1]);
+        ASSERT_TRUE(sym_U->col_ptr[j] <= sym_U->col_ptr[j + 1]);
+    }
+
+    SparseMatrix *LU = sparse_copy(A);
+    REQUIRE_OK(LU ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12));
+    ASSERT_TRUE(check_lu_containment(LU, sym_L, sym_U, 0));
+    sparse_free(LU);
+}
+
+static void
+expect_symbolic_lu_retry_after_allocation_failure(const SymbolicLuFailureCase *failure_case) {
+    SparseMatrix *A = make_unsym_3x3();
+    idx_t perm[3] = {0, 1, 2};
+    sparse_symbolic_t sym_L = {.n = 123, .nnz = 456, .col_ptr = NULL, .row_idx = NULL};
+    sparse_symbolic_t sym_U = {.n = 789, .nnz = 987, .col_ptr = NULL, .row_idx = NULL};
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_symbolic_lu(A, failure_case->use_perm ? perm : NULL, &sym_L, &sym_U);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_unsym_3x3_symbolic_lu_input_intact(A);
+    if (failure_case->use_perm)
+        assert_identity_perm_intact(perm, 3);
+    assert_symbolic_failure_free_safe(&sym_L);
+    assert_symbolic_failure_free_safe(&sym_U);
+
+    REQUIRE_OK(sparse_symbolic_lu(A, failure_case->use_perm ? perm : NULL, &sym_L, &sym_U));
+    assert_symbolic_lu_retry_output_fresh(A, &sym_L, &sym_U);
+    assert_unsym_3x3_symbolic_lu_input_intact(A);
+    if (failure_case->use_perm)
+        assert_identity_perm_intact(perm, 3);
+
+    sparse_symbolic_free(&sym_L);
+    sparse_symbolic_free(&sym_U);
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void test_symbolic_lu_allocation_failures_recover_on_retry(void) {
+    for (size_t i = 0; i < symbolic_lu_failure_case_count; ++i) {
+        printf("    symbolic LU retry after allocation-failure site: %s\n",
+               symbolic_lu_failure_cases[i].name);
+        expect_symbolic_lu_retry_after_allocation_failure(&symbolic_lu_failure_cases[i]);
+    }
+}
+
 static void test_symbolic_lu_with_amd(void) {
     /* Test with AMD reordering permutation */
     idx_t n = 5;
@@ -2994,6 +3158,14 @@ static void test_compat_ldlt_nos4(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
+    if (tf_env_enabled("SPARSE_TEST_SYMBOLIC_LU_ALLOCATION_ONLY")) {
+        TEST_SUITE_BEGIN("test_etree symbolic LU allocation-failure gate");
+        RUN_TEST(test_symbolic_lu_allocation_failures_clear_outputs);
+        RUN_TEST(test_symbolic_lu_allocation_failures_cleanup_sweep);
+        RUN_TEST(test_symbolic_lu_allocation_failures_recover_on_retry);
+        TEST_SUITE_END();
+    }
+
     TEST_SUITE_BEGIN("test_etree");
 
     /* Etree computation */
@@ -3057,6 +3229,9 @@ int main(void) {
     RUN_TEST(test_symbolic_lu_tridiag);
     RUN_TEST(test_symbolic_lu_L_only);
     RUN_TEST(test_symbolic_lu_U_only);
+    RUN_TEST(test_symbolic_lu_allocation_failures_clear_outputs);
+    RUN_TEST(test_symbolic_lu_allocation_failures_cleanup_sweep);
+    RUN_TEST(test_symbolic_lu_allocation_failures_recover_on_retry);
     RUN_TEST(test_symbolic_lu_with_amd);
     RUN_TEST(test_symbolic_lu_vs_west0067);
     RUN_TEST(test_symbolic_lu_vs_steam1);

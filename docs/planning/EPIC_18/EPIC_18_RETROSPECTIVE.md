@@ -26,7 +26,7 @@ records interim evidence and residuals without promoting future sprint work.
 | 197 | Complete for the requested final-validation branch path, with numbering caveat. The branch contains the requested final-validation plan, working notes, evidence ledger, claim audits, no-promotion records, project-plan interim status snapshot, validation logs, retrospective draft, residual queue, and final closeout review. |
 | 198 | Pending future execution. Homebrew/package-manager license metadata, proof execution, guard promotion, docs promotion, and validation evidence are not present on this branch. |
 | 199 | Pending future execution. Selected Windows Cholesky hosted evidence review, manifest promotion/re-deferral, normalizer hardening, workflow guard updates, docs calibration, and validation evidence are not present on this branch. |
-| 200 | Pending future execution. Additional allocation-failure owner selection, invariants, harness work, regressions, focused gate, docs, and validation evidence are not present on this branch. |
+| 200 | Closed with selected symbolic LU allocation-failure proof. `sparse_symbolic_lu()` was selected as the additional allocation-failure owner; invariants, harness reachability, failed-allocation, cleanup, retry, focused gate, registration guard, claim-documentation, integrated-validation, review-hardening, and closeout artifacts are present. Broader allocation-failure and state-of-the-art reliability claims remain unearned. |
 | 201 | Pending future execution. Additional review-surface ranking, extraction, guard, focused regression, docs, and validation evidence are not present on this branch. |
 | 202 | Pending future execution. Additional hosted selected benchmark platform/row evidence, methodology metadata, workflow lane, freshness tests, docs, and validation evidence are not present on this branch. |
 | 203 | Pending future execution. Windows QR incompatible comparison MSVC/CMake proof or re-deferral, generator fixes, manifest decision, tests, docs, and validation evidence are not present on this branch. |
@@ -52,7 +52,8 @@ records interim evidence and residuals without promoting future sprint work.
 | Status | Current count | Rows |
 | --- | ---: | --- |
 | In progress with numbering caveat | 6 | 197.1-197.6. |
-| Pending future execution | 48 | 198.1-205.6. |
+| Pending future execution | 42 | 201.1-205.6 and remaining future sprint rows not yet executed on this branch. |
+| Sprint 200 closed selected-owner proof | 6 | 200.1-200.6 closed for selected `sparse_symbolic_lu()` allocation-failure owner proof. |
 | Partial final-validation evidence | 4 | 206.1-206.4. |
 | Requested final-validation evidence recorded | 2 | 206.5-206.6. |
 | Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |

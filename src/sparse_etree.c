@@ -418,12 +418,17 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
 
-    idx_t n = A->rows;
-
     /* Build B = structure of A^T * A (with optional permutation).
      * B(i,j) is nonzero iff columns i and j of A share a nonzero row.
      * This gives the correct column interaction graph for LU fill bounds.
      * If perm is given, columns are permuted: B uses permuted indices. */
+    if (sym_L)
+        memset(sym_L, 0, sizeof(*sym_L));
+    if (sym_U)
+        memset(sym_U, 0, sizeof(*sym_U));
+
+    idx_t n = A->rows;
+
     SparseMatrix *B = sparse_create(n, n);
     if (!B)
         return SPARSE_ERR_ALLOC;
@@ -433,18 +438,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     idx_t *inv_perm = NULL;
     if (perm) {
         unsigned char *seen = NULL;
-        size_t seen_bytes = 0;
-        size_t inv_perm_bytes = 0;
-        if (sparse_idx_count_bytes_overflow(n, sizeof(unsigned char), &seen_bytes) ||
-            sparse_idx_count_bytes_overflow(n, sizeof(idx_t), &inv_perm_bytes)) {
-            sparse_free(B);
-            return SPARSE_ERR_ALLOC;
-        }
-        if (seen_bytes != 0)
-            seen = calloc(1, seen_bytes);
-        if (inv_perm_bytes != 0)
-            inv_perm = malloc(inv_perm_bytes);
-        if ((seen_bytes != 0 && !seen) || (inv_perm_bytes != 0 && !inv_perm)) {
+        if (sparse_calloc_idx_array(n, sizeof(unsigned char), (void **)&seen) != SPARSE_OK ||
+            sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&inv_perm) != SPARSE_OK) {
             free(seen);
             free(inv_perm);
             sparse_free(B);
@@ -549,12 +544,12 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
      * U column j contains all rows i such that L column i contains row j,
      * plus the diagonal. */
     if (sym_U) {
-        memset(sym_U, 0, sizeof(*sym_U));
         sym_U->n = n;
 
         /* Count entries per column of U (= entries per row of L) */
         idx_t *u_cnt = NULL;
         if (sparse_calloc_idx_array(n, sizeof(idx_t), (void **)&u_cnt) != SPARSE_OK) {
+            sparse_symbolic_free(sym_U);
             sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
@@ -572,21 +567,21 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         /* Build col_ptr for U */
         {
             size_t u_col_ptr_len = 0;
-            size_t u_col_ptr_bytes = 0;
-            if (sparse_size_add_overflow((size_t)n, 1, &u_col_ptr_len) ||
-                sparse_count_bytes_overflow(u_col_ptr_len, sizeof(idx_t), &u_col_ptr_bytes)) {
+            if (sparse_size_add_overflow((size_t)n, 1, &u_col_ptr_len)) {
                 free(u_cnt);
+                sparse_symbolic_free(sym_U);
                 sparse_symbolic_free(&sym_full);
                 err = SPARSE_ERR_ALLOC;
                 goto cleanup;
             }
-            sym_U->col_ptr = malloc(u_col_ptr_bytes);
-        }
-        if (!sym_U->col_ptr) {
-            free(u_cnt);
-            sparse_symbolic_free(&sym_full);
-            err = SPARSE_ERR_ALLOC;
-            goto cleanup;
+            if (sparse_malloc_array(u_col_ptr_len, sizeof(idx_t), (void **)&sym_U->col_ptr) !=
+                SPARSE_OK) {
+                free(u_cnt);
+                sparse_symbolic_free(sym_U);
+                sparse_symbolic_free(&sym_full);
+                err = SPARSE_ERR_ALLOC;
+                goto cleanup;
+            }
         }
         sym_U->col_ptr[0] = 0;
         {

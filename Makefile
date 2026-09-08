@@ -307,6 +307,13 @@ symbolic-allocation-failure-gate: $(BUILDDIR)/test_etree
 	@$(BUILDDIR)/test_etree
 	@echo "symbolic-allocation-failure-gate: passed"
 
+.PHONY: symbolic-lu-allocation-failure-gate
+symbolic-lu-allocation-failure-gate: $(BUILDDIR)/test_etree
+	@echo "=== Running selected symbolic LU allocation-failure regression gate ==="
+	@python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py
+	@SPARSE_TEST_SYMBOLIC_LU_ALLOCATION_ONLY=1 $(BUILDDIR)/test_etree
+	@echo "symbolic-lu-allocation-failure-gate: passed"
+
 # Run benchmarks
 .PHONY: bench
 bench: $(BENCH_BINS)

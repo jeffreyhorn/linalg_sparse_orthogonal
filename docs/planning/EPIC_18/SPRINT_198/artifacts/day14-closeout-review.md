@@ -3,7 +3,8 @@
 ## Purpose
 
 Finalize Sprint 198 evidence with a claim-safe closeout record that separates
-completed sprint work from the still-blocked Homebrew/package-manager proof.
+completed developer-mode local Homebrew proof work from broader unclaimed
+Homebrew/package-manager support.
 
 ## Item Status
 
@@ -11,10 +12,10 @@ completed sprint work from the still-blocked Homebrew/package-manager proof.
 | --- | --- | --- |
 | 198.1 | Complete for MIT path | Root `LICENSE` exists with MIT metadata and the selected local proof identifier is `SPARSE_HOMEBREW_LICENSE=MIT`. |
 | 198.2 | Complete for local proof metadata | The proof injects `MIT` into the rendered temporary formula and rejects placeholders. |
-| 198.3 | Partially complete with local toolchain blocker | Archive creation, checksum calculation, temporary tap creation, and formula rendering are reached; this host stops at Homebrew's outdated Command Line Tools check before installed-surface validation or `brew test`. |
-| 198.4 | Partially complete for unpromoted proof state | Guard coverage now asserts MIT metadata, temporary tap rendering, local CLT blocker evidence, and retained non-claims. Success-state guard promotion remains blocked until proof exit `0` exists. |
-| 198.5 | Partially complete for unpromoted proof state | Public and maintainer wording references MIT metadata and the local CLT blocker without promoting Homebrew support. |
-| 198.6 | Complete for current guarded surfaces | Validation covers package guards, install checks, docs checks, whitespace checks, and the current MIT Homebrew proof failure. No `.c` or `.h` files changed, so the full C gate is not required. |
+| 198.3 | Complete for developer-mode local static source formula proof | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT` reaches archive creation, checksum calculation, temporary tap creation, formula rendering, source install, installed static package surface validation, downstream `brew test`, uninstall, cleanup, and proof exit `0` on macOS Intel x86_64 Tier 3 Homebrew. |
+| 198.4 | Complete for bounded proof state | Guard coverage asserts MIT metadata, temporary tap rendering, developer-mode proof invocation, completed local static source formula stages, and retained broader non-claims. |
+| 198.5 | Complete for bounded proof state | Public and maintainer wording references the developer-mode local static source formula proof without promoting broad Homebrew/package-manager support. |
+| 198.6 | Complete for current guarded surfaces | Validation covers the Homebrew proof, package guards, install checks, docs checks, and whitespace checks. No `.c` or `.h` files changed, so the full C gate is not required. |
 
 ## Evidence by Day
 
@@ -39,7 +40,8 @@ completed sprint work from the still-blocked Homebrew/package-manager proof.
 
 | Claim surface | Day 14 disposition |
 | --- | --- |
-| Local Homebrew formula support | Not earned. Proof exits `2` before formula rendering and install. |
+| Developer-mode local Homebrew static source formula proof | Earned for the recorded macOS Intel x86_64 Tier 3 Homebrew run. |
+| User-facing Homebrew install path | Not claimed. |
 | Homebrew/core readiness | Not claimed. |
 | Bottle support | Not claimed. |
 | Linuxbrew support | Not claimed. |
@@ -62,18 +64,18 @@ completed sprint work from the still-blocked Homebrew/package-manager proof.
 ## Retrospective Source Notes
 
 - Sprint 198 completed blocker-safe evidence and claim calibration.
-- The intended support promotion did not occur because the prerequisite
-  approved license metadata was unavailable.
-- Retrospective wording should classify the sprint as closed with a metadata
-  blocker, not as completed Homebrew support.
-- Follow-on work must start with an approved standalone root license file and
-  exact Homebrew formula license identifier.
+- The intended broad support promotion did not occur because the proof is
+  scoped to developer-mode local static source formula evidence only.
+- Retrospective wording should classify the sprint as closed with a bounded
+  developer-mode local proof, not as general Homebrew support.
+- Follow-on work must start with a separate decision for public tap, bottle,
+  Linuxbrew, Homebrew/core, or broader package-manager support.
 
 ## Day 14 Validation
 
 | Command | Result | Interpretation |
 | --- | --- | --- |
-| `bash scripts/homebrew_local_formula_proof.sh` | Exit `2` | Expected unavailable blocker: no standalone root `LICENSE`, `COPYING`, or `NOTICE` exists for provider metadata. |
+| `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh` | Passed | Developer-mode local static source formula proof completed archive/checksum, temporary tap render, source install, installed-surface validation, downstream `brew test`, uninstall, cleanup, and exit `0` on macOS Intel x86_64 Tier 3 Homebrew. |
 | `bash scripts/package_manager_deferral_check.sh` | Passed | Sprint 198 package proof records and retained package-manager non-claims are guarded. |
 | `bash scripts/static_package_deferral_check.sh` | Passed | Static package scope and shared-library/dynamic ABI non-claims are guarded. |
 | `bash tests/test_install.sh` | Passed | Make install/uninstall and pkg-config consumer validation passed: 23 passed, 0 failed. |
@@ -85,10 +87,10 @@ completed sprint work from the still-blocked Homebrew/package-manager proof.
 
 ## Closeout Decision
 
-Sprint 198 is ready for retrospective preparation as a closed proof-residual
+Sprint 198 is ready for retrospective preparation as a closed bounded-proof
 sprint: documentation, guard, and validation surfaces are aligned with the
-current local toolchain blocker, while Homebrew/package-manager support
-remains unclaimed.
+developer-mode local static source formula proof, while broad
+Homebrew/package-manager support remains unclaimed.
 
 ## Post-Closeout Metadata Addendum
 
@@ -96,7 +98,7 @@ Root MIT license metadata was added after the original Day 14 blocker closeout.
 The selected local proof invocation is now:
 
 ```sh
-SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh
+HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh
 ```
 
 The proof script was updated to render the generated formula into a temporary
@@ -104,7 +106,7 @@ local tap because current Homebrew rejects direct installation of generated
 formula files outside a tap. Cleanup now preserves nonzero proof exit status
 and untaps the temporary tap after failure or success.
 
-The latest local run reached these stages:
+The latest developer-mode local run reached these stages:
 
 | Stage | Result |
 | --- | --- |
@@ -114,10 +116,14 @@ The latest local run reached these stages:
 | SHA-256 calculation | Reached. |
 | Temporary local tap creation | Reached. |
 | Temporary formula rendering | Reached. |
-| Local formula source install | Failed on this host's outdated Command Line Tools check. |
-| Installed-surface validation | Not reached. |
-| `brew test` downstream consumer | Not reached. |
+| Local formula source install | Reached and passed. |
+| Installed-surface validation | Reached and passed. |
+| `brew test` downstream consumer | Reached and passed. |
+| Uninstall and cleanup | Reached and passed. |
+| Proof exit | `0`. |
 
-Homebrew/package-manager support remains unclaimed until a current local
-environment completes install, installed-surface validation, `brew test`,
-uninstall, and cleanup with proof exit `0`.
+This earns only the developer-mode local static source formula proof on macOS
+Intel x86_64 Tier 3 Homebrew. Homebrew/core readiness, bottles, Linuxbrew
+support, public tap maintenance, binary package distribution, other package
+managers, shared-library package support, dynamic ABI compatibility,
+runtime-loader behavior, and broad package-manager support remain unclaimed.

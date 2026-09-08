@@ -183,6 +183,7 @@ render_formula() {
     SPARSE_FORMULA_SHA256="$ARCHIVE_SHA256" \
     SPARSE_VERSION="$EXPECTED_VERSION" \
     SPARSE_HOMEBREW_LICENSE="$HOMEBREW_LICENSE" \
+    SPARSE_LOCAL_CMAKE_BINDIR="$LOCAL_CMAKE_BINDIR" \
     ruby - "$TEMPLATE" "$output" <<'RUBY'
 template = ARGV.fetch(0)
 output = ARGV.fetch(1)
@@ -192,7 +193,8 @@ replacements = {
   "__SPARSE_FORMULA_URL__" => ENV.fetch("SPARSE_FORMULA_URL"),
   "__SPARSE_FORMULA_SHA256__" => ENV.fetch("SPARSE_FORMULA_SHA256"),
   "__SPARSE_VERSION__" => ENV.fetch("SPARSE_VERSION"),
-  "__SPARSE_HOMEBREW_LICENSE__" => ENV.fetch("SPARSE_HOMEBREW_LICENSE")
+  "__SPARSE_HOMEBREW_LICENSE__" => ENV.fetch("SPARSE_HOMEBREW_LICENSE"),
+  "__SPARSE_LOCAL_CMAKE_BINDIR__" => ENV.fetch("SPARSE_LOCAL_CMAKE_BINDIR")
 }
 replacements.each do |placeholder, value|
   abort("empty replacement for #{placeholder}") if value.empty?
@@ -244,7 +246,9 @@ make_source_archive() {
         cmake
         include
         src
+        benchmarks
         examples
+        tests
     )
     local entry
 
@@ -285,7 +289,9 @@ verify_source_archive() {
         cmake
         include
         src
+        benchmarks
         examples
+        tests
     )
 
     archive_listing="$(tar -tzf "$archive")" ||
@@ -374,9 +380,11 @@ require_placeholder "__SPARSE_FORMULA_URL__"
 require_placeholder "__SPARSE_FORMULA_SHA256__"
 require_placeholder "__SPARSE_VERSION__"
 require_placeholder "__SPARSE_HOMEBREW_LICENSE__"
+require_placeholder "__SPARSE_LOCAL_CMAKE_BINDIR__"
 ruby -c "$TEMPLATE" >/dev/null
 verify_formula_test_contract
 detect_license_metadata
+LOCAL_CMAKE_BINDIR="$(dirname "$(command -v cmake)")"
 
 TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/sparse-homebrew-proof.XXXXXX")"
 ARCHIVE="$TMPROOT/sparse-lu-ortho-$EXPECTED_VERSION.tar.gz"

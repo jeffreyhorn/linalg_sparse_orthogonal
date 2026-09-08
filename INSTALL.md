@@ -59,24 +59,24 @@ Use each support surface for the layer it owns:
   - `find_package(Sparse)`
   - `tests/test_cmake_install.sh`
 - package-manager deferral:
-  - package-manager support is not currently provided
+  - broad package-manager support is not currently provided
   - local Homebrew formula proof material exists under `packaging/homebrew/`,
     plus `scripts/homebrew_local_formula_proof.sh`
   - Homebrew local formula proof artifacts exist, root MIT license metadata is
-    present, and the selected proof uses `SPARSE_HOMEBREW_LICENSE=MIT`
-  - the latest local proof reaches archive creation, checksum calculation,
-    temporary tap formula rendering, and source install invocation, but this
-    host stops at Homebrew's outdated Command Line Tools check before
-    installed-surface validation or `brew test`
+    present, and the selected developer-mode proof uses
+    `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT`
+  - the latest developer-mode local proof on macOS Intel x86_64 Tier 3
+    Homebrew reaches archive creation, checksum calculation, temporary tap
+    formula rendering, source install, installed static package surface
+    validation, downstream `brew test`, uninstall, cleanup, and proof exit `0`
   - placeholder `SPARSE_HOMEBREW_LICENSE` values remain blocker evidence, not
     formula proof metadata
   - Homebrew/core, bottles, Linuxbrew, vcpkg, Conan, pkgsrc, distro/system
     packages, provider registries, taps, recipes beyond the selected local
     template, and binary packages remain unsupported
-  - use source install via Make or CMake until the selected provider proof
-    passes and docs/guards are updated to a proven support level
-  - Sprint 198 keeps the incomplete install/`brew test` proof as a proof
-    blocker, not a user-facing Homebrew installation path
+  - use source install via Make or CMake for user-facing installs; Sprint 198's
+    completed proof is a local static source formula proof, not a user-facing
+    Homebrew installation path
 - reviewed-platform interpretation:
   - `docs/maintainer_guide.md`
 
@@ -598,8 +598,10 @@ static-first scope metadata, not as proof that an install validation command
 was just run. To prove the install surface locally, run the install validation
 scripts above. The package-manager guard protects provider non-claims and
 checks the selected Homebrew local proof boundary. The current Homebrew proof
-script now accepts root MIT metadata and `SPARSE_HOMEBREW_LICENSE=MIT`, creates
-the local source archive, renders the temporary formula through a local tap,
-and invokes source install. It does not prove provider install behavior yet
-because the latest local run stops on this host's outdated Command Line Tools
-before installed-surface validation or `brew test`.
+script accepts root MIT metadata and
+`HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT`, creates the local source
+archive, renders the temporary formula through a local tap, installs from
+source, validates the installed static package surface, runs the downstream
+`brew test`, uninstalls, cleans up, and exits `0` in the recorded
+developer-mode macOS Intel x86_64 Tier 3 Homebrew proof. That evidence remains
+local static source formula proof only, not broad package-manager support.

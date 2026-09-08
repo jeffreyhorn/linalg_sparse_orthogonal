@@ -1069,12 +1069,16 @@ as a guarded path; this is not broad Windows report freshness, and it is not
 promoted selected freshness until the manifest metadata and hosted evidence are
 reviewed together. The Sprint
   182 deferral record still applies to all other Windows report freshness.
-Current package-manager support and package-manager distribution are not
-provided; local Homebrew formula proof material remains blocker/provenance
-evidence, not a user-facing install path. Sprint 198 now includes root MIT
-license metadata and uses `SPARSE_HOMEBREW_LICENSE=MIT` for the selected local
-formula proof, but the latest local run remains unpromoted because this host's
-Homebrew install step stops on outdated Command Line Tools before `brew test`.
+Current broad package-manager support and package-manager distribution are not
+provided. Sprint 198 now includes root MIT license metadata and a completed
+developer-mode local Homebrew static source formula proof on macOS Intel
+x86_64 Tier 3 Homebrew using
+`HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT`. That proof covers the
+temporary local tap render, source install, installed static package surface,
+downstream `brew test`, uninstall, and cleanup path only; it is not a
+user-facing Homebrew install path, Homebrew/core readiness, bottle support,
+Linuxbrew support, public tap maintenance, binary package distribution, or
+general package-manager support.
 
 ## Documentation
 

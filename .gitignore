@@ -36,6 +36,10 @@ coverage/
 *.gcda
 *.gcov
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Generated documentation
 docs/api/
 

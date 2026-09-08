@@ -12,10 +12,10 @@ promoting only the earned support claim.
 | --- | --- | --- | --- |
 | 198.1 | Record approved root license metadata and exact Homebrew formula license identifier. | Day 2 decision artifact; root `LICENSE`; `packaging/homebrew/README.md`; `scripts/homebrew_local_formula_proof.sh` | Complete for MIT path: root `LICENSE` exists and the selected local proof identifier is `SPARSE_HOMEBREW_LICENSE=MIT`. |
 | 198.2 | Add or update root license files and formula metadata according to the approved decision. | Root metadata file; `packaging/homebrew/sparse-lu-ortho.rb.in`; proof-script render inputs; package docs | Complete for local proof metadata: the proof injects `MIT` into the rendered temporary formula and rejects placeholders. |
-| 198.3 | Run and harden the local Homebrew proof through archive/checksum, render, install, `brew test`, uninstall, and cleanup. | `scripts/homebrew_local_formula_proof.sh`; `packaging/homebrew/sparse-lu-ortho.rb.in`; proof logs; Day 5 through Day 9 artifacts; Day 14 addendum | Partially complete with local toolchain blocker: archive, checksum, temporary tap, and render are reached; this host stops at Homebrew's outdated Command Line Tools check before installed-surface validation or `brew test`. |
-| 198.4 | Update package-manager and static-package guards for exact metadata and proof-backed wording. | `scripts/package_manager_deferral_check.sh`; `scripts/static_package_deferral_check.sh`; focused guard logs | Partially complete for unpromoted proof state: package guard now asserts MIT metadata, temporary tap rendering, local CLT blocker evidence, and retained non-claims; success-state guard waits for proof exit `0`. |
-| 198.5 | Update public and maintainer docs with exact earned support tier and retained non-claims. | `README.md`; `INSTALL.md`; `packaging/homebrew/README.md`; `docs/maintainer_guide.md` | Partially complete for unpromoted proof state: docs now reference MIT metadata and the local CLT blocker; no support tier is promoted. |
-| 198.6 | Run Homebrew proof, package guards, install checks, docs checks, and C gate if `.c` or `.h` files changed. | Validation logs; Day 13 artifact; Day 14 closeout artifact | Complete for current guarded surfaces: package/static guards pass, install/docs checks pass, the MIT Homebrew proof exits `1` on this host at the CLT gate, and no C gate is required because no `.c` or `.h` files changed. |
+| 198.3 | Run and harden the local Homebrew proof through archive/checksum, render, install, `brew test`, uninstall, and cleanup. | `scripts/homebrew_local_formula_proof.sh`; `packaging/homebrew/sparse-lu-ortho.rb.in`; proof logs; Day 5 through Day 9 artifacts; Day 14 addendum | Complete for developer-mode local static source formula proof: `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT` reaches archive, checksum, temporary tap render, source install, installed static surface validation, downstream `brew test`, uninstall, cleanup, and exit `0` on macOS Intel x86_64 Tier 3 Homebrew. |
+| 198.4 | Update package-manager and static-package guards for exact metadata and proof-backed wording. | `scripts/package_manager_deferral_check.sh`; `scripts/static_package_deferral_check.sh`; focused guard logs | Complete for bounded proof state: package guard asserts MIT metadata, temporary tap rendering, developer-mode proof invocation, proof-stage completion, and retained broader non-claims. |
+| 198.5 | Update public and maintainer docs with exact earned support tier and retained non-claims. | `README.md`; `INSTALL.md`; `packaging/homebrew/README.md`; `docs/maintainer_guide.md` | Complete for bounded proof state: docs now reference the developer-mode local static source formula proof and retain all broader package-manager non-claims. |
+| 198.6 | Run Homebrew proof, package guards, install checks, docs checks, and C gate if `.c` or `.h` files changed. | Validation logs; Day 13 artifact; Day 14 closeout artifact | Complete for current guarded surfaces: package/static guards pass, install/docs checks pass, the developer-mode MIT Homebrew proof exits `0`, and no C gate is required because no `.c` or `.h` files changed. |
 
 ## Evidence Ledger
 
@@ -69,27 +69,27 @@ promoting only the earned support claim.
 | Day 14 | Generated artifact and staging review | Clean for Homebrew proof outputs | Root MIT license metadata now exists; no generated Homebrew proof outputs exist; `scripts/__pycache__/` remains untracked and must not be staged. |
 | Day 14 | `day14-closeout-review.md` | Closeout review added | Retrospective inputs and retained non-claims are recorded. |
 | Post-closeout | Root MIT metadata | Added | Root `LICENSE` now contains MIT metadata for Jeffrey Horn. |
-| Post-closeout | `SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh` | Exit `1` on this host | Metadata detection, archive creation, checksum calculation, temporary tap creation, and formula rendering are reached; Homebrew source install stops on outdated Command Line Tools before installed-surface validation or `brew test`. |
+| Post-closeout | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh` | Exit `0` on this host | Metadata detection, archive creation, checksum calculation, temporary tap creation, formula rendering, source install, installed static surface validation, downstream `brew test`, uninstall, and cleanup complete on macOS Intel x86_64 Tier 3 Homebrew. |
 
 ## Owner Surface Inventory
 
 | Surface | Owner files | Day 1 state |
 | --- | --- | --- |
-| Root license metadata | `LICENSE`, `COPYING`, `NOTICE` | Root `LICENSE` is present with MIT metadata. The active proof blocker is now this host's outdated Command Line Tools state during Homebrew source install. |
+| Root license metadata | `LICENSE`, `COPYING`, `NOTICE` | Root `LICENSE` is present with MIT metadata. |
 | Version metadata | `VERSION` | Present and available to the proof script. |
 | Homebrew formula template | `packaging/homebrew/sparse-lu-ortho.rb.in` | Present. The template remains a temporary local formula and carries placeholder-driven metadata. |
 | Homebrew proof script | `scripts/homebrew_local_formula_proof.sh` | Present and executable. It stops claim-safely before archive/render/install/test work when root license metadata is absent. |
 | Package-manager guard | `scripts/package_manager_deferral_check.sh` | Present and passing for the current non-claim state. |
 | Static-package guard | `scripts/static_package_deferral_check.sh` | Present and passing for the static-first package boundary. |
-| Public docs | `README.md`, `INSTALL.md`, `packaging/homebrew/README.md` | Present. Current wording keeps package-manager support unclaimed while local Homebrew proof material remains blocker evidence. |
-| Maintainer docs | `docs/maintainer_guide.md` | Present. Current guidance records the selected Homebrew proof script, MIT metadata path, local CLT blocker, and retained non-claims. |
+| Public docs | `README.md`, `INSTALL.md`, `packaging/homebrew/README.md` | Present. Current wording records the developer-mode local static source formula proof while keeping broad package-manager support unclaimed. |
+| Maintainer docs | `docs/maintainer_guide.md` | Present. Current guidance records the selected Homebrew proof script, MIT metadata path, developer-mode Tier 3 Intel proof scope, and retained non-claims. |
 | Prior package proof evidence | `docs/planning/EPIC_17/SPRINT_188/*`; `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | Prior Sprint 188 proof work and Epic 18 residual queue both identify standalone license metadata as the near-term closure target. |
 
 ## Validation Matrix
 
 | Validation | Trigger | Day 1 baseline |
 | --- | --- | --- |
-| `SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh` | Any Homebrew proof or metadata change | Current local run exits `1` at Homebrew's outdated Command Line Tools check after archive/checksum/temporary-tap render stages. Exit `0` is still required before support promotion. |
+| `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh` | Any Homebrew proof or metadata change | Current developer-mode local proof exits `0` after archive/checksum/temporary-tap render, install, installed-surface validation, downstream `brew test`, uninstall, and cleanup on macOS Intel x86_64 Tier 3 Homebrew. |
 | `bash scripts/package_manager_deferral_check.sh` | Package-manager docs, formula, proof, or guard edits | Passing. |
 | `bash scripts/static_package_deferral_check.sh` | Package/install wording or package metadata edits | Passing. |
 | `bash tests/test_install.sh` | Install/package behavior changes | Deferred until implementation changes. |
@@ -204,8 +204,8 @@ package-manager support, or state-of-the-art package ecosystem parity.
   `__SPARSE_*__` placeholders.
 - Ran the proof with unset, `NOASSERTION`, and `PLACEHOLDER` license values;
   all runs exited `2` at the missing root metadata gate before render.
-- Recorded that Day 6 does not create placeholder-free rendered formula
-  evidence because approved root metadata is still absent.
+- Recorded that Day 6 did not create placeholder-free rendered formula
+  evidence because approved root metadata was still absent at that point.
 
 ### Day 7: Install Surface Proof
 
@@ -256,8 +256,8 @@ package-manager support, or state-of-the-art package ecosystem parity.
   metadata-blocker artifacts and claim-safe Day 9 proof interpretation.
 - Left `scripts/static_package_deferral_check.sh` unchanged because static
   archive scope and shared-library/dynamic ABI non-claims remain covered.
-- Recorded that guard promotion does not promote Homebrew support while the
-  proof still exits `2`.
+- Recorded that Day 10 guard promotion did not promote Homebrew support
+  because the proof exited `2` at that point.
 
 ### Day 11: Public Package Documentation
 
@@ -323,7 +323,11 @@ package-manager support, or state-of-the-art package ecosystem parity.
   nonzero proof exit status.
 - Confirmed the proof now reaches metadata detection, source archive creation,
   SHA-256 calculation, temporary tap creation, and formula rendering.
-- Confirmed this host still cannot complete local formula install because
-  Homebrew stops on outdated Command Line Tools before installed-surface
-  validation or `brew test`.
-  Homebrew/package-manager support therefore remains unclaimed.
+- Confirmed `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash
+  scripts/homebrew_local_formula_proof.sh` completes source install,
+  installed-surface validation, downstream `brew test`, uninstall, cleanup, and
+  proof exit `0` on macOS Intel x86_64 Tier 3 Homebrew.
+- Retained non-claims for Homebrew/core readiness, bottles, Linuxbrew support,
+  public tap maintenance, binary package distribution, other package managers,
+  shared-library package support, dynamic ABI compatibility, runtime-loader
+  behavior, and broad package-manager support.

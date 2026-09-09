@@ -106,7 +106,7 @@ which focused gate applies to a change.
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflow, Sprint 192 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The hosted selected lane is threshold-free methodology evidence for one row, not portable speed, release, or state-of-the-art evidence. |
 | Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, full C gate after header/test changes | One selected QR external-reference cluster was moved; other clusters and helper dependency tracking remain future work. |
 | Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194 artifacts | `make docs-check`, `make api-docs-freshness`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
-| Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, focused allocation-failure guard, README/INSTALL/maintainer wording, Sprint 195 artifacts | `make symbolic-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior; broader OOM, concurrency, direct solver, matrix construction, and hosted gate claims remain unowned. |
+| Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, focused allocation-failure guards, README/INSTALL/maintainer wording, Sprint 195 artifacts, Sprint 200 artifacts | `make symbolic-allocation-failure-gate`, `make symbolic-lu-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior and the selected `sparse_symbolic_lu()` owner; broader OOM, concurrency, direct solver, matrix construction, analysis, and hosted gate claims remain unowned. |
 
 ## Reviewed Baseline and Warning Authority
 
@@ -510,28 +510,45 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
     insertion/product flush, conversion paths, solver families, package/install
     flows, generated-report tooling, or unrelated allocation paths
 - `tests/test_etree.c` owns the Sprint 195 bounded allocation-failure lane
-  for selected `sparse_symbolic_cholesky()` output construction:
+  for selected `sparse_symbolic_cholesky()` output construction and the Sprint
+  200 bounded allocation-failure lane for the selected `sparse_symbolic_lu()`
+  owner:
   - `test_symbolic_cholesky_allocation_hook_reaches_empty_col_ptr`
   - `test_symbolic_cholesky_allocation_hook_reaches_nonempty_col_ptr`
   - `test_symbolic_cholesky_allocation_failures_clear_partial_state`
   - `test_symbolic_cholesky_allocation_failures_recover_on_retry`
+  - `test_symbolic_lu_allocation_failures_clear_outputs`
+  - `test_symbolic_lu_allocation_failures_cleanup_sweep`
+  - `test_symbolic_lu_allocation_failures_recover_on_retry`
   - maintained focused Make command: `make symbolic-allocation-failure-gate`
+  - maintained selected symbolic LU Make command:
+    `make symbolic-lu-allocation-failure-gate`
   - maintained focused CTest selector:
     `ctest --test-dir <build-dir> -L symbolic`
   - maintained registration guard:
     `python3 tests/test_symbolic_allocation_failure_gate_registration.py`
+  - maintained selected symbolic LU registration guard:
+    `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`
   - invariant and gate evidence:
     `docs/planning/EPIC_17/SPRINT_195/artifacts/day3-selected-owner-invariant-record.md`
     and
     `docs/planning/EPIC_17/SPRINT_195/artifacts/day10-focused-gate-definition.md`
-  - maintained proof stays local to `sparse_symbolic_cholesky()` selected
-    output allocation, partial-state cleanup, stale-output suppression,
+  - Sprint 200 invariant and gate evidence:
+    `docs/planning/EPIC_18/SPRINT_200/artifacts/day4-invariant-record.md`
+    and
+    `docs/planning/EPIC_18/SPRINT_200/artifacts/day10-focused-gate.md`
+  - maintained symbolic Cholesky proof stays local to selected output
+    allocation, partial-state cleanup, stale-output suppression, repeated
+    cleanup after failure, and retry-after-reset behavior on bounded fixtures
+  - maintained symbolic LU proof stays local to selected
+    `sparse_symbolic_lu()` allocation-failure status, requested-output cleanup,
+    stale-output suppression, caller-owned matrix/permutation preservation,
     repeated cleanup after failure, and retry-after-reset behavior on bounded
     fixtures; it is not broad allocation-failure coverage for
-    `sparse_symbolic_lu()`, `sparse_analyze()`, standalone etree, postorder,
-    colcount helpers, direct solvers, sparse matrix construction,
-    package/install flows, generated-report tooling, OS OOM behavior, or
-    concurrent allocation-hook use
+    `sparse_analyze()`, standalone etree, postorder, colcount helpers, direct
+    solvers, sparse matrix construction, package/install flows,
+    generated-report tooling, OS OOM behavior, platform parity, or concurrent
+    allocation-hook use
 
 Interpretation:
 
@@ -552,10 +569,9 @@ Interpretation:
 - do not present the `sparse_matmul()` allocation-failure lane as broad sparse
   matrix allocation coverage; it covers only the selected workspace allocation
   sites named above
-- do not present the `sparse_symbolic_cholesky()` allocation-failure lane as
-  broad etree, analysis, symbolic LU, direct-solver, sparse-matrix,
-  package/install, generated-tooling, OS OOM, platform, concurrent, or
-  state-of-the-art reliability proof
+- do not present the symbolic allocation-failure lanes as broad etree,
+  analysis, direct-solver, sparse-matrix, package/install, generated-tooling,
+  OS OOM, platform, concurrent, or state-of-the-art reliability proof
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
 

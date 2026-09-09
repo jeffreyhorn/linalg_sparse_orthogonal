@@ -143,9 +143,13 @@ needs them.
   matmul-allocation-failure-gate` owns a focused `sparse_matmul()` workspace
   allocation proof for the accumulator, nonzero-flag, and touched-column
   workspaces. `make symbolic-allocation-failure-gate` owns a selected
-  `sparse_symbolic_cholesky()` proof for symbolic output cleanup,
-  stale-output suppression, and retry-after-reset on bounded known fixtures.
-  These are not broad allocation-failure coverage for direct solvers,
+  symbolic proof for `sparse_symbolic_cholesky()` output construction and the
+  selected `sparse_symbolic_lu()` owner. `make
+  symbolic-lu-allocation-failure-gate` runs only the selected symbolic LU proof
+  for allocation-failure status, requested-output cleanup, stale-output
+  suppression, caller-owned matrix/permutation preservation, and
+  retry-after-reset on bounded known fixtures. These are not broad
+  allocation-failure coverage for symbolic analysis, direct solvers,
   eigensolvers, matrix construction, package/install flows, generated-report
   tooling, or unrelated allocation paths.
 - **Continuous integration** — current support/readiness status is summarized
@@ -307,7 +311,8 @@ make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
 make iterative-allocation-failure-gate  # focused local CG/GMRES/MINRES repeated-run handle allocation-failure proof
 make matmul-allocation-failure-gate  # focused local sparse_matmul workspace allocation-failure proof
-make symbolic-allocation-failure-gate  # focused local sparse_symbolic_cholesky cleanup/retry allocation-failure proof
+make symbolic-allocation-failure-gate  # focused local symbolic Cholesky + selected symbolic LU allocation-failure proof
+make symbolic-lu-allocation-failure-gate  # selected sparse_symbolic_lu cleanup/retry allocation-failure proof
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
@@ -601,11 +606,14 @@ Important behavior:
   it does not cover matrix shell construction, insertion/product flush, matrix
   conversions, solvers, package/install flows, or generated tooling
 - symbolic allocation-failure proof is separately limited to selected
-  `sparse_symbolic_cholesky()` output allocation, cleanup, stale-output
-  suppression, and retry-after-reset behavior; it does not cover
-  `sparse_symbolic_lu()`, `sparse_analyze()`, direct solvers, matrix
-  construction, package/install flows, generated tooling, OS OOM behavior, or
-  concurrent allocation-hook use
+  `sparse_symbolic_cholesky()` output allocation plus the selected
+  `sparse_symbolic_lu()` owner. The symbolic LU proof covers allocation-failure
+  status, requested-output cleanup, stale-output suppression, caller-owned
+  matrix/permutation preservation, and retry-after-reset behavior for bounded
+  known fixtures; it does not cover `sparse_analyze()`, standalone etree,
+  postorder, or colcount helpers, direct solvers, matrix construction,
+  package/install flows, generated tooling, OS OOM behavior, platform parity,
+  or concurrent allocation-hook use
 - public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`

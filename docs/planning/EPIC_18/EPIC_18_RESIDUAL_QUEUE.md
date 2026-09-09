@@ -62,9 +62,9 @@ as support promotion.
 | --- | --- |
 | Theme | Additional allocation-failure owner proof. |
 | Source | Epic 17 residual queue; Epic 18 Sprint 200 plan; Sprint 197 Day 2-3 evidence ledger. |
-| Current status | Pending future execution. |
+| Current status | Closed by Sprint 200 for the selected `sparse_symbolic_lu()` owner. Invariant, harness, regression, cleanup, retry, focused-gate, claim-documentation, integrated-validation, review-hardening, and closeout artifacts are recorded. |
 | Owner surfaces | Selected symbolic, analysis, etree, direct-solver, matrix-construction, or output-publication owner; deterministic allocation harness; focused tests; Make/CTest labels; README; INSTALL; maintainer guide. |
-| Why it remains | Prior evidence covers selected owners only. This branch adds no new owner selection, harness reachability, regression, or focused gate. |
+| Why it remains | Closed for the selected symbolic LU owner only. Broader allocation-failure owners remain separate residual candidates and are not hidden inside this closure. |
 | Closure target | Select exactly one additional owner, record cleanup/publication/retry/caller-input invariants, extend deterministic failure injection, add regressions, add a focused gate, and update claim docs. |
 | Expected evidence | Failed allocation returns the expected status; partial state is cleaned; stale outputs are suppressed; caller-owned inputs are preserved; retry after reset succeeds; focused gate and registration guard prevent drift. |
 | Validation commands | New focused owner gate; new registration guard if applicable; relevant CTest label; focused owner binary; `make source-list-check`; `make format && make lint && make test` if `.c` or `.h` files change; `make docs-check`. |

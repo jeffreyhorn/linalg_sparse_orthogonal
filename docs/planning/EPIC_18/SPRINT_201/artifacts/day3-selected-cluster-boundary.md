@@ -21,7 +21,7 @@ or expected output.
 | Decision Field | Selected Value |
 | --- | --- |
 | Selected source surface | `tests/test_svd.c` |
-| Selected helper surface | `tests/test_svd_helpers.h` |
+| Selected helper surface | `tests/test_svd_selected_helpers.h`; shared fixtures remain in `tests/test_svd_helpers.h`. |
 | Selected proof owner | `test_svd` executable remains the proof owner |
 | Selected cluster | rank, pseudoinverse, and low-rank SVD tests and their local helper logic |
 | Implementation preference | header-only helper extraction using existing family-local test helper patterns |
@@ -46,7 +46,7 @@ The selected SVD cluster is the highest-value Sprint 201 target because:
 | Area | In Scope |
 | --- | --- |
 | Source proof owner | `tests/test_svd.c` remains the registered test binary. |
-| Helper destination | `tests/test_svd_helpers.h` may receive selected helper definitions for the chosen cluster. |
+| Helper destination | `tests/test_svd_selected_helpers.h` may receive selected helper definitions for the chosen cluster while reusing shared fixtures from `tests/test_svd_helpers.h`. |
 | Rank tests | `test_svd_rank_full`, `test_svd_rank_deficient`, `test_svd_rank_nearly_singular`, `test_svd_rank_diagonal_threshold_fixture`, `test_svd_qr_rank_dependent_row_fixture`, and `test_svd_rank_null`. |
 | Pseudoinverse tests | `test_pinv_diagonal`, `test_pinv_moore_penrose`, `test_pinv_null`, `test_pinv_rectangular`, and `test_pinv_underdetermined_minnorm_solution`. |
 | Low-rank dense tests | `test_lowrank_diagonal`, `test_lowrank_error_bound`, and `test_lowrank_errors`. |
@@ -78,7 +78,7 @@ The selected extraction must preserve:
 - fixture dimensions, input values, deterministic construction, and matrix
   sparsity patterns exactly;
 - numerical tolerances and threshold comparisons exactly;
-- expected status codes and diagnostics exactly;
+- expected status codes, assertion behavior, and emitted diagnostic text;
 - skip behavior and unsupported-environment behavior exactly;
 - cleanup order, allocation ownership, and failure-path behavior exactly;
 - `test_svd` as the single proof-owner executable for the selected tests.

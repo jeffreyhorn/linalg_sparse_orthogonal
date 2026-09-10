@@ -6,22 +6,25 @@ Day 8 added a selected SVD helper registration guard and confirmed that the
 extracted helper cluster remains tied to the registered `test_svd` proof-owner
 binary.
 
-The extraction did not create, remove, or rename a C source file. No Makefile,
-CMake, or library source-list registration changes were needed for the helper
-header itself. The only build-surface change is a focused Make target for the
-new registration guard.
+The extraction did not create, remove, or rename a C source file. No CMake or
+library source-list registration changes were needed for the helper headers
+themselves. PR #223 review follow-up added explicit Makefile prerequisites for
+both SVD helper headers on `build/test_svd` so helper-only edits rebuild the
+proof-owner binary.
 
 ## Registration Decision
 
-`tests/test_svd_helpers.h` remains a header-only test helper included by
-`tests/test_svd.c`.
+`tests/test_svd_selected_helpers.h` remains a proof-owner-only header included
+by `tests/test_svd.c`. `tests/test_svd_helpers.h` remains shared fixture
+support.
 
 | Surface | Decision |
 | --- | --- |
 | Make test registration | Keep `$(TESTDIR)/test_svd.c` as the proof-owner binary. |
 | CMake test registration | Keep `add_sparse_test(test_svd)` as the proof-owner binary. |
-| Library source manifest | Do not list `tests/test_svd_helpers.h`; it is not a library source. |
-| Standalone test target | Do not add `test_svd_helpers`; helper stays included-only. |
+| Make helper prerequisites | Keep `tests/test_svd_helpers.h` and `tests/test_svd_selected_helpers.h` as explicit `build/test_svd` prerequisites. |
+| Library source manifest | Do not list either SVD helper header; they are not library sources. |
+| Standalone test target | Do not add standalone SVD helper tests; helpers stay included-only. |
 | Guard target | Add `make svd-helper-guard`. |
 
 ## Guard Added
@@ -37,14 +40,20 @@ The guard checks:
 - required files exist;
 - `test_svd.c` remains registered in the Makefile test source list;
 - `test_svd` remains registered in CMake;
-- `tests/test_svd.c` includes `test_svd_helpers.h` exactly once;
+- `tests/test_svd.c` includes `test_svd_helpers.h` and
+  `test_svd_selected_helpers.h` exactly once;
 - the selected moved helper implementations remain in
+  `tests/test_svd_selected_helpers.h` and absent from `tests/test_svd.c` and
   `tests/test_svd_helpers.h`;
 - the selected `RUN_TEST(...)` registrations remain in `tests/test_svd.c`
-  exactly once;
-- `test_svd_helpers.h` is absent from Makefile source registration, CMake
-  registration, and `build-metadata/library_sources.txt`;
-- no standalone `test_svd_helpers` CMake test is introduced accidentally.
+  exactly once and in frozen order;
+- selected-helper `sparse_qr.h`, `sparse_svd.h`, and `sparse_vector.h`
+  dependencies remain explicit;
+- both SVD helper headers remain explicit Makefile prerequisites for
+  `build/test_svd`;
+- both SVD helper headers are absent from CMake registration and
+  `build-metadata/library_sources.txt`;
+- no standalone SVD helper CMake test is introduced accidentally.
 
 ## Selected Cluster Guard Markers
 

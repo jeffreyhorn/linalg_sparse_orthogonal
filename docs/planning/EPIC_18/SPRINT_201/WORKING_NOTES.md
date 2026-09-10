@@ -256,7 +256,7 @@ The Day 3 decision artifact is:
 | Decision Field | Selected Value |
 | --- | --- |
 | Selected source surface | `tests/test_svd.c` |
-| Selected helper surface | `tests/test_svd_helpers.h` |
+| Selected helper surface | `tests/test_svd_selected_helpers.h`; shared fixtures remain in `tests/test_svd_helpers.h`. |
 | Selected proof owner | `test_svd` executable remains the proof owner |
 | Selected cluster | rank, pseudoinverse, and low-rank SVD tests and their local helper logic |
 | Preferred implementation | header-only helper extraction using existing family-local SVD helper patterns |
@@ -312,7 +312,7 @@ Sprint 201 implementation must preserve:
 - fixture dimensions, input values, deterministic construction, and sparsity
   patterns exactly;
 - numerical tolerances and threshold comparisons exactly;
-- expected status codes and diagnostics exactly;
+- expected status codes, assertion behavior, and emitted diagnostic text;
 - skip behavior and unsupported-environment behavior exactly;
 - cleanup order, allocation ownership, and failure-path behavior exactly;
 - `test_svd` as the single proof-owner executable for the selected tests.
@@ -477,7 +477,7 @@ Artifact:
 
 Selected extraction shape:
 
-- header-only test-helper split into `tests/test_svd_helpers.h`;
+- header-only test-helper split into `tests/test_svd_selected_helpers.h`;
 - `tests/test_svd.c` remains the proof-owner binary;
 - existing `RUN_TEST(...)` names and order remain in `tests/test_svd.c`;
 - no Makefile, CMake, source-list, CI, public header, or production source
@@ -528,7 +528,7 @@ No registration changes are planned.
 | Surface | Day 5 Plan |
 | --- | --- |
 | `tests/test_svd.c` | Keep proof-owner wrappers and `RUN_TEST(...)` registrations. |
-| `tests/test_svd_helpers.h` | Add selected `static inline` helper-owned implementations. |
+| `tests/test_svd_selected_helpers.h` | Add selected `static inline` helper-owned implementations. |
 | `Makefile` | No change. |
 | `CMakeLists.txt` | No change. |
 | Source-list manifests | No change expected. |
@@ -589,7 +589,7 @@ were changed.
 
 ### Extracted Rank Subgroup
 
-The rank subgroup moved into `tests/test_svd_helpers.h` behind `static inline`
+The rank subgroup moved into `tests/test_svd_selected_helpers.h` behind `static inline`
 helper-owned implementations:
 
 | Existing Test Wrapper | Helper-Owned Implementation |
@@ -786,9 +786,11 @@ registration surfaces. The extracted helper remains header-only and included by
 
 ### Registration Decision
 
-No Makefile, CMake, or library source-list registration changes were needed for
-`tests/test_svd_helpers.h` itself because it is an included helper header, not a
-standalone test or library source.
+No CMake or library source-list registration changes were needed for the SVD
+helper headers because they are included helper headers, not standalone tests or
+library sources. PR #223 review follow-up added explicit Makefile prerequisites
+for both helper headers on `build/test_svd` so helper-only edits rebuild the
+proof-owner binary.
 
 Day 8 added a focused guard target:
 
@@ -800,14 +802,17 @@ The guard enforces:
 
 - `$(TESTDIR)/test_svd.c` remains in `TEST_SRCS`;
 - `add_sparse_test(test_svd)` remains in `CMakeLists.txt`;
-- `tests/test_svd.c` includes `test_svd_helpers.h` exactly once;
+- `tests/test_svd.c` includes `test_svd_helpers.h` and
+  `test_svd_selected_helpers.h` exactly once;
 - the selected moved rank, pseudoinverse, and dense low-rank helper
-  implementations remain in `tests/test_svd_helpers.h`;
+  implementations remain in `tests/test_svd_selected_helpers.h`;
 - the selected `RUN_TEST(...)` registrations remain in `tests/test_svd.c`
-  exactly once;
-- `test_svd_helpers.h` is absent from Makefile source registration, CMake
-  registration, and `build-metadata/library_sources.txt`;
-- no standalone `test_svd_helpers` CMake test is introduced accidentally.
+  exactly once and in frozen order;
+- both helper headers remain absent from CMake registration and
+  `build-metadata/library_sources.txt`;
+- both helper headers remain explicit Makefile prerequisites for
+  `build/test_svd`;
+- no standalone SVD helper CMake test is introduced accidentally.
 
 ### Day 8 Validation
 
@@ -1217,7 +1222,7 @@ Result:
 | Registration/source/CMake parity regresses. | `make source-list-check` and CMake configure passed. | No known parity residual. |
 | Docs or maintainer guidance overclaim. | `make docs-check` passed and Day 11 documentation recorded selected-scope non-claims. | Broader review-surface cleanup remains future selected-cluster work. |
 | Public API, ABI, or implementation changes are implied. | Sprint 201 changed selected SVD test/helper ownership, not public API or library implementation. | Public API/ABI non-claim remains unchanged. |
-| Platform, package-manager, performance, or state-of-art claims are implied. | Day 12 validation is local selected-cluster evidence only. | These remain explicit non-claims for Sprint 201. |
+| Platform, package-manager, performance, or state-of-the-art claims are implied. | Day 12 validation is local selected-cluster evidence only. | These remain explicit non-claims for Sprint 201. |
 
 ### Day 12 Status
 
@@ -1251,8 +1256,9 @@ after the audit.
   pseudoinverse, and dense low-rank test bodies.
 - Confirmed `tests/test_svd.c` remains the proof-owner binary and keeps the
   selected `RUN_TEST(...)` registrations.
-- Confirmed `tests/test_svd_helpers.h` remains helper-only and is not promoted
-  into Makefile, CMake, or library-source registration.
+- Confirmed `tests/test_svd_selected_helpers.h` remains proof-owner-only and is
+  not promoted into CMake or library-source registration, while both SVD helper
+  headers are explicit Makefile prerequisites for `build/test_svd`.
 - Confirmed the guard and guard-regression fixtures cover missing include,
   missing dependency include, duplicate moved ownership, missing proof-owner
   registration, and accidental helper registration drift.
@@ -1292,7 +1298,7 @@ clusters, `tests/test_svd_partial_corpus.c`, broader solver/graph/direct-solver
 surfaces, and shared helper dependency tracking beyond the selected SVD guard.
 No Sprint 201 artifact claims public API/ABI change, solver behavior change,
 numerical tolerance change, performance improvement, package support, platform
-support, release readiness, or state-of-art status.
+support, release readiness, or state-of-the-art status.
 
 ### Day 13 Status
 
@@ -1315,7 +1321,7 @@ with one selected SVD helper review-surface reduction complete.
 | 201.1 Candidate Ranking | Complete | Day 1 and Day 2 intake/ranking artifacts. |
 | 201.2 Cluster Selection | Complete | Day 3 selected-cluster boundary and Day 4 behavior-preservation invariants. |
 | 201.3 Helper Or Module Extraction | Complete | Day 5 design, Day 6 first extraction, and Day 7 cohesion pass. |
-| 201.4 Ownership Guard | Complete | Day 8 registration alignment, Day 9 guard, `make svd-helper-guard`, and `tests/test_svd_helper_guard.py`. |
+| 201.4 Ownership Guard | Complete | Day 8 registration alignment, Day 9 guard, `make svd-helper-guard`, and `tests/test_svd_helper_guard.py`; PR #223 review follow-up added selected-helper dependency checks, frozen registration-order checks, and explicit Makefile helper prerequisites. |
 | 201.5 Focused Regression | Complete | Day 10 focused regression and Day 12 focused/full validation. |
 | 201.6 Validation And Docs | Complete | Day 11 docs alignment, Day 12 integrated validation, Day 13 hardening, and Day 14 closeout. |
 
@@ -1323,6 +1329,7 @@ with one selected SVD helper review-surface reduction complete.
 
 - Selected one bounded SVD test cluster from the large review-surface queue.
 - Moved selected rank, pseudoinverse, and dense low-rank test bodies to
+  `tests/test_svd_selected_helpers.h`; shared fixture helpers remain in
   `tests/test_svd_helpers.h`.
 - Preserved `tests/test_svd.c` as the proof-owner binary and retained selected
   `RUN_TEST(...)` registrations.
@@ -1354,7 +1361,7 @@ with one selected SVD helper review-surface reduction complete.
 | --- | --- |
 | Completed work | One selected SVD rank/pseudoinverse/dense-low-rank review surface is reduced and locally validated. |
 | Validation | Focused SVD binary, SVD helper guard, guard regression test, source-list parity, CMake configure, docs check, adjacent QR guard, format, lint, full test suite, and whitespace checks passed. |
-| Deviations | The sprint used a helper-header extraction rather than a compiled helper module because this is a test-only selected surface and `tests/test_svd.c` remains the proof owner. |
+| Deviations | The sprint used a proof-owner-only selected helper header rather than a compiled helper module because this is a test-only selected surface and `tests/test_svd.c` remains the proof owner. Assertion source locations now follow the helper-owned implementation file; selected test names, status/error behavior, and emitted diagnostic text remain the preserved diagnostic surface. |
 | Deferred breadth | Other SVD clusters, partial-SVD corpus ownership, broader test/helper dependency tracking, and other large solver/test files remain future selected-cluster work. |
 | Recommendation | Keep future review-surface work bounded to one owner cluster, with invariants recorded before code movement and guard tests added before closeout. |
 
@@ -1367,7 +1374,7 @@ surfaces, and shared helper dependency tracking beyond the selected SVD guard.
 Sprint 201 does not claim broad SVD correctness, new SVD algorithm capability,
 partial-SVD ownership changes, public API/ABI changes, library implementation
 behavior changes, numerical tolerance changes, performance improvements,
-package-manager support, platform support, release readiness, or state-of-art
+package-manager support, platform support, release readiness, or state-of-the-art
 status.
 
 ### Day 14 Validation

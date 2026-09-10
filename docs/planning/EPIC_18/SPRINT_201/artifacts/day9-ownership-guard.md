@@ -15,10 +15,11 @@ The selected SVD helper guard enforces these ownership rules:
 | Rule | Guarded Surface |
 | --- | --- |
 | `tests/test_svd.c` remains the proof-owner binary. | Makefile `TEST_SRCS` and CMake `add_sparse_test(test_svd)`. |
-| `tests/test_svd_helpers.h` remains included-only. | Helper is absent from Makefile, CMake, and `build-metadata/library_sources.txt`. |
-| The helper header remains the selected implementation owner. | Moved `tf_svd_test_*` definitions must remain in `tests/test_svd_helpers.h` and absent from `tests/test_svd.c`. |
-| Registered test names remain stable. | Selected `RUN_TEST(...)` markers must remain in `tests/test_svd.c` exactly once. |
-| Helper dependencies stay explicit. | `sparse_svd.h` and `sparse_vector.h` must remain included by the helper. |
+| `tests/test_svd_selected_helpers.h` remains proof-owner-only. | Selected helper is included by `tests/test_svd.c`, absent from CMake and `build-metadata/library_sources.txt`, and listed only as a Makefile prerequisite for `build/test_svd`. |
+| `tests/test_svd_helpers.h` remains shared fixture support. | Shared helper remains header-only and does not own moved selected `tf_svd_test_*` implementations. |
+| The selected helper header remains the selected implementation owner. | Moved `tf_svd_test_*` definitions must remain in `tests/test_svd_selected_helpers.h` and absent from both `tests/test_svd.c` and `tests/test_svd_helpers.h`. |
+| Registered test names remain stable and ordered. | Selected `RUN_TEST(...)` markers must remain in `tests/test_svd.c` exactly once and in frozen order. |
+| Helper dependencies stay explicit. | `sparse_qr.h`, `sparse_svd.h`, and `sparse_vector.h` must remain included by the selected helper. |
 
 ## Negative Coverage Added
 
@@ -27,14 +28,19 @@ guard test pattern. The Python test creates temporary minimal repo fixtures and
 checks that the shell guard fails clearly for representative drift cases:
 
 - missing `#include "test_svd_helpers.h"` in `tests/test_svd.c`;
-- missing `sparse_svd.h` helper dependency;
-- missing `sparse_vector.h` helper dependency;
+- missing `#include "test_svd_selected_helpers.h"` in `tests/test_svd.c`;
+- missing `sparse_qr.h` selected-helper dependency;
+- missing `sparse_svd.h` selected-helper dependency;
+- missing `sparse_vector.h` selected-helper dependency;
 - moved selected helper definition appearing in `tests/test_svd.c`;
+- moved selected helper definition appearing in `tests/test_svd_helpers.h`;
 - missing selected `RUN_TEST(...)` proof-owner registration;
+- reordered selected `RUN_TEST(...)` proof-owner registration;
 - missing Makefile registration for `test_svd.c`;
+- missing Makefile helper prerequisites for stale-binary prevention;
 - missing CMake registration for `test_svd`;
-- accidental Makefile registration of `test_svd_helpers.h`;
-- accidental library-source manifest registration of `test_svd_helpers.h`.
+- accidental CMake test registration for the selected helper;
+- accidental library-source manifest registration of `test_svd_selected_helpers.h`.
 
 The test also verifies the current tree and a clean minimal fixture both pass
 the guard.

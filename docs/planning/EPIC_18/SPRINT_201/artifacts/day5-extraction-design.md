@@ -11,7 +11,7 @@ Selected cluster:
 
 Extraction decision:
 
-- use a header-only test-helper split into `tests/test_svd_helpers.h`;
+- use a header-only test-helper split into `tests/test_svd_selected_helpers.h`;
 - keep `tests/test_svd.c` as the proof-owner binary;
 - keep the existing `RUN_TEST(...)` names and registration order in
   `tests/test_svd.c`;
@@ -22,7 +22,7 @@ Extraction decision:
 | Decision | Selected Shape |
 | --- | --- |
 | Extraction type | Test-helper split. |
-| Destination | Existing private test helper header: `tests/test_svd_helpers.h`. |
+| Destination | Private selected test helper header: `tests/test_svd_selected_helpers.h`; reuse existing shared fixtures from `tests/test_svd_helpers.h`. |
 | Source owner | `tests/test_svd.c` remains the registered proof owner. |
 | Visibility | `static inline` helper-owned test implementations with `tf_svd_test_*` names. |
 | Wrapper strategy | Keep one thin `static void test_*` wrapper per existing `RUN_TEST(...)` name in `tests/test_svd.c`. |
@@ -116,7 +116,7 @@ The existing public-facing test names remain unchanged in `RUN_TEST(...)`.
 | Surface | Day 5 Plan |
 | --- | --- |
 | `tests/test_svd.c` | Keep include, proof-owner wrappers, and `RUN_TEST(...)` registrations. |
-| `tests/test_svd_helpers.h` | Add selected `static inline` helper-owned implementations. |
+| `tests/test_svd_selected_helpers.h` | Add selected `static inline` helper-owned implementations. |
 | `Makefile` | No change. |
 | `CMakeLists.txt` | No change. |
 | Source-list manifests | No change expected. |

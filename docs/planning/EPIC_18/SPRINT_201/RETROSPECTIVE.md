@@ -31,7 +31,7 @@ final closeout.
 - [x] Recorded no-behavior-change, no-public-API, and no-ABI boundaries before
       code movement.
 - [x] Moved selected SVD rank, pseudoinverse, and dense low-rank test bodies
-      into `tests/test_svd_helpers.h`.
+      into `tests/test_svd_selected_helpers.h`.
 - [x] Kept `tests/test_svd.c` as the proof-owner binary with selected
       `RUN_TEST(...)` registrations retained.
 - [x] Added `make svd-helper-guard` and fixture-based Python guard regression
@@ -41,7 +41,7 @@ final closeout.
       validation.
 - [x] Preserved explicit residuals for remaining SVD clusters,
       partial-SVD corpus ownership, broader large-surface cleanup, public
-      API/ABI, performance, package, platform, release, and state-of-art
+      API/ABI, performance, package, platform, release, and state-of-the-art
       claims.
 
 ## What Went Well
@@ -83,9 +83,11 @@ final closeout.
    large clusters that require separate ranking and invariants.
 
 3. **Header-only helper ownership requires explicit guard wording.** Because
-   `tests/test_svd_helpers.h` is intentionally included by one proof-owner
-   binary rather than registered as its own target, the guard has to protect
-   against accidental Makefile, CMake, and library-manifest registration.
+   `tests/test_svd_selected_helpers.h` is intentionally included only by the
+   `test_svd` proof-owner binary, while `tests/test_svd_helpers.h` remains
+   shared fixture support, the guard has to protect dependencies, registration
+   order, explicit Makefile prerequisites, and CMake/library-manifest
+   boundaries.
 
 4. **Broad review-surface cleanup remains incomplete.** Sprint 201 closes one
    selected reviewability gap, not a repository-wide maintainability program.
@@ -153,11 +155,15 @@ Sprint 201 closes this bounded claim:
 
 The current branch reduces one selected SVD test review surface by moving the
 rank, pseudoinverse, and dense low-rank test implementations from
-`tests/test_svd.c` into `tests/test_svd_helpers.h`. The proof-owner binary
-remains `tests/test_svd.c`; selected test registrations remain there; the
-helper is protected by `make svd-helper-guard` and
-`tests/test_svd_helper_guard.py`; focused and full validation show behavior is
-preserved for the selected cluster.
+`tests/test_svd.c` into `tests/test_svd_selected_helpers.h`. The shared fixture
+helpers remain in `tests/test_svd_helpers.h`; the proof-owner binary remains
+`tests/test_svd.c`; selected test registrations remain there and in their
+existing order; both helper headers are Makefile prerequisites for
+`build/test_svd`; the helper boundary is protected by `make svd-helper-guard`
+and `tests/test_svd_helper_guard.py`; focused and full validation show selected
+cluster behavior is preserved. Assertion source locations now follow the
+helper-owned implementation file; the preservation claim is limited to selected
+test names, status/error behavior, and emitted diagnostic text.
 
 This claim does not include broad SVD correctness, new SVD algorithm
 capability, partial-SVD corpus ownership, public API or ABI changes, library

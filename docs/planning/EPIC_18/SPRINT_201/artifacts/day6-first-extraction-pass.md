@@ -4,13 +4,14 @@
 
 Day 6 implemented the first narrowly scoped extraction for the selected Sprint
 201 SVD review-surface reduction. The rank subgroup moved from
-`tests/test_svd.c` into `tests/test_svd_helpers.h` while preserving
+`tests/test_svd.c` into `tests/test_svd_selected_helpers.h` while preserving
 `tests/test_svd.c` as the proof-owner binary.
 
 Changed code files:
 
 - `tests/test_svd.c`
 - `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 
 No production source, public header, Makefile, CMake, source-list, or CI files
 were changed.
@@ -31,7 +32,8 @@ retain their existing order.
 
 ## Dependency And Visibility Changes
 
-`tests/test_svd_helpers.h` now includes:
+PR #223 review follow-up moved these selected implementations from the shared
+fixture helper into `tests/test_svd_selected_helpers.h`, which now includes:
 
 - `sparse_qr.h`, required by the moved SVD/QR rank cross-check helper;
 - `<stdio.h>`, required by the moved `printf(...)` diagnostics.
@@ -54,7 +56,7 @@ The extraction preserved:
 
 ## Review-Surface Result
 
-Post-format line counts:
+Original Day 6 post-format line counts before the PR #223 selected-helper split:
 
 | File | Lines |
 | --- | ---: |
@@ -62,8 +64,10 @@ Post-format line counts:
 | `tests/test_svd_helpers.h` | 394 |
 
 The first pass removed the rank implementation bodies from the large proof-owner
-file and replaced them with thin wrappers. Pseudoinverse and dense low-rank
-implementations remain for Day 7.
+file and replaced them with thin wrappers. PR #223 follow-up keeps those selected
+bodies out of the shared fixture helper so `tests/test_svd_partial_corpus.c`
+does not compile unregistered selected SVD bodies through its shared-helper
+include.
 
 ## Deviations From Day 5 Design
 

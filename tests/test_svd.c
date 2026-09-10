@@ -22,6 +22,7 @@
 #define TF_ENABLE_EXTERNAL_REFERENCE_HELPER
 #include "test_solver_helpers.h"
 #include "test_svd_helpers.h"
+#include "test_svd_selected_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

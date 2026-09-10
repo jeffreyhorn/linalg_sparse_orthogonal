@@ -9,7 +9,7 @@ overstate broader cleanup.
 The completed claim is narrow:
 
 - selected `tests/test_svd.c` rank, pseudoinverse, and dense low-rank test
-  bodies moved into `tests/test_svd_helpers.h`;
+  bodies moved into `tests/test_svd_selected_helpers.h`;
 - `tests/test_svd.c` remains the proof-owner binary and keeps the selected
   `RUN_TEST(...)` registrations;
 - `make svd-helper-guard` and `python3 tests/test_svd_helper_guard.py` protect

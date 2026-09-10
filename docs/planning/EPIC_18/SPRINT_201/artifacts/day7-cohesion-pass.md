@@ -4,13 +4,15 @@
 
 Day 7 completed the second extraction pass for the selected SVD review-surface
 cluster by moving the pseudoinverse and dense low-rank tests into
-`tests/test_svd_helpers.h` while preserving the registered test wrappers in
-`tests/test_svd.c`.
+`tests/test_svd_selected_helpers.h` while preserving the registered test
+wrappers in `tests/test_svd.c`. Shared fixtures remain in
+`tests/test_svd_helpers.h`.
 
 ## Changed Files
 
 - `tests/test_svd.c`
 - `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 
 No production source, public header, build registration, or test registration
 order changed.
@@ -57,8 +59,8 @@ Dense low-rank wrappers moved on Day 7:
 
 ## Dependency Notes
 
-`tests/test_svd_helpers.h` now owns the dependencies needed by the extracted
-cluster:
+`tests/test_svd_selected_helpers.h` now owns the dependencies needed by the
+extracted cluster:
 
 - `sparse_qr.h` remains for the dependent-row SVD/QR rank cross-check moved on
   Day 6;
@@ -92,11 +94,11 @@ Post-format line counts:
 | File | Lines |
 | --- | ---: |
 | `tests/test_svd.c` | 2657 |
-| `tests/test_svd_helpers.h` | 677 |
+| `tests/test_svd_selected_helpers.h` | selected helper body owner after PR #223 follow-up |
 
 Relative to the Day 6 post-format baseline, Day 7 removed 257 lines from
-`tests/test_svd.c` and moved the selected test body ownership into the helper
-header.
+`tests/test_svd.c` and moved the selected test body ownership into the selected
+helper header.
 
 ## Validation
 

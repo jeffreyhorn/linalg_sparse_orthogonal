@@ -129,7 +129,7 @@ Result: passed.
 | Registration/source/CMake parity regresses. | `make source-list-check` and CMake configure passed. | No known parity residual. |
 | Docs or maintainer guidance overclaim. | `make docs-check` passed and Day 11 documentation recorded selected-scope non-claims. | Broader review-surface cleanup remains future selected-cluster work. |
 | Public API, ABI, or library implementation is unintentionally changed. | No Sprint 201 implementation/header API changes are part of the selected SVD helper extraction. | Public API/ABI non-claim remains unchanged. |
-| Platform, package-manager, performance, or state-of-art claims are implied. | Day 12 validation is local selected-cluster evidence only. | These remain explicit non-claims for Sprint 201. |
+| Platform, package-manager, performance, or state-of-the-art claims are implied. | Day 12 validation is local selected-cluster evidence only. | These remain explicit non-claims for Sprint 201. |
 
 ## Completion
 

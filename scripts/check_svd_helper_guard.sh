@@ -11,9 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_FILE="$ROOT_DIR/tests/test_svd.c"
-HELPER="tests/test_svd_helpers.h"
-HELPER_PATH="$ROOT_DIR/$HELPER"
-HELPER_NAME="$(basename "$HELPER")"
+SHARED_HELPER="tests/test_svd_helpers.h"
+SHARED_HELPER_PATH="$ROOT_DIR/$SHARED_HELPER"
+SHARED_HELPER_NAME="$(basename "$SHARED_HELPER")"
+SELECTED_HELPER="tests/test_svd_selected_helpers.h"
+SELECTED_HELPER_PATH="$ROOT_DIR/$SELECTED_HELPER"
+SELECTED_HELPER_NAME="$(basename "$SELECTED_HELPER")"
 MAKEFILE="$ROOT_DIR/Makefile"
 CMAKE_FILE="$ROOT_DIR/CMakeLists.txt"
 LIBRARY_MANIFEST="$ROOT_DIR/build-metadata/library_sources.txt"
@@ -109,9 +112,24 @@ require_exact_fixed_count() {
     fi
 }
 
+require_increasing_run_test_order() {
+    local marker
+    local line
+    local previous_line=0
+
+    for marker in "${RUN_TEST_MARKERS[@]}"; do
+        line="$(grep --fixed-strings --line-number -- "$marker" "$TEST_FILE" | head -n 1 | cut -d: -f1)"
+        if [ "$line" -le "$previous_line" ]; then
+            fail "tests/test_svd.c selected RUN_TEST registrations changed order near '$marker'"
+        fi
+        previous_line="$line"
+    done
+}
+
 check_required_files() {
     require_file "$TEST_FILE" "tests/test_svd.c is missing"
-    require_file "$HELPER_PATH" "$HELPER is missing"
+    require_file "$SHARED_HELPER_PATH" "$SHARED_HELPER is missing"
+    require_file "$SELECTED_HELPER_PATH" "$SELECTED_HELPER is missing"
     require_file "$MAKEFILE" "Makefile is missing"
     require_file "$CMAKE_FILE" "CMakeLists.txt is missing"
     require_file "$LIBRARY_MANIFEST" "build-metadata/library_sources.txt is missing"
@@ -129,16 +147,26 @@ check_proof_owner_registration() {
 }
 
 check_helper_boundary() {
-    require_fixed "#ifndef TEST_SVD_HELPERS_H" "$HELPER_PATH" \
-        "$HELPER is missing include guard TEST_SVD_HELPERS_H"
-    require_fixed "#define TEST_SVD_HELPERS_H" "$HELPER_PATH" \
-        "$HELPER is missing include guard define TEST_SVD_HELPERS_H"
-    require_exact_fixed_count "#include \"$HELPER_NAME\"" "$TEST_FILE" 1 \
-        "tests/test_svd.c must include $HELPER_NAME exactly once"
-    require_fixed '#include "sparse_svd.h"' "$HELPER_PATH" \
-        "$HELPER must include sparse_svd.h for SVD helper dependencies"
-    require_fixed '#include "sparse_vector.h"' "$HELPER_PATH" \
-        "$HELPER must include sparse_vector.h for minimum-norm helper dependencies"
+    require_fixed "#ifndef TEST_SVD_HELPERS_H" "$SHARED_HELPER_PATH" \
+        "$SHARED_HELPER is missing include guard TEST_SVD_HELPERS_H"
+    require_fixed "#define TEST_SVD_HELPERS_H" "$SHARED_HELPER_PATH" \
+        "$SHARED_HELPER is missing include guard define TEST_SVD_HELPERS_H"
+    require_fixed "#ifndef TEST_SVD_SELECTED_HELPERS_H" "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER is missing include guard TEST_SVD_SELECTED_HELPERS_H"
+    require_fixed "#define TEST_SVD_SELECTED_HELPERS_H" "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER is missing include guard define TEST_SVD_SELECTED_HELPERS_H"
+    require_exact_fixed_count "#include \"$SHARED_HELPER_NAME\"" "$TEST_FILE" 1 \
+        "tests/test_svd.c must include $SHARED_HELPER_NAME exactly once"
+    require_exact_fixed_count "#include \"$SELECTED_HELPER_NAME\"" "$TEST_FILE" 1 \
+        "tests/test_svd.c must include $SELECTED_HELPER_NAME exactly once"
+    require_fixed "#include \"$SHARED_HELPER_NAME\"" "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER must include $SHARED_HELPER_NAME for shared SVD fixtures"
+    require_fixed '#include "sparse_qr.h"' "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER must include sparse_qr.h for QR rank helper dependencies"
+    require_fixed '#include "sparse_svd.h"' "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER must include sparse_svd.h for SVD helper dependencies"
+    require_fixed '#include "sparse_vector.h"' "$SELECTED_HELPER_PATH" \
+        "$SELECTED_HELPER must include sparse_vector.h for minimum-norm helper dependencies"
 
     pass "helper boundary"
 }
@@ -147,8 +175,10 @@ check_selected_cluster_ownership() {
     local marker
 
     for marker in "${MOVED_DEFINITION_MARKERS[@]}"; do
-        require_fixed "$marker" "$HELPER_PATH" \
-            "$HELPER is missing moved selected-cluster definition marker '$marker'"
+        require_fixed "$marker" "$SELECTED_HELPER_PATH" \
+            "$SELECTED_HELPER is missing moved selected-cluster definition marker '$marker'"
+        require_absent_fixed "$marker" "$SHARED_HELPER_PATH" \
+            "$SHARED_HELPER still owns moved selected-cluster definition marker '$marker'"
         require_absent_fixed "$marker" "$TEST_FILE" \
             "tests/test_svd.c still owns moved selected-cluster definition marker '$marker'"
     done
@@ -157,22 +187,33 @@ check_selected_cluster_ownership() {
         require_exact_fixed_count "$marker" "$TEST_FILE" 1 \
             "tests/test_svd.c must retain proof-owner registration '$marker' exactly once"
     done
+    require_increasing_run_test_order
 
     pass "selected cluster ownership"
 }
 
 check_header_only_registration() {
-    local stem
+    local selected_stem
+    local shared_stem
 
-    stem="${HELPER_NAME%.h}"
-    require_absent_fixed "$HELPER_NAME" "$MAKEFILE" \
-        "$HELPER_NAME must remain header-only and not be named in Makefile registration"
-    require_absent_fixed "$HELPER_NAME" "$CMAKE_FILE" \
-        "$HELPER_NAME must remain header-only and not be named in CMake registration"
-    require_absent_fixed "$HELPER" "$LIBRARY_MANIFEST" \
-        "$HELPER must not be listed as a library source"
-    require_absent_fixed "add_sparse_test($stem)" "$CMAKE_FILE" \
-        "$stem must not become a separate CMake test without a new proof-owner decision"
+    shared_stem="${SHARED_HELPER_NAME%.h}"
+    selected_stem="${SELECTED_HELPER_NAME%.h}"
+    require_fixed '$(TESTDIR)/test_svd_helpers.h' "$MAKEFILE" \
+        "Makefile must list test_svd_helpers.h as a test_svd prerequisite"
+    require_fixed '$(TESTDIR)/test_svd_selected_helpers.h' "$MAKEFILE" \
+        "Makefile must list test_svd_selected_helpers.h as a test_svd prerequisite"
+    require_absent_fixed "$SHARED_HELPER_NAME" "$CMAKE_FILE" \
+        "$SHARED_HELPER_NAME must remain header-only and not be named in CMake registration"
+    require_absent_fixed "$SELECTED_HELPER_NAME" "$CMAKE_FILE" \
+        "$SELECTED_HELPER_NAME must remain header-only and not be named in CMake registration"
+    require_absent_fixed "$SHARED_HELPER" "$LIBRARY_MANIFEST" \
+        "$SHARED_HELPER must not be listed as a library source"
+    require_absent_fixed "$SELECTED_HELPER" "$LIBRARY_MANIFEST" \
+        "$SELECTED_HELPER must not be listed as a library source"
+    require_absent_fixed "add_sparse_test($shared_stem)" "$CMAKE_FILE" \
+        "$shared_stem must not become a separate CMake test without a new proof-owner decision"
+    require_absent_fixed "add_sparse_test($selected_stem)" "$CMAKE_FILE" \
+        "$selected_stem must not become a separate CMake test without a new proof-owner decision"
 
     pass "header-only registration"
 }

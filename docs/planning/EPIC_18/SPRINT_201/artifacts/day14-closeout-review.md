@@ -5,7 +5,7 @@
 Day 14 finalizes Sprint 201 evidence, item status, residuals, and retrospective
 inputs for the selected review-surface reduction. The selected surface is the
 rank, pseudoinverse, and dense low-rank test cluster in `tests/test_svd.c`,
-with helper ownership moved to `tests/test_svd_helpers.h`.
+with selected helper ownership moved to `tests/test_svd_selected_helpers.h`.
 
 ## Final Item Status
 
@@ -13,7 +13,7 @@ with helper ownership moved to `tests/test_svd_helpers.h`.
 | --- | --- | --- |
 | 201.1 Candidate Ranking | Complete | `day1-large-surface-intake.md`; `day2-candidate-ranking.md`; selected one high-risk SVD test cluster instead of spreading work across multiple large files. |
 | 201.2 Cluster Selection | Complete | `day3-selected-cluster-boundary.md`; `day4-preservation-invariants.md`; selected rank, pseudoinverse, and dense low-rank tests with explicit no-public-API and no-behavior-change boundaries. |
-| 201.3 Helper Or Module Extraction | Complete | `day5-extraction-design.md`; `day6-first-extraction-pass.md`; `day7-cohesion-pass.md`; selected bodies moved into `tests/test_svd_helpers.h` while `tests/test_svd.c` retains proof-owner wrappers and registrations. |
+| 201.3 Helper Or Module Extraction | Complete | `day5-extraction-design.md`; `day6-first-extraction-pass.md`; `day7-cohesion-pass.md`; selected bodies moved into `tests/test_svd_selected_helpers.h` while `tests/test_svd.c` retains proof-owner wrappers and registrations. |
 | 201.4 Ownership Guard | Complete | `day8-registration-alignment.md`; `day9-ownership-guard.md`; `Makefile`; `scripts/check_svd_helper_guard.sh`; `tests/test_svd_helper_guard.py`; guard checks proof-owner registration, helper boundary, selected moved markers, and header-only non-registration. |
 | 201.5 Focused Regression | Complete | `day10-focused-regression.md`; Day 10 and Day 12 `./build/test_svd` runs passed with the selected wrappers active. |
 | 201.6 Validation And Docs | Complete | `day11-maintainer-alignment.md`; `day12-integrated-validation.md`; `day13-review-hardening.md`; Day 12 full C quality gate passed; maintainer, project-plan, and residual-queue wording is selected-cluster scoped. |
@@ -25,6 +25,7 @@ Sprint 201 completed one additional review-surface reduction:
 - ranked large source and test surfaces and selected one bounded SVD cluster;
 - recorded behavior-preservation invariants before moving code;
 - moved selected SVD rank, pseudoinverse, and dense low-rank test bodies into
+  `tests/test_svd_selected_helpers.h`, leaving shared SVD fixtures in
   `tests/test_svd_helpers.h`;
 - retained `tests/test_svd.c` as the proof-owner binary with unchanged
   `RUN_TEST(...)` registrations;
@@ -39,8 +40,8 @@ Sprint 201 completed one additional review-surface reduction:
 | Command | Result | Evidence |
 | --- | --- | --- |
 | `make build/test_svd && ./build/test_svd` | PASS | Day 10 and Day 12 focused runs passed; Day 12 reported 114 tests, 0 failures, 0 skipped, and 2067 assertions. |
-| `make svd-helper-guard` | PASS | Day 9, Day 12, Day 13, and Day 14 runs verified required files, proof-owner registration, helper boundary, selected ownership, header-only registration, and final pass. |
-| `python3 tests/test_svd_helper_guard.py` | PASS | Day 9, Day 12, Day 13, and Day 14 runs passed fixture-positive and drift-negative guard checks. |
+| `make svd-helper-guard` | PASS | Day 9, Day 12, Day 13, Day 14, and PR #223 review follow-up verified required files, proof-owner registration, shared/selected helper boundary, selected ownership, frozen registration order, selected-helper dependencies, Makefile helper prerequisites, header-only registration, and final pass. |
+| `python3 tests/test_svd_helper_guard.py` | PASS | Day 9, Day 12, Day 13, Day 14, and PR #223 review follow-up passed fixture-positive and drift-negative guard checks, including missing QR include, reordered registrations, shared-helper selected-body drift, and stale-binary prerequisite drift. |
 | `make source-list-check` | PASS | Day 12 source-list check reported 49 library sources. |
 | `cmake -S . -B build/sprint201-day12-validation-check` | PASS | Day 12 configure/generate completed under ignored `build/`. |
 | `make docs-check` | PASS | Day 12, Day 13, and Day 14 runs generated Doxygen output and passed API docs coverage for 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. |
@@ -94,7 +95,7 @@ Sprint 201 does not claim:
 | --- | --- |
 | Completed work | One selected SVD rank/pseudoinverse/dense-low-rank review surface is reduced and locally validated. |
 | Validation | Focused SVD binary, SVD helper guard, guard regression test, source-list parity, CMake configure, docs check, adjacent QR guard, format, lint, full test suite, and whitespace checks passed. |
-| Deviations | The sprint chose a helper-header extraction instead of a compiled helper module because the selected surface is test-only and `tests/test_svd.c` remains the proof-owner binary. |
+| Deviations | The sprint chose a proof-owner-only selected helper header instead of a compiled helper module because the selected surface is test-only and `tests/test_svd.c` remains the proof-owner binary. Assertion source locations now follow the helper-owned implementation file; selected test names, status/error behavior, and emitted diagnostic text remain the preserved diagnostic surface. |
 | Deferred breadth | Other SVD clusters, partial-SVD corpus ownership, broader test/helper dependency tracking, and other large solver/test files remain future selected-cluster work. |
 | Recommendation | Keep future review-surface reduction work selected-cluster scoped, with invariants written before code movement and guard tests added before closeout. |
 
@@ -104,6 +105,7 @@ The intended Sprint 201 change surface is:
 
 - `tests/test_svd.c`;
 - `tests/test_svd_helpers.h`;
+- `tests/test_svd_selected_helpers.h`;
 - `scripts/check_svd_helper_guard.sh`;
 - `tests/test_svd_helper_guard.py`;
 - `Makefile`;

@@ -118,12 +118,49 @@ require_increasing_run_test_order() {
     local previous_line=0
 
     for marker in "${RUN_TEST_MARKERS[@]}"; do
-        line="$(grep --fixed-strings --line-number -- "$marker" "$TEST_FILE" | head -n 1 | cut -d: -f1)"
+        line="$(active_run_test_line "$marker")"
         if [ "$line" -le "$previous_line" ]; then
             fail "tests/test_svd.c selected RUN_TEST registrations changed order near '$marker'"
         fi
         previous_line="$line"
     done
+}
+
+active_run_test_count() {
+    local marker="$1"
+
+    awk -v marker="$marker" '
+        /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index($0, marker) > 0 {
+            count++
+        }
+        END { print count + 0 }
+    ' "$TEST_FILE"
+}
+
+active_run_test_line() {
+    local marker="$1"
+
+    awk -v marker="$marker" '
+        /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index($0, marker) > 0 {
+            print NR
+            found = 1
+            exit
+        }
+        END {
+            if (!found)
+                print 0
+        }
+    ' "$TEST_FILE"
+}
+
+require_active_run_test_registration() {
+    local marker="$1"
+    local count
+
+    count="$(active_run_test_count "$marker")"
+    if [ "$count" -ne 1 ]; then
+        fail "tests/test_svd.c must retain proof-owner registration '$marker' exactly once as an active RUN_TEST line (found $count)"
+    fi
 }
 
 require_test_srcs_entry() {
@@ -250,8 +287,7 @@ check_selected_cluster_ownership() {
     done
 
     for marker in "${RUN_TEST_MARKERS[@]}"; do
-        require_exact_fixed_count "$marker" "$TEST_FILE" 1 \
-            "tests/test_svd.c must retain proof-owner registration '$marker' exactly once"
+        require_active_run_test_registration "$marker"
     done
     require_increasing_run_test_order
 

@@ -257,6 +257,20 @@ def test_missing_run_test_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must retain proof-owner registration")
 
 
+def test_commented_run_test_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_svd.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"// {RUN_TEST_MARKERS[0]}",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "as an active RUN_TEST line")
+
+
 def test_reordered_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_svd.c"
@@ -306,6 +320,20 @@ def test_missing_selected_helper_makefile_prerequisite_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "must list test_svd_selected_helpers.h")
+
+
+def test_missing_shared_helper_makefile_prerequisite_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                " $(TESTDIR)/test_svd_helpers.h",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must list test_svd_helpers.h")
 
 
 def test_selected_helper_prerequisite_moved_to_other_rule_fails_clearly() -> None:
@@ -362,10 +390,12 @@ if __name__ == "__main__":
     test_moved_definition_in_test_svd_fails_clearly()
     test_moved_definition_in_shared_helper_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
+    test_commented_run_test_registration_fails_clearly()
     test_reordered_run_test_registration_fails_clearly()
     test_missing_makefile_registration_fails_clearly()
     test_missing_cmake_registration_fails_clearly()
     test_missing_selected_helper_makefile_prerequisite_fails_clearly()
+    test_missing_shared_helper_makefile_prerequisite_fails_clearly()
     test_selected_helper_prerequisite_moved_to_other_rule_fails_clearly()
     test_selected_helper_included_by_second_translation_unit_fails_clearly()
     test_selected_helper_cmake_registration_fails_clearly()

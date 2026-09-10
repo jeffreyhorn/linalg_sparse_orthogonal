@@ -107,8 +107,8 @@ calibration, integrated validation, review hardening, and final closeout.
 | selected benchmark freshness regression | passed on Days 7, 11, 12, 13, and 14 |
 | normalizer report-index checks | passed on Day 12 |
 | hosted-mode local simulation | passed on Days 11 and 12 with Sprint 202 macOS hosted metadata |
-| PR hosted macOS selected-performance job | passed in run `34514287024`, job `102995737049`, for commit `b093bf28589f4c24f7ae0e2d9d70f3250977e466` |
-| PR selected hosted artifact upload | passed with artifact `sprint202-macos-selected-performance-freshness`, id `10167064879`, digest `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`, and exactly 3 uploaded files |
+| PR hosted macOS selected-performance job | passed in run `34517520951`, job `103006563210`, for commit `52890043be0d2325f2e4534a480d5f1cfc7ce23e` |
+| PR selected hosted artifact upload | passed with artifact `sprint202-macos-selected-performance-freshness`, id `10168283869`, digest `sha256:308ee8f780a28673fc02ff40b10aeb17ae6219fcdf55095657526b76f7016af4`, and exactly 3 uploaded files |
 | Python syntax check | passed on Days 11, 12, 13, and 14 |
 | stale claim/path scans | passed on Days 10, 12, and 13 with only intentional non-claim hits |
 | final `git diff --check` | passed |
@@ -174,9 +174,9 @@ Linuxbrew, public package-manager distribution, package or ABI support,
 backend superiority, release benchmark readiness, broad platform support, or
 state-of-the-art sparse linear algebra performance.
 
-Hosted CI execution was reviewed after PR creation: run `34514287024`, job
-`102995737049`, completed successfully for commit
-`b093bf28589f4c24f7ae0e2d9d70f3250977e466`. The log shows the macOS hosted
+Hosted CI execution was reviewed after PR creation: run `34517520951`, job
+`103006563210`, completed successfully for commit
+`52890043be0d2325f2e4534a480d5f1cfc7ce23e`. The log shows the macOS hosted
 selected-performance job generated the selected report, passed hosted-mode
 freshness, summarized `support_tier=hosted_selected`,
 `claim_boundary=hosted_selected_threshold_free`,
@@ -208,7 +208,7 @@ This claim is supported by:
 
 | Residual | Owner condition | Evidence required to close |
 | --- | --- | --- |
-| Hosted macOS selected benchmark freshness evidence | Closed by PR run `34514287024`, job `102995737049` | Job passed, generated the canonical report, passed hosted freshness, uploaded exactly the selected bundle, and kept summary claims bounded. |
+| Hosted macOS selected benchmark freshness evidence | Closed by PR run `34517520951`, job `103006563210` | Job passed, generated the canonical report, passed hosted freshness, uploaded exactly the selected bundle, and kept summary claims bounded. |
 | Windows selected benchmark freshness remains unclaimed | Future Windows selected benchmark owner | Rank Windows runtime/path/shell risks, add selected workflow and path-normalized checks, update docs, and inspect hosted Windows evidence. |
 | Timing thresholds remain unclaimed | Future methodology and performance owner | Define baseline, variance, warmup/repeat policy, tolerance, same-machine comparison semantics, and threshold failure behavior before adding timing gates. |
 | Broad benchmark-family publication remains unclaimed | Future benchmark publication owner | Select additional rows deliberately, add manifest identity and upload guards, and calibrate docs before publishing broader benchmark artifacts. |
@@ -222,7 +222,7 @@ PR hosted evidence reviewed for the selected macOS path.
 
 | Future need | Sprint 202 handoff |
 | --- | --- |
-| Hosted CI review | Use run `34514287024`, job `102995737049`, and artifact `10167064879` as the selected macOS evidence anchor. |
+| Hosted CI review | Use run `34517520951`, job `103006563210`, and artifact `10168283869` as the selected macOS evidence anchor. |
 | Additional platform freshness | Reuse the candidate-ranking and selected-lane decision pattern, but treat Windows as a separate owner with path and shell risks. |
 | Benchmark threshold promotion | Keep the Sprint 192 and Sprint 202 threshold-free metadata until a sprint owns threshold methodology end to end. |
 | Documentation maintenance | Keep Linux/macOS hosted selected freshness wording aligned across README, INSTALL, benchmark docs, corpus docs, schema docs, maintainer guide, and selected target manifest. |

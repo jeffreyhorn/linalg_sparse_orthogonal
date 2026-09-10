@@ -10,8 +10,8 @@ benchmark publication, package-manager support, release readiness, or
 state-of-the-art performance.
 
 Hosted GitHub Actions evidence was reviewed after PR creation. Run
-`34514287024`, job `102995737049`, completed successfully for commit
-`b093bf28589f4c24f7ae0e2d9d70f3250977e466` and uploaded artifact
+`34517520951`, job `103006563210`, completed successfully for commit
+`52890043be0d2325f2e4534a480d5f1cfc7ce23e` and uploaded artifact
 `sprint202-macos-selected-performance-freshness`.
 
 ## Item Status
@@ -20,10 +20,10 @@ Hosted GitHub Actions evidence was reviewed after PR creation. Run
 | --- | --- | --- |
 | 202.1 Platform And Row Selection | Complete for selected macOS lane | Days 1-3 selected macOS hosted freshness for `SRT-BENCH-REFACTOR-CSC-NOS4` and deferred broader platforms/rows. |
 | 202.2 Methodology Metadata | Complete for selected macOS lane | Days 4-6 defined threshold-free hosted metadata and manifest/report-index expectations. |
-| 202.3 Workflow Lane | Complete for selected macOS lane | Day 8 added the macOS `selected-performance-freshness` job and PR run `34514287024` confirmed hosted execution. |
+| 202.3 Workflow Lane | Complete for selected macOS lane | Day 8 added the macOS `selected-performance-freshness` job and PR run `34517520951` confirmed hosted execution. |
 | 202.4 Freshness Tests | Complete for branch-local validation | Days 6-7 and Day 13 cover missing, duplicate, malformed, path-drift, hosted metadata, and unselected-row promotion failures. |
 | 202.5 Docs Calibration | Complete for selected macOS claim surfaces | Day 10 and Day 13 updated README, install, benchmark, corpus, schema, and maintainer surfaces with bounded non-claims. |
-| 202.6 Validation | Complete for selected macOS lane | Days 11-14 record passing focused checks; PR run `34514287024` records hosted execution and selected artifact upload evidence. |
+| 202.6 Validation | Complete for selected macOS lane | Days 11-14 record passing focused checks; PR run `34517520951` records hosted execution and selected artifact upload evidence. |
 
 ## Final Changed Surface
 
@@ -67,8 +67,8 @@ After PR #224 was opened, GitHub Actions evidence confirmed that:
 - `scripts/check_bench_canonical_freshness.py --mode hosted` passed;
 - artifact `sprint202-macos-selected-performance-freshness` uploaded exactly
   `bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`;
-- artifact id `10167064879` reported digest
-  `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`;
+- artifact id `10168283869` reported digest
+  `sha256:308ee8f780a28673fc02ff40b10aeb17ae6219fcdf55095657526b76f7016af4`;
 - the workflow summary reported the selected row without portable-performance,
   timing-threshold, broad-platform, package/ABI, release, or state-of-the-art
   claims.
@@ -83,7 +83,7 @@ Retrospective inputs prepared by Day 14:
 - validation: focused Python guard/regression tests, py_compile, whitespace
   checks, and Day 12 hosted-mode local simulation;
 - residuals: no selected macOS hosted evidence residual remains after PR run
-  `34514287024`; deferred non-selected claims remain separate;
+  `34517520951`; deferred non-selected claims remain separate;
 - deferred work: Windows selected benchmark freshness, broad benchmark matrix
   publication, timing-threshold promotion, package-manager distribution,
   package/ABI claims, and state-of-the-art performance claims;

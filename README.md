@@ -275,11 +275,14 @@ portable performance claims.
 Runtime/backend sentinels follow the same boundary: `S5` is the existing
 local `wall-check` hard gate, while `S2` Cholesky CSC and `S3` LDLT KKT rows
 are threshold-free local context rows in
-`build/bench-reports/sentinels/sentinels.tsv`. Generated benchmark,
+`build/bench-reports/sentinels/sentinels.tsv`. Locally generated benchmark,
 sentinel, and normalized report-index artifacts stay under ignored `build/`
-paths and are not hosted CI proof, package proof, ABI proof, runtime-loader
-proof, external-library parity, OpenMP speedup evidence, backend superiority
-evidence, or state-of-the-art evidence.
+paths and are not hosted CI proof by themselves. Only the explicitly reviewed
+hosted lanes described below promote selected uploaded artifacts to hosted
+freshness evidence; neither local generated artifacts nor selected hosted
+freshness artifacts are package proof, ABI proof, runtime-loader proof,
+external-library parity, OpenMP speedup evidence, backend superiority evidence,
+or state-of-the-art evidence.
 
 ## Building
 

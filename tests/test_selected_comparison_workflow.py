@@ -148,6 +148,23 @@ def assert_upload_fail_closed(job: str, artifact_name: str, *, label: str) -> st
     return block
 
 
+def upload_path_entries(block: str, *, label: str) -> list[str]:
+    lines = block.splitlines()
+    for index, line in enumerate(lines):
+        if line == "          path: |":
+            paths = []
+            for path_line in lines[index + 1 :]:
+                if not path_line.startswith("            "):
+                    break
+                stripped = path_line.strip()
+                if stripped:
+                    paths.append(stripped)
+            if not paths:
+                raise AssertionError(f"{label} upload path block is empty")
+            return paths
+    raise AssertionError(f"{label} missing upload path block")
+
+
 def comparison_directory(row: dict[str, str]) -> str:
     return str(Path(row["artifact_pattern"]).parent)
 
@@ -223,8 +240,15 @@ def assert_performance_upload_paths(
         if pattern in block:
             raise AssertionError(f"{label} must not use broad benchmark upload paths")
     directory = str(Path(row["artifact_pattern"]).parent)
-    for filename in split_manifest_values(row["required_files"]):
-        assert_contains(block, f"{directory}/{filename}", label=label)
+    expected_paths = {
+        f"{directory}/{filename}" for filename in split_manifest_values(row["required_files"])
+    }
+    actual_paths = set(upload_path_entries(block, label=label))
+    if actual_paths != expected_paths:
+        raise AssertionError(
+            f"{label} upload paths must equal {sorted(expected_paths)!r}, "
+            f"got {sorted(actual_paths)!r}"
+        )
     for path in BENCHMARK_FORBIDDEN_UPLOAD_PATHS:
         if path in block:
             raise AssertionError(f"{label} must not upload unselected benchmark path {path!r}")
@@ -825,8 +849,7 @@ def test_performance_workflow_unselected_upload_fails_clearly() -> None:
             artifact_name,
             label="linux performance upload",
         ),
-        "linux performance upload must not upload unselected benchmark path "
-        "'build/bench-reports/canonical/bench_chol_csc.csv'",
+        "linux performance upload upload paths must equal",
     )
 
 
@@ -864,7 +887,7 @@ def test_performance_workflow_missing_required_upload_file_fails_clearly() -> No
             artifact_name,
             label="linux performance upload",
         ),
-        "linux performance upload missing 'build/bench-reports/canonical/manifest.txt'",
+        "linux performance upload upload paths must equal",
     )
 
 
@@ -886,8 +909,29 @@ def test_macos_performance_workflow_unselected_upload_fails_clearly() -> None:
             artifact_name,
             label="macos performance upload",
         ),
-        "macos performance upload must not upload unselected benchmark path "
-        "'build/bench-reports/canonical/bench_eigs_reuse.csv'",
+        "macos performance upload upload paths must equal",
+    )
+
+
+def test_macos_performance_workflow_extra_upload_path_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    row = single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "macos")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/manifest.txt\n",
+        "            build/bench-reports/canonical/manifest.txt\n"
+        "            build/bench-reports/canonical/extra-local-report.csv\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="macos performance upload",
+        ),
+        "macos performance upload upload paths must equal",
     )
 
 
@@ -948,8 +992,7 @@ def test_macos_performance_workflow_wrong_upload_path_fails_clearly() -> None:
             artifact_name,
             label="macos performance upload",
         ),
-        "macos performance upload missing "
-        "'build/bench-reports/canonical/bench_refactor_csc.csv'",
+        "macos performance upload upload paths must equal",
     )
 
 
@@ -994,6 +1037,7 @@ def main() -> int:
     test_performance_workflow_missing_retention_fails_clearly()
     test_performance_workflow_missing_required_upload_file_fails_clearly()
     test_macos_performance_workflow_unselected_upload_fails_clearly()
+    test_macos_performance_workflow_extra_upload_path_fails_clearly()
     test_macos_performance_workflow_missing_job_fails_clearly()
     test_macos_performance_workflow_wrong_runner_fails_clearly()
     test_macos_performance_workflow_missing_generation_step_fails_clearly()

@@ -16,7 +16,8 @@ DOC_MARKERS = {
         "nos4.mtx --repeat 1",
         "reviewed Linux and macOS hosted performance\n  lanes",
         "still without a timing threshold\n  or portable performance claim",
-        "not hosted CI proof, package proof, ABI proof, runtime-loader\nproof, external-library parity, OpenMP speedup evidence, backend superiority\nevidence, or state-of-the-art evidence",
+        "Locally generated benchmark,\nsentinel, and normalized report-index artifacts stay under ignored `build/`\npaths and are not hosted CI proof by themselves",
+        "Only the explicitly reviewed\nhosted lanes described below promote selected uploaded artifacts to hosted\nfreshness evidence",
     ),
     "INSTALL.md": (
         "Linux/macOS selected performance freshness",

@@ -6,8 +6,8 @@ Day 12 ran the integrated local validation set for the Sprint 202 workflow,
 manifest, docs, report-index, and selected benchmark freshness changes. All
 local checks passed. Hosted CI evidence was initially a bounded residual because
 the branch had no upstream configured and `gh run list --branch sprint-202
---limit 10` returned no runs. After PR creation, run `34514287024`, job
-`102995737049`, closed that residual for the selected macOS lane.
+--limit 10` returned no runs. After PR creation, run `34517520951`, job
+`103006563210`, closed that residual for the selected macOS lane.
 
 ## Changed Surface
 
@@ -97,7 +97,7 @@ Results:
   `fatal: no upstream configured for branch 'sprint-202'`.
 
 This was the pre-push state. After the branch was pushed and PR #224 ran,
-hosted evidence was reviewed for run `34514287024`, job `102995737049`, which
+hosted evidence was reviewed for run `34517520951`, job `103006563210`, which
 completed successfully.
 
 ## Hosted Residual And Rerun Checklist
@@ -112,8 +112,8 @@ After PR #224 was opened, the macOS workflow run was reviewed:
   build/bench-reports/canonical --mode hosted` passed;
 - artifact `sprint202-macos-selected-performance-freshness` uploaded exactly
   three files: `bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`;
-- artifact id `10167064879` reported digest
-  `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`;
+- artifact id `10168283869` reported digest
+  `sha256:308ee8f780a28673fc02ff40b10aeb17ae6219fcdf55095657526b76f7016af4`;
 - workflow summary reported one selected `bench_refactor_csc` row and retained
   threshold-free, non-portable-performance wording.
 

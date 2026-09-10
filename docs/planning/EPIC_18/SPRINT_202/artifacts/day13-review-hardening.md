@@ -56,7 +56,7 @@ records:
 
 - local/static proof is complete on the Sprint 202 branch path;
 - hosted GitHub Actions evidence was reviewed after PR creation through run
-  `34514287024`, job `102995737049`;
+  `34517520951`, job `103006563210`;
 - closure is scoped to macOS hosted selected benchmark freshness for
   `SRT-BENCH-REFACTOR-CSC-NOS4`;
 - retained non-claims include portable performance, timing thresholds,

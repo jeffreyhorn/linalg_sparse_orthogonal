@@ -4,9 +4,10 @@
 
 Day 12 ran the integrated local validation set for the Sprint 202 workflow,
 manifest, docs, report-index, and selected benchmark freshness changes. All
-local checks passed. Hosted CI evidence is a bounded residual because the
-branch has no upstream configured and `gh run list --branch sprint-202 --limit
-10` returned no runs.
+local checks passed. Hosted CI evidence was initially a bounded residual because
+the branch had no upstream configured and `gh run list --branch sprint-202
+--limit 10` returned no runs. After PR creation, run `34514287024`, job
+`102995737049`, closed that residual for the selected macOS lane.
 
 ## Changed Surface
 
@@ -95,26 +96,26 @@ Results:
 - `git rev-parse --abbrev-ref --symbolic-full-name @{u}`: failed with
   `fatal: no upstream configured for branch 'sprint-202'`.
 
-Hosted CI evidence cannot be reviewed until the branch is pushed and GitHub
-Actions runs.
+This was the pre-push state. After the branch was pushed and PR #224 ran,
+hosted evidence was reviewed for run `34514287024`, job `102995737049`, which
+completed successfully.
 
 ## Hosted Residual And Rerun Checklist
 
-After the branch is pushed or a PR is opened, review the macOS workflow run for:
+After PR #224 was opened, the macOS workflow run was reviewed:
 
-- job `selected-performance-freshness` started on `macos-latest`;
-- `sysctl -n machdep.cpu.brand_string` captured or explicitly fell back to
-  `unknown`;
-- `make bench-canonical-report` completed;
+- job `selected-performance-freshness` completed successfully on `macos-latest`
+  as check `macOS reviewed hosted selected performance freshness`;
+- CPU metadata was captured as `Apple M1 (Virtual)`;
+- `make bench-canonical-report` completed in the hosted job;
 - `python3 scripts/check_bench_canonical_freshness.py --report-dir
   build/bench-reports/canonical --mode hosted` passed;
-- artifact `sprint202-macos-selected-performance-freshness` uploaded exactly:
-  - `build/bench-reports/canonical/bench_refactor_csc.csv`;
-  - `build/bench-reports/canonical/index.tsv`;
-  - `build/bench-reports/canonical/manifest.txt`;
-- workflow summary reported one selected `bench_refactor_csc` row and no
-  timing-threshold, portable-performance, broad-platform, package/ABI, release,
-  or state-of-the-art claim.
+- artifact `sprint202-macos-selected-performance-freshness` uploaded exactly
+  three files: `bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`;
+- artifact id `10167064879` reported digest
+  `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`;
+- workflow summary reported one selected `bench_refactor_csc` row and retained
+  threshold-free, non-portable-performance wording.
 
 ## Quality-Gate Decision
 

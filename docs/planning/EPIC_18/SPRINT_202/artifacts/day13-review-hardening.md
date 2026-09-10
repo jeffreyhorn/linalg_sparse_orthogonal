@@ -6,8 +6,8 @@ Day 13 audited the Sprint 202 change set for review breadth, stale claims,
 stale paths, selected benchmark freshness diagnostic coverage, and residual
 queue consistency. One stale maintainer-summary row was tightened to name the
 Sprint 202 artifacts and Linux/macOS hosted selected lanes. The residual queue
-now records the Sprint 202 branch state and the hosted CI evidence still
-pending after branch push.
+now records the Sprint 202 branch state; after PR creation, hosted CI evidence
+was reviewed and recorded for the selected macOS lane.
 
 ## Diff-Scope Audit
 
@@ -31,7 +31,7 @@ workflow was changed.
 | --- | --- |
 | `docs/maintainer_guide.md` | Updated the high-level selected performance evidence row to include Sprint 202 artifacts, benchmark workflows, and Linux/macOS hosted selected lanes. |
 | `tests/test_selected_performance_docs.py` | Added guard markers for the Sprint 202 maintainer-summary wording so future docs drift cannot silently revert to Linux/Sprint-192-only wording. |
-| `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | Replaced stale pending-future text with current Sprint 202 branch status, hosted-CI residual, validation commands, and retained non-claims. |
+| `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | Replaced stale pending-future text with current Sprint 202 status, hosted-CI evidence, validation commands, and retained non-claims. |
 
 ## Diagnostic Traceability
 
@@ -55,8 +55,8 @@ records:
 `E18-RQ-005` now records:
 
 - local/static proof is complete on the Sprint 202 branch path;
-- hosted GitHub Actions evidence remains pending until branch push or PR
-  creation;
+- hosted GitHub Actions evidence was reviewed after PR creation through run
+  `34514287024`, job `102995737049`;
 - closure is scoped to macOS hosted selected benchmark freshness for
   `SRT-BENCH-REFACTOR-CSC-NOS4`;
 - retained non-claims include portable performance, timing thresholds,
@@ -82,10 +82,10 @@ The only selected-performance parity hit was the intentional non-claim in
 
 ## Hosted Residual
 
-Hosted CI evidence still requires post-push review of:
+Hosted CI evidence was reviewed after PR creation for:
 
 - `selected-performance-freshness` on `macos-latest`;
-- CPU metadata capture through `sysctl -n machdep.cpu.brand_string`;
+- CPU metadata capture as `Apple M1 (Virtual)`;
 - `make bench-canonical-report` execution;
 - hosted freshness checker pass;
 - selected-only upload artifact contents;

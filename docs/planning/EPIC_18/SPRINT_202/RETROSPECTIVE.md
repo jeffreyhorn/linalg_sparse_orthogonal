@@ -2,10 +2,8 @@
 
 **Sprint:** 202 - Hosted Selected Benchmark Freshness on One Additional Platform
 **Duration:** 14 days (Days 1-14 landed on branch `sprint-202`)
-**Status:** Closed for branch-local implementation, validation, and claim
-calibration of one macOS hosted selected benchmark freshness lane; hosted
-GitHub Actions run evidence remains pending until the branch is pushed and CI
-executes
+**Status:** Closed for implementation, validation, claim calibration, and PR
+hosted evidence review of one macOS hosted selected benchmark freshness lane
 
 ## Source Artifact Note
 
@@ -46,8 +44,9 @@ calibration, integrated validation, review hardening, and final closeout.
       state-of-the-art performance.
 - [x] Ran focused workflow, manifest, docs, selected benchmark freshness,
       Python syntax, and whitespace checks.
-- [x] Preserved explicit residuals for hosted CI evidence review and deferred
-      benchmark/platform/package/performance claims.
+- [x] Reviewed PR hosted CI evidence for the macOS selected-performance job and
+      preserved explicit residuals for deferred benchmark/platform/package and
+      performance claims.
 
 ## What Went Well
 
@@ -73,16 +72,16 @@ calibration, integrated validation, review hardening, and final closeout.
    now describe Linux/macOS hosted selected freshness while keeping explicit
    non-claims adjacent to the evidence.
 
-6. **Residuals were made reviewable.** The residual queue and closeout artifact
-   state exactly what hosted evidence must be inspected after push or PR
-   creation.
+6. **Hosted evidence became concrete.** The residual checklist made it possible
+   to inspect the PR run directly after push and close the selected macOS
+   evidence residual without broadening the claim.
 
 ## What Didn't Go Well
 
-1. **Hosted proof cannot be completed before CI runs.** Local hosted-mode
-   simulation proves metadata and checker behavior, but it cannot prove the
-   GitHub-hosted macOS runner, artifact upload, and summary until the branch is
-   pushed.
+1. **Hosted proof had to be split across branch and PR time.** Local
+   hosted-mode simulation proved metadata and checker behavior before push;
+   actual GitHub-hosted macOS runner, artifact upload, and summary evidence
+   were only available after the PR run completed.
 
 2. **Several claim surfaces needed coordinated edits.** README, INSTALL,
    benchmark docs, corpus docs, schema docs, maintainer guidance, and residual
@@ -108,6 +107,8 @@ calibration, integrated validation, review hardening, and final closeout.
 | selected benchmark freshness regression | passed on Days 7, 11, 12, 13, and 14 |
 | normalizer report-index checks | passed on Day 12 |
 | hosted-mode local simulation | passed on Days 11 and 12 with Sprint 202 macOS hosted metadata |
+| PR hosted macOS selected-performance job | passed in run `34514287024`, job `102995737049`, for commit `b093bf28589f4c24f7ae0e2d9d70f3250977e466` |
+| PR selected hosted artifact upload | passed with artifact `sprint202-macos-selected-performance-freshness`, id `10167064879`, digest `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`, and exactly 3 uploaded files |
 | Python syntax check | passed on Days 11, 12, 13, and 14 |
 | stale claim/path scans | passed on Days 10, 12, and 13 with only intentional non-claim hits |
 | final `git diff --check` | passed |
@@ -144,7 +145,7 @@ calibration, integrated validation, review hardening, and final closeout.
 | Freshness test items completed | 1 |
 | Docs calibration items completed | 1 |
 | Local validation items completed | 1 |
-| Hosted CI evidence residuals retained | 1 |
+| Hosted CI evidence residuals closed for selected macOS lane | 1 |
 | Portable performance claims promoted | 0 |
 | Timing-threshold claims promoted | 0 |
 | Broad benchmark-family publication claims promoted | 0 |
@@ -153,7 +154,7 @@ The count covers Sprint 202 items 202.1 through 202.6.
 
 ## Closed Claim
 
-Sprint 202 closes this bounded branch-local claim:
+Sprint 202 closes this bounded selected-lane claim:
 
 The current branch adds one macOS hosted selected benchmark freshness lane for
 `SRT-BENCH-REFACTOR-CSC-NOS4`. The selected row remains
@@ -173,10 +174,16 @@ Linuxbrew, public package-manager distribution, package or ABI support,
 backend superiority, release benchmark readiness, broad platform support, or
 state-of-the-art sparse linear algebra performance.
 
-Hosted CI execution remains a residual: the claim is branch-local until a
-post-push GitHub Actions run proves the macOS job executed, checked hosted
-freshness, uploaded the selected bundle, and summarized the selected row
-without overclaiming.
+Hosted CI execution was reviewed after PR creation: run `34514287024`, job
+`102995737049`, completed successfully for commit
+`b093bf28589f4c24f7ae0e2d9d70f3250977e466`. The log shows the macOS hosted
+selected-performance job generated the selected report, passed hosted-mode
+freshness, summarized `support_tier=hosted_selected`,
+`claim_boundary=hosted_selected_threshold_free`,
+`runner_context=github-actions-macos-latest`, and
+`cpu_model=Apple M1 (Virtual)`, and uploaded exactly
+`bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt` in artifact
+`sprint202-macos-selected-performance-freshness`.
 
 This claim is supported by:
 
@@ -201,7 +208,7 @@ This claim is supported by:
 
 | Residual | Owner condition | Evidence required to close |
 | --- | --- | --- |
-| Hosted macOS selected benchmark freshness evidence | PR or pushed branch CI review | Confirm `selected-performance-freshness` ran on `macos-latest`, captured CPU metadata, generated the canonical report, passed hosted freshness, uploaded the selected bundle, and kept summary claims bounded. |
+| Hosted macOS selected benchmark freshness evidence | Closed by PR run `34514287024`, job `102995737049` | Job passed, generated the canonical report, passed hosted freshness, uploaded exactly the selected bundle, and kept summary claims bounded. |
 | Windows selected benchmark freshness remains unclaimed | Future Windows selected benchmark owner | Rank Windows runtime/path/shell risks, add selected workflow and path-normalized checks, update docs, and inspect hosted Windows evidence. |
 | Timing thresholds remain unclaimed | Future methodology and performance owner | Define baseline, variance, warmup/repeat policy, tolerance, same-machine comparison semantics, and threshold failure behavior before adding timing gates. |
 | Broad benchmark-family publication remains unclaimed | Future benchmark publication owner | Select additional rows deliberately, add manifest identity and upload guards, and calibrate docs before publishing broader benchmark artifacts. |
@@ -210,12 +217,12 @@ This claim is supported by:
 
 ## Next-Sprint Readiness
 
-Sprint 202 leaves one additional hosted selected benchmark freshness lane ready
-for post-push hosted evidence review.
+Sprint 202 leaves one additional hosted selected benchmark freshness lane with
+PR hosted evidence reviewed for the selected macOS path.
 
 | Future need | Sprint 202 handoff |
 | --- | --- |
-| Hosted CI review | Use the Day 12 and Day 14 checklist to inspect the macOS workflow run and artifact contents after PR creation. |
+| Hosted CI review | Use run `34514287024`, job `102995737049`, and artifact `10167064879` as the selected macOS evidence anchor. |
 | Additional platform freshness | Reuse the candidate-ranking and selected-lane decision pattern, but treat Windows as a separate owner with path and shell risks. |
 | Benchmark threshold promotion | Keep the Sprint 192 and Sprint 202 threshold-free metadata until a sprint owns threshold methodology end to end. |
 | Documentation maintenance | Keep Linux/macOS hosted selected freshness wording aligned across README, INSTALL, benchmark docs, corpus docs, schema docs, maintainer guide, and selected target manifest. |
@@ -223,9 +230,9 @@ for post-push hosted evidence review.
 
 ## Final Assessment
 
-Sprint 202 is complete as a branch-local selected benchmark freshness sprint. It
-adds one macOS hosted selected lane, keeps artifact publication selected-only,
-extends manifest and guard coverage, calibrates public and maintainer wording,
-and records the exact hosted CI evidence still required after push. The sprint
+Sprint 202 is complete as a selected benchmark freshness sprint. It adds one
+macOS hosted selected lane, keeps artifact publication selected-only, extends
+manifest and guard coverage, calibrates public and maintainer wording, and
+records reviewed hosted CI evidence for the selected macOS path. The sprint
 does not promote portable performance, timing-threshold, package-manager,
 platform-parity, release, or state-of-the-art claims.

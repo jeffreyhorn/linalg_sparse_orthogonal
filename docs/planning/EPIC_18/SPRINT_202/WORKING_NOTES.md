@@ -1208,7 +1208,7 @@ Result:
 
 ### Hosted Residual
 
-The remaining Day 12 evidence is hosted-only:
+At Day 11, the remaining evidence was hosted-only:
 
 - GitHub Actions starts `selected-performance-freshness` on `macos-latest`;
 - CPU metadata is captured through `sysctl -n machdep.cpu.brand_string`;
@@ -1310,23 +1310,40 @@ Results:
 - `git rev-parse --abbrev-ref --symbolic-full-name @{u}` failed with
   `fatal: no upstream configured for branch 'sprint-202'`.
 
-Hosted CI evidence cannot be reviewed until the branch is pushed and GitHub
-Actions runs.
+This was the pre-push state. After PR #224 ran, hosted evidence was reviewed:
 
-### Hosted Residual And Rerun Checklist
+- run `34514287024`, job `102995737049`, completed successfully;
+- check name: `macOS reviewed hosted selected performance freshness`;
+- commit: `b093bf28589f4c24f7ae0e2d9d70f3250977e466`;
+- CPU metadata: `Apple M1 (Virtual)`;
+- hosted freshness checker passed with `--mode hosted`;
+- artifact `sprint202-macos-selected-performance-freshness`, id
+  `10167064879`, digest
+  `sha256:7f09c4b73e3597fc8ce112443ceccb4b8a4409a0ae6f918384a08259467d3555`;
+- upload log reported exactly three files: `bench_refactor_csc.csv`,
+  `index.tsv`, and `manifest.txt`;
+- workflow summary retained `support_tier=hosted_selected`,
+  `claim_boundary=hosted_selected_threshold_free`, and
+  `threshold_free_no_portable_performance_claim`.
 
-After branch push or PR creation, review the macOS workflow run for:
+### Hosted Evidence Checklist
 
-- job `selected-performance-freshness` started on `macos-latest`;
-- CPU metadata captured through `sysctl -n machdep.cpu.brand_string` or
-  explicitly fell back to `unknown`;
-- `make bench-canonical-report` completed;
-- `scripts/check_bench_canonical_freshness.py --mode hosted` passed;
+After branch push and PR creation, the macOS workflow run was reviewed for:
+
+- job `selected-performance-freshness` started on `macos-latest`: passed in
+  job `102995737049`;
+- CPU metadata captured through `sysctl -n machdep.cpu.brand_string`: reported
+  `Apple M1 (Virtual)`;
+- `make bench-canonical-report` completed: passed in hosted job;
+- `scripts/check_bench_canonical_freshness.py --mode hosted` passed: passed in
+  hosted job;
 - artifact `sprint202-macos-selected-performance-freshness` uploaded exactly
-  `bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`;
+  `bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`: upload log
+  reported exactly three files and artifact id `10167064879`;
 - workflow summary reported one selected row and no timing-threshold,
   portable-performance, broad-platform, package/ABI, release, or
-  state-of-the-art claim.
+  state-of-the-art claim: summary retained bounded selected metadata and
+  non-claim wording.
 
 ### Day 12 Quality-Gate Decision
 
@@ -1364,7 +1381,7 @@ workflow was changed.
 | --- | --- |
 | `docs/maintainer_guide.md` | Updated the high-level selected performance evidence row to name Sprint 202 artifacts, benchmark workflows, and Linux/macOS hosted selected lanes. |
 | `tests/test_selected_performance_docs.py` | Added markers that guard the Sprint 202 maintainer-summary wording. |
-| `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | Updated `E18-RQ-005` from pending-future wording to the current branch state, with hosted CI evidence still pending after push. |
+| `docs/planning/EPIC_18/EPIC_18_RESIDUAL_QUEUE.md` | Updated `E18-RQ-005` from pending-future wording to the current Sprint 202 state; after PR creation it records hosted CI evidence for run `34514287024`. |
 
 ### Diagnostic Traceability
 
@@ -1385,8 +1402,8 @@ workflow was changed.
 `E18-RQ-005` now records:
 
 - local/static proof is complete for the Sprint 202 branch path;
-- hosted GitHub Actions evidence remains pending until branch push or PR
-  creation;
+- hosted GitHub Actions evidence was reviewed after PR creation through run
+  `34514287024`, job `102995737049`;
 - closure is scoped to macOS hosted selected benchmark freshness for
   `SRT-BENCH-REFACTOR-CSC-NOS4`;
 - retained non-claims include portable performance, timing thresholds,
@@ -1416,9 +1433,9 @@ Day 13.
 
 ### Day 14 Scope Review
 
-Day 14 finalized the Sprint 202 branch-local evidence set and prepared
-retrospective inputs. The selected lane remains bounded to one additional
-hosted selected benchmark freshness path:
+Day 14 finalized the Sprint 202 evidence set and prepared retrospective inputs.
+The selected lane remains bounded to one additional hosted selected benchmark
+freshness path:
 
 - platform: macOS hosted runner;
 - workflow: `.github/workflows/macos-ci.yml`;
@@ -1432,12 +1449,12 @@ hosted selected benchmark freshness path:
 
 | Item | Status | Evidence |
 | --- | --- | --- |
-| 202.1 Platform And Row Selection | Complete for branch-local selected lane | Days 1-3 selected macOS hosted freshness for `SRT-BENCH-REFACTOR-CSC-NOS4` and deferred broader row/platform expansion. |
-| 202.2 Methodology Metadata | Complete for branch-local selected lane | Days 4-6 defined hosted metadata, selected row identity, and threshold-free interpretation. |
-| 202.3 Workflow Lane | Implemented, hosted execution pending | Day 8 added the macOS selected-performance job and selected-only upload path. |
-| 202.4 Freshness Tests | Complete for branch-local validation | Days 6-7 and Day 13 cover selected freshness diagnostics, hosted metadata, path drift, and unselected-row promotion. |
-| 202.5 Docs Calibration | Complete for branch-local claim surfaces | Days 10 and 13 calibrated public, maintainer, corpus, schema, and residual-queue wording. |
-| 202.6 Validation | Complete locally; hosted residual recorded | Days 11-14 record focused checks and the post-push hosted CI evidence checklist. |
+| 202.1 Platform And Row Selection | Complete for selected macOS lane | Days 1-3 selected macOS hosted freshness for `SRT-BENCH-REFACTOR-CSC-NOS4` and deferred broader row/platform expansion. |
+| 202.2 Methodology Metadata | Complete for selected macOS lane | Days 4-6 defined hosted metadata, selected row identity, and threshold-free interpretation. |
+| 202.3 Workflow Lane | Complete for selected macOS lane | Day 8 added the macOS selected-performance job and PR run `34514287024` confirmed hosted execution. |
+| 202.4 Freshness Tests | Complete for selected macOS lane | Days 6-7 and Day 13 cover selected freshness diagnostics, hosted metadata, path drift, and unselected-row promotion. |
+| 202.5 Docs Calibration | Complete for selected macOS lane | Days 10 and 13 calibrated public, maintainer, corpus, schema, and residual-queue wording. |
+| 202.6 Validation | Complete for selected macOS lane | Days 11-14 record focused checks; PR run `34514287024` records hosted execution and selected artifact upload evidence. |
 
 ### Closeout Artifact
 
@@ -1449,13 +1466,15 @@ The artifact records final item status, changed surface, validation scope,
 hosted residuals, retrospective inputs, and generated-file/environment
 boundaries.
 
-### Residual Status
+### Hosted Evidence Status
 
-`E18-RQ-005` remains open until hosted GitHub Actions evidence exists after the
-branch is pushed or a PR is opened. The residual is limited to confirming that
-the hosted macOS selected-performance job ran, checked freshness in hosted mode,
-and uploaded exactly the selected report bundle. Local/static proof is complete
-for the branch path.
+`E18-RQ-005` is closed for the selected macOS hosted lane after PR #224 hosted
+evidence review. Run `34514287024`, job `102995737049`, completed successfully,
+passed hosted-mode freshness, and uploaded artifact
+`sprint202-macos-selected-performance-freshness` with exactly
+`bench_refactor_csc.csv`, `index.tsv`, and `manifest.txt`. Broader benchmark,
+platform, package, release, timing-threshold, and state-of-the-art claims remain
+deferred.
 
 ### Retrospective Inputs
 
@@ -1467,12 +1486,13 @@ Prepared retrospective inputs:
 - validation: focused Python guards/regressions, selected manifest checks,
   benchmark freshness checks, py_compile, whitespace checks, and the Day 12
   hosted-mode local simulation;
-- residuals: hosted CI execution and artifact review after push/PR;
+- residuals: no selected macOS hosted evidence residual remains after PR run
+  `34514287024`; deferred non-selected claims remain separate;
 - deferred items: Windows selected benchmark freshness, broad benchmark matrix
   publication, timing-threshold promotion, package-manager distribution,
   package/ABI support, and state-of-the-art performance claims;
-- recommendation: attach hosted run and artifact evidence to the retrospective
-  once CI has executed, without broadening the public claim surface.
+- recommendation: use the hosted run and artifact evidence as the Sprint 202
+  selected macOS evidence anchor without broadening the public claim surface.
 
 ### Environment And Generated-File Check
 

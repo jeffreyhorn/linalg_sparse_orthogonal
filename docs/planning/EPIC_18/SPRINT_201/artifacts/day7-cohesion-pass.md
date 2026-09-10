@@ -94,7 +94,7 @@ Post-format line counts:
 | File | Lines |
 | --- | ---: |
 | `tests/test_svd.c` | 2657 |
-| `tests/test_svd_selected_helpers.h` | selected helper body owner after PR #223 follow-up |
+| `tests/test_svd_selected_helpers.h` | 431 |
 
 Relative to the Day 6 post-format baseline, Day 7 removed 257 lines from
 `tests/test_svd.c` and moved the selected test body ownership into the selected

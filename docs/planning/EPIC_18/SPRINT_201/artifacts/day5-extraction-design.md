@@ -144,7 +144,7 @@ library source, executable target, or install artifact.
 
 | Risk | Mitigation |
 | --- | --- |
-| Circular helper dependencies | Use only `tests/test_svd_helpers.h` and avoid including partial SVD helper headers from it. |
+| Circular helper dependencies | Keep selected implementations in `tests/test_svd_selected_helpers.h`, include `tests/test_svd_helpers.h` from it only for shared fixtures, and avoid including partial SVD helper headers from either helper. |
 | Public leakage | Keep all moved code in private test helper headers with `static inline` visibility. |
 | Registration drift | Keep all `RUN_TEST(...)` entries in `tests/test_svd.c`; add Day 8 guard coverage. |
 | Hidden tolerance drift | Copy tolerance literals verbatim and do not introduce shared tolerance constants. |

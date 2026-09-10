@@ -13,7 +13,8 @@ Selected cluster:
 
 Preferred extraction surface:
 
-- `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`, reusing shared fixtures from
+  `tests/test_svd_helpers.h`
 
 Proof owner:
 
@@ -64,7 +65,7 @@ that a helper-only extraction cannot meet the reviewability goal.
 | Surface | Expected Day 4 Disposition |
 | --- | --- |
 | `tests/test_svd.c` | Keep selected `RUN_TEST(...)` registrations and order. |
-| `tests/test_svd_helpers.h` | Preferred static inline helper destination. |
+| `tests/test_svd_selected_helpers.h` | Preferred static inline selected-helper destination; `tests/test_svd_helpers.h` remains shared fixture support. |
 | `Makefile` | No planned change. |
 | `CMakeLists.txt` | No planned change. |
 | source-list checks | Run later only if registration or source-list files change; otherwise keep as drift safety. |

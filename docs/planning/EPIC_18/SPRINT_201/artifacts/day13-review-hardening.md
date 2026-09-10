@@ -8,6 +8,7 @@ limited to:
 
 - `tests/test_svd.c`
 - `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 - `scripts/check_svd_helper_guard.sh`
 - `tests/test_svd_helper_guard.py`
 - `Makefile`

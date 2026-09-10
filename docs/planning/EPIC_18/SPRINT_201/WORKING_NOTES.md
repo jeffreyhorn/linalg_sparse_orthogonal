@@ -368,7 +368,8 @@ Selected cluster remains:
 
 Preferred extraction surface remains:
 
-- `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`, reusing shared fixtures from
+  `tests/test_svd_helpers.h`
 
 Proof owner remains:
 
@@ -421,7 +422,7 @@ No registration changes are planned.
 | Surface | Disposition |
 | --- | --- |
 | `tests/test_svd.c` | Keep selected `RUN_TEST(...)` entries and current order. |
-| `tests/test_svd_helpers.h` | Preferred static inline helper destination. |
+| `tests/test_svd_selected_helpers.h` | Preferred static inline selected-helper destination; `tests/test_svd_helpers.h` remains shared fixture support. |
 | `Makefile` | No planned change. |
 | `CMakeLists.txt` | No planned change. |
 | CI workflows | No planned change. |
@@ -582,7 +583,7 @@ Artifact:
 Changed code files:
 
 - `tests/test_svd.c`
-- `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 
 No production source, public header, Makefile, CMake, source-list, or CI files
 were changed.
@@ -629,12 +630,12 @@ The Day 6 move preserved:
 
 ### Review-Surface Result
 
-Post-format line counts:
+Post-format line counts after the Day 6 rank extraction:
 
 | File | Lines |
 | --- | ---: |
 | `tests/test_svd.c` | 2914 |
-| `tests/test_svd_helpers.h` | 394 |
+| `tests/test_svd_selected_helpers.h` | 394 |
 
 Day 7 should continue with pseudoinverse and dense low-rank helper ownership if
 the Day 6 pattern remains reviewable.
@@ -695,7 +696,7 @@ wrappers and `RUN_TEST(...)` ordering intact.
 ### Changed Files
 
 - `tests/test_svd.c`
-- `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 - `docs/planning/EPIC_18/SPRINT_201/artifacts/day7-cohesion-pass.md`
 - `docs/planning/EPIC_18/SPRINT_201/WORKING_NOTES.md`
 
@@ -725,12 +726,12 @@ dependency remains scoped to the dependent-row SVD/QR rank cross-check.
 
 ### Review-Surface Result
 
-Post-format line counts:
+Post-format line counts after the Day 7 selected-helper extraction:
 
 | File | Lines |
 | --- | ---: |
 | `tests/test_svd.c` | 2657 |
-| `tests/test_svd_helpers.h` | 677 |
+| `tests/test_svd_selected_helpers.h` | 431 |
 
 The selected test body ownership moved out of `tests/test_svd.c` without
 changing test registration names or order.
@@ -888,13 +889,16 @@ and header-only boundary drift fail with clear messages.
 
 The selected SVD helper guard now has regression coverage for:
 
-- missing `test_svd_helpers.h` include in `tests/test_svd.c`;
-- missing `sparse_svd.h` or `sparse_vector.h` helper dependency includes;
+- missing `test_svd_helpers.h` or `test_svd_selected_helpers.h` include in
+  `tests/test_svd.c`;
+- missing `sparse_svd.h`, `sparse_qr.h`, or `sparse_vector.h` selected-helper
+  dependency includes;
 - moved helper-owned definitions reappearing in `tests/test_svd.c`;
 - missing selected `RUN_TEST(...)` proof-owner registrations;
 - missing Makefile or CMake proof-owner registration for `test_svd`;
-- accidental Makefile or library-source registration of
-  `tests/test_svd_helpers.h`.
+- missing `build/test_svd` Makefile prerequisites for either SVD helper header;
+- accidental CMake or library-source registration of
+  `tests/test_svd_helpers.h` or `tests/test_svd_selected_helpers.h`.
 
 The current-tree pass check remains part of the Python guard test, so the
 fixture-based negative cases and real repo state are validated together.
@@ -1242,6 +1246,7 @@ after the audit.
 
 - `tests/test_svd.c`
 - `tests/test_svd_helpers.h`
+- `tests/test_svd_selected_helpers.h`
 - `scripts/check_svd_helper_guard.sh`
 - `tests/test_svd_helper_guard.py`
 - `Makefile`

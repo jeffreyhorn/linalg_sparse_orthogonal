@@ -56,12 +56,12 @@ The extraction preserved:
 
 ## Review-Surface Result
 
-Original Day 6 post-format line counts before the PR #223 selected-helper split:
+Day 6 post-format line counts for the selected-helper owner:
 
 | File | Lines |
 | --- | ---: |
 | `tests/test_svd.c` | 2914 |
-| `tests/test_svd_helpers.h` | 394 |
+| `tests/test_svd_selected_helpers.h` | 394 |
 
 The first pass removed the rank implementation bodies from the large proof-owner
 file and replaced them with thin wrappers. PR #223 follow-up keeps those selected

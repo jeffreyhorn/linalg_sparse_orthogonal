@@ -76,12 +76,12 @@ as support promotion.
 | --- | --- |
 | Theme | Additional review-surface reduction. |
 | Source | Epic 17 residual queue; Epic 18 Sprint 201 plan; Sprint 197 Day 3 evidence conflict review. |
-| Current status | Pending future execution. |
+| Current status | Closed by Sprint 201 for the selected `tests/test_svd.c` rank, pseudoinverse, and dense low-rank helper cluster. Broader large-surface cleanup remains a future selected-cluster activity. |
 | Owner surfaces | Large QR, LDLT, SVD, etree, integration, graph, direct-solver, or helper surfaces; guard scripts/tests; maintainer guide; source-list and CMake registration. |
-| Why it remains | No new candidate ranking, selected cluster, behavior-preservation invariant, helper extraction, guard, or focused regression exists on this branch. |
+| Why it remains | Closed for one selected SVD helper cluster only. Other large QR, LDLT, etree, integration, graph, direct-solver, helper, source, and test surfaces remain separate candidates and are not hidden inside this closure. |
 | Closure target | Select one high-risk cluster, record no-behavior-change boundaries, extract or refactor only where reviewability improves, add ownership guards, and prove behavior with focused and required full validation. |
-| Expected evidence | Candidate ranking; selected-cluster rationale; extraction diff; behavior-preservation notes; focused tests; guard coverage; source-list/CMake parity when registration changes. |
-| Validation commands | Cluster-specific focused tests; relevant helper guard or new guard; `make source-list-check`; CMake parity if registration changes; `make format && make lint && make test` if `.c` or `.h` files change. |
+| Expected evidence | For a future selected cluster: candidate ranking; selected-cluster rationale; extraction diff; behavior-preservation notes; focused tests; guard coverage; source-list/CMake parity when registration changes. Sprint 201 evidence for the selected SVD cluster is recorded in `SPRINT_201/artifacts/day1-large-surface-intake.md` through `SPRINT_201/artifacts/day14-closeout-review.md`. |
+| Validation commands | For Sprint 201 selected SVD cluster: `make build/test_svd`; `./build/test_svd`; `make svd-helper-guard`; `python3 tests/test_svd_helper_guard.py`; `make source-list-check`; CMake configure check; `make format && make lint && make test`. For future clusters: cluster-specific focused tests, relevant helper guard or new guard, source-list/CMake parity when registration changes, and full C gate if `.c` or `.h` files change. |
 | Claim boundary | Do not claim new solver behavior, public API change, numerical tolerance change, performance improvement, or broad review-surface cleanup from one selected reduction. |
 
 ## Priority 5: E18-RQ-005
@@ -155,7 +155,7 @@ branch.
 The only earned claim is that the requested `SPRINT_197` final-validation path
 has planning, reconciliation, claim-audit, project-plan status, validation, and
 residual-handoff evidence. Package-manager support, Windows freshness,
-additional reliability proof, additional review-surface reduction, benchmark
+additional reliability proof, broad review-surface reduction, benchmark
 platform freshness, Windows QR comparison, generated API publication, adoption
 simplification, release readiness, shared-library/dynamic ABI support, portable
 performance, broad ecosystem parity, and state-of-the-art status remain

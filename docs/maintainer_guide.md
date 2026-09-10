@@ -104,7 +104,7 @@ which focused gate applies to a change.
 | Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts, Sprint 199 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 199 reviewed the exact Sprint 190 Cholesky hosted path and re-deferred selected Windows freshness promotion until selected metadata, generated support tier, and generated non-claim wording are promoted together. |
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines and Windows QR incompatible freshness remain deferred. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflow, Sprint 192 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The hosted selected lane is threshold-free methodology evidence for one row, not portable speed, release, or state-of-the-art evidence. |
-| Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, full C gate after header/test changes | One selected QR external-reference cluster was moved; other clusters and helper dependency tracking remain future work. |
+| Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts; `tests/test_svd.c`, `tests/test_svd_helpers.h`, `tests/test_svd_selected_helpers.h`, `scripts/check_svd_helper_guard.sh`, `tests/test_svd_helper_guard.py`, Sprint 201 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, `make svd-helper-guard`, `python3 tests/test_svd_helper_guard.py`, focused proof-owner binaries, full C gate after header/test changes | One selected QR external-reference cluster and one selected SVD rank/pseudoinverse/dense-low-rank cluster were moved. The SVD selected bodies live in a proof-owner-only selected helper, while shared fixtures stay in the shared SVD helper. Other large surfaces and broad review-surface cleanup remain future work. |
 | Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194 artifacts | `make docs-check`, `make api-docs-freshness`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
 | Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, focused allocation-failure guards, README/INSTALL/maintainer wording, Sprint 195 artifacts, Sprint 200 artifacts | `make symbolic-allocation-failure-gate`, `make symbolic-lu-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior and the selected `sparse_symbolic_lu()` owner; broader OOM, concurrency, direct solver, matrix construction, analysis, and hosted gate claims remain unowned. |
 
@@ -1446,6 +1446,36 @@ Sprint 106 maintainability ownership additions:
   - use
     `docs/planning/EPIC_17/SPRINT_193/artifacts/day10-boundary-documentation.md`
     as the provenance record for the helper-placement rules
+- Sprint 201 SVD helper boundary:
+  - `tests/test_svd_selected_helpers.h` owns the selected SVD rank,
+    pseudoinverse, and dense low-rank helper implementations moved during
+    Sprint 201
+  - `tests/test_svd_helpers.h` remains the shared SVD fixture/helper surface
+    used by both `tests/test_svd.c` and partial-SVD corpus tests
+  - `tests/test_svd.c` remains the registered SVD proof-owner binary; keep
+    `main` and the selected `RUN_TEST(...)` registrations there
+  - keep both helper headers family-local and header-only; do not add either
+    helper to CMake `add_sparse_test(...)` or
+    `build-metadata/library_sources.txt`
+  - keep both helper headers as explicit prerequisites for the Makefile
+    `$(BUILDDIR)/test_svd` rule so helper-only edits rebuild the proof-owner
+    binary
+  - run `make svd-helper-guard` after SVD helper-layout changes to check
+    helper presence, proof-owner registration, selected `RUN_TEST(...)`
+    ownership and order, dependency includes, Makefile prerequisites, and
+    header-only registration boundaries
+  - run `python3 tests/test_svd_helper_guard.py` when changing the guard
+    itself so drift-sensitive fixture failures stay covered
+  - focused SVD behavior validation after helper-header edits should rebuild
+    `build/test_svd` before running `./build/test_svd`
+  - this boundary is a no-behavior-change review-surface reduction; it does
+    not claim new SVD algorithm capability, public API or ABI changes,
+    numerical tolerance changes, performance improvement, partial-SVD
+    ownership changes, platform expansion, package support, or broader
+    external parity
+  - use
+    `docs/planning/EPIC_18/SPRINT_201/artifacts/day10-focused-regression.md`
+    as the provenance record for focused behavior-preservation evidence
 - keep test helpers header-only unless there is a measured compile-time,
   ownership, or reuse reason to create a compiled test support target; a
   compiled helper would require explicit Make/CMake registration and reviewed

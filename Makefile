@@ -233,6 +233,9 @@ $(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
 $(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
 
+$(BUILDDIR)/test_svd: $(TESTDIR)/test_svd.c $(TESTDIR)/test_svd_helpers.h $(TESTDIR)/test_svd_selected_helpers.h $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
@@ -637,6 +640,10 @@ ldlt-csc-helper-guard:
 .PHONY: qr-external-ref-helper-guard
 qr-external-ref-helper-guard:
 	@bash scripts/check_qr_external_ref_helper_guard.sh
+
+.PHONY: svd-helper-guard
+svd-helper-guard:
+	@bash scripts/check_svd_helper_guard.sh
 
 .PHONY: report-index-oracle-freshness
 report-index-oracle-freshness: $(LIB)

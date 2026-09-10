@@ -219,9 +219,10 @@ When to widen beyond the first examples:
   `claim_boundary=local_threshold_free`
 - `make bench-canonical-report-freshness` regenerates that canonical bundle
   and checks only the selected `bench_refactor_csc` row for
-  `nos4.mtx --repeat 1`; the reviewed Linux hosted performance lane runs the
-  same selected-row freshness check with hosted metadata on that selected row
-  only, still without a timing threshold or portable performance claim
+  `nos4.mtx --repeat 1`; the reviewed Linux and macOS hosted performance
+  lanes run the same selected-row freshness check with platform-specific
+  hosted metadata on that selected row only, still without a timing threshold
+  or portable performance claim
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing S5 wall-check lane and the S6
   selected `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and
@@ -317,7 +318,7 @@ python3 scripts/normalize_report_index.py --check  # validate normalized report-
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
 make report-index-comparison-freshness  # selected QR + partial-SVD + LU comparison freshness, mirrored by reviewed Linux/macOS hosted CI
-make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux hosted CI
+make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux/macOS hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: S5/S6 hard gates + threshold-free Cholesky CSC/LDLT KKT context
@@ -365,15 +366,16 @@ selected benchmark freshness on Windows, or any unselected local-only family.
 The Windows PowerShell validation lane is workflow validation ownership only;
 it does not prove generated report freshness.
 
-The reviewed Linux hosted selected-performance lane runs only the selected
-canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
+The reviewed Linux and macOS hosted selected-performance lanes run only the
+selected canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
 `make bench-canonical-report` and
-`scripts/check_bench_canonical_freshness.py --mode hosted`. It checks artifact
-presence, selected row identity, methodology metadata, manifest agreement, and
-`hosted_selected_threshold_free` claim boundaries. It does not compare timing
-values, set a regression threshold, claim portable speed, promote the other
-canonical benchmark rows, or provide external-library, package, ABI, broad
-platform, release, or state-of-the-art evidence.
+`scripts/check_bench_canonical_freshness.py --mode hosted`. They check
+artifact presence, selected row identity, methodology metadata, manifest
+agreement, and `hosted_selected_threshold_free` claim boundaries. They do not
+compare timing values across platforms, set a regression threshold, claim
+portable speed, promote the other canonical benchmark rows, or provide
+external-library, package, ABI, broad platform, release, or state-of-the-art
+evidence.
 
 ### With CMake
 

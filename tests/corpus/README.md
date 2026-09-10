@@ -107,7 +107,10 @@ The selected performance target is the threshold-free
 `tests/data/suitesparse/nos4.mtx --repeat 1`; it records methodology and
 freshness evidence only, with `baseline=n/a`, `threshold=n/a`, and no portable
 performance, release benchmark, algorithmic superiority, platform parity,
-package/ABI, or state-of-the-art claim.
+package/ABI, broad package-manager distribution, or state-of-the-art claim.
+Its reviewed hosted selected-performance workflow metadata is currently
+limited to Linux and macOS for this same selected row and does not make the two
+hosted timing values comparable performance claims.
 The manifest is positive selected-target authority, not a general deferral
 registry. Sprint 190 wires one bounded Windows selected Cholesky comparison
 freshness workflow for `cholesky-spd-tridiag-5`, but the source manifest does

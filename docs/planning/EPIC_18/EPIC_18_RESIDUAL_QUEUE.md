@@ -90,13 +90,13 @@ as support promotion.
 | --- | --- |
 | Theme | Additional hosted selected benchmark freshness. |
 | Source | Epic 17 residual queue; Epic 18 Sprint 202 plan; Sprint 197 Day 4-7 claim audits. |
-| Current status | Pending future execution. |
+| Current status | In progress on Sprint 202 branch: macOS selected hosted workflow, manifest metadata, local hosted-mode simulation, freshness tests, workflow guards, and claim-calibrated docs are present; hosted CI run evidence remains pending until the branch is pushed. |
 | Owner surfaces | Benchmark workflow YAML; selected target manifest; `scripts/check_bench_canonical_freshness.py`; report normalizer; benchmark docs; maintainer guide; README; INSTALL. |
-| Why it remains | This branch adds no selected platform/row decision, hosted workflow, artifact review, benchmark freshness tests, or methodology metadata. |
-| Closure target | Add one hosted selected benchmark freshness lane for one exact platform/row pair and preserve methodology-bound, threshold-free, non-portable interpretation. |
-| Expected evidence | Hosted platform pass; exact selected benchmark bundle; selected CSV matches manifest contract; methodology metadata records platform/compiler/build flags/repeat policy; docs keep non-portable wording. |
-| Validation commands | `make bench-canonical-report-freshness`; `python3 tests/test_bench_canonical_freshness.py`; selected manifest tests; report normalizer tests; hosted platform workflow evidence review; `make docs-check`. |
-| Claim boundary | Do not claim portable performance, timing thresholds, backend superiority, platform parity, release benchmark readiness, or state-of-the-art performance. |
+| Why it remains | Local/static proof is complete for the branch path, but hosted GitHub Actions evidence cannot be reviewed before branch push/PR creation. The remaining review must confirm the `macos-latest` job executes, uploads exactly the selected bundle, and passes hosted-mode freshness. |
+| Closure target | Close one additional hosted selected benchmark freshness lane for `SRT-BENCH-REFACTOR-CSC-NOS4` on macOS, preserving methodology-bound, threshold-free, non-portable interpretation. |
+| Expected evidence | Hosted macOS platform pass; exact selected benchmark bundle; selected CSV matches manifest contract; methodology metadata records platform/compiler/build flags/repeat policy; docs keep non-portable wording. |
+| Validation commands | `make bench-canonical-report-freshness`; `python3 tests/test_bench_canonical_freshness.py`; `python3 tests/test_selected_comparison_workflow.py`; `python3 tests/test_selected_report_targets_manifest.py`; `python3 tests/test_selected_performance_docs.py`; `python3 tests/test_normalize_report_index.py`; `python3 scripts/normalize_report_index.py --check`; `python3 scripts/normalize_report_index.py --family benchmark --check-freshness`; hosted platform workflow evidence review after push. |
+| Claim boundary | Do not claim portable performance, timing thresholds, Linux/macOS performance parity, Windows selected benchmark freshness, broad benchmark-family publication, package-manager distribution, package/ABI support, backend superiority, release benchmark readiness, or state-of-the-art performance. |
 
 ## Priority 6: E18-RQ-006
 

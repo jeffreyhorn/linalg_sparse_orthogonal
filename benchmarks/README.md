@@ -274,8 +274,8 @@ regenerates the canonical bundle and checks only:
 - `baseline=n/a`
 - `threshold=n/a`
 
-The reviewed Linux hosted selected-performance lane runs the same selected-row
-check in hosted mode with `support_tier=hosted_selected` and
+The reviewed Linux and macOS hosted selected-performance lanes run the same
+selected-row check in hosted mode with `support_tier=hosted_selected` and
 `claim_boundary=hosted_selected_threshold_free`. Hosted mode also requires a
 non-local runner context, recorded build flags, and a non-`unlabeled` report
 label. Those hosted-selected support and claim fields apply only to the
@@ -285,9 +285,10 @@ because GitHub-hosted runner CPU assignment can vary.
 
 Selected lane platform and backend caveats:
 
-- hosted selected-performance freshness currently means the reviewed Linux
-  GitHub Actions lane with
-  `runner_context=github-actions-ubuntu-latest`,
+- hosted selected-performance freshness currently means reviewed Linux and
+  macOS GitHub Actions lanes for the same selected row, with
+  `runner_context=github-actions-ubuntu-latest` on Linux,
+  `runner_context=github-actions-macos-latest` on macOS,
   `build_flags=default_make_flags`, and `build_mode=serial`;
 - the hosted lane records `platform`, `compiler`, and `cpu_model` as context,
   but those strings are not normalized into a stable machine class and CPU
@@ -485,7 +486,8 @@ canonical index, find it with:
 - `relative_path=bench_refactor_csc.csv`;
 - `fixture_or_workload=nos4.mtx`;
 - `claim_boundary=local_threshold_free` locally, or
-  `hosted_selected_threshold_free` only in the reviewed hosted freshness lane.
+  `hosted_selected_threshold_free` only in the reviewed Linux/macOS hosted
+  freshness lanes.
 
 Local selected regression smoke evidence comes from:
 
@@ -500,8 +502,9 @@ replacement for the threshold-free canonical selected publication row.
 
 Read hosted selected-performance rows and local S6 rows with their recorded
 platform, compiler, build mode, thread, CPU, fixture, and command context.
-Neither row creates Windows/macOS performance parity, OpenMP speedup evidence,
-backend parity, or portable performance evidence.
+Neither hosted row creates Linux/macOS performance parity, Windows selected
+benchmark freshness, OpenMP speedup evidence, backend parity, or portable
+performance evidence.
 
 | Report target | Report directory | Index artifact | Freshness/context artifact | Read as |
 |---|---|---|---|---|

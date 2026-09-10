@@ -82,7 +82,8 @@ new SVD helper guard did not disturb the existing helper-boundary pattern.
 ## Required Full C Quality Gate
 
 Because Sprint 201 moved selected SVD test bodies into
-`tests/test_svd_helpers.h` and changed `tests/test_svd.c`, the required quality
+`tests/test_svd_selected_helpers.h`, retained shared fixtures in
+`tests/test_svd_helpers.h`, and changed `tests/test_svd.c`, the required quality
 gate was run.
 
 ```sh

@@ -126,6 +126,71 @@ require_increasing_run_test_order() {
     done
 }
 
+require_test_srcs_entry() {
+    local needle="$1"
+    local message="$2"
+
+    if ! awk -v needle="$needle" '
+        BEGIN { in_block = 0; done = 0; found = 0 }
+        /^TEST_SRCS[[:space:]]*[:+?]?=/ { in_block = 1 }
+        in_block && index($0, needle) > 0 { found = 1 }
+        in_block && $0 !~ /\\[[:space:]]*$/ {
+            done = 1
+            exit(found ? 0 : 1)
+        }
+        END {
+            if (!done)
+                exit(1)
+        }
+    ' "$MAKEFILE"; then
+        fail "$message"
+    fi
+}
+
+require_test_svd_rule_prerequisite() {
+    local needle="$1"
+    local message="$2"
+
+    if ! awk -v needle="$needle" '
+        BEGIN { done = 0 }
+        /^\$\(BUILDDIR\)\/test_svd:/ {
+            done = 1
+            exit(index($0, needle) > 0 ? 0 : 1)
+        }
+        END {
+            if (!done)
+                exit(1)
+        }
+    ' "$MAKEFILE"; then
+        fail "$message"
+    fi
+}
+
+require_selected_helper_single_translation_unit() {
+    local matches
+    local count
+
+    matches="$(
+        find "$ROOT_DIR" \
+            \( -path "$ROOT_DIR/.git" -o -path "$ROOT_DIR/build" -o -path "$ROOT_DIR/docs/api" \) -prune -o \
+            -type f \( -name '*.c' -o -name '*.h' \) \
+            -exec grep --fixed-strings --line-number --with-filename \
+                "#include \"$SELECTED_HELPER_NAME\"" {} + 2>/dev/null || true
+    )"
+    count="$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d '[:space:]')"
+    if [ "$count" -ne 1 ]; then
+        printf '%s\n' "$matches" >&2
+        fail "$SELECTED_HELPER_NAME must be included only by tests/test_svd.c"
+    fi
+    case "$matches" in
+        "$TEST_FILE":*) ;;
+        *)
+            printf '%s\n' "$matches" >&2
+            fail "$SELECTED_HELPER_NAME must be included only by tests/test_svd.c"
+            ;;
+    esac
+}
+
 check_required_files() {
     require_file "$TEST_FILE" "tests/test_svd.c is missing"
     require_file "$SHARED_HELPER_PATH" "$SHARED_HELPER is missing"
@@ -138,7 +203,7 @@ check_required_files() {
 }
 
 check_proof_owner_registration() {
-    require_fixed '$(TESTDIR)/test_svd.c' "$MAKEFILE" \
+    require_test_srcs_entry '$(TESTDIR)/test_svd.c' \
         "Makefile no longer registers test_svd.c in TEST_SRCS"
     require_fixed 'add_sparse_test(test_svd)' "$CMAKE_FILE" \
         "CMakeLists.txt no longer registers test_svd"
@@ -159,6 +224,7 @@ check_helper_boundary() {
         "tests/test_svd.c must include $SHARED_HELPER_NAME exactly once"
     require_exact_fixed_count "#include \"$SELECTED_HELPER_NAME\"" "$TEST_FILE" 1 \
         "tests/test_svd.c must include $SELECTED_HELPER_NAME exactly once"
+    require_selected_helper_single_translation_unit
     require_fixed "#include \"$SHARED_HELPER_NAME\"" "$SELECTED_HELPER_PATH" \
         "$SELECTED_HELPER must include $SHARED_HELPER_NAME for shared SVD fixtures"
     require_fixed '#include "sparse_qr.h"' "$SELECTED_HELPER_PATH" \
@@ -198,10 +264,10 @@ check_header_only_registration() {
 
     shared_stem="${SHARED_HELPER_NAME%.h}"
     selected_stem="${SELECTED_HELPER_NAME%.h}"
-    require_fixed '$(TESTDIR)/test_svd_helpers.h' "$MAKEFILE" \
-        "Makefile must list test_svd_helpers.h as a test_svd prerequisite"
-    require_fixed '$(TESTDIR)/test_svd_selected_helpers.h' "$MAKEFILE" \
-        "Makefile must list test_svd_selected_helpers.h as a test_svd prerequisite"
+    require_test_svd_rule_prerequisite '$(TESTDIR)/test_svd_helpers.h' \
+        "Makefile must list test_svd_helpers.h in the test_svd prerequisite rule"
+    require_test_svd_rule_prerequisite '$(TESTDIR)/test_svd_selected_helpers.h' \
+        "Makefile must list test_svd_selected_helpers.h in the test_svd prerequisite rule"
     require_absent_fixed "$SHARED_HELPER_NAME" "$CMAKE_FILE" \
         "$SHARED_HELPER_NAME must remain header-only and not be named in CMake registration"
     require_absent_fixed "$SELECTED_HELPER_NAME" "$CMAKE_FILE" \

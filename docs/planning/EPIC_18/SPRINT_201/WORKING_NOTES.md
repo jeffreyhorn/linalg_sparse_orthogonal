@@ -487,7 +487,7 @@ Selected extraction shape:
 
 The Day 5 design keeps one thin wrapper per selected test name in
 `tests/test_svd.c` and moves selected implementation bodies behind
-`static inline` `tf_svd_test_*` helpers in `tests/test_svd_helpers.h`.
+`static inline` `tf_svd_test_*` helpers in `tests/test_svd_selected_helpers.h`.
 
 | Existing Test Name | Planned Helper-Owned Implementation |
 | --- | --- |
@@ -606,7 +606,7 @@ the existing `RUN_TEST(...)` registration order.
 
 ### Dependency Notes
 
-`tests/test_svd_helpers.h` gained:
+`tests/test_svd_selected_helpers.h` gained:
 
 - `sparse_qr.h`, required by the dependent-row SVD/QR rank cross-check helper;
 - `<stdio.h>`, required by moved `printf(...)` diagnostics.
@@ -689,7 +689,7 @@ full quality-gate coverage.
 
 Day 7 completed the second extraction pass for the selected SVD review-surface
 cluster. The pseudoinverse and dense low-rank test bodies now live in
-`tests/test_svd_helpers.h`, while `tests/test_svd.c` keeps the registered
+`tests/test_svd_selected_helpers.h`, while `tests/test_svd.c` keeps the registered
 wrappers and `RUN_TEST(...)` ordering intact.
 
 ### Changed Files
@@ -719,7 +719,7 @@ covers rank, pseudoinverse, and dense low-rank tests.
 
 ### Dependency Notes
 
-`tests/test_svd_helpers.h` gained `sparse_vector.h` for `vec_norm2(...)` in the
+`tests/test_svd_selected_helpers.h` gained `sparse_vector.h` for `vec_norm2(...)` in the
 underdetermined minimum-norm pseudoinverse fixture. The existing `sparse_qr.h`
 dependency remains scoped to the dependent-row SVD/QR rank cross-check.
 

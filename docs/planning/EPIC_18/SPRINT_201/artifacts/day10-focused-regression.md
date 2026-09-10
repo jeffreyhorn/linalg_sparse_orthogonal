@@ -84,7 +84,7 @@ Result:
 | Numerical output remains unchanged. | Focused output retained rank `5`, rank `2`, threshold ranks `3/2/1`, dependent-row SVD/QR rank `2/2`, Moore-Penrose residuals below threshold, minimum-norm solution norm `1.000`, and low-rank error values. |
 | Deterministic registration order remains unchanged. | `make svd-helper-guard` verified every selected `RUN_TEST(...)` marker remains in `tests/test_svd.c` exactly once; no registration-order edit was made. |
 | Cleanup behavior remains unchanged. | `./build/test_svd` completed all selected tests with no failures; extraction moved code without changing cleanup branches or ownership releases. |
-| Helper scope remains SVD-test-local. | `make svd-helper-guard` verified `tests/test_svd_helpers.h` is absent from Makefile, CMake, and `build-metadata/library_sources.txt`; no standalone helper test target exists. |
+| Helper scope remains SVD-test-local. | `make svd-helper-guard` verified both SVD helper headers are explicit `build/test_svd` Makefile prerequisites, absent from CMake and `build-metadata/library_sources.txt`, and not standalone helper test targets. |
 
 ## Explicitly Observed Selected Tests
 

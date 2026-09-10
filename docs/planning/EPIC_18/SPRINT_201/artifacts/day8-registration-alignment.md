@@ -117,7 +117,7 @@ Result:
 ```text
 -- Configuring done
 -- Generating done
--- Build files have been written to: /Users/jeff/experiments/linalg_sparse_orthogonal/build/sprint201-day8-registration-check
+-- Build files have been written to: build/sprint201-day8-registration-check
 ```
 
 Generated-artifact hygiene:

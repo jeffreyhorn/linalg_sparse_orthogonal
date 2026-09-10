@@ -126,7 +126,7 @@ calibration, integrated validation, review hardening, and final closeout.
 | Public documentation files changed | 4 |
 | Maintainer documentation files changed | 1 |
 | Corpus manifest/schema documentation files changed | 3 |
-| Python validation or guard test files changed | 3 |
+| Python validation or guard test files changed | 4 |
 | Epic residual queue files changed | 1 |
 | Production C implementation files changed | 0 |
 | Public or internal C header files changed | 0 |

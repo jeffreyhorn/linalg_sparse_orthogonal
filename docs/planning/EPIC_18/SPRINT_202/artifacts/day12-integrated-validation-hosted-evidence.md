@@ -23,6 +23,7 @@ Tracked changed files at validation time:
 - `tests/corpus/schemas/report_index_fields.md`;
 - `tests/test_bench_canonical_freshness.py`;
 - `tests/test_selected_comparison_workflow.py`;
+- `tests/test_selected_report_targets_manifest.py`;
 - `tests/test_selected_performance_docs.py`.
 
 No `.c` or `.h` files were modified.

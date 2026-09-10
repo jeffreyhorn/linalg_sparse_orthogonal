@@ -477,6 +477,7 @@ def main() -> int:
     test_missing_expected_row_ids_fails_clearly()
     test_missing_generated_required_files_fails_clearly()
     test_missing_hosted_workflow_metadata_fails_clearly()
+    test_selected_benchmark_manifest_records_distribution_non_claims()
     test_mismatched_workflow_artifact_platforms_fail_clearly()
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()

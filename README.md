@@ -349,9 +349,10 @@ source-controlled output, or release evidence.
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands or turn local benchmark,
 coverage, dead-code, comparison, or package metadata rows into release proof.
-Reviewed Linux hosted report freshness runs only the selected oracle and
-comparison gates above; reviewed macOS hosted report freshness runs only the
-selected comparison gate. Windows currently has one guarded workflow path for
+Reviewed Linux hosted report freshness runs only the selected oracle,
+comparison, and selected-performance gates above; reviewed macOS hosted report
+freshness runs only the selected comparison and selected-performance gates.
+Windows currently has one guarded workflow path for
 `cholesky-spd-tridiag-5`, but the selected target manifest still owns platform
 promotion. Sprint 199 reviewed hosted CI evidence for that exact path and kept
 Windows promotion re-deferred because selected-target metadata, generated

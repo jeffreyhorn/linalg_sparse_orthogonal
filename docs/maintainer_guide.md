@@ -1720,8 +1720,10 @@ Selected performance platform/build caveats:
 - `matrix_size=n=100` is the benchmark-emitted dimension for the selected
   `nos4.mtx` row; do not use it as nonzero-count evidence or as coverage for
   a broader matrix family
-- Windows and macOS CI/install evidence remains separate platform/package
-  evidence and does not inherit selected Linux hosted performance meaning
+- Windows CI/install evidence and non-selected macOS CI/install evidence remain
+  separate platform/package evidence and do not inherit selected-performance
+  meaning; only the reviewed Sprint 202 `selected-performance-freshness` lane
+  carries macOS hosted selected benchmark freshness evidence
 
 Current bounded local sentinel bundle:
 

@@ -293,6 +293,7 @@ def test_selected_benchmark_manifest_matches_checker_contract() -> None:
         "no platform parity",
         "no state-of-the-art claim",
         "no package or ABI support claim",
+        "no broad package-manager distribution claim",
         "no Windows selected benchmark freshness",
     ]:
         assert non_claim in split_manifest_values(target["non_claims"])

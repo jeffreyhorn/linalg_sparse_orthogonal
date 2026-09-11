@@ -129,7 +129,7 @@ closeout.
 | Maintainer documentation files changed | 1 |
 | Corpus/schema documentation files changed | 2 |
 | Windows claim-boundary validator files changed | 1 |
-| Python validation or guard test files changed | 3 |
+| Python validation or guard test files changed | 4 |
 | Epic project-plan files changed | 1 |
 | Epic residual queue files changed | 1 |
 | CI workflow files changed | 0 |

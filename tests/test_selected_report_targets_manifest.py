@@ -76,6 +76,10 @@ WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN = "build/comparison/qr_incompatible_ls/
 WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND = (
     "python3 scripts/run_external_comparison.py --target qr-incompatible-ls"
 )
+WINDOWS_QR_INCOMPATIBLE_CLAIM_SCOPE = (
+    "Selected QR incompatible least-squares comparison rows are fresh for the "
+    "named fixture against the selected source-controlled dense reference helper."
+)
 WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES = (
     "project_observations.tsv",
     "baseline_observations.tsv",
@@ -432,6 +436,7 @@ def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
         "target_key": WINDOWS_QR_INCOMPATIBLE_TARGET_KEY,
         "artifact_pattern": WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN,
         "generator_command": WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND,
+        "claim_scope": WINDOWS_QR_INCOMPATIBLE_CLAIM_SCOPE,
     }
     for field, expected in exact_fields.items():
         if row[field] != expected:

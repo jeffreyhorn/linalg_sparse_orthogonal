@@ -8,8 +8,9 @@ Windows QR incompatible target cannot be partially promoted by workflow drift.
 ## Decision
 
 No Windows workflow lane was added for `qr-incompatible-ls` on Day 9. The
-selected Windows comparison workflow remains scoped to the previously promoted
-Cholesky target until hosted Windows/MSVC QR incompatible evidence exists.
+selected Windows comparison workflow remains scoped to the existing bounded
+and guarded Cholesky target until hosted Windows/MSVC QR incompatible evidence
+exists.
 
 ## Guard Changes
 

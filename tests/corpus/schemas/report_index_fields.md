@@ -174,6 +174,10 @@ proof; release proof; or state-of-the-art evidence.
   `bench_refactor_csc` on `tests/data/suitesparse/nos4.mtx --repeat 1`; its
   selected policy is `status=measurement`, `baseline=n/a`, `threshold=n/a`,
   `warmup=none_configured`, and `variance=not_computed_single_sample`.
+  Reviewed hosted selected workflow metadata currently covers Linux and macOS
+  for that exact selected row only; it does not create cross-platform timing
+  comparability, Windows selected benchmark freshness, broad package-manager
+  distribution, or portable performance proof.
 - Sprint 163 benchmark rows may expose methodology fields such as
   `support_tier`, `claim_boundary`, `repeat_semantics`, `warmup`, `variance`,
   `baseline`, `threshold`, and `methodology_notes` through generated report

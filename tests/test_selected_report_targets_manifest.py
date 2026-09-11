@@ -35,6 +35,17 @@ WINDOWS_CHOLESKY_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
 WINDOWS_CHOLESKY_WORKFLOW_JOB = "selected-comparison-freshness"
 WINDOWS_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
 WINDOWS_CHOLESKY_EXPECTED_ROWS = "6"
+SELECTED_BENCHMARK_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
+SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS = (
+    "no portable performance claim",
+    "no release benchmark claim",
+    "no algorithmic superiority claim",
+    "no platform parity",
+    "no state-of-the-art claim",
+    "no package or ABI support claim",
+    "no broad package-manager distribution claim",
+    "no Windows selected benchmark freshness",
+)
 WINDOWS_CHOLESKY_REQUIRED_FILES = (
     "project_observations.tsv",
     "baseline_observations.tsv",
@@ -91,6 +102,15 @@ def cholesky_row_index(rows: list[dict[str, str]]) -> int:
     if len(matches) != 1:
         raise AssertionError(
             f"expected one {WINDOWS_CHOLESKY_TARGET_ID} row, got {len(matches)}"
+        )
+    return matches[0]
+
+
+def selected_benchmark_row(rows: list[dict[str, str]]) -> dict[str, str]:
+    matches = [row for row in rows if row["target_id"] == SELECTED_BENCHMARK_TARGET_ID]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"expected one {SELECTED_BENCHMARK_TARGET_ID} row, got {len(matches)}"
         )
     return matches[0]
 
@@ -280,6 +300,16 @@ def test_missing_hosted_workflow_metadata_fails_clearly() -> None:
     )
 
 
+def test_selected_benchmark_manifest_records_distribution_non_claims() -> None:
+    row = selected_benchmark_row(manifest_rows())
+    non_claims = split_manifest_values(row["non_claims"])
+    for non_claim in SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS:
+        if non_claim not in non_claims:
+            raise AssertionError(
+                f"{SELECTED_BENCHMARK_TARGET_ID} missing non_claim {non_claim!r}"
+            )
+
+
 def test_mismatched_workflow_artifact_platforms_fail_clearly() -> None:
     rows = manifest_rows()
     rows[1]["workflow_artifact"] = "linux-upload;macos-upload"
@@ -447,6 +477,7 @@ def main() -> int:
     test_missing_expected_row_ids_fails_clearly()
     test_missing_generated_required_files_fails_clearly()
     test_missing_hosted_workflow_metadata_fails_clearly()
+    test_selected_benchmark_manifest_records_distribution_non_claims()
     test_mismatched_workflow_artifact_platforms_fail_clearly()
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()

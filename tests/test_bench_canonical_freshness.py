@@ -141,6 +141,21 @@ def mutate_artifact_field(report_dir: Path, artifact: str, field: str, value: st
     write_index(report_dir, fieldnames, rows)
 
 
+def remove_artifact_row(report_dir: Path, artifact: str) -> None:
+    fieldnames, rows = read_index(report_dir)
+    write_index(report_dir, fieldnames, [row for row in rows if row["artifact"] != artifact])
+
+
+def duplicate_artifact_row(report_dir: Path, artifact: str) -> None:
+    fieldnames, rows = read_index(report_dir)
+    duplicated: list[dict[str, str]] = []
+    for row in rows:
+        duplicated.append(row)
+        if row["artifact"] == artifact:
+            duplicated.append(dict(row))
+    write_index(report_dir, fieldnames, duplicated)
+
+
 def mutate_manifest_value(report_dir: Path, key: str, value: str) -> None:
     path = report_dir / "manifest.txt"
     lines = []
@@ -256,9 +271,21 @@ def test_selected_benchmark_manifest_matches_checker_contract() -> None:
     assert tuple(split_manifest_values(target["required_files"])) == checker.required_artifacts(
         target
     )
-    assert target["workflow_artifact"] == "sprint168-selected-performance-freshness"
+    assert split_manifest_values(target["workflow_file"]) == [
+        ".github/workflows/ci.yml",
+        ".github/workflows/macos-ci.yml",
+    ]
+    assert split_manifest_values(target["workflow_job"]) == [
+        "hosted-performance-freshness",
+        "selected-performance-freshness",
+    ]
+    assert split_manifest_values(target["workflow_artifact"]) == [
+        "sprint168-selected-performance-freshness",
+        "sprint202-macos-selected-performance-freshness",
+    ]
+    assert split_manifest_values(target["workflow_platforms"]) == ["linux", "macos"]
     assert expected_int(target, "expected_rows") == 1
-    assert "threshold-free methodology fields" in target["claim_scope"]
+    assert "threshold-free methodology fields on reviewed Linux and macOS" in target["claim_scope"]
     for non_claim in [
         "no portable performance claim",
         "no release benchmark claim",
@@ -266,6 +293,8 @@ def test_selected_benchmark_manifest_matches_checker_contract() -> None:
         "no platform parity",
         "no state-of-the-art claim",
         "no package or ABI support claim",
+        "no broad package-manager distribution claim",
+        "no Windows selected benchmark freshness",
     ]:
         assert non_claim in split_manifest_values(target["non_claims"])
 
@@ -322,6 +351,50 @@ def test_selected_benchmark_csv_extra_row_fails() -> None:
             report,
             "benchmark_selected_csv_rows: artifact=bench_refactor_csc.csv "
             "expected_rows=1 observed_rows=2",
+        )
+
+
+def test_missing_selected_benchmark_artifact_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        (report / "bench_refactor_csc.csv").unlink()
+        assert_fails_with(
+            report,
+            "benchmark_selected_artifact_missing: artifact=bench_refactor_csc.csv",
+        )
+
+
+def test_missing_selected_index_row_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        remove_artifact_row(report, SELECTED_ARTIFACT)
+        assert_fails_with(
+            report,
+            "benchmark_selected_row_missing: artifact=bench_refactor_csc",
+        )
+
+
+def test_duplicate_selected_index_row_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        duplicate_artifact_row(report, SELECTED_ARTIFACT)
+        assert_fails_with(
+            report,
+            "benchmark_selected_row_duplicate: artifact=bench_refactor_csc observed_count=2",
+        )
+
+
+def test_malformed_selected_timestamp_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "generated_at_utc", "not-a-timestamp")
+        assert_fails_with(
+            report,
+            "field=generated_at_utc expected=YYYY-MM-DDTHH:MM:SSZ observed=not-a-timestamp",
         )
 
 
@@ -416,6 +489,85 @@ def test_positive_hosted_report_keeps_unselected_rows_local() -> None:
                 assert row["claim_boundary"] == "local_threshold_free"
 
 
+def test_positive_macos_hosted_report_metadata() -> None:
+    run_command(
+        ["make", "bench-canonical-report"],
+        env={
+            "BENCH_CANONICAL_REPORT_LABEL": "sprint202-macos-hosted-performance",
+            "SPARSE_CANONICAL_SUPPORT_TIER": "hosted_selected",
+            "SPARSE_CANONICAL_CLAIM_BOUNDARY": "hosted_selected_threshold_free",
+            "SPARSE_CANONICAL_RUNNER_CONTEXT": "github-actions-macos-latest",
+            "SPARSE_CANONICAL_BUILD_FLAGS": "default_make_flags",
+            "SPARSE_CANONICAL_CPU_MODEL": "Apple M1",
+            "SPARSE_CANONICAL_BUILD_MODE": "serial",
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        output = run_checker(report, "hosted")
+        assert "bench-canonical-freshness: passed" in output
+        row = selected_index_row(report)
+        assert row["report_label"] == "sprint202-macos-hosted-performance"
+        assert row["runner_context"] == "github-actions-macos-latest"
+        assert row["build_flags"] == "default_make_flags"
+        assert row["cpu_model"] == "Apple M1"
+        assert row["build_mode"] == "serial"
+
+
+def test_hosted_runner_context_cannot_be_local_placeholder() -> None:
+    generate_hosted_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "runner_context", "local")
+        mutate_manifest_value(report, "runner_context", "local")
+        assert_fails_with(
+            report,
+            "field=runner_context hosted_value_must_not_be_local",
+            mode="hosted",
+        )
+
+
+def test_hosted_report_label_cannot_be_unlabeled_placeholder() -> None:
+    generate_hosted_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "report_label", "unlabeled")
+        mutate_manifest_value(report, "report_label", "unlabeled")
+        assert_fails_with(
+            report,
+            "field=report_label hosted_value_must_not_be_unlabeled",
+            mode="hosted",
+        )
+
+
+def test_selected_relative_path_drift_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(
+            report,
+            "relative_path",
+            "build/bench-reports/canonical/bench_refactor_csc.csv",
+        )
+        assert_fails_with(
+            report,
+            "field=relative_path expected=bench_refactor_csc.csv "
+            "observed=build/bench-reports/canonical/bench_refactor_csc.csv",
+        )
+
+
+def test_selected_relative_path_dot_prefix_drift_fails() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "relative_path", "./bench_refactor_csc.csv")
+        assert_fails_with(
+            report,
+            "field=relative_path expected=bench_refactor_csc.csv "
+            "observed=./bench_refactor_csc.csv",
+        )
+
+
 def test_generator_rejects_tsv_control_characters_in_methodology_metadata() -> None:
     output = run_command(
         ["make", "bench-canonical-report"],
@@ -435,6 +587,10 @@ def main() -> None:
         test_selected_benchmark_csv_wrong_fixture_fails,
         test_selected_benchmark_csv_missing_required_column_fails,
         test_selected_benchmark_csv_extra_row_fails,
+        test_missing_selected_benchmark_artifact_fails,
+        test_missing_selected_index_row_fails,
+        test_duplicate_selected_index_row_fails,
+        test_malformed_selected_timestamp_fails,
         test_selected_matrix_size_is_required,
         test_selected_warmup_is_required,
         test_selected_variance_is_required,
@@ -445,6 +601,11 @@ def main() -> None:
         test_row_width_mismatch_is_rejected,
         test_unselected_rows_cannot_be_hosted_selected,
         test_positive_hosted_report_keeps_unselected_rows_local,
+        test_positive_macos_hosted_report_metadata,
+        test_hosted_runner_context_cannot_be_local_placeholder,
+        test_hosted_report_label_cannot_be_unlabeled_placeholder,
+        test_selected_relative_path_drift_fails,
+        test_selected_relative_path_dot_prefix_drift_fails,
         test_generator_rejects_tsv_control_characters_in_methodology_metadata,
     ]
     for test in tests:

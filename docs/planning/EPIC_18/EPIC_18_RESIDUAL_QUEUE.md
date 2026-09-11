@@ -90,13 +90,13 @@ as support promotion.
 | --- | --- |
 | Theme | Additional hosted selected benchmark freshness. |
 | Source | Epic 17 residual queue; Epic 18 Sprint 202 plan; Sprint 197 Day 4-7 claim audits. |
-| Current status | Pending future execution. |
+| Current status | Closed by Sprint 202 PR evidence: the macOS selected hosted workflow, manifest metadata, local hosted-mode simulation, freshness tests, workflow guards, claim-calibrated docs, and hosted PR run evidence are present. |
 | Owner surfaces | Benchmark workflow YAML; selected target manifest; `scripts/check_bench_canonical_freshness.py`; report normalizer; benchmark docs; maintainer guide; README; INSTALL. |
-| Why it remains | This branch adds no selected platform/row decision, hosted workflow, artifact review, benchmark freshness tests, or methodology metadata. |
-| Closure target | Add one hosted selected benchmark freshness lane for one exact platform/row pair and preserve methodology-bound, threshold-free, non-portable interpretation. |
-| Expected evidence | Hosted platform pass; exact selected benchmark bundle; selected CSV matches manifest contract; methodology metadata records platform/compiler/build flags/repeat policy; docs keep non-portable wording. |
-| Validation commands | `make bench-canonical-report-freshness`; `python3 tests/test_bench_canonical_freshness.py`; selected manifest tests; report normalizer tests; hosted platform workflow evidence review; `make docs-check`. |
-| Claim boundary | Do not claim portable performance, timing thresholds, backend superiority, platform parity, release benchmark readiness, or state-of-the-art performance. |
+| Why it remains | Closed for the selected macOS lane only. PR run `34517520951`, job `103006563210`, completed successfully on `2026-09-10`; the job generated the selected report, passed hosted-mode freshness, summarized bounded metadata, and uploaded exactly three files in artifact `sprint202-macos-selected-performance-freshness` (`bench_refactor_csc.csv`, `index.tsv`, `manifest.txt`; artifact id `10168283869`; digest `sha256:308ee8f780a28673fc02ff40b10aeb17ae6219fcdf55095657526b76f7016af4`). Broader platform and performance claims remain separate residuals. |
+| Closure target | Close one additional hosted selected benchmark freshness lane for `SRT-BENCH-REFACTOR-CSC-NOS4` on macOS, preserving methodology-bound, threshold-free, non-portable interpretation. |
+| Expected evidence | Hosted macOS platform pass; exact selected benchmark bundle; selected CSV matches manifest contract; methodology metadata records platform/compiler/build flags/repeat policy; docs keep non-portable wording. |
+| Validation commands | `make bench-canonical-report-freshness`; `python3 tests/test_bench_canonical_freshness.py`; `python3 tests/test_selected_comparison_workflow.py`; `python3 tests/test_selected_report_targets_manifest.py`; `python3 tests/test_selected_performance_docs.py`; `python3 tests/test_normalize_report_index.py`; `python3 scripts/normalize_report_index.py --check`; `python3 scripts/normalize_report_index.py --family benchmark --check-freshness`; hosted PR workflow evidence review for run `34517520951` / job `103006563210`. |
+| Claim boundary | Do not claim portable performance, timing thresholds, Linux/macOS performance parity, Windows selected benchmark freshness, broad benchmark-family publication, package-manager distribution, package/ABI support, backend superiority, release benchmark readiness, or state-of-the-art performance. |
 
 ## Priority 6: E18-RQ-006
 

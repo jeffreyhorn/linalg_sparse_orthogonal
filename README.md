@@ -219,9 +219,10 @@ When to widen beyond the first examples:
   `claim_boundary=local_threshold_free`
 - `make bench-canonical-report-freshness` regenerates that canonical bundle
   and checks only the selected `bench_refactor_csc` row for
-  `nos4.mtx --repeat 1`; the reviewed Linux hosted performance lane runs the
-  same selected-row freshness check with hosted metadata on that selected row
-  only, still without a timing threshold or portable performance claim
+  `nos4.mtx --repeat 1`; the reviewed Linux and macOS hosted performance
+  lanes run the same selected-row freshness check with platform-specific
+  hosted metadata on that selected row only, still without a timing threshold
+  or portable performance claim
 - `make performance-sentinels` writes a local sentinel bundle: its hard
   pass/fail behavior is limited to the existing S5 wall-check lane and the S6
   selected `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and
@@ -274,11 +275,14 @@ portable performance claims.
 Runtime/backend sentinels follow the same boundary: `S5` is the existing
 local `wall-check` hard gate, while `S2` Cholesky CSC and `S3` LDLT KKT rows
 are threshold-free local context rows in
-`build/bench-reports/sentinels/sentinels.tsv`. Generated benchmark,
+`build/bench-reports/sentinels/sentinels.tsv`. Locally generated benchmark,
 sentinel, and normalized report-index artifacts stay under ignored `build/`
-paths and are not hosted CI proof, package proof, ABI proof, runtime-loader
-proof, external-library parity, OpenMP speedup evidence, backend superiority
-evidence, or state-of-the-art evidence.
+paths and are not hosted CI proof by themselves. Only the explicitly reviewed
+hosted lanes described below promote selected uploaded artifacts to hosted
+freshness evidence; neither local generated artifacts nor selected hosted
+freshness artifacts are package proof, ABI proof, runtime-loader proof,
+external-library parity, OpenMP speedup evidence, backend superiority evidence,
+or state-of-the-art evidence.
 
 ## Building
 
@@ -317,7 +321,7 @@ python3 scripts/normalize_report_index.py --check  # validate normalized report-
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
 make report-index-comparison-freshness  # selected QR + partial-SVD + LU comparison freshness, mirrored by reviewed Linux/macOS hosted CI
-make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux hosted CI
+make bench-canonical-report-freshness   # selected bench_refactor_csc report freshness, mirrored by reviewed Linux/macOS hosted CI
 make bench      # run benchmarks
 make bench-canonical-report  # write one CSV per canonical maintained benchmark under build/bench-reports/canonical/
 make performance-sentinels  # local sentinel bundle: S5/S6 hard gates + threshold-free Cholesky CSC/LDLT KKT context
@@ -345,9 +349,10 @@ source-controlled output, or release evidence.
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands or turn local benchmark,
 coverage, dead-code, comparison, or package metadata rows into release proof.
-Reviewed Linux hosted report freshness runs only the selected oracle and
-comparison gates above; reviewed macOS hosted report freshness runs only the
-selected comparison gate. Windows currently has one guarded workflow path for
+Reviewed Linux hosted report freshness runs only the selected oracle,
+comparison, and selected-performance gates above; reviewed macOS hosted report
+freshness runs only the selected comparison and selected-performance gates.
+Windows currently has one guarded workflow path for
 `cholesky-spd-tridiag-5`, but the selected target manifest still owns platform
 promotion. Sprint 199 reviewed hosted CI evidence for that exact path and kept
 Windows promotion re-deferred because selected-target metadata, generated
@@ -365,15 +370,16 @@ selected benchmark freshness on Windows, or any unselected local-only family.
 The Windows PowerShell validation lane is workflow validation ownership only;
 it does not prove generated report freshness.
 
-The reviewed Linux hosted selected-performance lane runs only the selected
-canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
+The reviewed Linux and macOS hosted selected-performance lanes run only the
+selected canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
 `make bench-canonical-report` and
-`scripts/check_bench_canonical_freshness.py --mode hosted`. It checks artifact
-presence, selected row identity, methodology metadata, manifest agreement, and
-`hosted_selected_threshold_free` claim boundaries. It does not compare timing
-values, set a regression threshold, claim portable speed, promote the other
-canonical benchmark rows, or provide external-library, package, ABI, broad
-platform, release, or state-of-the-art evidence.
+`scripts/check_bench_canonical_freshness.py --mode hosted`. They check
+artifact presence, selected row identity, methodology metadata, manifest
+agreement, and `hosted_selected_threshold_free` claim boundaries. They do not
+compare timing values across platforms, set a regression threshold, claim
+portable speed, promote the other canonical benchmark rows, or provide
+external-library, package, ABI, broad platform, release, or state-of-the-art
+evidence.
 
 ### With CMake
 

@@ -148,6 +148,23 @@ def assert_upload_fail_closed(job: str, artifact_name: str, *, label: str) -> st
     return block
 
 
+def upload_path_entries(block: str, *, label: str) -> list[str]:
+    lines = block.splitlines()
+    for index, line in enumerate(lines):
+        if line == "          path: |":
+            paths = []
+            for path_line in lines[index + 1 :]:
+                if not path_line.startswith("            "):
+                    break
+                stripped = path_line.strip()
+                if stripped:
+                    paths.append(stripped)
+            if not paths:
+                raise AssertionError(f"{label} upload path block is empty")
+            return paths
+    raise AssertionError(f"{label} missing upload path block")
+
+
 def comparison_directory(row: dict[str, str]) -> str:
     return str(Path(row["artifact_pattern"]).parent)
 
@@ -223,8 +240,15 @@ def assert_performance_upload_paths(
         if pattern in block:
             raise AssertionError(f"{label} must not use broad benchmark upload paths")
     directory = str(Path(row["artifact_pattern"]).parent)
-    for filename in split_manifest_values(row["required_files"]):
-        assert_contains(block, f"{directory}/{filename}", label=label)
+    expected_paths = {
+        f"{directory}/{filename}" for filename in split_manifest_values(row["required_files"])
+    }
+    actual_paths = set(upload_path_entries(block, label=label))
+    if actual_paths != expected_paths:
+        raise AssertionError(
+            f"{label} upload paths must equal {sorted(expected_paths)!r}, "
+            f"got {sorted(actual_paths)!r}"
+        )
     for path in BENCHMARK_FORBIDDEN_UPLOAD_PATHS:
         if path in block:
             raise AssertionError(f"{label} must not upload unselected benchmark path {path!r}")
@@ -413,6 +437,63 @@ def test_linux_selected_performance_lane() -> None:
         row,
         artifact_name,
         label="linux performance upload",
+    )
+
+
+def test_macos_selected_performance_lane() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    row = single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "macos")
+    selected_artifact = split_manifest_values(row["expected_row_ids"])[0]
+    selected_path = row["artifact_pattern"]
+
+    assert_contains(job, "macOS reviewed hosted selected performance freshness", label="macos")
+    assert_contains(job, "timeout-minutes: 10", label="macos")
+    assert_contains(
+        job,
+        "BENCH_CANONICAL_REPORT_LABEL: sprint202-macos-hosted-performance",
+        label="macos",
+    )
+    assert_contains(job, "SPARSE_CANONICAL_SUPPORT_TIER: hosted_selected", label="macos")
+    assert_contains(
+        job,
+        "SPARSE_CANONICAL_CLAIM_BOUNDARY: hosted_selected_threshold_free",
+        label="macos",
+    )
+    assert_contains(
+        job,
+        "SPARSE_CANONICAL_RUNNER_CONTEXT: github-actions-macos-latest",
+        label="macos",
+    )
+    assert_contains(job, "sysctl -n machdep.cpu.brand_string", label="macos")
+    assert_contains(job, "Run reviewed hosted selected performance report", label="macos")
+    assert_contains(job, "make bench-canonical-report", label="macos")
+    assert_contains(job, "check_bench_canonical_freshness.py", label="macos")
+    assert_contains(job, "--mode hosted", label="macos")
+    assert_contains(job, f'row["artifact"] == "{selected_artifact}"', label="macos")
+    assert_contains(job, selected_path, label="macos")
+    assert_contains(job, "uploaded_paths=", label="macos")
+    assert_contains(job, "sprint202-macos-performance-summary", label="macos")
+    for non_claim in [
+        "timing threshold",
+        "portable performance",
+        "broad benchmark-family",
+        "Windows selected benchmark",
+        "state-of-the-art sparse linear algebra claim",
+    ]:
+        assert_contains(job, non_claim, label="macos")
+    for path in [
+        "build/bench-reports/canonical/bench_refactor_csc.csv,",
+        "build/bench-reports/canonical/index.tsv,",
+        "build/bench-reports/canonical/manifest.txt",
+    ]:
+        assert_contains(job, path, label="macos")
+    assert_performance_upload_paths(
+        job,
+        row,
+        artifact_name,
+        label="macos performance upload",
     )
 
 
@@ -768,8 +849,7 @@ def test_performance_workflow_unselected_upload_fails_clearly() -> None:
             artifact_name,
             label="linux performance upload",
         ),
-        "linux performance upload must not upload unselected benchmark path "
-        "'build/bench-reports/canonical/bench_chol_csc.csv'",
+        "linux performance upload upload paths must equal",
     )
 
 
@@ -807,7 +887,121 @@ def test_performance_workflow_missing_required_upload_file_fails_clearly() -> No
             artifact_name,
             label="linux performance upload",
         ),
-        "linux performance upload missing 'build/bench-reports/canonical/manifest.txt'",
+        "linux performance upload upload paths must equal",
+    )
+
+
+def test_macos_performance_workflow_unselected_upload_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    row = single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "macos")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/bench_refactor_csc.csv\n",
+        "            build/bench-reports/canonical/bench_refactor_csc.csv\n"
+        "            build/bench-reports/canonical/bench_eigs_reuse.csv\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="macos performance upload",
+        ),
+        "macos performance upload upload paths must equal",
+    )
+
+
+def test_macos_performance_workflow_extra_upload_path_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    row = single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "macos")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/manifest.txt\n",
+        "            build/bench-reports/canonical/manifest.txt\n"
+        "            build/bench-reports/canonical/extra-local-report.csv\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="macos performance upload",
+        ),
+        "macos performance upload upload paths must equal",
+    )
+
+
+def test_macos_performance_workflow_missing_job_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    drifted = text.replace(job, "", 1)
+    assert_raises_with(
+        lambda: job_block(drifted, "selected-performance-freshness", label="macos"),
+        "macos missing job 'selected-performance-freshness'",
+    )
+
+
+def test_macos_performance_workflow_wrong_runner_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    drifted = job.replace("    runs-on: macos-latest\n", "    runs-on: ubuntu-latest\n", 1)
+    assert_raises_with(
+        lambda: assert_contains(drifted, "runs-on: macos-latest", label="macos"),
+        "macos missing 'runs-on: macos-latest'",
+    )
+
+
+def test_macos_performance_workflow_missing_generation_step_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    drifted = job.replace("        run: make bench-canonical-report\n", "", 1)
+    assert_raises_with(
+        lambda: assert_contains(drifted, "run: make bench-canonical-report", label="macos"),
+        "macos missing 'run: make bench-canonical-report'",
+    )
+
+
+def test_macos_performance_workflow_missing_checker_mode_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    drifted = job.replace(" --mode hosted", " --mode local", 1)
+    assert_raises_with(
+        lambda: assert_contains(drifted, "--mode hosted", label="macos"),
+        "macos missing '--mode hosted'",
+    )
+
+
+def test_macos_performance_workflow_wrong_upload_path_fails_clearly() -> None:
+    text = read_text(MACOS_WORKFLOW)
+    job = job_block(text, "selected-performance-freshness", label="macos")
+    row = single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark")
+    artifact_name = workflow_artifact_name(row, "macos")
+    drifted = job.replace(
+        "            build/bench-reports/canonical/bench_refactor_csc.csv\n",
+        "            build/bench-reports/canonical/bench_chol_csc.csv\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_performance_upload_paths(
+            drifted,
+            row,
+            artifact_name,
+            label="macos performance upload",
+        ),
+        "macos performance upload upload paths must equal",
+    )
+
+
+def test_macos_performance_manifest_missing_platform_fails_clearly() -> None:
+    row = dict(single_row(MACOS_WORKFLOW, "selected-performance-freshness", "benchmark"))
+    row["workflow_platforms"] = "linux;windows"
+    assert_raises_with(
+        lambda: workflow_artifact_name(row, "macos"),
+        "missing workflow platform 'macos'",
     )
 
 
@@ -815,6 +1009,7 @@ def main() -> int:
     test_linux_selected_oracle_lane()
     test_linux_selected_comparison_lane()
     test_linux_selected_performance_lane()
+    test_macos_selected_performance_lane()
     test_macos_selected_comparison_lane()
     test_windows_report_freshness_keeps_bounded_cholesky_only()
     test_windows_drift_selected_command_fails_clearly()
@@ -841,6 +1036,14 @@ def main() -> int:
     test_performance_workflow_unselected_upload_fails_clearly()
     test_performance_workflow_missing_retention_fails_clearly()
     test_performance_workflow_missing_required_upload_file_fails_clearly()
+    test_macos_performance_workflow_unselected_upload_fails_clearly()
+    test_macos_performance_workflow_extra_upload_path_fails_clearly()
+    test_macos_performance_workflow_missing_job_fails_clearly()
+    test_macos_performance_workflow_wrong_runner_fails_clearly()
+    test_macos_performance_workflow_missing_generation_step_fails_clearly()
+    test_macos_performance_workflow_missing_checker_mode_fails_clearly()
+    test_macos_performance_workflow_wrong_upload_path_fails_clearly()
+    test_macos_performance_manifest_missing_platform_fails_clearly()
     print("test-selected-comparison-workflow: ok")
     return 0
 

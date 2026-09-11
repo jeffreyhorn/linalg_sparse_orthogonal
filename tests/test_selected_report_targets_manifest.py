@@ -69,7 +69,21 @@ WINDOWS_CHOLESKY_REQUIRED_FILES = (
     "summary.md",
     "manifest.tsv",
 )
-WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES = WINDOWS_CHOLESKY_REQUIRED_FILES
+WINDOWS_QR_INCOMPATIBLE_FAMILY = "comparison"
+WINDOWS_QR_INCOMPATIBLE_SUBFAMILY = "qr_incompatible_ls"
+WINDOWS_QR_INCOMPATIBLE_TARGET_KEY = "qr-incompatible-ls"
+WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN = "build/comparison/qr_incompatible_ls/study.tsv"
+WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND = (
+    "python3 scripts/run_external_comparison.py --target qr-incompatible-ls"
+)
+WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES = (
+    "project_observations.tsv",
+    "baseline_observations.tsv",
+    "dependency_status.tsv",
+    "study.tsv",
+    "summary.md",
+    "manifest.tsv",
+)
 WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROW_IDS = (
     "comparison_qr_overdetermined_incompatible_4x2_project_status_v1",
     "comparison_qr_overdetermined_incompatible_4x2_baseline_status_v1",
@@ -81,6 +95,15 @@ WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROW_IDS = (
 WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS = (
     "no broad QR parity",
     "no broad least-squares parity",
+    "no raw QR basis identity",
+    "no Q sign or orientation claim",
+    "no global rank-threshold policy",
+    "no broad rank-deficient solve claim",
+    "no NumPy parity",
+    "no SciPy parity",
+    "no LAPACK parity",
+    "no SuiteSparse parity",
+    "no Eigen parity",
     "no Windows report freshness",
     "no package-manager proof",
     "no shared-library ABI proof",
@@ -403,6 +426,18 @@ def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
 
 def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
     row = qr_incompatible_row(manifest_rows())
+    exact_fields = {
+        "family": WINDOWS_QR_INCOMPATIBLE_FAMILY,
+        "subfamily": WINDOWS_QR_INCOMPATIBLE_SUBFAMILY,
+        "target_key": WINDOWS_QR_INCOMPATIBLE_TARGET_KEY,
+        "artifact_pattern": WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN,
+        "generator_command": WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND,
+    }
+    for field, expected in exact_fields.items():
+        if row[field] != expected:
+            raise AssertionError(
+                f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} {field} must remain {expected!r}"
+            )
     if row["expected_rows"] != WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} expected_rows must remain "
@@ -462,11 +497,11 @@ def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} support_tier must remain local_only"
         )
     non_claims = split_manifest_values(row["non_claims"])
-    for non_claim in WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS:
-        if non_claim not in non_claims:
-            raise AssertionError(
-                f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} missing non_claim {non_claim!r}"
-            )
+    if tuple(non_claims) != WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} non_claims must remain the full "
+            "current QR incompatible claim-boundary set"
+        )
 
 
 def test_windows_deferral_record_missing_file_fails_clearly() -> None:

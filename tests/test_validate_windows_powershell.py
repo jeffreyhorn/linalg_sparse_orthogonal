@@ -221,6 +221,26 @@ def test_claim_boundary_missing_marker_fails_clearly() -> None:
     )
 
 
+def test_report_index_claim_boundary_missing_qr_marker_fails_clearly() -> None:
+    path = (
+        validator.REPO_ROOT
+        / "tests"
+        / "corpus"
+        / "schemas"
+        / "report_index_fields.md"
+    )
+    text = path.read_text(encoding="utf-8").replace(
+        "The QR incompatible least-squares target remains outside Windows selected\n"
+        "freshness",
+        "The QR incompatible least-squares target is ready for selected freshness",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "report_index_fields.md missing Windows/PowerShell non-claim marker",
+    )
+
+
 def test_claim_boundary_promotion_wording_fails_clearly() -> None:
     path = validator.REPO_ROOT / "docs" / "maintainer_guide.md"
     text = path.read_text(encoding="utf-8") + (
@@ -398,6 +418,7 @@ if __name__ == "__main__":
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
     test_claim_boundary_missing_marker_fails_clearly()
+    test_report_index_claim_boundary_missing_qr_marker_fails_clearly()
     test_claim_boundary_promotion_wording_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()

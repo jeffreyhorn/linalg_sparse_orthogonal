@@ -84,7 +84,7 @@ CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation ownership for selected Windows workflow snippets",
         "bounded selected Cholesky comparison freshness workflow",
-        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
+        "The QR incompatible least-squares target remains outside Windows selected freshness",
         "broad report freshness, selected oracle freshness, selected benchmark freshness",
         "does not imply Windows Makefile parity",
         "runtime-loader behavior, or broad Windows parity",

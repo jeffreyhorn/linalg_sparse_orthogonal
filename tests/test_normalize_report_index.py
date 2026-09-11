@@ -1953,6 +1953,53 @@ def test_selected_comparison_generated_rows_reject_near_match_artifact_paths() -
     assert matched == []
 
 
+def test_qr_incompatible_generated_rows_match_windows_artifact_paths() -> None:
+    selected = {"build/comparison/qr_incompatible_ls/study.tsv"}
+    expected_paths = [
+        "build/comparison/qr_incompatible_ls/study.tsv",
+        r"build\comparison\qr_incompatible_ls\study.tsv",
+        r"build/comparison\qr_incompatible_ls/study.tsv",
+        r"D:\a\linalg_sparse_orthogonal\linalg_sparse_orthogonal\build\comparison\qr_incompatible_ls\study.tsv",
+    ]
+    rows = [
+        {
+            "report_family": "comparison",
+            "row_origin": "generated_local",
+            "row_id": f"comparison_qr_incompatible_ls_path_case_{index}_v1",
+            "artifact_path": artifact_path,
+        }
+        for index, artifact_path in enumerate(expected_paths)
+    ]
+
+    matched = normalize_index.selected_comparison_generated_rows(rows, selected)
+
+    assert matched == rows
+
+
+def test_qr_incompatible_generated_rows_reject_near_match_artifact_paths() -> None:
+    selected = {"build/comparison/qr_incompatible_ls/study.tsv"}
+    rejected_paths = [
+        "build/comparison/qr_incompatible_ls_extra/study.tsv",
+        "build/comparison/not_qr_incompatible_ls/study.tsv",
+        "build/comparison/qr_incompatible_lss/study.tsv",
+        "build/comparison/qr_incompatible_ls/study.tsv.bak",
+        r"D:\a\repo\build\comparison\qr_incompatible_ls_extra\study.tsv",
+    ]
+    rows = [
+        {
+            "report_family": "comparison",
+            "row_origin": "generated_local",
+            "row_id": f"comparison_qr_incompatible_ls_near_match_{index}_v1",
+            "artifact_path": artifact_path,
+        }
+        for index, artifact_path in enumerate(rejected_paths)
+    ]
+
+    matched = normalize_index.selected_comparison_generated_rows(rows, selected)
+
+    assert matched == []
+
+
 def test_selected_comparison_target_freshness_rejects_windows_path_stale_rows() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -2168,6 +2215,96 @@ def test_qr_incompatible_selected_freshness_rejects_dependency_only_rows() -> No
             "missing=comparison_qr_overdetermined_incompatible_4x2_project_status_v1"
             in result.stdout
         )
+        assert SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "--selected-target qr-incompatible-ls" in result.stdout
+
+
+def test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+        )
+        study = build_root / "comparison" / "qr_incompatible_ls" / "study.tsv"
+        rows = read_tsv(study)
+        rows.append(dict(rows[0]))
+        for row in rows:
+            row["artifact_path"] = r"build\comparison\qr_incompatible_ls\study.tsv"
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t"
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+        assert "duplicate normalized row_id" in result.stderr
+        assert (
+            "'comparison_qr_overdetermined_incompatible_4x2_project_status_v1'"
+            in result.stderr
+        )
+
+
+def test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+        )
+        study = build_root / "comparison" / "qr_incompatible_ls" / "study.tsv"
+        rows = read_tsv(study)
+        rows[0]["comparison_row_id"] = "comparison_qr_incompatible_ls_unexpected_metric_v1"
+        for row in rows:
+            row["artifact_path"] = r"build\comparison\qr_incompatible_ls\study.tsv"
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t"
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_rows" in result.stdout
+        assert "row_set_mismatch" in result.stdout
+        assert "observed=6" in result.stdout
+        assert (
+            "missing=comparison_qr_overdetermined_incompatible_4x2_project_status_v1"
+            in result.stdout
+        )
+        assert "unexpected=comparison_qr_incompatible_ls_unexpected_metric_v1" in result.stdout
         assert SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC in result.stdout
         assert "--selected-target qr-incompatible-ls" in result.stdout
 
@@ -2402,11 +2539,15 @@ def main() -> int:
     test_selected_target_unknown_key_fails_clearly()
     test_selected_comparison_generated_rows_match_windows_artifact_paths()
     test_selected_comparison_generated_rows_reject_near_match_artifact_paths()
+    test_qr_incompatible_generated_rows_match_windows_artifact_paths()
+    test_qr_incompatible_generated_rows_reject_near_match_artifact_paths()
     test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
     test_qr_incompatible_selected_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
     test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
+    test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()
+    test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()
     test_selected_comparison_required_freshness_rejects_duplicate_rows()

@@ -235,6 +235,10 @@ external-library parity; broad Windows report freshness; Windows selected
 oracle or benchmark freshness; broad platform support; package/ABI support;
 performance; release readiness; or state-of-the-art status. Optional
 NumPy/SciPy dependency rows are deferred context only and never pass evidence.
+The QR incompatible least-squares target remains outside Windows selected
+freshness until hosted MSVC probe evidence, selected artifact review,
+selected-target manifest metadata, generated support tier, and generated
+non-claim wording are promoted together.
 
 ## Sprint 139/Sprint 150 QR Lane
 

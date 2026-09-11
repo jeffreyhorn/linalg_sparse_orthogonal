@@ -104,12 +104,12 @@ as support promotion.
 | --- | --- |
 | Theme | Windows QR incompatible comparison promotion. |
 | Source | Epic 17 residual queue; Epic 18 Sprint 203 plan; Sprint 197 Day 3 and Day 7 claim reviews. |
-| Current status | Pending future execution. |
+| Current status | Re-deferred by Sprint 203 closeout; local QR incompatible generator/freshness evidence and guard coverage exist, but hosted Windows/MSVC proof and hosted artifact inspection remain absent. |
 | Owner surfaces | Windows workflow; QR incompatible comparison target; comparison runner; selected manifest; normalizer; corpus docs; maintainer guide; README; INSTALL. |
-| Why it remains | The QR incompatible comparison remains local/selected evidence; this branch adds no MSVC/CMake generation proof or hosted Windows artifact review. |
+| Why it remains | Sprint 203 generated local selected QR incompatible evidence and hardened manifest, workflow, normalizer, docs, and Windows claim-boundary guards, but it did not add hosted Windows/MSVC execution evidence, inspect hosted Windows QR artifacts, or promote selected target Windows metadata. |
 | Closure target | Add MSVC/CMake proof for `qr-incompatible-ls`, fix Windows-safe generation/path handling as needed, inspect artifacts, promote exact selected metadata if evidence supports it, and retain broad QR parity non-claims. |
 | Expected evidence | Windows CMake probe builds and runs; generated rows match expected QR incompatible target output; artifact paths normalize correctly; manifest metadata matches the promoted platform scope. |
-| Validation commands | `python3 tests/test_run_external_comparison.py`; `python3 tests/test_normalize_report_index.py`; selected manifest tests; selected comparison workflow tests; focused QR solve tests; `make windows-powershell-guard`; hosted Windows comparison workflow evidence review. |
+| Validation commands | `python3 scripts/run_external_comparison.py --target qr-incompatible-ls`; `python3 scripts/normalize_report_index.py --family comparison --include-generated --require-generated comparison --check-freshness --selected-target qr-incompatible-ls`; `python3 tests/test_run_external_comparison.py`; `python3 tests/test_normalize_report_index.py`; `python3 tests/test_selected_report_targets_manifest.py`; `python3 tests/test_selected_comparison_workflow.py`; `python3 tests/test_validate_windows_powershell.py`; focused QR solve tests; hosted Windows comparison workflow evidence review before any future promotion. |
 | Claim boundary | Do not claim broad QR least-squares parity, broad external-library parity, Windows selected oracle freshness, Windows benchmark freshness, or broad Windows report freshness. |
 
 ## Priority 7: E18-RQ-007

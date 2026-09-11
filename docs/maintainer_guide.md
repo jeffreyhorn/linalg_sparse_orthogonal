@@ -676,7 +676,11 @@ artifact `sprint190-windows-selected-comparison-cholesky`. Sprint 199 reviewed
 hosted evidence for that exact path and re-deferred selected Windows freshness
 promotion because the selected manifest, generated support tier, and generated
 non-claim wording still do not promote Windows. Treat the path as guarded
-workflow evidence, not promoted selected freshness.
+workflow evidence, not promoted selected freshness. The QR incompatible
+least-squares target remains outside Windows selected freshness until hosted
+MSVC probe evidence, selected artifact review, selected-target manifest
+metadata, generated support tier, and generated non-claim wording are promoted
+together.
 These hosted lanes do not promote selected oracle freshness on macOS, selected
 oracle freshness on Windows, selected benchmark freshness on Windows, broad
 Windows report freshness, broad report-index freshness, unselected comparison
@@ -1944,6 +1948,10 @@ comparison families, package/ABI support, performance, release readiness,
 external-library parity, or state-of-the-art status. The QR incompatible
 least-squares target is not Windows selected report freshness until a future
 change proves its MSVC project probe and promotes the selected-target metadata.
+The QR incompatible least-squares target remains outside Windows selected
+freshness until hosted MSVC probe evidence, selected artifact review,
+selected-target manifest metadata, generated support tier, and generated
+non-claim wording are promoted together.
 Any broader Windows report freshness promotion must add a Windows-safe
 generation path, exact selected upload scope, selected-target manifest
 metadata, and guard updates in the same reviewed change.

@@ -78,11 +78,13 @@ CLAIM_BOUNDARY_MARKERS = {
         "hosted PowerShell validation ownership\n  job",
         "workflow validation ownership only",
         "bounded Windows selected Cholesky comparison freshness workflow",
+        "The QR incompatible least-squares target remains outside Windows\nselected freshness",
         "The Sprint\n  182 deferral record still applies to all other Windows report freshness",
     ),
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation ownership for selected Windows workflow snippets",
         "bounded selected Cholesky comparison freshness workflow",
+        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
         "broad report freshness, selected oracle freshness, selected benchmark freshness",
         "does not imply Windows Makefile parity",
         "runtime-loader behavior, or broad Windows parity",
@@ -90,6 +92,7 @@ CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "docs" / "maintainer_guide.md": (
         "Sprint 190 adds one bounded Windows hosted workflow\npath for `cholesky-spd-tridiag-5`",
         "The Sprint 182 deferral remains active for every Windows report freshness\nsurface outside the one Sprint 190 Cholesky workflow path",
+        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
         "make windows-powershell-validate",
         "python scripts/validate_windows_powershell.py --require-pwsh",
         "If a local PowerShell\ncheck is unavailable, record that as an environment residual",
@@ -98,9 +101,15 @@ CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "tests" / "corpus" / "README.md": (
         "Sprint 190 wires one bounded Windows selected Cholesky comparison\nfreshness workflow",
         "The Sprint 182 deferral remains active for all\nother Windows report freshness",
+        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
         "hosted Windows PowerShell validation lane owns selected workflow snippet\nparsing",
         "unavailable\nlocal PowerShell validation",
         "reinterpret those states as pass evidence",
+    ),
+    REPO_ROOT / "tests" / "corpus" / "schemas" / "report_index_fields.md": (
+        "Sprint 190 adds one bounded Windows hosted workflow path\nfor `cholesky-spd-tridiag-5`",
+        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
+        "external-library parity; platform proof; package proof; ABI proof; performance\nproof; release proof; or state-of-the-art evidence",
     ),
 }
 UNSUPPORTED_WINDOWS_CLAIM_PATTERNS = (

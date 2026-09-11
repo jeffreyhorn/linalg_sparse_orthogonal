@@ -64,9 +64,10 @@ closeout.
    incompatible coverage.
 
 4. **Workflow and manifest promotion are guarded.** The workflow guard rejects
-   accidental Windows `qr-incompatible-ls` commands, freshness checks, artifact
-   names, and upload paths. The manifest guard keeps the selected target
-   Linux/macOS-only and local-only for Windows purposes.
+   accidental Windows `qr-incompatible-ls` commands, equals-form target
+   commands, freshness checks, artifact names, QR subfamily tokens, and upload
+   paths. The manifest guard keeps the selected target Linux/macOS-only and
+   local-only for Windows purposes.
 
 5. **Documentation moved with the decision.** Public, maintainer, corpus, and
    schema docs now describe the Windows QR incompatible boundary as a

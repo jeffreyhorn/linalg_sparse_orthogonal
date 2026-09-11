@@ -746,7 +746,7 @@ Unchanged source-of-truth files:
 
 | Guard | Coverage |
 | --- | --- |
-| `assert_windows_qr_incompatible_remains_redeferred()` | Rejects accidental Windows workflow references to `--target qr-incompatible-ls`, `--selected-target qr-incompatible-ls`, the proposed Sprint 203 QR artifact name, or `build/comparison/qr_incompatible_ls/study.tsv`. |
+| `assert_windows_qr_incompatible_remains_redeferred()` | Rejects accidental Windows workflow references to the raw `qr-incompatible-ls` target key, `qr_incompatible_ls` subfamily, spaced or equals-form target flags, selected freshness flags, the proposed Sprint 203 QR artifact name, or any of the six QR incompatible artifact paths. |
 
 ### Negative Fixtures Added
 
@@ -754,7 +754,9 @@ Unchanged source-of-truth files:
 | --- | --- |
 | `test_windows_qr_incompatible_target_drift_fails_clearly()` | Generator command promotion without evidence. |
 | `test_windows_qr_incompatible_freshness_target_drift_fails_clearly()` | Freshness checker target promotion without evidence. |
-| `test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()` | QR incompatible artifact upload path promotion without evidence. |
+| `test_windows_qr_incompatible_equals_target_drift_fails_clearly()` | Equals-form generator command promotion without evidence. |
+| `test_windows_qr_incompatible_subfamily_drift_fails_clearly()` | QR incompatible subfamily/path promotion without evidence. |
+| `test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()` | QR incompatible alternate artifact upload path promotion without evidence. |
 
 The tests are invoked by the standalone
 `tests/test_selected_comparison_workflow.py` runner.
@@ -1009,7 +1011,7 @@ Changed file:
 | Guard | Day 13 coverage state |
 | --- | --- |
 | Manifest guard | QR incompatible row ids, required files, retained non-claims, absent Windows platform, absent Windows workflow file, and no reused Cholesky artifact. |
-| Workflow guard | Accidental Windows `qr-incompatible-ls` generator command, selected freshness command, artifact name, and QR upload path are rejected. |
+| Workflow guard | Accidental Windows `qr-incompatible-ls` generator command, equals-form target command, selected freshness command, artifact name, QR subfamily token, and all QR upload paths are rejected. |
 | Normalizer guard | Windows-style QR artifact paths, near-match rejection, stale rows, dependency-only rows, duplicate rows, unexpected rows, and wrong-target diagnostics. |
 | Documentation guard | QR incompatible Windows selected freshness re-deferral markers are enforced across README, INSTALL, maintainer guide, corpus README, and report-index schema docs. |
 

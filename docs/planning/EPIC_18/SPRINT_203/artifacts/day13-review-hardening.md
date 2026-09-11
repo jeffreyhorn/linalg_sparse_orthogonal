@@ -43,7 +43,7 @@ marker. Day 13 added the schema file to `CLAIM_BOUNDARY_MARKERS`.
 | Guard | Coverage |
 | --- | --- |
 | Manifest guard | Verifies QR incompatible row ids, required files, retained non-claims, no Windows platform, no Windows workflow file, and no reused Cholesky artifact. |
-| Workflow guard | Rejects accidental Windows `qr-incompatible-ls` generator command, selected freshness command, artifact name, or QR upload path. |
+| Workflow guard | Rejects accidental Windows `qr-incompatible-ls` generator command, equals-form target command, selected freshness command, artifact name, QR subfamily token, or QR upload path. |
 | Normalizer guard | Covers Windows-style QR artifact path matching, near-match rejection, stale rows, dependency-only rows, duplicate rows, unexpected rows, and wrong-target diagnostics. |
 | Documentation guard | Enforces QR incompatible Windows selected freshness re-deferral markers across README, INSTALL, maintainer guide, corpus README, and report-index schema docs. |
 

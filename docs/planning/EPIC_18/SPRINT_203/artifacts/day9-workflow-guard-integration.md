@@ -15,7 +15,7 @@ Cholesky target until hosted Windows/MSVC QR incompatible evidence exists.
 
 | Surface | Day 9 coverage |
 | --- | --- |
-| `tests/test_selected_comparison_workflow.py` | Added `assert_windows_qr_incompatible_remains_redeferred()` to reject accidental Windows QR target commands, selected freshness commands, artifact names, and QR artifact upload paths. |
+| `tests/test_selected_comparison_workflow.py` | Added `assert_windows_qr_incompatible_remains_redeferred()` to reject accidental Windows QR target commands, equals-form target commands, selected freshness commands, artifact names, QR subfamily tokens, and QR artifact upload paths. |
 | `.github/workflows/windows-ci.yml` | Unchanged; the workflow remains Cholesky-specific for selected comparison freshness. |
 | `tests/corpus/manifests/selected_report_targets.tsv` | Unchanged; QR incompatible remains Linux/macOS-only and `local_only`. |
 
@@ -25,7 +25,9 @@ Cholesky target until hosted Windows/MSVC QR incompatible evidence exists.
 | --- | --- |
 | `test_windows_qr_incompatible_target_drift_fails_clearly()` | A Windows workflow line running `run_external_comparison.py --target qr-incompatible-ls` fails clearly. |
 | `test_windows_qr_incompatible_freshness_target_drift_fails_clearly()` | A Windows workflow line running selected freshness for `qr-incompatible-ls` fails clearly. |
-| `test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()` | A Windows workflow upload path for `build/comparison/qr_incompatible_ls/study.tsv` fails clearly. |
+| `test_windows_qr_incompatible_equals_target_drift_fails_clearly()` | A Windows workflow line running `run_external_comparison.py --target=qr-incompatible-ls` fails clearly. |
+| `test_windows_qr_incompatible_subfamily_drift_fails_clearly()` | A Windows workflow reference to the QR incompatible subfamily path fails clearly. |
+| `test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()` | A Windows workflow upload path for a QR incompatible generated artifact fails clearly. |
 
 The new tests are called from the standalone
 `tests/test_selected_comparison_workflow.py` runner.

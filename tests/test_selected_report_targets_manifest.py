@@ -37,6 +37,19 @@ WINDOWS_CHOLESKY_WORKFLOW_JOB = "selected-comparison-freshness"
 WINDOWS_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
 WINDOWS_CHOLESKY_EXPECTED_ROWS = "6"
 WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS = "6"
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS = (
+    "generated-report-freshness",
+    "selected-comparison-freshness",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS = (
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS = ("linux", "macos")
 SELECTED_BENCHMARK_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
 SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS = (
     "no portable performance claim",
@@ -405,17 +418,41 @@ def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} expected_row_ids drifted"
         )
-    if "windows" in split_manifest_values(row["workflow_platforms"]):
+    workflow_files = tuple(split_manifest_values(row["workflow_file"]))
+    if workflow_files != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_file metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_jobs = tuple(split_manifest_values(row["workflow_job"]))
+    if workflow_jobs != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_job metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_artifacts = tuple(split_manifest_values(row["workflow_artifact"]))
+    if workflow_artifacts != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_artifact metadata must "
+            "remain the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_platforms = tuple(split_manifest_values(row["workflow_platforms"]))
+    if workflow_platforms != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_platforms metadata must "
+            "remain linux/macos while re-deferred"
+        )
+    if "windows" in workflow_platforms:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list windows "
             "without hosted MSVC proof"
         )
-    if ".github/workflows/windows-ci.yml" in split_manifest_values(row["workflow_file"]):
+    if ".github/workflows/windows-ci.yml" in workflow_files:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list the Windows workflow "
             "while re-deferred"
         )
-    if WINDOWS_CHOLESKY_ARTIFACT in split_manifest_values(row["workflow_artifact"]):
+    if WINDOWS_CHOLESKY_ARTIFACT in workflow_artifacts:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not reuse the Cholesky "
             "Windows artifact"

@@ -83,9 +83,11 @@ closeout.
    evidence and simulations were useful, but they cannot prove hosted
    Windows/MSVC behavior or artifact upload semantics.
 
-2. **Generated-row freshness needed explicit invocation discipline.** The final
-   closeout command had to include `--include-generated` so selected generated
-   rows were actually loaded and checked.
+2. **Generated-row freshness benefited from explicit command intent.** The
+   normalizer includes generated rows by default, so earlier commands without
+   `--include-generated` also exercise generated rows. The final closeout
+   command kept `--include-generated` as an explicit readability marker for
+   reviewer-facing evidence.
 
 3. **Several claim surfaces had to be kept synchronized.** README, INSTALL,
    maintainer docs, corpus docs, schema docs, validator markers, project-plan

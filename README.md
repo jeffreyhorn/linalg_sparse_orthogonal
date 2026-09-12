@@ -329,7 +329,7 @@ make large-matrix-guardrails  # generated guardrail index/manifest plus reviewed
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make docs-check # generate and check local Doxygen API page coverage
-make api-docs-freshness # selected local Doxygen freshness plus local-only staging guard
+make api-docs-freshness # selected local Doxygen freshness plus local-only staging guard and routing guard
 # API reference entry point: docs/api_reference.md
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
@@ -344,7 +344,10 @@ For API documentation, the supported source-controlled entry point is
 keeps generated Doxygen HTML as a local-only convenience view: run
 `make api-docs-freshness` immediately before inspecting `docs/api/html/`.
 Generated API HTML is not hosted documentation, a retained CI artifact,
-source-controlled output, or release evidence.
+source-controlled output, or release evidence. The freshness command also
+checks generated page coverage, local-only staging, and API routing so user
+docs continue to point at the source-controlled API entry point rather than an
+unavailable generated or hosted publication.
 
 The normalized report index is a maintainer navigation and freshness aid. It
 does not replace the underlying validation commands or turn local benchmark,

@@ -80,6 +80,7 @@ require_workflows_do_not_reference() {
     local needle="$1"
     local label="$2"
     local workflows_dir="$ROOT_DIR/.github/workflows"
+    local workflow_file
     local matches
 
     if [ ! -d "$workflows_dir" ]; then
@@ -87,13 +88,40 @@ require_workflows_do_not_reference() {
         return
     fi
 
-    matches="$(grep -R -F -n "$needle" "$workflows_dir" || true)"
+    matches="$(
+        find "$workflows_dir" -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) -print |
+            sort |
+            while IFS= read -r workflow_file; do
+                grep -F -n "$needle" "$workflow_file" || true
+            done
+    )"
     if [ -n "$matches" ]; then
         printf '%s\n' "$matches" >&2
         fail "workflows must not reference $label while generated API HTML is strengthened local-only"
     fi
 
     pass "no workflow $label references"
+}
+
+check_no_workflow_publication_semantics() {
+    local workflows_dir="$ROOT_DIR/.github/workflows"
+    local workflow_file
+    local rel_path
+
+    if [ ! -d "$workflows_dir" ]; then
+        pass "no workflow directory for generated API publication semantics"
+        return
+    fi
+
+    while IFS= read -r workflow_file; do
+        rel_path="${workflow_file#$ROOT_DIR/}"
+        if grep -Eq "docs/api(/|$)|docs/api/html" "$workflow_file" &&
+            grep -Eq "actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:" "$workflow_file"; then
+            fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
+        fi
+    done < <(find "$workflows_dir" -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) -print | sort)
+
+    pass "no workflow generated API publication semantics"
 }
 
 check_ignore_rules() {
@@ -163,6 +191,7 @@ check_product_status_wording() {
 }
 
 check_no_workflow_publication_path() {
+    check_no_workflow_publication_semantics
     require_workflows_do_not_reference "docs/api/html" "generated API HTML output path"
     require_workflows_do_not_reference "docs/api/" "generated API output tree"
 }

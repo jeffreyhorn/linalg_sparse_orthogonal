@@ -49,6 +49,7 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
 
     headers = checked_in_headers(include_dir)
     missing: list[str] = []
+    stale: list[str] = []
     reference_count = 0
     source_count = 0
 
@@ -56,19 +57,29 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
         stem = doxygen_header_stem(header)
         reference_page = html_dir / f"{stem}.html"
         source_page = html_dir / f"{stem}_source.html"
+        header_mtime_ns = header.stat().st_mtime_ns
 
         if reference_page.is_file():
             reference_count += 1
+            if reference_page.stat().st_mtime_ns < header_mtime_ns:
+                stale.append(
+                    f"{rel(header, root)} -> stale reference page {rel(reference_page, root)}; rerun `make docs-check`"
+                )
         else:
             missing.append(f"{rel(header, root)} -> missing reference page {rel(reference_page, root)}")
 
         if source_page.is_file():
             source_count += 1
+            if source_page.stat().st_mtime_ns < header_mtime_ns:
+                stale.append(f"{rel(header, root)} -> stale source page {rel(source_page, root)}; rerun `make docs-check`")
         else:
             missing.append(f"{rel(header, root)} -> missing source page {rel(source_page, root)}")
 
     if missing:
         raise CoverageError("missing generated API pages:\n" + "\n".join(f"  - {item}" for item in missing))
+
+    if stale:
+        raise CoverageError("stale generated API pages:\n" + "\n".join(f"  - {item}" for item in stale))
 
     return len(headers), reference_count, source_count
 

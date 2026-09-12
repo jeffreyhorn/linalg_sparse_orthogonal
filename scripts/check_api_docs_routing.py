@@ -11,6 +11,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+AUTOLINK_PATTERN = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
+HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href=["']([^"']+)["']""", re.IGNORECASE)
+BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 
 API_ROUTING_FILES = (
     "README.md",
@@ -73,7 +76,7 @@ REQUIRED_TEXT = {
 FORBIDDEN_LINK_TARGET_PATTERNS = (
     re.compile(r"(^|/|\\.\\.)docs/api(/|$)"),
     re.compile(r"docs/api/html"),
-    re.compile(r"https?://[^)]+(?:api|doxygen|pages|github\\.io)", re.IGNORECASE),
+    re.compile(r"https?://[^\s<>)\"']*(?:api|doxygen|pages|github\.io)", re.IGNORECASE),
 )
 
 
@@ -85,12 +88,41 @@ def markdown_links(text: str) -> list[str]:
     return [match.group(1).strip() for match in LINK_PATTERN.finditer(text)]
 
 
+def publication_link_targets(text: str) -> list[str]:
+    targets = markdown_links(text)
+    targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
+    targets.extend(match.group(1).strip() for match in HTML_HREF_PATTERN.finditer(text))
+    targets.extend(match.group(0).strip() for match in BARE_URL_PATTERN.finditer(text))
+    return targets
+
+
 def strip_fragment(target: str) -> str:
     return target.split("#", 1)[0]
 
 
+def fragment(target: str) -> str:
+    parts = target.split("#", 1)
+    return parts[1] if len(parts) == 2 else ""
+
+
 def is_external(target: str) -> bool:
     return target.startswith(("http://", "https://", "mailto:"))
+
+
+def markdown_heading_fragment(heading: str) -> str:
+    heading = re.sub(r"`([^`]*)`", r"\1", heading.strip().lower())
+    heading = re.sub(r"[^a-z0-9 _-]", "", heading)
+    heading = re.sub(r"\s+", "-", heading)
+    return heading
+
+
+def markdown_heading_fragments(text: str) -> set[str]:
+    fragments = set()
+    for line in text.splitlines():
+        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if match:
+            fragments.add(markdown_heading_fragment(match.group(1)))
+    return fragments
 
 
 def validate_target_exists(root: Path, source: Path, target: str) -> None:
@@ -110,6 +142,12 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
     if not resolved.exists():
         raise RoutingError(f"{source.relative_to(root)} links to missing API route target: {target}")
 
+    target_fragment = fragment(target)
+    if target_fragment and resolved.is_file():
+        fragments = markdown_heading_fragments(resolved.read_text(encoding="utf-8"))
+        if target_fragment not in fragments:
+            raise RoutingError(f"{source.relative_to(root)} links to missing API route fragment: {target}")
+
 
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
     links = set(markdown_links(text))
@@ -127,7 +165,7 @@ def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -
 
 
 def validate_no_forbidden_links(rel_path: str, text: str) -> None:
-    for target in markdown_links(text):
+    for target in publication_link_targets(text):
         for pattern in FORBIDDEN_LINK_TARGET_PATTERNS:
             if pattern.search(target):
                 raise RoutingError(

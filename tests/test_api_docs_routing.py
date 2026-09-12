@@ -114,6 +114,68 @@ def test_hosted_api_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_github_pages_publication_link_without_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://example.github.io/linalg_sparse_orthogonal/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_bare_hosted_api_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\nHosted docs: https://example.github.io/linalg_sparse_orthogonal/\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_autolinked_hosted_api_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n<https://example.github.io/linalg_sparse_orthogonal/>\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<a href="https://example.github.io/linalg_sparse_orthogonal/">Hosted docs</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_missing_route_fragment_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "INSTALL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "## Support Readiness Matrix",
+                "## Support Matrix",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "links to missing API route fragment")
+
+
 def test_missing_local_only_text_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -175,6 +237,11 @@ def main() -> None:
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_hosted_api_publication_link_fails_clearly()
+    test_github_pages_publication_link_without_api_path_fails_clearly()
+    test_bare_hosted_api_publication_url_fails_clearly()
+    test_autolinked_hosted_api_publication_url_fails_clearly()
+    test_html_href_hosted_api_publication_url_fails_clearly()
+    test_missing_route_fragment_fails_clearly()
     test_missing_local_only_text_fails_clearly()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()

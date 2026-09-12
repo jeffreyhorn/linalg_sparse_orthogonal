@@ -89,11 +89,10 @@ require_workflows_do_not_reference() {
     fi
 
     matches="$(
-        find "$workflows_dir" -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) -print |
-            sort |
-            while IFS= read -r workflow_file; do
-                grep -F -n "$needle" "$workflow_file" || true
-            done
+        for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
+            [ -f "$workflow_file" ] || continue
+            grep -F -n "$needle" "$workflow_file" || true
+        done
     )"
     if [ -n "$matches" ]; then
         printf '%s\n' "$matches" >&2
@@ -113,13 +112,14 @@ check_no_workflow_publication_semantics() {
         return
     fi
 
-    while IFS= read -r workflow_file; do
+    for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
+        [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
         if grep -Eq "docs/api(/|$)|docs/api/html" "$workflow_file" &&
             grep -Eq "actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:" "$workflow_file"; then
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
         fi
-    done < <(find "$workflows_dir" -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) -print | sort)
+    done
 
     pass "no workflow generated API publication semantics"
 }

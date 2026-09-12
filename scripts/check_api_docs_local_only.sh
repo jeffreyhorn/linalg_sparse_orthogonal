@@ -132,18 +132,29 @@ check_no_workflow_publication_semantics() {
     local workflows_dir="$ROOT_DIR/.github/workflows"
     local workflow_file
     local rel_path
+    local publication_regex
+    local generated_path_regex
+    local broad_path_regex
 
     if [ ! -d "$workflows_dir" ]; then
         pass "no workflow directory for generated API publication semantics"
         return
     fi
 
+    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
+    generated_path_regex="docs/api(/|$)|docs/api/html"
+    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|./|docs|docs/|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}])["'"'"']?[[:space:]]*$'
+
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
-        if grep -Eq "docs/api(/|$)|docs/api/html" "$workflow_file" &&
-            grep -Eq "actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:" "$workflow_file"; then
+        if grep -Eq "$generated_path_regex" "$workflow_file" &&
+            grep -Eq "$publication_regex" "$workflow_file"; then
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
+        fi
+        if grep -Eq "$broad_path_regex" "$workflow_file" &&
+            grep -Eq "$publication_regex" "$workflow_file"; then
+            fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
     done
 

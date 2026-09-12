@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
 AUTOLINK_PATTERN = re.compile(r"<((?:https?:)?//[^>\s]+)>", re.IGNORECASE)
-HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href=["']([^"']+)["']""", re.IGNORECASE)
+HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<!:)//[^\s<>)"']+""")
 
@@ -29,8 +29,12 @@ MAKEFILE_ROUTING_TARGET = re.compile(
     r"\t@python3 scripts/check_api_docs_routing\.py\n"
     r"\t@python3 tests/test_api_docs_routing\.py$"
 )
-MAKEFILE_VALIDATE_DEP = re.compile(r"(?m)^api-docs-validate:[ \t]+[^\n]*\bapi-docs-routing\b")
-MAKEFILE_FRESHNESS_DEP = re.compile(r"(?m)^api-docs-freshness:[ \t]+[^\n]*\bapi-docs-validate\b")
+MAKEFILE_VALIDATE_DEP = re.compile(
+    r"(?m)^api-docs-validate:[^\n]*[ \t]api-docs-routing([ \t]|$)"
+)
+MAKEFILE_FRESHNESS_DEP = re.compile(
+    r"(?m)^api-docs-freshness:[^\n]*[ \t]api-docs-validate([ \t]|$)"
+)
 
 REQUIRED_ROUTES = {
     "README.md": (
@@ -77,6 +81,10 @@ REQUIRED_TEXT = {
 }
 
 GENERATED_API_PATH = "docs/api"
+HOSTED_API_PUBLICATION_PATTERN = re.compile(
+    r"(github\.io|pages|api|doxygen|docs\.example\.com/linalg_sparse_orthogonal)",
+    re.IGNORECASE,
+)
 
 
 class RoutingError(RuntimeError):
@@ -97,17 +105,32 @@ def publication_link_targets(text: str) -> list[str]:
     return targets
 
 
+def unwrap_link_target(target: str) -> str:
+    target = target.strip()
+    if target.startswith("<") and target.endswith(">"):
+        return target[1:-1].strip()
+    return target
+
+
 def strip_fragment_and_query(target: str) -> str:
-    return re.split(r"[#?]", target, maxsplit=1)[0]
+    return re.split(r"[#?]", unwrap_link_target(target), maxsplit=1)[0]
 
 
 def fragment(target: str) -> str:
-    parts = target.split("#", 1)
+    parts = unwrap_link_target(target).split("#", 1)
     return parts[1] if len(parts) == 2 else ""
 
 
 def is_external(target: str) -> bool:
-    return target.startswith(("http://", "https://", "//", "mailto:"))
+    normalized = unwrap_link_target(target).lower()
+    return normalized.startswith(("http://", "https://", "//", "mailto:"))
+
+
+def is_forbidden_external_target(target: str) -> bool:
+    normalized = unwrap_link_target(target)
+    if normalized.lower().startswith("mailto:"):
+        return False
+    return bool(HOSTED_API_PUBLICATION_PATTERN.search(normalized))
 
 
 def markdown_heading_fragment(heading: str) -> str:
@@ -170,7 +193,10 @@ def normalized_local_target(root: Path, source: Path, target: str) -> str:
     if not path_part:
         return ""
 
-    resolved = (source.parent / path_part).resolve()
+    if path_part.startswith("/"):
+        resolved = (root / path_part.lstrip("/")).resolve()
+    else:
+        resolved = (source.parent / path_part).resolve()
     try:
         return resolved.relative_to(root).as_posix()
     except ValueError:
@@ -183,7 +209,7 @@ def is_generated_api_path(rel_target: str) -> bool:
 
 def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
     for target in publication_link_targets(text):
-        if is_external(target):
+        if is_external(target) and is_forbidden_external_target(target):
             raise RoutingError(
                 f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
             )

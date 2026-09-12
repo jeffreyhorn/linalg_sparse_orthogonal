@@ -11,6 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+REFERENCE_LINK_PATTERN = re.compile(r"(?m)^\[[^\]]+\]:\s+(\S+)")
 AUTOLINK_PATTERN = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
 HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href=["']([^"']+)["']""", re.IGNORECASE)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
@@ -28,6 +29,7 @@ MAKEFILE_ROUTING_TARGET = re.compile(
     r"\t@python3 tests/test_api_docs_routing\.py$"
 )
 MAKEFILE_VALIDATE_DEP = re.compile(r"(?m)^api-docs-validate:\s+.*\bapi-docs-routing\b")
+MAKEFILE_FRESHNESS_DEP = re.compile(r"(?m)^api-docs-freshness:\s+.*\bapi-docs-validate\b")
 
 REQUIRED_ROUTES = {
     "README.md": (
@@ -90,6 +92,7 @@ def markdown_links(text: str) -> list[str]:
 
 def publication_link_targets(text: str) -> list[str]:
     targets = markdown_links(text)
+    targets.extend(match.group(1).strip() for match in REFERENCE_LINK_PATTERN.finditer(text))
     targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
     targets.extend(match.group(1).strip() for match in HTML_HREF_PATTERN.finditer(text))
     targets.extend(match.group(0).strip() for match in BARE_URL_PATTERN.finditer(text))
@@ -183,6 +186,8 @@ def validate_makefile_wiring(root: Path) -> None:
         raise RoutingError("Makefile must define api-docs-routing with the routing guard and regression suite")
     if not MAKEFILE_VALIDATE_DEP.search(text):
         raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
+    if not MAKEFILE_FRESHNESS_DEP.search(text):
+        raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
 
 
 def validate_api_routes(root: Path) -> None:

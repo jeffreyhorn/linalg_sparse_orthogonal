@@ -162,6 +162,18 @@ def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[API HTML]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_missing_route_fragment_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "INSTALL.md"
@@ -230,6 +242,20 @@ def test_missing_makefile_routing_target_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "must define api-docs-routing")
 
 
+def test_missing_makefile_freshness_dependency_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "api-docs-freshness: api-docs-validate",
+                "api-docs-freshness: docs",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
+
+
 def main() -> None:
     test_current_tree_passes_routing_guard()
     test_fixture_passes_routing_guard()
@@ -241,11 +267,13 @@ def main() -> None:
     test_bare_hosted_api_publication_url_fails_clearly()
     test_autolinked_hosted_api_publication_url_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
+    test_reference_generated_api_publication_link_fails_clearly()
     test_missing_route_fragment_fails_clearly()
     test_missing_local_only_text_fails_clearly()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()
     test_missing_makefile_routing_target_fails_clearly()
+    test_missing_makefile_freshness_dependency_fails_clearly()
 
 
 if __name__ == "__main__":

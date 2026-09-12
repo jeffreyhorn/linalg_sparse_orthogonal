@@ -2,7 +2,7 @@
 
 **Epic:** 18 - Selected Productization, Reliability & Evidence Promotion
 **Sprints:** 197-206
-**Status:** Sprint 197 Day 14 closeout draft with explicit residuals
+**Status:** Sprint 204 local-only generated API policy incorporated with explicit residuals
 
 ## Epic Objective
 
@@ -12,12 +12,11 @@ comparison, generated API, support-matrix, and final validation gaps. The plan
 intentionally prefers complete closure of selected gaps over partial progress
 across every remaining state-of-the-art shortcoming.
 
-This Day 14 draft is based on the current `SPRINT_197` final-validation
-artifacts. Those artifacts were requested under `SPRINT_197`, but they execute
-the cited final-validation scope that `PROJECT_PLAN.md` labels as Sprint 206.
-At Day 14, Sprints 198 through 205 have no branch-local implementation artifact
-directories, validation records, or PR evidence. This retrospective therefore
-records interim evidence and residuals without promoting future sprint work.
+This retrospective began from the `SPRINT_197` final-validation artifacts. Those
+artifacts were requested under `SPRINT_197`, but they execute the cited
+final-validation scope that `PROJECT_PLAN.md` labels as Sprint 206. Later Epic
+18 sprint branches update this file only for completed sprint evidence and
+residuals that are present on the current branch.
 
 ## Sprint Outcomes
 
@@ -30,7 +29,7 @@ records interim evidence and residuals without promoting future sprint work.
 | 201 | Pending future execution. Additional review-surface ranking, extraction, guard, focused regression, docs, and validation evidence are not present on this branch. |
 | 202 | Pending future execution. Additional hosted selected benchmark platform/row evidence, methodology metadata, workflow lane, freshness tests, docs, and validation evidence are not present on this branch. |
 | 203 | Pending future execution. Windows QR incompatible comparison MSVC/CMake proof or re-deferral, generator fixes, manifest decision, tests, docs, and validation evidence are not present on this branch. |
-| 204 | Pending future execution. Generated API publication/local-only product decision, guard implementation, freshness/link checks, routing docs, claim guard, and validation evidence are not present on this branch. |
+| 204 | Closed with stronger local-only generated API policy. Generated Doxygen HTML remains local-only ignored output under `docs/api/html/`; `make api-docs-freshness` now covers generated-page freshness, local-only staging, workflow non-publication, API routing, and Makefile routing wiring; hosted generated API publication, retained generated-doc artifacts, committed generated HTML, package-manager evidence, ABI/shared-library evidence, broad platform evidence, performance evidence, release evidence, and state-of-the-art evidence remain unclaimed. |
 | 205 | Pending future execution. Support/adoption quick reference, support truth consolidation, diagnostics vocabulary, claim guards, docs, and validation evidence are not present on this branch. |
 | 206 | Requested final-validation evidence is recorded through the `SPRINT_197` artifacts. Evidence reconciliation, claim recalibration, project-plan status, focused/full gate decisions, retrospective draft, residual queue, claim decision, and final closeout review are complete for this branch state. |
 
@@ -41,7 +40,7 @@ records interim evidence and residuals without promoting future sprint work.
 | Evidence reconciliation | Sprint 197 Day 1-3 artifacts inventoried Epic 18 evidence sources, created an outcome ledger, classified evidence conflicts, and separated future sprint evidence from completed proof. |
 | Public claim calibration | Day 4 audited public claim surfaces and Day 6 recorded a no-promotion decision because current public docs already retain package, Windows, benchmark, API, ABI, release, and state-of-the-art non-claims. |
 | Maintainer/API calibration | Day 5 audited maintainer/API/corpus/schema surfaces and Day 7 recorded a no-promotion decision because current owner docs already identify evidence gates and retained boundaries. |
-| Project-plan status | Day 8 added an interim `PROJECT_PLAN.md` status snapshot and a full item-level ledger that marks Sprints 198-205 as pending future execution rather than complete. |
+| Project-plan status | Day 8 added an interim `PROJECT_PLAN.md` status snapshot and a full item-level ledger; later Sprint 200 and Sprint 204 branches updated the current status for their completed branch evidence while retaining residual boundaries for unproved claims. |
 | Focused validation | Day 10 ran focused docs/API, Windows ownership, package-manager deferral, static-package deferral, and source-list confidence gates. |
 | Full-gate decision | Day 11 verified the branch remains docs/planning-only, ran required docs/planning checks, and recorded that the full C gate is not required without `*.c` or `*.h` changes. |
 | Claim governance | Day 13 publishes the residual queue and records that no stronger support, package, Windows freshness, performance, API publication, release, ABI, or state-of-the-art claim has been earned on this branch. |
@@ -73,7 +72,7 @@ The evidence-linked interim status snapshot lives in
 | --- | --- | --- |
 | Patch hygiene | Day 14 `git diff --check` rerun passed. | Whitespace and patch hygiene only. |
 | Docs/API generation | Day 14 `make docs-check` rerun passed with 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. | Documentation generation and coverage only; no hosted API publication claim. |
-| Generated API local-only policy | Day 10 `make api-docs-freshness` passed and confirmed generated API HTML remains ignored, untracked, unstaged, and not a workflow publication path. | Local-only generated API freshness and staging guard only. |
+| Generated API local-only policy | Sprint 204 `make api-docs-freshness` passed and confirmed generated API HTML remains ignored, untracked, unstaged, not a workflow publication path, source-controlled through API routing docs, and guarded by Makefile wiring checks. | Local-only generated API freshness, routing, staging, and non-publication guard only. |
 | Windows PowerShell ownership | Day 10 `make windows-powershell-guard` passed. | Workflow/snippet ownership and claim-boundary validation only; local `pwsh` unavailable remains an environment residual. |
 | Package-manager non-claims | Day 10 `bash scripts/package_manager_deferral_check.sh` passed. | Deferral and non-claim enforcement only; no Homebrew/package-manager support claim. |
 | Shared-library/dynamic ABI non-claims | Day 10 `bash scripts/static_package_deferral_check.sh` passed. | Static package boundary and dynamic ABI deferral only. |

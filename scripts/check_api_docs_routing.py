@@ -11,10 +11,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-REFERENCE_LINK_PATTERN = re.compile(r"(?m)^\[[^\]]+\]:\s+(\S+)")
-AUTOLINK_PATTERN = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
+REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
+AUTOLINK_PATTERN = re.compile(r"<((?:https?:)?//[^>\s]+)>", re.IGNORECASE)
 HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href=["']([^"']+)["']""", re.IGNORECASE)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
+PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<!:)//[^\s<>)"']+""")
 
 API_ROUTING_FILES = (
     "README.md",
@@ -28,8 +29,8 @@ MAKEFILE_ROUTING_TARGET = re.compile(
     r"\t@python3 scripts/check_api_docs_routing\.py\n"
     r"\t@python3 tests/test_api_docs_routing\.py$"
 )
-MAKEFILE_VALIDATE_DEP = re.compile(r"(?m)^api-docs-validate:\s+.*\bapi-docs-routing\b")
-MAKEFILE_FRESHNESS_DEP = re.compile(r"(?m)^api-docs-freshness:\s+.*\bapi-docs-validate\b")
+MAKEFILE_VALIDATE_DEP = re.compile(r"(?m)^api-docs-validate:[ \t]+[^\n]*\bapi-docs-routing\b")
+MAKEFILE_FRESHNESS_DEP = re.compile(r"(?m)^api-docs-freshness:[ \t]+[^\n]*\bapi-docs-validate\b")
 
 REQUIRED_ROUTES = {
     "README.md": (
@@ -75,11 +76,7 @@ REQUIRED_TEXT = {
     ),
 }
 
-FORBIDDEN_LINK_TARGET_PATTERNS = (
-    re.compile(r"(^|/|\\.\\.)docs/api(/|$)"),
-    re.compile(r"docs/api/html"),
-    re.compile(r"https?://[^\s<>)\"']*(?:api|doxygen|pages|github\.io)", re.IGNORECASE),
-)
+GENERATED_API_PATH = "docs/api"
 
 
 class RoutingError(RuntimeError):
@@ -96,11 +93,12 @@ def publication_link_targets(text: str) -> list[str]:
     targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
     targets.extend(match.group(1).strip() for match in HTML_HREF_PATTERN.finditer(text))
     targets.extend(match.group(0).strip() for match in BARE_URL_PATTERN.finditer(text))
+    targets.extend(match.group(0).strip() for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
     return targets
 
 
-def strip_fragment(target: str) -> str:
-    return target.split("#", 1)[0]
+def strip_fragment_and_query(target: str) -> str:
+    return re.split(r"[#?]", target, maxsplit=1)[0]
 
 
 def fragment(target: str) -> str:
@@ -109,7 +107,7 @@ def fragment(target: str) -> str:
 
 
 def is_external(target: str) -> bool:
-    return target.startswith(("http://", "https://", "mailto:"))
+    return target.startswith(("http://", "https://", "//", "mailto:"))
 
 
 def markdown_heading_fragment(heading: str) -> str:
@@ -132,7 +130,7 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
     if is_external(target):
         return
 
-    path_part = strip_fragment(target)
+    path_part = strip_fragment_and_query(target)
     if not path_part:
         return
 
@@ -167,13 +165,34 @@ def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -
             raise RoutingError(f"{rel_path} missing required local-only API routing text: {needle}")
 
 
-def validate_no_forbidden_links(rel_path: str, text: str) -> None:
+def normalized_local_target(root: Path, source: Path, target: str) -> str:
+    path_part = strip_fragment_and_query(target)
+    if not path_part:
+        return ""
+
+    resolved = (source.parent / path_part).resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError:
+        return ""
+
+
+def is_generated_api_path(rel_target: str) -> bool:
+    return rel_target == GENERATED_API_PATH or rel_target.startswith(f"{GENERATED_API_PATH}/")
+
+
+def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
     for target in publication_link_targets(text):
-        for pattern in FORBIDDEN_LINK_TARGET_PATTERNS:
-            if pattern.search(target):
-                raise RoutingError(
-                    f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
-                )
+        if is_external(target):
+            raise RoutingError(
+                f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
+            )
+
+        rel_target = normalized_local_target(root, source, target)
+        if is_generated_api_path(rel_target):
+            raise RoutingError(
+                f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
+            )
 
 
 def validate_makefile_wiring(root: Path) -> None:
@@ -198,7 +217,7 @@ def validate_api_routes(root: Path) -> None:
 
         text = path.read_text(encoding="utf-8")
         validate_required_routes(root, rel_path, path, text)
-        validate_no_forbidden_links(rel_path, text)
+        validate_no_forbidden_links(root, rel_path, path, text)
 
     validate_makefile_wiring(root)
 

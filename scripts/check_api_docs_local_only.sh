@@ -102,6 +102,32 @@ require_workflows_do_not_reference() {
     pass "no workflow $label references"
 }
 
+require_workflows_do_not_match() {
+    local pattern="$1"
+    local label="$2"
+    local workflows_dir="$ROOT_DIR/.github/workflows"
+    local workflow_file
+    local matches
+
+    if [ ! -d "$workflows_dir" ]; then
+        pass "no workflow directory for $label"
+        return
+    fi
+
+    matches="$(
+        for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
+            [ -f "$workflow_file" ] || continue
+            grep -E -n "$pattern" "$workflow_file" || true
+        done
+    )"
+    if [ -n "$matches" ]; then
+        printf '%s\n' "$matches" >&2
+        fail "workflows must not reference $label while generated API HTML is strengthened local-only"
+    fi
+
+    pass "no workflow $label references"
+}
+
 check_no_workflow_publication_semantics() {
     local workflows_dir="$ROOT_DIR/.github/workflows"
     local workflow_file
@@ -192,6 +218,9 @@ check_product_status_wording() {
 
 check_no_workflow_publication_path() {
     check_no_workflow_publication_semantics
+    require_workflows_do_not_match \
+        '(^|[^[:alnum:]_./-])docs/api([^[:alnum:]_./-]|$)' \
+        "generated API output root"
     require_workflows_do_not_reference "docs/api/html" "generated API HTML output path"
     require_workflows_do_not_reference "docs/api/" "generated API output tree"
 }

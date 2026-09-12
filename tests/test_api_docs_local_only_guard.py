@@ -130,6 +130,22 @@ def test_workflow_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API HTML output path")
 
 
+def test_workflow_generated_api_root_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: test -d docs/api\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API output root")
+
+
 def test_workflow_publication_semantics_fail_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -163,6 +179,7 @@ def main() -> None:
     test_current_tree_passes_guard()
     test_fixture_passes_guard()
     test_workflow_generated_api_path_fails_clearly()
+    test_workflow_generated_api_root_path_fails_clearly()
     test_workflow_publication_semantics_fail_clearly()
     test_missing_local_only_wording_fails_clearly()
 

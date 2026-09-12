@@ -162,12 +162,72 @@ def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_protocol_relative_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](//example.github.io/linalg_sparse_orthogonal/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_arbitrary_external_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://docs.example.com/linalg_sparse_orthogonal/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_reference_generated_api_publication_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[API HTML]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_indented_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n   [API HTML]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_generated_api_fragment_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated API root](../docs/api#overview)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_relative_generated_html_link_fails_after_resolution() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated HTML](api/html/index.html)\n",
             encoding="utf-8",
         )
 
@@ -220,7 +280,10 @@ def test_missing_makefile_routing_dependency_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
         path.write_text(
-            path.read_text(encoding="utf-8").replace(" api-docs-routing", ""),
+            path.read_text(encoding="utf-8").replace(
+                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
+                "api-docs-validate: docs-check api-docs-local-only",
+            ),
             encoding="utf-8",
         )
 
@@ -267,7 +330,12 @@ def main() -> None:
     test_bare_hosted_api_publication_url_fails_clearly()
     test_autolinked_hosted_api_publication_url_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
+    test_protocol_relative_hosted_publication_url_fails_clearly()
+    test_arbitrary_external_hosted_publication_url_fails_clearly()
     test_reference_generated_api_publication_link_fails_clearly()
+    test_indented_reference_generated_api_publication_link_fails_clearly()
+    test_generated_api_fragment_link_fails_clearly()
+    test_relative_generated_html_link_fails_after_resolution()
     test_missing_route_fragment_fails_clearly()
     test_missing_local_only_text_fails_clearly()
     test_missing_maintainer_claim_boundary_text_fails_clearly()

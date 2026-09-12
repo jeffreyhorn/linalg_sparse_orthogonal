@@ -41,17 +41,23 @@ platforms, package managers, shared libraries, and ABI boundaries, use
 ## Generated HTML
 
 `make docs-check` runs Doxygen with [`Doxyfile`](../Doxyfile), writes generated
-HTML under `docs/api/html/`, and checks generated page coverage for the
-checked-in public headers.
+HTML under `docs/api/html/`, and checks generated page coverage and freshness
+for the checked-in public headers.
 
 `make api-docs-freshness` runs the selected local freshness proof: Doxygen
-generation, generated page coverage, and local-only staging enforcement for the
-generated API tree.
+generation, generated page coverage/freshness, local-only staging enforcement,
+and API routing validation for the generated API tree.
 
 The generated HTML tree is local-only generated output. It remains ignored by
 the repository and is not a hosted or source-controlled publication surface.
 Treat it as current only for the branch and checkout where
 `make api-docs-freshness` has just passed.
+
+The routing guard keeps user-facing links on the source-controlled API path:
+this page, checked-in public headers, the Doxygen configuration, workflow
+guides, and the INSTALL support/readiness matrix. It rejects links that would
+send readers to generated HTML under `docs/api/` or to an unsupported hosted
+API publication.
 
 The Sprint 179 product decision keeps this generated tree local-only rather
 than hosted, artifact-published, or committed. Use this page and the public

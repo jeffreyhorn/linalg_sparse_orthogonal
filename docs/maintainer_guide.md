@@ -1213,7 +1213,8 @@ under `include/`.
 `Doxyfile`. The maintained Sprint 179 product decision keeps this tree
 local-only and ignored rather than committed, hosted, or artifact-published.
 
-Use this command to refresh and validate the local generated API view:
+Use this command to refresh and validate the local generated API view and its
+source-controlled routing:
 
 ```bash
 make api-docs-freshness
@@ -1221,11 +1222,17 @@ make api-docs-freshness
 
 Interpretation:
 
-- `make docs-check` runs Doxygen and then checks generated page coverage for
-  checked-in public headers under `include/`;
+- `make docs-check` runs Doxygen and then checks generated page coverage and
+  freshness for checked-in public headers under `include/`;
 - `make api-docs-freshness` runs `docs-check` plus the local-only generated
-  output guard, which proves `docs/api/` remains ignored, untracked, and
-  unstaged;
+  output guard and `api-docs-routing`;
+- `api-docs-local-only` proves `docs/api/` remains ignored, untracked, and
+  unstaged and that workflows do not combine generated API output paths with
+  artifact, Pages, or publication semantics;
+- `api-docs-routing` proves user-facing docs route API readers to
+  `docs/api_reference.md`, checked-in public headers, `Doxyfile`,
+  workflow guides, and the INSTALL support/readiness matrix rather than to
+  generated HTML or hosted API publication links;
 - the generated API support tier is `local_only`; the supported
   source-controlled reference path is `docs/api_reference.md` plus checked-in
   public headers under `include/`;
@@ -1245,12 +1252,25 @@ the configured Doxygen input set.
 
 API reference guidance may say that public headers own exact declarations and
 call-site contracts and that `make api-docs-freshness` generates and validates
-local Doxygen HTML while enforcing local-only generated-output staging. It must
-not imply dynamic ABI compatibility, shared-library support, package-manager
-distribution, broad Windows Makefile or Windows `pkg-config` parity,
-external-library parity, portable runtime guarantees, hosted documentation
-publication, source-controlled generated HTML, artifact-published generated
-HTML, or completeness beyond the configured Doxygen input set.
+local Doxygen HTML while enforcing local-only generated-output staging and API
+routing. It must not imply dynamic ABI compatibility, shared-library support,
+package-manager distribution, broad Windows Makefile or Windows `pkg-config`
+parity, external-library parity, portable runtime guarantees, hosted
+documentation publication, retained generated-doc artifacts,
+source-controlled generated HTML, artifact-published generated HTML, release
+evidence, or completeness beyond the configured Doxygen input set.
+
+When reviewing generated API docs changes, reject any patch that:
+
+- adds workflow artifact upload, Pages deployment, hosted API URL, or
+  committed `docs/api/` content without reopening the product decision;
+- treats `docs/api/html/` as release evidence, hosted documentation,
+  package-manager evidence, ABI evidence, broad platform evidence, portable
+  performance evidence, or state-of-the-art evidence;
+- points user-facing docs directly at generated HTML instead of
+  `docs/api_reference.md` and checked-in public headers;
+- removes `api-docs-routing` from `make api-docs-freshness` without replacing
+  it with an equivalent claim-boundary guard.
 
 Sprint 186 final closeout treats generated API evidence as a guard-backed
 local freshness proof, not as a publication milestone. Keep residual

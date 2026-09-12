@@ -61,6 +61,17 @@ WINDOWS_DEFERRAL_REQUIRED_TEXT = [
 ]
 SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
 WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_QR_INCOMPATIBLE_TARGET = "qr-incompatible-ls"
+WINDOWS_QR_INCOMPATIBLE_SUBFAMILY = "qr_incompatible_ls"
+WINDOWS_QR_INCOMPATIBLE_ARTIFACT = "sprint203-windows-selected-comparison-qr-incompatible"
+WINDOWS_QR_INCOMPATIBLE_FILES = [
+    "build/comparison/qr_incompatible_ls/project_observations.tsv",
+    "build/comparison/qr_incompatible_ls/baseline_observations.tsv",
+    "build/comparison/qr_incompatible_ls/dependency_status.tsv",
+    "build/comparison/qr_incompatible_ls/study.tsv",
+    "build/comparison/qr_incompatible_ls/summary.md",
+    "build/comparison/qr_incompatible_ls/manifest.tsv",
+]
 WINDOWS_SELECTED_CHOLESKY_FILES = [
     "build/comparison/cholesky_spd_tridiag_5/project_observations.tsv",
     "build/comparison/cholesky_spd_tridiag_5/baseline_observations.tsv",
@@ -322,6 +333,25 @@ def assert_windows_selected_cholesky_lane(text: str) -> None:
         assert_contains(block, path, label="windows selected cholesky upload")
 
 
+def assert_windows_qr_incompatible_remains_redeferred(text: str) -> None:
+    forbidden = [
+        f"--target {WINDOWS_QR_INCOMPATIBLE_TARGET}",
+        f"--target={WINDOWS_QR_INCOMPATIBLE_TARGET}",
+        f"--selected-target {WINDOWS_QR_INCOMPATIBLE_TARGET}",
+        f"--selected-target={WINDOWS_QR_INCOMPATIBLE_TARGET}",
+        WINDOWS_QR_INCOMPATIBLE_ARTIFACT,
+        *WINDOWS_QR_INCOMPATIBLE_FILES,
+        WINDOWS_QR_INCOMPATIBLE_TARGET,
+        WINDOWS_QR_INCOMPATIBLE_SUBFAMILY,
+    ]
+    for needle in forbidden:
+        if needle in text:
+            raise AssertionError(
+                "windows QR incompatible remains re-deferred; unexpected "
+                f"{needle!r}"
+            )
+
+
 def assert_windows_workflow_contract(text: str) -> None:
     build_job = job_block(text, "build-and-test", label="windows")
     install_job = job_block(text, "install-and-downstream", label="windows")
@@ -529,6 +559,7 @@ def test_windows_report_freshness_keeps_bounded_cholesky_only() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     assert_windows_workflow_contract(text)
     assert_windows_selected_cholesky_lane(text)
+    assert_windows_qr_incompatible_remains_redeferred(text)
     assert_no_report_freshness_lane(text, label="windows")
     assert_no_windows_selected_manifest_platform()
     assert_windows_deferral_record()
@@ -621,6 +652,73 @@ def test_windows_selected_cholesky_missing_required_file_fails_clearly() -> None
         lambda: assert_windows_selected_cholesky_lane(drifted),
         "windows selected cholesky upload missing "
         "'build/comparison/cholesky_spd_tridiag_5/manifest.tsv'",
+    )
+
+
+def test_windows_qr_incompatible_target_drift_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = (
+        text
+        + "\n# drift\n"
+        + "run: python scripts/run_external_comparison.py --target qr-incompatible-ls\n"
+    )
+    assert_raises_with(
+        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
+        "windows QR incompatible remains re-deferred; unexpected "
+        "'--target qr-incompatible-ls'",
+    )
+
+
+def test_windows_qr_incompatible_freshness_target_drift_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = (
+        text
+        + "\n# drift\n"
+        + "run: python scripts/normalize_report_index.py --selected-target "
+        + "qr-incompatible-ls\n"
+    )
+    assert_raises_with(
+        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
+        "windows QR incompatible remains re-deferred; unexpected "
+        "'--selected-target qr-incompatible-ls'",
+    )
+
+
+def test_windows_qr_incompatible_equals_target_drift_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = (
+        text
+        + "\n# drift\n"
+        + "run: python scripts/run_external_comparison.py --target=qr-incompatible-ls\n"
+    )
+    assert_raises_with(
+        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
+        "windows QR incompatible remains re-deferred; unexpected "
+        "'--target=qr-incompatible-ls'",
+    )
+
+
+def test_windows_qr_incompatible_subfamily_drift_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text + "\n# drift\n" + "path: build/comparison/qr_incompatible_ls\n"
+    assert_raises_with(
+        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
+        "windows QR incompatible remains re-deferred; unexpected "
+        "'qr_incompatible_ls'",
+    )
+
+
+def test_windows_qr_incompatible_artifact_upload_drift_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = (
+        text
+        + "\n# drift\n"
+        + "path: build/comparison/qr_incompatible_ls/project_observations.tsv\n"
+    )
+    assert_raises_with(
+        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
+        "windows QR incompatible remains re-deferred; unexpected "
+        "'build/comparison/qr_incompatible_ls/project_observations.tsv'",
     )
 
 
@@ -1020,6 +1118,11 @@ def main() -> int:
     test_windows_selected_cholesky_wrong_artifact_fails_clearly()
     test_windows_selected_cholesky_broad_upload_fails_clearly()
     test_windows_selected_cholesky_missing_required_file_fails_clearly()
+    test_windows_qr_incompatible_target_drift_fails_clearly()
+    test_windows_qr_incompatible_freshness_target_drift_fails_clearly()
+    test_windows_qr_incompatible_equals_target_drift_fails_clearly()
+    test_windows_qr_incompatible_subfamily_drift_fails_clearly()
+    test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()
     test_windows_deferral_record_missing_blocker_fails_clearly()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_workflow_missing_reviewed_job_fails_clearly()

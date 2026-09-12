@@ -159,6 +159,10 @@ parity; CSC-vs-linked-list parity; fill superiority; raw QR basis identity;
 raw singular-vector identity; vector sign/orientation identity;
 external-library parity; platform proof; package proof; ABI proof; performance
 proof; release proof; or state-of-the-art evidence.
+The QR incompatible least-squares target remains outside Windows selected
+freshness until hosted MSVC probe evidence, selected artifact review,
+selected-target manifest metadata, generated support tier, and generated
+non-claim wording are promoted together.
 
 ## Guardrails
 

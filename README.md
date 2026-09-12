@@ -358,7 +358,10 @@ promotion. Sprint 199 reviewed hosted CI evidence for that exact path and kept
 Windows promotion re-deferred because selected-target metadata, generated
 support tier, and generated non-claim wording still remain local-only. Do not
 treat the Windows path as promoted selected freshness or broad Windows report
-evidence.
+evidence. The QR incompatible least-squares target remains outside Windows
+selected freshness until hosted MSVC probe evidence, selected artifact review,
+selected-target manifest metadata, generated support tier, and generated
+non-claim wording are promoted together.
 
 The selected target list, expected row counts, required artifacts, workflow
 upload names, support tiers, freshness policies, claim scopes, and non-claims
@@ -796,7 +799,11 @@ command `python scripts/normalize_report_index.py --family comparison --require-
 `sprint190-windows-selected-comparison-cholesky`. Sprint 199 reviewed hosted
 evidence for that exact path and re-deferred selected Windows freshness
 promotion because the selected manifest, generated support tier, and generated
-non-claim wording still do not promote Windows. These gates do not
+non-claim wording still do not promote Windows. The QR incompatible
+least-squares target remains outside Windows selected freshness until hosted
+MSVC probe evidence, selected artifact review, selected-target manifest
+metadata, generated support tier, and generated non-claim wording are promoted
+together. These gates do not
 prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
 broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list

@@ -31,10 +31,25 @@ WINDOWS_DEFERRAL_RECORD = (
     / "windows-report-freshness-deferral-decision.md"
 )
 WINDOWS_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
+WINDOWS_QR_INCOMPATIBLE_TARGET_ID = "SRT-COMP-QR-INCOMPATIBLE-LS"
 WINDOWS_CHOLESKY_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
 WINDOWS_CHOLESKY_WORKFLOW_JOB = "selected-comparison-freshness"
 WINDOWS_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
 WINDOWS_CHOLESKY_EXPECTED_ROWS = "6"
+WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS = "6"
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS = (
+    "generated-report-freshness",
+    "selected-comparison-freshness",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS = (
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+)
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS = ("linux", "macos")
 SELECTED_BENCHMARK_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
 SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS = (
     "no portable performance claim",
@@ -53,6 +68,51 @@ WINDOWS_CHOLESKY_REQUIRED_FILES = (
     "study.tsv",
     "summary.md",
     "manifest.tsv",
+)
+WINDOWS_QR_INCOMPATIBLE_FAMILY = "comparison"
+WINDOWS_QR_INCOMPATIBLE_SUBFAMILY = "qr_incompatible_ls"
+WINDOWS_QR_INCOMPATIBLE_TARGET_KEY = "qr-incompatible-ls"
+WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN = "build/comparison/qr_incompatible_ls/study.tsv"
+WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND = (
+    "python3 scripts/run_external_comparison.py --target qr-incompatible-ls"
+)
+WINDOWS_QR_INCOMPATIBLE_CLAIM_SCOPE = (
+    "Selected QR incompatible least-squares comparison rows are fresh for the "
+    "named fixture against the selected source-controlled dense reference helper."
+)
+WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES = (
+    "project_observations.tsv",
+    "baseline_observations.tsv",
+    "dependency_status.tsv",
+    "study.tsv",
+    "summary.md",
+    "manifest.tsv",
+)
+WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROW_IDS = (
+    "comparison_qr_overdetermined_incompatible_4x2_project_status_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_baseline_status_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_residual_norm_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_solution_norm_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_solution_values_v1",
+    "comparison_qr_overdetermined_incompatible_4x2_project_vs_baseline_max_abs_delta_v1",
+)
+WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS = (
+    "no broad QR parity",
+    "no broad least-squares parity",
+    "no raw QR basis identity",
+    "no Q sign or orientation claim",
+    "no global rank-threshold policy",
+    "no broad rank-deficient solve claim",
+    "no NumPy parity",
+    "no SciPy parity",
+    "no LAPACK parity",
+    "no SuiteSparse parity",
+    "no Eigen parity",
+    "no Windows report freshness",
+    "no package-manager proof",
+    "no shared-library ABI proof",
+    "no performance superiority",
+    "no state-of-the-art claim",
 )
 
 
@@ -102,6 +162,17 @@ def cholesky_row_index(rows: list[dict[str, str]]) -> int:
     if len(matches) != 1:
         raise AssertionError(
             f"expected one {WINDOWS_CHOLESKY_TARGET_ID} row, got {len(matches)}"
+        )
+    return matches[0]
+
+
+def qr_incompatible_row(rows: list[dict[str, str]]) -> dict[str, str]:
+    matches = [
+        row for row in rows if row["target_id"] == WINDOWS_QR_INCOMPATIBLE_TARGET_ID
+    ]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"expected one {WINDOWS_QR_INCOMPATIBLE_TARGET_ID} row, got {len(matches)}"
         )
     return matches[0]
 
@@ -357,6 +428,87 @@ def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
     assert_no_windows_selected_platform(manifest_rows())
 
 
+def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
+    row = qr_incompatible_row(manifest_rows())
+    exact_fields = {
+        "family": WINDOWS_QR_INCOMPATIBLE_FAMILY,
+        "subfamily": WINDOWS_QR_INCOMPATIBLE_SUBFAMILY,
+        "target_key": WINDOWS_QR_INCOMPATIBLE_TARGET_KEY,
+        "artifact_pattern": WINDOWS_QR_INCOMPATIBLE_ARTIFACT_PATTERN,
+        "generator_command": WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND,
+        "claim_scope": WINDOWS_QR_INCOMPATIBLE_CLAIM_SCOPE,
+    }
+    for field, expected in exact_fields.items():
+        if row[field] != expected:
+            raise AssertionError(
+                f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} {field} must remain {expected!r}"
+            )
+    if row["expected_rows"] != WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} expected_rows must remain "
+            f"{WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS}"
+        )
+    required_files = tuple(split_manifest_values(row["required_files"]))
+    if required_files != WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} required_files drifted"
+        )
+    expected_row_ids = tuple(split_manifest_values(row["expected_row_ids"]))
+    if expected_row_ids != WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROW_IDS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} expected_row_ids drifted"
+        )
+    workflow_files = tuple(split_manifest_values(row["workflow_file"]))
+    if workflow_files != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_file metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_jobs = tuple(split_manifest_values(row["workflow_job"]))
+    if workflow_jobs != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_job metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_artifacts = tuple(split_manifest_values(row["workflow_artifact"]))
+    if workflow_artifacts != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_artifact metadata must "
+            "remain the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_platforms = tuple(split_manifest_values(row["workflow_platforms"]))
+    if workflow_platforms != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_platforms metadata must "
+            "remain linux/macos while re-deferred"
+        )
+    if "windows" in workflow_platforms:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list windows "
+            "without hosted MSVC proof"
+        )
+    if ".github/workflows/windows-ci.yml" in workflow_files:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list the Windows workflow "
+            "while re-deferred"
+        )
+    if WINDOWS_CHOLESKY_ARTIFACT in workflow_artifacts:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not reuse the Cholesky "
+            "Windows artifact"
+        )
+    if row["support_tier"] != "local_only":
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} support_tier must remain local_only"
+        )
+    non_claims = split_manifest_values(row["non_claims"])
+    if tuple(non_claims) != WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS:
+        raise AssertionError(
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} non_claims must remain the full "
+            "current QR incompatible claim-boundary set"
+        )
+
+
 def test_windows_deferral_record_missing_file_fails_clearly() -> None:
     missing_path = WINDOWS_DEFERRAL_RECORD.with_name("missing-windows-deferral.md")
     try:
@@ -483,6 +635,7 @@ def main() -> int:
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
     test_windows_report_freshness_deferral_keeps_manifest_unselected()
+    test_qr_incompatible_manifest_remains_redeferred_for_windows()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_deferral_record_missing_marker_fails_clearly()
     test_windows_platform_drift_fails_clearly()

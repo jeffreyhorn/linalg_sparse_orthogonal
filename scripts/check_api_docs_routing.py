@@ -13,7 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
 AUTOLINK_PATTERN = re.compile(r"<((?:https?:)?//[^>\s]+)>", re.IGNORECASE)
-HTML_HREF_PATTERN = re.compile(r"""<a\s+[^>]*href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+HTML_HREF_PATTERN = re.compile(
+    r"""<a\s+[^>]*href\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))""", re.IGNORECASE
+)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<!:)//[^\s<>)"']+""")
 
@@ -82,7 +84,7 @@ REQUIRED_TEXT = {
 
 GENERATED_API_PATH = "docs/api"
 HOSTED_API_PUBLICATION_PATTERN = re.compile(
-    r"(github\.io|pages|api|doxygen|docs\.example\.com/linalg_sparse_orthogonal)",
+    r"(github\.io|(^|[/:.-])(pages|api|doxygen)([/:.-]|$)|docs\.example\.com/linalg_sparse_orthogonal)",
     re.IGNORECASE,
 )
 
@@ -99,14 +101,23 @@ def publication_link_targets(text: str) -> list[str]:
     targets = markdown_links(text)
     targets.extend(match.group(1).strip() for match in REFERENCE_LINK_PATTERN.finditer(text))
     targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
-    targets.extend(match.group(1).strip() for match in HTML_HREF_PATTERN.finditer(text))
+    targets.extend(next(group for group in match.groups() if group).strip() for match in HTML_HREF_PATTERN.finditer(text))
     targets.extend(match.group(0).strip() for match in BARE_URL_PATTERN.finditer(text))
     targets.extend(match.group(0).strip() for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
     return targets
 
 
-def unwrap_link_target(target: str) -> str:
+def markdown_destination(target: str) -> str:
     target = target.strip()
+    if target.startswith("<"):
+        end = target.find(">")
+        if end != -1:
+            return target[: end + 1]
+    return target.split(None, 1)[0] if target else target
+
+
+def unwrap_link_target(target: str) -> str:
+    target = markdown_destination(target)
     if target.startswith("<") and target.endswith(">"):
         return target[1:-1].strip()
     return target

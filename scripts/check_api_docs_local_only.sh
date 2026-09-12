@@ -135,6 +135,7 @@ check_no_workflow_publication_semantics() {
     local publication_regex
     local generated_path_regex
     local broad_path_regex
+    local broad_block_path_regex
 
     if [ ! -d "$workflows_dir" ]; then
         pass "no workflow directory for generated API publication semantics"
@@ -143,7 +144,8 @@ check_no_workflow_publication_semantics() {
 
     publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
     generated_path_regex="docs/api(/|$)|docs/api/html"
-    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|./|docs|docs/|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}])["'"'"']?[[:space:]]*$'
+    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs/)?)["'"'"']?[[:space:]]*$'
+    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs/)?)["'"'"']?[[:space:]]*$'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
@@ -153,6 +155,11 @@ check_no_workflow_publication_semantics() {
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
         fi
         if grep -Eq "$broad_path_regex" "$workflow_file" &&
+            grep -Eq "$publication_regex" "$workflow_file"; then
+            fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
+        fi
+        if grep -Eq 'path:[[:space:]]*[|>]' "$workflow_file" &&
+            grep -Eq "$broad_block_path_regex" "$workflow_file" &&
             grep -Eq "$publication_regex" "$workflow_file"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
@@ -230,7 +237,7 @@ check_product_status_wording() {
 check_no_workflow_publication_path() {
     check_no_workflow_publication_semantics
     require_workflows_do_not_match \
-        '(^|[^[:alnum:]_./-])docs/api([^[:alnum:]_./-]|$)' \
+        '(^|[^[:alnum:]_.-])([.]/|/)?docs/api([^[:alnum:]_./-]|$)' \
         "generated API output root"
     require_workflows_do_not_reference "docs/api/html" "generated API HTML output path"
     require_workflows_do_not_reference "docs/api/" "generated API output tree"

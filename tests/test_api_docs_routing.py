@@ -174,6 +174,18 @@ def test_html_href_with_spacing_generated_api_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_unquoted_html_href_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<a class="api-link" href=api/html/index.html>Generated HTML</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_protocol_relative_hosted_publication_url_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -223,6 +235,19 @@ def test_unrelated_external_link_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_external_url_with_incidental_api_substring_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Capital city example](https://example.com/capitals)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_reference_generated_api_publication_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -240,6 +265,18 @@ def test_angle_wrapped_inline_generated_api_link_fails_clearly() -> None:
         path = root / "docs" / "api_reference.md"
         path.write_text(
             path.read_text(encoding="utf-8") + "\n[Generated HTML](<api/html/index.html>)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_angle_wrapped_inline_generated_api_link_with_title_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n[Generated HTML](<api/html/index.html> "title")\n',
             encoding="utf-8",
         )
 
@@ -441,12 +478,15 @@ def main() -> None:
     test_autolinked_hosted_api_publication_url_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
+    test_unquoted_html_href_generated_api_link_fails_clearly()
     test_protocol_relative_hosted_publication_url_fails_clearly()
     test_uppercase_hosted_publication_url_fails_clearly()
     test_arbitrary_external_hosted_publication_url_fails_clearly()
     test_unrelated_external_link_is_allowed()
+    test_external_url_with_incidental_api_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_fails_clearly()
+    test_angle_wrapped_inline_generated_api_link_with_title_fails_clearly()
     test_angle_wrapped_reference_generated_api_link_fails_clearly()
     test_indented_reference_generated_api_publication_link_fails_clearly()
     test_generated_api_fragment_link_fails_clearly()

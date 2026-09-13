@@ -51,12 +51,13 @@ residuals that are present on the current branch.
 | Status | Current count | Rows |
 | --- | ---: | --- |
 | In progress with numbering caveat | 6 | 197.1-197.6. |
-| Pending future execution | 42 | 201.1-205.6 and remaining future sprint rows not yet executed on this branch. |
+| Pending future execution | 36 | 198.1-199.6, 201.1-203.6, and 205.1-205.6 remain future sprint rows not yet executed on this branch. |
 | Sprint 200 closed selected-owner proof | 6 | 200.1-200.6 closed for selected `sparse_symbolic_lu()` allocation-failure owner proof. |
+| Sprint 204 closed local-only generated API policy | 6 | 204.1-204.6 closed for strengthened local-only generated API policy, freshness, routing, staging, workflow non-publication, and claim-boundary evidence. |
 | Partial final-validation evidence | 4 | 206.1-206.4. |
 | Requested final-validation evidence recorded | 2 | 206.5-206.6. |
 | Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |
-| Complete | 0 | No Epic 18 implementation item is finally complete at Day 14. |
+| Complete | 12 | Sprint 200 and Sprint 204 items are complete for their selected branch-local scopes. |
 | Narrowed | 0 | No Epic 18 implementation item has been narrowed at Day 14. |
 | Deferred | 0 | No Epic 18 implementation item has been formally deferred at Day 14. |
 | Residualized | 10 residual entries | `EPIC_18_RESIDUAL_QUEUE.md` publishes prioritized residuals E18-RQ-001 through E18-RQ-010. |

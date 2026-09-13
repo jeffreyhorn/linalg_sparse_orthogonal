@@ -144,8 +144,8 @@ check_no_workflow_publication_semantics() {
 
     publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
     generated_path_regex="docs/api(/|$)|docs/api/html"
-    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs/)?)["'"'"']?[[:space:]]*$'
-    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs/)?)["'"'"']?[[:space:]]*$'
+    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs([/][*][*])?/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs([/][*][*])?/?)?)["'"'"']?[[:space:]]*$'
+    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs([/][*][*])?/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs([/][*][*])?/?)?)["'"'"']?[[:space:]]*$'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
@@ -179,17 +179,17 @@ check_tracked_and_staged_absence() {
     local staged
     local visible_untracked
 
-    tracked="$(git -C "$ROOT_DIR" ls-files docs/api)"
-    require_empty \
-        "no tracked generated API files" \
-        "generated API files under docs/api/ are tracked; local-only generated HTML must not be source-controlled" \
-        "$tracked"
-
     staged="$(git -C "$ROOT_DIR" diff --cached --name-only -- docs/api)"
     require_empty \
         "no staged generated API files" \
         "generated API files under docs/api/ are staged; unstage them unless a future publication decision selects committed output" \
         "$staged"
+
+    tracked="$(git -C "$ROOT_DIR" ls-files docs/api)"
+    require_empty \
+        "no tracked generated API files" \
+        "generated API files under docs/api/ are tracked; local-only generated HTML must not be source-controlled" \
+        "$tracked"
 
     visible_untracked="$(git -C "$ROOT_DIR" ls-files --others --exclude-standard docs/api)"
     require_empty \
@@ -243,9 +243,9 @@ check_no_workflow_publication_path() {
     require_workflows_do_not_reference "docs/api/" "generated API output tree"
 }
 
+check_tracked_and_staged_absence
 check_ignore_rules
 check_doxyfile_contract
-check_tracked_and_staged_absence
 check_product_status_wording
 check_no_workflow_publication_path
 

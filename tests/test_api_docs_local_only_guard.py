@@ -86,6 +86,12 @@ def run_guard(root: Path) -> subprocess.CompletedProcess[str]:
     return run(["bash", "scripts/check_api_docs_local_only.sh"], root)
 
 
+def run_git(root: Path, *args: str) -> None:
+    result = run(["git", *args], root)
+    if result.returncode != 0:
+        raise AssertionError(result.stdout + result.stderr)
+
+
 def assert_guard_fails_with(mutator, expected: str) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -257,6 +263,46 @@ def test_workflow_broad_workspace_docs_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: ${{ github.workspace }}/docs\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_broad_docs_glob_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: docs/**\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_broad_block_docs_artifact_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -276,6 +322,34 @@ def test_workflow_broad_block_docs_artifact_path_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_tracked_generated_api_file_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        run_git(root, "config", "user.email", "test@example.com")
+        run_git(root, "config", "user.name", "Test User")
+        run_git(root, "add", "-f", "docs/api/html/index.html")
+        run_git(root, "commit", "-qm", "track generated api")
+
+    assert_guard_fails_with(mutate, "tracked; local-only generated HTML")
+
+
+def test_staged_generated_api_file_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "docs" / "api" / "html" / "staged.html").write_text(
+            "<!doctype html>\n",
+            encoding="utf-8",
+        )
+        run_git(root, "add", "-f", "docs/api/html/staged.html")
+
+    assert_guard_fails_with(mutate, "staged; unstage them")
+
+
+def test_visible_untracked_generated_api_file_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".gitignore").write_text("", encoding="utf-8")
+
+    assert_guard_fails_with(mutate, "visible as non-ignored untracked files")
 
 
 def test_missing_local_only_wording_fails_clearly() -> None:
@@ -299,7 +373,12 @@ def main() -> None:
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_broad_relative_docs_artifact_path_fails_clearly()
     test_workflow_broad_workspace_docs_artifact_path_fails_clearly()
+    test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()
+    test_workflow_broad_docs_glob_artifact_path_fails_clearly()
     test_workflow_broad_block_docs_artifact_path_fails_clearly()
+    test_tracked_generated_api_file_fails_clearly()
+    test_staged_generated_api_file_fails_clearly()
+    test_visible_untracked_generated_api_file_fails_clearly()
     test_missing_local_only_wording_fails_clearly()
 
 

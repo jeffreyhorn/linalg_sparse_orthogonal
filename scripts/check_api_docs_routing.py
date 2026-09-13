@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from urllib.parse import unquote
 from pathlib import Path
 
 
@@ -124,7 +125,7 @@ def unwrap_link_target(target: str) -> str:
 
 
 def strip_fragment_and_query(target: str) -> str:
-    return re.split(r"[#?]", unwrap_link_target(target), maxsplit=1)[0]
+    return unquote(re.split(r"[#?]", unwrap_link_target(target), maxsplit=1)[0])
 
 
 def fragment(target: str) -> str:
@@ -210,8 +211,8 @@ def normalized_local_target(root: Path, source: Path, target: str) -> str:
         resolved = (source.parent / path_part).resolve()
     try:
         return resolved.relative_to(root).as_posix()
-    except ValueError:
-        return ""
+    except ValueError as exc:
+        raise RoutingError(f"{source.relative_to(root)} link escapes repository: {target}") from exc
 
 
 def is_generated_api_path(rel_target: str) -> bool:

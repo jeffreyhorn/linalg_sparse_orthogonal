@@ -25,6 +25,9 @@ API_ROUTING_FILES = (
     "README.md",
     "INSTALL.md",
     "docs/api_reference.md",
+    "docs/tutorial.md",
+    "docs/cookbook.md",
+    "docs/solver_selection.md",
     "docs/maintainer_guide.md",
 )
 
@@ -56,6 +59,9 @@ REQUIRED_ROUTES = {
         "solver_selection.md",
         "maintainer_guide.md",
     ),
+    "docs/tutorial.md": (),
+    "docs/cookbook.md": (),
+    "docs/solver_selection.md": (),
     "docs/maintainer_guide.md": (),
 }
 
@@ -65,6 +71,9 @@ REQUIRED_TEXT = {
         "is not a hosted or source-controlled publication surface.",
         "source-controlled API reference path.",
     ),
+    "docs/tutorial.md": (),
+    "docs/cookbook.md": (),
+    "docs/solver_selection.md": (),
     "README.md": (
         "API reference entry point: docs/api_reference.md",
         "Generated API HTML is not hosted documentation, a retained CI artifact,",
@@ -100,8 +109,42 @@ def markdown_links(text: str) -> list[str]:
     return [match.group(1).strip() for match in LINK_PATTERN.finditer(text)]
 
 
+def balanced_markdown_links(text: str) -> list[str]:
+    targets: list[str] = []
+    index = 0
+    while index < len(text):
+        open_label = text.find("[", index)
+        if open_label == -1:
+            break
+        close_label = text.find("]", open_label + 1)
+        if close_label == -1 or close_label + 1 >= len(text) or text[close_label + 1] != "(":
+            index = open_label + 1
+            continue
+
+        open_dest = close_label + 2
+        pos = open_dest
+        depth = 0
+        escaped = False
+        while pos < len(text):
+            char = text[pos]
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                if depth == 0:
+                    targets.append(text[open_dest:pos].strip())
+                    break
+                depth -= 1
+            pos += 1
+        index = pos + 1 if pos < len(text) else open_label + 1
+    return targets
+
+
 def publication_link_targets(text: str) -> list[str]:
-    targets = markdown_links(text)
+    targets = balanced_markdown_links(text)
     targets.extend(match.group(1).strip() for match in REFERENCE_LINK_PATTERN.finditer(text))
     targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
     targets.extend(
@@ -140,7 +183,7 @@ def fragment(target: str) -> str:
 
 def is_external(target: str) -> bool:
     normalized = unwrap_link_target(target).lower()
-    return normalized.startswith(("http://", "https://", "//", "mailto:"))
+    return normalized.startswith("//") or re.match(r"^[a-z][a-z0-9+.-]*:", normalized) is not None
 
 
 def is_forbidden_external_target(target: str) -> bool:
@@ -226,10 +269,12 @@ def is_generated_api_path(rel_target: str) -> bool:
 
 def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
     for target in publication_link_targets(text):
-        if is_external(target) and is_forbidden_external_target(target):
-            raise RoutingError(
-                f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
-            )
+        if is_external(target):
+            if is_forbidden_external_target(target):
+                raise RoutingError(
+                    f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
+                )
+            continue
 
         rel_target = normalized_local_target(root, source, target)
         if is_generated_api_path(rel_target):

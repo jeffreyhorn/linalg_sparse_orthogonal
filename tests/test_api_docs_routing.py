@@ -102,6 +102,18 @@ def test_generated_html_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_balanced_parentheses_generated_html_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated](x(y)/../api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_hosted_api_publication_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -293,6 +305,30 @@ def test_custom_domain_hosted_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_ftp_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](ftp://docs.example.com/api/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_file_scheme_generated_html_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated HTML](file:docs/api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_unrelated_external_link_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -418,6 +454,42 @@ def test_generated_api_query_link_fails_clearly() -> None:
 def test_relative_generated_html_link_fails_after_resolution() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated HTML](api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_linked_tutorial_generated_html_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "tutorial.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated HTML](api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_linked_cookbook_hosted_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "cookbook.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://linalg-sparse-orthogonal.netlify.app/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_linked_solver_selection_generated_html_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "solver_selection.md"
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Generated HTML](api/html/index.html)\n",
@@ -622,6 +694,7 @@ def main() -> None:
     test_missing_api_reference_route_fails_clearly()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
+    test_balanced_parentheses_generated_html_link_fails_clearly()
     test_hosted_api_publication_link_fails_clearly()
     test_github_pages_publication_link_without_api_path_fails_clearly()
     test_bare_hosted_api_publication_url_fails_clearly()
@@ -638,6 +711,8 @@ def main() -> None:
     test_gitlab_hosted_publication_url_fails_clearly()
     test_netlify_hosted_publication_url_fails_clearly()
     test_custom_domain_hosted_publication_url_fails_clearly()
+    test_ftp_hosted_publication_url_fails_clearly()
+    test_file_scheme_generated_html_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
@@ -649,6 +724,9 @@ def main() -> None:
     test_generated_api_fragment_link_fails_clearly()
     test_generated_api_query_link_fails_clearly()
     test_relative_generated_html_link_fails_after_resolution()
+    test_linked_tutorial_generated_html_link_fails_clearly()
+    test_linked_cookbook_hosted_api_link_fails_clearly()
+    test_linked_solver_selection_generated_html_link_fails_clearly()
     test_percent_encoded_generated_html_link_fails_after_resolution()
     test_root_relative_generated_html_link_fails_after_resolution()
     test_escaping_local_generated_html_link_fails_clearly()

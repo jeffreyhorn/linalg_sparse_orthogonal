@@ -430,7 +430,7 @@ Validation:
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, found no generated API publication links, and confirmed `docs/api_reference.md` as the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, found no generated API publication links, and confirmed `docs/api_reference.md` as the source-controlled API entry point. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Covered passing fixtures and failing route/publication/text mutations. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py` | Passed | Python syntax/import sanity check for new routing tooling. |
 | `make api-docs-freshness` | Passed | Regenerated local Doxygen HTML, ran coverage/local-only checks, and passed the new `api-docs-routing` target. |
@@ -476,7 +476,7 @@ Validation:
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Confirmed four routing documents, no generated API publication links, and `docs/api_reference.md` as source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Confirmed seven routing documents, no generated API publication links, and `docs/api_reference.md` as source-controlled API entry point. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Routing regression suite still passed after the wording update. |
 | `bash scripts/check_api_docs_local_only.sh` | Passed | Local-only wording, Doxyfile, workflow, ignore, and tracking checks still pass. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py scripts/check_api_docs_coverage.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py` | Passed | Python syntax/import sanity check for current docs tooling. |
@@ -532,7 +532,7 @@ Validation:
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Confirmed four routing documents, no generated API publication links, and maintainer claim-boundary markers. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Confirmed seven routing documents, no generated API publication links, and maintainer claim-boundary markers. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Regression suite covered the new maintainer claim-boundary marker. |
 | `bash scripts/check_api_docs_local_only.sh` | Passed | Local-only wording, Doxyfile, workflow, ignore, and tracking checks still pass. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py scripts/check_api_docs_coverage.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py` | Passed | Python syntax/import sanity check for current docs tooling. |
@@ -572,7 +572,7 @@ Validation:
 | `python3 tests/test_api_docs_local_only_guard.py` | Passed | Local-only staging/workflow-publication fixture regressions passed. |
 | `python3 tests/test_api_docs_routing.py` | Passed | API route, generated/hosted publication-link, and maintainer marker regressions passed. |
 | `bash -n scripts/check_api_docs_local_only.sh && bash scripts/check_api_docs_local_only.sh` | Passed | Shell syntax and direct local-only guard checks passed. |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Direct routing guard checked four routing documents and confirmed generated API publication links are absent. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Direct routing guard checked seven routing documents and confirmed generated API publication links are absent. |
 | `python3 -m py_compile scripts/check_api_docs_coverage.py scripts/check_api_docs_routing.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py tests/test_api_docs_routing.py` | Passed | Python docs tooling compiled. |
 | `git diff --check` | Passed | No whitespace errors. |
 | `git diff --name-only -- '*.c' '*.h' && git ls-files --others --exclude-standard -- '*.c' '*.h'` | Passed | No changed or untracked `.c`/`.h` files were reported. |
@@ -627,7 +627,7 @@ Validation:
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, confirmed generated API publication links are absent, and confirmed Makefile `api-docs-routing` wiring is present. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, confirmed generated API publication links are absent, and confirmed Makefile `api-docs-routing` wiring is present. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Existing route/publication/claim-boundary regressions passed; new missing Makefile target/dependency regressions passed. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py` | Passed | Python routing script and regression suite compiled. |
 | `make api-docs-freshness` | Passed | Doxygen generation, coverage/freshness, local-only staging guard, local-only guard regressions, routing guard, and routing regressions all passed. |
@@ -686,7 +686,7 @@ Final validation:
 | `python3 tests/test_api_docs_coverage.py` | Passed | Missing and stale generated-page fixture regressions passed. |
 | `python3 tests/test_api_docs_local_only_guard.py` | Passed | Local-only staging and workflow-publication fixture regressions passed. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Routing, publication-link, maintainer marker, and Makefile wiring regressions passed. |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, Makefile routing wiring, generated API publication-link absence, and the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, Makefile routing wiring, generated API publication-link absence, and the source-controlled API entry point. |
 | `python3 -m py_compile scripts/check_api_docs_coverage.py scripts/check_api_docs_routing.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py tests/test_api_docs_routing.py` | Passed | Python docs tooling compiled. |
 | `git diff --check` | Passed | No whitespace errors. |
 | `git diff --name-only -- '*.c' '*.h' && git ls-files --others --exclude-standard -- '*.c' '*.h'` | Passed | No changed or untracked `.c`/`.h` files were reported. |

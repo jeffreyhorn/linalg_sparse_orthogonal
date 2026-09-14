@@ -29,7 +29,7 @@ full C quality gate is not required for the current diff.
 | `python3 tests/test_api_docs_local_only_guard.py` | Passed | Local-only staging, workflow path, workflow publication, and wording diagnostics remained covered. |
 | `python3 tests/test_api_docs_routing.py` | Passed | API routing, forbidden generated/hosted links, and maintainer claim-boundary marker diagnostics remained covered. |
 | `bash -n scripts/check_api_docs_local_only.sh && bash scripts/check_api_docs_local_only.sh` | Passed | Shell syntax and direct local-only guard checks passed. |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, confirmed generated API publication links are absent, and confirmed `docs/api_reference.md` as the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, confirmed generated API publication links are absent, and confirmed `docs/api_reference.md` as the source-controlled API entry point. |
 | `python3 -m py_compile scripts/check_api_docs_coverage.py scripts/check_api_docs_routing.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py tests/test_api_docs_routing.py` | Passed | Python docs tooling compiled. |
 | `git diff --check` | Passed | No whitespace errors. |
 | `git diff --name-only -- '*.c' '*.h' && git ls-files --others --exclude-standard -- '*.c' '*.h'` | Passed | No changed or untracked C source/header files. |

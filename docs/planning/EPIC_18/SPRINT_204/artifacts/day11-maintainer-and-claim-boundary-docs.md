@@ -44,7 +44,7 @@ maintainer markers that protect the policy.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, confirmed no generated API publication links, and retained source-controlled API routing. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, confirmed no generated API publication links, and retained source-controlled API routing. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Regression suite includes the new maintainer marker mutation. |
 | `bash scripts/check_api_docs_local_only.sh` | Passed | Local-only generated-output, wording, Doxyfile, and workflow publication checks passed. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py scripts/check_api_docs_coverage.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py` | Passed | Python docs tooling compiled. |

@@ -54,7 +54,7 @@ performance evidence, release evidence, or state-of-the-art evidence.
 | `python3 tests/test_api_docs_coverage.py` | Passed | Missing and stale generated-page fixture regressions passed. |
 | `python3 tests/test_api_docs_local_only_guard.py` | Passed | Local-only staging and workflow-publication fixture regressions passed. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Routing, publication-link, maintainer marker, and Makefile wiring regressions passed. |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, Makefile routing wiring, generated API publication-link absence, and the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, Makefile routing wiring, generated API publication-link absence, and the source-controlled API entry point. |
 | `python3 -m py_compile scripts/check_api_docs_coverage.py scripts/check_api_docs_routing.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py tests/test_api_docs_routing.py` | Passed | Python docs tooling compiled. |
 | `git diff --check` | Passed | No whitespace errors. |
 | `git diff --name-only -- '*.c' '*.h' && git ls-files --others --exclude-standard -- '*.c' '*.h'` | Passed | No changed or untracked `.c`/`.h` files were reported. |

@@ -34,7 +34,7 @@ The public docs now use one consistent generated API policy:
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, confirmed no generated API publication links, and reported `docs/api_reference.md` as the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, confirmed no generated API publication links, and reported `docs/api_reference.md` as the source-controlled API entry point. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Regression suite accepted the updated user-facing wording. |
 | `bash scripts/check_api_docs_local_only.sh` | Passed | Local-only wording and no-publication workflow checks remain satisfied. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py scripts/check_api_docs_coverage.py tests/test_api_docs_coverage.py tests/test_api_docs_local_only_guard.py` | Passed | Python docs tooling compiled. |

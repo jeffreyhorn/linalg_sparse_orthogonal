@@ -48,7 +48,7 @@ The guard rejects Markdown links to:
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, confirmed no generated API publication links, and reported `docs/api_reference.md` as the source-controlled API entry point. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, confirmed no generated API publication links, and reported `docs/api_reference.md` as the source-controlled API entry point. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Regression suite completed without failures. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py` | Passed | New routing script and tests compile. |
 | `make api-docs-freshness` | Passed | Doxygen generation, coverage, local-only guard, and API routing guard all passed. |

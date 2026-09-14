@@ -62,7 +62,7 @@ publication path.
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `python3 scripts/check_api_docs_routing.py` | Passed | Checked four routing documents, absence of generated API publication links, source-controlled entry point, and Makefile routing wiring. |
+| `python3 scripts/check_api_docs_routing.py` | Passed | Checked seven routing documents, absence of generated API publication links, source-controlled entry point, and Makefile routing wiring. |
 | `python3 tests/test_api_docs_routing.py` | Passed | Route, publication-link, maintainer marker, and Makefile wiring regressions passed. |
 | `python3 -m py_compile scripts/check_api_docs_routing.py tests/test_api_docs_routing.py` | Passed | Python routing script and tests compiled. |
 | `make api-docs-freshness` | Passed | Doxygen generation, coverage/freshness, local-only staging guard, local-only regressions, routing guard, and routing regressions passed. |

@@ -14,7 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
-AUTOLINK_PATTERN = re.compile(r"<((?:https?:)?//[^>\s]+)>", re.IGNORECASE)
+AUTOLINK_PATTERN = re.compile(r"<((?:[a-z][a-z0-9+.-]*:|//)[^>\s]+)>", re.IGNORECASE)
 HTML_HREF_PATTERN = re.compile(
     r"""<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNORECASE
 )
@@ -109,6 +109,26 @@ def markdown_links(text: str) -> list[str]:
     return [match.group(1).strip() for match in LINK_PATTERN.finditer(text)]
 
 
+def closing_bracket(text: str, open_bracket: int) -> int:
+    depth = 0
+    escaped = False
+    pos = open_bracket
+    while pos < len(text):
+        char = text[pos]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return pos
+        pos += 1
+    return -1
+
+
 def balanced_markdown_links(text: str) -> list[str]:
     targets: list[str] = []
     index = 0
@@ -116,7 +136,7 @@ def balanced_markdown_links(text: str) -> list[str]:
         open_label = text.find("[", index)
         if open_label == -1:
             break
-        close_label = text.find("]", open_label + 1)
+        close_label = closing_bracket(text, open_label)
         if close_label == -1 or close_label + 1 >= len(text) or text[close_label + 1] != "(":
             index = open_label + 1
             continue
@@ -144,15 +164,15 @@ def balanced_markdown_links(text: str) -> list[str]:
 
 
 def publication_link_targets(text: str) -> list[str]:
-    targets = balanced_markdown_links(text)
-    targets.extend(match.group(1).strip() for match in REFERENCE_LINK_PATTERN.finditer(text))
-    targets.extend(match.group(1).strip() for match in AUTOLINK_PATTERN.finditer(text))
+    targets = [html.unescape(target) for target in balanced_markdown_links(text)]
+    targets.extend(html.unescape(match.group(1).strip()) for match in REFERENCE_LINK_PATTERN.finditer(text))
+    targets.extend(html.unescape(match.group(1).strip()) for match in AUTOLINK_PATTERN.finditer(text))
     targets.extend(
         html.unescape(next(group for group in match.groups() if group is not None).strip())
         for match in HTML_HREF_PATTERN.finditer(text)
     )
-    targets.extend(match.group(0).strip() for match in BARE_URL_PATTERN.finditer(text))
-    targets.extend(match.group(0).strip() for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
+    targets.extend(html.unescape(match.group(0).strip()) for match in BARE_URL_PATTERN.finditer(text))
+    targets.extend(html.unescape(match.group(0).strip()) for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
     return targets
 
 

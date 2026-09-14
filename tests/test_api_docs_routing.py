@@ -102,6 +102,18 @@ def test_generated_html_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_nested_label_generated_html_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[generated [API]](docs/api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_balanced_parentheses_generated_html_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -162,6 +174,30 @@ def test_autolinked_hosted_api_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_generic_uri_autolink_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n<file:docs/api/html/index.html>\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_generic_uri_autolink_hosted_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n<ftp://docs.example/api/>\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -204,6 +240,18 @@ def test_html_entity_href_generated_api_link_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + '\n<a href="docs&#x2F;api&#x2F;html/index.html">Generated HTML</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_markdown_entity_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated](docs&#x2F;api&#x2F;html/index.html)\n",
             encoding="utf-8",
         )
 
@@ -694,15 +742,19 @@ def main() -> None:
     test_missing_api_reference_route_fails_clearly()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
+    test_nested_label_generated_html_link_fails_clearly()
     test_balanced_parentheses_generated_html_link_fails_clearly()
     test_hosted_api_publication_link_fails_clearly()
     test_github_pages_publication_link_without_api_path_fails_clearly()
     test_bare_hosted_api_publication_url_fails_clearly()
     test_autolinked_hosted_api_publication_url_fails_clearly()
+    test_generic_uri_autolink_generated_api_link_fails_clearly()
+    test_generic_uri_autolink_hosted_api_link_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
     test_unquoted_html_href_generated_api_link_fails_clearly()
     test_html_entity_href_generated_api_link_fails_clearly()
+    test_markdown_entity_generated_api_link_fails_clearly()
     test_empty_html_href_is_ignored_without_traceback()
     test_protocol_relative_hosted_publication_url_fails_clearly()
     test_uppercase_hosted_publication_url_fails_clearly()

@@ -144,8 +144,8 @@ check_no_workflow_publication_semantics() {
 
     publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
     generated_path_regex="docs/api(/|$)|docs/api/html"
-    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs([/][*][*])?/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs([/][*][*])?/?)?)["'"'"']?[[:space:]]*$'
-    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|/|([.]/)?docs([/][*][*])?/?|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs([/][*][*])?/?)?)["'"'"']?[[:space:]]*$'
+    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
+    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue

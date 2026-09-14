@@ -221,6 +221,18 @@ def test_arbitrary_external_hosted_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_readthedocs_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://linalg-sparse-orthogonal.readthedocs.io/en/latest/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_unrelated_external_link_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -445,6 +457,48 @@ def test_missing_makefile_routing_dependency_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "api-docs-validate must depend on api-docs-routing")
 
 
+def test_missing_makefile_docs_check_dependency_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
+                "api-docs-validate: api-docs-local-only api-docs-routing",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required prerequisite(s): docs-check")
+
+
+def test_missing_makefile_local_only_dependency_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
+                "api-docs-validate: docs-check api-docs-routing",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required prerequisite(s): api-docs-local-only")
+
+
+def test_makefile_validate_routing_only_dependency_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
+                "api-docs-validate: api-docs-routing",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required prerequisite(s): docs-check")
+
+
 def test_makefile_routing_extra_dependency_name_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -518,6 +572,7 @@ def main() -> None:
     test_protocol_relative_hosted_publication_url_fails_clearly()
     test_uppercase_hosted_publication_url_fails_clearly()
     test_arbitrary_external_hosted_publication_url_fails_clearly()
+    test_readthedocs_hosted_publication_url_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
@@ -536,6 +591,9 @@ def main() -> None:
     test_missing_local_only_text_fails_clearly()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()
+    test_missing_makefile_docs_check_dependency_fails_clearly()
+    test_missing_makefile_local_only_dependency_fails_clearly()
+    test_makefile_validate_routing_only_dependency_fails_clearly()
     test_makefile_routing_extra_dependency_name_fails_clearly()
     test_missing_makefile_routing_target_fails_clearly()
     test_missing_makefile_freshness_dependency_fails_clearly()

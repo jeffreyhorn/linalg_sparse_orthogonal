@@ -303,6 +303,86 @@ def test_workflow_broad_docs_glob_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_broad_docs_single_glob_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: docs/*\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_broad_repo_glob_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: ./**\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_broad_normalized_docs_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: ./build/../docs/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_broad_docs_dot_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: docs/.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_broad_block_docs_artifact_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -375,6 +455,10 @@ def main() -> None:
     test_workflow_broad_workspace_docs_artifact_path_fails_clearly()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()
     test_workflow_broad_docs_glob_artifact_path_fails_clearly()
+    test_workflow_broad_docs_single_glob_artifact_path_fails_clearly()
+    test_workflow_broad_repo_glob_artifact_path_fails_clearly()
+    test_workflow_broad_normalized_docs_artifact_path_fails_clearly()
+    test_workflow_broad_docs_dot_artifact_path_fails_clearly()
     test_workflow_broad_block_docs_artifact_path_fails_clearly()
     test_tracked_generated_api_file_fails_clearly()
     test_staged_generated_api_file_fails_clearly()

@@ -85,9 +85,10 @@ REQUIRED_TEXT = {
 
 GENERATED_API_PATH = "docs/api"
 HOSTED_API_PUBLICATION_PATTERN = re.compile(
-    r"(github\.io|(^|[/:.-])(pages|api|doxygen)([/:.-]|$)|docs\.example\.com/linalg_sparse_orthogonal)",
+    r"(github\.io|readthedocs\.io|(^|[/:.-])(pages|api|doxygen|docs)([/:.-]|$))",
     re.IGNORECASE,
 )
+MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
 
 
 class RoutingError(RuntimeError):
@@ -245,6 +246,16 @@ def validate_makefile_wiring(root: Path) -> None:
         raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
     if not MAKEFILE_FRESHNESS_DEP.search(text):
         raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
+
+    validate_line = next(
+        (line for line in text.splitlines() if line.startswith("api-docs-validate:")),
+        "",
+    )
+    validate_prereqs = set(validate_line.split(":", 1)[1].split())
+    missing = [prereq for prereq in MAKEFILE_REQUIRED_VALIDATE_PREREQS if prereq not in validate_prereqs]
+    if missing:
+        joined = ", ".join(missing)
+        raise RoutingError(f"Makefile api-docs-validate missing required prerequisite(s): {joined}")
 
 
 def validate_api_routes(root: Path) -> None:

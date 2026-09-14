@@ -136,6 +136,7 @@ check_no_workflow_publication_semantics() {
     local generated_path_regex
     local broad_path_regex
     local broad_block_path_regex
+    local stripped_text
 
     if [ ! -d "$workflows_dir" ]; then
         pass "no workflow directory for generated API publication semantics"
@@ -144,23 +145,24 @@ check_no_workflow_publication_semantics() {
 
     publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
     generated_path_regex="docs/api(/|$)|docs/api/html"
-    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
-    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}](/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
+    broad_path_regex='path:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
+    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
-        if grep -Eq "$generated_path_regex" "$workflow_file" &&
-            grep -Eq "$publication_regex" "$workflow_file"; then
+        stripped_text="$(sed -E 's/[[:space:]]+#.*$//' "$workflow_file")"
+        if printf '%s\n' "$stripped_text" | grep -Eq "$generated_path_regex" &&
+            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
         fi
-        if grep -Eq "$broad_path_regex" "$workflow_file" &&
-            grep -Eq "$publication_regex" "$workflow_file"; then
+        if printf '%s\n' "$stripped_text" | grep -Eq "$broad_path_regex" &&
+            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if grep -Eq 'path:[[:space:]]*[|>]' "$workflow_file" &&
-            grep -Eq "$broad_block_path_regex" "$workflow_file" &&
-            grep -Eq "$publication_regex" "$workflow_file"; then
+        if printf '%s\n' "$stripped_text" | grep -Eq 'path:[[:space:]]*[|>]' &&
+            printf '%s\n' "$stripped_text" | grep -Eq "$broad_block_path_regex" &&
+            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
     done

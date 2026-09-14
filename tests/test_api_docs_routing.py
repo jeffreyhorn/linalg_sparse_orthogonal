@@ -186,6 +186,30 @@ def test_unquoted_html_href_generated_api_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_html_entity_href_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<a href="docs&#x2F;api&#x2F;html/index.html">Generated HTML</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_empty_html_href_is_ignored_without_traceback() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8") + '\n<a href="">Empty local placeholder</a>\n',
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_protocol_relative_hosted_publication_url_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -227,6 +251,42 @@ def test_readthedocs_hosted_publication_url_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Hosted docs](https://linalg-sparse-orthogonal.readthedocs.io/en/latest/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_gitlab_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://linalg-sparse-orthogonal.gitlab.io/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_netlify_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://linalg-sparse-orthogonal.netlify.app/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_custom_domain_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://reference.linalg-sparse-orthogonal.example/)\n",
             encoding="utf-8",
         )
 
@@ -569,10 +629,15 @@ def main() -> None:
     test_html_href_hosted_api_publication_url_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
     test_unquoted_html_href_generated_api_link_fails_clearly()
+    test_html_entity_href_generated_api_link_fails_clearly()
+    test_empty_html_href_is_ignored_without_traceback()
     test_protocol_relative_hosted_publication_url_fails_clearly()
     test_uppercase_hosted_publication_url_fails_clearly()
     test_arbitrary_external_hosted_publication_url_fails_clearly()
     test_readthedocs_hosted_publication_url_fails_clearly()
+    test_gitlab_hosted_publication_url_fails_clearly()
+    test_netlify_hosted_publication_url_fails_clearly()
+    test_custom_domain_hosted_publication_url_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()

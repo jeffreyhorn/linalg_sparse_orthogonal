@@ -100,7 +100,6 @@ REQUIRED_TEXT = {
 GENERATED_API_PATH = "docs/api"
 HOSTED_API_PUBLICATION_PATTERN = re.compile(
     r"(github\.io|readthedocs\.io|gitlab\.io|netlify\.app|"
-    r"linalg[-_]sparse[-_]orthogonal|"
     r"(^|[/:.-])(api|docs|doxygen|pages)([/:.?#!-]|$)|"
     r"docs/api)",
     re.IGNORECASE,
@@ -183,6 +182,13 @@ def publication_link_targets(text: str) -> list[str]:
     return targets
 
 
+def rendered_markdown_text(text: str) -> str:
+    text = re.sub(r"(?s)<!--.*?-->", "", text)
+    text = re.sub(r"(?ms)^```.*?^```[ \t]*$", "", text)
+    text = re.sub(r"(?ms)^~~~.*?^~~~[ \t]*$", "", text)
+    return text
+
+
 def markdown_destination(target: str) -> str:
     target = target.strip()
     if target.startswith("<"):
@@ -200,7 +206,7 @@ def unwrap_link_target(target: str) -> str:
 
 
 def unescape_markdown_destination(target: str) -> str:
-    return re.sub(r"""\\([\\`*_{}\[\]()#+\-.!_/])""", r"\1", unwrap_link_target(target))
+    return re.sub(r"""\\([!"#$%&'()*+,./:;<=>?@\[\\\]^_`{|}~-])""", r"\1", unwrap_link_target(target))
 
 
 def strip_fragment_and_query(target: str) -> str:
@@ -263,7 +269,7 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 
 
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
-    links = set(markdown_links(text))
+    links = set(markdown_links(rendered_markdown_text(text)))
     missing = [target for target in REQUIRED_ROUTES[rel_path] if target not in links]
     if missing:
         joined = ", ".join(missing)

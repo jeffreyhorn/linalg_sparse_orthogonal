@@ -83,6 +83,36 @@ def test_missing_api_reference_route_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_in_fenced_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n```md\n[docs/api_reference.md](docs/api_reference.md)\n```\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_required_route_in_html_comment_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n<!-- [docs/api_reference.md](docs/api_reference.md) -->\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_missing_route_target_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "docs" / "solver_selection.md").unlink()
@@ -358,7 +388,7 @@ def test_custom_domain_hosted_publication_url_fails_clearly() -> None:
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
-            + "\n[Hosted docs](https://reference.linalg-sparse-orthogonal.example/)\n",
+            + "\n[Hosted docs](https://reference.linalg-sparse-orthogonal.example/docs/)\n",
             encoding="utf-8",
         )
 
@@ -383,6 +413,31 @@ def test_file_scheme_generated_html_link_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Generated HTML](file:docs/api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_repository_external_link_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Repository](https://github.com/jeffreyhorn/linalg_sparse_orthogonal)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_backslash_escaped_scheme_hosted_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https\\://example.com/docs/api/html/)\n",
             encoding="utf-8",
         )
 
@@ -793,6 +848,8 @@ def main() -> None:
     test_current_tree_passes_routing_guard()
     test_fixture_passes_routing_guard()
     test_missing_api_reference_route_fails_clearly()
+    test_required_route_in_fenced_code_does_not_satisfy_contract()
+    test_required_route_in_html_comment_does_not_satisfy_contract()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_nested_label_generated_html_link_fails_clearly()
@@ -819,6 +876,8 @@ def main() -> None:
     test_custom_domain_hosted_publication_url_fails_clearly()
     test_ftp_hosted_publication_url_fails_clearly()
     test_file_scheme_generated_html_link_fails_clearly()
+    test_repository_external_link_is_allowed()
+    test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()

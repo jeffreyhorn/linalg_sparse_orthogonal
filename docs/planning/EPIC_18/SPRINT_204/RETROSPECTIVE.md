@@ -124,7 +124,7 @@ and claim-boundary evidence around that policy.
 | Sprint retrospective files added | 1 |
 | Public documentation files changed | 3 |
 | Maintainer documentation files changed | 1 |
-| Makefile targets changed | 3 |
+| Makefile targets changed | 5 |
 | Shell guard files changed | 1 |
 | Python validation or guard scripts changed | 2 |
 | Python validation or guard test files changed | 3 |

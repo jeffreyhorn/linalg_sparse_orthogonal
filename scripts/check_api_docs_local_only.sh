@@ -156,10 +156,10 @@ check_no_workflow_publication_semantics() {
     generated_path_regex="docs/api(/|$)|docs/api/html"
     broad_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
     broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
-    broad_command_path_regex='(^|[[:space:]])["'"'"']?(([$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?)?([.]/)?docs($|[/.*[:space:]])|([.]/)?([*][*]([/][*])?|[.]([/][*][*])?)($|[[:space:]])|/)'
+    broad_command_path_regex='(^|[[:space:]])["'"'"']?(([$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?)?([.]/)?docs($|[/.*[:space:]])|([.]/)?([*][*]([/][*])?|[.]([/][*][*])?)($|[[:space:]])|/($|[[:space:]]))'
     docs_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)[[:space:]][^;&|]*["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     docs_archive_command_regex='(^|[[:space:]])(tar|zip)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
-    dynamic_publication_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder):[[:space:]]*["'"'"']?([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
+    dynamic_publication_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
     dynamic_command_publication_regex='(^|[[:space:]])["'"'"']?([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])'
     broad_inline_path_regex='(^|[,{][[:space:]]*)(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
 

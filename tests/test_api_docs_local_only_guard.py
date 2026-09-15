@@ -438,6 +438,44 @@ def test_workflow_dynamic_artifact_path_fails_closed() -> None:
     assert_guard_fails_with(mutate, "dynamic publication paths")
 
 
+def test_workflow_dynamic_release_files_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: softprops/action-gh-release@v2\n"
+            "        with:\n"
+            "          files: ${{ env.DOCS_PATH }}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
+def test_workflow_dynamic_release_asset_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-release-asset@v1\n"
+            "        with:\n"
+            "          asset_path: $DOCS_PATH\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
 def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -453,6 +491,26 @@ def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
         )
 
     assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
+def test_workflow_unrelated_publisher_build_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make test\n"
+            "      - run: aws s3 sync build/ s3://example-bucket/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
 
 
 def test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly() -> None:
@@ -854,7 +912,10 @@ def main() -> None:
     test_workflow_quoted_relative_broad_docs_artifact_path_fails_clearly()
     test_workflow_broad_workspace_docs_artifact_path_fails_clearly()
     test_workflow_dynamic_artifact_path_fails_closed()
+    test_workflow_dynamic_release_files_path_fails_closed()
+    test_workflow_dynamic_release_asset_path_fails_closed()
     test_workflow_dynamic_command_publication_path_fails_closed()
+    test_workflow_unrelated_publisher_build_path_is_allowed()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()
     test_workflow_broad_workspace_root_artifact_path_fails_clearly()
     test_workflow_broad_docs_glob_artifact_path_fails_clearly()

@@ -218,7 +218,7 @@ def is_external(target: str) -> bool:
 
 
 def is_forbidden_external_target(target: str) -> bool:
-    normalized = unescape_markdown_destination(target)
+    normalized = unquote(unescape_markdown_destination(target))
     return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
 
 

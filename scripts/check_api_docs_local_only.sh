@@ -142,59 +142,64 @@ check_no_workflow_publication_semantics() {
     local docs_archive_command_regex
     local dynamic_publication_path_regex
     local dynamic_command_publication_regex
+    local broad_inline_path_regex
     local stripped_text
+    local normalized_text
 
     if [ ! -d "$workflows_dir" ]; then
         pass "no workflow directory for generated API publication semantics"
         return
     fi
 
-    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|github-pages|gh-pages|pages:"
+    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|uses:[[:space:]]*[^[:space:]]*(publish|deploy|pages|upload|release)[^[:space:]]*"
     command_publication_regex="aws[[:space:]]+s3[[:space:]]+(sync|cp)|gsutil[[:space:]]+(-m[[:space:]]+)?(rsync|cp)|az[[:space:]]+storage[[:space:]]+blob[[:space:]]+upload|netlify[[:space:]]+deploy|vercel[[:space:]]+deploy|firebase[[:space:]]+deploy|wrangler[[:space:]]+pages[[:space:]]+deploy|surge[[:space:]]|rsync[[:space:]].*:[^[:space:]]*|scp[[:space:]].*:[^[:space:]]*"
     generated_path_regex="docs/api(/|$)|docs/api/html"
-    broad_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
+    broad_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
     broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
     broad_command_path_regex='(^|[[:space:]])["'"'"']?(([$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?)?([.]/)?docs($|[/.*[:space:]])|([.]/)?([*][*]([/][*])?|[.]([/][*][*])?)($|[[:space:]])|/)'
-    docs_staging_command_regex='(^|[[:space:]])(cp|rsync)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
+    docs_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)[[:space:]][^;&|]*["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     docs_archive_command_regex='(^|[[:space:]])(tar|zip)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     dynamic_publication_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder):[[:space:]]*["'"'"']?([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
     dynamic_command_publication_regex='(^|[[:space:]])["'"'"']?([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])'
+    broad_inline_path_regex='(^|[,{][[:space:]]*)(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
         stripped_text="$(sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file")"
-        if printf '%s\n' "$stripped_text" | grep -Eq "$generated_path_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
+        normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/')"
+        if printf '%s\n' "$normalized_text" | grep -Eq "$generated_path_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$broad_path_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
+        if { printf '%s\n' "$normalized_text" | grep -Eq "$broad_path_regex" ||
+            printf '%s\n' "$normalized_text" | grep -Eq "$broad_inline_path_regex"; } &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq 'path:[[:space:]]*[|>]' &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$broad_block_path_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq 'path:[[:space:]]*[|>]' &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$broad_block_path_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$command_publication_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$broad_command_path_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$command_publication_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$broad_command_path_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$docs_staging_command_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$docs_staging_command_regex"; then
             fail "$rel_path stages docs for publication or artifact upload while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$docs_archive_command_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$docs_archive_command_regex"; then
             fail "$rel_path archives docs for publication or artifact upload while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$dynamic_publication_path_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_publication_path_regex"; then
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$stripped_text" | grep -Eq "$command_publication_regex" &&
-            printf '%s\n' "$stripped_text" | grep -Eq "$dynamic_command_publication_regex"; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$command_publication_regex" &&
+            printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_command_publication_regex"; then
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
     done

@@ -305,6 +305,18 @@ def test_arbitrary_external_hosted_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_percent_encoded_external_api_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted docs](https://reference.example.com/docs%2Fapi%2Fhtml/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_readthedocs_hosted_publication_url_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -800,6 +812,7 @@ def main() -> None:
     test_protocol_relative_hosted_publication_url_fails_clearly()
     test_uppercase_hosted_publication_url_fails_clearly()
     test_arbitrary_external_hosted_publication_url_fails_clearly()
+    test_percent_encoded_external_api_publication_url_fails_clearly()
     test_readthedocs_hosted_publication_url_fails_clearly()
     test_gitlab_hosted_publication_url_fails_clearly()
     test_netlify_hosted_publication_url_fails_clearly()

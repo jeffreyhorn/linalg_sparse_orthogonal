@@ -186,6 +186,7 @@ def rendered_markdown_text(text: str) -> str:
     text = re.sub(r"(?s)<!--.*?-->", "", text)
     text = re.sub(r"(?ms)^```.*?^```[ \t]*$", "", text)
     text = re.sub(r"(?ms)^~~~.*?^~~~[ \t]*$", "", text)
+    text = re.sub(r"(?m)^(?: {4}|\t).*$", "", text)
     return text
 
 
@@ -269,7 +270,10 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 
 
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
-    links = set(markdown_links(rendered_markdown_text(text)))
+    links = {
+        unescape_markdown_destination(target)
+        for target in balanced_markdown_links(rendered_markdown_text(text))
+    }
     missing = [target for target in REQUIRED_ROUTES[rel_path] if target not in links]
     if missing:
         joined = ", ".join(missing)

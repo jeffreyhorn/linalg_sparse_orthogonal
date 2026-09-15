@@ -98,6 +98,21 @@ def test_required_route_in_fenced_code_does_not_satisfy_contract() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_in_indented_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n    [docs/api_reference.md](docs/api_reference.md)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_html_comment_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -111,6 +126,21 @@ def test_required_route_in_html_comment_does_not_satisfy_contract() -> None:
         )
 
     assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_angle_wrapped_required_route_with_title_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                '[API reference](<docs/api_reference.md> "source-controlled API reference")',
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
 
 
 def test_missing_route_target_fails_clearly() -> None:
@@ -849,7 +879,9 @@ def main() -> None:
     test_fixture_passes_routing_guard()
     test_missing_api_reference_route_fails_clearly()
     test_required_route_in_fenced_code_does_not_satisfy_contract()
+    test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
+    test_angle_wrapped_required_route_with_title_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_nested_label_generated_html_link_fails_clearly()

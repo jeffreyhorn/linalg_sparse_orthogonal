@@ -881,7 +881,8 @@ api-docs-routing:
 qr-header-docs-guard:
 	@bash scripts/check_qr_header_docs_guard.sh
 
-docs-check: docs api-docs-coverage
+docs-check: docs
+	@$(MAKE) api-docs-coverage
 
 api-docs-validate: docs-check api-docs-local-only api-docs-routing
 

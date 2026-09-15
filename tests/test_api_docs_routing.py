@@ -391,6 +391,21 @@ def test_unrelated_external_link_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_unrelated_https_link_is_not_reclassified_as_protocol_relative() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8") + "\n[Dependency](https://example.com/project)\n",
+            encoding="utf-8",
+        )
+        targets = routing.publication_link_targets(path.read_text(encoding="utf-8"))
+        if "//example.com/project" in targets:
+            raise AssertionError("https URL was also emitted as protocol-relative target")
+        routing.validate_api_routes(root)
+
+
 def test_external_url_with_incidental_api_substring_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -552,6 +567,18 @@ def test_percent_encoded_generated_html_link_fails_after_resolution() -> None:
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8") + "\n[Generated HTML](docs/%61pi/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_backslash_escaped_generated_html_link_fails_after_resolution() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated](docs\\/api\\/html/index.html)\n",
             encoding="utf-8",
         )
 
@@ -722,6 +749,20 @@ def test_missing_makefile_freshness_dependency_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
 
 
+def test_parallel_docs_check_generation_before_coverage_wiring_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "docs-check: docs\n\t@$(MAKE) api-docs-coverage",
+                "docs-check: docs api-docs-coverage",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "docs-check must serialize docs before api-docs-coverage")
+
+
 def test_makefile_freshness_extra_dependency_name_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -766,6 +807,7 @@ def main() -> None:
     test_ftp_hosted_publication_url_fails_clearly()
     test_file_scheme_generated_html_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
+    test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
@@ -780,6 +822,7 @@ def main() -> None:
     test_linked_cookbook_hosted_api_link_fails_clearly()
     test_linked_solver_selection_generated_html_link_fails_clearly()
     test_percent_encoded_generated_html_link_fails_after_resolution()
+    test_backslash_escaped_generated_html_link_fails_after_resolution()
     test_root_relative_generated_html_link_fails_after_resolution()
     test_escaping_local_generated_html_link_fails_clearly()
     test_missing_route_fragment_fails_clearly()
@@ -792,6 +835,7 @@ def main() -> None:
     test_makefile_routing_extra_dependency_name_fails_clearly()
     test_missing_makefile_routing_target_fails_clearly()
     test_missing_makefile_freshness_dependency_fails_clearly()
+    test_parallel_docs_check_generation_before_coverage_wiring_fails_clearly()
     test_makefile_freshness_extra_dependency_name_fails_clearly()
 
 

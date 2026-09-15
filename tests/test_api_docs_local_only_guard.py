@@ -303,6 +303,43 @@ def test_workflow_broad_workspace_docs_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_dynamic_artifact_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: ${{ env.DOCS_PATH }}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
+def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: aws s3 sync \"$DOCS_PATH\" s3://example-generated-api/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
 def test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -653,6 +690,8 @@ def main() -> None:
     test_workflow_quoted_broad_docs_artifact_path_fails_clearly()
     test_workflow_quoted_relative_broad_docs_artifact_path_fails_clearly()
     test_workflow_broad_workspace_docs_artifact_path_fails_clearly()
+    test_workflow_dynamic_artifact_path_fails_closed()
+    test_workflow_dynamic_command_publication_path_fails_closed()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()
     test_workflow_broad_workspace_root_artifact_path_fails_clearly()
     test_workflow_broad_docs_glob_artifact_path_fails_clearly()

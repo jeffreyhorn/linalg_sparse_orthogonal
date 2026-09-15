@@ -19,7 +19,7 @@ HTML_HREF_PATTERN = re.compile(
     r"""<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNORECASE
 )
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
-PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<!:)//[^\s<>)"']+""")
+PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<![:/])//[^\s<>)"']+""")
 
 API_ROUTING_FILES = (
     "README.md",
@@ -41,6 +41,10 @@ MAKEFILE_VALIDATE_DEP = re.compile(
 )
 MAKEFILE_FRESHNESS_DEP = re.compile(
     r"(?m)^api-docs-freshness:[^\n]*[ \t]api-docs-validate([ \t]|$)"
+)
+MAKEFILE_DOCS_CHECK_SERIAL = re.compile(
+    r"(?m)^docs-check:[^\n]*[ \t]docs([ \t]|$)\n"
+    r"\t@[$][(]MAKE[)] api-docs-coverage$"
 )
 
 REQUIRED_ROUTES = {
@@ -192,22 +196,26 @@ def unwrap_link_target(target: str) -> str:
     return target
 
 
+def unescape_markdown_destination(target: str) -> str:
+    return re.sub(r"""\\([\\`*_{}\[\]()#+\-.!_/])""", r"\1", unwrap_link_target(target))
+
+
 def strip_fragment_and_query(target: str) -> str:
-    return unquote(re.split(r"[#?]", unwrap_link_target(target), maxsplit=1)[0])
+    return unquote(re.split(r"[#?]", unescape_markdown_destination(target), maxsplit=1)[0])
 
 
 def fragment(target: str) -> str:
-    parts = unwrap_link_target(target).split("#", 1)
+    parts = unescape_markdown_destination(target).split("#", 1)
     return parts[1] if len(parts) == 2 else ""
 
 
 def is_external(target: str) -> bool:
-    normalized = unwrap_link_target(target).lower()
+    normalized = unescape_markdown_destination(target).lower()
     return normalized.startswith("//") or re.match(r"^[a-z][a-z0-9+.-]*:", normalized) is not None
 
 
 def is_forbidden_external_target(target: str) -> bool:
-    normalized = unwrap_link_target(target)
+    normalized = unescape_markdown_destination(target)
     if any(pattern.search(normalized) for pattern in ALLOWED_EXTERNAL_TARGET_PATTERNS):
         return False
     return True
@@ -315,6 +323,8 @@ def validate_makefile_wiring(root: Path) -> None:
         raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
     if not MAKEFILE_FRESHNESS_DEP.search(text):
         raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
+    if not MAKEFILE_DOCS_CHECK_SERIAL.search(text):
+        raise RoutingError("Makefile docs-check must serialize docs before api-docs-coverage")
 
     validate_line = next(
         (line for line in text.splitlines() if line.startswith("api-docs-validate:")),

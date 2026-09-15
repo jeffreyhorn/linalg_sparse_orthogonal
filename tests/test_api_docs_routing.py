@@ -113,6 +113,21 @@ def test_required_route_in_indented_fenced_code_does_not_satisfy_contract() -> N
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_after_shorter_fence_line_stays_hidden() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n````md\n```\n[docs/api_reference.md](docs/api_reference.md)\n````\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_indented_code_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -952,6 +967,7 @@ def main() -> None:
     test_missing_api_reference_route_fails_clearly()
     test_required_route_in_fenced_code_does_not_satisfy_contract()
     test_required_route_in_indented_fenced_code_does_not_satisfy_contract()
+    test_required_route_after_shorter_fence_line_stays_hidden()
     test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
     test_required_route_in_inline_code_does_not_satisfy_contract()

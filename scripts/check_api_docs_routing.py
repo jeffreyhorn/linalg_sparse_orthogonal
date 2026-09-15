@@ -199,7 +199,7 @@ def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
         if fence_match:
             marker = fence_match.group(1)
             if fence_marker:
-                if marker.startswith(fence_marker[0]):
+                if marker[0] == fence_marker[0] and len(marker) >= len(fence_marker):
                     fence_marker = ""
             else:
                 fence_marker = marker

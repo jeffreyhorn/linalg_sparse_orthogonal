@@ -385,7 +385,7 @@ def test_unrelated_external_link_is_allowed() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\nProject contact: <mailto:maintainers@example.com>\n"
-            + "\n[Dependency](https://example.com/project)\n",
+            + "\n[Dependency](https://www.netlib.org/lapack/)\n",
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
@@ -397,11 +397,11 @@ def test_unrelated_https_link_is_not_reclassified_as_protocol_relative() -> None
         copy_fixture(root)
         path = root / "README.md"
         path.write_text(
-            path.read_text(encoding="utf-8") + "\n[Dependency](https://example.com/project)\n",
+            path.read_text(encoding="utf-8") + "\n[Dependency](https://www.netlib.org/lapack/)\n",
             encoding="utf-8",
         )
         targets = routing.publication_link_targets(path.read_text(encoding="utf-8"))
-        if "//example.com/project" in targets:
+        if "//www.netlib.org/lapack/" in targets:
             raise AssertionError("https URL was also emitted as protocol-relative target")
         routing.validate_api_routes(root)
 
@@ -413,7 +413,7 @@ def test_external_url_with_incidental_api_substring_is_allowed() -> None:
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
-            + "\n[Capital city example](https://example.com/capitals)\n",
+            + "\n[Capital city example](https://www.netlib.org/capitals)\n",
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
@@ -426,7 +426,7 @@ def test_external_url_with_incidental_capitals_substring_is_allowed() -> None:
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
-            + "\n[Capital letters](https://example.com/capitals)\n",
+            + "\n[Capital letters](https://www.netlib.org/capitals)\n",
             encoding="utf-8",
         )
         routing.validate_api_routes(root)

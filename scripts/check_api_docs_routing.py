@@ -98,9 +98,12 @@ REQUIRED_TEXT = {
 }
 
 GENERATED_API_PATH = "docs/api"
-ALLOWED_EXTERNAL_TARGET_PATTERNS = (
-    re.compile(r"^mailto:", re.IGNORECASE),
-    re.compile(r"^https?://example\.com/(project|capitals)$", re.IGNORECASE),
+HOSTED_API_PUBLICATION_PATTERN = re.compile(
+    r"(github\.io|readthedocs\.io|gitlab\.io|netlify\.app|"
+    r"linalg[-_]sparse[-_]orthogonal|"
+    r"(^|[/:.-])(api|docs|doxygen|pages)([/:.?#!-]|$)|"
+    r"docs/api)",
+    re.IGNORECASE,
 )
 MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
 
@@ -216,9 +219,7 @@ def is_external(target: str) -> bool:
 
 def is_forbidden_external_target(target: str) -> bool:
     normalized = unescape_markdown_destination(target)
-    if any(pattern.search(normalized) for pattern in ALLOWED_EXTERNAL_TARGET_PATTERNS):
-        return False
-    return True
+    return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
 
 
 def markdown_heading_fragment(heading: str) -> str:

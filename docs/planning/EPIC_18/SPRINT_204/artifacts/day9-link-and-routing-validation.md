@@ -11,7 +11,7 @@ HTML is hosted, committed, retained, or otherwise published.
 
 | Surface | Change | Reason |
 | --- | --- | --- |
-| `scripts/check_api_docs_routing.py` | Added a focused API routing guard for README, INSTALL, `docs/api_reference.md`, and `docs/maintainer_guide.md`. | Preserve local-only generated API semantics while validating the supported source-controlled routes. |
+| `scripts/check_api_docs_routing.py` | Added a focused API routing guard for README, INSTALL, `docs/api_reference.md`, `docs/tutorial.md`, `docs/cookbook.md`, `docs/solver_selection.md`, and `docs/maintainer_guide.md`. | Preserve local-only generated API semantics while validating the supported source-controlled routes. |
 | `tests/test_api_docs_routing.py` | Added current-tree and fixture regression coverage for required routes, missing route targets, forbidden generated/hosted API links, and missing local-only wording. | Makes route and publication-boundary failures executable. |
 | `Makefile` | Added `api-docs-routing` and included it in `api-docs-validate`. | Ensures `make api-docs-freshness` runs Doxygen generation, coverage, local-only staging, and route validation together. |
 

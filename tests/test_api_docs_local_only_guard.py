@@ -639,6 +639,27 @@ def test_workflow_staged_docs_artifact_upload_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_archived_docs_artifact_upload_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: tar -czf artifact.tgz docs/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact.tgz\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "archives docs for publication")
+
+
 def test_tracked_generated_api_file_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         run_git(root, "config", "user.email", "test@example.com")
@@ -707,6 +728,7 @@ def main() -> None:
     test_workflow_broad_docs_custom_deploy_command_fails_clearly()
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
+    test_workflow_archived_docs_artifact_upload_fails_clearly()
     test_tracked_generated_api_file_fails_clearly()
     test_staged_generated_api_file_fails_clearly()
     test_visible_untracked_generated_api_file_fails_clearly()

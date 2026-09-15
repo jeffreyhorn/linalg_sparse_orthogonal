@@ -139,6 +139,7 @@ check_no_workflow_publication_semantics() {
     local broad_block_path_regex
     local broad_command_path_regex
     local docs_staging_command_regex
+    local docs_archive_command_regex
     local dynamic_publication_path_regex
     local dynamic_command_publication_regex
     local stripped_text
@@ -155,6 +156,7 @@ check_no_workflow_publication_semantics() {
     broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
     broad_command_path_regex='(^|[[:space:]])["'"'"']?(([$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?)?([.]/)?docs($|[/.*[:space:]])|([.]/)?([*][*]([/][*])?|[.]([/][*][*])?)($|[[:space:]])|/)'
     docs_staging_command_regex='(^|[[:space:]])(cp|rsync)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
+    docs_archive_command_regex='(^|[[:space:]])(tar|zip)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     dynamic_publication_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder):[[:space:]]*["'"'"']?([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
     dynamic_command_publication_regex='(^|[[:space:]])["'"'"']?([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])'
 
@@ -182,6 +184,10 @@ check_no_workflow_publication_semantics() {
         if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
             printf '%s\n' "$stripped_text" | grep -Eq "$docs_staging_command_regex"; then
             fail "$rel_path stages docs for publication or artifact upload while generated API HTML is local-only"
+        fi
+        if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
+            printf '%s\n' "$stripped_text" | grep -Eq "$docs_archive_command_regex"; then
+            fail "$rel_path archives docs for publication or artifact upload while generated API HTML is local-only"
         fi
         if printf '%s\n' "$stripped_text" | grep -Eq "$publication_regex" &&
             printf '%s\n' "$stripped_text" | grep -Eq "$dynamic_publication_path_regex"; then

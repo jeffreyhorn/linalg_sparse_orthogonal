@@ -1,0 +1,419 @@
+#!/usr/bin/env python3
+"""Validate local-only generated API routing docs."""
+
+from __future__ import annotations
+
+import argparse
+import html
+import re
+import sys
+from urllib.parse import unquote
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
+AUTOLINK_PATTERN = re.compile(r"<((?:[a-z][a-z0-9+.-]*:|//)[^>\s]+)>", re.IGNORECASE)
+HTML_HREF_PATTERN = re.compile(
+    r"""<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNORECASE
+)
+BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
+PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<![:/])//[^\s<>)"']+""")
+
+API_ROUTING_FILES = (
+    "README.md",
+    "INSTALL.md",
+    "docs/api_reference.md",
+    "docs/tutorial.md",
+    "docs/cookbook.md",
+    "docs/solver_selection.md",
+    "docs/maintainer_guide.md",
+)
+
+MAKEFILE_ROUTING_TARGET = re.compile(
+    r"(?m)^api-docs-routing:\n"
+    r"\t@python3 scripts/check_api_docs_routing\.py\n"
+    r"\t@python3 tests/test_api_docs_routing\.py$"
+)
+MAKEFILE_VALIDATE_DEP = re.compile(
+    r"(?m)^api-docs-validate:[^\n]*[ \t]api-docs-routing([ \t]|$)"
+)
+MAKEFILE_FRESHNESS_DEP = re.compile(
+    r"(?m)^api-docs-freshness:[^\n]*[ \t]api-docs-validate([ \t]|$)"
+)
+MAKEFILE_DOCS_CHECK_SERIAL = re.compile(
+    r"(?m)^docs-check:[ \t]*docs[ \t]*\n"
+    r"\t@[$][(]MAKE[)] api-docs-coverage$"
+)
+
+REQUIRED_ROUTES = {
+    "README.md": (
+        "docs/api_reference.md",
+        "include/",
+        "INSTALL.md#support-readiness-matrix",
+    ),
+    "INSTALL.md": (),
+    "docs/api_reference.md": (
+        "../include/",
+        "../Doxyfile",
+        "../INSTALL.md#support-readiness-matrix",
+        "tutorial.md",
+        "cookbook.md",
+        "solver_selection.md",
+        "maintainer_guide.md",
+    ),
+    "docs/tutorial.md": (),
+    "docs/cookbook.md": (),
+    "docs/solver_selection.md": (),
+    "docs/maintainer_guide.md": (),
+}
+
+REQUIRED_TEXT = {
+    "docs/api_reference.md": (
+        "The generated HTML tree is local-only generated output.",
+        "is not a hosted or source-controlled publication surface.",
+        "source-controlled API reference path.",
+    ),
+    "docs/tutorial.md": (),
+    "docs/cookbook.md": (),
+    "docs/solver_selection.md": (),
+    "README.md": (
+        "API reference entry point: docs/api_reference.md",
+        "Generated API HTML is not hosted documentation, a retained CI artifact,",
+    ),
+    "INSTALL.md": (
+        "| Local generated API HTML | local-only |",
+        "No hosted API publication, retained generated-doc artifact, committed generated HTML,",
+    ),
+    "docs/maintainer_guide.md": (
+        "`docs/api_reference.md` is the user-facing API reference entry point.",
+        "`docs/api/html/` is generated Doxygen output",
+        "`make api-docs-freshness` runs `docs-check` plus the local-only generated",
+        "`api-docs-routing` proves user-facing docs route API readers",
+        "source-controlled reference path is `docs/api_reference.md` plus checked-in",
+        "retained generated-doc artifacts",
+        "removes `api-docs-routing` from `make api-docs-freshness` without replacing",
+    ),
+}
+
+GENERATED_API_PATH = "docs/api"
+HOSTED_API_PUBLICATION_PATTERN = re.compile(
+    r"(github\.io|readthedocs\.io|gitlab\.io|netlify\.app|"
+    r"(^|[/:.-])(api|docs|doxygen|pages)([/:.?#!-]|$)|"
+    r"docs/api)",
+    re.IGNORECASE,
+)
+MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
+
+
+class RoutingError(RuntimeError):
+    pass
+
+
+def markdown_links(text: str) -> list[str]:
+    return [match.group(1).strip() for match in LINK_PATTERN.finditer(text)]
+
+
+def closing_bracket(text: str, open_bracket: int) -> int:
+    depth = 0
+    escaped = False
+    pos = open_bracket
+    while pos < len(text):
+        char = text[pos]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return pos
+        pos += 1
+    return -1
+
+
+def balanced_markdown_links(text: str) -> list[str]:
+    targets: list[str] = []
+    index = 0
+    while index < len(text):
+        open_label = text.find("[", index)
+        if open_label == -1:
+            break
+        preceding_backslashes = 0
+        pos = open_label - 1
+        while pos >= 0 and text[pos] == "\\":
+            preceding_backslashes += 1
+            pos -= 1
+        if preceding_backslashes % 2 == 1:
+            index = open_label + 1
+            continue
+        close_label = closing_bracket(text, open_label)
+        if close_label == -1 or close_label + 1 >= len(text) or text[close_label + 1] != "(":
+            index = open_label + 1
+            continue
+
+        open_dest = close_label + 2
+        pos = open_dest
+        depth = 0
+        escaped = False
+        while pos < len(text):
+            char = text[pos]
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                if depth == 0:
+                    targets.append(text[open_dest:pos].strip())
+                    break
+                depth -= 1
+            pos += 1
+        index = pos + 1 if pos < len(text) else open_label + 1
+    return targets
+
+
+def publication_link_targets(text: str) -> list[str]:
+    targets = [html.unescape(target) for target in balanced_markdown_links(text)]
+    targets.extend(html.unescape(match.group(1).strip()) for match in REFERENCE_LINK_PATTERN.finditer(text))
+    targets.extend(html.unescape(match.group(1).strip()) for match in AUTOLINK_PATTERN.finditer(text))
+    targets.extend(
+        html.unescape(next(group for group in match.groups() if group is not None).strip())
+        for match in HTML_HREF_PATTERN.finditer(text)
+    )
+    targets.extend(html.unescape(match.group(0).strip()) for match in BARE_URL_PATTERN.finditer(text))
+    targets.extend(html.unescape(match.group(0).strip()) for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
+    return targets
+
+
+def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
+    text = re.sub(r"(?s)<!--.*?-->", "", text)
+    rendered_lines: list[str] = []
+    fence_marker = ""
+    for line in text.splitlines():
+        fence_match = re.match(r"^ {0,3}(```+|~~~+)", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence_marker:
+                if marker.startswith(fence_marker[0]):
+                    fence_marker = ""
+            else:
+                fence_marker = marker
+            continue
+        if fence_marker:
+            continue
+        if re.match(r"^(?: {4}|\t)", line):
+            continue
+        rendered_lines.append(line)
+    text = "\n".join(rendered_lines)
+    if keep_inline_code:
+        text = re.sub(r"`((?:\\.|[^`\\])*)`", r"\1", text)
+    else:
+        text = re.sub(r"`(?:\\.|[^`\\])*`", "", text)
+    return text
+
+
+def markdown_destination(target: str) -> str:
+    target = target.strip()
+    if target.startswith("<"):
+        end = target.find(">")
+        if end != -1:
+            return target[: end + 1]
+    return target.split(None, 1)[0] if target else target
+
+
+def unwrap_link_target(target: str) -> str:
+    target = markdown_destination(target)
+    if target.startswith("<") and target.endswith(">"):
+        return target[1:-1].strip()
+    return target
+
+
+def unescape_markdown_destination(target: str) -> str:
+    return re.sub(r"""\\([!"#$%&'()*+,./:;<=>?@\[\\\]^_`{|}~-])""", r"\1", unwrap_link_target(target))
+
+
+def strip_fragment_and_query(target: str) -> str:
+    return unquote(re.split(r"[#?]", unescape_markdown_destination(target), maxsplit=1)[0])
+
+
+def fragment(target: str) -> str:
+    parts = unescape_markdown_destination(target).split("#", 1)
+    return parts[1] if len(parts) == 2 else ""
+
+
+def is_external(target: str) -> bool:
+    normalized = unescape_markdown_destination(target).lower()
+    return normalized.startswith("//") or re.match(r"^[a-z][a-z0-9+.-]*:", normalized) is not None
+
+
+def is_forbidden_external_target(target: str) -> bool:
+    normalized = unquote(unescape_markdown_destination(target))
+    return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
+
+
+def markdown_heading_fragment(heading: str) -> str:
+    heading = re.sub(r"`([^`]*)`", r"\1", heading.strip().lower())
+    heading = re.sub(r"[^a-z0-9 _-]", "", heading)
+    heading = re.sub(r"\s+", "-", heading)
+    return heading
+
+
+def markdown_heading_fragments(text: str) -> set[str]:
+    fragments = set()
+    for line in text.splitlines():
+        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if match:
+            fragments.add(markdown_heading_fragment(match.group(1)))
+    return fragments
+
+
+def validate_target_exists(root: Path, source: Path, target: str) -> None:
+    if is_external(target):
+        return
+
+    path_part = strip_fragment_and_query(target)
+    if not path_part:
+        return
+
+    resolved = (source.parent / path_part).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise RoutingError(f"{source.relative_to(root)} link escapes repository: {target}") from exc
+
+    if not resolved.exists():
+        raise RoutingError(f"{source.relative_to(root)} links to missing API route target: {target}")
+
+    target_fragment = fragment(target)
+    if target_fragment and resolved.is_file():
+        fragments = markdown_heading_fragments(
+            rendered_markdown_text(resolved.read_text(encoding="utf-8"))
+        )
+        if target_fragment not in fragments:
+            raise RoutingError(f"{source.relative_to(root)} links to missing API route fragment: {target}")
+
+
+def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
+    links = {
+        unescape_markdown_destination(target)
+        for target in balanced_markdown_links(rendered_markdown_text(text))
+    }
+    missing = [target for target in REQUIRED_ROUTES[rel_path] if target not in links]
+    if missing:
+        joined = ", ".join(missing)
+        raise RoutingError(f"{rel_path} missing required API route link(s): {joined}")
+
+    for target in REQUIRED_ROUTES[rel_path]:
+        validate_target_exists(root, path, target)
+
+    rendered_text = rendered_markdown_text(text, keep_inline_code=True)
+    for needle in REQUIRED_TEXT[rel_path]:
+        rendered_needle = rendered_markdown_text(needle, keep_inline_code=True)
+        if rendered_needle not in rendered_text:
+            raise RoutingError(f"{rel_path} missing required local-only API routing text: {needle}")
+
+
+def normalized_local_target(root: Path, source: Path, target: str) -> str:
+    path_part = strip_fragment_and_query(target)
+    if not path_part:
+        return ""
+
+    if path_part.startswith("/"):
+        resolved = (root / path_part.lstrip("/")).resolve()
+    else:
+        resolved = (source.parent / path_part).resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RoutingError(f"{source.relative_to(root)} link escapes repository: {target}") from exc
+
+
+def is_generated_api_path(rel_target: str) -> bool:
+    return rel_target == GENERATED_API_PATH or rel_target.startswith(f"{GENERATED_API_PATH}/")
+
+
+def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
+    for target in publication_link_targets(text):
+        if is_external(target):
+            if is_forbidden_external_target(target):
+                raise RoutingError(
+                    f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
+                )
+            continue
+
+        rel_target = normalized_local_target(root, source, target)
+        if is_generated_api_path(rel_target):
+            raise RoutingError(
+                f"{rel_path} links to unsupported generated or hosted API publication target: {target}"
+            )
+
+
+def validate_makefile_wiring(root: Path) -> None:
+    makefile = root / "Makefile"
+    if not makefile.is_file():
+        raise RoutingError("Makefile is missing; cannot verify api-docs-routing wiring")
+
+    text = makefile.read_text(encoding="utf-8")
+    if not MAKEFILE_ROUTING_TARGET.search(text):
+        raise RoutingError("Makefile must define api-docs-routing with the routing guard and regression suite")
+    if not MAKEFILE_VALIDATE_DEP.search(text):
+        raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
+    if not MAKEFILE_FRESHNESS_DEP.search(text):
+        raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
+    if not MAKEFILE_DOCS_CHECK_SERIAL.search(text):
+        raise RoutingError("Makefile docs-check must serialize docs before api-docs-coverage")
+
+    validate_line = next(
+        (line for line in text.splitlines() if line.startswith("api-docs-validate:")),
+        "",
+    )
+    validate_prereqs = set(validate_line.split(":", 1)[1].split())
+    missing = [prereq for prereq in MAKEFILE_REQUIRED_VALIDATE_PREREQS if prereq not in validate_prereqs]
+    if missing:
+        joined = ", ".join(missing)
+        raise RoutingError(f"Makefile api-docs-validate missing required prerequisite(s): {joined}")
+
+
+def validate_api_routes(root: Path) -> None:
+    for rel_path in API_ROUTING_FILES:
+        path = root / rel_path
+        if not path.is_file():
+            raise RoutingError(f"required API routing document missing: {rel_path}")
+
+        text = path.read_text(encoding="utf-8")
+        validate_required_routes(root, rel_path, path, text)
+        validate_no_forbidden_links(root, rel_path, path, text)
+
+    validate_makefile_wiring(root)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Validate local-only generated API routing docs.")
+    parser.add_argument("--root", type=Path, default=REPO_ROOT, help="repository root")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    root = args.root.resolve()
+    try:
+        validate_api_routes(root)
+    except RoutingError as exc:
+        print(f"api-docs-routing: FAIL: {exc}", file=sys.stderr)
+        return 1
+
+    print("api-docs-routing: PASS")
+    print(f"  checked routing documents: {len(API_ROUTING_FILES)}")
+    print("  Makefile api-docs-routing wiring: present")
+    print("  generated API publication links: absent")
+    print("  source-controlled API entry point: docs/api_reference.md")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

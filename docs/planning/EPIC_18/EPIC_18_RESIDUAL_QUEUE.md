@@ -118,12 +118,12 @@ as support promotion.
 | --- | --- |
 | Theme | Generated API publication policy. |
 | Source | Epic 18 Sprint 204 plan; Sprint 197 Day 5 and Day 7 generated API audits. |
-| Current status | Pending future execution; generated API remains local-only. |
+| Current status | Closed by Sprint 204 as a stronger local-only generated API policy; hosted publication, retained generated-doc artifacts, and committed generated HTML remain unclaimed residual options. |
 | Owner surfaces | `docs/api_reference.md`; `docs/maintainer_guide.md`; `Doxyfile`; generated API ignore rules; docs/API freshness scripts; README; INSTALL; workflows if publication is added. |
-| Why it remains | This branch does not decide hosted publication, retained artifact publication, committed generated output, or stronger local-only policy beyond existing guards. |
-| Closure target | Make a product decision, implement matching publication or local-only guards, update routing docs, and validate freshness/link/staging behavior. |
-| Expected evidence | Decision record; implemented guard/workflow/link behavior; `make api-docs-freshness` passes; generated output policy is reflected consistently in user and maintainer docs. |
-| Validation commands | `make docs-check`; `make api-docs-freshness`; link/publication checks if added; workflow checks if hosted or artifact publication is added; full C gate if headers change. |
+| Why it remains | Sprint 204 selected the stronger local-only path and implemented generated-page freshness, local-only staging, workflow non-publication, API routing, and Makefile wiring guards. The remaining residual is any future decision to replace that local-only policy with hosted publication, retained artifacts, or committed generated HTML. |
+| Closure target | Reopen only if a future sprint deliberately selects hosted publication, retained artifact publication, or committed generated output and implements matching freshness, link, staging, workflow, retention, and claim-boundary evidence. |
+| Expected evidence | Current local-only closure evidence is `SPRINT_204/RETROSPECTIVE.md`, `SPRINT_204/artifacts/day14-closeout-review.md`, and passing `make api-docs-freshness`; future publication evidence would need new workflow/link/retention proof before claims change. |
+| Validation commands | Current closure: `make docs-check`; `make api-docs-freshness`; `python3 tests/test_api_docs_coverage.py`; `python3 tests/test_api_docs_local_only_guard.py`; `python3 tests/test_api_docs_routing.py`. Future hosted or artifact publication also needs workflow publication checks and hosted evidence review; full C gate if headers change. |
 | Claim boundary | Do not claim hosted API docs, artifact-published generated HTML, committed generated HTML, ABI completeness, package support, or release evidence unless the selected policy explicitly proves it. |
 
 ## Priority 8: E18-RQ-008

@@ -91,7 +91,10 @@ require_workflows_do_not_reference() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            grep -F -n "$needle" "$workflow_file" || true
+            sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file" |
+                tr '\\' '/' |
+                tr '[:upper:]' '[:lower:]' |
+                grep -F -n "$needle" || true
         done
     )"
     if [ -n "$matches" ]; then
@@ -117,7 +120,10 @@ require_workflows_do_not_match() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            grep -E -n "$pattern" "$workflow_file" || true
+            sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file" |
+                tr '\\' '/' |
+                tr '[:upper:]' '[:lower:]' |
+                grep -E -n "$pattern" || true
         done
     )"
     if [ -n "$matches" ]; then
@@ -153,7 +159,7 @@ check_no_workflow_publication_semantics() {
         return
     fi
 
-    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|uses:[[:space:]]*[^[:space:]]*(publish|deploy|pages|upload|release)[^[:space:]]*"
+    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|uses:[[:space:]]*[^[:space:]]+@"
     command_publication_regex="aws[[:space:]]+s3[[:space:]]+(sync|cp)|gsutil[[:space:]]+(-m[[:space:]]+)?(rsync|cp)|az[[:space:]]+storage[[:space:]]+blob[[:space:]]+upload|netlify[[:space:]]+deploy|vercel[[:space:]]+deploy|firebase[[:space:]]+deploy|wrangler[[:space:]]+pages[[:space:]]+deploy|surge[[:space:]]|rsync[[:space:]].*:[^[:space:]]*|scp[[:space:]].*:[^[:space:]]*"
     generated_path_regex="docs/api(/|$)|docs/api/html"
     broad_path_regex='^[[:space:]]*(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
@@ -201,7 +207,7 @@ check_no_workflow_publication_semantics() {
             printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$normalized_text" | grep -Eq 'path:[[:space:]]*[|>]' &&
+        if printf '%s\n' "$normalized_text" | grep -Eq '(path|publish_dir|publish-dir|directory|folder|files|asset_path):[[:space:]]*[|>]' &&
             printf '%s\n' "$normalized_text" | grep -Eq "$broad_block_path_regex" &&
             printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"

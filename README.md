@@ -340,8 +340,9 @@ make clean      # remove build artifacts
 ```
 
 For API documentation, the supported source-controlled entry point is
-`docs/api_reference.md` backed by public headers under `include/`. Sprint 179
-keeps generated Doxygen HTML as a local-only convenience view: run
+`docs/api_reference.md` backed by public headers under `include/`.
+API reference entry point: docs/api_reference.md. Sprint 179 keeps generated
+Doxygen HTML as a local-only convenience view: run
 `make api-docs-freshness` immediately before inspecting `docs/api/html/`.
 Generated API HTML is not hosted documentation, a retained CI artifact,
 source-controlled output, or release evidence. The freshness command also

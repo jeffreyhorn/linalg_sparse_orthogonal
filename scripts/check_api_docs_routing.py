@@ -43,7 +43,7 @@ MAKEFILE_FRESHNESS_DEP = re.compile(
     r"(?m)^api-docs-freshness:[^\n]*[ \t]api-docs-validate([ \t]|$)"
 )
 MAKEFILE_DOCS_CHECK_SERIAL = re.compile(
-    r"(?m)^docs-check:[^\n]*[ \t]docs([ \t]|$)\n"
+    r"(?m)^docs-check:[ \t]*docs[ \t]*\n"
     r"\t@[$][(]MAKE[)] api-docs-coverage$"
 )
 
@@ -142,6 +142,14 @@ def balanced_markdown_links(text: str) -> list[str]:
         open_label = text.find("[", index)
         if open_label == -1:
             break
+        preceding_backslashes = 0
+        pos = open_label - 1
+        while pos >= 0 and text[pos] == "\\":
+            preceding_backslashes += 1
+            pos -= 1
+        if preceding_backslashes % 2 == 1:
+            index = open_label + 1
+            continue
         close_label = closing_bracket(text, open_label)
         if close_label == -1 or close_label + 1 >= len(text) or text[close_label + 1] != "(":
             index = open_label + 1
@@ -182,11 +190,30 @@ def publication_link_targets(text: str) -> list[str]:
     return targets
 
 
-def rendered_markdown_text(text: str) -> str:
+def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
     text = re.sub(r"(?s)<!--.*?-->", "", text)
-    text = re.sub(r"(?ms)^```.*?^```[ \t]*$", "", text)
-    text = re.sub(r"(?ms)^~~~.*?^~~~[ \t]*$", "", text)
-    text = re.sub(r"(?m)^(?: {4}|\t).*$", "", text)
+    rendered_lines: list[str] = []
+    fence_marker = ""
+    for line in text.splitlines():
+        fence_match = re.match(r"^ {0,3}(```+|~~~+)", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence_marker:
+                if marker.startswith(fence_marker[0]):
+                    fence_marker = ""
+            else:
+                fence_marker = marker
+            continue
+        if fence_marker:
+            continue
+        if re.match(r"^(?: {4}|\t)", line):
+            continue
+        rendered_lines.append(line)
+    text = "\n".join(rendered_lines)
+    if keep_inline_code:
+        text = re.sub(r"`((?:\\.|[^`\\])*)`", r"\1", text)
+    else:
+        text = re.sub(r"`(?:\\.|[^`\\])*`", "", text)
     return text
 
 
@@ -264,7 +291,9 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 
     target_fragment = fragment(target)
     if target_fragment and resolved.is_file():
-        fragments = markdown_heading_fragments(resolved.read_text(encoding="utf-8"))
+        fragments = markdown_heading_fragments(
+            rendered_markdown_text(resolved.read_text(encoding="utf-8"))
+        )
         if target_fragment not in fragments:
             raise RoutingError(f"{source.relative_to(root)} links to missing API route fragment: {target}")
 
@@ -282,8 +311,10 @@ def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -
     for target in REQUIRED_ROUTES[rel_path]:
         validate_target_exists(root, path, target)
 
+    rendered_text = rendered_markdown_text(text, keep_inline_code=True)
     for needle in REQUIRED_TEXT[rel_path]:
-        if needle not in text:
+        rendered_needle = rendered_markdown_text(needle, keep_inline_code=True)
+        if rendered_needle not in rendered_text:
             raise RoutingError(f"{rel_path} missing required local-only API routing text: {needle}")
 
 

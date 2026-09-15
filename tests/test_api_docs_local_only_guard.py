@@ -223,6 +223,22 @@ def test_workflow_windows_generated_api_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
 
 
+def test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: windows-latest\n"
+            "    steps:\n"
+            "      - run: Test-Path .\\Docs\\Api\\Html\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API output root")
+
+
 def test_workflow_broad_docs_artifact_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -311,9 +327,29 @@ def test_workflow_unknown_publisher_broad_docs_path_fails_closed() -> None:
             "    runs-on: ubuntu-latest\n"
             "    steps:\n"
             "      - run: make api-docs-freshness\n"
-            "      - uses: acme/publish-docs@v1\n"
+            "      - uses: acme/action@v1\n"
             "        with:\n"
             "          path: docs/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_publish_dir_block_docs_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: peaceiris/actions-gh-pages@v4\n"
+            "        with:\n"
+            "          publish_dir: |\n"
+            "            ./docs/\n",
             encoding="utf-8",
         )
 
@@ -960,11 +996,13 @@ def main() -> None:
     test_workflow_relative_generated_api_root_path_fails_clearly()
     test_workflow_publication_semantics_fail_clearly()
     test_workflow_windows_generated_api_artifact_path_fails_clearly()
+    test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly()
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_windows_broad_docs_artifact_path_fails_clearly()
     test_workflow_uppercase_windows_broad_docs_artifact_path_fails_clearly()
     test_workflow_flow_mapping_docs_artifact_path_fails_clearly()
     test_workflow_unknown_publisher_broad_docs_path_fails_closed()
+    test_workflow_publish_dir_block_docs_path_fails_clearly()
     test_workflow_release_asset_broad_docs_files_fails_closed()
     test_workflow_release_asset_path_broad_docs_fails_closed()
     test_workflow_broad_relative_docs_artifact_path_fails_clearly()

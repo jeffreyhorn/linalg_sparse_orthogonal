@@ -98,6 +98,21 @@ def test_required_route_in_fenced_code_does_not_satisfy_contract() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_in_indented_fenced_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n   ```md\n[docs/api_reference.md](docs/api_reference.md)\n   ```\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_indented_code_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -122,6 +137,34 @@ def test_required_route_in_html_comment_does_not_satisfy_contract() -> None:
                 "`docs/api_reference.md`",
             )
             + "\n<!-- [docs/api_reference.md](docs/api_reference.md) -->\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_required_route_in_inline_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`[docs/api_reference.md](docs/api_reference.md)`",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_escaped_required_route_label_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "\\[docs/api_reference.md](docs/api_reference.md)",
+            ),
             encoding="utf-8",
         )
 
@@ -719,6 +762,20 @@ def test_missing_route_fragment_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "links to missing API route fragment")
 
 
+def test_route_fragment_in_fenced_heading_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "INSTALL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "## Support Readiness Matrix",
+                "## Support Matrix\n\n```md\n## Support Readiness Matrix\n```\n",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "links to missing API route fragment")
+
+
 def test_missing_local_only_text_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -726,6 +783,21 @@ def test_missing_local_only_text_fails_clearly() -> None:
             path.read_text(encoding="utf-8").replace(
                 "The generated HTML tree is local-only generated output.",
                 "The generated HTML tree is available.",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_hidden_local_only_text_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "The generated HTML tree is local-only generated output.",
+                "The generated HTML tree is available.\n\n"
+                "```md\nThe generated HTML tree is local-only generated output.\n```\n",
             ),
             encoding="utf-8",
         )
@@ -879,8 +951,11 @@ def main() -> None:
     test_fixture_passes_routing_guard()
     test_missing_api_reference_route_fails_clearly()
     test_required_route_in_fenced_code_does_not_satisfy_contract()
+    test_required_route_in_indented_fenced_code_does_not_satisfy_contract()
     test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
+    test_required_route_in_inline_code_does_not_satisfy_contract()
+    test_escaped_required_route_label_does_not_satisfy_contract()
     test_angle_wrapped_required_route_with_title_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
@@ -930,7 +1005,9 @@ def main() -> None:
     test_root_relative_generated_html_link_fails_after_resolution()
     test_escaping_local_generated_html_link_fails_clearly()
     test_missing_route_fragment_fails_clearly()
+    test_route_fragment_in_fenced_heading_does_not_satisfy_contract()
     test_missing_local_only_text_fails_clearly()
+    test_hidden_local_only_text_does_not_satisfy_contract()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()
     test_missing_makefile_docs_check_dependency_fails_clearly()

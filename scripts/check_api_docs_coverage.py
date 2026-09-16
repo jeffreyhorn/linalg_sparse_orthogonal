@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+EXCLUDED_GENERATED_HEADERS = {"sparse_version.h"}
 
 
 class CoverageError(RuntimeError):
@@ -33,7 +34,11 @@ def checked_in_headers(include_dir: Path) -> list[Path]:
     if not include_dir.is_dir():
         raise CoverageError(f"include directory not found: {include_dir}")
 
-    headers = sorted(path for path in include_dir.glob("*.h") if path.is_file())
+    headers = sorted(
+        path
+        for path in include_dir.glob("*.h")
+        if path.is_file() and path.name not in EXCLUDED_GENERATED_HEADERS
+    )
     if not headers:
         raise CoverageError(f"no checked-in public headers found under {include_dir}")
     return headers

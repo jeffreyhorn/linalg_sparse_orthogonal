@@ -7,6 +7,7 @@ import argparse
 import html
 import re
 import sys
+from html.parser import HTMLParser
 from urllib.parse import unquote
 from pathlib import Path
 
@@ -15,9 +16,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
 AUTOLINK_PATTERN = re.compile(r"<((?:[a-z][a-z0-9+.-]*:|//)[^>\s]+)>", re.IGNORECASE)
-HTML_HREF_PATTERN = re.compile(
-    r"""<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNORECASE
-)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<![:/])//[^\s<>)"']+""")
 
@@ -92,7 +90,7 @@ REQUIRED_TEXT = {
         "`make api-docs-freshness` runs `docs-check` plus the local-only generated",
         "`api-docs-routing` proves user-facing docs route API readers",
         "source-controlled reference path is `docs/api_reference.md` plus checked-in",
-        "retained generated-doc artifacts",
+        "hosted documentation publication, retained generated-doc artifacts,",
         "removes `api-docs-routing` from `make api-docs-freshness` without replacing",
     ),
 }
@@ -109,6 +107,19 @@ MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-
 
 class RoutingError(RuntimeError):
     pass
+
+
+class AnchorHrefParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a":
+            return
+        for name, value in attrs:
+            if name.lower() == "href" and value is not None:
+                self.hrefs.append(value.strip())
 
 
 def markdown_links(text: str) -> list[str]:
@@ -181,13 +192,37 @@ def publication_link_targets(text: str) -> list[str]:
     targets = [html.unescape(target) for target in balanced_markdown_links(text)]
     targets.extend(html.unescape(match.group(1).strip()) for match in REFERENCE_LINK_PATTERN.finditer(text))
     targets.extend(html.unescape(match.group(1).strip()) for match in AUTOLINK_PATTERN.finditer(text))
-    targets.extend(
-        html.unescape(next(group for group in match.groups() if group is not None).strip())
-        for match in HTML_HREF_PATTERN.finditer(text)
-    )
+    parser = AnchorHrefParser()
+    parser.feed(text)
+    targets.extend(parser.hrefs)
     targets.extend(html.unescape(match.group(0).strip()) for match in BARE_URL_PATTERN.finditer(text))
     targets.extend(html.unescape(match.group(0).strip()) for match in PROTOCOL_RELATIVE_URL_PATTERN.finditer(text))
     return targets
+
+
+def render_code_spans(text: str, *, keep_inline_code: bool) -> str:
+    rendered: list[str] = []
+    index = 0
+    while index < len(text):
+        if text[index] != "`":
+            rendered.append(text[index])
+            index += 1
+            continue
+
+        end = index + 1
+        while end < len(text) and text[end] == "`":
+            end += 1
+        delimiter = text[index:end]
+        close = text.find(delimiter, end)
+        if close == -1:
+            rendered.append(delimiter)
+            index = end
+            continue
+
+        if keep_inline_code:
+            rendered.append(text[end:close])
+        index = close + len(delimiter)
+    return "".join(rendered)
 
 
 def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
@@ -198,8 +233,13 @@ def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
         fence_match = re.match(r"^ {0,3}(```+|~~~+)", line)
         if fence_match:
             marker = fence_match.group(1)
+            rest = line[fence_match.end() :]
             if fence_marker:
-                if marker[0] == fence_marker[0] and len(marker) >= len(fence_marker):
+                if (
+                    marker[0] == fence_marker[0]
+                    and len(marker) >= len(fence_marker)
+                    and rest.strip() == ""
+                ):
                     fence_marker = ""
             else:
                 fence_marker = marker
@@ -210,11 +250,11 @@ def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
             continue
         rendered_lines.append(line)
     text = "\n".join(rendered_lines)
-    if keep_inline_code:
-        text = re.sub(r"`((?:\\.|[^`\\])*)`", r"\1", text)
-    else:
-        text = re.sub(r"`(?:\\.|[^`\\])*`", "", text)
-    return text
+    return render_code_spans(text, keep_inline_code=keep_inline_code)
+
+
+def normalized_required_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def markdown_destination(target: str) -> str:
@@ -311,9 +351,9 @@ def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -
     for target in REQUIRED_ROUTES[rel_path]:
         validate_target_exists(root, path, target)
 
-    rendered_text = rendered_markdown_text(text, keep_inline_code=True)
+    rendered_text = normalized_required_text(rendered_markdown_text(text, keep_inline_code=True))
     for needle in REQUIRED_TEXT[rel_path]:
-        rendered_needle = rendered_markdown_text(needle, keep_inline_code=True)
+        rendered_needle = normalized_required_text(rendered_markdown_text(needle, keep_inline_code=True))
         if rendered_needle not in rendered_text:
             raise RoutingError(f"{rel_path} missing required local-only API routing text: {needle}")
 

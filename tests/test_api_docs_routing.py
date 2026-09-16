@@ -128,6 +128,21 @@ def test_required_route_after_shorter_fence_line_stays_hidden() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_after_non_closing_fence_line_stays_hidden() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n```md\n```not-a-closer\n[docs/api_reference.md](docs/api_reference.md)\n```\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_indented_code_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -165,6 +180,20 @@ def test_required_route_in_inline_code_does_not_satisfy_contract() -> None:
             path.read_text(encoding="utf-8").replace(
                 "[docs/api_reference.md](docs/api_reference.md)",
                 "`[docs/api_reference.md](docs/api_reference.md)`",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_required_route_in_double_backtick_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "``[docs/api_reference.md](docs/api_reference.md)``",
             ),
             encoding="utf-8",
         )
@@ -334,6 +363,18 @@ def test_html_href_with_spacing_generated_api_link_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + '\n<a class="api-link" href = "api/html/index.html">Generated HTML</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_html_href_after_quoted_greater_than_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<a title="1 > 0" href="docs/api/html/index.html">Generated HTML</a>\n',
             encoding="utf-8",
         )
 
@@ -834,6 +875,20 @@ def test_missing_maintainer_claim_boundary_text_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "missing required local-only API routing text")
 
 
+def test_positive_retained_generated_artifact_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "maintainer_guide.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "documentation publication, retained generated-doc artifacts,",
+                "retained generated-doc artifacts are supported outputs,",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
 def test_missing_makefile_routing_dependency_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -968,9 +1023,11 @@ def main() -> None:
     test_required_route_in_fenced_code_does_not_satisfy_contract()
     test_required_route_in_indented_fenced_code_does_not_satisfy_contract()
     test_required_route_after_shorter_fence_line_stays_hidden()
+    test_required_route_after_non_closing_fence_line_stays_hidden()
     test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
     test_required_route_in_inline_code_does_not_satisfy_contract()
+    test_required_route_in_double_backtick_code_does_not_satisfy_contract()
     test_escaped_required_route_label_does_not_satisfy_contract()
     test_angle_wrapped_required_route_with_title_is_allowed()
     test_missing_route_target_fails_clearly()
@@ -985,6 +1042,7 @@ def main() -> None:
     test_generic_uri_autolink_hosted_api_link_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
+    test_html_href_after_quoted_greater_than_generated_api_link_fails_clearly()
     test_unquoted_html_href_generated_api_link_fails_clearly()
     test_html_entity_href_generated_api_link_fails_clearly()
     test_markdown_entity_generated_api_link_fails_clearly()
@@ -1025,6 +1083,7 @@ def main() -> None:
     test_missing_local_only_text_fails_clearly()
     test_hidden_local_only_text_does_not_satisfy_contract()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
+    test_positive_retained_generated_artifact_claim_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()
     test_missing_makefile_docs_check_dependency_fails_clearly()
     test_missing_makefile_local_only_dependency_fails_clearly()

@@ -31,6 +31,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
 
     write_file(include_dir / "sparse_matrix.h", "int sparse_matrix_symbol(void);\n")
     write_file(include_dir / "sparse_vector.h", "int sparse_vector_symbol(void);\n")
+    write_file(include_dir / "sparse_version.h", "#define SPARSE_VERSION \"2.2.0\"\n")
     write_file(include_dir / "sparse_version.h.in", "#define SPARSE_VERSION \"@PROJECT_VERSION@\"\n")
     write_file(html_dir / "index.html", "<!doctype html>\n")
 

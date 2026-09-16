@@ -430,6 +430,25 @@ def test_workflow_unknown_publisher_broad_docs_path_fails_closed() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_docker_action_broad_docs_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: docker://publisher\n"
+            "        with:\n"
+            "          path: docs/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_publish_dir_block_docs_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -641,6 +660,27 @@ def test_workflow_dynamic_block_artifact_path_fails_closed() -> None:
             "          name: generated-api-html\n"
             "          path: |\n"
             "            ${{ env.DOCS_PATH }}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
+def test_workflow_quoted_dynamic_block_artifact_path_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: |\n"
+            "            \"${{ env.DOCS_PATH }}\"\n",
             encoding="utf-8",
         )
 
@@ -1159,6 +1199,7 @@ def main() -> None:
     test_workflow_local_action_broad_docs_path_fails_closed()
     test_workflow_quoted_local_action_broad_docs_path_fails_closed()
     test_workflow_unknown_publisher_broad_docs_path_fails_closed()
+    test_workflow_docker_action_broad_docs_path_fails_closed()
     test_workflow_publish_dir_block_docs_path_fails_clearly()
     test_workflow_release_asset_broad_docs_files_fails_closed()
     test_workflow_release_asset_path_broad_docs_fails_closed()
@@ -1170,6 +1211,7 @@ def main() -> None:
     test_workflow_embedded_expression_artifact_path_fails_closed()
     test_workflow_dynamic_flow_mapping_artifact_path_fails_closed()
     test_workflow_dynamic_block_artifact_path_fails_closed()
+    test_workflow_quoted_dynamic_block_artifact_path_fails_closed()
     test_workflow_dynamic_release_files_path_fails_closed()
     test_workflow_dynamic_release_asset_path_fails_closed()
     test_workflow_dynamic_command_publication_path_fails_closed()

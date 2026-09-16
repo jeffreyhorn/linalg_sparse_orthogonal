@@ -303,7 +303,7 @@ def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
             continue
         if fence_marker:
             continue
-        if re.match(r"^(?: {4}|\t)", line):
+        if re.match(r"^(?: {4}|\t)", fence_line):
             continue
         rendered_lines.append(line)
     text = "\n".join(rendered_lines)

@@ -159,7 +159,7 @@ check_no_workflow_publication_semantics() {
         return
     fi
 
-    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|uses:[[:space:]]*['\"]?([^[:space:]'\"]+@|[.]/)"
+    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|uses:[[:space:]]*['\"]?([^[:space:]'\"]+@|[.]/|docker://)"
     command_publication_regex="aws[[:space:]]+s3[[:space:]]+(sync|cp)|gsutil[[:space:]]+(-m[[:space:]]+)?(rsync|cp)|az[[:space:]]+storage[[:space:]]+blob[[:space:]]+upload|netlify[[:space:]]+deploy|vercel[[:space:]]+deploy|firebase[[:space:]]+deploy|wrangler[[:space:]]+pages[[:space:]]+deploy|surge[[:space:]]|gh[[:space:]]+release[[:space:]]+upload|rsync[[:space:]].*:[^[:space:]]*|scp[[:space:]].*:[^[:space:]]*"
     generated_path_regex="docs/api(/|$)|docs/api/html"
     broad_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
@@ -192,7 +192,7 @@ check_no_workflow_publication_semantics() {
                         line_indent = match($0, /[^ ]/) - 1
                         if (line_indent <= block_indent) {
                             in_path_block = 0
-                        } else if ($0 ~ /^[[:space:]]*([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])/) {
+                        } else if ($0 ~ /^[[:space:]]*["'"'"']?([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])/) {
                             print
                         }
                     }

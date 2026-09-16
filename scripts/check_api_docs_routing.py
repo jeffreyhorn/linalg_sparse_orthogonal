@@ -193,7 +193,11 @@ def reference_label_key(label: str) -> str:
 
 def balanced_reference_definitions(text: str) -> dict[str, str]:
     definitions: dict[str, str] = {}
-    for line in text.splitlines():
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
         if not re.match(r"^ {0,3}\[", line):
             continue
         indent = len(line) - len(line.lstrip(" "))
@@ -202,6 +206,9 @@ def balanced_reference_definitions(text: str) -> dict[str, str]:
         if close_label == -1 or close_label + 1 >= len(line) or line[close_label + 1] != ":":
             continue
         target = line[close_label + 2 :].strip()
+        if not target and index < len(lines) and re.match(r"^(?: {1,}|\t)\S", lines[index]):
+            target = lines[index].strip()
+            index += 1
         if not target:
             continue
         definitions[reference_label_key(line[open_label + 1 : close_label])] = target
@@ -279,10 +286,11 @@ def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
     rendered_lines: list[str] = []
     fence_marker = ""
     for line in text.splitlines():
-        fence_match = re.match(r"^ {0,3}(```+|~~~+)", line)
+        fence_line = re.sub(r"^ {0,3}(?:>[ \t]?)+", "", line)
+        fence_match = re.match(r"^ {0,3}(```+|~~~+)", fence_line)
         if fence_match:
             marker = fence_match.group(1)
-            rest = line[fence_match.end() :]
+            rest = fence_line[fence_match.end() :]
             if fence_marker:
                 if (
                     marker[0] == fence_marker[0]

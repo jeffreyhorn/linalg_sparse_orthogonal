@@ -143,6 +143,21 @@ def test_required_route_after_non_closing_fence_line_stays_hidden() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_in_blockquoted_fenced_code_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n> ```md\n> [docs/api_reference.md](docs/api_reference.md)\n> ```\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_indented_code_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -714,6 +729,17 @@ def test_indented_reference_generated_api_publication_link_fails_clearly() -> No
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_multiline_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8") + "\n[API HTML]:\n  ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_generated_api_fragment_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -1062,6 +1088,7 @@ def main() -> None:
     test_required_route_in_indented_fenced_code_does_not_satisfy_contract()
     test_required_route_after_shorter_fence_line_stays_hidden()
     test_required_route_after_non_closing_fence_line_stays_hidden()
+    test_required_route_in_blockquoted_fenced_code_does_not_satisfy_contract()
     test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
     test_required_route_in_inline_code_does_not_satisfy_contract()
@@ -1108,6 +1135,7 @@ def main() -> None:
     test_angle_wrapped_inline_generated_api_link_with_title_fails_clearly()
     test_angle_wrapped_reference_generated_api_link_fails_clearly()
     test_indented_reference_generated_api_publication_link_fails_clearly()
+    test_multiline_reference_generated_api_publication_link_fails_clearly()
     test_generated_api_fragment_link_fails_clearly()
     test_generated_api_query_link_fails_clearly()
     test_relative_generated_html_link_fails_after_resolution()

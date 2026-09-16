@@ -230,6 +230,21 @@ def test_angle_wrapped_required_route_with_title_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_reference_style_required_route_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "[API reference][api-ref]\n\n[api-ref]: docs/api_reference.md",
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_missing_route_target_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "docs" / "solver_selection.md").unlink()
@@ -640,6 +655,18 @@ def test_reference_generated_api_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_nested_label_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[generated [API]]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_angle_wrapped_inline_generated_api_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -716,6 +743,17 @@ def test_relative_generated_html_link_fails_after_resolution() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Generated HTML](api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_case_variant_generated_html_link_fails_after_resolution() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8") + "\n[Generated HTML](api/HTML/index.html)\n",
             encoding="utf-8",
         )
 
@@ -1030,6 +1068,7 @@ def main() -> None:
     test_required_route_in_double_backtick_code_does_not_satisfy_contract()
     test_escaped_required_route_label_does_not_satisfy_contract()
     test_angle_wrapped_required_route_with_title_is_allowed()
+    test_reference_style_required_route_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_nested_label_generated_html_link_fails_clearly()
@@ -1064,6 +1103,7 @@ def main() -> None:
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
+    test_nested_label_reference_generated_api_publication_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_with_title_fails_clearly()
     test_angle_wrapped_reference_generated_api_link_fails_clearly()
@@ -1071,6 +1111,7 @@ def main() -> None:
     test_generated_api_fragment_link_fails_clearly()
     test_generated_api_query_link_fails_clearly()
     test_relative_generated_html_link_fails_after_resolution()
+    test_case_variant_generated_html_link_fails_after_resolution()
     test_linked_tutorial_generated_html_link_fails_clearly()
     test_linked_cookbook_hosted_api_link_fails_clearly()
     test_linked_solver_selection_generated_html_link_fails_clearly()

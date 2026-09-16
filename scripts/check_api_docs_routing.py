@@ -14,7 +14,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-REFERENCE_LINK_PATTERN = re.compile(r"(?m)^ {0,3}\[[^\]]+\]:\s+(\S+)")
 AUTOLINK_PATTERN = re.compile(r"<((?:[a-z][a-z0-9+.-]*:|//)[^>\s]+)>", re.IGNORECASE)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<![:/])//[^\s<>)"']+""")
@@ -188,9 +187,59 @@ def balanced_markdown_links(text: str) -> list[str]:
     return targets
 
 
+def reference_label_key(label: str) -> str:
+    return re.sub(r"\s+", " ", label.strip()).casefold()
+
+
+def balanced_reference_definitions(text: str) -> dict[str, str]:
+    definitions: dict[str, str] = {}
+    for line in text.splitlines():
+        if not re.match(r"^ {0,3}\[", line):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        open_label = indent
+        close_label = closing_bracket(line, open_label)
+        if close_label == -1 or close_label + 1 >= len(line) or line[close_label + 1] != ":":
+            continue
+        target = line[close_label + 2 :].strip()
+        if not target:
+            continue
+        definitions[reference_label_key(line[open_label + 1 : close_label])] = target
+    return definitions
+
+
+def balanced_reference_link_targets(text: str, definitions: dict[str, str]) -> list[str]:
+    targets: list[str] = []
+    index = 0
+    while index < len(text):
+        open_label = text.find("[", index)
+        if open_label == -1:
+            break
+        if open_label > 0 and text[open_label - 1] == "\\":
+            index = open_label + 1
+            continue
+        close_label = closing_bracket(text, open_label)
+        if close_label == -1 or close_label + 1 >= len(text) or text[close_label + 1] != "[":
+            index = open_label + 1
+            continue
+        close_ref = closing_bracket(text, close_label + 1)
+        if close_ref == -1:
+            index = open_label + 1
+            continue
+        label = text[open_label + 1 : close_label]
+        ref = text[close_label + 2 : close_ref] or label
+        target = definitions.get(reference_label_key(ref))
+        if target:
+            targets.append(target)
+        index = close_ref + 1
+    return targets
+
+
 def publication_link_targets(text: str) -> list[str]:
+    reference_definitions = balanced_reference_definitions(text)
     targets = [html.unescape(target) for target in balanced_markdown_links(text)]
-    targets.extend(html.unescape(match.group(1).strip()) for match in REFERENCE_LINK_PATTERN.finditer(text))
+    targets.extend(html.unescape(target) for target in reference_definitions.values())
+    targets.extend(html.unescape(target) for target in balanced_reference_link_targets(text, reference_definitions))
     targets.extend(html.unescape(match.group(1).strip()) for match in AUTOLINK_PATTERN.finditer(text))
     parser = AnchorHrefParser()
     parser.feed(text)
@@ -339,9 +388,14 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 
 
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
+    rendered_text_for_links = rendered_markdown_text(text)
+    reference_definitions = balanced_reference_definitions(rendered_text_for_links)
     links = {
         unescape_markdown_destination(target)
-        for target in balanced_markdown_links(rendered_markdown_text(text))
+        for target in (
+            balanced_markdown_links(rendered_text_for_links)
+            + balanced_reference_link_targets(rendered_text_for_links, reference_definitions)
+        )
     }
     missing = [target for target in REQUIRED_ROUTES[rel_path] if target not in links]
     if missing:
@@ -374,7 +428,9 @@ def normalized_local_target(root: Path, source: Path, target: str) -> str:
 
 
 def is_generated_api_path(rel_target: str) -> bool:
-    return rel_target == GENERATED_API_PATH or rel_target.startswith(f"{GENERATED_API_PATH}/")
+    normalized = rel_target.casefold()
+    generated = GENERATED_API_PATH.casefold()
+    return normalized == generated or normalized.startswith(f"{generated}/")
 
 
 def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:

@@ -203,6 +203,21 @@ def test_required_route_in_html_comment_does_not_satisfy_contract() -> None:
     assert_routing_fails_with(mutate, "missing required API route link")
 
 
+def test_required_route_in_raw_html_block_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "`docs/api_reference.md`",
+            )
+            + "\n<div>\n[docs/api_reference.md](docs/api_reference.md)\n</div>\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
 def test_required_route_in_inline_code_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -1144,6 +1159,7 @@ def main() -> None:
     test_required_route_in_indented_code_does_not_satisfy_contract()
     test_required_route_in_blockquoted_indented_code_does_not_satisfy_contract()
     test_required_route_in_html_comment_does_not_satisfy_contract()
+    test_required_route_in_raw_html_block_does_not_satisfy_contract()
     test_required_route_in_inline_code_does_not_satisfy_contract()
     test_required_route_in_double_backtick_code_does_not_satisfy_contract()
     test_escaped_required_route_label_does_not_satisfy_contract()

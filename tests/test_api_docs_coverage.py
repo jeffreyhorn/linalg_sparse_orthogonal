@@ -124,7 +124,7 @@ def test_obsolete_header_page_fails_clearly() -> None:
         write_file(html_dir / "removed__header_8h.html", "<!doctype html>\n")
         write_file(html_dir / "removed__header_8h_source.html", "<!doctype html>\n")
 
-    assert_coverage_fails_with(mutate, "obsolete generated header page")
+    assert_coverage_fails_with(mutate, "remove `docs/api` before rerunning `make docs-check`")
 
 
 def main() -> None:

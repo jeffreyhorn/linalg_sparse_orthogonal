@@ -105,6 +105,9 @@ ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
+RAW_HTML_BLOCK_PATTERN = re.compile(
+    r"(?is)<(article|aside|blockquote|details|div|figure|footer|header|li|ol|p|pre|section|table|ul)\b[^>]*>.*?</\1>"
+)
 
 
 class RoutingError(RuntimeError):
@@ -291,6 +294,7 @@ def render_code_spans(text: str, *, keep_inline_code: bool) -> str:
 
 def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
     text = re.sub(r"(?s)<!--.*?-->", "", text)
+    text = RAW_HTML_BLOCK_PATTERN.sub("", text)
     rendered_lines: list[str] = []
     fence_marker = ""
     for line in text.splitlines():

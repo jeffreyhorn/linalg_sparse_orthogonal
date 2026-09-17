@@ -85,7 +85,9 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
 
     for generated_page in sorted(html_dir.glob("*_8h*.html")):
         if generated_page.name not in expected_pages:
-            obsolete.append(f"obsolete generated header page {rel(generated_page, root)}; rerun `make clean docs-check`")
+            obsolete.append(
+                f"obsolete generated header page {rel(generated_page, root)}; remove `docs/api` before rerunning `make docs-check`"
+            )
 
     if missing:
         raise CoverageError("missing generated API pages:\n" + "\n".join(f"  - {item}" for item in missing))

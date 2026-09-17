@@ -119,6 +119,14 @@ def test_stale_source_page_identifies_header() -> None:
     assert_coverage_fails_with(mutate, "include/sparse_vector.h -> stale source page")
 
 
+def test_obsolete_header_page_fails_clearly() -> None:
+    def mutate(root: Path, include_dir: Path, html_dir: Path) -> None:
+        write_file(html_dir / "removed__header_8h.html", "<!doctype html>\n")
+        write_file(html_dir / "removed__header_8h_source.html", "<!doctype html>\n")
+
+    assert_coverage_fails_with(mutate, "obsolete generated header page")
+
+
 def main() -> None:
     test_complete_fixture_passes_with_checked_in_headers_only()
     test_missing_html_directory_fails_clearly()
@@ -127,6 +135,7 @@ def main() -> None:
     test_missing_source_page_identifies_header()
     test_stale_reference_page_identifies_header()
     test_stale_source_page_identifies_header()
+    test_obsolete_header_page_fails_clearly()
 
 
 if __name__ == "__main__":

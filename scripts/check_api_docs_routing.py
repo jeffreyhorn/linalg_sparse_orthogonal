@@ -13,7 +13,6 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 AUTOLINK_PATTERN = re.compile(r"<((?:[a-z][a-z0-9+.-]*:|//)[^>\s]+)>", re.IGNORECASE)
 BARE_URL_PATTERN = re.compile(r"""https?://[^\s<>)"']+""", re.IGNORECASE)
 PROTOCOL_RELATIVE_URL_PATTERN = re.compile(r"""(?<![:/])//[^\s<>)"']+""")
@@ -125,10 +124,6 @@ class AnchorHrefParser(HTMLParser):
                 self.hrefs.append(value.strip())
 
 
-def markdown_links(text: str) -> list[str]:
-    return [match.group(1).strip() for match in LINK_PATTERN.finditer(text)]
-
-
 def closing_bracket(text: str, open_bracket: int) -> int:
     depth = 0
     escaped = False
@@ -200,7 +195,7 @@ def balanced_reference_definitions(text: str) -> dict[str, str]:
     lines = text.splitlines()
     index = 0
     while index < len(lines):
-        line = lines[index]
+        line = re.sub(r"^ {0,3}(?:>[ \t]?)+", "", lines[index])
         index += 1
         if not re.match(r"^ {0,3}\[", line):
             continue
@@ -210,9 +205,13 @@ def balanced_reference_definitions(text: str) -> dict[str, str]:
         if close_label == -1 or close_label + 1 >= len(line) or line[close_label + 1] != ":":
             continue
         target = line[close_label + 2 :].strip()
-        if not target and index < len(lines) and re.match(r"^(?: {1,}|\t)\S", lines[index]):
-            target = lines[index].strip()
-            index += 1
+        if not target and index < len(lines):
+            continuation = re.sub(r"^ {0,3}(?:>[ \t]?)+", "", lines[index])
+            if re.match(r"^(?: {1,}|\t)\S", continuation):
+                target = continuation.strip()
+                index += 1
+        if target and target.startswith(">"):
+            target = re.sub(r"^(?:>[ \t]?)+", "", target).strip()
         if not target:
             continue
         definitions[reference_label_key(line[open_label + 1 : close_label])] = target

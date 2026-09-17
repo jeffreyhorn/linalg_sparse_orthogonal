@@ -55,13 +55,16 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
     headers = checked_in_headers(include_dir)
     missing: list[str] = []
     stale: list[str] = []
+    obsolete: list[str] = []
     reference_count = 0
     source_count = 0
+    expected_pages: set[str] = set()
 
     for header in headers:
         stem = doxygen_header_stem(header)
         reference_page = html_dir / f"{stem}.html"
         source_page = html_dir / f"{stem}_source.html"
+        expected_pages.update({reference_page.name, source_page.name})
         header_mtime_ns = header.stat().st_mtime_ns
 
         if reference_page.is_file():
@@ -80,11 +83,18 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
         else:
             missing.append(f"{rel(header, root)} -> missing source page {rel(source_page, root)}")
 
+    for generated_page in sorted(html_dir.glob("*_8h*.html")):
+        if generated_page.name not in expected_pages:
+            obsolete.append(f"obsolete generated header page {rel(generated_page, root)}; rerun `make clean docs-check`")
+
     if missing:
         raise CoverageError("missing generated API pages:\n" + "\n".join(f"  - {item}" for item in missing))
 
     if stale:
         raise CoverageError("stale generated API pages:\n" + "\n".join(f"  - {item}" for item in stale))
+
+    if obsolete:
+        raise CoverageError("obsolete generated API pages:\n" + "\n".join(f"  - {item}" for item in obsolete))
 
     return len(headers), reference_count, source_count
 

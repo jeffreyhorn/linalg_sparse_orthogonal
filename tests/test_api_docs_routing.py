@@ -698,6 +698,18 @@ def test_reference_generated_api_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_blockquoted_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n> [Generated HTML][API HTML]\n> [API HTML]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_nested_label_reference_generated_api_publication_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -1172,6 +1184,7 @@ def main() -> None:
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
+    test_blockquoted_reference_generated_api_publication_link_fails_clearly()
     test_nested_label_reference_generated_api_publication_link_fails_clearly()
     test_even_backslash_reference_generated_api_publication_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_fails_clearly()

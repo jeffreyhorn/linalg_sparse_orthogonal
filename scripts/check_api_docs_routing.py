@@ -33,10 +33,14 @@ MAKEFILE_ROUTING_TARGET = re.compile(
     r"\t@python3 tests/test_api_docs_routing\.py$"
 )
 MAKEFILE_VALIDATE_DEP = re.compile(
-    r"(?m)^api-docs-validate:[^\n]*[ \t]api-docs-routing([ \t]|$)"
+    r"(?m)^api-docs-validate:[ \t]*\n"
+    r"\t@[$][(]MAKE[)] docs-check\n"
+    r"\t@[$][(]MAKE[)] api-docs-local-only\n"
+    r"\t@[$][(]MAKE[)] api-docs-routing$"
 )
 MAKEFILE_FRESHNESS_DEP = re.compile(
-    r"(?m)^api-docs-freshness:[^\n]*[ \t]api-docs-validate([ \t]|$)"
+    r"(?m)^api-docs-freshness:[ \t]*\n"
+    r"\t@[$][(]MAKE[)] api-docs-validate$"
 )
 MAKEFILE_DOCS_CHECK_SERIAL = re.compile(
     r"(?m)^docs-check:[ \t]*docs[ \t]*\n"
@@ -96,15 +100,15 @@ REQUIRED_TEXT = {
 GENERATED_API_PATH = "docs/api"
 HOSTED_API_PUBLICATION_PATTERN = re.compile(
     r"(github\.io|readthedocs\.io|gitlab\.io|netlify\.app|"
-    r"(^|[/:.-])(api|docs|doxygen|pages)([/:.?#!-]|$)|"
-    r"docs/api)",
+    r"linalg[-_]sparse[-_]orthogonal|"
+    r"(^|/)docs/api(?:[/?#!]|$)|"
+    r"(^|/)(api|doxygen|pages)(?:[/?#!]|$))",
     re.IGNORECASE,
 )
 ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
-    r"^https?://docs[.]python[.]org(?:/|$)",
+    r"^https?://(?:docs[.]python[.]org(?:/|$)|github[.]com/jeffreyhorn/linalg_sparse_orthogonal(?:[/?#]|$))",
     re.IGNORECASE,
 )
-MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
 RAW_HTML_BLOCK_PATTERN = re.compile(
     r"(?is)<(article|aside|blockquote|details|div|figure|footer|header|li|ol|p|pre|section|table|ul)\b[^>]*>.*?</\1>"
 )
@@ -456,7 +460,8 @@ def is_generated_api_path(rel_target: str) -> bool:
 
 
 def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
-    for target in publication_link_targets(text):
+    rendered_text = rendered_markdown_text(text)
+    for target in publication_link_targets(rendered_text):
         if is_external(target):
             if is_forbidden_external_target(target):
                 raise RoutingError(
@@ -480,21 +485,11 @@ def validate_makefile_wiring(root: Path) -> None:
     if not MAKEFILE_ROUTING_TARGET.search(text):
         raise RoutingError("Makefile must define api-docs-routing with the routing guard and regression suite")
     if not MAKEFILE_VALIDATE_DEP.search(text):
-        raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
+        raise RoutingError("Makefile api-docs-validate must serialize API docs validation phases")
     if not MAKEFILE_FRESHNESS_DEP.search(text):
-        raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
+        raise RoutingError("Makefile api-docs-freshness must serialize api-docs-validate")
     if not MAKEFILE_DOCS_CHECK_SERIAL.search(text):
         raise RoutingError("Makefile docs-check must serialize docs before api-docs-coverage")
-
-    validate_line = next(
-        (line for line in text.splitlines() if line.startswith("api-docs-validate:")),
-        "",
-    )
-    validate_prereqs = set(validate_line.split(":", 1)[1].split())
-    missing = [prereq for prereq in MAKEFILE_REQUIRED_VALIDATE_PREREQS if prereq not in validate_prereqs]
-    if missing:
-        joined = ", ".join(missing)
-        raise RoutingError(f"Makefile api-docs-validate missing required prerequisite(s): {joined}")
 
 
 def validate_api_routes(root: Path) -> None:

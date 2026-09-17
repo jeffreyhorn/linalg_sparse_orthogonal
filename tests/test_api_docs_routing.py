@@ -309,6 +309,32 @@ def test_generated_html_publication_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_generated_html_link_in_fenced_code_is_ignored() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n```md\n[Generated HTML](../docs/api/html/index.html)\n```\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_generated_html_link_in_html_comment_is_ignored() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n<!-- [Generated HTML](../docs/api/html/index.html) -->\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_nested_label_generated_html_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -688,6 +714,19 @@ def test_external_url_with_incidental_api_substring_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_external_url_with_incidental_docs_apiary_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Vendor APIary docs](https://vendor.example/docs/apiary)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_external_url_with_incidental_capitals_substring_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -1025,13 +1064,13 @@ def test_missing_makefile_routing_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
-                "api-docs-validate: docs-check api-docs-local-only",
+                "\t@$(MAKE) api-docs-routing",
+                "",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must depend on api-docs-routing")
+    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
 
 
 def test_missing_makefile_docs_check_dependency_fails_clearly() -> None:
@@ -1039,13 +1078,13 @@ def test_missing_makefile_docs_check_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
-                "api-docs-validate: api-docs-local-only api-docs-routing",
+                "\t@$(MAKE) docs-check",
+                "",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "missing required prerequisite(s): docs-check")
+    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
 
 
 def test_missing_makefile_local_only_dependency_fails_clearly() -> None:
@@ -1053,13 +1092,13 @@ def test_missing_makefile_local_only_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
-                "api-docs-validate: docs-check api-docs-routing",
+                "\t@$(MAKE) api-docs-local-only",
+                "",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "missing required prerequisite(s): api-docs-local-only")
+    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
 
 
 def test_makefile_validate_routing_only_dependency_fails_clearly() -> None:
@@ -1067,13 +1106,16 @@ def test_makefile_validate_routing_only_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
-                "api-docs-validate: api-docs-routing",
+                "api-docs-validate:\n"
+                "\t@$(MAKE) docs-check\n"
+                "\t@$(MAKE) api-docs-local-only\n"
+                "\t@$(MAKE) api-docs-routing",
+                "api-docs-validate:\n\t@$(MAKE) api-docs-routing",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "missing required prerequisite(s): docs-check")
+    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
 
 
 def test_makefile_routing_extra_dependency_name_fails_clearly() -> None:
@@ -1081,13 +1123,13 @@ def test_makefile_routing_extra_dependency_name_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing",
-                "api-docs-validate: docs-check api-docs-local-only api-docs-routing-extra",
+                "\t@$(MAKE) api-docs-routing",
+                "\t@$(MAKE) api-docs-routing-extra",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must depend on api-docs-routing")
+    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
 
 
 def test_missing_makefile_routing_target_fails_clearly() -> None:
@@ -1110,13 +1152,13 @@ def test_missing_makefile_freshness_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-freshness: api-docs-validate",
-                "api-docs-freshness: docs",
+                "\t@$(MAKE) api-docs-validate",
+                "\t@$(MAKE) docs-check",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
+    assert_routing_fails_with(mutate, "api-docs-freshness must serialize api-docs-validate")
 
 
 def test_parallel_docs_check_generation_before_coverage_wiring_fails_clearly() -> None:
@@ -1138,13 +1180,13 @@ def test_makefile_freshness_extra_dependency_name_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-freshness: api-docs-validate",
-                "api-docs-freshness: api-docs-validate-extra",
+                "\t@$(MAKE) api-docs-validate",
+                "\t@$(MAKE) api-docs-validate-extra",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
+    assert_routing_fails_with(mutate, "api-docs-freshness must serialize api-docs-validate")
 
 
 def main() -> None:
@@ -1167,6 +1209,8 @@ def main() -> None:
     test_reference_style_required_route_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
+    test_generated_html_link_in_fenced_code_is_ignored()
+    test_generated_html_link_in_html_comment_is_ignored()
     test_nested_label_generated_html_link_fails_clearly()
     test_balanced_parentheses_generated_html_link_fails_clearly()
     test_hosted_api_publication_link_fails_clearly()
@@ -1198,6 +1242,7 @@ def main() -> None:
     test_unrelated_external_dependency_docs_link_is_allowed()
     test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()
+    test_external_url_with_incidental_docs_apiary_path_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
     test_blockquoted_reference_generated_api_publication_link_fails_clearly()

@@ -884,9 +884,13 @@ qr-header-docs-guard:
 docs-check: docs
 	@$(MAKE) api-docs-coverage
 
-api-docs-validate: docs-check api-docs-local-only api-docs-routing
+api-docs-validate:
+	@$(MAKE) docs-check
+	@$(MAKE) api-docs-local-only
+	@$(MAKE) api-docs-routing
 
-api-docs-freshness: api-docs-validate
+api-docs-freshness:
+	@$(MAKE) api-docs-validate
 
 # ─── Tree-mutating coverage modes ─────────────────────────────────────
 #

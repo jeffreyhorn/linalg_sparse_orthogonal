@@ -101,6 +101,10 @@ HOSTED_API_PUBLICATION_PATTERN = re.compile(
     r"docs/api)",
     re.IGNORECASE,
 )
+ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
+    r"^https?://docs[.]python[.]org(?:/|$)",
+    re.IGNORECASE,
+)
 MAKEFILE_REQUIRED_VALIDATE_PREREQS = ("docs-check", "api-docs-local-only", "api-docs-routing")
 
 
@@ -222,7 +226,12 @@ def balanced_reference_link_targets(text: str, definitions: dict[str, str]) -> l
         open_label = text.find("[", index)
         if open_label == -1:
             break
-        if open_label > 0 and text[open_label - 1] == "\\":
+        preceding_backslashes = 0
+        pos = open_label - 1
+        while pos >= 0 and text[pos] == "\\":
+            preceding_backslashes += 1
+            pos -= 1
+        if preceding_backslashes % 2 == 1:
             index = open_label + 1
             continue
         close_label = closing_bracket(text, open_label)
@@ -350,6 +359,8 @@ def is_external(target: str) -> bool:
 
 def is_forbidden_external_target(target: str) -> bool:
     normalized = unquote(unescape_markdown_destination(target))
+    if ALLOWED_EXTERNAL_DOCS_PATTERN.match(normalized):
+        return False
     return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
 
 

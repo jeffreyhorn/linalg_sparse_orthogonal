@@ -632,6 +632,19 @@ def test_unrelated_external_link_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_unrelated_external_dependency_docs_link_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Python pathlib docs](https://docs.python.org/3/library/pathlib.html)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_unrelated_https_link_is_not_reclassified_as_protocol_relative() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -691,6 +704,18 @@ def test_nested_label_reference_generated_api_publication_link_fails_clearly() -
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[generated [API]]: ../docs/api/html/index.html\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_even_backslash_reference_generated_api_publication_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n\\\\[API HTML][api-html]\n\n[api-html]: ../docs/api/html/index.html\n",
             encoding="utf-8",
         )
 
@@ -1142,11 +1167,13 @@ def main() -> None:
     test_repository_external_link_is_allowed()
     test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
+    test_unrelated_external_dependency_docs_link_is_allowed()
     test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
     test_nested_label_reference_generated_api_publication_link_fails_clearly()
+    test_even_backslash_reference_generated_api_publication_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_fails_clearly()
     test_angle_wrapped_inline_generated_api_link_with_title_fails_clearly()
     test_angle_wrapped_reference_generated_api_link_fails_clearly()

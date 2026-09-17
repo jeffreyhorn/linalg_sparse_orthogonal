@@ -1021,6 +1021,23 @@ def test_workflow_broad_docs_custom_deploy_command_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_rclone_docs_publish_command_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: rclone copy docs/ remote:generated-api\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_gh_release_upload_docs_glob_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1229,6 +1246,7 @@ def main() -> None:
     test_workflow_broad_docs_dot_artifact_path_fails_clearly()
     test_workflow_broad_block_docs_artifact_path_fails_clearly()
     test_workflow_broad_docs_custom_deploy_command_fails_clearly()
+    test_workflow_rclone_docs_publish_command_fails_clearly()
     test_workflow_gh_release_upload_docs_glob_fails_clearly()
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
     test_workflow_staged_docs_artifact_upload_fails_clearly()

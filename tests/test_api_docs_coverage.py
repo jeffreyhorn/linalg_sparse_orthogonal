@@ -66,6 +66,17 @@ def test_complete_fixture_passes_with_checked_in_headers_only() -> None:
             raise AssertionError(f"unexpected coverage counts: {counts!r}")
 
 
+def test_generated_sparse_version_pages_are_tolerated() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        include_dir, html_dir = write_fixture(root)
+        write_file(html_dir / "sparse__version_8h.html", "<!doctype html>\n")
+        write_file(html_dir / "sparse__version_8h_source.html", "<!doctype html>\n")
+        counts = coverage.check_coverage(root, include_dir, html_dir)
+        if counts != (2, 2, 2):
+            raise AssertionError(f"unexpected coverage counts: {counts!r}")
+
+
 def test_missing_html_directory_fails_clearly() -> None:
     def mutate(root: Path, include_dir: Path, html_dir: Path) -> None:
         for path in sorted(html_dir.rglob("*"), reverse=True):
@@ -129,6 +140,7 @@ def test_obsolete_header_page_fails_clearly() -> None:
 
 def main() -> None:
     test_complete_fixture_passes_with_checked_in_headers_only()
+    test_generated_sparse_version_pages_are_tolerated()
     test_missing_html_directory_fails_clearly()
     test_missing_index_fails_clearly()
     test_missing_reference_page_identifies_header()

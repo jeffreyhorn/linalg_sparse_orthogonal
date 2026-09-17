@@ -182,7 +182,7 @@ check_no_workflow_publication_semantics() {
         dynamic_block_path_matches="$(
             printf '%s\n' "$normalized_text" |
                 awk '
-                    /^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*[|>]/ {
+                    /^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*[|>][+-]?[0-9]*[+-]?/ {
                         in_path_block = 1
                         block_indent = match($0, /[^ ]/) - 1
                         next
@@ -209,7 +209,7 @@ check_no_workflow_publication_semantics() {
             printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
-        if printf '%s\n' "$normalized_text" | grep -Eq '["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*[|>]' &&
+        if printf '%s\n' "$normalized_text" | grep -Eq '["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*[|>][+-]?[0-9]*[+-]?' &&
             printf '%s\n' "$normalized_text" | grep -Eq "$broad_block_path_regex" &&
             printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"

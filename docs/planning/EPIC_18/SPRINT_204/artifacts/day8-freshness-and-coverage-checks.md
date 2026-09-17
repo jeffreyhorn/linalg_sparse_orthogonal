@@ -28,7 +28,7 @@ into hosted, retained-artifact, release, or committed evidence.
 
 | Test | Covered behavior |
 | --- | --- |
-| `test_complete_fixture_passes_with_checked_in_headers_only` | A complete fixture reports coverage for checked-in `.h` files only and ignores `sparse_version.h.in`. |
+| `test_complete_fixture_passes_with_checked_in_headers_only` | A complete fixture reports coverage for checked-in `.h` files only and excludes generated `sparse_version.h` from required page counts. |
 | `test_missing_html_directory_fails_clearly` | Missing `docs/api/html` fails with the generated HTML directory diagnostic. |
 | `test_missing_index_fails_clearly` | Missing `index.html` fails with the generated API index diagnostic. |
 | `test_missing_reference_page_identifies_header` | Missing reference page reports the owning checked-in public header. |

@@ -59,6 +59,12 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
     reference_count = 0
     source_count = 0
     expected_pages: set[str] = set()
+    expected_pages.update(
+        page
+        for header_name in EXCLUDED_GENERATED_HEADERS
+        for stem in (doxygen_header_stem(Path(header_name)),)
+        for page in (f"{stem}.html", f"{stem}_source.html")
+    )
 
     for header in headers:
         stem = doxygen_header_stem(header)

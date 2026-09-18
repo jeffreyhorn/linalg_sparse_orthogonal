@@ -8,7 +8,7 @@ import html
 import re
 import sys
 from html.parser import HTMLParser
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 from pathlib import Path
 
 
@@ -98,13 +98,12 @@ REQUIRED_TEXT = {
 }
 
 GENERATED_API_PATH = "docs/api"
-HOSTED_API_PUBLICATION_PATTERN = re.compile(
-    r"(github\.io|readthedocs\.io|gitlab\.io|netlify\.app|"
-    r"linalg[-_]sparse[-_]orthogonal|"
+PUBLICATION_PATH_PATTERN = re.compile(
     r"(^|/)docs/api(?:[/?#!]|$)|"
-    r"(^|/)(api|doxygen|pages)(?:[/?#!]|$))",
+    r"(^|/)(api[-_]?reference|api|doxygen|pages)(?:[/?#!.]|$)",
     re.IGNORECASE,
 )
+PROJECT_PUBLICATION_HOST_PATTERN = re.compile(r"linalg[-_]sparse[-_]orthogonal", re.IGNORECASE)
 ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
     r"^https?://(?:docs[.]python[.]org(?:/|$)|github[.]com/jeffreyhorn/linalg_sparse_orthogonal(?:[/?#]|$))",
     re.IGNORECASE,
@@ -369,11 +368,21 @@ def is_external(target: str) -> bool:
 
 def is_forbidden_external_target(target: str) -> bool:
     normalized = unquote(unescape_markdown_destination(target))
-    if re.search(r"(^|/)docs/api(?:[/?#!]|$)", normalized, re.IGNORECASE):
+    parsed = urlsplit(normalized if not normalized.startswith("//") else f"https:{normalized}")
+    route = f"{parsed.path}"
+    if parsed.query:
+        route = f"{route}?{parsed.query}"
+    if parsed.fragment:
+        route = f"{route}#{parsed.fragment}"
+    if PUBLICATION_PATH_PATTERN.search(route):
         return True
     if ALLOWED_EXTERNAL_DOCS_PATTERN.match(normalized):
         return False
-    return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
+    if PROJECT_PUBLICATION_HOST_PATTERN.search(parsed.netloc) or PROJECT_PUBLICATION_HOST_PATTERN.search(
+        parsed.path
+    ):
+        return True
+    return False
 
 
 def markdown_heading_fragment(heading: str) -> str:
@@ -419,16 +428,22 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 
 
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
-    rendered_text_for_links = rendered_markdown_text(text)
-    reference_definitions = balanced_reference_definitions(rendered_text_for_links)
+    rendered_markdown_for_links = rendered_markdown_text(text)
+    reference_definitions = balanced_reference_definitions(rendered_markdown_for_links)
+    markdown_targets = balanced_markdown_links(rendered_markdown_for_links) + balanced_reference_link_targets(
+        rendered_markdown_for_links, reference_definitions
+    )
+    html_target_text = rendered_markdown_text(text, strip_raw_html_blocks=False)
+    html_parser = AnchorHrefParser()
+    html_parser.feed(html_target_text)
+    route_targets = markdown_targets + html_parser.hrefs
     links = {
-        unescape_markdown_destination(target)
-        for target in (
-            balanced_markdown_links(rendered_text_for_links)
-            + balanced_reference_link_targets(rendered_text_for_links, reference_definitions)
-        )
+        normalized_route_key(root, path, target)
+        for target in route_targets
+        if not is_external(target)
     }
-    missing = [target for target in REQUIRED_ROUTES[rel_path] if target not in links]
+    required = {normalized_route_key(root, path, target): target for target in REQUIRED_ROUTES[rel_path]}
+    missing = [target for key, target in required.items() if key not in links]
     if missing:
         joined = ", ".join(missing)
         raise RoutingError(f"{rel_path} missing required API route link(s): {joined}")
@@ -456,6 +471,12 @@ def normalized_local_target(root: Path, source: Path, target: str) -> str:
         return resolved.relative_to(root).as_posix()
     except ValueError as exc:
         raise RoutingError(f"{source.relative_to(root)} link escapes repository: {target}") from exc
+
+
+def normalized_route_key(root: Path, source: Path, target: str) -> str:
+    rel_target = normalized_local_target(root, source, target)
+    target_fragment = fragment(target)
+    return f"{rel_target}#{target_fragment}" if target_fragment else rel_target
 
 
 def is_generated_api_path(rel_target: str) -> bool:

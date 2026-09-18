@@ -290,6 +290,36 @@ def test_reference_style_required_route_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_normalized_required_route_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "[API reference](./docs/api_reference.md)",
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_html_required_route_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                '<a href="./docs/api_reference.md">API reference</a>',
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_missing_route_target_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "docs" / "solver_selection.md").unlink()
@@ -646,6 +676,18 @@ def test_file_scheme_generated_html_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_custom_api_reference_hosted_publication_url_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted API reference](https://docs.example.com/api-reference/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_repository_external_link_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -665,6 +707,18 @@ def test_repository_generated_api_path_link_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Generated HTML](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/docs/api/html/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_repository_doxygen_path_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Doxygen](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/doxygen/)\n",
             encoding="utf-8",
         )
 
@@ -705,6 +759,19 @@ def test_unrelated_external_dependency_docs_link_is_allowed() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Python pathlib docs](https://docs.python.org/3/library/pathlib.html)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_unrelated_readthedocs_link_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Dependency docs](https://unrelated-project.readthedocs.io/en/latest/guide/)\n",
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
@@ -1231,6 +1298,8 @@ def main() -> None:
     test_escaped_required_route_label_does_not_satisfy_contract()
     test_angle_wrapped_required_route_with_title_is_allowed()
     test_reference_style_required_route_is_allowed()
+    test_normalized_required_route_is_allowed()
+    test_html_required_route_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_generated_html_link_in_fenced_code_is_ignored()
@@ -1261,11 +1330,14 @@ def main() -> None:
     test_custom_domain_hosted_publication_url_fails_clearly()
     test_ftp_hosted_publication_url_fails_clearly()
     test_file_scheme_generated_html_link_fails_clearly()
+    test_custom_api_reference_hosted_publication_url_fails_clearly()
     test_repository_external_link_is_allowed()
     test_repository_generated_api_path_link_fails_clearly()
+    test_repository_doxygen_path_link_fails_clearly()
     test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_unrelated_external_dependency_docs_link_is_allowed()
+    test_unrelated_readthedocs_link_is_allowed()
     test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_docs_apiary_path_is_allowed()

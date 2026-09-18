@@ -104,6 +104,11 @@ PUBLICATION_PATH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PROJECT_PUBLICATION_HOST_PATTERN = re.compile(r"linalg[-_]sparse[-_]orthogonal", re.IGNORECASE)
+SOURCE_CONTROLLED_API_REFERENCE_PATTERN = re.compile(
+    r"^https?://github[.]com/jeffreyhorn/linalg_sparse_orthogonal/"
+    r"(?:blob|tree)/[^/?#]+/docs/api_reference[.]md(?:[?#].*)?$",
+    re.IGNORECASE,
+)
 ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
     r"^https?://(?:docs[.]python[.]org(?:/|$)|github[.]com/jeffreyhorn/linalg_sparse_orthogonal(?:[/?#]|$))",
     re.IGNORECASE,
@@ -395,6 +400,8 @@ def is_external(target: str) -> bool:
 def is_forbidden_external_target(target: str) -> bool:
     normalized = unquote(unescape_markdown_destination(target))
     parsed = urlsplit(normalized if not normalized.startswith("//") else f"https:{normalized}")
+    if SOURCE_CONTROLLED_API_REFERENCE_PATTERN.match(normalized):
+        return False
     route = f"{parsed.path}"
     if parsed.query:
         route = f"{route}?{parsed.query}"

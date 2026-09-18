@@ -169,14 +169,52 @@ check_no_workflow_publication_semantics() {
     docs_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)[[:space:]][^;&|]*["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     docs_archive_command_regex='(^|[[:space:]])(tar|zip|7z|7za|7zr)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     dynamic_publication_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^#]*([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
-    dynamic_command_publication_regex='(^|[[:space:]])["'"'"']?([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])'
+    dynamic_command_publication_regex="($command_publication_regex)[^;&|]*([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])"
     broad_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
     dynamic_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^,}]*([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
-        stripped_text="$(sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file")"
+        stripped_text="$(
+            python3 - "$workflow_file" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        in_single = False
+        in_double = False
+        escaped = False
+        comment_at = None
+        for index, char in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\" and in_double:
+                escaped = True
+                continue
+            if char == "'" and not in_double:
+                in_single = not in_single
+                continue
+            if char == '"' and not in_single:
+                in_double = not in_double
+                continue
+            if (
+                char == "#"
+                and not in_single
+                and not in_double
+                and (index == 0 or line[index - 1].isspace())
+            ):
+                comment_at = index
+                break
+        if comment_at is not None:
+            line = line[:comment_at].rstrip()
+        if line.strip():
+            print(line)
+PY
+        )"
         normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
         flattened_text="$(printf '%s\n' "$normalized_text" | tr '\n' ' ')"
         dynamic_block_path_matches="$(
@@ -234,10 +272,8 @@ check_no_workflow_publication_semantics() {
                 [ -n "$dynamic_block_path_matches" ]; }; then
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
-        if { printf '%s\n' "$normalized_text" | grep -Eq "$command_publication_regex" ||
-            printf '%s\n' "$flattened_text" | grep -Eq "$command_publication_regex"; } &&
-            { printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_command_publication_regex" ||
-                printf '%s\n' "$flattened_text" | grep -Eq "$dynamic_command_publication_regex"; }; then
+        if printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_command_publication_regex" ||
+            printf '%s\n' "$flattened_text" | grep -Eq "$dynamic_command_publication_regex"; then
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
     done

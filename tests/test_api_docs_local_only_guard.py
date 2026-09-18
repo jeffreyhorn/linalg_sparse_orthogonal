@@ -848,6 +848,27 @@ def test_workflow_unrelated_publisher_build_path_is_allowed() -> None:
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_unrelated_publisher_with_unrelated_variable_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make test\n"
+            "      - run: echo \"$TAG\"\n"
+            "      - run: aws s3 sync build/ s3://example-bucket/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1128,6 +1149,23 @@ def test_workflow_broad_docs_custom_deploy_command_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_quoted_hash_before_docs_publish_command_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: 'printf \"marker # value\"; aws s3 sync docs/ s3://example-generated-api/'\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_folded_docs_publish_command_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1363,6 +1401,7 @@ def main() -> None:
     test_workflow_dynamic_release_asset_path_fails_closed()
     test_workflow_dynamic_command_publication_path_fails_closed()
     test_workflow_unrelated_publisher_build_path_is_allowed()
+    test_workflow_unrelated_publisher_with_unrelated_variable_is_allowed()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()
     test_workflow_broad_workspace_root_artifact_path_fails_clearly()
     test_workflow_broad_docs_glob_artifact_path_fails_clearly()
@@ -1377,6 +1416,7 @@ def main() -> None:
     test_workflow_broad_block_docs_artifact_path_fails_clearly()
     test_workflow_broad_chomped_block_docs_artifact_path_fails_clearly()
     test_workflow_broad_docs_custom_deploy_command_fails_clearly()
+    test_workflow_quoted_hash_before_docs_publish_command_fails_clearly()
     test_workflow_folded_docs_publish_command_fails_clearly()
     test_workflow_rclone_docs_publish_command_fails_clearly()
     test_workflow_gh_release_upload_docs_glob_fails_clearly()

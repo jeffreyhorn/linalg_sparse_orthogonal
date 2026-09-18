@@ -747,6 +747,19 @@ def test_repository_external_link_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_repository_api_reference_permalink_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[API reference source](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/blob/main/docs/api_reference.md)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_repository_generated_api_path_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -1409,6 +1422,7 @@ def main() -> None:
     test_file_scheme_generated_html_link_fails_clearly()
     test_custom_api_reference_hosted_publication_url_fails_clearly()
     test_repository_external_link_is_allowed()
+    test_repository_api_reference_permalink_is_allowed()
     test_repository_generated_api_path_link_fails_clearly()
     test_repository_doxygen_path_link_fails_clearly()
     test_top_level_forbidden_link_after_unterminated_blockquoted_fence_fails_clearly()

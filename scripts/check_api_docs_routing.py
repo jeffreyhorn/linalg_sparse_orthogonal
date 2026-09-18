@@ -98,15 +98,20 @@ REQUIRED_TEXT = {
 }
 
 GENERATED_API_PATH = "docs/api"
-PUBLICATION_PATH_PATTERN = re.compile(
-    r"(^|/)docs/api(?:[/?#!]|$)|"
+GENERATED_API_PUBLICATION_PATH_PATTERN = re.compile(r"(^|/)docs/api(?:[/?#!]|$)", re.IGNORECASE)
+PROJECT_PUBLICATION_PATH_PATTERN = re.compile(
     r"(^|/)(api[-_]?reference|api|doxygen|pages)(?:[/?#!.]|$)",
     re.IGNORECASE,
 )
 PROJECT_PUBLICATION_HOST_PATTERN = re.compile(r"linalg[-_]sparse[-_]orthogonal", re.IGNORECASE)
 SOURCE_CONTROLLED_API_REFERENCE_PATTERN = re.compile(
     r"^https?://github[.]com/jeffreyhorn/linalg_sparse_orthogonal/"
-    r"(?:blob|tree)/[^/?#]+/docs/api_reference[.]md(?:[?#].*)?$",
+    r"(?:blob|tree)/.+/docs/api_reference[.]md(?:[?#].*)?$",
+    re.IGNORECASE,
+)
+REPOSITORY_RELEASE_OR_ARTIFACT_PATTERN = re.compile(
+    r"^https?://github[.]com/jeffreyhorn/linalg_sparse_orthogonal/"
+    r"(?:releases/download/|actions/runs/[^/?#]+/artifacts(?:[/?#]|$)|suites/[^/?#]+/artifacts(?:[/?#]|$))",
     re.IGNORECASE,
 )
 ALLOWED_EXTERNAL_DOCS_PATTERN = re.compile(
@@ -402,18 +407,23 @@ def is_forbidden_external_target(target: str) -> bool:
     parsed = urlsplit(normalized if not normalized.startswith("//") else f"https:{normalized}")
     if SOURCE_CONTROLLED_API_REFERENCE_PATTERN.match(normalized):
         return False
+    if REPOSITORY_RELEASE_OR_ARTIFACT_PATTERN.match(normalized):
+        return True
     route = f"{parsed.path}"
     if parsed.query:
         route = f"{route}?{parsed.query}"
     if parsed.fragment:
         route = f"{route}#{parsed.fragment}"
-    if PUBLICATION_PATH_PATTERN.search(route):
+    if GENERATED_API_PUBLICATION_PATH_PATTERN.search(route):
+        return True
+    project_owned = PROJECT_PUBLICATION_HOST_PATTERN.search(parsed.netloc) or PROJECT_PUBLICATION_HOST_PATTERN.search(
+        parsed.path
+    )
+    if project_owned and PROJECT_PUBLICATION_PATH_PATTERN.search(route):
         return True
     if ALLOWED_EXTERNAL_DOCS_PATTERN.match(normalized):
         return False
-    if PROJECT_PUBLICATION_HOST_PATTERN.search(parsed.netloc) or PROJECT_PUBLICATION_HOST_PATTERN.search(
-        parsed.path
-    ):
+    if project_owned:
         return True
     return False
 

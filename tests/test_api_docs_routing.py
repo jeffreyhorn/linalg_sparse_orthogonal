@@ -495,16 +495,17 @@ def test_generic_uri_autolink_generated_api_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
-def test_generic_uri_autolink_hosted_api_link_fails_clearly() -> None:
-    def mutate(root: Path) -> None:
+def test_generic_uri_autolink_unrelated_api_link_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n<ftp://docs.example/api/>\n",
             encoding="utf-8",
         )
-
-    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+        routing.validate_api_routes(root)
 
 
 def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
@@ -619,7 +620,8 @@ def test_uppercase_hosted_publication_url_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
         path.write_text(
-            path.read_text(encoding="utf-8") + "\n[Hosted](HTTPS://example.github.io/api/)\n",
+            path.read_text(encoding="utf-8")
+            + "\n[Hosted](HTTPS://example.github.io/linalg_sparse_orthogonal/api/)\n",
             encoding="utf-8",
         )
 
@@ -703,7 +705,7 @@ def test_ftp_hosted_publication_url_fails_clearly() -> None:
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
-            + "\n[Hosted docs](ftp://docs.example.com/api/)\n",
+            + "\n[Hosted docs](ftp://docs.example.com/linalg_sparse_orthogonal/api/)\n",
             encoding="utf-8",
         )
 
@@ -722,16 +724,17 @@ def test_file_scheme_generated_html_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
-def test_custom_api_reference_hosted_publication_url_fails_clearly() -> None:
-    def mutate(root: Path) -> None:
+def test_unrelated_custom_api_reference_url_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
         path = root / "README.md"
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Hosted API reference](https://docs.example.com/api-reference/)\n",
             encoding="utf-8",
         )
-
-    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+        routing.validate_api_routes(root)
 
 
 def test_repository_external_link_is_allowed() -> None:
@@ -758,6 +761,43 @@ def test_repository_api_reference_permalink_is_allowed() -> None:
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
+
+
+def test_repository_api_reference_permalink_with_slash_ref_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[API reference source](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/blob/feature/api-docs/docs/api_reference.md)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_repository_release_generated_api_artifact_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated API archive](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/releases/download/v2.2.0/generated-api.tar.gz)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_repository_actions_artifact_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated API artifact](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/123/artifacts/456)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
 def test_repository_generated_api_path_link_fails_clearly() -> None:
@@ -885,6 +925,19 @@ def test_external_url_with_incidental_docs_apiary_path_is_allowed() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Vendor APIary docs](https://vendor.example/docs/apiary)\n",
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_unrelated_external_pages_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Usage pages](https://example.org/pages/usage)\n",
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
@@ -1401,7 +1454,6 @@ def main() -> None:
     test_bare_hosted_api_publication_url_fails_clearly()
     test_autolinked_hosted_api_publication_url_fails_clearly()
     test_generic_uri_autolink_generated_api_link_fails_clearly()
-    test_generic_uri_autolink_hosted_api_link_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
     test_raw_html_block_href_generated_api_link_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
@@ -1420,19 +1472,24 @@ def main() -> None:
     test_custom_domain_hosted_publication_url_fails_clearly()
     test_ftp_hosted_publication_url_fails_clearly()
     test_file_scheme_generated_html_link_fails_clearly()
-    test_custom_api_reference_hosted_publication_url_fails_clearly()
+    test_unrelated_custom_api_reference_url_is_allowed()
     test_repository_external_link_is_allowed()
     test_repository_api_reference_permalink_is_allowed()
+    test_repository_api_reference_permalink_with_slash_ref_is_allowed()
+    test_repository_release_generated_api_artifact_fails_clearly()
+    test_repository_actions_artifact_fails_clearly()
     test_repository_generated_api_path_link_fails_clearly()
     test_repository_doxygen_path_link_fails_clearly()
     test_top_level_forbidden_link_after_unterminated_blockquoted_fence_fails_clearly()
     test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
+    test_generic_uri_autolink_unrelated_api_link_is_allowed()
     test_unrelated_external_link_is_allowed()
     test_unrelated_external_dependency_docs_link_is_allowed()
     test_unrelated_readthedocs_link_is_allowed()
     test_unrelated_https_link_is_not_reclassified_as_protocol_relative()
     test_external_url_with_incidental_api_substring_is_allowed()
     test_external_url_with_incidental_docs_apiary_path_is_allowed()
+    test_unrelated_external_pages_path_is_allowed()
     test_external_url_with_incidental_capitals_substring_is_allowed()
     test_reference_generated_api_publication_link_fails_clearly()
     test_blockquoted_reference_generated_api_publication_link_fails_clearly()

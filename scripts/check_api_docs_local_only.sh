@@ -160,7 +160,7 @@ check_no_workflow_publication_semantics() {
         return
     fi
 
-    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|['\"]?uses['\"]?[[:space:]]*:[[:space:]]*['\"]?([^[:space:]'\"]+@|[.]/|docker://)"
+    publication_regex="actions/upload-artifact|actions/upload-pages-artifact|actions/deploy-pages|actions/upload-release-asset|softprops/action-gh-release|github-pages|gh-pages|pages:|['\"]?uses['\"]?[[:space:]]*:[[:space:]]*['\"]?([^[:space:]'\"]*(publish|deploy|release|pages|artifact|upload|gh-pages)[^[:space:]'\"]*(@|$)|[.]/[^[:space:]'\"]*(publish|deploy|release|pages|artifact|upload|gh-pages)[^[:space:]'\"]*|docker://[^[:space:]'\"]*(publish|deploy|release|pages|artifact|upload|gh-pages)[^[:space:]'\"]*)"
     command_publication_regex="aws[[:space:]]+s3[[:space:]]+(sync|cp)|gsutil[[:space:]]+(-m[[:space:]]+)?(rsync|cp)|az[[:space:]]+storage[[:space:]]+blob[[:space:]]+upload|netlify[[:space:]]+deploy|vercel[[:space:]]+deploy|firebase[[:space:]]+deploy|wrangler[[:space:]]+pages[[:space:]]+deploy|surge[[:space:]]|gh[[:space:]]+release[[:space:]]+upload|rclone[[:space:]]+(copy|sync|move)|rsync[[:space:]].*:[^[:space:]]*|scp[[:space:]].*:[^[:space:]]*"
     generated_path_regex="docs/api(/|$)|docs/api/html"
     broad_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'

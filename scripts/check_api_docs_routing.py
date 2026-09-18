@@ -296,9 +296,12 @@ def render_code_spans(text: str, *, keep_inline_code: bool) -> str:
     return "".join(rendered)
 
 
-def rendered_markdown_text(text: str, *, keep_inline_code: bool = False) -> str:
+def rendered_markdown_text(
+    text: str, *, keep_inline_code: bool = False, strip_raw_html_blocks: bool = True
+) -> str:
     text = re.sub(r"(?s)<!--.*?-->", "", text)
-    text = RAW_HTML_BLOCK_PATTERN.sub("", text)
+    if strip_raw_html_blocks:
+        text = RAW_HTML_BLOCK_PATTERN.sub("", text)
     rendered_lines: list[str] = []
     fence_marker = ""
     for line in text.splitlines():
@@ -366,6 +369,8 @@ def is_external(target: str) -> bool:
 
 def is_forbidden_external_target(target: str) -> bool:
     normalized = unquote(unescape_markdown_destination(target))
+    if re.search(r"(^|/)docs/api(?:[/?#!]|$)", normalized, re.IGNORECASE):
+        return True
     if ALLOWED_EXTERNAL_DOCS_PATTERN.match(normalized):
         return False
     return HOSTED_API_PUBLICATION_PATTERN.search(normalized) is not None
@@ -460,7 +465,7 @@ def is_generated_api_path(rel_target: str) -> bool:
 
 
 def validate_no_forbidden_links(root: Path, rel_path: str, source: Path, text: str) -> None:
-    rendered_text = rendered_markdown_text(text)
+    rendered_text = rendered_markdown_text(text, strip_raw_html_blocks=False)
     for target in publication_link_targets(rendered_text):
         if is_external(target):
             if is_forbidden_external_target(target):

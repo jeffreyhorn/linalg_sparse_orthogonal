@@ -411,8 +411,10 @@ def test_workflow_quoted_local_action_broad_docs_path_fails_closed() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
-def test_workflow_unknown_publisher_broad_docs_path_fails_closed() -> None:
-    def mutate(root: Path) -> None:
+def test_workflow_non_publication_action_docs_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
             "name: generated-api\n"
             "on: [push]\n"
@@ -421,13 +423,36 @@ def test_workflow_unknown_publisher_broad_docs_path_fails_closed() -> None:
             "    runs-on: ubuntu-latest\n"
             "    steps:\n"
             "      - run: make api-docs-freshness\n"
-            "      - uses: acme/action@v1\n"
+            "      - uses: actions/checkout@v4\n"
             "        with:\n"
-            "          path: docs/\n",
+            "          path: docs/tutorial.md\n",
             encoding="utf-8",
         )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+def test_workflow_non_publication_action_dynamic_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/checkout@v4\n"
+            "        with:\n"
+            "          path: ${{ env.CHECKOUT_PATH }}\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
 
 
 def test_workflow_quoted_uses_key_broad_docs_path_fails_closed() -> None:
@@ -1316,7 +1341,8 @@ def main() -> None:
     test_workflow_quoted_spaced_path_key_docs_artifact_path_fails_clearly()
     test_workflow_local_action_broad_docs_path_fails_closed()
     test_workflow_quoted_local_action_broad_docs_path_fails_closed()
-    test_workflow_unknown_publisher_broad_docs_path_fails_closed()
+    test_workflow_non_publication_action_docs_path_is_allowed()
+    test_workflow_non_publication_action_dynamic_path_is_allowed()
     test_workflow_quoted_uses_key_broad_docs_path_fails_closed()
     test_workflow_docker_action_broad_docs_path_fails_closed()
     test_workflow_publish_dir_block_docs_path_fails_clearly()

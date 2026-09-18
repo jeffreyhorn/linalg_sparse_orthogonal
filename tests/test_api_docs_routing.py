@@ -443,6 +443,18 @@ def test_html_href_hosted_api_publication_url_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_raw_html_block_href_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<div><a href="docs/api/html/index.html">Generated HTML</a></div>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_html_href_with_spacing_generated_api_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "api_reference.md"
@@ -645,6 +657,18 @@ def test_repository_external_link_is_allowed() -> None:
             encoding="utf-8",
         )
         routing.validate_api_routes(root)
+
+
+def test_repository_generated_api_path_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated HTML](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/docs/api/html/)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
 def test_backslash_escaped_scheme_hosted_api_link_fails_clearly() -> None:
@@ -1220,6 +1244,7 @@ def main() -> None:
     test_generic_uri_autolink_generated_api_link_fails_clearly()
     test_generic_uri_autolink_hosted_api_link_fails_clearly()
     test_html_href_hosted_api_publication_url_fails_clearly()
+    test_raw_html_block_href_generated_api_link_fails_clearly()
     test_html_href_with_spacing_generated_api_link_fails_clearly()
     test_html_href_after_quoted_greater_than_generated_api_link_fails_clearly()
     test_unquoted_html_href_generated_api_link_fails_clearly()
@@ -1237,6 +1262,7 @@ def main() -> None:
     test_ftp_hosted_publication_url_fails_clearly()
     test_file_scheme_generated_html_link_fails_clearly()
     test_repository_external_link_is_allowed()
+    test_repository_generated_api_path_link_fails_clearly()
     test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_unrelated_external_dependency_docs_link_is_allowed()

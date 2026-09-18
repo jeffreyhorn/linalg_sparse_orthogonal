@@ -23,12 +23,12 @@ residuals that are present on the current branch.
 | Sprint | Current outcome |
 | --- | --- |
 | 197 | Complete for the requested final-validation branch path, with numbering caveat. The branch contains the requested final-validation plan, working notes, evidence ledger, claim audits, no-promotion records, project-plan interim status snapshot, validation logs, retrospective draft, residual queue, and final closeout review. |
-| 198 | Pending future execution. Homebrew/package-manager license metadata, proof execution, guard promotion, docs promotion, and validation evidence are not present on this branch. |
-| 199 | Pending future execution. Selected Windows Cholesky hosted evidence review, manifest promotion/re-deferral, normalizer hardening, workflow guard updates, docs calibration, and validation evidence are not present on this branch. |
+| 198 | Closed with developer-mode local Homebrew static source proof. Root MIT metadata, formula metadata, archive/checksum proof, temporary local tap render, source install, installed static surface validation, downstream `brew test`, uninstall, cleanup, and proof exit `0` are recorded; Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, and broad package-manager distribution remain unclaimed. |
+| 199 | Closed with Windows promotion re-deferred. Hosted Windows evidence for `cholesky-spd-tridiag-5` was reviewed and retained as guarded workflow evidence; selected Windows freshness promotion remains re-deferred until selected metadata, generated support tier, generated non-claim wording, and final claim contract are promoted together. |
 | 200 | Closed with selected symbolic LU allocation-failure proof. `sparse_symbolic_lu()` was selected as the additional allocation-failure owner; invariants, harness reachability, failed-allocation, cleanup, retry, focused gate, registration guard, claim-documentation, integrated-validation, review-hardening, and closeout artifacts are present. Broader allocation-failure and state-of-the-art reliability claims remain unearned. |
-| 201 | Pending future execution. Additional review-surface ranking, extraction, guard, focused regression, docs, and validation evidence are not present on this branch. |
-| 202 | Pending future execution. Additional hosted selected benchmark platform/row evidence, methodology metadata, workflow lane, freshness tests, docs, and validation evidence are not present on this branch. |
-| 203 | Pending future execution. Windows QR incompatible comparison MSVC/CMake proof or re-deferral, generator fixes, manifest decision, tests, docs, and validation evidence are not present on this branch. |
+| 201 | Closed for selected SVD helper review-surface reduction. The selected `tests/test_svd.c` rank, pseudoinverse, and dense low-rank cluster is helper-owned by `tests/test_svd_selected_helpers.h`; focused SVD guard coverage and validation evidence are recorded, while broader review-surface cleanup remains unclaimed. |
+| 202 | Closed with macOS hosted selected benchmark freshness evidence. The selected macOS hosted performance-freshness lane for `SRT-BENCH-REFACTOR-CSC-NOS4` is recorded with PR run, job, artifact, digest, manifest, workflow, and validator evidence; portable performance, timing thresholds, broad benchmark publication, and state-of-the-art performance remain unclaimed. |
+| 203 | Closed with Windows QR incompatible promotion re-deferred. Local `qr-incompatible-ls` generator and selected freshness proof passed, Windows-style artifact path and diagnostic guards were added, and workflow/selected manifest promotion remained intentionally absent because hosted Windows/MSVC proof and hosted artifact inspection were not available. |
 | 204 | Closed with stronger local-only generated API policy. Generated Doxygen HTML remains local-only ignored output under `docs/api/html/`; `make api-docs-freshness` now covers generated-page freshness, local-only staging, workflow non-publication, API routing, and Makefile routing wiring; hosted generated API publication, retained generated-doc artifacts, committed generated HTML, package-manager evidence, ABI/shared-library evidence, broad platform evidence, performance evidence, release evidence, and state-of-the-art evidence remain unclaimed. |
 | 205 | Pending future execution. Support/adoption quick reference, support truth consolidation, diagnostics vocabulary, claim guards, docs, and validation evidence are not present on this branch. |
 | 206 | Requested final-validation evidence is recorded through the `SPRINT_197` artifacts. Evidence reconciliation, claim recalibration, project-plan status, focused/full gate decisions, retrospective draft, residual queue, claim decision, and final closeout review are complete for this branch state. |
@@ -51,13 +51,12 @@ residuals that are present on the current branch.
 | Status | Current count | Rows |
 | --- | ---: | --- |
 | In progress with numbering caveat | 6 | 197.1-197.6. |
-| Pending future execution | 36 | 198.1-199.6, 201.1-203.6, and 205.1-205.6 remain future sprint rows not yet executed on this branch. |
-| Sprint 200 closed selected-owner proof | 6 | 200.1-200.6 closed for selected `sparse_symbolic_lu()` allocation-failure owner proof. |
-| Sprint 204 closed local-only generated API policy | 6 | 204.1-204.6 closed for strengthened local-only generated API policy, freshness, routing, staging, workflow non-publication, and claim-boundary evidence. |
+| Pending future execution | 6 | 205.1-205.6 remains future sprint work not yet executed on this branch. |
+| Sprint 198-204 selected closures and re-deferrals | 42 | 198.1-204.6 are closed for their selected branch-local scopes, with Sprint 199 and Sprint 203 explicitly closed as re-deferrals rather than promotions. |
 | Partial final-validation evidence | 4 | 206.1-206.4. |
 | Requested final-validation evidence recorded | 2 | 206.5-206.6. |
 | Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |
-| Complete | 12 | Sprint 200 and Sprint 204 items are complete for their selected branch-local scopes. |
+| Complete | 42 | Sprint 198 through Sprint 204 items are closed for their selected branch-local scopes, including explicit non-promotion/re-deferral closures where evidence did not support promotion. |
 | Narrowed | 0 | No Epic 18 implementation item has been narrowed at Day 14. |
 | Deferred | 0 | No Epic 18 implementation item has been formally deferred at Day 14. |
 | Residualized | 10 residual entries | `EPIC_18_RESIDUAL_QUEUE.md` publishes prioritized residuals E18-RQ-001 through E18-RQ-010. |
@@ -178,8 +177,9 @@ methodology, and reviewed hosted evidence for every claim.
 
 ## What Went Well
 
-1. **Evidence stayed separated from intent.** Future Sprint 198-205 goals were
-   not counted as completed evidence.
+1. **Evidence stayed separated from intent.** Sprint 198-204 goals are counted
+   only to the exact closure or re-deferral evidence recorded in their sprint
+   artifacts, while Sprint 205 remains future work.
 
 2. **Claim calibration stayed conservative.** Public and maintainer docs were
    audited without promoting unsupported package, Windows, benchmark, API,

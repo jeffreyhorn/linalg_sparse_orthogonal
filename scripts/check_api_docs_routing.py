@@ -150,13 +150,27 @@ def closing_bracket(text: str, open_bracket: int) -> int:
     return -1
 
 
-def balanced_markdown_links(text: str) -> list[str]:
+def is_unescaped_image_label(text: str, open_label: int) -> bool:
+    if open_label == 0 or text[open_label - 1] != "!":
+        return False
+    preceding_backslashes = 0
+    pos = open_label - 2
+    while pos >= 0 and text[pos] == "\\":
+        preceding_backslashes += 1
+        pos -= 1
+    return preceding_backslashes % 2 == 0
+
+
+def balanced_markdown_links(text: str, *, include_images: bool = True) -> list[str]:
     targets: list[str] = []
     index = 0
     while index < len(text):
         open_label = text.find("[", index)
         if open_label == -1:
             break
+        if not include_images and is_unescaped_image_label(text, open_label):
+            index = open_label + 1
+            continue
         preceding_backslashes = 0
         pos = open_label - 1
         while pos >= 0 and text[pos] == "\\":
@@ -303,7 +317,12 @@ def rendered_markdown_text(
         text = RAW_HTML_BLOCK_PATTERN.sub("", text)
     rendered_lines: list[str] = []
     fence_marker = ""
+    fence_in_blockquote = False
     for line in text.splitlines():
+        in_blockquote = re.match(r"^ {0,3}>", line) is not None
+        if fence_marker and fence_in_blockquote and not in_blockquote:
+            fence_marker = ""
+            fence_in_blockquote = False
         fence_line = re.sub(r"^ {0,3}(?:>[ \t]?)+", "", line)
         fence_match = re.match(r"^ {0,3}(```+|~~~+)", fence_line)
         if fence_match:
@@ -316,8 +335,10 @@ def rendered_markdown_text(
                     and rest.strip() == ""
                 ):
                     fence_marker = ""
+                    fence_in_blockquote = False
             else:
                 fence_marker = marker
+                fence_in_blockquote = in_blockquote
             continue
         if fence_marker:
             continue
@@ -349,7 +370,12 @@ def unwrap_link_target(target: str) -> str:
 
 
 def unescape_markdown_destination(target: str) -> str:
-    return re.sub(r"""\\([!"#$%&'()*+,./:;<=>?@\[\\\]^_`{|}~-])""", r"\1", unwrap_link_target(target))
+    unescaped = re.sub(
+        r"""\\([!"#$%&'()*+,./:;<=>?@\[\\\]^_`{|}~-])""",
+        r"\1",
+        unwrap_link_target(target),
+    )
+    return html.unescape(unescaped)
 
 
 def strip_fragment_and_query(target: str) -> str:
@@ -358,7 +384,7 @@ def strip_fragment_and_query(target: str) -> str:
 
 def fragment(target: str) -> str:
     parts = unescape_markdown_destination(target).split("#", 1)
-    return parts[1] if len(parts) == 2 else ""
+    return unquote(parts[1]) if len(parts) == 2 else ""
 
 
 def is_external(target: str) -> bool:
@@ -430,9 +456,9 @@ def validate_target_exists(root: Path, source: Path, target: str) -> None:
 def validate_required_routes(root: Path, rel_path: str, path: Path, text: str) -> None:
     rendered_markdown_for_links = rendered_markdown_text(text)
     reference_definitions = balanced_reference_definitions(rendered_markdown_for_links)
-    markdown_targets = balanced_markdown_links(rendered_markdown_for_links) + balanced_reference_link_targets(
-        rendered_markdown_for_links, reference_definitions
-    )
+    markdown_targets = balanced_markdown_links(
+        rendered_markdown_for_links, include_images=False
+    ) + balanced_reference_link_targets(rendered_markdown_for_links, reference_definitions)
     html_target_text = rendered_markdown_text(text, strip_raw_html_blocks=False)
     html_parser = AnchorHrefParser()
     html_parser.feed(html_target_text)

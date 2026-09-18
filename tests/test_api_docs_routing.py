@@ -320,6 +320,52 @@ def test_html_required_route_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_entity_encoded_required_route_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "[API reference](docs&#x2F;api_reference.md)",
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
+def test_image_only_required_route_does_not_satisfy_contract() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "![API reference](docs/api_reference.md)",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required API route link")
+
+
+def test_top_level_route_after_unterminated_blockquoted_fence_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                "> ```md\n"
+                "> blockquoted sample starts a fence without closing it\n\n"
+                "[API reference](docs/api_reference.md)",
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_missing_route_target_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "docs" / "solver_selection.md").unlink()
@@ -725,6 +771,19 @@ def test_repository_doxygen_path_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_top_level_forbidden_link_after_unterminated_blockquoted_fence_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n> ```md\n> blockquoted sample starts a fence without closing it\n\n"
+            "[Generated HTML](docs/api/html/index.html)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_backslash_escaped_scheme_hosted_api_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -1079,6 +1138,21 @@ def test_missing_route_fragment_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "links to missing API route fragment")
 
 
+def test_url_encoded_route_fragment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "INSTALL.md#support-readiness-matrix",
+                "INSTALL.md#support%2Dreadiness%2Dmatrix",
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_route_fragment_in_fenced_heading_does_not_satisfy_contract() -> None:
     def mutate(root: Path) -> None:
         path = root / "INSTALL.md"
@@ -1300,6 +1374,9 @@ def main() -> None:
     test_reference_style_required_route_is_allowed()
     test_normalized_required_route_is_allowed()
     test_html_required_route_is_allowed()
+    test_entity_encoded_required_route_is_allowed()
+    test_image_only_required_route_does_not_satisfy_contract()
+    test_top_level_route_after_unterminated_blockquoted_fence_is_allowed()
     test_missing_route_target_fails_clearly()
     test_generated_html_publication_link_fails_clearly()
     test_generated_html_link_in_fenced_code_is_ignored()
@@ -1334,6 +1411,7 @@ def main() -> None:
     test_repository_external_link_is_allowed()
     test_repository_generated_api_path_link_fails_clearly()
     test_repository_doxygen_path_link_fails_clearly()
+    test_top_level_forbidden_link_after_unterminated_blockquoted_fence_fails_clearly()
     test_backslash_escaped_scheme_hosted_api_link_fails_clearly()
     test_unrelated_external_link_is_allowed()
     test_unrelated_external_dependency_docs_link_is_allowed()
@@ -1363,6 +1441,7 @@ def main() -> None:
     test_root_relative_generated_html_link_fails_after_resolution()
     test_escaping_local_generated_html_link_fails_clearly()
     test_missing_route_fragment_fails_clearly()
+    test_url_encoded_route_fragment_is_allowed()
     test_route_fragment_in_fenced_heading_does_not_satisfy_contract()
     test_missing_local_only_text_fails_clearly()
     test_hidden_local_only_text_does_not_satisfy_contract()

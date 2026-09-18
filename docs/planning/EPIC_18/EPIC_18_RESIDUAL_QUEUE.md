@@ -9,9 +9,10 @@ claim boundaries.
 
 The queue is intentionally conservative. The requested `SPRINT_197` branch
 executes the final-validation scope that `PROJECT_PLAN.md` labels as Sprint
-206, while Sprints 198 through 205 have no branch-local implementation
-artifacts yet. These residuals should not be read as completed Epic 18 work or
-as support promotion.
+206, while later Sprint 198-204 branches recorded their selected closure or
+re-deferral evidence. Sprint 205 remains pending future execution in the
+current project-plan snapshot. These residuals should not be read as support
+promotion beyond the exact selected evidence recorded for each closed sprint.
 
 ## Queue Summary
 

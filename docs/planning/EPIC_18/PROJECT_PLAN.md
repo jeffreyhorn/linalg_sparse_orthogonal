@@ -44,9 +44,9 @@ evidence-ledger update, not a final Epic 18 closeout. The requested
 `SPRINT_197` branch artifacts are executing the cited final-validation scope
 from this file's Sprint 206 section, while the source project plan still labels
 Sprint 197 as the baseline and closure-selection sprint. To avoid converting
-future plan intent into support claims, Sprints 198 through 205 remain pending
-future execution until their own artifacts, validation records, and PR evidence
-exist.
+future plan intent into support claims, only Sprint 205 remains pending future
+execution in this snapshot. Sprints 198 through 204 now have their own
+artifacts, validation records, and PR evidence recorded below.
 
 | Sprint | Current disposition | Evidence |
 | --- | --- | --- |

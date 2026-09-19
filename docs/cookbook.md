@@ -58,7 +58,7 @@ performance proof.
 | Symmetric positive-definite solve | Cholesky | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers) | Cholesky is not a general fallback and does not promote broad Windows freshness. |
 | Symmetric indefinite solve | LDLT | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers), then `example_ldlt` | No broad KKT, package, ABI, or platform claim. |
 | Rectangular, least-squares, or rank-sensitive solve | QR | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers), then `example_least_squares` or `example_minnorm` | No broad QR parity, raw basis identity, or Windows QR selected freshness claim. |
-| Many solves with the same sparsity pattern | Explicit analysis/factor/refactor lifecycle | README repeated-run direct workflow, then `example_analysis` | Reuse support is workflow-specific and not a package or ABI claim. |
+| Many solves with the same sparsity pattern | Explicit analysis/factor/refactor lifecycle | [README repeated-run direct workflow](../README.md#repeated-run-direct-workflow), then [`example_analysis`](../examples/README.md#repeated-run-direct-example_analysis) | Reuse support is workflow-specific and not a package or ABI claim. |
 | Large solve where direct cost is the issue | Iterative solver with diagnostics | [`solver_selection.md#iterative-solvers`](solver_selection.md#iterative-solvers), then iterative examples | Iteration count and residual behavior are local diagnostics, not portable performance proof. |
 | Matrix-free solve | Matrix-free iterative workflow | `example_matrix_free` and [`solver_selection.md#iterative-solvers`](solver_selection.md#iterative-solvers) | Matrix-free support does not imply backend superiority or package support. |
 | Symmetric eigenpairs | `sparse_eigs_sym(...)` | [`solver_selection.md#eigensolver-workflows`](solver_selection.md#eigensolver-workflows), then `example_eigs` | No nonsymmetric eigensolver or state-of-the-art parity claim. |
@@ -66,7 +66,7 @@ performance proof.
 | Local benchmark or report interpretation | Benchmark docs after workflow selection | [`benchmarks/README.md#reading-benchmark-results`](../benchmarks/README.md#reading-benchmark-results) | Local and selected hosted freshness do not prove portable performance. |
 | Installed downstream consumer | Static Make/pkg-config or CMake consumer | [`INSTALL.md#start-here`](../INSTALL.md#start-here) | Static-first install only; no shared-library, dynamic ABI, or package-manager support. |
 | API declarations and local generated docs | Source-controlled API reference | [`api_reference.md`](api_reference.md) | Generated HTML is local-only ignored output, not hosted or release evidence. |
-| Threading or OpenMP controls | Runtime/backend controls after first workflow works | README runtime/backend controls and algorithm docs | OpenMP controls are not portable performance or broad platform proof. |
+| Threading or OpenMP controls | Runtime/backend controls after first workflow works | [README runtime/backend controls](../README.md#runtime-and-backend-controls) and [algorithm docs](algorithm.md) | OpenMP controls are not portable performance or broad platform proof. |
 
 ## Start From Your Data
 

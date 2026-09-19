@@ -250,15 +250,15 @@ check_support_wording() {
 
 check_windows_package_nonclaim_wording() {
     require_grep \
-        'Windows Makefile/`pkg-config`' \
+        'installed package contract is static-first' \
         "$ROOT_DIR/README.md" \
         "README no longer states that Windows package support remains CMake-first"
     require_grep \
-        'Windows Makefile/`pkg-config`' \
+        'Windows Makefile parity' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows Makefile parity as a non-claim"
     require_grep \
-        'Windows Makefile/`pkg-config`' \
+        'Windows `pkg-config` parity' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows pkg-config execution parity as a non-claim"
 

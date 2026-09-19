@@ -74,7 +74,8 @@ WINDOWS_SELECTED_CHOLESKY_REQUIRED_FILES = (
 )
 CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "README.md": (
-        "Windows Makefile/`pkg-config`",
+        "Windows Makefile parity",
+        "Windows `pkg-config` parity",
         "Sprint 190 adds one guarded Windows hosted",
         "evidence for that exact path and re-deferred selected Windows freshness",
         "The QR incompatible\nleast-squares target remains outside Windows selected freshness",

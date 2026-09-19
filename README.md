@@ -1070,9 +1070,10 @@ platform boundaries, package-manager non-claims, Windows `pkg-config`
 limitations, shared-library deferral, dynamic ABI deferral, and evidence
 owners, use
 [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix).
-Shared-library packaging, dynamic ABI support, Windows Makefile/`pkg-config`
-parity, Homebrew/core readiness, bottles, Linuxbrew, public taps, binary
-packages, and broad package-manager distribution are not claimed. The retained
+Shared-library packaging, dynamic ABI support, Windows Makefile parity,
+Windows `pkg-config` parity, Homebrew/core readiness, bottles, Linuxbrew,
+public taps, binary packages, and broad package-manager distribution are not
+claimed. The retained
 Homebrew proof is a developer-mode local static source formula proof only, not
 a user-facing Homebrew install path. The static/shared package decision is
 recorded in the

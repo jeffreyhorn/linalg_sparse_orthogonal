@@ -25,7 +25,7 @@ changed on Day 10.
 | `make docs-check` | Passed | Doxygen generated `docs/api/html/`; API docs coverage reported 18 checked-in public headers, 18 generated reference pages, 18 generated source pages, and the generated `sparse_version.h` policy row. |
 | `make api-docs-freshness` | Passed | Doxygen generation, API docs coverage, local-only generated-output checks, workflow non-publication checks, and API routing checks passed. |
 | `git status --ignored --short docs/api` | Passed | Generated API output remains ignored as `!! docs/api/`. |
-| C/header diff trigger check | Passed | `git diff --name-only | rg '\.(c\|h)$'` returned no matches. |
+| C/header diff trigger check | Passed | `git diff --name-only | rg '\.(c|h)$'` returned no matches. |
 
 ## Quality Gate Disposition
 

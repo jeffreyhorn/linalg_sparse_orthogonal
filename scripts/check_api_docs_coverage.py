@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+EXCLUDED_GENERATED_HEADERS = {"sparse_version.h"}
 
 
 class CoverageError(RuntimeError):
@@ -33,7 +34,11 @@ def checked_in_headers(include_dir: Path) -> list[Path]:
     if not include_dir.is_dir():
         raise CoverageError(f"include directory not found: {include_dir}")
 
-    headers = sorted(path for path in include_dir.glob("*.h") if path.is_file())
+    headers = sorted(
+        path
+        for path in include_dir.glob("*.h")
+        if path.is_file() and path.name not in EXCLUDED_GENERATED_HEADERS
+    )
     if not headers:
         raise CoverageError(f"no checked-in public headers found under {include_dir}")
     return headers
@@ -49,26 +54,55 @@ def check_coverage(root: Path, include_dir: Path, html_dir: Path) -> tuple[int, 
 
     headers = checked_in_headers(include_dir)
     missing: list[str] = []
+    stale: list[str] = []
+    obsolete: list[str] = []
     reference_count = 0
     source_count = 0
+    expected_pages: set[str] = set()
+    expected_pages.update(
+        page
+        for header_name in EXCLUDED_GENERATED_HEADERS
+        for stem in (doxygen_header_stem(Path(header_name)),)
+        for page in (f"{stem}.html", f"{stem}_source.html")
+    )
 
     for header in headers:
         stem = doxygen_header_stem(header)
         reference_page = html_dir / f"{stem}.html"
         source_page = html_dir / f"{stem}_source.html"
+        expected_pages.update({reference_page.name, source_page.name})
+        header_mtime_ns = header.stat().st_mtime_ns
 
         if reference_page.is_file():
             reference_count += 1
+            if reference_page.stat().st_mtime_ns < header_mtime_ns:
+                stale.append(
+                    f"{rel(header, root)} -> stale reference page {rel(reference_page, root)}; rerun `make docs-check`"
+                )
         else:
             missing.append(f"{rel(header, root)} -> missing reference page {rel(reference_page, root)}")
 
         if source_page.is_file():
             source_count += 1
+            if source_page.stat().st_mtime_ns < header_mtime_ns:
+                stale.append(f"{rel(header, root)} -> stale source page {rel(source_page, root)}; rerun `make docs-check`")
         else:
             missing.append(f"{rel(header, root)} -> missing source page {rel(source_page, root)}")
 
+    for generated_page in sorted(html_dir.glob("*_8h*.html")):
+        if generated_page.name not in expected_pages:
+            obsolete.append(
+                f"obsolete generated header page {rel(generated_page, root)}; remove `docs/api` before rerunning `make docs-check`"
+            )
+
     if missing:
         raise CoverageError("missing generated API pages:\n" + "\n".join(f"  - {item}" for item in missing))
+
+    if stale:
+        raise CoverageError("stale generated API pages:\n" + "\n".join(f"  - {item}" for item in stale))
+
+    if obsolete:
+        raise CoverageError("obsolete generated API pages:\n" + "\n".join(f"  - {item}" for item in obsolete))
 
     return len(headers), reference_count, source_count
 

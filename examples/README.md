@@ -22,13 +22,17 @@ first-use ladder is:
     the normal public matrix shell; use the
     [cookbook](../docs/cookbook.md#start-from-your-data) for the matching
     data-first recipe.
+- **Need a compact problem-shape route before choosing an example?**
+  - Use the
+    [cookbook quick reference](../docs/cookbook.md#problem-shape-quick-reference),
+    then return here for the matching runnable example.
 - **Need to choose a solver workflow first?**
   - Use the [solver-selection guide](../docs/solver_selection.md), then return
     here for the matching runnable example.
 - **Need to inspect diagnostics?**
   - Start with return codes and NULL-result checks, then use example-local
-    residuals, convergence status, stagnation, breakdown, rank, or condition
-    output only for the workflow that produced it. Use the
+    residuals, run-local convergence fields, stagnation, breakdown, rank, or
+    condition output only for the workflow that produced it. Use the
     [solver-selection diagnostics handoff](../docs/solver_selection.md#diagnostics-handoff)
     before changing solver family, backend, preconditioner, tolerance, or
     benchmark settings.
@@ -56,6 +60,19 @@ first-use ladder is:
   - Use the [tutorial](../docs/tutorial.md).
 - **Need benchmark/report interpretation after choosing an API workflow?**
   - Use [benchmarks/README.md](../benchmarks/README.md).
+
+## Route Interpretation
+
+Use the examples as runnable workflow references, not as support-status or
+measurement authorities:
+
+| Need | Route | Interpretation |
+|---|---|---|
+| Learn the first local API workflow | `./build/example_basic_solve`, then the matching `./build/example_*` branch below | Local build-tree usage only; not an install or package-manager proof. |
+| Start from caller-owned CSR, CSC, or Matrix Market data | `example_compressed_input` or `example_matrix_market`, then the cookbook and solver-selection routes | Input format chooses construction, not solver support by itself. |
+| Prove installed downstream consumption | `examples/cmake_example/` plus [INSTALL.md#installed-consumer-tutorial](../INSTALL.md#installed-consumer-tutorial) | Static-first installed consumer route; support status remains owned by [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix). |
+| Measure after choosing a workflow | [benchmarks/README.md](../benchmarks/README.md) | Benchmark output is local or selected evidence, not portable performance proof. |
+| Check current package, platform, ABI, or generated-doc support | [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix) | Examples do not widen package-manager, shared-library, dynamic ABI, Windows, hosted API, release, or state-of-the-art claims. |
 
 ## Building
 
@@ -137,10 +154,10 @@ them. For the solver-family escalation view, use
 - direct examples check factorization or solve return codes and report
   problem-local residuals only for the shown system;
 - iterative examples report `sparse_iter_result_t` convergence, final relative
-  residual, stagnation, residual-history count, and breakdown fields for the
-  local solve;
-- QR and SVD examples report API-local rank, residual, condition, or low-rank
-  summaries as teaching output, not broad external-library parity;
+  residual, run-local stagnation, residual-history count, and breakdown fields
+  for the local solve;
+- QR and SVD examples report QR-local or SVD-local rank, residual, condition,
+  or low-rank summaries as teaching output, not broad external-library parity;
 - installed-consumer examples prove static-first downstream use within the
   boundary summarized by
   [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix).
@@ -224,7 +241,8 @@ examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
 For measurement after you adopt that lifecycle, move to the benchmark surfaces
-rather than expecting examples to double as timing harnesses:
+rather than expecting examples to double as timing harnesses. Benchmark output
+is local/selected measurement evidence, not portable performance proof:
 
 - `bench_refactor` / `bench_refactor_csc` for repeated-run direct reuse
 - `bench_iterative_reuse` for iterative handles
@@ -395,6 +413,9 @@ For that installed-consumer path, use:
 - `examples/cmake_example/CMakeLists.txt`
 - `examples/cmake_example/main.c`
 - [INSTALL.md#installed-consumer-tutorial](../INSTALL.md#installed-consumer-tutorial)
+- [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix)
+  for the current static-first package boundary and unsupported
+  package-manager, shared-library, dynamic ABI, and broad platform claims
 
 ## Writing Your Own
 

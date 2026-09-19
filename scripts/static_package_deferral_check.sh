@@ -217,7 +217,7 @@ check_no_package_selector() {
 
 check_support_wording() {
     require_grep \
-        'Shared-library packaging is intentionally deferred' \
+        'Shared-library packaging, dynamic ABI support' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps shared-library packaging deferred"
     require_grep \
@@ -250,15 +250,15 @@ check_support_wording() {
 
 check_windows_package_nonclaim_wording() {
     require_grep \
-        'Windows remains CMake-first' \
+        'Windows Makefile/`pkg-config`' \
         "$ROOT_DIR/README.md" \
         "README no longer states that Windows package support remains CMake-first"
     require_grep \
-        'Windows still does not claim Makefile' \
+        'Windows Makefile/`pkg-config`' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows Makefile parity as a non-claim"
     require_grep \
-        '`pkg-config` execution parity' \
+        'Windows Makefile/`pkg-config`' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows pkg-config execution parity as a non-claim"
 

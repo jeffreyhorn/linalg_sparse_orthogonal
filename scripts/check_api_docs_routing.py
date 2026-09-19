@@ -74,8 +74,8 @@ REQUIRED_TEXT = {
     "docs/cookbook.md": (),
     "docs/solver_selection.md": (),
     "README.md": (
-        "API reference entry point: docs/api_reference.md",
-        "Generated API HTML is not hosted documentation, a retained CI artifact,",
+        "For API documentation, the supported source-controlled entry point is",
+        "that generated HTML is local-only ignored output, not hosted",
     ),
     "INSTALL.md": (
         "| Local generated API HTML | local-only |",

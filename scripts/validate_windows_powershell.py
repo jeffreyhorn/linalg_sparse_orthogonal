@@ -74,12 +74,11 @@ WINDOWS_SELECTED_CHOLESKY_REQUIRED_FILES = (
 )
 CLAIM_BOUNDARY_MARKERS = {
     REPO_ROOT / "README.md": (
-        "Windows still does not claim Makefile parity",
-        "hosted PowerShell validation ownership\n  job",
-        "workflow validation ownership only",
-        "bounded Windows selected Cholesky comparison freshness workflow",
-        "The QR incompatible least-squares target remains outside Windows\nselected freshness",
-        "The Sprint\n  182 deferral record still applies to all other Windows report freshness",
+        "Windows Makefile/`pkg-config`",
+        "Sprint 190 adds one guarded Windows hosted",
+        "evidence for that exact path and re-deferred selected Windows freshness",
+        "The QR incompatible\nleast-squares target remains outside Windows selected freshness",
+        "outside the one Sprint 190 Cholesky",
     ),
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation ownership for selected Windows workflow snippets",

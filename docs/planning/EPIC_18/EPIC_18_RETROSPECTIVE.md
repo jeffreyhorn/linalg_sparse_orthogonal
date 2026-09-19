@@ -51,12 +51,12 @@ residuals that are present on the current branch.
 | Status | Current count | Rows |
 | --- | ---: | --- |
 | In progress with numbering caveat | 6 | 197.1-197.6. |
-| Pending future execution | 6 | 205.1-205.6 remains future sprint work not yet executed on this branch. |
-| Sprint 198-204 selected closures and re-deferrals | 42 | 198.1-204.6 are closed for their selected branch-local scopes, with Sprint 199 and Sprint 203 explicitly closed as re-deferrals rather than promotions. |
+| Pending future execution | 0 | No Sprint 198-205 implementation item remains pending future execution on this branch. |
+| Sprint 198-205 selected closures and re-deferrals | 48 | 198.1-205.6 are closed for their selected branch-local scopes, with Sprint 199 and Sprint 203 explicitly closed as re-deferrals rather than promotions. |
 | Partial final-validation evidence | 4 | 206.1-206.4. |
 | Requested final-validation evidence recorded | 2 | 206.5-206.6. |
 | Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |
-| Complete | 42 | Sprint 198 through Sprint 204 items are closed for their selected branch-local scopes, including explicit non-promotion/re-deferral closures where evidence did not support promotion. |
+| Complete | 48 | Sprint 198 through Sprint 205 items are closed for their selected branch-local scopes, including explicit non-promotion/re-deferral closures where evidence did not support promotion. |
 | Narrowed | 0 | No Epic 18 implementation item has been narrowed at Day 14. |
 | Deferred | 0 | No Epic 18 implementation item has been formally deferred at Day 14. |
 | Residualized | 10 residual entries | `EPIC_18_RESIDUAL_QUEUE.md` publishes prioritized residuals E18-RQ-001 through E18-RQ-010. |
@@ -177,9 +177,10 @@ methodology, and reviewed hosted evidence for every claim.
 
 ## What Went Well
 
-1. **Evidence stayed separated from intent.** Sprint 198-204 goals are counted
+1. **Evidence stayed separated from intent.** Sprint 198-205 goals are counted
    only to the exact closure or re-deferral evidence recorded in their sprint
-   artifacts, while Sprint 205 remains future work.
+   artifacts, with Sprint 205 closed as documentation consolidation and guard
+   alignment rather than new support promotion.
 
 2. **Claim calibration stayed conservative.** Public and maintainer docs were
    audited without promoting unsupported package, Windows, benchmark, API,

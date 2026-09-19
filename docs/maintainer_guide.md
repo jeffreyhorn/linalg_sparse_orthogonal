@@ -1288,6 +1288,53 @@ and surface-specific notes.
 
 They should not absorb repo-wide quality policy or warning-policy prose.
 
+### Support truth and quick-reference routing
+
+Sprint 205 keeps `INSTALL.md#support-readiness-matrix` as the public
+support/readiness source of truth. Public workflow docs may link to that matrix
+instead of repeating package, platform, ABI, generated API, benchmark, Windows,
+release, or state-of-the-art caveats in full.
+
+The compact problem-shape route lives in
+`docs/cookbook.md#problem-shape-quick-reference`. Treat it as a user routing
+surface, not an evidence ledger. It should link to owner docs:
+
+- `docs/solver_selection.md` for detailed solver-family guidance and selected
+  evidence boundaries;
+- `examples/README.md` for runnable local examples;
+- `docs/api_reference.md` for source-controlled API declarations and local-only
+  generated API policy;
+- `benchmarks/README.md` for benchmark/report interpretation;
+- `INSTALL.md#support-readiness-matrix` for current support status.
+
+Do not copy selected target lists, generated report row IDs, residual queue
+items, or raw `support_tier` / `claim_boundary` / `freshness_policy` vocabulary
+into the quick reference. Keep inline non-claims near high-risk public wording:
+static-first install, no package-manager support, no shared-library or dynamic
+ABI support, no promoted Windows selected freshness, no hosted generated API
+publication, and no portable performance or state-of-the-art claim.
+
+### Diagnostics vocabulary routing
+
+Sprint 205 separates public diagnostics wording from maintainer/report schema
+wording. First-use docs should prefer "problem-local residual", "run-local
+convergence fields", "QR-local", "SVD-local", "Ritz residual for the requested
+eigenpairs", "local measurement artifact", and "selected target" over raw
+manifest or schema vocabulary.
+
+Keep `status`, `support_tier`, `claim_boundary`, `freshness_policy`,
+`local_only`, `hosted_selected`, `skip`, `defer`, `fresh`, `stale`, `missing`,
+and `error` in maintainer/report sections where the surrounding text defines
+their meaning. Do not rewrite `skip` or `defer` as pass/fail evidence: `skip`
+means optional data or prerequisites are unavailable by policy, and `defer`
+means the row or claim is intentionally handed off or residualized.
+
+When public-facing docs need report freshness meaning without exposing raw
+report-index state vocabulary, use "current generated output for the selected
+gate" and route the detailed interpretation here or to `benchmarks/README.md`.
+Preserve exact API names, enum names, field names, and command output when
+quoting implementation surfaces.
+
 ## Lifecycle and Cancellation Expectations
 
 Maintainers should treat lifecycle and cancellation policy in two layers.

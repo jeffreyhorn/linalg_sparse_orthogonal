@@ -9,9 +9,9 @@ claim boundaries.
 
 The queue is intentionally conservative. The requested `SPRINT_197` branch
 executes the final-validation scope that `PROJECT_PLAN.md` labels as Sprint
-206, while later Sprint 198-204 branches recorded their selected closure or
-re-deferral evidence. Sprint 205 remains pending future execution in the
-current project-plan snapshot. These residuals should not be read as support
+206, while later Sprint 198-205 branches recorded their selected closure or
+re-deferral evidence. No Sprint 198-205 implementation row remains pending
+future execution in the current project-plan snapshot. These residuals should not be read as support
 promotion beyond the exact selected evidence recorded for each closed sprint.
 
 ## Queue Summary
@@ -133,12 +133,12 @@ promotion beyond the exact selected evidence recorded for each closed sprint.
 | --- | --- |
 | Theme | Adoption and diagnostics simplification. |
 | Source | Epic 18 Sprint 205 plan; Sprint 197 Day 4 and Day 6 public-doc audit. |
-| Current status | Pending future execution. |
+| Current status | Closed by Sprint 205 as support truth consolidation, compact problem-shape quick reference, diagnostics vocabulary normalization, and claim-guard alignment; future work remains only if the project wants broader UX/product adoption changes beyond the selected documentation consolidation. |
 | Owner surfaces | README; INSTALL; tutorial; cookbook; solver selection; examples; benchmark docs; API reference; maintainer guide; docs claim guards. |
-| Why it remains | This branch audited public docs but did not design or implement a compact problem-shape quick reference, support truth consolidation, diagnostics vocabulary normalization, or claim guards. |
-| Closure target | Add a compact problem-shape quick reference, centralize support truth, normalize diagnostics wording, and add/update guards so simplified wording does not broaden claims. |
-| Expected evidence | Public doc audit; quick-reference design; edited docs; claim guard updates; docs checks; generated API checks if API routing changes. |
-| Validation commands | `make docs-check`; `make api-docs-freshness` if API docs change; package/static deferral guards if install/support wording changes; `make windows-powershell-guard` if Windows wording changes; full C gate if headers change. |
+| Why it remains | Sprint 205 closed the selected documentation consolidation scope, but the residual remains as a future product-writing bucket for any additional adoption experience work outside the compact quick-reference/support-truth/diagnostics/guard scope. |
+| Closure target | Current closure target is satisfied by Sprint 205. Reopen only for additional adoption UX changes with their own owner surfaces, wording design, guard coverage, and validation evidence. |
+| Expected evidence | Current closure evidence is `SPRINT_205/WORKING_NOTES.md`, `SPRINT_205/artifacts/day13-integrated-validation.md`, and `SPRINT_205/artifacts/day14-closeout-review.md`; future adoption changes need updated design artifacts, edited docs, guard updates, and focused validation. |
+| Validation commands | Current closure: `make support-docs-guard`; `make api-docs-freshness`; `bash scripts/package_manager_deferral_check.sh`; `bash scripts/static_package_deferral_check.sh`; `python3 tests/test_validate_windows_powershell.py`; `python3 tests/test_selected_performance_docs.py`; `git diff --check`; full C gate if headers change. |
 | Claim boundary | Simplified wording must not imply package-manager support, broad platform parity, portable performance, release readiness, dynamic ABI support, or state-of-the-art status. |
 
 ## Long-Horizon Deferrals

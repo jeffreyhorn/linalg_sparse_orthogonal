@@ -14,15 +14,16 @@ solve, then routes deeper support detail to the maintained docs that own it.
    inline [Quick Start](#quick-start) when you want to paste a tiny program.
 3. **Start from your data format:** if your matrix already exists as CSR, CSC,
    or Matrix Market input, use the
-   [cookbook first-use ladder](docs/cookbook.md#first-use-ladder) and
+   [cookbook problem-shape quick reference](docs/cookbook.md#problem-shape-quick-reference) and
    `./build/example_compressed_input`.
 4. **Choose the solver family:** use [Choose a Workflow](#choose-a-workflow)
    for the compact route, then
    [docs/solver_selection.md#choose-the-smallest-workflow](docs/solver_selection.md#choose-the-smallest-workflow)
    for the fuller decision tree.
 5. **Inspect local diagnostics:** keep return codes, `NULL` constructor
-   results, residuals, convergence status, rank diagnostics, and benchmark
-   measurements tied to the workflow that produced them. The maintained
+   results, problem-local residuals, run-local convergence fields, rank
+   diagnostics, and benchmark measurements tied to the workflow that produced
+   them. The maintained
    example handoff is
    [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff).
 6. **Install only when you need a downstream consumer:** use
@@ -41,8 +42,8 @@ solve, then routes deeper support detail to the maintained docs that own it.
 | Need | Start here | Then use |
 |---|---|---|
 | Smallest local build and solve | [examples/README.md#start-here](examples/README.md#start-here) | [Quick Start](#quick-start) |
-| Problem-shape decision tree | [Choose a Workflow](#choose-a-workflow) | [docs/solver_selection.md#choose-the-smallest-workflow](docs/solver_selection.md#choose-the-smallest-workflow) |
-| CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md#first-use-ladder](docs/cookbook.md#first-use-ladder) | Maintained examples linked from the cookbook |
+| Problem-shape quick reference | [docs/cookbook.md#problem-shape-quick-reference](docs/cookbook.md#problem-shape-quick-reference) | [docs/solver_selection.md#choose-the-smallest-workflow](docs/solver_selection.md#choose-the-smallest-workflow) |
+| CSR, CSC, or Matrix Market first-use path | [docs/cookbook.md#problem-shape-quick-reference](docs/cookbook.md#problem-shape-quick-reference) | Maintained examples linked from the cookbook |
 | Diagnostics after a first run | [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff) | [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff) |
 | Installed consumer setup | [Installation](#installation) | [INSTALL.md#start-here](INSTALL.md#start-here) |
 | Current support/readiness status | [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix) | [docs/maintainer_guide.md](docs/maintainer_guide.md) for proof interpretation |
@@ -215,20 +216,20 @@ When to widen beyond the first examples:
 - `make bench-canonical-report` writes one bounded snapshot of the maintained
   benchmark surface with generated `index.tsv` / `manifest.txt` methodology
   context and is intentionally not a pass/fail timing gate; unselected
-  canonical rows are `status=measurement`, `support_tier=local_only`, and
-  `claim_boundary=local_threshold_free`
+  canonical rows are local measurement artifacts, with raw schema fields
+  recorded in the benchmark docs
 - `make bench-canonical-report-freshness` regenerates that canonical bundle
   and checks only the selected `bench_refactor_csc` row for
   `nos4.mtx --repeat 1`; the reviewed Linux and macOS hosted performance
   lanes run the same selected-row freshness check with platform-specific
   hosted metadata on that selected row only, still without a timing threshold
   or portable performance claim
-- `make performance-sentinels` writes a local sentinel bundle: its hard
-  pass/fail behavior is limited to the existing S5 wall-check lane and the S6
-  selected `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and
-  LDLT KKT rows are threshold-free measurement context; S5/S6 rows carry
-  baseline provenance, while S2/S3 rows carry backend-context caveats rather
-  than pass/fail meaning
+- `make performance-sentinels` writes a local sentinel bundle: thresholded
+  status is limited to the existing S5 wall-check lane and the S6 selected
+  `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and LDLT KKT
+  rows are threshold-free measurement context; S5/S6 rows carry baseline
+  provenance, while S2/S3 rows carry backend-context caveats rather than
+  passing evidence
 
 Selected performance evidence path:
 
@@ -341,41 +342,24 @@ make clean      # remove build artifacts
 
 For API documentation, the supported source-controlled entry point is
 `docs/api_reference.md` backed by public headers under `include/`.
-API reference entry point: docs/api_reference.md. Sprint 179 keeps generated
-Doxygen HTML as a local-only convenience view: run
-`make api-docs-freshness` immediately before inspecting `docs/api/html/`.
-Generated API HTML is not hosted documentation, a retained CI artifact,
-source-controlled output, or release evidence. The freshness command also
-checks generated page coverage, local-only staging, and API routing so user
-docs continue to point at the source-controlled API entry point rather than an
-unavailable generated or hosted publication.
+Run `make api-docs-freshness` immediately before inspecting generated
+`docs/api/html/`; that generated HTML is local-only ignored output, not hosted
+documentation, a retained artifact, source-controlled output, or release
+evidence. Use [docs/api_reference.md](docs/api_reference.md) for the generated
+API policy and exact source-controlled route.
 
-The normalized report index is a maintainer navigation and freshness aid. It
-does not replace the underlying validation commands or turn local benchmark,
-coverage, dead-code, comparison, or package metadata rows into release proof.
-Reviewed Linux hosted report freshness runs only the selected oracle,
-comparison, and selected-performance gates above; reviewed macOS hosted report
-freshness runs only the selected comparison and selected-performance gates.
-Windows currently has one guarded workflow path for
-`cholesky-spd-tridiag-5`, but the selected target manifest still owns platform
-promotion. Sprint 199 reviewed hosted CI evidence for that exact path and kept
-Windows promotion re-deferred because selected-target metadata, generated
-support tier, and generated non-claim wording still remain local-only. Do not
-treat the Windows path as promoted selected freshness or broad Windows report
-evidence. The QR incompatible least-squares target remains outside Windows
-selected freshness until hosted MSVC probe evidence, selected artifact review,
-selected-target manifest metadata, generated support tier, and generated
-non-claim wording are promoted together.
-
-The selected target list, expected row counts, required artifacts, workflow
-upload names, support tiers, freshness policies, claim scopes, and non-claims
-live in `tests/corpus/manifests/selected_report_targets.tsv`; update that
-manifest rather than copying target lists through docs. The comparison gate
-does not promote broad report-index freshness, selected oracle freshness on
-macOS, broad Windows report freshness, selected oracle freshness on Windows,
-selected benchmark freshness on Windows, or any unselected local-only family.
-The Windows PowerShell validation lane is workflow validation ownership only;
-it does not prove generated report freshness.
+The normalized report index is a maintainer navigation and current-output
+diagnostic aid. It does not replace the underlying validation commands or turn
+local benchmark, coverage, dead-code, comparison, or package metadata rows into
+release proof.
+Reviewed Linux and macOS hosted lanes are selected-target evidence only, and
+Windows selected freshness remains unpromoted unless the manifest metadata,
+generated support tier, and non-claim wording are promoted together. Keep the
+selected target list, workflow upload names, claim scopes, and non-claims in
+`tests/corpus/manifests/selected_report_targets.tsv`; do not copy target lists
+through docs. Use [benchmarks/README.md](benchmarks/README.md) and the
+[support/readiness matrix](INSTALL.md#support-readiness-matrix) for the public
+report and support interpretation.
 
 The reviewed Linux and macOS hosted selected-performance lanes run only the
 selected canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
@@ -465,8 +449,8 @@ Next steps after the first solve:
 - move to [Iterative Solver Example](#iterative-solver-example) when the
   matrix/system type makes iterative workflows a better fit
 - use [examples/README.md#diagnostics-handoff](examples/README.md#diagnostics-handoff)
-  when you need to interpret return codes, residuals, convergence status, or
-  rank diagnostics; use
+  when you need to interpret return codes, problem-local residuals,
+  run-local convergence fields, or rank diagnostics; use
   [docs/solver_selection.md#diagnostics-handoff](docs/solver_selection.md#diagnostics-handoff)
   when you need to decide whether diagnostics justify changing solver family,
   backend, preconditioner, tolerance, or benchmark settings
@@ -1086,26 +1070,13 @@ platform boundaries, package-manager non-claims, Windows `pkg-config`
 limitations, shared-library deferral, dynamic ABI deferral, and evidence
 owners, use
 [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix).
-Shared-library packaging is intentionally deferred; the canonical package and
-ABI decision remains
-`docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md`.
-Windows remains CMake-first, and Windows still does not claim Makefile parity
-or `pkg-config` execution parity. The Windows workflow keeps a hosted PowerShell validation ownership
-  job for selected workflow snippets and one bounded Windows selected Cholesky comparison freshness workflow
-as a guarded path. Sprint 199 reviewed that exact hosted path and re-deferred
-selected Windows freshness promotion until the selected manifest, generated
-support tier, and generated non-claim wording are promoted together. The Sprint
-  182 deferral record still applies to all other Windows report freshness.
-Current broad package-manager support and package-manager distribution are not
-provided. Sprint 198 now includes root MIT license metadata and a completed
-developer-mode local Homebrew static source formula proof on macOS Intel
-x86_64 Tier 3 Homebrew using
-`HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT`. That proof covers the
-temporary local tap render, source install, installed static package surface,
-downstream `brew test`, uninstall, and cleanup path only; it is not a
-user-facing Homebrew install path, Homebrew/core readiness, bottle support,
-Linuxbrew support, public tap maintenance, binary package distribution, or
-general package-manager support.
+Shared-library packaging, dynamic ABI support, Windows Makefile/`pkg-config`
+parity, Homebrew/core readiness, bottles, Linuxbrew, public taps, binary
+packages, and broad package-manager distribution are not claimed. The retained
+Homebrew proof is a developer-mode local static source formula proof only, not
+a user-facing Homebrew install path. The static/shared package decision is
+recorded in the
+[Sprint 170 shared-library and ABI product decision](docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md).
 
 ## Documentation
 

@@ -2,173 +2,176 @@
 
 **Epic:** 18 - Selected Productization, Reliability & Evidence Promotion
 **Sprints:** 197-206
-**Status:** Sprint 204 local-only generated API policy incorporated with explicit residuals
+**Status:** Complete through Sprint 206 Day 14
 
 ## Epic Objective
 
-Epic 18 starts from the Epic 17 closeout and targets a small number of
+Epic 18 started from the Epic 17 closeout and targeted a small number of
 productization, platform freshness, reliability, reviewability, benchmark,
 comparison, generated API, support-matrix, and final validation gaps. The plan
-intentionally prefers complete closure of selected gaps over partial progress
+intentionally preferred complete closure of selected gaps over partial progress
 across every remaining state-of-the-art shortcoming.
 
-This retrospective began from the `SPRINT_197` final-validation artifacts. Those
-artifacts were requested under `SPRINT_197`, but they execute the cited
-final-validation scope that `PROJECT_PLAN.md` labels as Sprint 206. Later Epic
-18 sprint branches update this file only for completed sprint evidence and
-residuals that are present on the current branch.
+The Epic 18 closeout also preserves a historical numbering caveat: Sprint 197
+contains requested final-validation evidence for scope that the Epic project
+plan later identifies as Sprint 206. Sprint 206 is now the explicit current
+closeout branch and records the final reconciliation, claim recalibration,
+validation, retrospective, residual queue, consistency hardening, and final
+closeout path.
 
 ## Sprint Outcomes
 
 | Sprint | Current outcome |
 | --- | --- |
-| 197 | Complete for the requested final-validation branch path, with numbering caveat. The branch contains the requested final-validation plan, working notes, evidence ledger, claim audits, no-promotion records, project-plan interim status snapshot, validation logs, retrospective draft, residual queue, and final closeout review. |
+| 197 | Historical final-validation evidence with numbering caveat. The branch contains a requested final-validation plan, working notes, evidence ledger, claim audits, no-promotion records, project-plan interim status snapshot, validation logs, retrospective draft, residual queue, and final closeout review, but it is no longer the current explicit Sprint 206 closeout path. |
 | 198 | Closed with developer-mode local Homebrew static source proof. Root MIT metadata, formula metadata, archive/checksum proof, temporary local tap render, source install, installed static surface validation, downstream `brew test`, uninstall, cleanup, and proof exit `0` are recorded; Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, and broad package-manager distribution remain unclaimed. |
-| 199 | Closed with Windows promotion re-deferred. Hosted Windows evidence for `cholesky-spd-tridiag-5` was reviewed and retained as guarded workflow evidence; selected Windows freshness promotion remains re-deferred until selected metadata, generated support tier, generated non-claim wording, and final claim contract are promoted together. |
+| 199 | Closed with Windows Cholesky promotion re-deferred. Hosted Windows evidence for `cholesky-spd-tridiag-5` was reviewed and retained as guarded workflow evidence; selected Windows freshness promotion remains re-deferred until selected metadata, generated support tier, generated non-claim wording, and final claim contract are promoted together. |
 | 200 | Closed with selected symbolic LU allocation-failure proof. `sparse_symbolic_lu()` was selected as the additional allocation-failure owner; invariants, harness reachability, failed-allocation, cleanup, retry, focused gate, registration guard, claim-documentation, integrated-validation, review-hardening, and closeout artifacts are present. Broader allocation-failure and state-of-the-art reliability claims remain unearned. |
 | 201 | Closed for selected SVD helper review-surface reduction. The selected `tests/test_svd.c` rank, pseudoinverse, and dense low-rank cluster is helper-owned by `tests/test_svd_selected_helpers.h`; focused SVD guard coverage and validation evidence are recorded, while broader review-surface cleanup remains unclaimed. |
 | 202 | Closed with macOS hosted selected benchmark freshness evidence. The selected macOS hosted performance-freshness lane for `SRT-BENCH-REFACTOR-CSC-NOS4` is recorded with PR run, job, artifact, digest, manifest, workflow, and validator evidence; portable performance, timing thresholds, broad benchmark publication, and state-of-the-art performance remain unclaimed. |
 | 203 | Closed with Windows QR incompatible promotion re-deferred. Local `qr-incompatible-ls` generator and selected freshness proof passed, Windows-style artifact path and diagnostic guards were added, and workflow/selected manifest promotion remained intentionally absent because hosted Windows/MSVC proof and hosted artifact inspection were not available. |
-| 204 | Closed with stronger local-only generated API policy. Generated Doxygen HTML remains local-only ignored output under `docs/api/html/`; `make api-docs-freshness` now covers generated-page freshness, local-only staging, workflow non-publication, API routing, and Makefile routing wiring; hosted generated API publication, retained generated-doc artifacts, committed generated HTML, package-manager evidence, ABI/shared-library evidence, broad platform evidence, performance evidence, release evidence, and state-of-the-art evidence remain unclaimed. |
-| 205 | Pending future execution. Support/adoption quick reference, support truth consolidation, diagnostics vocabulary, claim guards, docs, and validation evidence are not present on this branch. |
-| 206 | Requested final-validation evidence is recorded through the `SPRINT_197` artifacts. Evidence reconciliation, claim recalibration, project-plan status, focused/full gate decisions, retrospective draft, residual queue, claim decision, and final closeout review are complete for this branch state. |
+| 204 | Closed with stronger local-only generated API policy. Generated Doxygen HTML remains local-only ignored output under `docs/api/html/`; `make api-docs-freshness` covers generated-page freshness, local-only staging, workflow non-publication, API routing, and Makefile routing wiring; hosted generated API publication, retained generated-doc artifacts, committed generated HTML, package-manager evidence, ABI/shared-library evidence, broad platform evidence, performance evidence, release evidence, and state-of-the-art evidence remain unclaimed. |
+| 205 | Closed with support matrix and adoption quick-reference consolidation. Public support truth remains `INSTALL.md#support-readiness-matrix`; the compact problem-shape quick reference routes users to existing solver/workflow owners, diagnostics wording was normalized across selected docs, and focused claim guards were aligned with simplified wording while package-manager, Windows, ABI/shared-library, hosted generated API, portable performance, release, and state-of-the-art claims remain unclaimed. |
+| 206 | Closed on the explicit closeout branch. Evidence reconciliation, public and maintainer claim recalibration, project-plan status, focused validation, broad documentation/API validation, this retrospective, residual queue refresh, consistency hardening, and final closeout review are recorded. |
 
 ## Major Outcomes
 
-| Area | Day 14 outcome |
+| Area | Outcome |
 | --- | --- |
-| Evidence reconciliation | Sprint 197 Day 1-3 artifacts inventoried Epic 18 evidence sources, created an outcome ledger, classified evidence conflicts, and separated future sprint evidence from completed proof. |
-| Public claim calibration | Day 4 audited public claim surfaces and Day 6 recorded a no-promotion decision because current public docs already retain package, Windows, benchmark, API, ABI, release, and state-of-the-art non-claims. |
-| Maintainer/API calibration | Day 5 audited maintainer/API/corpus/schema surfaces and Day 7 recorded a no-promotion decision because current owner docs already identify evidence gates and retained boundaries. |
-| Project-plan status | Day 8 added an interim `PROJECT_PLAN.md` status snapshot and a full item-level ledger; later Sprint 200 and Sprint 204 branches updated the current status for their completed branch evidence while retaining residual boundaries for unproved claims. |
-| Focused validation | Day 10 ran focused docs/API, Windows ownership, package-manager deferral, static-package deferral, and source-list confidence gates. |
-| Full-gate decision | Day 11 verified the branch remains docs/planning-only, ran required docs/planning checks, and recorded that the full C gate is not required without `*.c` or `*.h` changes. |
-| Claim governance | Day 13 publishes the residual queue and records that no stronger support, package, Windows freshness, performance, API publication, release, ABI, or state-of-the-art claim has been earned on this branch. |
-| Final closeout review | Day 14 verifies artifact completeness, internal consistency, claim calibration, validation currency, generated-artifact hygiene, and PR summary inputs. |
+| Evidence reconciliation | Sprint 206 Days 1-2 reconciled Sprint 197-205 plans, working notes, retrospectives, artifacts, PR review follow-ups, and current project-plan evidence into one closeout ledger. |
+| Public claim calibration | Sprint 206 Days 3 and 5 updated README/INSTALL wording so the retained Sprint 198 Homebrew proof is represented as developer-mode local static source formula proof only, not a user-facing package-manager install path. |
+| Maintainer/API calibration | Sprint 206 Day 6 aligned `docs/maintainer_guide.md` and `docs/api_reference.md` around Sprint 204 as the current generated API local-only policy owner, while preserving Sprint 179 and Sprint 186 historical context. |
+| Project-plan status | Sprint 206 Day 7 updated `PROJECT_PLAN.md` so Sprint 197 is historical numbering-caveat evidence and Sprint 206 is the explicit closeout branch; Days 8-10 kept the row current as validation evidence landed. |
+| Focused validation | Sprint 206 Day 9 passed support-doc, package-manager deferral, static-package deferral, generated API freshness, project-plan stale wording, and generated-output hygiene checks after reflowing one README guard marker. |
+| Broad documentation/API validation | Sprint 206 Day 10 passed `make docs-check` and `make api-docs-freshness`; generated Doxygen HTML remained ignored under `docs/api/`. |
+| Residual queue | Sprint 206 Day 12 refreshed `EPIC_18_RESIDUAL_QUEUE.md` so selected closures and re-deferrals are not described as unstarted work and broader claims remain explicit residuals. |
+| Consistency hardening | Sprint 206 Day 13 cross-checked public, maintainer, planning, retrospective, residual, working-note, and artifact surfaces for stale current-status wording and claim-boundary drift. |
+| Final closeout | Sprint 206 Day 14 closed the Sprint 206 day ledger, item dispositions, current-status docs, PR-ready notes, residual handoff, and generated-output hygiene plan. |
+| Claim governance | Sprints 198-205 closed selected scopes or explicit re-deferrals without promoting broad package, Windows, ABI, hosted API, portable performance, release, or state-of-the-art claims. |
 
 ## Project-Plan Status
 
 | Status | Current count | Rows |
 | --- | ---: | --- |
-| In progress with numbering caveat | 6 | 197.1-197.6. |
-| Pending future execution | 0 | No Sprint 198-205 implementation item remains pending future execution on this branch. |
-| Sprint 198-205 selected closures and re-deferrals | 48 | 198.1-205.6 are closed for their selected branch-local scopes, with Sprint 199 and Sprint 203 explicitly closed as re-deferrals rather than promotions. |
-| Partial final-validation evidence | 4 | 206.1-206.4. |
-| Requested final-validation evidence recorded | 2 | 206.5-206.6. |
-| Pending final-validation work | 0 | Day 14 final closeout review is recorded for the current branch state. |
-| Complete | 48 | Sprint 198 through Sprint 205 items are closed for their selected branch-local scopes, including explicit non-promotion/re-deferral closures where evidence did not support promotion. |
-| Narrowed | 0 | No Epic 18 implementation item has been narrowed at Day 14. |
-| Deferred | 0 | No Epic 18 implementation item has been formally deferred at Day 14. |
-| Residualized | 10 residual entries | `EPIC_18_RESIDUAL_QUEUE.md` publishes prioritized residuals E18-RQ-001 through E18-RQ-010. |
-| Superseded | 0 | No Epic 18 item has been superseded at Day 14. |
+| Historical final-validation evidence with numbering caveat | 6 | 197.1-197.6. |
+| Closed selected scopes and explicit re-deferrals | 48 | 198.1-205.6, with Sprints 199 and 203 closed as re-deferrals rather than promotions. |
+| Sprint 206 project-plan items complete | 6 | 206.1-206.6: evidence reconciliation, claim recalibration, project-plan status, integrated validation, retrospective, and residual queue. |
+| Sprint 206 pending | 0 project-plan items | Day 14 final closeout review is recorded. |
+| Residual queue refreshed | 1 document | `EPIC_18_RESIDUAL_QUEUE.md` is updated as the final residual handoff. |
 
-The evidence-linked interim status snapshot lives in
-[PROJECT_PLAN.md](./PROJECT_PLAN.md). The full item-level Day 8 ledger lives in
+The current status snapshot lives in [PROJECT_PLAN.md](./PROJECT_PLAN.md).
+Historical Sprint 197 item-level evidence remains in
 [SPRINT_197/artifacts/day8-project-plan-status.md](./SPRINT_197/artifacts/day8-project-plan-status.md).
+Current Sprint 206 reconciliation and validation evidence begins with
+[SPRINT_206/artifacts/day2-outcome-reconciliation.md](./SPRINT_206/artifacts/day2-outcome-reconciliation.md)
+and continues through
+[SPRINT_206/artifacts/day14-closeout-review.md](./SPRINT_206/artifacts/day14-closeout-review.md).
 
 ## Validation Evidence
 
 | Evidence | Current result | Boundary |
 | --- | --- | --- |
-| Patch hygiene | Day 14 `git diff --check` rerun passed. | Whitespace and patch hygiene only. |
-| Docs/API generation | Day 14 `make docs-check` rerun passed with 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. | Documentation generation and coverage only; no hosted API publication claim. |
-| Generated API local-only policy | Sprint 204 `make api-docs-freshness` passed and confirmed generated API HTML remains ignored, untracked, unstaged, not a workflow publication path, source-controlled through API routing docs, and guarded by Makefile wiring checks. | Local-only generated API freshness, routing, staging, and non-publication guard only. |
-| Windows PowerShell ownership | Day 10 `make windows-powershell-guard` passed. | Workflow/snippet ownership and claim-boundary validation only; local `pwsh` unavailable remains an environment residual. |
-| Package-manager non-claims | Day 10 `bash scripts/package_manager_deferral_check.sh` passed. | Deferral and non-claim enforcement only; no Homebrew/package-manager support claim. |
-| Shared-library/dynamic ABI non-claims | Day 10 `bash scripts/static_package_deferral_check.sh` passed. | Static package boundary and dynamic ABI deferral only. |
-| Source-list confidence | Day 10 `make source-list-check` passed with 49 library sources. | Source registration confidence only; no implementation behavior proof. |
-| Full C quality gate | Day 11 recorded `make format && make lint && make test` as not required. | No `.c` or `.h` files changed through Day 14. |
-| Generated report freshness | Skipped with documented reasons on Days 10-11. | No report generator, manifest, normalizer, or report-doc source changed; local regeneration would not create hosted evidence. |
-| Benchmark freshness | Skipped with documented reasons on Days 10-11. | No benchmark code, manifest, methodology, docs, or checker source changed; local output would not create portable performance evidence. |
-| Final closeout review | Day 14 artifact completeness and consistency review completed. | Review packaging only; no new implementation proof. |
+| Patch hygiene | Sprint 206 Days 7-10 `git diff --check` passed after each edit batch. | Whitespace and patch hygiene only. |
+| Support/adoption guard | Sprint 206 Day 9 `make support-docs-guard` passed. | Support-truth and adoption wording guard only. |
+| Package-manager non-claims | Sprint 206 Day 9 `bash scripts/package_manager_deferral_check.sh` passed after README marker reflow. | Deferral and non-claim enforcement only; no Homebrew/package-manager support claim. |
+| Shared-library/dynamic ABI non-claims | Sprint 206 Day 9 `bash scripts/static_package_deferral_check.sh` passed. | Static package boundary and dynamic ABI deferral only. |
+| Docs/API generation | Sprint 206 Day 10 `make docs-check` passed with 18 checked-in public headers, 18 generated reference pages, and 18 generated source pages. | Documentation generation and coverage only; no hosted API publication claim. |
+| Generated API local-only policy | Sprint 206 Day 10 `make api-docs-freshness` passed, including Doxygen generation, coverage, local-only generated-output checks, workflow non-publication checks, and API routing checks. | Local-only generated API freshness, routing, staging, and non-publication guard only. |
+| Generated output hygiene | Sprint 206 Day 10 `git status --ignored --short docs/api` reported `!! docs/api/`. | Confirms generated API output remains ignored, not source-controlled. |
+| Final closeout hygiene | Sprint 206 Day 14 reruns patch hygiene, current-status stale wording, generated-output status, and C/header diff trigger checks after final documentation edits. | Documentation/planning closeout validation only. |
+| Full C quality gate | Sprint 206 Days 8-14 recorded `make format && make lint && make test` as not required. | No `.c` or `.h` files changed through Day 14. |
 
 ## Changed Surface
 
 | Metric | Day 14 evidence |
 | --- | --- |
-| Epic project plan | `PROJECT_PLAN.md` has an interim status snapshot. |
-| Sprint plan | `SPRINT_197/PLAN.md` exists. |
-| Sprint working notes | `SPRINT_197/WORKING_NOTES.md` records Days 1-14. |
-| Sprint artifacts | Day 1-14 artifacts exist, including the retrospective draft record, residual queue/claim decision, and final closeout review. |
-| Public docs edited | None through Day 14. |
-| Maintainer/API/corpus/schema docs edited | None through Day 14. |
+| Public docs edited | `README.md`, `INSTALL.md`. |
+| Maintainer/API docs edited | `docs/maintainer_guide.md`, `docs/api_reference.md`. |
+| Planning docs edited | `PROJECT_PLAN.md`, `EPIC_18_RESIDUAL_QUEUE.md`, this retrospective, and Sprint 206 plan/working notes/artifacts. |
+| Sprint 206 artifacts present | Day 1 through Day 14 artifacts exist on this branch. |
 | C source/header files edited | None through Day 14. |
+| Workflows, guard scripts, manifests, schemas, tests, benchmarks, examples edited | None through Day 14. |
 | Generated API/build artifacts tracked | None; generated output remains ignored. |
 
 ## Earned Claims
 
-At Day 14, Epic 18 earns only these narrow claims:
+Epic 18 earns these narrow claims:
 
-- The requested `SPRINT_197` final-validation path has a day-by-day plan,
-  working notes, evidence intake, outcome ledger, evidence conflict review,
-  public and maintainer/API claim audits, no-promotion records, project-plan
-  interim status snapshot, validation matrix, focused validation log, full-gate
-  decision log, this retrospective draft, a prioritized residual queue, and a
-  final closeout review package.
-- Current public and maintainer/API docs were reviewed against the available
-  evidence, and no stronger claim was promoted.
-- Focused documentation, package-boundary, Windows ownership, API local-only,
-  and source-list confidence gates passed for the current branch state.
-- The branch remains docs/planning-only through Day 14, so the full C gate is
-  not required unless later days edit `*.c` or `*.h` files.
+- Selected developer-mode local Homebrew static source formula proof exists
+  with MIT metadata and proof records, but broad package-manager support
+  remains unclaimed.
+- Selected Windows Cholesky and Windows QR incompatible work received review,
+  guards, and re-deferral decisions, but selected Windows freshness promotion
+  remains unearned.
+- One additional allocation-failure owner, selected `sparse_symbolic_lu()`,
+  has bounded proof.
+- One selected SVD test review surface was reduced into helper ownership with
+  guards.
+- One additional hosted selected benchmark freshness lane exists for macOS for
+  the selected `SRT-BENCH-REFACTOR-CSC-NOS4` row.
+- Generated API policy is stronger and remains local-only, ignored generated
+  output rather than hosted or committed generated HTML.
+- Support/readiness and adoption quick-reference wording are more coherent and
+  guarded without expanding support claims.
+- Sprint 206 reconciled the evidence, recalibrated claims, updated current
+  status, passed focused plus broad documentation/API validation, and completed
+  final closeout review.
 
 ## Non-Claims
 
-Epic 18 does not currently claim:
+Epic 18 does not claim:
 
-- completed Homebrew/package-manager support;
-- approved standalone license metadata for Homebrew proof;
-- Homebrew/core, Linuxbrew, bottles, taps, vcpkg, Conan, pkgsrc, or
-  distro/system package availability;
+- Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, vcpkg,
+  Conan, pkgsrc, distro/system packages, binary packages, or broad
+  package-manager distribution;
 - shared-library packaging, dynamic ABI compatibility, runtime-loader behavior,
   SONAME/install-name/RPATH, DLL/import-library behavior, or static/shared
   selectors;
-- promoted Windows selected Cholesky freshness;
-- broad Windows report freshness, selected oracle freshness on Windows,
-  selected benchmark freshness on Windows, Windows QR incompatible freshness,
-  Windows Makefile parity, Windows `pkg-config` execution parity, or broad
-  Windows parity;
-- additional allocation-failure owner proof beyond prior selected owners;
-- additional review-surface reduction beyond prior Epic 17 work;
-- hosted selected benchmark freshness on an additional platform;
-- hosted or artifact-published generated API HTML;
+- promoted selected Windows Cholesky freshness, selected Windows QR
+  incompatible freshness, Windows selected benchmark freshness, Windows
+  Makefile parity, Windows `pkg-config` execution parity, or broad Windows
+  parity;
+- broad allocation-failure cleanup coverage beyond selected proof owners;
+- repository-wide review-surface cleanup;
+- hosted generated API HTML, artifact-published generated API HTML, or
+  committed generated API HTML;
 - release readiness;
-- portable performance, speedup, scalability, or state-of-the-art performance;
+- portable performance, speedup, scalability, backend superiority, or
+  state-of-the-art performance;
 - broad external-library parity against SuiteSparse, PETSc, Trilinos, Eigen,
   SciPy, NumPy, LAPACK, or other ecosystems;
 - unqualified state-of-the-art sparse linear algebra library status.
 
 ## Residual Queue
 
-The prioritized residual handoff with owner surfaces, expected evidence,
-validation commands, and claim boundaries is published in
-[EPIC_18_RESIDUAL_QUEUE.md](./EPIC_18_RESIDUAL_QUEUE.md).
+`EPIC_18_RESIDUAL_QUEUE.md` is refreshed as of Sprint 206 Day 14. It keeps the
+residual themes visible without treating them as current closure evidence:
 
-| Priority | Residual | Closure target |
-| ---: | --- | --- |
-| 1 | Homebrew/package-manager support | Add approved license metadata, run the selected Homebrew proof, update guards, and promote only the earned support tier. |
-| 2 | Selected Windows Cholesky freshness | Review hosted Windows evidence, align manifest metadata, rerun normalizer/workflow/PowerShell guards, and promote or re-defer explicitly. |
-| 3 | Additional allocation-failure owner | Select one owner, record invariants, extend deterministic harness coverage, add regressions, and create a focused gate. |
-| 4 | Additional review-surface reduction | Select one high-risk surface, extract or refactor behavior-preserving helpers, add ownership guards, and rerun focused/full validation. |
-| 5 | Additional hosted benchmark freshness | Select one platform/row, add methodology metadata, create hosted artifact evidence, and keep performance claims methodology-bound. |
-| 6 | Windows QR incompatible comparison | Add MSVC/CMake generation evidence, path/normalizer tests, exact manifest metadata, and calibrated selected-claim docs. |
-| 7 | Generated API publication policy | Decide hosted/artifact/committed/local-only policy and implement matching guards, link checks, and docs. |
-| 8 | Adoption/support simplification | Consolidate support truth and diagnostics vocabulary without weakening support/package/platform/performance boundaries. |
-| 9 | Release and ABI readiness | Define release, shared-library, dynamic ABI, loader, and package policies before any public readiness claim. |
-| 10 | State-of-the-art evidence | Define external baselines, methodology, platform matrix, reliability semantics, package provenance, and acceptance thresholds before any broad claim. |
+| Priority theme | Closure target |
+| --- | --- |
+| Package-manager distribution | Promote only after provider-ready metadata, formula/tap policy, supported platform tier, install/test proof, and non-claim guard updates exist. |
+| Windows selected freshness | Promote only after hosted Windows/MSVC evidence, selected manifest metadata, generated support tier, and non-claim wording align. |
+| Additional reliability owners | Select one owner at a time, define invariants, add deterministic failure/retry proof, and keep broad reliability claims out of scope. |
+| Review-surface reduction | Reduce one selected high-risk surface at a time with helper ownership and guard coverage. |
+| Benchmark/platform evidence | Add hosted evidence one selected lane at a time with threshold-free methodology unless thresholds are explicitly designed and reviewed. |
+| Generated API publication | Decide hosted/artifact/committed/local-only policy before any publication claim. |
+| Release and ABI readiness | Define release, shared-library, dynamic ABI, loader, and package policies before any public readiness claim. |
+| State-of-the-art evidence | Define external baselines, methodology, platform matrix, reliability semantics, package provenance, and acceptance thresholds before any broad claim. |
 
 ## State-Of-The-Art Assessment
 
-Epic 18 does not currently earn an unqualified state-of-the-art sparse linear
-algebra claim.
+Epic 18 does not earn an unqualified state-of-the-art sparse linear algebra
+claim.
 
-The defensible Day 14 assessment is that the branch improves closeout
-discipline: it reconciles evidence, prevents premature support promotion,
-records validation ownership, and makes pending work visible. Those are useful
-governance improvements, but they do not add new solver capability, broad
-external comparison evidence, portable performance data, platform parity,
-package-manager distribution, release readiness, shared-library ABI support, or
-hosted API publication.
+The defensible Day 14 assessment is that Epic 18 improved selected evidence
+quality, support-boundary clarity, and closeout governance. It added or
+retained selected proof for package metadata, allocation-failure ownership, SVD
+test review-surface ownership, macOS selected benchmark freshness, generated
+API local-only policy, and adoption/support routing. Those improvements are
+useful product and maintenance evidence, but they do not establish broad
+external-library parity, portable performance superiority, complete platform
+parity, broad package distribution, release readiness, dynamic ABI policy, or
+state-of-the-art numerical scope.
 
 A future state-of-the-art claim would require exact external baselines,
 versions, fixtures, matrix suites, workloads, metrics, tolerances, compilers,
@@ -177,47 +180,42 @@ methodology, and reviewed hosted evidence for every claim.
 
 ## What Went Well
 
-1. **Evidence stayed separated from intent.** Sprint 198-205 goals are counted
-   only to the exact closure or re-deferral evidence recorded in their sprint
-   artifacts, with Sprint 205 closed as documentation consolidation and guard
-   alignment rather than new support promotion.
+1. **Selected closure stayed bounded.** Sprints 198-205 closed selected scopes
+   or explicit re-deferrals without converting evidence into broad support
+   claims.
 
-2. **Claim calibration stayed conservative.** Public and maintainer docs were
-   audited without promoting unsupported package, Windows, benchmark, API,
-   release, ABI, or state-of-the-art claims.
+2. **Claim calibration became clearer.** README, INSTALL, maintainer guide,
+   API reference, project-plan status, and Sprint 206 artifacts now agree on
+   package, generated API, support, and state-of-the-art boundaries.
 
-3. **Validation ownership became explicit.** Day 9-11 artifacts map changed
-   surfaces to focused gates and full-gate triggers.
+3. **Validation scope matched the diff.** Sprint 206 Days 8-10 separated
+   focused documentation/package/API checks from the conditional full C gate.
 
-4. **Environment residuals stayed visible.** Local PowerShell unavailability,
-   hosted Windows evidence, Homebrew proof prerequisites, benchmark hosting,
-   and generated report locality are recorded as boundaries.
+4. **Generated output hygiene stayed intact.** Doxygen output was regenerated
+   for validation but remained ignored under `docs/api/`.
 
-5. **The numbering mismatch is documented.** The branch preserves the user's
-   requested `SPRINT_197` path while retaining traceability to the project
-   plan's Sprint 206 final-validation item numbers.
+5. **The numbering mismatch is explicit.** Sprint 197 remains historical
+   final-validation evidence, while Sprint 206 is the current closeout branch.
 
 ## Could Be Better
 
-1. **The branch executes final validation before the implementation sprints.**
-   That makes most Epic 18 outcomes necessarily pending rather than complete.
+1. **The Sprint 197/Sprint 206 overlap creates review overhead.** Future
+   closeout work should use the project-plan sprint number from the start.
 
-2. **The project-plan numbering mismatch creates review overhead.** Future
-   closeout work should either use the plan's Sprint 206 path or explicitly
-   revise the project plan before execution.
+2. **Many high-value product gaps remain broad residuals.** Package-manager
+   support, Windows freshness promotion, ABI/release readiness, hosted API
+   publication, and state-of-the-art evidence need future implementation and
+   hosted proof.
 
-3. **Most high-value product gaps remain open.** Package-manager support,
-   Windows freshness, additional reliability proof, review-surface reduction,
-   benchmark platform freshness, Windows QR comparison, API publication,
-   release readiness, ABI support, and state-of-the-art evidence still require
-   implementation sprints.
-
-4. **No new implementation evidence exists yet.** The current branch improves
-   planning and claim governance only.
+3. **Line-sensitive guards require source-text discipline.** Day 9 exposed
+   that some shell guards rely on contiguous source-line markers; future docs
+   edits should preserve guarded phrases or strengthen guards intentionally.
 
 ## Handoff
 
-- Use `EPIC_18_RESIDUAL_QUEUE.md` as the prioritized next-epic handoff.
-- Keep the Sprint 197/Sprint 206 numbering caveat visible in any PR review.
-- Keep `make format && make lint && make test` mandatory if any later day edits
-  C source or headers.
+- Use `PROJECT_PLAN.md` as the current Sprint 197-206 status snapshot.
+- Use `SPRINT_206/WORKING_NOTES.md` and Day 1-Day 14 artifacts as the current
+  closeout evidence.
+- Use `EPIC_18_RESIDUAL_QUEUE.md` as the current residual handoff.
+- Keep `make format && make lint && make test` mandatory if any later Sprint
+  206 day edits C source or headers.

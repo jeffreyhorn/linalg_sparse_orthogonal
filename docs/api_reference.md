@@ -44,9 +44,9 @@ platforms, package managers, shared libraries, and ABI boundaries, use
 HTML under `docs/api/html/`, and checks generated page coverage and freshness
 for the checked-in public headers.
 
-`make api-docs-freshness` runs the selected local freshness proof: Doxygen
-generation, generated page coverage/freshness, local-only staging enforcement,
-and API routing validation for the generated API tree.
+`make api-docs-freshness` runs the selected local current-output proof:
+Doxygen generation, generated page coverage/freshness, local-only staging
+enforcement, and API routing validation for the generated API tree.
 
 The generated HTML tree is local-only generated output. It remains ignored by
 the repository and is not a hosted or source-controlled publication surface.
@@ -87,7 +87,8 @@ Use the higher-level guides before dropping into declarations:
 - [solver_selection.md](solver_selection.md) for choosing a solver family;
 - [INSTALL.md](../INSTALL.md) for installed static-first downstream consumers;
 - [maintainer_guide.md](maintainer_guide.md) for generated-reference
-  freshness, evidence, package, ABI, and support-tier interpretation.
+  current-output diagnostics, evidence, package, ABI, and support-tier
+  interpretation.
 
 ## Claim Boundaries
 

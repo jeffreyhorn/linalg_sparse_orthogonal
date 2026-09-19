@@ -860,11 +860,14 @@ wall-check: $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
 
 # ─── API documentation ────────────────────────────────────────────────
 
-.PHONY: docs api-docs-coverage api-docs-local-only api-docs-routing qr-header-docs-guard docs-check api-docs-validate api-docs-freshness
+.PHONY: docs support-docs-guard api-docs-coverage api-docs-local-only api-docs-routing qr-header-docs-guard docs-check api-docs-validate api-docs-freshness
 docs:
 	@echo "Generating API documentation with Doxygen..."
 	doxygen Doxyfile
 	@echo "Documentation generated in docs/api/html/"
+
+support-docs-guard:
+	@python3 tests/test_support_quick_reference_docs.py
 
 api-docs-coverage: docs
 	@python3 scripts/check_api_docs_coverage.py

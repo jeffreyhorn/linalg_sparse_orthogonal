@@ -211,7 +211,7 @@ def test_claim_boundaries_validate_current_docs() -> None:
 def test_claim_boundary_missing_marker_fails_clearly() -> None:
     path = validator.REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8").replace(
-        "bounded Windows selected Cholesky comparison freshness workflow",
+        "Sprint 190 adds one guarded Windows hosted",
         "Windows report freshness follows the hosted validation lane",
         1,
     )

@@ -360,6 +360,7 @@ def test_top_level_route_after_unterminated_blockquoted_fence_is_allowed() -> No
                 "> ```md\n"
                 "> blockquoted sample starts a fence without closing it\n\n"
                 "[API reference](docs/api_reference.md)",
+                1,
             ),
             encoding="utf-8",
         )

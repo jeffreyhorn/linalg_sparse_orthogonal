@@ -30,6 +30,26 @@ require_grep() {
     fi
 }
 
+require_text_marker() {
+    local marker="$1"
+    local file="$2"
+    local message="$3"
+
+    if ! python3 - "$marker" "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+marker = re.sub(r"\s+", " ", sys.argv[1].strip())
+text = re.sub(r"\s+", " ", Path(sys.argv[2]).read_text(encoding="utf-8"))
+if marker not in text:
+    raise SystemExit(1)
+PY
+    then
+        fail "$message"
+    fi
+}
+
 require_absent_grep() {
     local pattern="$1"
     local path="$2"
@@ -216,10 +236,14 @@ check_no_package_selector() {
 }
 
 check_support_wording() {
-    require_grep \
-        'Shared-library packaging is intentionally deferred' \
+    require_text_marker \
+        'Shared-library packaging, dynamic ABI support, Windows Makefile parity, Windows `pkg-config` parity, Homebrew/core readiness, bottles, Linuxbrew, public taps, binary packages, and broad package-manager distribution are not claimed' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps shared-library packaging deferred"
+    require_absent_grep \
+        '(Shared-library packaging|shared-library (support|packaging)|dynamic ABI (support|compatibility)) (is|are) (available|supported|provided)' \
+        "$ROOT_DIR/README.md" \
+        "README gained a positive shared-library or dynamic ABI claim"
     require_grep \
         'docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision\.md' \
         "$ROOT_DIR/README.md" \
@@ -249,16 +273,16 @@ check_support_wording() {
 }
 
 check_windows_package_nonclaim_wording() {
-    require_grep \
-        'Windows remains CMake-first' \
+    require_text_marker \
+        'installed package contract is static-first' \
         "$ROOT_DIR/README.md" \
         "README no longer states that Windows package support remains CMake-first"
     require_grep \
-        'Windows still does not claim Makefile' \
+        'Windows Makefile parity' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows Makefile parity as a non-claim"
     require_grep \
-        '`pkg-config` execution parity' \
+        'Windows `pkg-config` parity' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps Windows pkg-config execution parity as a non-claim"
 

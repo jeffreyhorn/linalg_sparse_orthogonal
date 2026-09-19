@@ -25,8 +25,9 @@ Use this ladder when you are moving from data to the first maintained example:
 3. Use [solver_selection.md](solver_selection.md) when the problem is not a
    general square one-shot direct solve.
 4. Inspect diagnostics from the same workflow that produced them:
-   construction errors, direct residuals, iterative convergence/status, QR
-   rank/residuals, or SVD rank/condition output. Use
+   construction errors, problem-local direct residuals, run-local iterative
+   convergence fields, QR-local rank/residuals, or SVD-local rank/condition
+   output. Use
    [solver_selection.md#diagnostics-handoff](solver_selection.md#diagnostics-handoff)
    before changing solver family, backend, preconditioner, tolerance, or
    benchmark settings.
@@ -38,6 +39,34 @@ The ladder is a routing aid. It does not widen QR, SVD, runtime, package,
 platform, performance, or state-of-the-art claims beyond the maintained proof
 named in the linked sections and the
 [support/readiness matrix](../INSTALL.md#support-readiness-matrix).
+
+## Problem-Shape Quick Reference
+
+Use this table to choose the first source-controlled workflow. It is a routing
+aid only: current support status remains owned by the
+[support/readiness matrix](../INSTALL.md#support-readiness-matrix), detailed
+solver evidence remains owned by the [solver-selection guide](solver_selection.md),
+and benchmark rows remain local or selected evidence rather than portable
+performance proof.
+
+| Problem shape or need | First workflow | Run or read first | Boundary |
+|---|---|---|---|
+| Small local build and first solve | Build-tree example | [`examples/README.md#start-here`](../examples/README.md#start-here), then `example_basic_solve` | Not an install, package-manager, performance, or broad platform claim. |
+| Caller-owned CSR or CSC arrays | Compressed input constructors, then solver selection | [`Start From Your Data`](#start-from-your-data), then `example_compressed_input` | Storage format does not decide solver support by itself. |
+| Matrix Market file | Matrix Market load, then solver selection | [`Start From Your Data`](#start-from-your-data), then `example_matrix_market` | File parsing support is not broad solver or benchmark proof. |
+| General square solve | LU | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers), then `example_basic_solve` | Selected fixture evidence is not broad external-library parity. |
+| Symmetric positive-definite solve | Cholesky | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers) | Cholesky is not a general fallback and does not promote broad Windows freshness. |
+| Symmetric indefinite solve | LDLT | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers), then `example_ldlt` | No broad KKT, package, ABI, or platform claim. |
+| Rectangular, least-squares, or rank-sensitive solve | QR | [`solver_selection.md#direct-solvers`](solver_selection.md#direct-solvers), then `example_least_squares` or `example_minnorm` | No broad QR parity, raw basis identity, or Windows QR selected freshness claim. |
+| Many solves with the same sparsity pattern | Explicit analysis/factor/refactor lifecycle | [README repeated-run direct workflow](../README.md#repeated-run-direct-workflow), then [`example_analysis`](../examples/README.md#repeated-run-direct-example_analysis) | Reuse support is workflow-specific and not a package or ABI claim. |
+| Large solve where direct cost is the issue | Iterative solver with diagnostics | [`solver_selection.md#iterative-solvers`](solver_selection.md#iterative-solvers), then iterative examples | Iteration count and residual behavior are local diagnostics, not portable performance proof. |
+| Matrix-free solve | Matrix-free iterative workflow | `example_matrix_free` and [`solver_selection.md#iterative-solvers`](solver_selection.md#iterative-solvers) | Matrix-free support does not imply backend superiority or package support. |
+| Symmetric eigenpairs | `sparse_eigs_sym(...)` | [`solver_selection.md#eigensolver-workflows`](solver_selection.md#eigensolver-workflows), then `example_eigs` | No nonsymmetric eigensolver or state-of-the-art parity claim. |
+| Rank, condition, pseudoinverse, or low-rank work | SVD APIs | [`solver_selection.md#svd-and-low-rank-workflows`](solver_selection.md#svd-and-low-rank-workflows), then SVD examples | No broad SVD parity, raw singular-vector identity, or package/ABI claim. |
+| Local benchmark or report interpretation | Benchmark docs after workflow selection | [`benchmarks/README.md#reading-benchmark-results`](../benchmarks/README.md#reading-benchmark-results) | Local and selected hosted freshness do not prove portable performance. |
+| Installed downstream consumer | Static Make/pkg-config or CMake consumer | [`INSTALL.md#start-here`](../INSTALL.md#start-here) | Static-first install only; no shared-library, dynamic ABI, or package-manager support. |
+| API declarations and local generated docs | Source-controlled API reference | [`api_reference.md`](api_reference.md) | Generated HTML is local-only ignored output, not hosted or release evidence. |
+| Threading or OpenMP controls | Runtime/backend controls after first workflow works | [README runtime/backend controls](../README.md#runtime-and-backend-controls) and [algorithm docs](algorithm.md) | OpenMP controls are not portable performance or broad platform proof. |
 
 ## Start From Your Data
 
@@ -339,9 +368,9 @@ python3 scripts/normalize_report_index.py --check
 python3 scripts/normalize_report_index.py --check-freshness
 ```
 
-Treat normalized rows as discovery and freshness diagnostics. They preserve
-claim boundaries; they are not broad performance, coverage, package, or
-platform evidence by themselves.
+Treat normalized rows as discovery and current generated-output diagnostics.
+They preserve claim boundaries; they are not broad performance, coverage,
+package, or platform evidence by themselves.
 
 ## Next Steps
 

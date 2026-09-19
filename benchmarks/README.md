@@ -275,12 +275,13 @@ regenerates the canonical bundle and checks only:
 - `threshold=n/a`
 
 The reviewed Linux and macOS hosted selected-performance lanes run the same
-selected-row check in hosted mode with `support_tier=hosted_selected` and
+selected-row check in hosted mode. In raw report metadata, that means
+`support_tier=hosted_selected` and
 `claim_boundary=hosted_selected_threshold_free`. Hosted mode also requires a
 non-local runner context, recorded build flags, and a non-`unlabeled` report
 label. Those hosted-selected support and claim fields apply only to the
-selected `bench_refactor_csc` row; unselected canonical rows remain
-`local_only` / `local_threshold_free`. `cpu_model=unknown` remains acceptable
+selected `bench_refactor_csc` row; unselected canonical rows remain local
+threshold-free measurement artifacts. `cpu_model=unknown` remains acceptable
 because GitHub-hosted runner CPU assignment can vary.
 
 Selected lane platform and backend caveats:
@@ -316,9 +317,9 @@ This is intentionally not a pass/fail timing gate:
   easier to line up without widening the benchmark claim surface
 - read platform, compiler, build mode, and `OMP_NUM_THREADS` as local
   comparison context, not as a portability or OpenMP speedup claim
-- read `status=measurement`, `support_tier=local_only`, and
-  `claim_boundary=local_threshold_free` as the unselected canonical row
-  boundary
+- read raw metadata fields such as `status=measurement`,
+  `support_tier=local_only`, and `claim_boundary=local_threshold_free` as the
+  unselected canonical row boundary, not as support or timing proof
 - read `baseline=n/a` and `threshold=n/a` as proof that canonical rows are not
   hard timing gates
 - read canonical selected performance `warmup=none_configured` and
@@ -397,7 +398,8 @@ Interpret the bundle narrowly:
 - S3 rows preserve the LDLT dense-backend request, selected backend, and
   fallback fields parsed from `bench_refactor_csc`.
 - Missing binaries, fixtures, or baselines are reported as explicit skip rows
-  where practical; skips are not passes.
+  where practical; skips mean optional data or prerequisites were unavailable
+  by policy, not that the lane passed.
 - The bundle is local regression evidence, not a portable timing guarantee.
 - Timing rows are meaningful only with the recorded backend request/fallback
   context and OpenMP runtime settings.
@@ -406,8 +408,8 @@ Interpret the bundle narrowly:
 - S6 `pass` or `fail` status is meaningful only with the selected fixture,
   command, local smoke ceiling, build mode, `OMP_NUM_THREADS`, and machine
   context. It is not a portable timing promise or hosted publication claim.
-- S2 and S3 `status=report` rows are not pass/fail rows and do not prove
-  backend superiority.
+- S2 and S3 `status=report` rows are backend-context rows, not pass/fail rows,
+  and do not prove backend superiority.
 - Rows with `warmup=not_recorded` or `variance=not_recorded` must not be
   described as warmup-controlled or statistical summaries.
 - Rows with `warmup=none_configured` or
@@ -522,7 +524,8 @@ When reading any generated report index:
 - use row identity fields such as lane id, sentinel id, command, artifact, and
   category before interpreting status
 - treat `skip`, `n/a`, fallback, and supplemental rows as scope information,
-  not as passing evidence
+  not as passing evidence; `skip` means optional data or prerequisites were
+  unavailable by policy
 - keep CSV timing rows tied to the recorded environment and command line
 - regenerate reports instead of editing generated indexes by hand
 

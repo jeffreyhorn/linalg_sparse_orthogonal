@@ -30,6 +30,26 @@ require_grep() {
     fi
 }
 
+require_text_marker() {
+    local marker="$1"
+    local file="$2"
+    local message="$3"
+
+    if ! python3 - "$marker" "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+marker = re.sub(r"\s+", " ", sys.argv[1].strip())
+text = re.sub(r"\s+", " ", Path(sys.argv[2]).read_text(encoding="utf-8"))
+if marker not in text:
+    raise SystemExit(1)
+PY
+    then
+        fail "$message"
+    fi
+}
+
 require_absent_grep() {
     local pattern="$1"
     local path="$2"
@@ -303,16 +323,20 @@ check_package_metadata_neutrality() {
 }
 
 check_public_nonclaims() {
-    require_grep \
-        'package-manager support' \
+    require_text_marker \
+        'package-manager distribution are not claimed' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps package-manager support scoped as a non-claim"
+    require_absent_grep \
+        'package-manager distribution (is|are) (available|supported|provided)' \
+        "$ROOT_DIR/README.md" \
+        "README gained a positive package-manager distribution claim"
     require_grep \
-        'local Homebrew.*formula proof' \
+        'Homebrew proof is a developer-mode local static source formula proof' \
         "$ROOT_DIR/README.md" \
         "README no longer records current local Homebrew proof status"
-    require_grep \
-        'package-manager distribution' \
+    require_text_marker \
+        'package-manager distribution are not claimed' \
         "$ROOT_DIR/README.md" \
         "README no longer separates package-manager distribution from source install evidence"
     require_grep \

@@ -16,12 +16,13 @@ first-use route is:
 7. move to advanced controls, benchmarks, reports, public headers, or
    [API reference](api_reference.md) only after the first workflow works.
 
-For a compact decision tree before you start coding, use the
-[solver-selection guide](solver_selection.md). For runnable examples, use
-[`examples/README.md`](../examples/README.md). If your data already starts as
-CSR, CSC, or Matrix Market input, use the [cookbook](cookbook.md) for the
-shortest compressed-first route into direct, iterative, Matrix Market, SVD,
-eigensolver, and benchmark handoff workflows.
+For a compact problem-shape route before you start coding, use the
+[cookbook quick reference](cookbook.md#problem-shape-quick-reference). For the
+full solver decision tree, use the [solver-selection guide](solver_selection.md).
+For runnable examples, use [`examples/README.md`](../examples/README.md). If
+your data already starts as CSR, CSC, or Matrix Market input, use the
+[cookbook](cookbook.md) for the shortest compressed-first route into direct,
+iterative, Matrix Market, SVD, eigensolver, and benchmark handoff workflows.
 
 ### Documentation Map
 
@@ -30,7 +31,8 @@ eigensolver, and benchmark handoff workflows.
 | Short project front door | [README.md](../README.md) |
 | Runnable first-use examples | [examples/README.md](../examples/README.md) |
 | Data-first CSR, CSC, and Matrix Market recipes | [cookbook.md](cookbook.md) |
-| Compact problem-shape decision tree | [solver_selection.md](solver_selection.md) |
+| Compact problem-shape quick reference | [cookbook.md#problem-shape-quick-reference](cookbook.md#problem-shape-quick-reference) |
+| Detailed solver decision tree | [solver_selection.md](solver_selection.md) |
 | Installed package, downstream consumer setup, and support/readiness status | [INSTALL.md](../INSTALL.md) |
 | Benchmark commands and generated report indexes | [benchmarks/README.md](../benchmarks/README.md) |
 | Exact declarations and ownership contracts | [api_reference.md](api_reference.md) and public headers under [`include/`](../include/) |
@@ -64,16 +66,15 @@ cc -O2 -Iinclude -o my_program my_program.c -Lbuild -lsparse_lu_ortho -lm
 
 That command links against the local build-tree static archive. For installed
 downstream consumers, use [`INSTALL.md#start-here`](../INSTALL.md#start-here)
-instead of copying install/package detail into this tutorial:
+instead of copying install/package detail into this tutorial. The maintained
+package story is static-first and owned by the
+[support/readiness matrix](../INSTALL.md#support-readiness-matrix); this
+tutorial only shows the local build-tree path.
 
 - [`INSTALL.md#unix-makepkg-config-consumer`](../INSTALL.md#unix-makepkg-config-consumer)
   for Unix Make/`pkg-config` installed consumers;
 - [`INSTALL.md#cmake-consumer`](../INSTALL.md#cmake-consumer) for CMake
   installed consumers.
-
-The maintained package story is static-first and owned by `INSTALL.md`; use
-its [support/readiness matrix](../INSTALL.md#support-readiness-matrix) for
-current support boundaries. This tutorial only shows the local build-tree path.
 
 Include the headers needed by the workflow you are using:
 
@@ -618,11 +619,11 @@ tolerance, or benchmark settings.
 | CSR/CSC construction | `NULL` result from `sparse_create_from_*` or explicit `sparse_err_t` from `sparse_from_*` |
 | Matrix Market input | `sparse_errno()` after `SPARSE_ERR_IO` from `sparse_load_mm(...)` |
 | One-shot direct solve | factor/solve return code and problem-local residual |
-| Repeated direct lifecycle | analyze/factor/refactor return code, same-pattern invariant, and solve residual |
-| Iterative solve | convergence status, residual norm/history, iteration count, stagnation, and breakdown fields |
-| QR | rank, residual, nullity/nullspace, and minimum-norm output from QR APIs or examples |
-| SVD or partial SVD | rank, condition, triplet residuals, convergence status, and fail-closed status |
-| Symmetric eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status |
+| Repeated direct lifecycle | analyze/factor/refactor return code, same-pattern invariant, and problem-local solve residual |
+| Iterative solve | run-local convergence fields, residual norm/history, iteration count, stagnation, and breakdown fields |
+| QR | QR-local rank, residual, nullity/nullspace, and minimum-norm output from QR APIs or examples |
+| SVD or partial SVD | SVD-local rank, condition, triplet residuals, configured-budget convergence status, and fail-closed status |
+| Symmetric eigensolver | Ritz residual for the requested eigenpairs, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status |
 | Benchmarks or reports | matrix, compiler, backend, thread settings, generated index, and manifest context |
 
 Use [solver_selection.md#diagnostics-handoff](solver_selection.md#diagnostics-handoff)
@@ -640,17 +641,20 @@ After the first workflow works:
   and [solver_selection.md#advanced-control-escalation](solver_selection.md#advanced-control-escalation)
   for runtime/backend controls;
 - use [`benchmarks/README.md`](../benchmarks/README.md) for local benchmark
-  commands, generated report indexes, and measurement caveats;
+  commands, generated report indexes, and measurement caveats; benchmark
+  output is local/selected evidence, not portable performance proof;
 - use [`INSTALL.md`](../INSTALL.md) for installed downstream consumers and
   static-first package support;
 - use [api_reference.md](api_reference.md) and public headers under
   [`include/`](../include/) when you need exact declarations, options, result
   structs, ownership rules, or return-code contracts;
 - use [`docs/maintainer_guide.md`](maintainer_guide.md) for maintainer
-  evidence, report freshness, package/ABI, and support-tier interpretation.
+  evidence, current generated-output diagnostics, package/ABI, and support-tier
+  interpretation.
 
 Report freshness commands and normalized report-index checks are maintainer or
-advanced-evidence tools. They should not be read as broad performance,
+advanced-evidence tools. Read their `fresh`, `stale`, `skip`, or `defer`
+states as generated-output and scope diagnostics, not as broad performance,
 package, platform, external-parity, or release proof.
 
 ## Error Handling

@@ -82,11 +82,11 @@ controls:
 | CSR/CSC construction | `NULL` constructor result or explicit `sparse_err_t` from `sparse_from_*`. | The input arrays are valid and copied, but later solver behavior is still unclear. |
 | Matrix Market input | `sparse_errno()` after `sparse_load_mm(...)` failure. | File parsing succeeds and solver choice remains the issue. |
 | One-shot direct solve | Factorization or solve return code and a problem-local residual. | The matrix assumptions match the solver and residual behavior still needs investigation. |
-| Repeated direct lifecycle | Analyze/factor/refactor return codes, same-pattern invariant, and solve residuals. | The sparsity pattern is stable and backend/reordering policy is the real question. |
-| Iterative solve | `sparse_iter_result_t` convergence, final relative residual, residual-history count, iteration count, stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
-| QR | Rank, residual, nullity/nullspace, minimum-norm output, and R-diagonal diagnostics from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
-| SVD or partial SVD | Rank, condition, triplet residuals, convergence status, and fail-closed status. | You are still inside the bounded SVD workflow described in [SVD and Low-Rank Workflows](#svd-and-low-rank-workflows). |
-| Eigensolver | Ritz residual, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status. | The problem is symmetric and backend or preconditioner selection is now the target. |
+| Repeated direct lifecycle | Analyze/factor/refactor return codes, same-pattern invariant, and problem-local solve residuals. | The sparsity pattern is stable and backend/reordering policy is the real question. |
+| Iterative solve | `sparse_iter_result_t` convergence, final relative residual, residual-history count, iteration count, run-local stagnation, and breakdown fields. | The solver/preconditioner assumptions match the system and tuning is needed. |
+| QR | QR-local rank, residual, nullity/nullspace, minimum-norm output, and R-diagonal diagnostics from QR APIs or examples. | You are still inside the bounded QR workflow described in [QR Evidence Boundary](#qr-evidence-boundary). |
+| SVD or partial SVD | SVD-local rank, condition, triplet residuals, configured-budget convergence status, and fail-closed status. | You are still inside the bounded SVD workflow described in [SVD and Low-Rank Workflows](#svd-and-low-rank-workflows). |
+| Eigensolver | Ritz residual for the requested eigenpairs, convergence count, selected backend, peak basis size, and shift-invert/preconditioner status. | The problem is symmetric and backend or preconditioner selection is now the target. |
 | Benchmarks or reports | Matrix corpus, compiler, backend, thread settings, generated index, and manifest context. | You are measuring local behavior, not trying to prove portable runtime claims. |
 
 Use [examples/README.md#diagnostics-handoff](../examples/README.md#diagnostics-handoff)
@@ -227,7 +227,7 @@ The maintained QR corpus proof for
 oracle freshness gate `make report-index-oracle-freshness`, which Sprint 159
 mirrors in the reviewed Linux hosted report-freshness lane for selected
 oracle artifacts only.
-It supports selected fixture-local rank/nullity/nullspace residual behavior
+It supports selected fixture-local QR rank/nullity/nullspace residual behavior
 under the fixture tolerances owned by that gate.
 The selected comparison freshness gate
 `make report-index-comparison-freshness` also covers the selected QR
@@ -253,8 +253,8 @@ families `partial_svd_rankdef_diag6x4_k2_range_projector_v1`,
 `partial_svd_fail_closed_diag6_k2_v1`. Those rows check generated top-k
 singular values, SVD-local rank, subspace projectors, triplet residuals,
 orthogonality, sparse low-rank shape/nnz/selected values/Frobenius behavior,
-default-budget success, tight-budget `SPARSE_ERR_NOT_CONVERGED` fail-closed
-behavior, and recovery through
+default-budget convergence, tight-budget `SPARSE_ERR_NOT_CONVERGED`
+configured-budget fail-closed behavior, and recovery through
 `tests/test_svd_partial_corpus.c` and
 the selected local oracle freshness gate `make report-index-oracle-freshness`,
 which Sprint 159 mirrors in the reviewed Linux hosted report-freshness lane
@@ -268,8 +268,8 @@ state-of-the-art evidence.
 
 The selected comparison freshness gate also includes
 `partial_svd_diag6_k2`. That generated comparison is fixture-local and checks
-top-k singular-value agreement, residual, left/right orthogonality, and
-diagonal projector diagnostics against the source-controlled dense SVD
+top-k singular-value agreement, SVD-local residual, left/right orthogonality,
+and diagonal projector diagnostics against the source-controlled dense SVD
 reference helper. It is local generated evidence by default and reviewed Linux
 hosted evidence only when the hosted report-freshness lane runs the selected
 comparison gate and uploads the selected comparison artifacts. It does not
@@ -279,7 +279,7 @@ release/platform/package/ABI proof, performance, or state-of-the-art status.
 
 The selected comparison freshness gate also includes `lu_nonsym_square_5`.
 That generated comparison is fixture-local and checks linked-list LU square
-solve status, residual norm, solution norm, solution values, and
+solve status, problem-local residual norm, solution norm, solution values, and
 project-vs-baseline max absolute delta against the source-controlled dense LU
 reference helper with `1e-10` tolerances. It is local generated evidence by
 default and reviewed Linux hosted evidence only when the hosted
@@ -291,7 +291,7 @@ state-of-the-art status.
 
 The selected comparison freshness gate also includes
 `cholesky_spd_tridiag_5`. That generated comparison is fixture-local and
-checks Cholesky SPD factor/solve status, residual norm, solution norm,
+checks Cholesky SPD factor/solve status, problem-local residual norm, solution norm,
 solution values, and project-vs-baseline max absolute delta against the
 source-controlled dense Cholesky reference helper with `1e-10` tolerances. It
 is local generated evidence by default and reviewed Linux/macOS hosted evidence
@@ -304,7 +304,7 @@ performance, or state-of-the-art status.
 The selected QR comparison set includes `qr_incompatible_ls` for
 `qr_overdetermined_incompatible_4x2`. That generated comparison is
 fixture-local and checks QR least-squares status, the expected nonzero
-residual norm, solution norm, solution values, and project-vs-baseline max
+QR-local residual norm, solution norm, solution values, and project-vs-baseline max
 absolute delta against the source-controlled dense QR reference helper with
 `1e-10` tolerances. It is local generated evidence by default and reviewed
 Linux/macOS hosted evidence only when the hosted report-freshness lanes run
@@ -341,17 +341,21 @@ public surface is the load/save functions declared in
 
 ## Example Handoff
 
+Use this table after the workflow family is chosen. Examples teach runnable
+usage; installed-consumer support remains in the install guide, and
+measurement remains in the benchmark guide.
+
 | Question | Start here |
 |---|---|
-| What is the smallest direct solve? | `example_basic_solve` |
-| My matrix is already CSR or CSC. | `example_compressed_input` |
-| I need analyze-once / factor-many. | `example_analysis` |
-| I need an iterative solve. | `example_iterative` |
-| I need symmetric eigenpairs. | `example_eigs` |
-| I need SVD or low-rank behavior. | `example_svd_lowrank` |
-| I need COLAMD or reorder guidance. | `example_colamd` |
-| I need installed CMake consumption. | `examples/cmake_example/` |
-| I need Matrix Market load/use. | `example_matrix_market` |
+| What is the smallest direct solve? | [`example_basic_solve`](../examples/README.md#one-shot-direct-example_basic_solve) |
+| My matrix is already CSR or CSC. | [`example_compressed_input`](../examples/README.md#compressed-input-example_compressed_input) |
+| I need analyze-once / factor-many. | [`example_analysis`](../examples/README.md#repeated-run-direct-example_analysis) |
+| I need an iterative solve. | [`example_iterative`](../examples/README.md#one-shot-iterative-example_iterative) |
+| I need symmetric eigenpairs. | [`example_eigs`](../examples/README.md#one-shot-symmetric-eigensolver-example_eigs) |
+| I need SVD or low-rank behavior. | [`example_svd_lowrank`](../examples/README.md#svd--low-rank-example_svd_lowrank) |
+| I need COLAMD or reorder guidance. | [`example_colamd`](../examples/README.md#reorder--fill-example_colamd) |
+| I need installed CMake consumption. | [`examples/cmake_example/`](../examples/README.md#installed-consumer-example-examplescmake_example) plus [INSTALL.md#support-readiness-matrix](../INSTALL.md#support-readiness-matrix) |
+| I need Matrix Market load/use. | [`example_matrix_market`](../examples/README.md#matrix-market-loaduse-example_matrix_market) |
 
 ## Benchmark Handoff
 

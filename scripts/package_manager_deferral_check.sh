@@ -304,11 +304,11 @@ check_package_metadata_neutrality() {
 
 check_public_nonclaims() {
     require_grep \
-        'package-manager support' \
+        'package-manager distribution' \
         "$ROOT_DIR/README.md" \
         "README no longer keeps package-manager support scoped as a non-claim"
     require_grep \
-        'local Homebrew.*formula proof' \
+        'Homebrew proof is a developer-mode local static source formula proof' \
         "$ROOT_DIR/README.md" \
         "README no longer records current local Homebrew proof status"
     require_grep \

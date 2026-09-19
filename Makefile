@@ -866,31 +866,26 @@ docs:
 	doxygen Doxyfile
 	@echo "Documentation generated in docs/api/html/"
 
-api-docs-coverage:
+api-docs-coverage: docs
 	@python3 scripts/check_api_docs_coverage.py
 	@python3 tests/test_api_docs_coverage.py
 
-api-docs-local-only:
+api-docs-local-only: docs-check
 	@bash scripts/check_api_docs_local_only.sh
 	@python3 tests/test_api_docs_local_only_guard.py
 
-api-docs-routing:
+api-docs-routing: api-docs-local-only
 	@python3 scripts/check_api_docs_routing.py
 	@python3 tests/test_api_docs_routing.py
 
 qr-header-docs-guard:
 	@bash scripts/check_qr_header_docs_guard.sh
 
-docs-check: docs
-	@$(MAKE) api-docs-coverage
+docs-check: api-docs-coverage
 
-api-docs-validate:
-	@$(MAKE) docs-check
-	@$(MAKE) api-docs-local-only
-	@$(MAKE) api-docs-routing
+api-docs-validate: api-docs-routing
 
-api-docs-freshness:
-	@$(MAKE) api-docs-validate
+api-docs-freshness: api-docs-validate
 
 # ─── Tree-mutating coverage modes ─────────────────────────────────────
 #

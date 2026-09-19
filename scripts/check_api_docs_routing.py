@@ -28,23 +28,18 @@ API_ROUTING_FILES = (
 )
 
 MAKEFILE_ROUTING_TARGET = re.compile(
-    r"(?m)^api-docs-routing:\n"
+    r"(?m)^api-docs-routing:[ \t]*api-docs-local-only[ \t]*\n"
     r"\t@python3 scripts/check_api_docs_routing\.py\n"
     r"\t@python3 tests/test_api_docs_routing\.py$"
 )
+MAKEFILE_COVERAGE_DEP = re.compile(r"(?m)^api-docs-coverage:[ \t]*docs[ \t]*$")
+MAKEFILE_LOCAL_ONLY_DEP = re.compile(r"(?m)^api-docs-local-only:[ \t]*docs-check[ \t]*$")
+MAKEFILE_DOCS_CHECK_DEP = re.compile(r"(?m)^docs-check:[ \t]*api-docs-coverage[ \t]*$")
 MAKEFILE_VALIDATE_DEP = re.compile(
-    r"(?m)^api-docs-validate:[ \t]*\n"
-    r"\t@[$][(]MAKE[)] docs-check\n"
-    r"\t@[$][(]MAKE[)] api-docs-local-only\n"
-    r"\t@[$][(]MAKE[)] api-docs-routing$"
+    r"(?m)^api-docs-validate:[ \t]*api-docs-routing[ \t]*$"
 )
 MAKEFILE_FRESHNESS_DEP = re.compile(
-    r"(?m)^api-docs-freshness:[ \t]*\n"
-    r"\t@[$][(]MAKE[)] api-docs-validate$"
-)
-MAKEFILE_DOCS_CHECK_SERIAL = re.compile(
-    r"(?m)^docs-check:[ \t]*docs[ \t]*\n"
-    r"\t@[$][(]MAKE[)] api-docs-coverage$"
+    r"(?m)^api-docs-freshness:[ \t]*api-docs-validate[ \t]*$"
 )
 
 REQUIRED_ROUTES = {
@@ -552,13 +547,19 @@ def validate_makefile_wiring(root: Path) -> None:
 
     text = makefile.read_text(encoding="utf-8")
     if not MAKEFILE_ROUTING_TARGET.search(text):
-        raise RoutingError("Makefile must define api-docs-routing with the routing guard and regression suite")
+        raise RoutingError(
+            "Makefile must define api-docs-routing after api-docs-local-only with the routing guard and regression suite"
+        )
+    if not MAKEFILE_COVERAGE_DEP.search(text):
+        raise RoutingError("Makefile api-docs-coverage must depend on docs")
+    if not MAKEFILE_DOCS_CHECK_DEP.search(text):
+        raise RoutingError("Makefile docs-check must depend on api-docs-coverage")
+    if not MAKEFILE_LOCAL_ONLY_DEP.search(text):
+        raise RoutingError("Makefile api-docs-local-only must depend on docs-check")
     if not MAKEFILE_VALIDATE_DEP.search(text):
-        raise RoutingError("Makefile api-docs-validate must serialize API docs validation phases")
+        raise RoutingError("Makefile api-docs-validate must depend on api-docs-routing")
     if not MAKEFILE_FRESHNESS_DEP.search(text):
-        raise RoutingError("Makefile api-docs-freshness must serialize api-docs-validate")
-    if not MAKEFILE_DOCS_CHECK_SERIAL.search(text):
-        raise RoutingError("Makefile docs-check must serialize docs before api-docs-coverage")
+        raise RoutingError("Makefile api-docs-freshness must depend on api-docs-validate")
 
 
 def validate_api_routes(root: Path) -> None:

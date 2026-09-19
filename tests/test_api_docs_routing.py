@@ -1295,13 +1295,13 @@ def test_missing_makefile_routing_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) api-docs-routing",
-                "",
+                "api-docs-validate: api-docs-routing",
+                "api-docs-validate:",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
+    assert_routing_fails_with(mutate, "api-docs-validate must depend on api-docs-routing")
 
 
 def test_missing_makefile_docs_check_dependency_fails_clearly() -> None:
@@ -1309,13 +1309,13 @@ def test_missing_makefile_docs_check_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) docs-check",
-                "",
+                "api-docs-local-only: docs-check",
+                "api-docs-local-only:",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
+    assert_routing_fails_with(mutate, "api-docs-local-only must depend on docs-check")
 
 
 def test_missing_makefile_local_only_dependency_fails_clearly() -> None:
@@ -1323,13 +1323,13 @@ def test_missing_makefile_local_only_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) api-docs-local-only",
-                "",
+                "api-docs-routing: api-docs-local-only",
+                "api-docs-routing:",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
+    assert_routing_fails_with(mutate, "api-docs-routing after api-docs-local-only")
 
 
 def test_makefile_validate_routing_only_dependency_fails_clearly() -> None:
@@ -1337,16 +1337,13 @@ def test_makefile_validate_routing_only_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "api-docs-validate:\n"
-                "\t@$(MAKE) docs-check\n"
-                "\t@$(MAKE) api-docs-local-only\n"
-                "\t@$(MAKE) api-docs-routing",
-                "api-docs-validate:\n\t@$(MAKE) api-docs-routing",
+                "api-docs-local-only: docs-check",
+                "api-docs-local-only:",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
+    assert_routing_fails_with(mutate, "api-docs-local-only must depend on docs-check")
 
 
 def test_makefile_routing_extra_dependency_name_fails_clearly() -> None:
@@ -1354,13 +1351,13 @@ def test_makefile_routing_extra_dependency_name_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) api-docs-routing",
-                "\t@$(MAKE) api-docs-routing-extra",
+                "api-docs-validate: api-docs-routing",
+                "api-docs-validate: api-docs-routing-extra",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-validate must serialize API docs validation phases")
+    assert_routing_fails_with(mutate, "api-docs-validate must depend on api-docs-routing")
 
 
 def test_missing_makefile_routing_target_fails_clearly() -> None:
@@ -1368,7 +1365,7 @@ def test_missing_makefile_routing_target_fails_clearly() -> None:
         path = root / "Makefile"
         text = path.read_text(encoding="utf-8")
         text = text.replace(
-            "api-docs-routing:\n"
+            "api-docs-routing: api-docs-local-only\n"
             "\t@python3 scripts/check_api_docs_routing.py\n"
             "\t@python3 tests/test_api_docs_routing.py\n\n",
             "",
@@ -1383,13 +1380,13 @@ def test_missing_makefile_freshness_dependency_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) api-docs-validate",
-                "\t@$(MAKE) docs-check",
+                "api-docs-freshness: api-docs-validate",
+                "api-docs-freshness: docs-check",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-freshness must serialize api-docs-validate")
+    assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
 
 
 def test_parallel_docs_check_generation_before_coverage_wiring_fails_clearly() -> None:
@@ -1397,13 +1394,13 @@ def test_parallel_docs_check_generation_before_coverage_wiring_fails_clearly() -
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "docs-check: docs\n\t@$(MAKE) api-docs-coverage",
-                "docs-check: docs api-docs-coverage",
+                "api-docs-coverage: docs",
+                "api-docs-coverage:",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "docs-check must serialize docs before api-docs-coverage")
+    assert_routing_fails_with(mutate, "api-docs-coverage must depend on docs")
 
 
 def test_makefile_freshness_extra_dependency_name_fails_clearly() -> None:
@@ -1411,13 +1408,13 @@ def test_makefile_freshness_extra_dependency_name_fails_clearly() -> None:
         path = root / "Makefile"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "\t@$(MAKE) api-docs-validate",
-                "\t@$(MAKE) api-docs-validate-extra",
+                "api-docs-freshness: api-docs-validate",
+                "api-docs-freshness: api-docs-validate-extra",
             ),
             encoding="utf-8",
         )
 
-    assert_routing_fails_with(mutate, "api-docs-freshness must serialize api-docs-validate")
+    assert_routing_fails_with(mutate, "api-docs-freshness must depend on api-docs-validate")
 
 
 def main() -> None:

@@ -1073,10 +1073,8 @@ owners, use
 Shared-library packaging, dynamic ABI support, Windows Makefile parity,
 Windows `pkg-config` parity, Homebrew/core readiness, bottles, Linuxbrew,
 public taps, binary packages, and broad package-manager distribution are not
-claimed. The retained
-Homebrew proof is a developer-mode local static source formula proof only, not
-a user-facing Homebrew install path. The static/shared package decision is
-recorded in the
+claimed. The retained Sprint 198 record keeps the current Homebrew proof status explicit: Homebrew proof is a developer-mode local static source formula proof only, not a user-facing Homebrew install path or a change to the supported install commands above. The static/shared package
+decision is recorded in the
 [Sprint 170 shared-library and ABI product decision](docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md).
 
 ## Documentation

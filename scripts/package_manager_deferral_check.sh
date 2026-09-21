@@ -375,7 +375,7 @@ check_forbidden_public_provider_claims() {
     local pattern
 
     for pattern in \
-        'package-manager distribution (is|are) (available|supported|provided)' \
+        'package-manager distribution (is|are) (available|supported|provided|claimed)' \
         'package-manager support (is|are) (available|supported|provided|claimed)' \
         'broad package-manager support (is|are) (available|supported|provided|claimed)' \
         'Homebrew installation path (is|are) (available|supported|provided|claimed)' \

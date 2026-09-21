@@ -136,7 +136,7 @@ broad package-manager distribution.
 | Package guard regression files added | 1 |
 | Homebrew formula template files changed | 0 |
 | Install metadata files changed | 0 |
-| CI workflow files changed | 0 |
+| CI workflow files changed | 1 |
 | C implementation files changed | 0 |
 | C test files changed | 0 |
 | Public or internal header files changed | 0 |

@@ -378,8 +378,12 @@ check_forbidden_public_provider_claims() {
         'package-manager distribution (is|are) (available|supported|provided)' \
         'package-manager support (is|are) (available|supported|provided|claimed)' \
         'broad package-manager support (is|are) (available|supported|provided|claimed)' \
+        'Homebrew installation path (is|are) (available|supported|provided|claimed)' \
+        'Homebrew install(ation)? path (is|are) (available|supported|provided|claimed)' \
         'Homebrew/core readiness (is|are) (available|supported|provided|claimed)' \
+        'Homebrew/core acceptance (is|are) (available|supported|provided|claimed)' \
         'Homebrew/core (is|are) (ready|available|supported|provided|claimed)' \
+        'Homebrew tap/source formula (is|are) (available|supported|provided|claimed)' \
         'public tap (is|are) (available|supported|provided|claimed)' \
         'public taps (is|are) (available|supported|provided|claimed)' \
         'public tap support (is|are) (available|supported|provided|claimed)' \

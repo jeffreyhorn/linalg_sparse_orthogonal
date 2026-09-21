@@ -149,6 +149,41 @@ def test_positive_homebrew_core_readiness_claim_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "unsupported provider claim")
 
 
+def test_positive_homebrew_installation_path_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "README.md").write_text(
+            (root / "README.md").read_text(encoding="utf-8")
+            + "\nHomebrew installation path is supported.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "unsupported provider claim")
+
+
+def test_positive_homebrew_core_acceptance_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "INSTALL.md").write_text(
+            (root / "INSTALL.md").read_text(encoding="utf-8")
+            + "\nHomebrew/core acceptance is available.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "unsupported provider claim")
+
+
+def test_positive_homebrew_tap_source_formula_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "packaging" / "homebrew" / "README.md").write_text(
+            (root / "packaging" / "homebrew" / "README.md").read_text(
+                encoding="utf-8"
+            )
+            + "\nHomebrew tap/source formula is provided.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "unsupported provider claim")
+
+
 def test_positive_public_tap_claim_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "INSTALL.md").write_text(
@@ -230,6 +265,9 @@ def test_positive_release_package_claim_fails_clearly() -> None:
 
 def main() -> None:
     test_positive_homebrew_core_readiness_claim_fails_clearly()
+    test_positive_homebrew_installation_path_claim_fails_clearly()
+    test_positive_homebrew_core_acceptance_claim_fails_clearly()
+    test_positive_homebrew_tap_source_formula_claim_fails_clearly()
     test_positive_public_tap_claim_fails_clearly()
     test_positive_plural_public_taps_claim_fails_clearly()
     test_positive_package_manager_support_claim_fails_clearly()

@@ -77,10 +77,13 @@ registry readiness, shared-library support, dynamic ABI support, static/shared
 selectors, and broad package-manager support remain unsupported unless a later
 product decision adds separate evidence.
 
-Sprint 198 keeps this directory in proof-only status. The MIT developer-mode
-local proof has completed successfully, but do not present this template as an
-available Homebrew install method; it is proof material for the local static
-source formula boundary only.
+Sprint 198 keeps this directory in proof-only status. Sprint 207 selected
+continued package-provider deferral with stronger guards. The MIT
+developer-mode local proof has completed successfully, but do not present this
+template as an available Homebrew install method, public tap formula,
+Homebrew/core readiness artifact, bottle, Linuxbrew path, binary package, or
+release package; it is proof material for the local static source formula
+boundary only.
 
 Maintainers changing this directory should run:
 
@@ -92,3 +95,28 @@ scripts/static_package_deferral_check.sh
 Also run install checks if CMake, Makefile, install metadata, or downstream
 consumer wording changes. Run package report normalization checks only when
 package report metadata changes.
+
+## Maintainer Claim-Change Checklist
+
+The current maintainer decision is Sprint 207 continued package-provider
+deferral. Do not convert this proof template into provider instructions unless
+the same change adds the provider evidence and guard coverage for the exact
+provider tier being named.
+
+Minimum evidence to reopen a public Homebrew tap/source formula path:
+
+- stable source archive URL and SHA-256 provenance;
+- provider formula ownership and non-local formula naming;
+- formula render/audit/install/test/uninstall proof outside the temporary
+  local proof path;
+- cleanup proof showing no generated archives, formula files, logs, taps, or
+  bottle outputs are retained under this directory;
+- README, INSTALL, maintainer guide, and Sprint residual updates that preserve
+  Homebrew/core, bottle, Linuxbrew, binary, release-package, shared-library,
+  ABI, and broad package-manager non-claims;
+- package-manager guard tests that fail on unsupported provider wording.
+
+Minimum evidence to reopen Homebrew/core readiness additionally requires
+Homebrew/core-style formula audit evidence, release archive discipline,
+submission/maintenance ownership, and wording that does not imply acceptance,
+bottles, Linuxbrew, or binary distribution.

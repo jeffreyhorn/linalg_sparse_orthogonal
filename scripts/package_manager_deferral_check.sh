@@ -322,6 +322,92 @@ check_package_metadata_neutrality() {
     pass "package metadata neutrality"
 }
 
+check_sprint207_provider_decision() {
+    local decision_record="$ROOT_DIR/docs/planning/EPIC_19/SPRINT_207/artifacts/day5-provider-decision.md"
+    local design_record="$ROOT_DIR/docs/planning/EPIC_19/SPRINT_207/artifacts/day6-proof-deferral-design.md"
+
+    [ -f "$decision_record" ] || fail "Sprint 207 provider decision record is missing"
+    [ -f "$design_record" ] || fail "Sprint 207 proof deferral design record is missing"
+
+    require_grep \
+        'continued deferral with stronger guards' \
+        "$decision_record" \
+        "Sprint 207 no longer records continued package-provider deferral as the selected path"
+    require_grep \
+        'will not promote a public Homebrew tap/source formula' \
+        "$decision_record" \
+        "Sprint 207 decision no longer rejects public tap promotion"
+    require_grep \
+        'claiming Homebrew/core readiness' \
+        "$decision_record" \
+        "Sprint 207 decision no longer rejects Homebrew/core readiness wording"
+    require_grep \
+        'stable source archive and SHA-256 provenance' \
+        "$decision_record" \
+        "Sprint 207 decision no longer names public tap archive/checksum evidence required to reopen"
+    require_grep \
+        'Homebrew/core-style formula audit evidence' \
+        "$decision_record" \
+        "Sprint 207 decision no longer names Homebrew/core audit evidence required to reopen"
+    require_grep \
+        'Pass[[:space:]]*\|[[:space:]]*`0`[[:space:]]*\|.*developer-mode local static source formula proof only' \
+        "$design_record" \
+        "Sprint 207 design no longer maps successful proof to local-only package wording"
+    require_grep \
+        'Reject public tap support wording without evidence' \
+        "$design_record" \
+        "Sprint 207 design no longer includes public tap wording regression target"
+    require_grep \
+        'Reject Homebrew/core readiness wording without evidence' \
+        "$design_record" \
+        "Sprint 207 design no longer includes Homebrew/core readiness regression target"
+
+    pass "Sprint 207 provider decision"
+}
+
+check_forbidden_public_provider_claims() {
+    local docs=(
+        "$ROOT_DIR/README.md"
+        "$ROOT_DIR/INSTALL.md"
+        "$ROOT_DIR/packaging/homebrew/README.md"
+        "$ROOT_DIR/docs/maintainer_guide.md"
+    )
+    local pattern
+
+    for pattern in \
+        'package-manager distribution (is|are) (available|supported|provided)' \
+        'package-manager support (is|are) (available|supported|provided|claimed)' \
+        'broad package-manager support (is|are) (available|supported|provided|claimed)' \
+        'Homebrew/core readiness (is|are) (available|supported|provided|claimed)' \
+        'Homebrew/core (is|are) (ready|available|supported|provided|claimed)' \
+        'public tap (is|are) (available|supported|provided|claimed)' \
+        'public taps (is|are) (available|supported|provided|claimed)' \
+        'public tap support (is|are) (available|supported|provided|claimed)' \
+        'bottles? (is|are) (available|supported|provided|claimed)' \
+        'bottle support (is|are) (available|supported|provided|claimed)' \
+        'Linuxbrew (is|are) (available|supported|provided|claimed)' \
+        'Linuxbrew support (is|are) (available|supported|provided|claimed)' \
+        '(vcpkg|Conan|pkgsrc) (is|are) (available|supported|provided|claimed)' \
+        '(vcpkg|Conan|pkgsrc) support (is|are) (available|supported|provided|claimed)' \
+        '(distro|system) packages? (is|are) (available|supported|provided|claimed)' \
+        'binary packages? (is|are) (available|supported|provided|claimed)' \
+        'binary package support (is|are) (available|supported|provided|claimed)' \
+        'release readiness (is|are) (available|supported|provided|claimed)' \
+        'release artifacts? (is|are) (available|supported|provided|claimed)' \
+        'release packages? (is|are) (available|supported|provided|claimed)' \
+        'package releases? (is|are) (available|supported|provided|claimed)'
+    do
+        for doc in "${docs[@]}"; do
+            require_absent_grep \
+                "$pattern" \
+                "$doc" \
+                "public package documentation gained unsupported provider claim matching: $pattern"
+        done
+    done
+
+    pass "forbidden public provider claims"
+}
+
 check_public_nonclaims() {
     require_text_marker \
         'package-manager distribution are not claimed' \
@@ -382,6 +468,8 @@ check_public_nonclaims() {
 check_deferral_record
 check_sprint198_package_record
 check_provider_recipe_absence
+check_sprint207_provider_decision
+check_forbidden_public_provider_claims
 check_selected_homebrew_local_proof
 check_package_metadata_neutrality
 check_public_nonclaims

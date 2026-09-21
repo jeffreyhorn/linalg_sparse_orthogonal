@@ -206,11 +206,33 @@ def test_positive_plural_public_taps_claim_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "unsupported provider claim")
 
 
+def test_sentence_cased_public_taps_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "README.md").write_text(
+            (root / "README.md").read_text(encoding="utf-8")
+            + "\nPublic taps are supported.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "unsupported provider claim")
+
+
 def test_positive_package_manager_support_claim_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "docs" / "maintainer_guide.md").write_text(
             (root / "docs" / "maintainer_guide.md").read_text(encoding="utf-8")
             + "\npackage-manager support is available.\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "unsupported provider claim")
+
+
+def test_sentence_cased_package_manager_support_claim_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "docs" / "maintainer_guide.md").write_text(
+            (root / "docs" / "maintainer_guide.md").read_text(encoding="utf-8")
+            + "\nPackage-manager support is available.\n",
             encoding="utf-8",
         )
 
@@ -270,7 +292,9 @@ def main() -> None:
     test_positive_homebrew_tap_source_formula_claim_fails_clearly()
     test_positive_public_tap_claim_fails_clearly()
     test_positive_plural_public_taps_claim_fails_clearly()
+    test_sentence_cased_public_taps_claim_fails_clearly()
     test_positive_package_manager_support_claim_fails_clearly()
+    test_sentence_cased_package_manager_support_claim_fails_clearly()
     test_positive_binary_package_claim_fails_clearly()
     test_positive_bottle_support_claim_fails_clearly()
     test_positive_linuxbrew_support_claim_fails_clearly()

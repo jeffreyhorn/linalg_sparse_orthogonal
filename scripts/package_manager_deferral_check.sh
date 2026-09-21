@@ -56,7 +56,7 @@ require_absent_grep() {
     local message="$3"
     local matches
 
-    matches="$(grep -REn "$pattern" "$path" 2>/dev/null || true)"
+    matches="$(grep -REin "$pattern" "$path" 2>/dev/null || true)"
     if [ -n "$matches" ]; then
         echo "$matches" >&2
         fail "$message"

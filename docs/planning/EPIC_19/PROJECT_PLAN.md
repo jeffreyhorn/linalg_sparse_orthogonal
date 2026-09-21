@@ -253,7 +253,7 @@ thresholded gate for one row or stronger threshold-free deferral proof.
 | --- | --- | --- | ---: |
 | 212.1 | Benchmark Evidence Inventory | Inventory selected hosted benchmark lanes, report fields, runner metadata, and non-claims. | 22 |
 | 212.2 | Threshold Decision | Decide whether to add one selected threshold gate or close threshold deferral with stronger methodology docs. | 28 |
-| 212.3 | Methodology Implementation | Implement threshold metadata, variance rules, or threshold-free guard improvements for the selected decision. | 34 |
+| 212.3 | Methodology Implementation | Implement threshold metadata with runner class, compiler, repeats, warmup, variance rule, and allowed regression threshold, or implement threshold-free guard improvements for the selected decision. | 34 |
 | 212.4 | Regression Tests | Add benchmark freshness, manifest, methodology, missing metadata, and docs guard tests. | 30 |
 | 212.5 | Documentation Calibration | Update benchmark README, README, INSTALL, maintainer guide, and selected manifest wording. | 26 |
 | 212.6 | Validation And Closeout | Run benchmark freshness, selected performance docs, manifest tests, docs checks, and relevant CI evidence review. | 26 |
@@ -323,7 +323,7 @@ complete release/ABI design with acceptance gates and deferral guards.
 | 214.2 | ABI Policy Design | Define symbol visibility, versioning, compatibility, loader, and platform metadata expectations. | 30 |
 | 214.3 | Build/Install Proof Or Guard | Add narrow shared-library proof path or strengthen configure/docs guards for deferral. | 38 |
 | 214.4 | Downstream Consumer Evidence | Add installed shared consumer tests if implemented, or exact future acceptance tests if deferred. | 28 |
-| 214.5 | Release Checklist | Add changelog, tag, source archive, artifact, package provenance, and CI evidence checklist. | 24 |
+| 214.5 | Release Checklist | Add changelog, tag, reproducible source archive requirement, artifact, package provenance, and CI evidence checklist. | 24 |
 | 214.6 | Validation And Closeout | Run install/export tests, static/shared guards, docs checks, and full C/build quality gates. | 24 |
 
 ### Deliverables

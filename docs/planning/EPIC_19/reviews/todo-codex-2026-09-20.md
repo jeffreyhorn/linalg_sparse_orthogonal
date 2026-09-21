@@ -48,7 +48,9 @@ support promotion.
    - `python3 tests/test_normalize_report_index.py`;
    - `python3 tests/test_run_external_comparison.py`;
    - `make windows-powershell-guard`;
-   - selected freshness command.
+   - `python3 scripts/normalize_report_index.py --family comparison --include-generated --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5`;
+   - hosted Windows workflow evidence review for the selected Cholesky
+     artifact bundle before any manifest promotion.
 
 **Done when:** the selected Windows Cholesky row is either fully promoted with
 matching manifest/docs/guards or explicitly re-deferred with stronger proof of
@@ -64,8 +66,18 @@ absence.
    incompatible target.
 6. Preserve broad QR, least-squares, external-library, package, ABI,
    performance, and state-of-the-art non-claims.
-7. Run selected comparison, normalizer, manifest, workflow, PowerShell, and
-   QR-focused tests.
+7. Run:
+   - `python3 scripts/run_external_comparison.py --target qr-incompatible-ls`;
+   - `python3 scripts/normalize_report_index.py --family comparison --include-generated --require-generated comparison --check-freshness --selected-target qr-incompatible-ls`;
+   - `python3 tests/test_run_external_comparison.py`;
+   - `python3 tests/test_normalize_report_index.py`;
+   - `python3 tests/test_selected_report_targets_manifest.py`;
+   - `python3 tests/test_selected_comparison_workflow.py`;
+   - `python3 tests/test_validate_windows_powershell.py`;
+   - focused QR solve coverage via `test_qr`, `test_qr_solve`, and
+     `test_qr_corpus`;
+   - hosted Windows comparison workflow evidence review before any future
+     promotion.
 
 **Done when:** Windows QR incompatible selected freshness is promoted with
 hosted proof or re-deferred with current guards and docs explicitly aligned.

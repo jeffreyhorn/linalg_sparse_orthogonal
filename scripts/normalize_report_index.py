@@ -301,6 +301,41 @@ def selected_comparison_artifact_diagnostic(
     return "artifacts=" + ",".join(selected_comparison_artifacts(selected_targets, target_keys))
 
 
+def selected_comparison_required_file_diagnostics(
+    selected_targets: list[dict[str, str]],
+    *,
+    build_root: Path,
+    target_keys: set[str] | None = None,
+) -> tuple[list[str], bool]:
+    diagnostics: list[str] = []
+    has_error = False
+    for contract in selected_comparison_contracts(selected_targets, target_keys):
+        artifact_pattern = contract["artifact_pattern"]
+        if not artifact_pattern.startswith("build/"):
+            continue
+        artifact_dir = Path(artifact_pattern.removeprefix("build/")).parent
+        study_path = build_root / Path(artifact_pattern.removeprefix("build/"))
+        if not study_path.is_file():
+            continue
+        missing: list[str] = []
+        for filename in split_manifest_values(contract["required_files"]):
+            logical_path = f"build/{artifact_dir.as_posix()}/{filename}"
+            physical_path = build_root / artifact_dir / filename
+            if not physical_path.is_file():
+                missing.append(logical_path)
+        if missing:
+            has_error = True
+            diagnostics.append(
+                "freshness: error: comparison_required_files: missing_artifact_file: "
+                f"target_id={contract['target_id']}; target_key={contract['target_key']}; "
+                f"missing={','.join(missing)}; "
+                f"artifact={contract['artifact_pattern']}; "
+                f"{selected_comparison_artifact_diagnostic(selected_targets, target_keys)}; "
+                f"{selected_comparison_remediation(target_keys)}"
+            )
+    return diagnostics, has_error
+
+
 def selected_comparison_remediation(target_keys: set[str] | None = None) -> str:
     if target_keys:
         targets = " ".join(f"--selected-target {target}" for target in sorted(target_keys))
@@ -1460,6 +1495,7 @@ def selected_comparison_generated_rows(
 def selected_comparison_policy_diagnostics(
     rows: list[dict[str, str]],
     *,
+    build_root: Path,
     selected_targets: list[dict[str, str]],
     required_families: set[str],
     strict_generated: bool,
@@ -1479,6 +1515,15 @@ def selected_comparison_policy_diagnostics(
     artifact_diagnostic = selected_comparison_artifact_diagnostic(
         selected_targets, selected_target_keys
     )
+    required_file_diagnostics, required_files_have_error = (
+        selected_comparison_required_file_diagnostics(
+            selected_targets,
+            build_root=build_root,
+            target_keys=selected_target_keys,
+        )
+    )
+    diagnostics.extend(required_file_diagnostics)
+    has_error = has_error or required_files_have_error
     target_ids = ",".join(
         row["target_id"]
         for row in selected_comparison_contracts(selected_targets, selected_target_keys)
@@ -1734,6 +1779,7 @@ def freshness_diagnostics(
     has_error = has_error or oracle_has_error
     comparison_diagnostics, comparison_has_error = selected_comparison_policy_diagnostics(
         rows,
+        build_root=build_root,
         selected_targets=selected_targets,
         required_families=required_families,
         strict_generated=strict_generated,

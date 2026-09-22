@@ -61,9 +61,19 @@ WINDOWS_DEFERRAL_REQUIRED_TEXT = [
 ]
 SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
 WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_QR_INCOMPATIBLE_JOB = "selected-qr-incompatible-comparison-freshness"
 WINDOWS_QR_INCOMPATIBLE_TARGET = "qr-incompatible-ls"
 WINDOWS_QR_INCOMPATIBLE_SUBFAMILY = "qr_incompatible_ls"
-WINDOWS_QR_INCOMPATIBLE_ARTIFACT = "sprint203-windows-selected-comparison-qr-incompatible"
+WINDOWS_QR_INCOMPATIBLE_ARTIFACT = "sprint209-windows-selected-comparison-qr-incompatible"
+WINDOWS_QR_INCOMPATIBLE_GENERATOR = (
+    "python scripts/run_external_comparison.py --target qr-incompatible-ls "
+    "--probe-build-system cmake --cmake-generator \"Visual Studio 17 2022\" "
+    "--cmake-arch x64 --cmake-config Release --library build/Release/sparse_lu_ortho.lib"
+)
+WINDOWS_QR_INCOMPATIBLE_FRESHNESS = (
+    "python scripts/normalize_report_index.py --family comparison --require-generated "
+    "comparison --check-freshness --selected-target qr-incompatible-ls"
+)
 WINDOWS_QR_INCOMPATIBLE_FILES = [
     "build/comparison/qr_incompatible_ls/project_observations.tsv",
     "build/comparison/qr_incompatible_ls/baseline_observations.tsv",
@@ -333,7 +343,41 @@ def assert_windows_selected_cholesky_lane(text: str) -> None:
         assert_contains(block, path, label="windows selected cholesky upload")
 
 
-def assert_windows_qr_incompatible_remains_redeferred(text: str) -> None:
+def assert_windows_selected_qr_incompatible_lane(text: str) -> str:
+    job = job_block(text, WINDOWS_QR_INCOMPATIBLE_JOB, label="windows")
+    assert_contains(job, "timeout-minutes: 20", label="windows selected qr incompatible")
+    assert_contains(
+        job,
+        "Configure selected QR incompatible comparison library",
+        label="windows selected qr incompatible",
+    )
+    assert_contains(
+        job,
+        "Build selected QR incompatible comparison library",
+        label="windows selected qr incompatible",
+    )
+    for needle in (
+        WINDOWS_QR_INCOMPATIBLE_GENERATOR,
+        WINDOWS_QR_INCOMPATIBLE_FRESHNESS,
+        "--probe-build-system cmake",
+        "--library build/Release/sparse_lu_ortho.lib",
+    ):
+        assert_contains(job, needle, label="windows selected qr incompatible")
+    block = assert_upload_fail_closed(
+        job,
+        WINDOWS_QR_INCOMPATIBLE_ARTIFACT,
+        label="windows selected qr incompatible upload",
+    )
+    if "build/comparison/**" in block or "build/comparison/\n" in block:
+        raise AssertionError("windows selected qr incompatible upload must not use broad paths")
+    for path in WINDOWS_QR_INCOMPATIBLE_FILES:
+        assert_contains(block, path, label="windows selected qr incompatible upload")
+    return job
+
+
+def assert_windows_qr_incompatible_has_no_unowned_surface(text: str) -> None:
+    owned_job = assert_windows_selected_qr_incompatible_lane(text)
+    searchable = text.replace(owned_job, "", 1)
     forbidden = [
         f"--target {WINDOWS_QR_INCOMPATIBLE_TARGET}",
         f"--target={WINDOWS_QR_INCOMPATIBLE_TARGET}",
@@ -345,9 +389,9 @@ def assert_windows_qr_incompatible_remains_redeferred(text: str) -> None:
         WINDOWS_QR_INCOMPATIBLE_SUBFAMILY,
     ]
     for needle in forbidden:
-        if needle in text:
+        if needle in searchable:
             raise AssertionError(
-                "windows QR incompatible remains re-deferred; unexpected "
+                "windows QR incompatible must remain bounded to owned job; unexpected "
                 f"{needle!r}"
             )
 
@@ -559,7 +603,8 @@ def test_windows_report_freshness_keeps_bounded_cholesky_only() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     assert_windows_workflow_contract(text)
     assert_windows_selected_cholesky_lane(text)
-    assert_windows_qr_incompatible_remains_redeferred(text)
+    assert_windows_selected_qr_incompatible_lane(text)
+    assert_windows_qr_incompatible_has_no_unowned_surface(text)
     assert_no_report_freshness_lane(text, label="windows")
     assert_no_windows_selected_manifest_platform()
     assert_windows_deferral_record()
@@ -663,8 +708,8 @@ def test_windows_qr_incompatible_target_drift_fails_clearly() -> None:
         + "run: python scripts/run_external_comparison.py --target qr-incompatible-ls\n"
     )
     assert_raises_with(
-        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
-        "windows QR incompatible remains re-deferred; unexpected "
+        lambda: assert_windows_qr_incompatible_has_no_unowned_surface(drifted),
+        "windows QR incompatible must remain bounded to owned job; unexpected "
         "'--target qr-incompatible-ls'",
     )
 
@@ -678,8 +723,8 @@ def test_windows_qr_incompatible_freshness_target_drift_fails_clearly() -> None:
         + "qr-incompatible-ls\n"
     )
     assert_raises_with(
-        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
-        "windows QR incompatible remains re-deferred; unexpected "
+        lambda: assert_windows_qr_incompatible_has_no_unowned_surface(drifted),
+        "windows QR incompatible must remain bounded to owned job; unexpected "
         "'--selected-target qr-incompatible-ls'",
     )
 
@@ -692,8 +737,8 @@ def test_windows_qr_incompatible_equals_target_drift_fails_clearly() -> None:
         + "run: python scripts/run_external_comparison.py --target=qr-incompatible-ls\n"
     )
     assert_raises_with(
-        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
-        "windows QR incompatible remains re-deferred; unexpected "
+        lambda: assert_windows_qr_incompatible_has_no_unowned_surface(drifted),
+        "windows QR incompatible must remain bounded to owned job; unexpected "
         "'--target=qr-incompatible-ls'",
     )
 
@@ -702,8 +747,8 @@ def test_windows_qr_incompatible_subfamily_drift_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     drifted = text + "\n# drift\n" + "path: build/comparison/qr_incompatible_ls\n"
     assert_raises_with(
-        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
-        "windows QR incompatible remains re-deferred; unexpected "
+        lambda: assert_windows_qr_incompatible_has_no_unowned_surface(drifted),
+        "windows QR incompatible must remain bounded to owned job; unexpected "
         "'qr_incompatible_ls'",
     )
 
@@ -716,9 +761,59 @@ def test_windows_qr_incompatible_artifact_upload_drift_fails_clearly() -> None:
         + "path: build/comparison/qr_incompatible_ls/project_observations.tsv\n"
     )
     assert_raises_with(
-        lambda: assert_windows_qr_incompatible_remains_redeferred(drifted),
-        "windows QR incompatible remains re-deferred; unexpected "
+        lambda: assert_windows_qr_incompatible_has_no_unowned_surface(drifted),
+        "windows QR incompatible must remain bounded to owned job; unexpected "
         "'build/comparison/qr_incompatible_ls/project_observations.tsv'",
+    )
+
+
+def test_windows_qr_incompatible_missing_job_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    job = job_block(text, WINDOWS_QR_INCOMPATIBLE_JOB, label="windows")
+    drifted = text.replace(job, "", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        f"windows missing job '{WINDOWS_QR_INCOMPATIBLE_JOB}'",
+    )
+
+
+def test_windows_qr_incompatible_wrong_artifact_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        f"          name: {WINDOWS_QR_INCOMPATIBLE_ARTIFACT}",
+        "          name: sprint203-windows-selected-comparison-qr-incompatible",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "windows selected qr incompatible upload missing upload artifact name",
+    )
+
+
+def test_windows_qr_incompatible_broad_upload_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "            build/comparison/qr_incompatible_ls/project_observations.tsv",
+        "            build/comparison/**",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "windows selected qr incompatible upload must not use broad paths",
+    )
+
+
+def test_windows_qr_incompatible_missing_required_file_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "            build/comparison/qr_incompatible_ls/manifest.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "windows selected qr incompatible upload missing "
+        "'build/comparison/qr_incompatible_ls/manifest.tsv'",
     )
 
 
@@ -1123,6 +1218,10 @@ def main() -> int:
     test_windows_qr_incompatible_equals_target_drift_fails_clearly()
     test_windows_qr_incompatible_subfamily_drift_fails_clearly()
     test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()
+    test_windows_qr_incompatible_missing_job_fails_clearly()
+    test_windows_qr_incompatible_wrong_artifact_fails_clearly()
+    test_windows_qr_incompatible_broad_upload_fails_clearly()
+    test_windows_qr_incompatible_missing_required_file_fails_clearly()
     test_windows_deferral_record_missing_blocker_fails_clearly()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_workflow_missing_reviewed_job_fails_clearly()

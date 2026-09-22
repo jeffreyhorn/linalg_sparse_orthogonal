@@ -77,7 +77,11 @@ bounded Windows selected Cholesky comparison workflow for
 scope, and non-claims are reviewed together. Sprint 208 keeps that absence as
 the source-controlled authority and guards it with manifest, workflow, and
 normalizer regressions. The Sprint 182 deferral remains active for all other
-Windows report freshness.
+Windows report freshness. Sprint 209 adds one bounded Windows QR incompatible
+evidence-collection lane for `qr-incompatible-ls`, but the QR incompatible row
+remains Linux/macOS-only and `local_only` until hosted run evidence, exact
+artifact inspection, selected manifest metadata, generated support tier, and
+generated non-claim wording are promoted together.
 
 Sprint 186 closeout preserves this split. Selected target rows are positive
 manifest authority for named freshness gates; formal deferrals and
@@ -162,9 +166,10 @@ raw singular-vector identity; vector sign/orientation identity;
 external-library parity; platform proof; package proof; ABI proof; performance
 proof; release proof; or state-of-the-art evidence.
 The QR incompatible least-squares target remains outside Windows selected
-freshness until hosted MSVC probe evidence, selected artifact review,
-selected-target manifest metadata, generated support tier, and generated
-non-claim wording are promoted together.
+freshness even with the Sprint 209 evidence-collection lane present; promotion
+requires hosted MSVC probe evidence, selected artifact review, selected-target
+manifest metadata, generated support tier, and generated non-claim wording to
+move together.
 
 ## Guardrails
 

@@ -118,7 +118,7 @@ def test_extra_windows_upload_artifact_fails_outside_selected_lane() -> None:
     drifted = read_workflow() + "\n      - uses: actions/upload-artifact@v4\n"
     assert_raises_with(
         lambda: validator.validate_workflow_structure(drifted),
-        "must not publish hosted artifacts outside the selected Cholesky freshness lane",
+        "must not publish hosted artifacts outside the owned selected comparison freshness lanes",
     )
 
 
@@ -192,6 +192,80 @@ def test_selected_cholesky_lane_missing_required_upload_fails_clearly() -> None:
     )
 
 
+def test_selected_qr_lane_missing_target_fails_clearly() -> None:
+    drifted = read_workflow().replace("--selected-target qr-incompatible-ls", "", 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing selected QR token",
+    )
+
+
+def test_selected_qr_lane_generator_target_drift_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "--target qr-incompatible-ls", "--target qr-minnorm", 1
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing selected QR token",
+    )
+
+
+def test_selected_qr_lane_artifact_name_drift_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "name: sprint209-windows-selected-comparison-qr-incompatible",
+        "name: sprint203-windows-selected-comparison-qr-incompatible",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "sprint209-windows-selected-comparison-qr-incompatible",
+    )
+
+
+def test_selected_qr_lane_upload_must_fail_closed() -> None:
+    qr_block = validator.find_job_block(read_workflow(), validator.WINDOWS_SELECTED_QR_JOB)
+    drifted_qr_block = qr_block.replace("if-no-files-found: error\n", "", 1)
+    drifted = read_workflow().replace(qr_block, drifted_qr_block, 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "if-no-files-found: error",
+    )
+
+
+def test_selected_qr_lane_missing_timeout_fails_clearly() -> None:
+    qr_block = validator.find_job_block(read_workflow(), validator.WINDOWS_SELECTED_QR_JOB)
+    drifted_qr_block = qr_block.replace("    timeout-minutes: 20\n", "", 1)
+    drifted = read_workflow().replace(qr_block, drifted_qr_block, 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "must declare timeout-minutes: 20",
+    )
+
+
+def test_selected_qr_lane_broad_upload_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "            build/comparison/qr_incompatible_ls/project_observations.tsv",
+        "            build/comparison/**",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "must not use broad or stale QR artifact paths",
+    )
+
+
+def test_selected_qr_lane_missing_required_upload_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "            build/comparison/qr_incompatible_ls/manifest.tsv\n",
+        "",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing upload path",
+    )
+
+
 def test_manifest_derived_artifact_name_is_forbidden_on_windows() -> None:
     artifact = manifest_rows()[0]["workflow_artifact"]
     drifted = read_workflow() + f"\n# drift\nname: {artifact}\n"
@@ -221,6 +295,19 @@ def test_claim_boundary_missing_marker_fails_clearly() -> None:
     )
 
 
+def test_claim_boundary_missing_public_qr_marker_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "INSTALL.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
+        "Sprint 209 adds Windows QR freshness support",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "INSTALL.md missing Windows/PowerShell non-claim marker",
+    )
+
+
 def test_report_index_claim_boundary_missing_qr_marker_fails_clearly() -> None:
     path = (
         validator.REPO_ROOT
@@ -233,6 +320,52 @@ def test_report_index_claim_boundary_missing_qr_marker_fails_clearly() -> None:
         "The QR incompatible least-squares target remains outside Windows selected\n"
         "freshness",
         "The QR incompatible least-squares target is ready for selected freshness",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "report_index_fields.md missing Windows/PowerShell non-claim marker",
+    )
+
+
+def test_maintainer_claim_boundary_missing_sprint209_marker_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "docs" / "maintainer_guide.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
+        "Sprint 209 adds a Windows QR freshness lane",
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "maintainer_guide.md missing Windows/PowerShell non-claim marker",
+    )
+
+
+def test_corpus_claim_boundary_missing_sprint209_marker_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "tests" / "corpus" / "README.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "Sprint 209 adds one bounded Windows QR incompatible\n"
+        "evidence-collection lane",
+        "Sprint 209 adds Windows QR freshness evidence",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "tests/corpus/README.md missing Windows/PowerShell non-claim marker",
+    )
+
+
+def test_report_index_claim_boundary_missing_sprint209_marker_fails_clearly() -> None:
+    path = (
+        validator.REPO_ROOT
+        / "tests"
+        / "corpus"
+        / "schemas"
+        / "report_index_fields.md"
+    )
+    text = path.read_text(encoding="utf-8").replace(
+        "Sprint 209 adds one bounded Windows QR incompatible\n"
+        "evidence-collection lane",
+        "Sprint 209 adds Windows QR freshness metadata",
         1,
     )
     assert_raises_with(
@@ -278,6 +411,17 @@ def test_claim_boundary_selected_windows_generic_promotion_fails_clearly() -> No
     path = validator.REPO_ROOT / "INSTALL.md"
     text = path.read_text(encoding="utf-8") + (
         "\nSelected Windows freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
+def test_claim_boundary_qr_windows_promotion_wording_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nQR incompatible least-squares Windows selected freshness is promoted.\n"
     )
     assert_raises_with(
         lambda: validator.validate_claim_boundaries({path: text}),
@@ -447,6 +591,116 @@ def test_manifest_windows_deferral_rejects_non_cholesky_windows_metadata() -> No
     )
 
 
+def test_manifest_windows_deferral_rejects_qr_windows_workflow_metadata() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["workflow_file"] = (
+        f"{qr['workflow_file']};"
+        f"{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)}"
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must not list Sprint 209 Windows QR workflow file metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_windows_job_metadata() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["workflow_job"] = f"{qr['workflow_job']};{validator.WINDOWS_SELECTED_QR_JOB}"
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must not list Sprint 209 Windows QR workflow job metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_windows_artifact_metadata() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["workflow_artifact"] = (
+        f"{qr['workflow_artifact']};{validator.WINDOWS_SELECTED_QR_ARTIFACT}"
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must not list Sprint 209 Windows QR workflow artifact metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_windows_platform() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["workflow_platforms"] = f"{qr['workflow_platforms']};windows"
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "selected_report_targets.tsv must not list windows while Windows report freshness is deferred",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_identity_drift() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["target_key"] = "qr-incompatible-ls-windows"
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain re-deferred Windows QR manifest target_key metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_required_files_drift() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["required_files"] = qr["required_files"].replace(
+        ";dependency_status.tsv", "", 1
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain re-deferred Windows QR manifest required_files metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_qr_removed_windows_non_claim() -> None:
+    rows = manifest_rows()
+    qr = next(
+        row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    qr["non_claims"] = qr["non_claims"].replace(
+        ";no Windows report freshness", "", 1
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain re-deferred Windows QR manifest non_claims metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_non_qr_qr_windows_metadata() -> None:
+    rows = manifest_rows()
+    non_qr = next(
+        row for row in rows if row["target_id"] != validator.WINDOWS_SELECTED_QR_TARGET_ID
+    )
+    non_qr["workflow_job"] = (
+        f"{non_qr['workflow_job']};{validator.WINDOWS_SELECTED_QR_JOB}"
+    )
+    non_qr["workflow_artifact"] = (
+        f"{non_qr['workflow_artifact']};{validator.WINDOWS_SELECTED_QR_ARTIFACT}"
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "non-QR selected rows must not reference Sprint 209 Windows QR",
+    )
+
+
 def test_manifest_windows_deferral_rejects_claim_scope_drift() -> None:
     rows = manifest_rows()
     cholesky = next(
@@ -571,14 +825,26 @@ if __name__ == "__main__":
     test_selected_cholesky_lane_missing_timeout_fails_clearly()
     test_selected_cholesky_lane_broad_upload_fails_clearly()
     test_selected_cholesky_lane_missing_required_upload_fails_clearly()
+    test_selected_qr_lane_missing_target_fails_clearly()
+    test_selected_qr_lane_generator_target_drift_fails_clearly()
+    test_selected_qr_lane_artifact_name_drift_fails_clearly()
+    test_selected_qr_lane_upload_must_fail_closed()
+    test_selected_qr_lane_missing_timeout_fails_clearly()
+    test_selected_qr_lane_broad_upload_fails_clearly()
+    test_selected_qr_lane_missing_required_upload_fails_clearly()
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
     test_claim_boundary_missing_marker_fails_clearly()
+    test_claim_boundary_missing_public_qr_marker_fails_clearly()
     test_report_index_claim_boundary_missing_qr_marker_fails_clearly()
+    test_maintainer_claim_boundary_missing_sprint209_marker_fails_clearly()
+    test_corpus_claim_boundary_missing_sprint209_marker_fails_clearly()
+    test_report_index_claim_boundary_missing_sprint209_marker_fails_clearly()
     test_claim_boundary_promotion_wording_fails_clearly()
     test_claim_boundary_windows_selected_promotion_wording_fails_clearly()
     test_claim_boundary_selected_windows_promotion_wording_fails_clearly()
     test_claim_boundary_selected_windows_generic_promotion_fails_clearly()
+    test_claim_boundary_qr_windows_promotion_wording_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()
@@ -591,6 +857,14 @@ if __name__ == "__main__":
     test_manifest_windows_deferral_rejects_cholesky_identity_drift()
     test_manifest_windows_deferral_rejects_cholesky_row_contract_drift()
     test_manifest_windows_deferral_rejects_non_cholesky_windows_metadata()
+    test_manifest_windows_deferral_rejects_qr_windows_workflow_metadata()
+    test_manifest_windows_deferral_rejects_qr_windows_job_metadata()
+    test_manifest_windows_deferral_rejects_qr_windows_artifact_metadata()
+    test_manifest_windows_deferral_rejects_qr_windows_platform()
+    test_manifest_windows_deferral_rejects_qr_identity_drift()
+    test_manifest_windows_deferral_rejects_qr_required_files_drift()
+    test_manifest_windows_deferral_rejects_qr_removed_windows_non_claim()
+    test_manifest_windows_deferral_rejects_non_qr_qr_windows_metadata()
     test_manifest_windows_deferral_rejects_claim_scope_drift()
     test_manifest_windows_deferral_rejects_removed_windows_non_claim()
     test_deferral_record_validation()

@@ -15,9 +15,10 @@ name: Windows CI
 # package-manager support, shared-library support, dynamic ABI support,
 # runtime-loader behavior, broad generated report freshness, or broad Windows
 # parity. Sprint 190 promotes one bounded selected Cholesky comparison
-# freshness lane; all other Windows report freshness remains deferred until a
-# Windows-safe generator path and selected-target manifest promotion are
-# reviewed for each target.
+# freshness lane, and Sprint 209 adds one bounded selected QR incompatible
+# proof lane for hosted evidence collection; all other Windows report
+# freshness remains deferred until a Windows-safe generator path and
+# selected-target manifest promotion are reviewed for each target.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -121,6 +122,42 @@ jobs:
             build/comparison/cholesky_spd_tridiag_5/study.tsv
             build/comparison/cholesky_spd_tridiag_5/summary.md
             build/comparison/cholesky_spd_tridiag_5/manifest.tsv
+
+  selected-qr-incompatible-comparison-freshness:
+    name: Windows selected QR incompatible comparison freshness (MSVC)
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure selected QR incompatible comparison library
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+
+      - name: Build selected QR incompatible comparison library
+        run: cmake --build build --config Release --target sparse_lu_ortho
+        shell: pwsh
+
+      - name: Generate selected QR incompatible comparison report
+        run: python scripts/run_external_comparison.py --target qr-incompatible-ls --probe-build-system cmake --cmake-generator "Visual Studio 17 2022" --cmake-arch x64 --cmake-config Release --library build/Release/sparse_lu_ortho.lib
+        shell: cmd
+
+      - name: Check selected QR incompatible comparison freshness
+        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target qr-incompatible-ls
+        shell: cmd
+
+      - name: Upload selected QR incompatible comparison freshness artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint209-windows-selected-comparison-qr-incompatible
+          if-no-files-found: error
+          path: |
+            build/comparison/qr_incompatible_ls/project_observations.tsv
+            build/comparison/qr_incompatible_ls/baseline_observations.tsv
+            build/comparison/qr_incompatible_ls/dependency_status.tsv
+            build/comparison/qr_incompatible_ls/study.tsv
+            build/comparison/qr_incompatible_ls/summary.md
+            build/comparison/qr_incompatible_ls/manifest.tsv
 
   # Verify the reviewed static-first CMake install and installed downstream
   # consumer path on Windows. This lane is CMake install/downstream scoped; it

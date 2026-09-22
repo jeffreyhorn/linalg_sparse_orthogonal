@@ -115,6 +115,14 @@ SELECTED_COMPARISON_ARTIFACTS = (
     "build/comparison/lu_nonsym_square_5/study.tsv",
     "build/comparison/cholesky_spd_tridiag_5/study.tsv",
 )
+SELECTED_COMPARISON_REQUIRED_FILES = (
+    "project_observations.tsv",
+    "baseline_observations.tsv",
+    "dependency_status.tsv",
+    "study.tsv",
+    "summary.md",
+    "manifest.tsv",
+)
 ORACLE_FIELDS = [
     "oracle_row_id",
     "fixture_key",
@@ -1210,6 +1218,13 @@ def write_selected_comparison_rows(
             continue
         comparison_dir = build_root / "comparison" / subfamily
         comparison_dir.mkdir(parents=True, exist_ok=True)
+        for filename in SELECTED_COMPARISON_REQUIRED_FILES:
+            if filename == "study.tsv":
+                continue
+            (comparison_dir / filename).write_text(
+                f"synthetic {subfamily} {filename}\n",
+                encoding="utf-8",
+            )
         with (comparison_dir / "study.tsv").open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
             writer.writeheader()
@@ -2309,6 +2324,74 @@ def test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows
         assert "--selected-target qr-incompatible-ls" in result.stdout
 
 
+def test_qr_incompatible_selected_freshness_rejects_missing_required_artifact_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls"},
+        )
+        missing = build_root / "comparison" / "qr_incompatible_ls" / "manifest.tsv"
+        missing.unlink()
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ],
+            expect_success=False,
+        )
+
+        assert "freshness: error:" in result.stdout
+        assert "comparison_required_files" in result.stdout
+        assert "missing_artifact_file" in result.stdout
+        assert "target_id=SRT-COMP-QR-INCOMPATIBLE-LS" in result.stdout
+        assert "target_key=qr-incompatible-ls" in result.stdout
+        assert "missing=build/comparison/qr_incompatible_ls/manifest.tsv" in result.stdout
+        assert SELECTED_QR_INCOMPATIBLE_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "--selected-target qr-incompatible-ls" in result.stdout
+
+
+def test_qr_incompatible_selected_freshness_ignores_unrelated_missing_artifacts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"qr_incompatible_ls", "cholesky_spd_tridiag_5"},
+        )
+        unrelated = build_root / "comparison" / "cholesky_spd_tridiag_5" / "manifest.tsv"
+        unrelated.unlink()
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "qr-incompatible-ls",
+            ]
+        )
+
+        assert "comparison_required_files" not in result.stdout
+        assert "cholesky_spd_tridiag_5/manifest.tsv" not in result.stdout
+        assert "freshness: warning:" not in result.stdout
+
+
 def test_cholesky_selected_freshness_rejects_duplicate_windows_path_rows() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -2644,6 +2727,8 @@ def main() -> int:
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()
     test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows()
+    test_qr_incompatible_selected_freshness_rejects_missing_required_artifact_file()
+    test_qr_incompatible_selected_freshness_ignores_unrelated_missing_artifacts()
     test_cholesky_selected_freshness_rejects_duplicate_windows_path_rows()
     test_cholesky_selected_freshness_rejects_unexpected_windows_path_rows()
     test_selected_comparison_manifest_support_tiers_remain_bounded()

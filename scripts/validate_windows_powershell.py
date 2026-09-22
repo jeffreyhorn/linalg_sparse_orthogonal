@@ -57,6 +57,10 @@ WINDOWS_SELECTED_CHOLESKY_JOB = "selected-comparison-freshness"
 WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
 WINDOWS_SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
 WINDOWS_SELECTED_CHOLESKY_SUPPORT_TIER = "local_only"
+WINDOWS_SELECTED_CHOLESKY_CLAIM_SCOPE = (
+    "Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the "
+    "named fixture against the selected source-controlled dense Cholesky reference helper."
+)
 WINDOWS_SELECTED_CHOLESKY_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/macos-ci.yml",
@@ -419,6 +423,7 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
         "workflow_job": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_JOBS),
         "workflow_artifact": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_ARTIFACTS),
         "workflow_platforms": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_PLATFORMS),
+        "claim_scope": WINDOWS_SELECTED_CHOLESKY_CLAIM_SCOPE,
         "non_claims": ";".join(WINDOWS_SELECTED_CHOLESKY_NON_CLAIMS),
     }
     for field, expected in exact_fields.items():

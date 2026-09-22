@@ -372,6 +372,22 @@ def test_manifest_windows_deferral_rejects_cholesky_artifact_drift() -> None:
     )
 
 
+def test_manifest_windows_deferral_rejects_claim_scope_drift() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["claim_scope"] = (
+        "Selected Cholesky rows are fresh on reviewed Windows hosted lanes."
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain deferred Windows manifest claim_scope metadata",
+    )
+
+
 def test_manifest_windows_deferral_rejects_removed_windows_non_claim() -> None:
     rows = manifest_rows()
     cholesky = next(
@@ -495,6 +511,7 @@ if __name__ == "__main__":
     test_manifest_windows_deferral_validation()
     test_manifest_windows_deferral_rejects_cholesky_windows_platform()
     test_manifest_windows_deferral_rejects_cholesky_artifact_drift()
+    test_manifest_windows_deferral_rejects_claim_scope_drift()
     test_manifest_windows_deferral_rejects_removed_windows_non_claim()
     test_deferral_record_validation()
     test_parse_with_fake_pwsh_accepts_selected_snippets()

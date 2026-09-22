@@ -349,10 +349,10 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
             f"{WINDOWS_CHOLESKY_TARGET_ID} support_tier must not remain "
             f"{WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER} when windows is listed"
         )
-    if "Windows" not in row["claim_scope"]:
+    if row["claim_scope"] != WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE:
         raise AssertionError(
-            f"{WINDOWS_CHOLESKY_TARGET_ID} claim_scope must name Windows when "
-            "windows is listed"
+            f"{WINDOWS_CHOLESKY_TARGET_ID} claim_scope must be the exact "
+            "promoted Windows selected Cholesky scope"
         )
     non_claims = split_manifest_values(row["non_claims"])
     for forbidden in ("no Windows report freshness", "no hosted CI proof"):
@@ -391,6 +391,11 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
     if required_files != WINDOWS_CHOLESKY_REQUIRED_FILES:
         raise AssertionError(
             f"{WINDOWS_CHOLESKY_TARGET_ID} required_files drifted for Windows promotion"
+        )
+    expected_row_ids = tuple(split_manifest_values(row["expected_row_ids"]))
+    if expected_row_ids != WINDOWS_CHOLESKY_EXPECTED_ROW_IDS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} expected_row_ids drifted for Windows promotion"
         )
     reused_artifacts = {
         artifact
@@ -759,10 +764,30 @@ def test_future_windows_metadata_rejects_unpromoted_claim_scope() -> None:
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
-        if "claim_scope must name Windows" not in str(exc):
+        if (
+            "claim_scope must be the exact promoted Windows selected Cholesky scope"
+            not in str(exc)
+        ):
             raise
         return
     raise AssertionError("expected unpromoted Windows Cholesky claim scope to fail")
+
+
+def test_future_windows_metadata_rejects_broad_claim_scope() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    cholesky_row(rows)["claim_scope"] = (
+        "Selected Cholesky rows are fresh on Windows for all hosted report paths."
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if (
+            "claim_scope must be the exact promoted Windows selected Cholesky scope"
+            not in str(exc)
+        ):
+            raise
+        return
+    raise AssertionError("expected broad Windows Cholesky claim scope to fail")
 
 
 def test_future_windows_metadata_rejects_windows_non_claim() -> None:
@@ -819,6 +844,23 @@ def test_future_windows_metadata_rejects_missing_artifact_file() -> None:
     raise AssertionError("expected Windows Cholesky required-file drift to fail")
 
 
+def test_future_windows_metadata_rejects_expected_row_id_drift() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["expected_row_ids"] = row["expected_row_ids"].replace(
+        "comparison_cholesky_spd_tridiag_5_project_status_v1",
+        "comparison_cholesky_spd_tridiag_5_windows_project_status_v1",
+        1,
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "expected_row_ids drifted for Windows promotion" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected Windows Cholesky expected-row-id drift to fail")
+
+
 def main() -> int:
     test_current_manifest_validates()
     test_duplicate_target_id_fails_clearly()
@@ -847,10 +889,12 @@ def main() -> int:
     test_future_windows_metadata_rejects_unselected_target()
     test_future_windows_metadata_rejects_local_only_support_tier()
     test_future_windows_metadata_rejects_unpromoted_claim_scope()
+    test_future_windows_metadata_rejects_broad_claim_scope()
     test_future_windows_metadata_rejects_windows_non_claim()
     test_future_windows_metadata_rejects_wrong_artifact()
     test_future_windows_metadata_rejects_row_count_drift()
     test_future_windows_metadata_rejects_missing_artifact_file()
+    test_future_windows_metadata_rejects_expected_row_id_drift()
     print("test-selected-report-targets-manifest: ok")
     return 0
 

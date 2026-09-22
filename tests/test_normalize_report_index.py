@@ -2309,6 +2309,102 @@ def test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows
         assert "--selected-target qr-incompatible-ls" in result.stdout
 
 
+def test_cholesky_selected_freshness_rejects_duplicate_windows_path_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"cholesky_spd_tridiag_5"},
+        )
+        study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+        rows = read_tsv(study)
+        rows.append(dict(rows[0]))
+        for row in rows:
+            row["artifact_path"] = r"build\comparison\cholesky_spd_tridiag_5\study.tsv"
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t"
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "duplicate normalized row_id" in result.stderr
+        assert (
+            "'comparison_cholesky_spd_tridiag_5_project_status_v1'"
+            in result.stderr
+        )
+
+
+def test_cholesky_selected_freshness_rejects_unexpected_windows_path_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root,
+            only_subfamilies={"cholesky_spd_tridiag_5"},
+        )
+        study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+        rows = read_tsv(study)
+        rows[0]["comparison_row_id"] = (
+            "comparison_cholesky_spd_tridiag_5_unexpected_metric_v1"
+        )
+        for row in rows:
+            row["artifact_path"] = r"build\comparison\cholesky_spd_tridiag_5\study.tsv"
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t"
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        result = run_command(
+            [
+                "python3",
+                str(SCRIPT),
+                "--build-root",
+                str(build_root),
+                "--family",
+                "comparison",
+                "--require-generated",
+                "comparison",
+                "--check-freshness",
+                "--selected-target",
+                "cholesky-spd-tridiag-5",
+            ],
+            expect_success=False,
+        )
+        assert "freshness: error:" in result.stdout
+        assert "comparison_selected_rows" in result.stdout
+        assert "row_set_mismatch" in result.stdout
+        assert "target_ids=SRT-COMP-CHOLESKY-SPD-TRIDIAG-5" in result.stdout
+        assert "observed=6" in result.stdout
+        assert (
+            "missing=comparison_cholesky_spd_tridiag_5_project_status_v1"
+            in result.stdout
+        )
+        assert (
+            "unexpected=comparison_cholesky_spd_tridiag_5_unexpected_metric_v1"
+            in result.stdout
+        )
+        assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
+        assert "--selected-target cholesky-spd-tridiag-5" in result.stdout
+
+
 def test_selected_comparison_manifest_support_tiers_remain_bounded() -> None:
     rows = read_tsv(REPORT_FAMILIES)
     comparison_rows = {}
@@ -2548,6 +2644,8 @@ def main() -> int:
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()
     test_qr_incompatible_selected_freshness_rejects_unexpected_windows_path_rows()
+    test_cholesky_selected_freshness_rejects_duplicate_windows_path_rows()
+    test_cholesky_selected_freshness_rejects_unexpected_windows_path_rows()
     test_selected_comparison_manifest_support_tiers_remain_bounded()
     test_selected_comparison_required_freshness_rejects_row_set_mismatch()
     test_selected_comparison_required_freshness_rejects_duplicate_rows()

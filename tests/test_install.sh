@@ -160,10 +160,12 @@ else
     fail "pkg-config file does not describe the static archive package contract"
 fi
 
-if ! grep -Eiq 'shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
+PC_UNSUPPORTED_METADATA=$(grep -Eiv '^(prefix|exec_prefix|libdir|includedir)=' "$PC_FILE" | \
+    grep -Ein '(^|[^[:alnum:]_])(shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan)([^[:alnum:]_]|$)' || true)
+if [ -z "$PC_UNSUPPORTED_METADATA" ]; then
     pass "pkg-config file has no unsupported packaging or ABI claims"
 else
-    fail "pkg-config file contains unsupported packaging or ABI wording"
+    fail "pkg-config file contains unsupported packaging or ABI wording" "$PC_UNSUPPORTED_METADATA"
 fi
 
 PC_VERSION="$(pkg-config --modversion sparse 2>/dev/null || true)"

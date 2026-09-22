@@ -74,8 +74,10 @@ does not use fake selected rows to represent deferrals. Sprint 190 wires one
 bounded Windows selected Cholesky comparison workflow for
 `cholesky-spd-tridiag-5`, but selected target rows must not list `windows` in
 `workflow_platforms` until the selected Cholesky metadata, support tier, claim
-scope, and non-claims are reviewed together. The Sprint 182 deferral remains
-active for all other Windows report freshness.
+scope, and non-claims are reviewed together. Sprint 208 keeps that absence as
+the source-controlled authority and guards it with manifest, workflow, and
+normalizer regressions. The Sprint 182 deferral remains active for all other
+Windows report freshness.
 
 Sprint 186 closeout preserves this split. Selected target rows are positive
 manifest authority for named freshness gates; formal deferrals and

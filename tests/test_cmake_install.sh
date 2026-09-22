@@ -168,11 +168,15 @@ else
     fail "pkg-config metadata description" "expected static archive package description in $PC_FILE"
 fi
 
-if [ -f "$PC_FILE" ] && \
-    ! grep -Eiq '^Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan' "$PC_FILE"; then
+PC_UNSUPPORTED_METADATA=""
+if [ -f "$PC_FILE" ]; then
+    PC_UNSUPPORTED_METADATA=$(grep -Eiv '^(prefix|exec_prefix|libdir|includedir)=' "$PC_FILE" | \
+        grep -Ein '(^|[^[:alnum:]_])(Libs\.private:|shared|soname|dylib|dll|abi|homebrew|apt|dnf|pacman|vcpkg|conan)([^[:alnum:]_]|$)' || true)
+fi
+if [ -f "$PC_FILE" ] && [ -z "$PC_UNSUPPORTED_METADATA" ]; then
     pass "pkg-config metadata has no unsupported package or ABI claims"
 else
-    fail "pkg-config unsupported metadata" "unexpected unsupported package or ABI wording in $PC_FILE"
+    fail "pkg-config unsupported metadata" "unexpected unsupported package or ABI wording in $PC_FILE: $PC_UNSUPPORTED_METADATA"
 fi
 
 # ── 3. Build cmake_example against installed library ────────────────

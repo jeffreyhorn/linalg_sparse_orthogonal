@@ -36,6 +36,57 @@ WINDOWS_CHOLESKY_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
 WINDOWS_CHOLESKY_WORKFLOW_JOB = "selected-comparison-freshness"
 WINDOWS_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
 WINDOWS_CHOLESKY_EXPECTED_ROWS = "6"
+WINDOWS_CHOLESKY_FAMILY = "comparison"
+WINDOWS_CHOLESKY_SUBFAMILY = "cholesky_spd_tridiag_5"
+WINDOWS_CHOLESKY_TARGET_KEY = "cholesky-spd-tridiag-5"
+WINDOWS_CHOLESKY_ARTIFACT_PATTERN = "build/comparison/cholesky_spd_tridiag_5/study.tsv"
+WINDOWS_CHOLESKY_GENERATOR_COMMAND = (
+    "python3 scripts/run_external_comparison.py --target cholesky-spd-tridiag-5"
+)
+WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER = "local_only"
+WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER = "hosted_selected"
+WINDOWS_CHOLESKY_CURRENT_CLAIM_SCOPE = (
+    "Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the "
+    "named fixture against the selected source-controlled dense Cholesky reference helper."
+)
+WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE = (
+    "Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the "
+    "named fixture on reviewed Linux, macOS, and Windows hosted lanes against the "
+    "selected source-controlled dense Cholesky reference helper."
+)
+WINDOWS_CHOLESKY_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+)
+WINDOWS_CHOLESKY_WORKFLOW_JOBS = (
+    "generated-report-freshness",
+    "selected-comparison-freshness",
+)
+WINDOWS_CHOLESKY_WORKFLOW_ARTIFACTS = (
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+)
+WINDOWS_CHOLESKY_WORKFLOW_PLATFORMS = ("linux", "macos")
+WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+    WINDOWS_CHOLESKY_WORKFLOW_FILE,
+)
+WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_JOBS = (
+    "generated-report-freshness",
+    "selected-comparison-freshness",
+    WINDOWS_CHOLESKY_WORKFLOW_JOB,
+)
+WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_ARTIFACTS = (
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+    WINDOWS_CHOLESKY_ARTIFACT,
+)
+WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_PLATFORMS = (
+    "linux",
+    "macos",
+    "windows",
+)
 WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS = "6"
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
@@ -68,6 +119,38 @@ WINDOWS_CHOLESKY_REQUIRED_FILES = (
     "study.tsv",
     "summary.md",
     "manifest.tsv",
+)
+WINDOWS_CHOLESKY_EXPECTED_ROW_IDS = (
+    "comparison_cholesky_spd_tridiag_5_project_status_v1",
+    "comparison_cholesky_spd_tridiag_5_baseline_status_v1",
+    "comparison_cholesky_spd_tridiag_5_residual_norm_v1",
+    "comparison_cholesky_spd_tridiag_5_solution_norm_v1",
+    "comparison_cholesky_spd_tridiag_5_solution_values_v1",
+    "comparison_cholesky_spd_tridiag_5_project_vs_baseline_max_abs_delta_v1",
+)
+WINDOWS_CHOLESKY_REQUIRED_NON_CLAIMS = (
+    "no broad Cholesky correctness",
+    "no broad SPD coverage",
+    "no broad reordering coverage",
+    "no CSC-vs-linked-list parity",
+    "no fill superiority",
+    "no Windows report freshness",
+    "no package-manager proof",
+    "no shared-library ABI proof",
+    "no performance superiority",
+    "no state-of-the-art claim",
+)
+WINDOWS_CHOLESKY_PROMOTED_NON_CLAIMS = (
+    "no broad Cholesky correctness",
+    "no broad SPD coverage",
+    "no broad reordering coverage",
+    "no CSC-vs-linked-list parity",
+    "no fill superiority",
+    "no broad Windows report freshness",
+    "no package-manager proof",
+    "no shared-library ABI proof",
+    "no performance superiority",
+    "no state-of-the-art claim",
 )
 WINDOWS_QR_INCOMPATIBLE_FAMILY = "comparison"
 WINDOWS_QR_INCOMPATIBLE_SUBFAMILY = "qr_incompatible_ls"
@@ -166,6 +249,10 @@ def cholesky_row_index(rows: list[dict[str, str]]) -> int:
     return matches[0]
 
 
+def cholesky_row(rows: list[dict[str, str]]) -> dict[str, str]:
+    return rows[cholesky_row_index(rows)]
+
+
 def qr_incompatible_row(rows: list[dict[str, str]]) -> dict[str, str]:
     matches = [
         row for row in rows if row["target_id"] == WINDOWS_QR_INCOMPATIBLE_TARGET_ID
@@ -186,14 +273,79 @@ def selected_benchmark_row(rows: list[dict[str, str]]) -> dict[str, str]:
     return matches[0]
 
 
-def with_windows_cholesky_metadata(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+def with_windows_cholesky_metadata(
+    rows: list[dict[str, str]], *, promote_claims: bool = True
+) -> list[dict[str, str]]:
     rows = copy.deepcopy(rows)
-    row = rows[cholesky_row_index(rows)]
+    row = cholesky_row(rows)
     row["workflow_file"] += f";{WINDOWS_CHOLESKY_WORKFLOW_FILE}"
     row["workflow_job"] += f";{WINDOWS_CHOLESKY_WORKFLOW_JOB}"
     row["workflow_artifact"] += f";{WINDOWS_CHOLESKY_ARTIFACT}"
     row["workflow_platforms"] += ";windows"
+    if promote_claims:
+        row["support_tier"] = WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER
+        row["claim_scope"] = WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE
+        row["non_claims"] = ";".join(WINDOWS_CHOLESKY_PROMOTED_NON_CLAIMS)
     return rows
+
+
+def assert_current_windows_cholesky_redeferral_contract(rows: list[dict[str, str]]) -> None:
+    row = cholesky_row(rows)
+    exact_fields = {
+        "family": WINDOWS_CHOLESKY_FAMILY,
+        "subfamily": WINDOWS_CHOLESKY_SUBFAMILY,
+        "target_key": WINDOWS_CHOLESKY_TARGET_KEY,
+        "artifact_pattern": WINDOWS_CHOLESKY_ARTIFACT_PATTERN,
+        "generator_command": WINDOWS_CHOLESKY_GENERATOR_COMMAND,
+        "support_tier": WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER,
+        "claim_scope": WINDOWS_CHOLESKY_CURRENT_CLAIM_SCOPE,
+    }
+    for field, expected in exact_fields.items():
+        if row[field] != expected:
+            raise AssertionError(
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field} must remain {expected!r}"
+            )
+    if row["expected_rows"] != WINDOWS_CHOLESKY_EXPECTED_ROWS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} expected_rows must remain "
+            f"{WINDOWS_CHOLESKY_EXPECTED_ROWS}"
+        )
+    required_files = tuple(split_manifest_values(row["required_files"]))
+    if required_files != WINDOWS_CHOLESKY_REQUIRED_FILES:
+        raise AssertionError(f"{WINDOWS_CHOLESKY_TARGET_ID} required_files drifted")
+    expected_row_ids = tuple(split_manifest_values(row["expected_row_ids"]))
+    if expected_row_ids != WINDOWS_CHOLESKY_EXPECTED_ROW_IDS:
+        raise AssertionError(f"{WINDOWS_CHOLESKY_TARGET_ID} expected_row_ids drifted")
+    workflow_files = tuple(split_manifest_values(row["workflow_file"]))
+    if workflow_files != WINDOWS_CHOLESKY_WORKFLOW_FILES:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} workflow_file metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_jobs = tuple(split_manifest_values(row["workflow_job"]))
+    if workflow_jobs != WINDOWS_CHOLESKY_WORKFLOW_JOBS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} workflow_job metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_artifacts = tuple(split_manifest_values(row["workflow_artifact"]))
+    if workflow_artifacts != WINDOWS_CHOLESKY_WORKFLOW_ARTIFACTS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} workflow_artifact metadata must remain "
+            "the current Linux/macOS selected freshness pair while re-deferred"
+        )
+    workflow_platforms = tuple(split_manifest_values(row["workflow_platforms"]))
+    if workflow_platforms != WINDOWS_CHOLESKY_WORKFLOW_PLATFORMS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} workflow_platforms metadata must remain "
+            "linux/macos while re-deferred"
+        )
+    non_claims = tuple(split_manifest_values(row["non_claims"]))
+    if non_claims != WINDOWS_CHOLESKY_REQUIRED_NON_CLAIMS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} non_claims must remain the full "
+            "current Cholesky claim-boundary set"
+        )
 
 
 def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> None:
@@ -212,26 +364,47 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
             "only selected Cholesky may list windows, got "
             f"{row['target_id']}"
         )
-    platforms = split_manifest_values(row["workflow_platforms"])
-    files = split_manifest_values(row["workflow_file"])
-    jobs = split_manifest_values(row["workflow_job"])
-    artifacts = split_manifest_values(row["workflow_artifact"])
-    try:
-        windows_index = platforms.index("windows")
-    except ValueError as exc:
-        raise AssertionError(f"{WINDOWS_CHOLESKY_TARGET_ID} missing windows platform") from exc
-    for field_name, values, expected in (
-        ("workflow_file", files, WINDOWS_CHOLESKY_WORKFLOW_FILE),
-        ("workflow_job", jobs, WINDOWS_CHOLESKY_WORKFLOW_JOB),
-        ("workflow_artifact", artifacts, WINDOWS_CHOLESKY_ARTIFACT),
-    ):
-        if len(values) != len(platforms):
+    if row["support_tier"] != WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} support_tier must be "
+            f"{WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER} when windows is listed"
+        )
+    if row["claim_scope"] != WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} claim_scope must be the exact "
+            "promoted Windows selected Cholesky scope"
+        )
+    exact_identity = {
+        "family": WINDOWS_CHOLESKY_FAMILY,
+        "subfamily": WINDOWS_CHOLESKY_SUBFAMILY,
+        "target_key": WINDOWS_CHOLESKY_TARGET_KEY,
+        "artifact_pattern": WINDOWS_CHOLESKY_ARTIFACT_PATTERN,
+        "generator_command": WINDOWS_CHOLESKY_GENERATOR_COMMAND,
+    }
+    for field_name, expected in exact_identity.items():
+        if row[field_name] != expected:
             raise AssertionError(
-                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must align with workflow_platforms"
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must be the exact "
+                "selected Cholesky promoted identity contract"
             )
-        if values[windows_index] != expected:
+    non_claims = tuple(split_manifest_values(row["non_claims"]))
+    if non_claims != WINDOWS_CHOLESKY_PROMOTED_NON_CLAIMS:
+        raise AssertionError(
+            f"{WINDOWS_CHOLESKY_TARGET_ID} non_claims must be the exact "
+            "promoted Windows selected Cholesky claim-boundary set"
+        )
+    exact_metadata = {
+        "workflow_platforms": WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_PLATFORMS,
+        "workflow_file": WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_FILES,
+        "workflow_job": WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_JOBS,
+        "workflow_artifact": WINDOWS_CHOLESKY_PROMOTED_WORKFLOW_ARTIFACTS,
+    }
+    for field_name, expected in exact_metadata.items():
+        values = tuple(split_manifest_values(row[field_name]))
+        if values != expected:
             raise AssertionError(
-                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} windows entry must be {expected!r}"
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must be the exact "
+                "Linux/macOS/Windows promoted metadata tuple"
             )
     if row["expected_rows"] != WINDOWS_CHOLESKY_EXPECTED_ROWS:
         raise AssertionError(
@@ -243,16 +416,11 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
         raise AssertionError(
             f"{WINDOWS_CHOLESKY_TARGET_ID} required_files drifted for Windows promotion"
         )
-    reused_artifacts = {
-        artifact
-        for artifact, platform in zip(artifacts, platforms)
-        if platform != "windows" and artifact == WINDOWS_CHOLESKY_ARTIFACT
-    }
-    if reused_artifacts:
+    expected_row_ids = tuple(split_manifest_values(row["expected_row_ids"]))
+    if expected_row_ids != WINDOWS_CHOLESKY_EXPECTED_ROW_IDS:
         raise AssertionError(
-            f"{WINDOWS_CHOLESKY_TARGET_ID} reuses Windows artifact on non-Windows platform"
+            f"{WINDOWS_CHOLESKY_TARGET_ID} expected_row_ids drifted for Windows promotion"
         )
-
 
 def assert_no_windows_selected_platform(
     rows: list[dict[str, str]],
@@ -428,6 +596,23 @@ def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
     assert_no_windows_selected_platform(manifest_rows())
 
 
+def test_cholesky_manifest_remains_redeferred_for_windows() -> None:
+    assert_current_windows_cholesky_redeferral_contract(manifest_rows())
+
+
+def test_cholesky_manifest_redeferral_contract_rejects_windows_metadata() -> None:
+    rows = manifest_rows()
+    row = cholesky_row(rows)
+    row["workflow_artifact"] = f"{row['workflow_artifact']};{WINDOWS_CHOLESKY_ARTIFACT}"
+    try:
+        assert_current_windows_cholesky_redeferral_contract(rows)
+    except AssertionError as exc:
+        if "workflow_artifact metadata must remain" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected current Cholesky Windows artifact metadata to fail")
+
+
 def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
     row = qr_incompatible_row(manifest_rows())
     exact_fields = {
@@ -576,9 +761,116 @@ def test_future_windows_metadata_rejects_unselected_target() -> None:
     raise AssertionError("expected unselected Windows manifest target to fail")
 
 
+def test_future_windows_metadata_rejects_local_only_support_tier() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows(), promote_claims=False)
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "support_tier must be hosted_selected" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected local-only Windows Cholesky support tier to fail")
+
+
+def test_future_windows_metadata_rejects_invalid_support_tier() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    cholesky_row(rows)["support_tier"] = "windows_hosted"
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "support_tier must be hosted_selected" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected invalid Windows Cholesky support tier to fail")
+
+
+def test_future_windows_metadata_rejects_unpromoted_claim_scope() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    cholesky_row(rows)["claim_scope"] = WINDOWS_CHOLESKY_CURRENT_CLAIM_SCOPE
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if (
+            "claim_scope must be the exact promoted Windows selected Cholesky scope"
+            not in str(exc)
+        ):
+            raise
+        return
+    raise AssertionError("expected unpromoted Windows Cholesky claim scope to fail")
+
+
+def test_future_windows_metadata_rejects_broad_claim_scope() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    cholesky_row(rows)["claim_scope"] = (
+        "Selected Cholesky rows are fresh on Windows for all hosted report paths."
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if (
+            "claim_scope must be the exact promoted Windows selected Cholesky scope"
+            not in str(exc)
+        ):
+            raise
+        return
+    raise AssertionError("expected broad Windows Cholesky claim scope to fail")
+
+
+def test_future_windows_metadata_rejects_identity_drift() -> None:
+    drift_values = {
+        "family": "oracle",
+        "subfamily": "cholesky_windows",
+        "target_key": "cholesky-windows",
+        "artifact_pattern": "build/comparison/cholesky_windows/study.tsv",
+        "generator_command": (
+            "python3 scripts/run_external_comparison.py --target cholesky-windows"
+        ),
+    }
+    for field_name, drift_value in drift_values.items():
+        rows = with_windows_cholesky_metadata(manifest_rows())
+        cholesky_row(rows)[field_name] = drift_value
+        try:
+            assert_windows_cholesky_manifest_allowlist(rows)
+        except AssertionError as exc:
+            expected = (
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must be the exact "
+                "selected Cholesky promoted identity contract"
+            )
+            if expected not in str(exc):
+                raise
+            continue
+        raise AssertionError(f"expected Windows Cholesky {field_name} drift to fail")
+
+
+def test_future_windows_metadata_rejects_windows_non_claim() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["non_claims"] = f"{row['non_claims']};no Windows report freshness"
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "non_claims must be the exact promoted Windows selected Cholesky" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected stale Windows report freshness non-claim to fail")
+
+
+def test_future_windows_metadata_rejects_missing_promoted_non_claim() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["non_claims"] = row["non_claims"].replace(";no package-manager proof", "")
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "non_claims must be the exact promoted Windows selected Cholesky" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected missing promoted Windows Cholesky non-claim to fail")
+
+
 def test_future_windows_metadata_rejects_wrong_artifact() -> None:
     rows = with_windows_cholesky_metadata(manifest_rows())
-    row = rows[cholesky_row_index(rows)]
+    row = cholesky_row(rows)
     row["workflow_artifact"] = row["workflow_artifact"].replace(
         WINDOWS_CHOLESKY_ARTIFACT,
         "sprint175-macos-selected-comparison-freshness",
@@ -586,15 +878,56 @@ def test_future_windows_metadata_rejects_wrong_artifact() -> None:
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
-        if "workflow_artifact windows entry" not in str(exc):
+        if "workflow_artifact must be the exact Linux/macOS/Windows" not in str(exc):
             raise
         return
     raise AssertionError("expected wrong Windows Cholesky artifact to fail")
 
 
+def test_future_windows_metadata_rejects_missing_linux_macos_metadata() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["workflow_platforms"] = "windows"
+    row["workflow_file"] = WINDOWS_CHOLESKY_WORKFLOW_FILE
+    row["workflow_job"] = WINDOWS_CHOLESKY_WORKFLOW_JOB
+    row["workflow_artifact"] = WINDOWS_CHOLESKY_ARTIFACT
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "workflow_platforms must be the exact Linux/macOS/Windows" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected missing Linux/macOS promoted metadata to fail")
+
+
+def test_future_windows_metadata_rejects_reordered_platform_metadata() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["workflow_platforms"] = "windows;linux;macos"
+    row["workflow_file"] = (
+        f"{WINDOWS_CHOLESKY_WORKFLOW_FILE};.github/workflows/ci.yml;"
+        ".github/workflows/macos-ci.yml"
+    )
+    row["workflow_job"] = (
+        f"{WINDOWS_CHOLESKY_WORKFLOW_JOB};generated-report-freshness;"
+        "selected-comparison-freshness"
+    )
+    row["workflow_artifact"] = (
+        f"{WINDOWS_CHOLESKY_ARTIFACT};sprint175-linux-selected-comparison-freshness;"
+        "sprint175-macos-selected-comparison-freshness"
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "workflow_platforms must be the exact Linux/macOS/Windows" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected reordered Windows Cholesky promoted metadata to fail")
+
+
 def test_future_windows_metadata_rejects_row_count_drift() -> None:
     rows = with_windows_cholesky_metadata(manifest_rows())
-    rows[cholesky_row_index(rows)]["expected_rows"] = "7"
+    cholesky_row(rows)["expected_rows"] = "7"
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
@@ -606,7 +939,7 @@ def test_future_windows_metadata_rejects_row_count_drift() -> None:
 
 def test_future_windows_metadata_rejects_missing_artifact_file() -> None:
     rows = with_windows_cholesky_metadata(manifest_rows())
-    row = rows[cholesky_row_index(rows)]
+    row = cholesky_row(rows)
     row["required_files"] = row["required_files"].replace(";manifest.tsv", "")
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
@@ -615,6 +948,23 @@ def test_future_windows_metadata_rejects_missing_artifact_file() -> None:
             raise
         return
     raise AssertionError("expected Windows Cholesky required-file drift to fail")
+
+
+def test_future_windows_metadata_rejects_expected_row_id_drift() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    row = cholesky_row(rows)
+    row["expected_row_ids"] = row["expected_row_ids"].replace(
+        "comparison_cholesky_spd_tridiag_5_project_status_v1",
+        "comparison_cholesky_spd_tridiag_5_windows_project_status_v1",
+        1,
+    )
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "expected_row_ids drifted for Windows promotion" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected Windows Cholesky expected-row-id drift to fail")
 
 
 def main() -> int:
@@ -635,15 +985,27 @@ def main() -> int:
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
     test_windows_report_freshness_deferral_keeps_manifest_unselected()
+    test_cholesky_manifest_remains_redeferred_for_windows()
+    test_cholesky_manifest_redeferral_contract_rejects_windows_metadata()
     test_qr_incompatible_manifest_remains_redeferred_for_windows()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_deferral_record_missing_marker_fails_clearly()
     test_windows_platform_drift_fails_clearly()
     test_future_windows_cholesky_metadata_allowlist_accepts_exact_row()
     test_future_windows_metadata_rejects_unselected_target()
+    test_future_windows_metadata_rejects_local_only_support_tier()
+    test_future_windows_metadata_rejects_invalid_support_tier()
+    test_future_windows_metadata_rejects_unpromoted_claim_scope()
+    test_future_windows_metadata_rejects_broad_claim_scope()
+    test_future_windows_metadata_rejects_identity_drift()
+    test_future_windows_metadata_rejects_windows_non_claim()
+    test_future_windows_metadata_rejects_missing_promoted_non_claim()
     test_future_windows_metadata_rejects_wrong_artifact()
+    test_future_windows_metadata_rejects_missing_linux_macos_metadata()
+    test_future_windows_metadata_rejects_reordered_platform_metadata()
     test_future_windows_metadata_rejects_row_count_drift()
     test_future_windows_metadata_rejects_missing_artifact_file()
+    test_future_windows_metadata_rejects_expected_row_id_drift()
     print("test-selected-report-targets-manifest: ok")
     return 0
 

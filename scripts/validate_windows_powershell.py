@@ -55,6 +55,33 @@ HOSTED_VALIDATION_STEP_NAME = "Validate owned Windows PowerShell workflow materi
 HOSTED_VALIDATION_COMMAND = "python scripts/validate_windows_powershell.py --require-pwsh"
 WINDOWS_SELECTED_CHOLESKY_JOB = "selected-comparison-freshness"
 WINDOWS_SELECTED_CHOLESKY_ARTIFACT = "sprint190-windows-selected-comparison-cholesky"
+WINDOWS_SELECTED_CHOLESKY_TARGET_ID = "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
+WINDOWS_SELECTED_CHOLESKY_SUPPORT_TIER = "local_only"
+WINDOWS_SELECTED_CHOLESKY_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+)
+WINDOWS_SELECTED_CHOLESKY_WORKFLOW_JOBS = (
+    "generated-report-freshness",
+    "selected-comparison-freshness",
+)
+WINDOWS_SELECTED_CHOLESKY_WORKFLOW_ARTIFACTS = (
+    "sprint175-linux-selected-comparison-freshness",
+    "sprint175-macos-selected-comparison-freshness",
+)
+WINDOWS_SELECTED_CHOLESKY_WORKFLOW_PLATFORMS = ("linux", "macos")
+WINDOWS_SELECTED_CHOLESKY_NON_CLAIMS = (
+    "no broad Cholesky correctness",
+    "no broad SPD coverage",
+    "no broad reordering coverage",
+    "no CSC-vs-linked-list parity",
+    "no fill superiority",
+    "no Windows report freshness",
+    "no package-manager proof",
+    "no shared-library ABI proof",
+    "no performance superiority",
+    "no state-of-the-art claim",
+)
 WINDOWS_SELECTED_CHOLESKY_GENERATOR = (
     "python scripts/run_external_comparison.py --target cholesky-spd-tridiag-5 "
     "--probe-build-system cmake --cmake-generator \"Visual Studio 17 2022\" "
@@ -118,6 +145,11 @@ UNSUPPORTED_WINDOWS_CLAIM_PATTERNS = (
         re.I,
     ),
     re.compile(r"PowerShell validation (?:proves|promotes|closes) Windows report freshness", re.I),
+    re.compile(
+        r"Windows selected (?:Cholesky|comparison|report) freshness "
+        r"(?:is |now )?(?:supported|promoted|complete|closed)",
+        re.I,
+    ),
     re.compile(r"local unavailable PowerShell (?:is|counts as|proves) pass evidence", re.I),
     re.compile(r"Windows selected report artifacts? (?:are |now )?(?:published|uploaded)", re.I),
 )
@@ -371,6 +403,29 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
             raise ValidationError(
                 "selected_report_targets.tsv must not list windows while "
                 f"Windows report freshness is deferred: {row['target_id']}"
+            )
+    matches = [
+        row for row in rows if row["target_id"] == WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    ]
+    if len(matches) != 1:
+        raise ValidationError(
+            "selected_report_targets.tsv must contain exactly one selected "
+            f"Cholesky row, got {len(matches)}"
+        )
+    cholesky = matches[0]
+    exact_fields = {
+        "support_tier": WINDOWS_SELECTED_CHOLESKY_SUPPORT_TIER,
+        "workflow_file": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_FILES),
+        "workflow_job": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_JOBS),
+        "workflow_artifact": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_ARTIFACTS),
+        "workflow_platforms": ";".join(WINDOWS_SELECTED_CHOLESKY_WORKFLOW_PLATFORMS),
+        "non_claims": ";".join(WINDOWS_SELECTED_CHOLESKY_NON_CLAIMS),
+    }
+    for field, expected in exact_fields.items():
+        if cholesky[field] != expected:
+            raise ValidationError(
+                f"{WINDOWS_SELECTED_CHOLESKY_TARGET_ID} must retain deferred "
+                f"Windows manifest {field} metadata"
             )
     pass_msg(f"selected manifest has no windows workflow platforms ({len(rows)} rows)")
 

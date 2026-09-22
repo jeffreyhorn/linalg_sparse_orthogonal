@@ -354,12 +354,16 @@ local benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof.
 Reviewed Linux and macOS hosted lanes are selected-target evidence only, and
 Windows selected freshness remains unpromoted unless the manifest metadata,
-generated support tier, and non-claim wording are promoted together. Keep the
+generated support tier, and non-claim wording are promoted together. Sprint
+208 reviewed the current bounded Windows Cholesky hosted path for
+`cholesky-spd-tridiag-5`, strengthened manifest, workflow/PowerShell, and
+normalizer guards, and kept selected Windows freshness re-deferred. Keep the
 selected target list, workflow upload names, claim scopes, and non-claims in
 `tests/corpus/manifests/selected_report_targets.tsv`; do not copy target lists
-through docs. Use [benchmarks/README.md](benchmarks/README.md) and the
-[support/readiness matrix](INSTALL.md#support-readiness-matrix) for the public
-report and support interpretation.
+through docs. Use [benchmarks/README.md](benchmarks/README.md), the
+[support/readiness matrix](INSTALL.md#support-readiness-matrix), and
+[`docs/planning/EPIC_19/SPRINT_208/WORKING_NOTES.md`](docs/planning/EPIC_19/SPRINT_208/WORKING_NOTES.md)
+for the public report and support interpretation.
 
 The reviewed Linux and macOS hosted selected-performance lanes run only the
 selected canonical row named by `SRT-BENCH-REFACTOR-CSC-NOS4` through
@@ -784,10 +788,13 @@ gate is mirrored by reviewed Linux and macOS hosted report-freshness lanes for
 selected comparison artifacts only. Sprint 190 adds one guarded Windows hosted
 workflow path for `cholesky-spd-tridiag-5` using the target-specific freshness
 command `python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and artifact
-`sprint190-windows-selected-comparison-cholesky`. Sprint 199 reviewed hosted
-evidence for that exact path and re-deferred selected Windows freshness
-promotion because the selected manifest, generated support tier, and generated
-non-claim wording still do not promote Windows. The QR incompatible
+`sprint190-windows-selected-comparison-cholesky`. Sprint 208 reviewed the
+latest hosted evidence for that exact path, added Cholesky-specific manifest,
+workflow/PowerShell, and normalizer guards, and kept re-deferred selected
+Windows freshness promotion because the selected manifest, generated support
+tier, and generated non-claim wording still do not promote Windows. This is
+evidence for that exact path and re-deferred selected Windows freshness only.
+The QR incompatible
 least-squares target remains outside Windows selected freshness until hosted
 MSVC probe evidence, selected artifact review, selected-target manifest
 metadata, generated support tier, and generated non-claim wording are promoted

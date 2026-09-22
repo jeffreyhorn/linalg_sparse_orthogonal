@@ -252,6 +252,17 @@ def test_claim_boundary_promotion_wording_fails_clearly() -> None:
     )
 
 
+def test_claim_boundary_windows_selected_promotion_wording_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nWindows selected Cholesky freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
 def test_hosted_validation_wiring_requires_fail_closed_command() -> None:
     drifted = read_workflow().replace(" --require-pwsh", "", 1)
     assert_raises_with(
@@ -321,6 +332,60 @@ def test_missing_manifest_workflow_file_fails_clearly() -> None:
 
 def test_manifest_windows_deferral_validation() -> None:
     validator.validate_manifest_windows_deferral(manifest_rows())
+
+
+def test_manifest_windows_deferral_rejects_cholesky_windows_platform() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["workflow_platforms"] = f"{cholesky['workflow_platforms']};windows"
+    cholesky["workflow_file"] = (
+        f"{cholesky['workflow_file']};{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)}"
+    )
+    cholesky["workflow_artifact"] = (
+        f"{cholesky['workflow_artifact']};{validator.WINDOWS_SELECTED_CHOLESKY_ARTIFACT}"
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "selected_report_targets.tsv must not list windows while Windows report freshness is deferred",
+    )
+
+
+def test_manifest_windows_deferral_rejects_cholesky_artifact_drift() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["workflow_artifact"] = cholesky["workflow_artifact"].replace(
+        "sprint175-macos-selected-comparison-freshness",
+        validator.WINDOWS_SELECTED_CHOLESKY_ARTIFACT,
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain deferred Windows manifest workflow_artifact metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_removed_windows_non_claim() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["non_claims"] = cholesky["non_claims"].replace(
+        ";no Windows report freshness", "", 1
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain deferred Windows manifest non_claims metadata",
+    )
 
 
 def test_deferral_record_validation() -> None:
@@ -420,6 +485,7 @@ if __name__ == "__main__":
     test_claim_boundary_missing_marker_fails_clearly()
     test_report_index_claim_boundary_missing_qr_marker_fails_clearly()
     test_claim_boundary_promotion_wording_fails_clearly()
+    test_claim_boundary_windows_selected_promotion_wording_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()
@@ -427,6 +493,9 @@ if __name__ == "__main__":
     test_selected_report_manifest_references_validate()
     test_missing_manifest_workflow_file_fails_clearly()
     test_manifest_windows_deferral_validation()
+    test_manifest_windows_deferral_rejects_cholesky_windows_platform()
+    test_manifest_windows_deferral_rejects_cholesky_artifact_drift()
+    test_manifest_windows_deferral_rejects_removed_windows_non_claim()
     test_deferral_record_validation()
     test_parse_with_fake_pwsh_accepts_selected_snippets()
     test_parse_with_fake_pwsh_failure_is_actionable()

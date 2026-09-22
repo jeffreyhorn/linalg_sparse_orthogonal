@@ -101,7 +101,7 @@ deciding which focused gate applies to a change.
 | Evidence family | Current owner surfaces | Primary gates or proof commands | Residual interpretation |
 | --- | --- | --- | --- |
 | Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 artifacts, Sprint 207 artifacts | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh`, `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Sprint 198 completed the selected developer-mode local Homebrew static source formula proof on macOS Intel x86_64 Tier 3 Homebrew. Sprint 207 keeps package-provider promotion deferred with stronger guards. Treat the Homebrew result as local proof only; broad package-manager support, Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, binary package distribution, release packages, and package-manager release readiness remain unclaimed. |
-| Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts, Sprint 199 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 199 reviewed the exact Sprint 190 Cholesky hosted path and re-deferred selected Windows freshness promotion until selected metadata, generated support tier, and generated non-claim wording are promoted together. |
+| Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts, Sprint 199 artifacts, Sprint 208 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 208 reviewed the current Sprint 190 Cholesky hosted path, strengthened manifest/workflow/normalizer guards, and re-deferred selected Windows freshness promotion until selected metadata, generated support tier, and generated non-claim wording are promoted together. |
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts, Sprint 203 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines remain deferred. Sprint 203 closed local QR incompatible proof and guards while re-deferring hosted Windows/MSVC QR promotion. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflows, Sprint 192 artifacts, Sprint 202 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The Linux/macOS hosted selected lanes are threshold-free methodology evidence for one row, not portable speed, timing-threshold, platform-parity, release, or state-of-the-art evidence. |
 | Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts; `tests/test_svd.c`, `tests/test_svd_helpers.h`, `tests/test_svd_selected_helpers.h`, `scripts/check_svd_helper_guard.sh`, `tests/test_svd_helper_guard.py`, Sprint 201 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, `make svd-helper-guard`, `python3 tests/test_svd_helper_guard.py`, focused proof-owner binaries, full C gate after header/test changes | One selected QR external-reference cluster and one selected SVD rank/pseudoinverse/dense-low-rank cluster were moved. The SVD selected bodies live in a proof-owner-only selected helper, while shared fixtures stay in the shared SVD helper. Other large surfaces and broad review-surface cleanup remain future work. |
@@ -696,11 +696,12 @@ The selected comparison gate is mirrored by reviewed Linux and macOS hosted
 report-freshness lanes. Sprint 190 adds one bounded Windows hosted workflow
 path for `cholesky-spd-tridiag-5` with the target-specific freshness command
 `python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and
-artifact `sprint190-windows-selected-comparison-cholesky`. Sprint 199 reviewed
-hosted evidence for that exact path and re-deferred selected Windows freshness
-promotion because the selected manifest, generated support tier, and generated
-non-claim wording still do not promote Windows. Treat the path as guarded
-workflow evidence, not promoted selected freshness. The QR incompatible
+artifact `sprint190-windows-selected-comparison-cholesky`. Sprint 208 reviewed
+current hosted evidence for that exact path, strengthened selected Cholesky
+manifest, workflow/PowerShell, and normalizer guards, and re-deferred selected
+Windows freshness promotion because the selected manifest, generated support
+tier, and generated non-claim wording still do not promote Windows. Treat the
+path as guarded workflow evidence, not promoted selected freshness. The QR incompatible
 least-squares target remains outside Windows selected freshness until hosted
 MSVC probe evidence, selected artifact review, selected-target manifest
 metadata, generated support tier, and generated non-claim wording are promoted
@@ -2033,9 +2034,10 @@ report-index outputs remain ignored local artifacts by default.
 The reviewed Linux and macOS hosted report-freshness lanes promote only this
 selected comparison gate and their uploaded selected artifacts. Sprint 190 adds
 one bounded Windows hosted workflow path for `cholesky-spd-tridiag-5`; Sprint
-199 reviewed that exact hosted evidence and re-deferred Windows selected
-freshness promotion until selected metadata, generated support tier, generated
-non-claim wording, and the claim contract are promoted together. It does not
+208 reviewed current hosted evidence for that exact path, strengthened
+manifest, workflow/PowerShell, and normalizer guards, and re-deferred Windows
+selected freshness promotion until selected metadata, generated support tier,
+generated non-claim wording, and the claim contract are promoted together. It does not
 promote selected oracle freshness on macOS,
 selected oracle freshness on Windows, selected benchmark freshness on Windows,
 broad Windows report freshness, broad report-index freshness, unselected

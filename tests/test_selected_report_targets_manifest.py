@@ -344,10 +344,10 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
             "only selected Cholesky may list windows, got "
             f"{row['target_id']}"
         )
-    if row["support_tier"] == WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER:
+    if row["support_tier"] != WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER:
         raise AssertionError(
-            f"{WINDOWS_CHOLESKY_TARGET_ID} support_tier must not remain "
-            f"{WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER} when windows is listed"
+            f"{WINDOWS_CHOLESKY_TARGET_ID} support_tier must be "
+            f"{WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER} when windows is listed"
         )
     if row["claim_scope"] != WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE:
         raise AssertionError(
@@ -752,10 +752,22 @@ def test_future_windows_metadata_rejects_local_only_support_tier() -> None:
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
-        if "support_tier must not remain local_only" not in str(exc):
+        if "support_tier must be hosted_selected" not in str(exc):
             raise
         return
     raise AssertionError("expected local-only Windows Cholesky support tier to fail")
+
+
+def test_future_windows_metadata_rejects_invalid_support_tier() -> None:
+    rows = with_windows_cholesky_metadata(manifest_rows())
+    cholesky_row(rows)["support_tier"] = "windows_hosted"
+    try:
+        assert_windows_cholesky_manifest_allowlist(rows)
+    except AssertionError as exc:
+        if "support_tier must be hosted_selected" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected invalid Windows Cholesky support tier to fail")
 
 
 def test_future_windows_metadata_rejects_unpromoted_claim_scope() -> None:
@@ -888,6 +900,7 @@ def main() -> int:
     test_future_windows_cholesky_metadata_allowlist_accepts_exact_row()
     test_future_windows_metadata_rejects_unselected_target()
     test_future_windows_metadata_rejects_local_only_support_tier()
+    test_future_windows_metadata_rejects_invalid_support_tier()
     test_future_windows_metadata_rejects_unpromoted_claim_scope()
     test_future_windows_metadata_rejects_broad_claim_scope()
     test_future_windows_metadata_rejects_windows_non_claim()

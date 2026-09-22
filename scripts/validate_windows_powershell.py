@@ -150,7 +150,8 @@ UNSUPPORTED_WINDOWS_CLAIM_PATTERNS = (
     ),
     re.compile(r"PowerShell validation (?:proves|promotes|closes) Windows report freshness", re.I),
     re.compile(
-        r"Windows selected (?:Cholesky|comparison|report) freshness "
+        r"(?:Windows selected (?:Cholesky|comparison|report)|"
+        r"selected Windows(?: (?:Cholesky|comparison|report))?) freshness "
         r"(?:is |now )?(?:supported|promoted|complete|closed)",
         re.I,
     ),

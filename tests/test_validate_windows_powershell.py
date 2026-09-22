@@ -263,6 +263,28 @@ def test_claim_boundary_windows_selected_promotion_wording_fails_clearly() -> No
     )
 
 
+def test_claim_boundary_selected_windows_promotion_wording_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nSelected Windows Cholesky freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
+def test_claim_boundary_selected_windows_generic_promotion_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "INSTALL.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nSelected Windows freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
 def test_hosted_validation_wiring_requires_fail_closed_command() -> None:
     drifted = read_workflow().replace(" --require-pwsh", "", 1)
     assert_raises_with(
@@ -502,6 +524,8 @@ if __name__ == "__main__":
     test_report_index_claim_boundary_missing_qr_marker_fails_clearly()
     test_claim_boundary_promotion_wording_fails_clearly()
     test_claim_boundary_windows_selected_promotion_wording_fails_clearly()
+    test_claim_boundary_selected_windows_promotion_wording_fails_clearly()
+    test_claim_boundary_selected_windows_generic_promotion_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()

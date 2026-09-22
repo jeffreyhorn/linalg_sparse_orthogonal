@@ -374,6 +374,19 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
             f"{WINDOWS_CHOLESKY_TARGET_ID} claim_scope must be the exact "
             "promoted Windows selected Cholesky scope"
         )
+    exact_identity = {
+        "family": WINDOWS_CHOLESKY_FAMILY,
+        "subfamily": WINDOWS_CHOLESKY_SUBFAMILY,
+        "target_key": WINDOWS_CHOLESKY_TARGET_KEY,
+        "artifact_pattern": WINDOWS_CHOLESKY_ARTIFACT_PATTERN,
+        "generator_command": WINDOWS_CHOLESKY_GENERATOR_COMMAND,
+    }
+    for field_name, expected in exact_identity.items():
+        if row[field_name] != expected:
+            raise AssertionError(
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must be the exact "
+                "selected Cholesky promoted identity contract"
+            )
     non_claims = tuple(split_manifest_values(row["non_claims"]))
     if non_claims != WINDOWS_CHOLESKY_PROMOTED_NON_CLAIMS:
         raise AssertionError(
@@ -803,6 +816,32 @@ def test_future_windows_metadata_rejects_broad_claim_scope() -> None:
     raise AssertionError("expected broad Windows Cholesky claim scope to fail")
 
 
+def test_future_windows_metadata_rejects_identity_drift() -> None:
+    drift_values = {
+        "family": "oracle",
+        "subfamily": "cholesky_windows",
+        "target_key": "cholesky-windows",
+        "artifact_pattern": "build/comparison/cholesky_windows/study.tsv",
+        "generator_command": (
+            "python3 scripts/run_external_comparison.py --target cholesky-windows"
+        ),
+    }
+    for field_name, drift_value in drift_values.items():
+        rows = with_windows_cholesky_metadata(manifest_rows())
+        cholesky_row(rows)[field_name] = drift_value
+        try:
+            assert_windows_cholesky_manifest_allowlist(rows)
+        except AssertionError as exc:
+            expected = (
+                f"{WINDOWS_CHOLESKY_TARGET_ID} {field_name} must be the exact "
+                "selected Cholesky promoted identity contract"
+            )
+            if expected not in str(exc):
+                raise
+            continue
+        raise AssertionError(f"expected Windows Cholesky {field_name} drift to fail")
+
+
 def test_future_windows_metadata_rejects_windows_non_claim() -> None:
     rows = with_windows_cholesky_metadata(manifest_rows())
     row = cholesky_row(rows)
@@ -958,6 +997,7 @@ def main() -> int:
     test_future_windows_metadata_rejects_invalid_support_tier()
     test_future_windows_metadata_rejects_unpromoted_claim_scope()
     test_future_windows_metadata_rejects_broad_claim_scope()
+    test_future_windows_metadata_rejects_identity_drift()
     test_future_windows_metadata_rejects_windows_non_claim()
     test_future_windows_metadata_rejects_missing_promoted_non_claim()
     test_future_windows_metadata_rejects_wrong_artifact()

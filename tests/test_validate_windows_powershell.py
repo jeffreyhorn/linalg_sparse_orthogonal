@@ -394,6 +394,59 @@ def test_manifest_windows_deferral_rejects_cholesky_artifact_drift() -> None:
     )
 
 
+def test_manifest_windows_deferral_rejects_cholesky_identity_drift() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["target_key"] = "cholesky-spd-tridiag-5-windows"
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain deferred Windows manifest target_key metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_cholesky_row_contract_drift() -> None:
+    rows = manifest_rows()
+    cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    cholesky["expected_row_ids"] = cholesky["expected_row_ids"].replace(
+        "comparison_cholesky_spd_tridiag_5_project_status_v1",
+        "comparison_cholesky_spd_tridiag_5_windows_project_status_v1",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "must retain deferred Windows manifest expected_row_ids metadata",
+    )
+
+
+def test_manifest_windows_deferral_rejects_non_cholesky_windows_metadata() -> None:
+    rows = manifest_rows()
+    non_cholesky = next(
+        row
+        for row in rows
+        if row["target_id"] != validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
+    )
+    non_cholesky["workflow_file"] = (
+        f"{non_cholesky['workflow_file']};"
+        f"{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)}"
+    )
+    non_cholesky["workflow_artifact"] = (
+        f"{non_cholesky['workflow_artifact']};"
+        f"{validator.WINDOWS_SELECTED_CHOLESKY_ARTIFACT}"
+    )
+    assert_raises_with(
+        lambda: validator.validate_manifest_windows_deferral(rows),
+        "non-Cholesky selected rows must not reference Windows selected Cholesky",
+    )
+
+
 def test_manifest_windows_deferral_rejects_claim_scope_drift() -> None:
     rows = manifest_rows()
     cholesky = next(
@@ -535,6 +588,9 @@ if __name__ == "__main__":
     test_manifest_windows_deferral_validation()
     test_manifest_windows_deferral_rejects_cholesky_windows_platform()
     test_manifest_windows_deferral_rejects_cholesky_artifact_drift()
+    test_manifest_windows_deferral_rejects_cholesky_identity_drift()
+    test_manifest_windows_deferral_rejects_cholesky_row_contract_drift()
+    test_manifest_windows_deferral_rejects_non_cholesky_windows_metadata()
     test_manifest_windows_deferral_rejects_claim_scope_drift()
     test_manifest_windows_deferral_rejects_removed_windows_non_claim()
     test_deferral_record_validation()

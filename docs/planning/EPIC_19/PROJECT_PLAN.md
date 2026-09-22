@@ -61,6 +61,19 @@ Epic 19 does not assume or pre-claim:
 - `docs/planning/EPIC_19/reviews/review-codex-2026-09-20.md`
 - `docs/planning/EPIC_19/reviews/todo-codex-2026-09-20.md`
 
+## Epic 19 Current Status Snapshot
+
+This snapshot starts with Sprint 207 as the first executed Epic 19 sprint.
+Sprint 207 closes the package distribution support decision by selecting
+continued package-provider deferral with stronger guards. Sprints 208 through
+216 remain pending future execution until their own plans, working notes,
+daily artifacts, validation records, and closeout evidence are added.
+
+| Sprint | Current disposition | Evidence |
+| --- | --- | --- |
+| 207 | Closed with continued package-provider deferral and stronger guards | `SPRINT_207/PLAN.md`; `SPRINT_207/WORKING_NOTES.md`; `SPRINT_207/artifacts/day1-package-intake.md`; `SPRINT_207/artifacts/day2-provider-scope-options.md`; `SPRINT_207/artifacts/day3-formula-metadata-baseline.md`; `SPRINT_207/artifacts/day4-environment-proof-baseline.md`; `SPRINT_207/artifacts/day5-provider-decision.md`; `SPRINT_207/artifacts/day6-proof-deferral-design.md`; `SPRINT_207/artifacts/day7-deferral-guard-implementation.md`; `SPRINT_207/artifacts/day8-proof-regression-cleanup.md`; `SPRINT_207/artifacts/day9-package-guard-alignment.md`; `SPRINT_207/artifacts/day10-user-package-docs.md`; `SPRINT_207/artifacts/day11-maintainer-package-docs.md`; `SPRINT_207/artifacts/day12-integrated-validation.md`; `SPRINT_207/artifacts/day13-review-hardening.md`; `SPRINT_207/artifacts/day14-closeout-review.md`; Sprint 207 retained the Sprint 198 developer-mode local Homebrew static source formula proof as local evidence only, added stronger package-provider overclaim guards and regression fixtures, updated user and maintainer docs, and revalidated local proof, package guards, docs/support guards, and install checks. Public tap, Homebrew/core readiness, bottles, Linuxbrew, vcpkg, Conan, pkgsrc, distro/system packages, binary packages, release packages, package-manager release readiness, shared-library packages, dynamic ABI behavior, and broad package-manager distribution remain unclaimed. |
+| 208-216 | Pending future execution | No Epic 19 branch-local execution artifacts are present yet for these sprint sections. |
+
 ## Sprint 207: Package Distribution Support Decision
 
 **Duration:** 14 days, approximately 166 hours

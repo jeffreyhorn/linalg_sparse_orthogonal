@@ -100,7 +100,7 @@ deciding which focused gate applies to a change.
 
 | Evidence family | Current owner surfaces | Primary gates or proof commands | Residual interpretation |
 | --- | --- | --- | --- |
-| Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 artifacts | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh`, `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Sprint 198 completed the selected developer-mode local Homebrew static source formula proof on macOS Intel x86_64 Tier 3 Homebrew. Treat that as local proof only; broad package-manager support, Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, and binary package distribution remain unclaimed. |
+| Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 artifacts, Sprint 207 artifacts | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh`, `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Sprint 198 completed the selected developer-mode local Homebrew static source formula proof on macOS Intel x86_64 Tier 3 Homebrew. Sprint 207 keeps package-provider promotion deferred with stronger guards. Treat the Homebrew result as local proof only; broad package-manager support, Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, binary package distribution, release packages, and package-manager release readiness remain unclaimed. |
 | Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190 artifacts, Sprint 199 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 199 reviewed the exact Sprint 190 Cholesky hosted path and re-deferred selected Windows freshness promotion until selected metadata, generated support tier, and generated non-claim wording are promoted together. |
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts, Sprint 203 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines remain deferred. Sprint 203 closed local QR incompatible proof and guards while re-deferring hosted Windows/MSVC QR promotion. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflows, Sprint 192 artifacts, Sprint 202 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The Linux/macOS hosted selected lanes are threshold-free methodology evidence for one row, not portable speed, timing-threshold, platform-parity, release, or state-of-the-art evidence. |
@@ -289,10 +289,12 @@ Focused install/package regression ownership:
   unsupported shared ABI metadata/selectors, and deferred support wording
 - `scripts/package_manager_deferral_check.sh` is the local package-manager
   provider claim guard that checks the Sprint 171 deferral record, checks the
-  Sprint 198 package proof records, rejects unselected provider artifacts,
-  allows only the selected Sprint 180 Homebrew local proof artifacts, checks
+  Sprint 198 package proof records, checks the Sprint 207 continued-deferral
+  decision/design records, rejects unselected provider artifacts, allows only
+  the selected Sprint 180 Homebrew local proof artifacts, checks
   provider-neutral package metadata templates, runs the selected local proof
-  script, and checks public package-manager non-claim wording
+  script, rejects unsupported provider overclaims, and checks public
+  package-manager non-claim wording
 - `scripts/homebrew_local_formula_proof.sh` is the selected Sprint 180
   Homebrew local formula proof command. It detects the root MIT `LICENSE`,
   accepts `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT`, creates the
@@ -312,6 +314,28 @@ Focused install/package regression ownership:
   the completed developer-mode local static source formula proof only with its
   Tier 3 Intel Homebrew scope and must not promote public install instructions
   for the Homebrew template.
+- Sprint 207 records the current package-provider decision in
+  `docs/planning/EPIC_19/SPRINT_207/artifacts/day5-provider-decision.md` and
+  `docs/planning/EPIC_19/SPRINT_207/artifacts/day6-proof-deferral-design.md`.
+  It supersedes any informal promotion preference by selecting continued
+  package-provider deferral with stronger guards. Maintainers may update
+  wording to improve clarity, but they must not change package-provider claim
+  status unless the new evidence closes the exact provider path being named.
+- Before changing a package-provider claim, require all evidence for the
+  selected provider path in the same change: stable source archive and
+  SHA-256 provenance, provider formula or recipe ownership, non-local
+  render/audit/install/test/uninstall proof, cleanup proof, public docs,
+  maintainer docs, residual updates, and guard coverage that preserves
+  still-unearned providers and binary/package-release paths as non-claims.
+- Before claiming Homebrew/core readiness, require all public tap/source
+  formula evidence plus Homebrew/core-style formula audit evidence, release
+  archive discipline, submission/maintenance ownership, and wording that does
+  not imply acceptance, bottles, Linuxbrew, or binary distribution.
+- Before claiming bottles, Linuxbrew, binary packages, release packages, vcpkg,
+  Conan, pkgsrc, distro/system packages, shared-library packages, or dynamic
+  ABI behavior, add a separate product decision, provider-specific proof,
+  hosted or reproducible validation, cleanup/artifact policy, user docs,
+  maintainer docs, and guard coverage for that exact tier.
 - Run `bash scripts/package_manager_deferral_check.sh` when changing
   package-manager wording, adding provider recipe files, editing package
   metadata templates, or modifying provider support claims

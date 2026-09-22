@@ -85,6 +85,9 @@ jobs:
       - name: Run static-first package deferral proof
         run: bash scripts/static_package_deferral_check.sh
 
+      - name: Run package-manager provider claim guard
+        run: make package-manager-deferral-guard
+
   generated-report-freshness:
     name: Linux reviewed hosted oracle/comparison freshness
     runs-on: ubuntu-latest

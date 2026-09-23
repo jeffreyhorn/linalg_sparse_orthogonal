@@ -263,6 +263,7 @@ UNSUPPORTED_WINDOWS_CLAIM_PATTERNS = (
     re.compile(r"PowerShell validation (?:proves|promotes|closes) Windows report freshness", re.I),
     re.compile(
         r"(?:Windows selected (?:Cholesky|comparison|report)|"
+        r"Windows selected QR incompatible|"
         r"selected Windows(?: (?:Cholesky|comparison|report|QR incompatible))?) freshness "
         r"(?:is |now )?(?:supported|promoted|complete|closed)",
         re.I,
@@ -413,6 +414,39 @@ def field_value(block: str, field: str) -> str:
         if line.startswith(prefix):
             return line.split(":", 1)[1].strip().strip('"')
     raise ValidationError(f"job block missing {field!r}")
+
+
+def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
+    lines = job_block.splitlines()
+    in_upload = False
+    in_path = False
+    paths: list[str] = []
+    for line in lines:
+        if line.strip() == "uses: actions/upload-artifact@v4":
+            in_upload = True
+            in_path = False
+            paths = []
+            continue
+        if in_upload and line.startswith("      - "):
+            in_upload = False
+            in_path = False
+        if not in_upload:
+            continue
+        if line.strip() == f"name: {artifact_name}":
+            continue
+        if line.strip() == "path: |":
+            in_path = True
+            continue
+        if in_path:
+            if line.startswith("            "):
+                path = line.strip()
+                if path:
+                    paths.append(path)
+                continue
+            in_path = False
+    if not paths:
+        raise ValidationError(f"upload artifact {artifact_name!r} missing path entries")
+    return tuple(paths)
 
 
 def parse_steps(job_id: str, job_block: str) -> list[Step]:
@@ -760,6 +794,12 @@ def validate_windows_selected_qr_lane(text: str) -> str:
             raise ValidationError(
                 f"{WINDOWS_SELECTED_QR_JOB} missing upload path {required_file!r}"
             )
+    actual_paths = upload_path_entries(block, WINDOWS_SELECTED_QR_ARTIFACT)
+    if actual_paths != WINDOWS_SELECTED_QR_REQUIRED_FILES:
+        raise ValidationError(
+            f"{WINDOWS_SELECTED_QR_JOB} upload paths must match the exact selected "
+            "QR six-file contract"
+        )
     return block
 
 

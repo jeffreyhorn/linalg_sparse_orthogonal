@@ -266,6 +266,19 @@ def test_selected_qr_lane_missing_required_upload_fails_clearly() -> None:
     )
 
 
+def test_selected_qr_lane_extra_upload_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        "            build/comparison/qr_incompatible_ls/manifest.tsv\n",
+        "            build/comparison/qr_incompatible_ls/manifest.tsv\n"
+        "            build/comparison/qr_incompatible_ls/debug.log\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "exact selected QR six-file contract",
+    )
+
+
 def test_manifest_derived_artifact_name_is_forbidden_on_windows() -> None:
     artifact = manifest_rows()[0]["workflow_artifact"]
     drifted = read_workflow() + f"\n# drift\nname: {artifact}\n"
@@ -422,6 +435,17 @@ def test_claim_boundary_qr_windows_promotion_wording_fails_clearly() -> None:
     path = validator.REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8") + (
         "\nQR incompatible least-squares Windows selected freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
+def test_claim_boundary_windows_selected_qr_promotion_wording_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nWindows selected QR incompatible freshness is promoted.\n"
     )
     assert_raises_with(
         lambda: validator.validate_claim_boundaries({path: text}),
@@ -832,6 +856,7 @@ if __name__ == "__main__":
     test_selected_qr_lane_missing_timeout_fails_clearly()
     test_selected_qr_lane_broad_upload_fails_clearly()
     test_selected_qr_lane_missing_required_upload_fails_clearly()
+    test_selected_qr_lane_extra_upload_fails_clearly()
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
     test_claim_boundary_missing_marker_fails_clearly()
@@ -845,6 +870,7 @@ if __name__ == "__main__":
     test_claim_boundary_selected_windows_promotion_wording_fails_clearly()
     test_claim_boundary_selected_windows_generic_promotion_fails_clearly()
     test_claim_boundary_qr_windows_promotion_wording_fails_clearly()
+    test_claim_boundary_windows_selected_qr_promotion_wording_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()

@@ -418,35 +418,56 @@ def field_value(block: str, field: str) -> str:
 
 def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
     lines = job_block.splitlines()
-    in_upload = False
+    in_step = False
+    is_upload = False
     in_path = False
-    paths: list[str] = []
+    current_name = ""
+    current_paths: list[str] = []
+    matching_paths: list[tuple[str, ...]] = []
+
+    def finish_step() -> None:
+        if is_upload and current_name == artifact_name:
+            matching_paths.append(tuple(current_paths))
+
     for line in lines:
+        if line.startswith("      - "):
+            if in_step:
+                finish_step()
+            in_step = True
+            is_upload = False
+            in_path = False
+            current_name = ""
+            current_paths = []
+            continue
+        if not in_step:
+            continue
         if line.strip() == "uses: actions/upload-artifact@v4":
-            in_upload = True
+            is_upload = True
             in_path = False
-            paths = []
             continue
-        if in_upload and line.startswith("      - "):
-            in_upload = False
-            in_path = False
-        if not in_upload:
+        if is_upload and line.startswith("          name: "):
+            current_name = line.split(":", 1)[1].strip()
             continue
-        if line.strip() == f"name: {artifact_name}":
-            continue
-        if line.strip() == "path: |":
+        if is_upload and line.strip() == "path: |":
             in_path = True
             continue
         if in_path:
             if line.startswith("            "):
                 path = line.strip()
                 if path:
-                    paths.append(path)
+                    current_paths.append(path)
                 continue
             in_path = False
+    if in_step:
+        finish_step()
+    if len(matching_paths) != 1:
+        raise ValidationError(
+            f"upload artifact {artifact_name!r} must have exactly one matching upload step"
+        )
+    paths = matching_paths[0]
     if not paths:
         raise ValidationError(f"upload artifact {artifact_name!r} missing path entries")
-    return tuple(paths)
+    return paths
 
 
 def parse_steps(job_id: str, job_block: str) -> list[Step]:

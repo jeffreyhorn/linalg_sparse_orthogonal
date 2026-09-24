@@ -279,6 +279,35 @@ def test_selected_qr_lane_extra_upload_fails_clearly() -> None:
     )
 
 
+def test_selected_qr_lane_upload_paths_must_belong_to_named_artifact() -> None:
+    qr_block = validator.find_job_block(read_workflow(), validator.WINDOWS_SELECTED_QR_JOB)
+    original_paths = "".join(f"            {path}\n" for path in validator.WINDOWS_SELECTED_QR_REQUIRED_FILES)
+    drifted_qr_block = qr_block.replace(
+        original_paths,
+        "            build/comparison/qr_incompatible_ls/debug.log\n",
+        1,
+    )
+    later_upload = (
+        "\n      - name: Upload unrelated QR comparison artifact\n"
+        "        uses: actions/upload-artifact@v4\n"
+        "        with:\n"
+        "          name: unrelated-sprint209-qr-debug\n"
+        "          if-no-files-found: error\n"
+        "          path: |\n"
+        f"{original_paths}"
+    )
+    drifted_qr_block = drifted_qr_block.replace(
+        "\n  # Verify the reviewed static-first CMake install",
+        later_upload + "\n  # Verify the reviewed static-first CMake install",
+        1,
+    )
+    drifted = read_workflow().replace(qr_block, drifted_qr_block, 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "exact selected QR six-file contract",
+    )
+
+
 def test_manifest_derived_artifact_name_is_forbidden_on_windows() -> None:
     artifact = manifest_rows()[0]["workflow_artifact"]
     drifted = read_workflow() + f"\n# drift\nname: {artifact}\n"
@@ -857,6 +886,7 @@ if __name__ == "__main__":
     test_selected_qr_lane_broad_upload_fails_clearly()
     test_selected_qr_lane_missing_required_upload_fails_clearly()
     test_selected_qr_lane_extra_upload_fails_clearly()
+    test_selected_qr_lane_upload_paths_must_belong_to_named_artifact()
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
     test_claim_boundary_missing_marker_fails_clearly()

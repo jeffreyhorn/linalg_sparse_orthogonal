@@ -424,11 +424,14 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
     current_name = ""
     current_fail_closed = False
     current_paths: list[str] = []
+    upload_names: list[str] = []
     matching_uploads: list[tuple[bool, tuple[str, ...]]] = []
 
     def finish_step() -> None:
-        if is_upload and current_name == artifact_name:
-            matching_uploads.append((current_fail_closed, tuple(current_paths)))
+        if is_upload:
+            upload_names.append(current_name)
+            if current_name == artifact_name:
+                matching_uploads.append((current_fail_closed, tuple(current_paths)))
 
     for line in lines:
         if line.startswith("      - "):
@@ -465,6 +468,11 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
             in_path = False
     if in_step:
         finish_step()
+    if upload_names != [artifact_name]:
+        raise ValidationError(
+            "selected QR upload validation must have exactly one upload-artifact step "
+            f"named {artifact_name!r}"
+        )
     if len(matching_uploads) != 1:
         raise ValidationError(
             f"upload artifact {artifact_name!r} must have exactly one matching upload step"

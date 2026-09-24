@@ -422,12 +422,13 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
     is_upload = False
     in_path = False
     current_name = ""
+    current_fail_closed = False
     current_paths: list[str] = []
-    matching_paths: list[tuple[str, ...]] = []
+    matching_uploads: list[tuple[bool, tuple[str, ...]]] = []
 
     def finish_step() -> None:
         if is_upload and current_name == artifact_name:
-            matching_paths.append(tuple(current_paths))
+            matching_uploads.append((current_fail_closed, tuple(current_paths)))
 
     for line in lines:
         if line.startswith("      - "):
@@ -437,6 +438,7 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
             is_upload = False
             in_path = False
             current_name = ""
+            current_fail_closed = False
             current_paths = []
             continue
         if not in_step:
@@ -447,6 +449,9 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
             continue
         if is_upload and line.startswith("          name: "):
             current_name = line.split(":", 1)[1].strip()
+            continue
+        if is_upload and line.strip() == "if-no-files-found: error":
+            current_fail_closed = True
             continue
         if is_upload and line.strip() == "path: |":
             in_path = True
@@ -460,11 +465,15 @@ def upload_path_entries(job_block: str, artifact_name: str) -> tuple[str, ...]:
             in_path = False
     if in_step:
         finish_step()
-    if len(matching_paths) != 1:
+    if len(matching_uploads) != 1:
         raise ValidationError(
             f"upload artifact {artifact_name!r} must have exactly one matching upload step"
         )
-    paths = matching_paths[0]
+    fail_closed, paths = matching_uploads[0]
+    if not fail_closed:
+        raise ValidationError(
+            f"upload artifact {artifact_name!r} must declare if-no-files-found: error"
+        )
     if not paths:
         raise ValidationError(f"upload artifact {artifact_name!r} missing path entries")
     return paths

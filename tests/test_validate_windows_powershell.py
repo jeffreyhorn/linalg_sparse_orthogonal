@@ -529,6 +529,17 @@ def test_claim_boundary_windows_selected_qr_promotion_wording_fails_clearly() ->
     )
 
 
+def test_claim_boundary_windows_qr_promotion_wording_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8") + (
+        "\nWindows QR incompatible freshness is promoted.\n"
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "unsupported Windows/PowerShell claim",
+    )
+
+
 def test_hosted_validation_wiring_requires_fail_closed_command() -> None:
     drifted = read_workflow().replace(" --require-pwsh", "", 1)
     assert_raises_with(
@@ -950,6 +961,7 @@ if __name__ == "__main__":
     test_claim_boundary_selected_windows_generic_promotion_fails_clearly()
     test_claim_boundary_qr_windows_promotion_wording_fails_clearly()
     test_claim_boundary_windows_selected_qr_promotion_wording_fails_clearly()
+    test_claim_boundary_windows_qr_promotion_wording_fails_clearly()
     test_hosted_validation_wiring_requires_fail_closed_command()
     test_hosted_validation_wiring_requires_windows_runner()
     test_hosted_validation_wiring_does_not_use_pwsh_shell()

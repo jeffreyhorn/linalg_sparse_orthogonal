@@ -149,10 +149,15 @@ needs them.
   symbolic-lu-allocation-failure-gate` runs only the selected symbolic LU proof
   for allocation-failure status, requested-output cleanup, stale-output
   suppression, caller-owned matrix/permutation preservation, and
-  retry-after-reset on bounded known fixtures. These are not broad
-  allocation-failure coverage for symbolic analysis, direct solvers,
-  eigensolvers, matrix construction, package/install flows, generated-report
-  tooling, or unrelated allocation paths.
+  retry-after-reset on bounded known fixtures. `make
+  ldlt-linked-list-allocation-failure-gate` runs only the selected no-reorder
+  linked-list LDLT numeric factorization proof for deterministic injected
+  allocation failures, cleanup, stale-output suppression, caller-input
+  preservation, free-safe output state, and retry-after-reset on bounded known
+  fixtures. These are not broad allocation-failure coverage for symbolic
+  analysis, all direct solvers, CSC LDLT, reordered LDLT, eigensolvers, matrix
+  construction, package/install flows, generated-report tooling, or unrelated
+  allocation paths.
 - **Continuous integration** — current support/readiness status is summarized
   in [INSTALL.md#support-readiness-matrix](INSTALL.md#support-readiness-matrix)
   and interpreted in detail by
@@ -318,6 +323,7 @@ make iterative-allocation-failure-gate  # focused local CG/GMRES/MINRES repeated
 make matmul-allocation-failure-gate  # focused local sparse_matmul workspace allocation-failure proof
 make symbolic-allocation-failure-gate  # focused local symbolic Cholesky + selected symbolic LU allocation-failure proof
 make symbolic-lu-allocation-failure-gate  # selected sparse_symbolic_lu cleanup/retry allocation-failure proof
+make ldlt-linked-list-allocation-failure-gate  # selected linked-list LDLT allocation-failure proof
 python3 scripts/normalize_report_index.py --check  # validate normalized report-row construction
 python3 scripts/normalize_report_index.py --check-freshness  # inspect report freshness diagnostics
 make report-index-oracle-freshness      # selected QR/partial-SVD oracle freshness, mirrored by reviewed Linux hosted CI
@@ -619,6 +625,15 @@ Important behavior:
   postorder, or colcount helpers, direct solvers, matrix construction,
   package/install flows, generated tooling, OS OOM behavior, platform parity,
   or concurrent allocation-hook use
+- linked-list LDLT allocation-failure proof is separately limited to the
+  selected no-reorder linked-list numeric factorization owner. The proof covers
+  deterministic injected allocation failures, cleanup, stale-output
+  suppression, caller-input preservation, free-safe output state, and
+  retry-after-reset behavior for bounded known fixtures; it does not cover CSC
+  LDLT, reordered LDLT, Cholesky, broad direct solvers, QR/SVD/eigensolver
+  workspaces, matrix construction, package/install flows, generated tooling,
+  OS OOM behavior, platform parity, performance, release readiness, or
+  concurrent allocation-hook use
 - public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`

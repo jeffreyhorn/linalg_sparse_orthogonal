@@ -5,6 +5,7 @@
 #endif
 
 #include "sparse_ldlt.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_analysis.h"
 #include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix_internal.h"
@@ -426,12 +427,14 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     }
 
     /* Allocate D, D_offdiag, pivot_size arrays */
-    ldlt->D = calloc((size_t)n, sizeof(double));
-    ldlt->D_offdiag = calloc((size_t)n, sizeof(double));
-    ldlt->pivot_size = calloc((size_t)n, sizeof(int));
-    if (!ldlt->D || !ldlt->D_offdiag || !ldlt->pivot_size) {
+    sparse_err_t alloc_err = sparse_calloc_idx_array(n, sizeof(double), (void **)&ldlt->D);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_idx_array(n, sizeof(double), (void **)&ldlt->D_offdiag);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_idx_array(n, sizeof(int), (void **)&ldlt->pivot_size);
+    if (alloc_err != SPARSE_OK) {
         sparse_ldlt_free(ldlt);
-        return SPARSE_ERR_ALLOC;
+        return alloc_err;
     }
 
     /* Create working copy of A (full symmetric matrix) */
@@ -458,8 +461,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     }
 
     /* Allocate pivot permutation (identity initially) */
-    ldlt->perm = malloc((size_t)n * sizeof(idx_t));
-    if (!ldlt->perm) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&ldlt->perm) != SPARSE_OK) {
         sparse_free(W);
         sparse_ldlt_free(ldlt);
         return SPARSE_ERR_ALLOC;
@@ -485,13 +487,24 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     double growth_bound = 1.0 / (100.0 * tol);
 
     /* Dense column accumulators (two sets: column k and column r) */
-    double *col_acc = calloc((size_t)n, sizeof(double));
-    int *nz_flag = calloc((size_t)n, sizeof(int));
-    idx_t *nz_list = malloc((size_t)n * sizeof(idx_t));
-    double *col_acc_r = calloc((size_t)n, sizeof(double));
-    int *nz_flag_r = calloc((size_t)n, sizeof(int));
-    idx_t *nz_list_r = malloc((size_t)n * sizeof(idx_t));
-    if (!col_acc || !nz_flag || !nz_list || !col_acc_r || !nz_flag_r || !nz_list_r) {
+    double *col_acc = NULL;
+    int *nz_flag = NULL;
+    idx_t *nz_list = NULL;
+    double *col_acc_r = NULL;
+    int *nz_flag_r = NULL;
+    idx_t *nz_list_r = NULL;
+    alloc_err = sparse_calloc_idx_array(n, sizeof(double), (void **)&col_acc);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_idx_array(n, sizeof(int), (void **)&nz_flag);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&nz_list);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_idx_array(n, sizeof(double), (void **)&col_acc_r);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_idx_array(n, sizeof(int), (void **)&nz_flag_r);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&nz_list_r);
+    if (alloc_err != SPARSE_OK) {
         free(col_acc);
         free(nz_flag);
         free(nz_list);
@@ -500,7 +513,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
         free(nz_list_r);
         sparse_free(W);
         sparse_ldlt_free(ldlt);
-        return SPARSE_ERR_ALLOC;
+        return alloc_err;
     }
 
     sparse_err_t rc = SPARSE_OK;

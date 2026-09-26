@@ -106,7 +106,7 @@ deciding which focused gate applies to a change.
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflows, Sprint 192 artifacts, Sprint 202 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The Linux/macOS hosted selected lanes are threshold-free methodology evidence for one row, not portable speed, timing-threshold, platform-parity, release, or state-of-the-art evidence. |
 | Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts; `tests/test_svd.c`, `tests/test_svd_helpers.h`, `tests/test_svd_selected_helpers.h`, `scripts/check_svd_helper_guard.sh`, `tests/test_svd_helper_guard.py`, Sprint 201 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, `make svd-helper-guard`, `python3 tests/test_svd_helper_guard.py`, focused proof-owner binaries, full C gate after header/test changes | One selected QR external-reference cluster and one selected SVD rank/pseudoinverse/dense-low-rank cluster were moved. The SVD selected bodies live in a proof-owner-only selected helper, while shared fixtures stay in the shared SVD helper. Other large surfaces and broad review-surface cleanup remain future work. |
 | Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194 artifacts, Sprint 204 artifacts, Sprint 205 artifacts | `make docs-check`, `make api-docs-freshness`, `make support-docs-guard`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Sprint 204 owns the current stronger local-only generated API policy, and Sprint 205 owns the compact problem-shape quick-reference/support-truth routing. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
-| Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, focused allocation-failure guards, README/INSTALL/maintainer wording, Sprint 195 artifacts, Sprint 200 artifacts | `make symbolic-allocation-failure-gate`, `make symbolic-lu-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior and the selected `sparse_symbolic_lu()` owner; broader OOM, concurrency, direct solver, matrix construction, analysis, and hosted gate claims remain unowned. |
+| Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, `src/sparse_ldlt.c`, `tests/test_ldlt.c`, focused allocation-failure guards, README/INSTALL/maintainer wording, Sprint 195 artifacts, Sprint 200 artifacts, Sprint 210 artifacts | `make symbolic-allocation-failure-gate`, `make symbolic-lu-allocation-failure-gate`, `make ldlt-linked-list-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`, `python3 tests/test_ldlt_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior, the selected `sparse_symbolic_lu()` owner, and the selected no-reorder linked-list LDLT numeric factorization owner; broader OOM, concurrency, CSC LDLT, reordered LDLT, broad direct solver, matrix construction, analysis, and hosted gate claims remain unowned. |
 
 ## Reviewed Baseline and Warning Authority
 
@@ -573,6 +573,34 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
     solvers, sparse matrix construction, package/install flows,
     generated-report tooling, OS OOM behavior, platform parity, or concurrent
     allocation-hook use
+- `tests/test_ldlt.c` owns the Sprint 210 bounded allocation-failure lane for
+  the selected no-reorder linked-list LDLT numeric factorization owner:
+  - `test_ldlt_linked_list_allocation_failures_clear_outputs`
+  - `test_ldlt_linked_list_allocation_failures_recover_on_retry`
+  - `test_ldlt_linked_list_retry_matches_success_baseline`
+  - `test_ldlt_linked_list_allocation_failure_cleanup_repeatable`
+  - `test_ldlt_linked_list_allocation_failures_clear_stale_outputs`
+  - `test_ldlt_linked_list_success_cleanup_free_safe`
+  - maintained focused Make command:
+    `make ldlt-linked-list-allocation-failure-gate`
+  - maintained focused CTest label:
+    `ldlt;linked_list;allocation_failure`
+  - maintained registration guard:
+    `python3 tests/test_ldlt_allocation_failure_gate_registration.py`
+  - Sprint 210 invariant and gate evidence:
+    `docs/planning/EPIC_19/SPRINT_210/artifacts/day3-lifecycle-baseline.md`
+    and
+    `docs/planning/EPIC_19/SPRINT_210/artifacts/day10-focused-gate.md`
+  - maintained linked-list LDLT proof stays local to the selected no-reorder
+    numeric factorization owner, 25 deterministic injected allocation-failure
+    sites, cleanup, stale-output suppression, caller-input preservation,
+    free-safe output state, repeated cleanup after failure, and
+    retry-after-reset behavior on bounded fixtures; it is not broad
+    allocation-failure coverage for CSC LDLT, reordered LDLT, Cholesky, broad
+    direct solvers, QR/SVD/eigensolver workspaces, sparse matrix construction,
+    package/install flows, generated-report tooling, OS OOM behavior,
+    platform parity, performance, release readiness, or concurrent
+    allocation-hook use
 
 Interpretation:
 
@@ -596,6 +624,10 @@ Interpretation:
 - do not present the symbolic allocation-failure lanes as broad etree,
   analysis, direct-solver, sparse-matrix, package/install, generated-tooling,
   OS OOM, platform, concurrent, or state-of-the-art reliability proof
+- do not present the linked-list LDLT allocation-failure lane as broad LDLT,
+  CSC LDLT, reordered LDLT, Cholesky, direct-solver, matrix-construction,
+  package/install, generated-tooling, platform, performance, release, or
+  state-of-the-art reliability proof
 - keep `include/sparse_svd.h` and broader capability widening explicitly
   deferred until a later sprint actually changes those contracts
 

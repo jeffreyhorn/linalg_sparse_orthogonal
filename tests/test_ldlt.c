@@ -5,6 +5,7 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
+#include "sparse_alloc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
@@ -801,6 +802,399 @@ static void test_ldlt_error_recovery(void) {
     sparse_ldlt_free(&ldlt);
 
     sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Selected linked-list LDLT allocation-failure harness
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    const char *name;
+    long fail_after;
+} LdltAllocationFailureCase;
+
+static const LdltAllocationFailureCase ldlt_allocation_failure_cases[] = {
+    {"D output array", 0},
+    {"D_offdiag output array", 1},
+    {"pivot_size output array", 2},
+    {"working copy entry buffer", 3},
+    {"working copy row headers", 4},
+    {"working copy column headers", 5},
+    {"working copy row permutation", 6},
+    {"working copy inverse row permutation", 7},
+    {"working copy column permutation", 8},
+    {"working copy inverse column permutation", 9},
+    {"working copy row-tail scratch", 10},
+    {"working copy column-tail scratch", 11},
+    {"L row headers", 12},
+    {"L column headers", 13},
+    {"L row permutation", 14},
+    {"L inverse row permutation", 15},
+    {"L column permutation", 16},
+    {"L inverse column permutation", 17},
+    {"permutation output array", 18},
+    {"column accumulator workspace", 19},
+    {"nonzero flag workspace", 20},
+    {"nonzero list workspace", 21},
+    {"pivot-candidate accumulator workspace", 22},
+    {"pivot-candidate nonzero flag workspace", 23},
+    {"pivot-candidate nonzero list workspace", 24},
+};
+static const size_t ldlt_allocation_failure_case_count =
+    sizeof(ldlt_allocation_failure_cases) / sizeof(ldlt_allocation_failure_cases[0]);
+
+static SparseMatrix ldlt_stale_output_L_sentinel;
+static double ldlt_stale_output_D_sentinel[1] = {-101.0};
+static double ldlt_stale_output_D_offdiag_sentinel[1] = {-202.0};
+static int ldlt_stale_output_pivot_size_sentinel[1] = {-303};
+static idx_t ldlt_stale_output_perm_sentinel[1] = {-404};
+
+static SparseMatrix *make_ldlt_allocation_failure_matrix(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    if (!A)
+        return NULL;
+
+    if (sparse_insert(A, 0, 0, 4.0) != SPARSE_OK || sparse_insert(A, 0, 1, 1.0) != SPARSE_OK ||
+        sparse_insert(A, 1, 0, 1.0) != SPARSE_OK || sparse_insert(A, 1, 1, 3.0) != SPARSE_OK ||
+        sparse_insert(A, 1, 2, 1.0) != SPARSE_OK || sparse_insert(A, 2, 1, 1.0) != SPARSE_OK ||
+        sparse_insert(A, 2, 2, 4.0) != SPARSE_OK) {
+        sparse_free(A);
+        return NULL;
+    }
+
+    return A;
+}
+
+static sparse_ldlt_opts_t ldlt_linked_list_allocation_opts(void) {
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = NULL,
+        .progress_cb = NULL,
+        .progress_user = NULL,
+    };
+    return opts;
+}
+
+static void seed_ldlt_stale_output_sentinel(sparse_ldlt_t *ldlt) {
+    ldlt->L = &ldlt_stale_output_L_sentinel;
+    ldlt->D = ldlt_stale_output_D_sentinel;
+    ldlt->D_offdiag = ldlt_stale_output_D_offdiag_sentinel;
+    ldlt->pivot_size = ldlt_stale_output_pivot_size_sentinel;
+    ldlt->perm = ldlt_stale_output_perm_sentinel;
+    ldlt->n = 999;
+    ldlt->factor_norm = -999.0;
+    ldlt->tol = -888.0;
+}
+
+static void assert_ldlt_stale_output_sentinel_seeded(const sparse_ldlt_t *ldlt) {
+    ASSERT_TRUE(ldlt->L == &ldlt_stale_output_L_sentinel);
+    ASSERT_TRUE(ldlt->D == ldlt_stale_output_D_sentinel);
+    ASSERT_TRUE(ldlt->D_offdiag == ldlt_stale_output_D_offdiag_sentinel);
+    ASSERT_TRUE(ldlt->pivot_size == ldlt_stale_output_pivot_size_sentinel);
+    ASSERT_TRUE(ldlt->perm == ldlt_stale_output_perm_sentinel);
+    ASSERT_EQ(ldlt->n, 999);
+    ASSERT_NEAR(ldlt->factor_norm, -999.0, 0.0);
+    ASSERT_NEAR(ldlt->tol, -888.0, 0.0);
+}
+
+static void assert_ldlt_allocation_failure_input_intact(const SparseMatrix *A) {
+    ASSERT_NOT_NULL(A);
+    ASSERT_EQ(sparse_rows(A), 3);
+    ASSERT_EQ(sparse_cols(A), 3);
+    ASSERT_EQ(sparse_nnz(A), 7);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 1), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 2), 0.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 1), 3.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 2), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 0), 0.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 1), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 2), 4.0, 0.0);
+}
+
+static void assert_ldlt_failure_output_empty(const sparse_ldlt_t *ldlt) {
+    ASSERT_NOT_NULL(ldlt);
+    ASSERT_NULL(ldlt->L);
+    ASSERT_NULL(ldlt->D);
+    ASSERT_NULL(ldlt->D_offdiag);
+    ASSERT_NULL(ldlt->pivot_size);
+    ASSERT_NULL(ldlt->perm);
+    ASSERT_EQ(ldlt->n, 0);
+    ASSERT_NEAR(ldlt->factor_norm, 0.0, 0.0);
+    ASSERT_NEAR(ldlt->tol, 0.0, 0.0);
+}
+
+static void assert_ldlt_failure_output_free_safe(sparse_ldlt_t *ldlt) {
+    assert_ldlt_failure_output_empty(ldlt);
+    sparse_ldlt_free(ldlt);
+    assert_ldlt_failure_output_empty(ldlt);
+    sparse_ldlt_free(ldlt);
+    assert_ldlt_failure_output_empty(ldlt);
+}
+
+static void assert_ldlt_allocation_hook_probe_after_reset(void) {
+    void *probe = NULL;
+
+    sparse_alloc_test_reset();
+    ASSERT_ERR(sparse_malloc_array(1, sizeof(idx_t), &probe), SPARSE_OK);
+    ASSERT_NOT_NULL(probe);
+    free(probe);
+    sparse_alloc_test_reset();
+}
+
+static void assert_ldlt_allocation_success_baseline(const SparseMatrix *A,
+                                                    const sparse_ldlt_t *ldlt) {
+    ASSERT_NOT_NULL(ldlt->L);
+    ASSERT_NOT_NULL(ldlt->D);
+    ASSERT_NOT_NULL(ldlt->D_offdiag);
+    ASSERT_NOT_NULL(ldlt->pivot_size);
+    ASSERT_NOT_NULL(ldlt->perm);
+    ASSERT_EQ(ldlt->n, 3);
+
+    double b[3] = {5.0, 5.0, 5.0};
+    double x[3] = {0.0, 0.0, 0.0};
+    double r[3] = {0.0, 0.0, 0.0};
+    REQUIRE_OK(sparse_ldlt_solve(ldlt, b, x));
+    sparse_matvec(A, x, r);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-12);
+}
+
+static void assert_ldlt_success_outputs_match(const sparse_ldlt_t *expected,
+                                              const sparse_ldlt_t *actual) {
+    ASSERT_NOT_NULL(expected);
+    ASSERT_NOT_NULL(actual);
+    ASSERT_EQ(expected->n, actual->n);
+    ASSERT_NEAR(expected->factor_norm, actual->factor_norm, 0.0);
+    ASSERT_NEAR(expected->tol, actual->tol, 0.0);
+
+    ASSERT_EQ(sparse_rows(expected->L), sparse_rows(actual->L));
+    ASSERT_EQ(sparse_cols(expected->L), sparse_cols(actual->L));
+    ASSERT_EQ(sparse_nnz(expected->L), sparse_nnz(actual->L));
+    for (idx_t i = 0; i < expected->n; ++i) {
+        ASSERT_NEAR(expected->D[i], actual->D[i], 0.0);
+        ASSERT_NEAR(expected->D_offdiag[i], actual->D_offdiag[i], 0.0);
+        ASSERT_EQ(expected->pivot_size[i], actual->pivot_size[i]);
+        ASSERT_EQ(expected->perm[i], actual->perm[i]);
+        for (idx_t j = 0; j < expected->n; ++j)
+            ASSERT_NEAR(sparse_get_phys(expected->L, i, j), sparse_get_phys(actual->L, i, j), 0.0);
+    }
+}
+
+static void assert_ldlt_success_output_free_safe(sparse_ldlt_t *ldlt) {
+    ASSERT_NOT_NULL(ldlt);
+    ASSERT_NOT_NULL(ldlt->L);
+    ASSERT_NOT_NULL(ldlt->D);
+    ASSERT_NOT_NULL(ldlt->D_offdiag);
+    ASSERT_NOT_NULL(ldlt->pivot_size);
+    ASSERT_NOT_NULL(ldlt->perm);
+    sparse_ldlt_free(ldlt);
+    assert_ldlt_failure_output_empty(ldlt);
+    sparse_ldlt_free(ldlt);
+    assert_ldlt_failure_output_empty(ldlt);
+}
+
+static void expect_ldlt_allocation_failure(const LdltAllocationFailureCase *failure_case) {
+    SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+    sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+    sparse_ldlt_t ldlt;
+    memset(&ldlt, 0, sizeof(ldlt));
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_ldlt_factor_opts(A, &opts, &ldlt);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_ldlt_allocation_failure_input_intact(A);
+    assert_ldlt_failure_output_free_safe(&ldlt);
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void
+expect_ldlt_repeated_allocation_failure_cleanup(const LdltAllocationFailureCase *failure_case) {
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+        sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+        sparse_ldlt_t ldlt;
+        memset(&ldlt, 0, sizeof(ldlt));
+
+        REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+        sparse_alloc_test_reset();
+        sparse_alloc_test_fail_after(failure_case->fail_after);
+        sparse_err_t err = sparse_ldlt_factor_opts(A, &opts, &ldlt);
+        sparse_alloc_test_reset();
+
+        ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+        assert_ldlt_allocation_failure_input_intact(A);
+        assert_ldlt_failure_output_free_safe(&ldlt);
+        assert_ldlt_allocation_hook_probe_after_reset();
+
+        sparse_free(A);
+        sparse_alloc_test_reset();
+    }
+}
+
+static void
+expect_ldlt_stale_output_cleared_after_failure(const LdltAllocationFailureCase *failure_case) {
+    SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+    sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+    int used_csc_path = -77;
+    sparse_ldlt_t ldlt;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    opts.used_csc_path = &used_csc_path;
+    seed_ldlt_stale_output_sentinel(&ldlt);
+    assert_ldlt_stale_output_sentinel_seeded(&ldlt);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_ldlt_factor_opts(A, &opts, &ldlt);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    ASSERT_EQ(used_csc_path, 0);
+    assert_ldlt_allocation_failure_input_intact(A);
+    assert_ldlt_failure_output_empty(&ldlt);
+    assert_ldlt_allocation_hook_probe_after_reset();
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void
+expect_ldlt_retry_matches_success_baseline(const LdltAllocationFailureCase *failure_case) {
+    SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+    sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+    sparse_ldlt_t expected;
+    sparse_ldlt_t actual;
+    memset(&expected, 0, sizeof(expected));
+    memset(&actual, 0, sizeof(actual));
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &expected));
+    assert_ldlt_allocation_success_baseline(A, &expected);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_ldlt_factor_opts(A, &opts, &actual);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_ldlt_failure_output_free_safe(&actual);
+    assert_ldlt_allocation_failure_input_intact(A);
+    assert_ldlt_allocation_hook_probe_after_reset();
+
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &actual));
+    assert_ldlt_allocation_success_baseline(A, &actual);
+    assert_ldlt_success_outputs_match(&expected, &actual);
+    assert_ldlt_allocation_failure_input_intact(A);
+
+    sparse_ldlt_free(&actual);
+    sparse_ldlt_free(&expected);
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void
+expect_ldlt_retry_after_allocation_failure(const LdltAllocationFailureCase *failure_case) {
+    SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+    sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+    sparse_ldlt_t ldlt;
+    memset(&ldlt, 0, sizeof(ldlt));
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_alloc_test_reset();
+    sparse_alloc_test_fail_after(failure_case->fail_after);
+    sparse_err_t err = sparse_ldlt_factor_opts(A, &opts, &ldlt);
+    sparse_alloc_test_reset();
+
+    ASSERT_ERR(err, SPARSE_ERR_ALLOC);
+    assert_ldlt_allocation_failure_input_intact(A);
+    assert_ldlt_failure_output_free_safe(&ldlt);
+
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    assert_ldlt_allocation_success_baseline(A, &ldlt);
+    assert_ldlt_allocation_failure_input_intact(A);
+
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+    sparse_alloc_test_reset();
+}
+
+static void test_ldlt_linked_list_allocation_failures_clear_outputs(void) {
+    ASSERT_EQ((idx_t)ldlt_allocation_failure_case_count, 25);
+    for (size_t i = 0; i < ldlt_allocation_failure_case_count; ++i) {
+        printf("    linked-list LDLT allocation-failure site: %s\n",
+               ldlt_allocation_failure_cases[i].name);
+        expect_ldlt_allocation_failure(&ldlt_allocation_failure_cases[i]);
+        assert_ldlt_allocation_hook_probe_after_reset();
+    }
+}
+
+static void test_ldlt_linked_list_allocation_failures_recover_on_retry(void) {
+    for (size_t i = 0; i < ldlt_allocation_failure_case_count; ++i) {
+        printf("    linked-list LDLT retry after allocation-failure site: %s\n",
+               ldlt_allocation_failure_cases[i].name);
+        expect_ldlt_retry_after_allocation_failure(&ldlt_allocation_failure_cases[i]);
+    }
+}
+
+static void test_ldlt_linked_list_retry_matches_success_baseline(void) {
+    const size_t retry_case_indices[] = {
+        0, 1, 2, 3, 11, 12, 18, 19, 24,
+    };
+    const size_t retry_case_count = sizeof(retry_case_indices) / sizeof(retry_case_indices[0]);
+
+    for (size_t i = 0; i < retry_case_count; ++i) {
+        size_t case_index = retry_case_indices[i];
+        ASSERT_TRUE(case_index < ldlt_allocation_failure_case_count);
+        printf("    linked-list LDLT retry baseline-match site: %s\n",
+               ldlt_allocation_failure_cases[case_index].name);
+        expect_ldlt_retry_matches_success_baseline(&ldlt_allocation_failure_cases[case_index]);
+    }
+}
+
+static void test_ldlt_linked_list_allocation_failure_cleanup_repeatable(void) {
+    for (size_t i = ldlt_allocation_failure_case_count; i > 0; --i) {
+        const LdltAllocationFailureCase *failure_case = &ldlt_allocation_failure_cases[i - 1];
+        printf("    linked-list LDLT repeated cleanup site: %s\n", failure_case->name);
+        expect_ldlt_repeated_allocation_failure_cleanup(failure_case);
+    }
+}
+
+static void test_ldlt_linked_list_allocation_failures_clear_stale_outputs(void) {
+    for (size_t i = 0; i < ldlt_allocation_failure_case_count; ++i) {
+        printf("    linked-list LDLT stale-output failure site: %s\n",
+               ldlt_allocation_failure_cases[i].name);
+        expect_ldlt_stale_output_cleared_after_failure(&ldlt_allocation_failure_cases[i]);
+    }
+}
+
+static void test_ldlt_linked_list_success_cleanup_free_safe(void) {
+    SparseMatrix *A = make_ldlt_allocation_failure_matrix();
+    sparse_ldlt_opts_t opts = ldlt_linked_list_allocation_opts();
+    sparse_ldlt_t ldlt;
+    memset(&ldlt, 0, sizeof(ldlt));
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    assert_ldlt_allocation_success_baseline(A, &ldlt);
+    assert_ldlt_allocation_failure_input_intact(A);
+    assert_ldlt_success_output_free_safe(&ldlt);
+    assert_ldlt_allocation_failure_input_intact(A);
+
+    sparse_free(A);
+    sparse_alloc_test_reset();
 }
 
 static void test_ldlt_2x2_with_reorder(void) {
@@ -2920,6 +3314,12 @@ int main(void) {
     RUN_TEST(test_ldlt_large_indefinite);
     RUN_TEST(test_ldlt_tridiag_indefinite);
     RUN_TEST(test_ldlt_error_recovery);
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_outputs);
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_recover_on_retry);
+    RUN_TEST(test_ldlt_linked_list_retry_matches_success_baseline);
+    RUN_TEST(test_ldlt_linked_list_allocation_failure_cleanup_repeatable);
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_stale_outputs);
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
     RUN_TEST(test_ldlt_2x2_with_reorder);
     RUN_TEST(test_ldlt_scaled_matrix);
 

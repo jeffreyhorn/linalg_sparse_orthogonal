@@ -118,8 +118,13 @@ not list `windows`. Sprint 208 reviewed current hosted evidence for that exact
 path, strengthened manifest, workflow/PowerShell, and normalizer guards, and
 re-deferred selected Windows freshness promotion because the selected manifest,
 generated support tier, and generated non-claim wording still do not promote
-Windows. The Sprint 182 deferral remains active for all
-other Windows report freshness. A broader Windows promotion must add exact
+Windows. Sprint 209 adds one bounded Windows QR incompatible
+evidence-collection lane for `qr-incompatible-ls`, but the QR selected target
+row remains Linux/macOS-only and `local_only` until hosted run evidence, exact
+artifact inspection, selected manifest metadata, generated support tier, and
+generated non-claim wording are promoted together. The Sprint 182 deferral
+remains active for all other Windows report freshness. A broader Windows
+promotion must add exact
 workflow file, job, artifact, platform, support-tier, claim-scope, and
 non-claim metadata rather than drifting an existing selected row silently. The
 hosted Windows PowerShell validation lane owns selected workflow snippet
@@ -237,9 +242,10 @@ oracle or benchmark freshness; broad platform support; package/ABI support;
 performance; release readiness; or state-of-the-art status. Optional
 NumPy/SciPy dependency rows are deferred context only and never pass evidence.
 The QR incompatible least-squares target remains outside Windows selected
-freshness until hosted MSVC probe evidence, selected artifact review,
-selected-target manifest metadata, generated support tier, and generated
-non-claim wording are promoted together.
+freshness even though Sprint 209 adds a bounded Windows QR incompatible
+evidence-collection lane; promotion still requires hosted MSVC probe evidence,
+selected artifact review, selected-target manifest metadata, generated support
+tier, and generated non-claim wording to move together.
 
 ## Sprint 139/Sprint 150 QR Lane
 

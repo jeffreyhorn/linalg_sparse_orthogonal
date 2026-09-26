@@ -357,7 +357,11 @@ Windows selected freshness remains unpromoted unless the manifest metadata,
 generated support tier, and non-claim wording are promoted together. Sprint
 208 reviewed the current bounded Windows Cholesky hosted path for
 `cholesky-spd-tridiag-5`, strengthened manifest, workflow/PowerShell, and
-normalizer guards, and kept selected Windows freshness re-deferred. Keep the
+normalizer guards, and kept selected Windows freshness re-deferred. Sprint 209
+adds one bounded Windows QR incompatible evidence-collection lane for
+`qr-incompatible-ls`, but the selected target manifest remains Linux/macOS-only
+and `local_only` until a hosted Windows run and exact QR artifact inspection
+support promotion. Keep the
 selected target list, workflow upload names, claim scopes, and non-claims in
 `tests/corpus/manifests/selected_report_targets.tsv`; do not copy target lists
 through docs. Use [benchmarks/README.md](benchmarks/README.md), the
@@ -794,11 +798,11 @@ workflow/PowerShell, and normalizer guards, and kept re-deferred selected
 Windows freshness promotion because the selected manifest, generated support
 tier, and generated non-claim wording still do not promote Windows. This is
 evidence for that exact path and re-deferred selected Windows freshness only.
-The QR incompatible
-least-squares target remains outside Windows selected freshness until hosted
-MSVC probe evidence, selected artifact review, selected-target manifest
-metadata, generated support tier, and generated non-claim wording are promoted
-together. These gates do not
+Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane
+for `qr-incompatible-ls`, but the QR incompatible least-squares target remains
+outside Windows selected freshness until hosted MSVC probe evidence, selected
+artifact review, selected-target manifest metadata, generated support tier, and
+generated non-claim wording are promoted together. These gates do not
 prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
 broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list

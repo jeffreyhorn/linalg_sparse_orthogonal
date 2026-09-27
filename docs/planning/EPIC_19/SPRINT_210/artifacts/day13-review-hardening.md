@@ -69,7 +69,7 @@ Results:
 | Command | Result | Evidence |
 | --- | --- | --- |
 | `python3 tests/test_ldlt_allocation_failure_gate_registration.py` | PASS | `ldlt-allocation-failure-gate-registration: passed`. |
-| `make ldlt-linked-list-allocation-failure-gate` | PASS | `95` LDLT tests, `0` failures, `0` skips, and `7781` assertions. |
+| `make ldlt-linked-list-allocation-failure-gate` | PASS | `6` selected linked-list LDLT allocation-failure tests, `0` failures, `0` skips, and `6869` assertions. |
 | `make docs-check` | PASS | Doxygen and API coverage passed with 18 checked-in public headers, 18 generated reference pages, 18 generated source pages, and `sparse_version.h` under separate installed-header policy. |
 | `make support-docs-guard` | PASS | `test-support-quick-reference-docs: ok`. |
 | `git diff --check` | PASS | Whitespace validation completed after Day 13 hardening. |

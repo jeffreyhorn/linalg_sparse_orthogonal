@@ -46,6 +46,11 @@ def main() -> None:
         "python3 tests/test_ldlt_allocation_failure_gate_registration.py",
         owner=MAKEFILE,
     )
+    require_contains(
+        makefile,
+        "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 $(BUILDDIR)/test_ldlt",
+        owner=MAKEFILE,
+    )
 
     require_contains(cmake, "add_sparse_test(test_ldlt)", owner=CMAKE)
     require_contains(
@@ -64,6 +69,22 @@ def main() -> None:
     ]
     for test_name in required_tests:
         require_active_run_test_once(test_ldlt, test_name)
+
+    require_contains(
+        test_ldlt,
+        'tf_env_enabled("SPARSE_TEST_LDLT_ALLOCATION_ONLY")',
+        owner=TEST_LDLT,
+    )
+    require_contains(
+        test_ldlt,
+        'TEST_SUITE_BEGIN("test_ldlt linked-list allocation-failure gate")',
+        owner=TEST_LDLT,
+    )
+    require_contains(
+        test_ldlt,
+        "run_ldlt_linked_list_allocation_failure_tests();",
+        owner=TEST_LDLT,
+    )
 
     required_cases = [
         '{"D output array", 0}',

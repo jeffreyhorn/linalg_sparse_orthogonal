@@ -15,7 +15,7 @@ Days 5 through 11.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `make ldlt-linked-list-allocation-failure-gate` | PASS | `95` LDLT tests, `0` failures, `0` skips, `7781` assertions; gate printed `ldlt-linked-list-allocation-failure-gate: passed`. |
+| `make ldlt-linked-list-allocation-failure-gate` | PASS | `6` selected linked-list LDLT allocation-failure tests, `0` failures, `0` skips, `6869` assertions; gate printed `ldlt-linked-list-allocation-failure-gate: passed`. |
 | `python3 tests/test_ldlt_allocation_failure_gate_registration.py` | PASS | Printed `ldlt-allocation-failure-gate-registration: passed`. |
 | `make source-list-check` | PASS | `source-list-check: PASS (49 library sources)`. |
 | `make docs-check` | PASS | Doxygen and API coverage passed with 18 checked-in public headers, 18 generated reference pages, 18 generated source pages, and `sparse_version.h` under separate installed-header policy. |

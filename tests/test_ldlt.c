@@ -3276,7 +3276,22 @@ static void test_ldlt_dense_backend_invalid_env_falls_back_to_builtin(void) {
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
+static void run_ldlt_linked_list_allocation_failure_tests(void) {
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_outputs);
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_recover_on_retry);
+    RUN_TEST(test_ldlt_linked_list_retry_matches_success_baseline);
+    RUN_TEST(test_ldlt_linked_list_allocation_failure_cleanup_repeatable);
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_stale_outputs);
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+}
+
 int main(void) {
+    if (tf_env_enabled("SPARSE_TEST_LDLT_ALLOCATION_ONLY")) {
+        TEST_SUITE_BEGIN("test_ldlt linked-list allocation-failure gate");
+        run_ldlt_linked_list_allocation_failure_tests();
+        TEST_SUITE_END();
+    }
+
     TEST_SUITE_BEGIN("LDL^T Factorization Tests");
 
     /* Entry validation */
@@ -3314,12 +3329,7 @@ int main(void) {
     RUN_TEST(test_ldlt_large_indefinite);
     RUN_TEST(test_ldlt_tridiag_indefinite);
     RUN_TEST(test_ldlt_error_recovery);
-    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_outputs);
-    RUN_TEST(test_ldlt_linked_list_allocation_failures_recover_on_retry);
-    RUN_TEST(test_ldlt_linked_list_retry_matches_success_baseline);
-    RUN_TEST(test_ldlt_linked_list_allocation_failure_cleanup_repeatable);
-    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_stale_outputs);
-    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+    run_ldlt_linked_list_allocation_failure_tests();
     RUN_TEST(test_ldlt_2x2_with_reorder);
     RUN_TEST(test_ldlt_scaled_matrix);
 

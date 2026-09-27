@@ -321,7 +321,7 @@ symbolic-lu-allocation-failure-gate: $(BUILDDIR)/test_etree
 ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt
 	@echo "=== Running selected linked-list LDLT allocation-failure regression gate ==="
 	@python3 tests/test_ldlt_allocation_failure_gate_registration.py
-	@$(BUILDDIR)/test_ldlt
+	@SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 $(BUILDDIR)/test_ldlt
 	@echo "ldlt-linked-list-allocation-failure-gate: passed"
 
 # Run benchmarks

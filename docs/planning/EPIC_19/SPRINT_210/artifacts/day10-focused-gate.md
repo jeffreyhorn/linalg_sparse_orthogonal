@@ -24,7 +24,7 @@ The target:
 
 1. builds `$(BUILDDIR)/test_ldlt`;
 2. runs `python3 tests/test_ldlt_allocation_failure_gate_registration.py`;
-3. runs `$(BUILDDIR)/test_ldlt`;
+3. runs `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 $(BUILDDIR)/test_ldlt`;
 4. prints `ldlt-linked-list-allocation-failure-gate: passed`.
 
 ## Guarded Registration Contract
@@ -64,10 +64,10 @@ make ldlt-linked-list-allocation-failure-gate
 Focused gate result:
 
 - registration guard passed;
-- `95` LDLT tests passed;
+- `6` selected linked-list LDLT allocation-failure tests passed;
 - `0` tests failed;
 - `0` tests skipped;
-- `7781` assertions passed.
+- `6869` assertions passed.
 
 Required C-change validation:
 

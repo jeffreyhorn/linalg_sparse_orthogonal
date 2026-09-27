@@ -672,7 +672,7 @@ Full validation result:
 
 | File | Day 10 change |
 | --- | --- |
-| `Makefile` | Added `ldlt-linked-list-allocation-failure-gate`, which builds `build/test_ldlt`, runs the LDLT allocation-failure registration guard, runs `build/test_ldlt`, and emits a selected-gate pass banner. |
+| `Makefile` | Added `ldlt-linked-list-allocation-failure-gate`, which builds `build/test_ldlt`, runs the LDLT allocation-failure registration guard, runs `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 build/test_ldlt`, and emits a selected-gate pass banner. |
 | `CMakeLists.txt` | Added CTest labels `ldlt;linked_list;allocation_failure` to `test_ldlt`. |
 | `tests/test_ldlt_allocation_failure_gate_registration.py` | Added registration guard for the selected linked-list LDLT gate, CMake label, required `RUN_TEST(...)` entries, representative fail-after cases, and key cleanup/stale-output/retry assertions. |
 | `docs/planning/EPIC_19/SPRINT_210/WORKING_NOTES.md` | Recorded Day 10 focused-gate wiring and validation evidence. |
@@ -694,6 +694,9 @@ existing `test_ldlt` binary rather than adding a new C source file.
 
 - the Make target is present and depends on `$(BUILDDIR)/test_ldlt`;
 - the Make target invokes the registration guard;
+- the Make target invokes `test_ldlt` through
+  `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` so the gate runs only the selected
+  proof-owner tests;
 - CMake registers `test_ldlt`;
 - CMake labels `test_ldlt` with `ldlt;linked_list;allocation_failure`;
 - the selected allocation-failure, cleanup, stale-output, and retry tests are
@@ -712,10 +715,10 @@ make ldlt-linked-list-allocation-failure-gate
 Focused gate result:
 
 - registration guard passed;
-- `95` LDLT tests passed;
+- `6` selected linked-list LDLT allocation-failure tests passed;
 - `0` tests failed;
 - `0` tests skipped;
-- `7781` assertions passed.
+- `6869` assertions passed.
 
 Required C-change validation:
 
@@ -791,8 +794,9 @@ git diff --check
 
 Results:
 
-- `make ldlt-linked-list-allocation-failure-gate`: PASS; `95` LDLT tests,
-  `0` failures, `0` skips, and `7781` assertions.
+- `make ldlt-linked-list-allocation-failure-gate`: PASS; `6` selected
+  linked-list LDLT allocation-failure tests, `0` failures, `0` skips, and
+  `6869` assertions.
 - `python3 tests/test_ldlt_allocation_failure_gate_registration.py`: PASS;
   `ldlt-allocation-failure-gate-registration: passed`.
 - `make docs-check`: PASS; Doxygen generation and API docs coverage completed
@@ -829,10 +833,10 @@ test, gate, and documentation surfaces touched by Days 5 through 11.
 `make ldlt-linked-list-allocation-failure-gate` reran the selected linked-list
 LDLT proof:
 
-- `95` LDLT tests passed;
+- `6` selected linked-list LDLT allocation-failure tests passed;
 - `0` tests failed;
 - `0` tests skipped;
-- `7781` assertions passed.
+- `6869` assertions passed.
 
 The standalone registration guard printed
 `ldlt-allocation-failure-gate-registration: passed`.
@@ -918,8 +922,9 @@ Results:
 
 - `python3 tests/test_ldlt_allocation_failure_gate_registration.py`: PASS;
   `ldlt-allocation-failure-gate-registration: passed`.
-- `make ldlt-linked-list-allocation-failure-gate`: PASS; `95` LDLT tests,
-  `0` failures, `0` skips, and `7781` assertions.
+- `make ldlt-linked-list-allocation-failure-gate`: PASS; `6` selected
+  linked-list LDLT allocation-failure tests, `0` failures, `0` skips, and
+  `6869` assertions.
 - `make docs-check`: PASS; Doxygen generation and API docs coverage completed
   with 18 checked-in public headers, 18 generated reference pages, 18
   generated source pages, and `sparse_version.h` kept under its separate
@@ -990,8 +995,9 @@ Results:
 
 - `python3 tests/test_ldlt_allocation_failure_gate_registration.py`: PASS;
   `ldlt-allocation-failure-gate-registration: passed`.
-- `make ldlt-linked-list-allocation-failure-gate`: PASS; `95` LDLT tests,
-  `0` failures, `0` skips, and `7781` assertions.
+- `make ldlt-linked-list-allocation-failure-gate`: PASS; `6` selected
+  linked-list LDLT allocation-failure tests, `0` failures, `0` skips, and
+  `6869` assertions.
 - `make docs-check`: PASS; Doxygen generation and API docs coverage completed
   with 18 checked-in public headers, 18 generated reference pages, 18
   generated source pages, and `sparse_version.h` kept under its separate

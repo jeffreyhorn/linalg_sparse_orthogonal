@@ -116,10 +116,10 @@ closeout evidence.
 | --- | ---: |
 | selected allocation-failure owner claims closed | 1 |
 | deterministic fail-after cases covered | 25 |
-| focused LDLT tests in `test_ldlt` after sprint | 95 |
+| selected LDLT tests run by focused gate | 6 |
 | focused LDLT gate failures | 0 |
 | focused LDLT gate skips | 0 |
-| focused LDLT gate assertions | 7781 |
+| focused LDLT gate assertions | 6869 |
 | active proof-owner `RUN_TEST(...)` registrations guarded | 6 |
 | broad allocation-failure claims added | 0 |
 | public API/ABI declarations changed | 0 |

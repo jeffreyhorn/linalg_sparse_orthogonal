@@ -410,10 +410,11 @@ Sprint 112 package/platform proof snapshot:
   install/export proof to reviewed macOS package lanes for the maintained
   static archive package contract; Sprint 175 adds reviewed hosted selected
   comparison freshness for selected generated comparison artifacts only
-- Windows keeps the reviewed MSVC CMake-first subset with 59 registered CTest
+- Windows keeps the reviewed MSVC CMake-first subset with 60 registered CTest
   tests; Sprint 148 promotes `test_threads`, `test_sprint4_integration`, and
   `test_fuzz` into that CMake subset through portable test-only thread and
-  temp-file helpers
+  temp-file helpers, and Sprint 210 adds the focused linked-list LDLT
+  allocation-failure CTest-only selector
 - Sprint 149 promotes reviewed Windows CMake install/downstream validation for
   the maintained static-first package surface, including installed static
   `.lib`, headers, CMake package metadata, metadata-only `sparse.pc`

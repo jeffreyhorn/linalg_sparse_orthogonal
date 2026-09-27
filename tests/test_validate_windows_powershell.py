@@ -70,6 +70,18 @@ def test_current_windows_workflow_structural_validation() -> None:
     assert len(selected_steps()) == len(validator.STEP_REQUIREMENTS)
 
 
+def test_windows_ctest_count_drift_fails_clearly() -> None:
+    drifted = read_workflow().replace(
+        'EXPECTED_WINDOWS_CTEST_COUNT: "60"',
+        'EXPECTED_WINDOWS_CTEST_COUNT: "59"',
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "must pin EXPECTED_WINDOWS_CTEST_COUNT to 60",
+    )
+
+
 def test_shell_drift_fails_clearly() -> None:
     drifted = read_workflow().replace("        shell: pwsh", "        shell: cmd", 1)
     steps = validator.validate_workflow_structure(drifted)
@@ -935,6 +947,7 @@ def test_unavailable_output_keeps_non_pass_evidence_wording() -> None:
 
 if __name__ == "__main__":
     test_current_windows_workflow_structural_validation()
+    test_windows_ctest_count_drift_fails_clearly()
     test_shell_drift_fails_clearly()
     test_command_anchor_drift_fails_clearly()
     test_unowned_powershell_step_fails_clearly()

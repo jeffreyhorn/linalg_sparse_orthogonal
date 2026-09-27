@@ -56,6 +56,16 @@ def main() -> None:
         "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 $(BUILDDIR)/test_ldlt",
         owner=MAKEFILE,
     )
+    require_contains(
+        makefile,
+        "CMAKE_FOCUSED_TESTS = test_ldlt_linked_list_allocation_failure_gate",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "expected_count=$$((make_count + focused_count))",
+        owner=MAKEFILE,
+    )
 
     require_contains(cmake, "add_sparse_test(test_ldlt)", owner=CMAKE)
     require_contains(

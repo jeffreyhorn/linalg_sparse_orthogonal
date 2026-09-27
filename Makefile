@@ -173,6 +173,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_reorder_nd.c \
             $(TESTDIR)/test_reorder_amd_qg.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
+CMAKE_FOCUSED_TESTS = test_ldlt_linked_list_allocation_failure_gate
 
 # Benchmark sources
 BENCH_SRCS = $(BENCHDIR)/bench_main.c \
@@ -735,9 +736,11 @@ quality-review-cmake-compile:
 	@echo "== quality-review-cmake-compile: Makefile/CMake test-count parity =="
 	@cmake_count=$$(ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" 2>&1 | awk '/Total Tests:/ {print $$NF}'); \
 	make_count="$(words $(TEST_BINS))"; \
-	echo "quality-review-cmake-compile: CMake tests: $$cmake_count, Makefile tests: $$make_count"; \
-	if [ "$$cmake_count" -ne "$$make_count" ]; then \
-		echo "quality-review-cmake-compile: FAIL: CMake ($$cmake_count) and Makefile ($$make_count) test counts differ"; \
+	focused_count="$(words $(CMAKE_FOCUSED_TESTS))"; \
+	expected_count=$$((make_count + focused_count)); \
+	echo "quality-review-cmake-compile: CMake tests: $$cmake_count, Makefile tests: $$make_count, focused CTest-only selectors: $$focused_count"; \
+	if [ "$$cmake_count" -ne "$$expected_count" ]; then \
+		echo "quality-review-cmake-compile: FAIL: CMake ($$cmake_count) and expected Makefile+CMake-focused ($$expected_count) test counts differ"; \
 		exit 1; \
 	fi; \
 	echo "quality-review-cmake-compile: PASS: test counts match"

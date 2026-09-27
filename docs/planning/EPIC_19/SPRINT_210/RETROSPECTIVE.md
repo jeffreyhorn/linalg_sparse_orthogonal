@@ -40,6 +40,8 @@ closeout evidence.
       `test_ldlt_linked_list_allocation_failure_gate` with
       `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` and labels
       `ldlt;linked_list;allocation_failure`.
+- [x] Accounted for the deliberate CTest-only focused selector in reviewed
+      CMake test-count parity.
 - [x] Added a registration guard that requires focused gate wiring, active
       proof-owner `RUN_TEST(...)` registrations, representative fail-after
       cases, and key assertions.

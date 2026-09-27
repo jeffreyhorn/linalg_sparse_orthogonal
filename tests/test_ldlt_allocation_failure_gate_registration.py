@@ -21,17 +21,99 @@ def require_not_contains(text: str, needle: str, *, owner: Path) -> None:
         raise AssertionError(f"{owner.relative_to(ROOT)} must not contain: {needle}")
 
 
-def require_active_run_test_once(text: str, test_name: str) -> None:
+def c_source_without_comments(text: str) -> str:
+    result: list[str] = []
+    index = 0
+    in_block_comment = False
+    in_line_comment = False
+    in_string = False
+    in_char = False
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+
+        if in_block_comment:
+            if char == "\n":
+                result.append(char)
+            if char == "*" and next_char == "/":
+                in_block_comment = False
+                index += 2
+                continue
+            index += 1
+            continue
+
+        if in_line_comment:
+            if char == "\n":
+                in_line_comment = False
+                result.append(char)
+            index += 1
+            continue
+
+        if in_string or in_char:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif in_string and char == '"':
+                in_string = False
+            elif in_char and char == "'":
+                in_char = False
+            index += 1
+            continue
+
+        if char == "/" and next_char == "*":
+            in_block_comment = True
+            index += 2
+            continue
+        if char == "/" and next_char == "/":
+            in_line_comment = True
+            index += 2
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "'":
+            in_char = True
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def active_run_test_count(text: str, test_name: str) -> int:
+    active_text = c_source_without_comments(text)
     pattern = re.compile(rf"^\s*RUN_TEST\({re.escape(test_name)}\);\s*$", re.MULTILINE)
-    matches = pattern.findall(text)
-    if len(matches) != 1:
+    return len(pattern.findall(active_text))
+
+
+def require_active_run_test_once(text: str, test_name: str) -> None:
+    count = active_run_test_count(text, test_name)
+    if count != 1:
         raise AssertionError(
             "tests/test_ldlt.c must retain active proof-owner registration "
-            f"RUN_TEST({test_name}) exactly once; found {len(matches)}"
+            f"RUN_TEST({test_name}) exactly once; found {count}"
         )
 
 
+def test_block_comment_run_test_is_ignored() -> None:
+    sample = """
+static void run_tests(void) {
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+    /*
+     * RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+     */
+    const char *literal = "RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);";
+}
+"""
+    count = active_run_test_count(sample, "test_ldlt_linked_list_success_cleanup_free_safe")
+    if count != 1:
+        raise AssertionError(f"block-commented RUN_TEST lines must be ignored; found {count}")
+
+
 def main() -> None:
+    test_block_comment_run_test_is_ignored()
+
     makefile = MAKEFILE.read_text()
     cmake = CMAKE.read_text()
     test_ldlt = TEST_LDLT.read_text()

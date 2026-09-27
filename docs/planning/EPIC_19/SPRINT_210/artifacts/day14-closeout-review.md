@@ -15,7 +15,7 @@ no-reorder linked-list LDLT numeric factorization.
 | 210.1 Owner Selection | Complete | Day 2 selected linked-list LDLT numeric factorization after candidate ranking. |
 | 210.2 Lifecycle Invariant Record | Complete | Day 3 recorded status, cleanup, stale-output, caller-input, retry, and boundary invariants. |
 | 210.3 Harness Extension | Complete | Days 4-5 converted selected allocations to private allocation wrappers and added deterministic hook-based harness coverage. |
-| 210.4 Regression Tests | Complete | Days 6-9 added 25-site failure sweep, cleanup proof, stale-output/caller-input preservation, and retry baseline-match tests. |
+| 210.4 Regression Tests | Complete | Days 6-9 added 25-site failure sweep, cleanup proof, stale-output/caller matrix/options preservation, and retry baseline-match tests. |
 | 210.5 Gate And Documentation | Complete | Days 10-11 added focused Make/CTest gate, active registration guard, README/INSTALL/maintainer docs, and selected-only non-claims. |
 | 210.6 Validation And Closeout | Complete | Days 12-14 recorded integrated validation, review hardening, final project-plan status, residuals, and focused closeout validation. |
 

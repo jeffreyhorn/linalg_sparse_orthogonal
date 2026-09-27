@@ -31,7 +31,7 @@ success-looking output behind.
 
 | Test | Coverage |
 | --- | --- |
-| `test_ldlt_linked_list_allocation_failures_clear_stale_outputs` | Runs all 25 fail-after sites with pre-seeded stale outputs; expects `SPARSE_ERR_ALLOC`; verifies `used_csc_path` changes from `-77` to `0`; verifies output fields are empty; verifies caller-owned fixture dimensions, `nnz`, and values are unchanged; probes hook reset. |
+| `test_ldlt_linked_list_allocation_failures_clear_stale_outputs` | Runs all 25 fail-after sites with pre-seeded stale outputs; expects `SPARSE_ERR_ALLOC`; verifies `used_csc_path` telemetry changes from `-77` to `0` while the options pointer is preserved; verifies output fields are empty; verifies caller-owned fixture dimensions, `nnz`, values, and `sparse_ldlt_opts_t` fields are unchanged; probes hook reset. |
 
 ## Preservation Evidence
 
@@ -41,6 +41,9 @@ The caller-owned fixture remains externally owned by the test:
 - every failure case verifies `sparse_rows(A) == 3`, `sparse_cols(A) == 3`,
   and `sparse_nnz(A) == 7`;
 - every fixture value is checked after failure;
+- every `sparse_ldlt_opts_t` field is compared to its pre-call snapshot;
+- `used_csc_path` pointer identity is preserved while the caller-owned
+  telemetry value may be updated;
 - the selected owner never frees `A`; the test frees it after hook reset and
   output assertions.
 

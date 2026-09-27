@@ -25,7 +25,7 @@ The earned claim is:
 Selected no-reorder linked-list LDLT numeric factorization has focused local
 deterministic allocation-failure proof for bounded known fixtures covering 25
 injected allocation-failure sites, cleanup, stale-output suppression,
-caller-input preservation, free-safe output state, repeated cleanup after
+caller matrix/options preservation, free-safe output state, repeated cleanup after
 failure, and retry-after-reset behavior.
 
 ## Retained Non-Claims

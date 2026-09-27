@@ -596,8 +596,8 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
     `docs/planning/EPIC_19/SPRINT_210/artifacts/day10-focused-gate.md`
   - maintained linked-list LDLT proof stays local to the selected no-reorder
     numeric factorization owner, 25 deterministic injected allocation-failure
-    sites, cleanup, stale-output suppression, caller-input preservation,
-    free-safe output state, repeated cleanup after failure, and
+    sites, cleanup, stale-output suppression, caller matrix/options
+    preservation, free-safe output state, repeated cleanup after failure, and
     retry-after-reset behavior on bounded fixtures; it is not broad
     allocation-failure coverage for CSC LDLT, reordered LDLT, Cholesky, broad
     direct solvers, QR/SVD/eigensolver workspaces, sparse matrix construction,

@@ -33,7 +33,7 @@ The focused gate revalidated the selected no-reorder linked-list LDLT owner:
   sweep;
 - cleanup and free-safe output state after failure;
 - stale-output suppression;
-- caller-input preservation;
+- caller matrix/options preservation;
 - retry-after-reset behavior;
 - selected success-output cleanup.
 

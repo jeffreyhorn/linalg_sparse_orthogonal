@@ -53,7 +53,7 @@ Each named failure case is exercised by both allocation-failure tests:
 
 | Test | Assertion coverage |
 | --- | --- |
-| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Exact 25-case registration, `SPARSE_ERR_ALLOC`, preserved caller input, empty/free-safe output, and hook reset after each injected failure. |
+| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Exact 25-case registration, `SPARSE_ERR_ALLOC`, preserved caller matrix and `sparse_ldlt_opts_t`, empty/free-safe output, and hook reset after each injected failure. |
 | `test_ldlt_linked_list_allocation_failures_recover_on_retry` | Retry success after hook reset for every injected failure site, with owned fields populated and solve residual matching the fixture RHS. |
 
 ## Boundary Notes

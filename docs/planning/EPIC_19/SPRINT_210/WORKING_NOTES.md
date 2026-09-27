@@ -9,7 +9,7 @@ the already closed selected symbolic LU path.
 
 Sprint 210 is a selected-owner reliability sprint. It may close one
 allocation-failure owner with deterministic failure, cleanup, stale-output,
-caller-input preservation, and retry evidence. It must not claim broad
+caller matrix/options preservation, and retry evidence. It must not claim broad
 allocation-failure coverage, package-manager support, ABI/shared-library
 support, broad platform parity, portable performance, release readiness,
 external-library parity, or state-of-the-art reliability.
@@ -516,11 +516,12 @@ CSC LDLT, or all-direct-solver allocation-failure coverage.
 | `make_ldlt_allocation_failure_matrix()` | Builds the 3x3 SPD tridiagonal selected fixture outside the injected failure window. |
 | `ldlt_linked_list_allocation_opts()` | Forces `SPARSE_LDLT_BACKEND_LINKED_LIST` and disables reordering. |
 | `assert_ldlt_allocation_failure_input_intact(...)` | Verifies caller-owned matrix structure and values after injected failure. |
+| `assert_ldlt_allocation_opts_unchanged(...)` | Verifies caller-owned linked-list LDLT options remain unchanged after selected failure, retry, stale-output, and success-cleanup calls; `used_csc_path` pointer identity is preserved while the pointed-to telemetry value may change. |
 | `assert_ldlt_failure_output_empty(...)` | Verifies no success-looking LDLT output remains after failure. |
 | `assert_ldlt_failure_output_free_safe(...)` | Verifies repeated `sparse_ldlt_free()` is safe after failure. |
 | `assert_ldlt_allocation_hook_probe_after_reset()` | Verifies the process-global allocation hook is reset after each case. |
 | `assert_ldlt_allocation_success_baseline(...)` | Verifies fresh retry success with non-null owned fields and solve residual. |
-| `expect_ldlt_allocation_failure(...)` | Executes one deterministic fail-after case and checks status, cleanup, stale-output, and caller-input preservation. |
+| `expect_ldlt_allocation_failure(...)` | Executes one deterministic fail-after case and checks status, cleanup, stale-output, and caller-input preservation for both `A` and `opts`. |
 | `expect_ldlt_retry_after_allocation_failure(...)` | Proves retry success after reset for one failure case. |
 
 ### Initial Failure Cases
@@ -538,7 +539,7 @@ construction, `perm`, dense workspaces, and selected insertion propagation.
 
 | Test | Evidence |
 | --- | --- |
-| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Deterministic output-array allocation failures return `SPARSE_ERR_ALLOC`, preserve the input matrix, leave output empty/free-safe, and reset hooks. |
+| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Deterministic output-array allocation failures return `SPARSE_ERR_ALLOC`, preserve the input matrix and options struct, leave output empty/free-safe, and reset hooks. |
 | `test_ldlt_linked_list_allocation_failures_recover_on_retry` | Each initial failure case can be retried after hook reset and produces a usable linked-list LDLT factor. |
 
 ### Day 5 Validation
@@ -590,9 +591,9 @@ Full validation result:
 
 | `fail_after` | Named site | Outcome asserted |
 | ---: | --- | --- |
-| 0 | `D output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix intact; hook reset. |
-| 1 | `D_offdiag output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix intact; hook reset. |
-| 2 | `pivot_size output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix intact; hook reset. |
+| 0 | `D output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix and options intact; hook reset. |
+| 1 | `D_offdiag output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix and options intact; hook reset. |
+| 2 | `pivot_size output array` | `SPARSE_ERR_ALLOC`; output empty/free-safe; input matrix and options intact; hook reset. |
 | 3 | `working copy entry buffer` | Propagated `sparse_copy(A)` setup allocation failure. |
 | 4 | `working copy row headers` | Propagated working-copy `sparse_create()` shell allocation failure. |
 | 5 | `working copy column headers` | Propagated working-copy `sparse_create()` shell allocation failure. |
@@ -627,8 +628,8 @@ pool allocator would broaden the sprint beyond the selected owner boundary.
 The two Day 5 tests now cover all 25 Day 6 cases:
 
 - `test_ldlt_linked_list_allocation_failures_clear_outputs` asserts
-  `SPARSE_ERR_ALLOC`, caller-input preservation, empty/free-safe output, hook
-  reset, and exact 25-case registration.
+  `SPARSE_ERR_ALLOC`, caller matrix/options preservation, empty/free-safe
+  output, hook reset, and exact 25-case registration.
 - `test_ldlt_linked_list_allocation_failures_recover_on_retry` verifies every
   failed site can be retried after hook reset and produces a usable linked-list
   LDLT factor with solve residual matching the fixture RHS.
@@ -766,7 +767,7 @@ The current earned claim is selected-owner only:
 Selected no-reorder linked-list LDLT numeric factorization has focused local
 deterministic allocation-failure proof for bounded known fixtures covering 25
 injected allocation-failure sites, cleanup, stale-output suppression,
-caller-input preservation, free-safe output state, repeated cleanup after
+caller matrix/options preservation, free-safe output state, repeated cleanup after
 failure, and retry-after-reset behavior.
 
 ### Retained Non-Claims
@@ -951,7 +952,7 @@ owner: no-reorder linked-list LDLT numeric factorization.
 | 210.1 Owner Selection | Complete | Day 2 selected linked-list LDLT numeric factorization after candidate ranking. |
 | 210.2 Lifecycle Invariant Record | Complete | Day 3 recorded status, cleanup, stale-output, caller-input, retry, and boundary invariants. |
 | 210.3 Harness Extension | Complete | Days 4-5 converted selected allocations to private allocation wrappers and added deterministic hook-based harness coverage. |
-| 210.4 Regression Tests | Complete | Days 6-9 added 25-site failure sweep, cleanup proof, stale-output/caller-input preservation, and retry baseline-match tests. |
+| 210.4 Regression Tests | Complete | Days 6-9 added 25-site failure sweep, cleanup proof, stale-output/caller matrix/options preservation, and retry baseline-match tests. |
 | 210.5 Gate And Documentation | Complete | Days 10-11 added focused Make/CTest gate, active registration guard, README/INSTALL/maintainer docs, and selected-only non-claims. |
 | 210.6 Validation And Closeout | Complete | Days 12-14 recorded integrated validation, review hardening, final project-plan status, residuals, and focused closeout validation. |
 
@@ -1027,7 +1028,7 @@ Results:
 | Success-output comparison | `assert_ldlt_success_outputs_match(...)` compares retry output against an independently produced success baseline for `n`, `factor_norm`, `tol`, `L` dimensions/nnz/entries, `D`, `D_offdiag`, `pivot_size`, and `perm`. |
 | Representative and boundary retry set | `test_ldlt_linked_list_retry_matches_success_baseline` covers output-array failures, working-copy setup, final working-copy scratch, output-`L` shell setup, permutation output, first workspace, and final workspace. |
 | Hook and cleanup interaction | Each case fails once under the allocation hook, resets the hook, checks the failed output is free-safe, probes hook reset, retries the same fixture, and compares the successful retry against the baseline factor. |
-| Caller input preservation | The retry test verifies the caller-owned fixture remains intact before and after retry success. |
+| Caller input preservation | The retry test verifies the caller-owned fixture and `sparse_ldlt_opts_t` remain intact before and after retry success. |
 
 ### Retry Cases
 
@@ -1155,7 +1156,7 @@ Full validation result:
 
 | File | Day 7 change |
 | --- | --- |
-| `tests/test_ldlt.c` | Added cleanup-focused assertions for caller-owned fixture shape/nnz, success-output double-free safety, repeated failure cleanup, and success teardown. Registered two cleanup tests. |
+| `tests/test_ldlt.c` | Added cleanup-focused assertions for caller-owned fixture shape/nnz, options preservation, success-output double-free safety, repeated failure cleanup, and success teardown. Registered two cleanup tests. |
 | `docs/planning/EPIC_19/SPRINT_210/WORKING_NOTES.md` | Recorded Day 7 cleanup proof and validation evidence. |
 | `docs/planning/EPIC_19/SPRINT_210/artifacts/day7-cleanup-proof.md` | Added the Day 7 cleanup-proof artifact. |
 

@@ -55,8 +55,8 @@ For each Day 9 retry case:
 1. Build a clean success baseline.
 2. Inject the selected allocation failure.
 3. Reset the allocation hook before assertions.
-4. Verify `SPARSE_ERR_ALLOC`, empty/free-safe output, preserved caller input,
-   and hook reset.
+4. Verify `SPARSE_ERR_ALLOC`, empty/free-safe output, preserved caller matrix
+   and `sparse_ldlt_opts_t`, and hook reset.
 5. Retry factorization without the hook.
 6. Verify solve residual and full baseline equality.
 7. Free both factor outputs and the caller-owned fixture.

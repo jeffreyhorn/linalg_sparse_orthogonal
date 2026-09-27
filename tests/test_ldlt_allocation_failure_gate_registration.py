@@ -141,6 +141,7 @@ def main() -> None:
         "assert_ldlt_success_output_free_safe(&ldlt);",
         "assert_ldlt_stale_output_sentinel_seeded(&ldlt);",
         "assert_ldlt_success_outputs_match(&expected, &actual);",
+        "assert_ldlt_allocation_opts_unchanged(&opts, &opts_before);",
         "assert_ldlt_allocation_hook_probe_after_reset();",
     ]
     for assertion in required_assertions:

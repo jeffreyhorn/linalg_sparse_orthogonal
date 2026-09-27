@@ -14,7 +14,7 @@ notes, daily artifacts, closeout review, and retrospective in one package.
 The sprint selected one additional allocation-failure owner outside the
 already closed selected symbolic LU path: no-reorder linked-list LDLT numeric
 factorization. It added deterministic private-hook allocation failure coverage,
-cleanup and stale-output assertions, caller-input preservation checks,
+cleanup and stale-output assertions, caller matrix/options preservation checks,
 retry-after-reset proof, focused Make/CTest validation, active registration
 guard coverage, user/maintainer documentation, integrated validation, and
 closeout evidence.
@@ -26,7 +26,7 @@ closeout evidence.
 - [x] Ranked Epic 19 candidate allocation-failure owners and selected exactly
       one owner: no-reorder linked-list LDLT numeric factorization.
 - [x] Recorded lifecycle invariants for status, cleanup, stale-output,
-      caller-input preservation, retry, output publication, and retained
+      caller matrix/options preservation, retry, output publication, and retained
       non-claims before code edits.
 - [x] Converted selected linked-list LDLT output/workspace allocations to
       private allocation wrappers so deterministic failure injection can reach
@@ -168,7 +168,7 @@ Sprint 210 closes this bounded claim:
 Selected no-reorder linked-list LDLT numeric factorization has focused local
 deterministic allocation-failure proof for bounded known fixtures covering 25
 injected allocation-failure sites, cleanup, stale-output suppression,
-caller-input preservation, free-safe output state, repeated cleanup after
+caller matrix/options preservation, free-safe output state, repeated cleanup after
 failure, and retry-after-reset behavior.
 
 This claim does not include CSC LDLT allocation-failure proof, reordered LDLT

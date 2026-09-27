@@ -60,7 +60,7 @@ allocation-failure reliability.
 
 | Test | Purpose |
 | --- | --- |
-| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Verifies deterministic output-array allocation failures return `SPARSE_ERR_ALLOC`, preserve `A`, clear output, and leave the hook reset. |
+| `test_ldlt_linked_list_allocation_failures_clear_outputs` | Verifies deterministic output-array allocation failures return `SPARSE_ERR_ALLOC`, preserve `A` and the caller-owned `sparse_ldlt_opts_t`, clear output, and leave the hook reset. |
 | `test_ldlt_linked_list_allocation_failures_recover_on_retry` | Verifies the same fixture succeeds after hook reset for each initial failure case. |
 
 ## Day 6 Handoff

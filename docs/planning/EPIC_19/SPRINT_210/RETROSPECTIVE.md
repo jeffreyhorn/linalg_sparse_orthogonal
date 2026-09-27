@@ -36,8 +36,10 @@ closeout evidence.
 - [x] Added cleanup, free-safe output, stale-output, caller-input
       preservation, retry-after-reset, and success-output cleanup tests.
 - [x] Added `make ldlt-linked-list-allocation-failure-gate`.
-- [x] Added CTest labels `ldlt;linked_list;allocation_failure` for
-      `test_ldlt`.
+- [x] Added a focused CTest entry
+      `test_ldlt_linked_list_allocation_failure_gate` with
+      `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` and labels
+      `ldlt;linked_list;allocation_failure`.
 - [x] Added a registration guard that requires focused gate wiring, active
       proof-owner `RUN_TEST(...)` registrations, representative fail-after
       cases, and key assertions.

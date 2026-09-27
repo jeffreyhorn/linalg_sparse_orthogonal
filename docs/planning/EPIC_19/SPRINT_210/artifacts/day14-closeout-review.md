@@ -46,7 +46,7 @@ no-reorder linked-list LDLT numeric factorization.
 | `tests/test_ldlt.c` | Owns selected linked-list LDLT failure sweep, cleanup, stale-output, caller-input, retry, and success-cleanup tests. |
 | `tests/test_ldlt_allocation_failure_gate_registration.py` | Guards focused gate wiring, CMake label, active proof-owner `RUN_TEST(...)` registrations, representative fail-after cases, and key assertions. |
 | `Makefile` | Adds `ldlt-linked-list-allocation-failure-gate`. |
-| `CMakeLists.txt` | Labels `test_ldlt` with `ldlt;linked_list;allocation_failure`. |
+| `CMakeLists.txt` | Labels focused CTest entry `test_ldlt_linked_list_allocation_failure_gate` with `ldlt;linked_list;allocation_failure` and keeps the broad `test_ldlt` executable unselected by those focused labels. |
 | `README.md`, `INSTALL.md`, `docs/maintainer_guide.md` | Document the selected proof and retain broad non-claims. |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | Marks Sprint 210 closed with selected linked-list LDLT allocation-failure proof. |
 

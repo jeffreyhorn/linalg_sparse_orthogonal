@@ -583,7 +583,9 @@ Current maintained proof ownership after the Sprint 94 Day 10 baseline:
   - `test_ldlt_linked_list_success_cleanup_free_safe`
   - maintained focused Make command:
     `make ldlt-linked-list-allocation-failure-gate`
-  - maintained focused CTest label:
+  - maintained focused CTest entry:
+    `test_ldlt_linked_list_allocation_failure_gate` with
+    `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` and labels
     `ldlt;linked_list;allocation_failure`
   - maintained registration guard:
     `python3 tests/test_ldlt_allocation_failure_gate_registration.py`

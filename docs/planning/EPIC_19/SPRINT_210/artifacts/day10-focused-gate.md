@@ -11,7 +11,7 @@ direct-solver allocation-failure coverage.
 | File | Change |
 | --- | --- |
 | `Makefile` | Added `ldlt-linked-list-allocation-failure-gate`. |
-| `CMakeLists.txt` | Added CTest labels `ldlt;linked_list;allocation_failure` to `test_ldlt`. |
+| `CMakeLists.txt` | Added focused CTest entry `test_ldlt_linked_list_allocation_failure_gate` with `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` and labels `ldlt;linked_list;allocation_failure`. |
 | `tests/test_ldlt_allocation_failure_gate_registration.py` | Added registration guard for the Make target, CMake label, selected `RUN_TEST(...)` entries, representative failure cases, and key assertions. |
 
 ## Focused Command
@@ -35,7 +35,10 @@ The registration guard requires:
 - `ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt`;
 - Makefile invocation of the guard script;
 - `add_sparse_test(test_ldlt)` in CMake;
-- CTest labels `ldlt;linked_list;allocation_failure`;
+- focused CTest entry `test_ldlt_linked_list_allocation_failure_gate` runs
+  `test_ldlt` with `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1`;
+- CTest labels `ldlt;linked_list;allocation_failure` are on the focused gate,
+  not on the broad `test_ldlt` suite;
 - selected linked-list LDLT allocation failure, cleanup, stale-output, and retry
   `RUN_TEST(...)` registrations;
 - representative fail-after cases from the Day 6 sweep;

@@ -673,7 +673,7 @@ Full validation result:
 | File | Day 10 change |
 | --- | --- |
 | `Makefile` | Added `ldlt-linked-list-allocation-failure-gate`, which builds `build/test_ldlt`, runs the LDLT allocation-failure registration guard, runs `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 build/test_ldlt`, and emits a selected-gate pass banner. |
-| `CMakeLists.txt` | Added CTest labels `ldlt;linked_list;allocation_failure` to `test_ldlt`. |
+| `CMakeLists.txt` | Added focused CTest entry `test_ldlt_linked_list_allocation_failure_gate` with `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` and labels `ldlt;linked_list;allocation_failure`. |
 | `tests/test_ldlt_allocation_failure_gate_registration.py` | Added registration guard for the selected linked-list LDLT gate, CMake label, required `RUN_TEST(...)` entries, representative fail-after cases, and key cleanup/stale-output/retry assertions. |
 | `docs/planning/EPIC_19/SPRINT_210/WORKING_NOTES.md` | Recorded Day 10 focused-gate wiring and validation evidence. |
 | `docs/planning/EPIC_19/SPRINT_210/artifacts/day10-focused-gate.md` | Added the Day 10 gate-wiring artifact. |
@@ -697,8 +697,11 @@ existing `test_ldlt` binary rather than adding a new C source file.
 - the Make target invokes `test_ldlt` through
   `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1` so the gate runs only the selected
   proof-owner tests;
-- CMake registers `test_ldlt`;
-- CMake labels `test_ldlt` with `ldlt;linked_list;allocation_failure`;
+- CMake registers broad `test_ldlt`;
+- CMake registers focused `test_ldlt_linked_list_allocation_failure_gate`
+  with `SPARSE_TEST_LDLT_ALLOCATION_ONLY=1`;
+- CMake labels only the focused CTest gate with
+  `ldlt;linked_list;allocation_failure`;
 - the selected allocation-failure, cleanup, stale-output, and retry tests are
   registered in `tests/test_ldlt.c`;
 - representative fail-after cases and key proof assertions remain present.
@@ -958,7 +961,7 @@ owner: no-reorder linked-list LDLT numeric factorization.
 | `tests/test_ldlt.c` | Owns selected linked-list LDLT failure sweep, cleanup, stale-output, caller-input, retry, and success-cleanup tests. |
 | `tests/test_ldlt_allocation_failure_gate_registration.py` | Guards focused gate wiring, CMake label, active proof-owner `RUN_TEST(...)` registrations, representative fail-after cases, and key assertions. |
 | `Makefile` | Adds `ldlt-linked-list-allocation-failure-gate`. |
-| `CMakeLists.txt` | Labels `test_ldlt` with `ldlt;linked_list;allocation_failure`. |
+| `CMakeLists.txt` | Labels focused CTest entry `test_ldlt_linked_list_allocation_failure_gate` with `ldlt;linked_list;allocation_failure` and keeps the broad `test_ldlt` executable unselected by those focused labels. |
 | `README.md`, `INSTALL.md`, `docs/maintainer_guide.md` | Document the selected proof and retain broad non-claims. |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | Marks Sprint 210 closed with selected linked-list LDLT allocation-failure proof. |
 | Sprint 210 planning artifacts | Provide day-by-day evidence for selection, invariants, implementation, tests, gate, docs, validation, hardening, and closeout. |

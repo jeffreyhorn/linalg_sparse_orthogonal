@@ -16,6 +16,11 @@ def require_contains(text: str, needle: str, *, owner: Path) -> None:
         raise AssertionError(f"{owner.relative_to(ROOT)} missing: {needle}")
 
 
+def require_not_contains(text: str, needle: str, *, owner: Path) -> None:
+    if needle in text:
+        raise AssertionError(f"{owner.relative_to(ROOT)} must not contain: {needle}")
+
+
 def require_active_run_test_once(text: str, test_name: str) -> None:
     pattern = re.compile(rf"^\s*RUN_TEST\({re.escape(test_name)}\);\s*$", re.MULTILINE)
     matches = pattern.findall(text)
@@ -54,6 +59,26 @@ def main() -> None:
 
     require_contains(cmake, "add_sparse_test(test_ldlt)", owner=CMAKE)
     require_contains(
+        cmake,
+        "add_test(NAME test_ldlt_linked_list_allocation_failure_gate COMMAND test_ldlt)",
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        "set_tests_properties(\n    test_ldlt_linked_list_allocation_failure_gate",
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        'ENVIRONMENT "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1"',
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        'LABELS "ldlt;linked_list;allocation_failure"',
+        owner=CMAKE,
+    )
+    require_not_contains(
         cmake,
         'set_tests_properties(test_ldlt PROPERTIES LABELS "ldlt;linked_list;allocation_failure")',
         owner=CMAKE,

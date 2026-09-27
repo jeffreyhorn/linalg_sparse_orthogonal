@@ -240,7 +240,13 @@ add_sparse_test(test_block_solvers)
 add_sparse_test(test_sprint10_integration)
 add_sparse_test(test_sprint11_integration)
 add_sparse_test(test_ldlt)
-set_tests_properties(test_ldlt PROPERTIES LABELS "ldlt;linked_list;allocation_failure")
+add_test(NAME test_ldlt_linked_list_allocation_failure_gate COMMAND test_ldlt)
+set_tests_properties(
+    test_ldlt_linked_list_allocation_failure_gate
+    PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        ENVIRONMENT "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1"
+        LABELS "ldlt;linked_list;allocation_failure")
 add_sparse_test(test_sprint12_integration)
 add_sparse_test(test_ic)
 add_sparse_test(test_minres)

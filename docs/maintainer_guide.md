@@ -1536,25 +1536,43 @@ Sprint 106 maintainability ownership additions:
     scaled-KKT, and analysis-backed two-pass fixture/setup helpers
   - `tests/test_ldlt_csc_oracle_helpers.h` owns LDLT CSC family-local dense
     oracles, symmetric-swap helpers, and native-wrapper comparison helpers
+  - `tests/test_ldlt_csc_native_parity_helpers.h` owns only the selected
+    Sprint 211 native parity test bodies moved out of
+    `tests/test_ldlt_csc.c`; it reuses the oracle helper API instead of
+    duplicating dense/native comparison logic
   - `tests/test_ldlt_csc_supernode_helpers.h` owns LDLT CSC family-local
     supernode fixtures, snapshots, dense-SPD setup, and factor-state
     comparison helpers
 - `tests/test_ldlt_csc.c` remains the registered LDLT CSC proof-owner binary
-  for those Sprint 185 helper headers:
-  - keep `main`, `RUN_TEST(...)` ordering, public test bodies, test names,
-    fixture values, numerical tolerances, `_POSIX_C_SOURCE`, and
+  for the LDLT CSC helper headers:
+  - keep `main`, `RUN_TEST(...)` ordering, non-extracted public test bodies,
+    test names, fixture values, numerical tolerances, `_POSIX_C_SOURCE`, and
     `TF_ENABLE_EXTERNAL_REFERENCE_HELPER` ownership in `tests/test_ldlt_csc.c`
+  - keep the selected Sprint 211 native parity `RUN_TEST(...)` registrations
+    in `tests/test_ldlt_csc.c`; only the selected test bodies live in
+    `tests/test_ldlt_csc_native_parity_helpers.h`
   - keep external-process dense-reference state and platform skip behavior in
     `tests/test_ldlt_csc.c` unless a later boundary review approves a narrower
     extraction
-  - keep the Sprint 185 helper headers family-local and included by
+  - keep the LDLT CSC helper headers family-local and included by
     `tests/test_ldlt_csc.c`; do not promote them to public, shared, or
     production helper APIs
   - run `make ldlt-csc-helper-guard` after helper-layout changes to check
-    helper presence, include ownership, and Make/CMake/source-list boundaries
+    helper presence, include ownership, selected registration order, moved
+    native-parity definition ownership, and Make/CMake/source-list boundaries
+  - run `python3 tests/test_ldlt_csc_helper_guard.py` after changing the guard
+    itself, and run
+    `python3 tests/test_ldlt_csc_native_parity_behavior.py` after changing the
+    selected native-parity helper or proof-owner registrations
+  - this boundary is a no-behavior-change review-surface reduction; it does
+    not claim new LDLT CSC solver behavior, public API or ABI changes,
+    numerical tolerance changes, performance improvement, platform expansion,
+    package support, release support, or state-of-the-art evidence
   - use
     `docs/planning/EPIC_16/SPRINT_185/artifacts/day10-maintenance-invariants.md`
-    as the provenance record for the helper-placement rules
+    and
+    `docs/planning/EPIC_19/SPRINT_211/artifacts/day11-documentation-calibration.md`
+    as provenance records for the helper-placement rules
 - Sprint 193 QR external-reference helper boundary:
   - `tests/test_qr_external_ref_helpers.h` owns the selected QR
     rank/nullspace/threshold external-reference readers, moved selected

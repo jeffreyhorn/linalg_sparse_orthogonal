@@ -237,6 +237,9 @@ $(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LI
 $(BUILDDIR)/test_svd: $(TESTDIR)/test_svd.c $(TESTDIR)/test_svd_helpers.h $(TESTDIR)/test_svd_selected_helpers.h $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
+$(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c $(TESTDIR)/test_ldlt_csc_fixtures.h $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h $(TESTDIR)/test_ldlt_csc_oracle_helpers.h $(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@

@@ -136,11 +136,59 @@ active_fixed_count_in_file() {
     local file="$2"
 
     awk -v marker="$marker" '
-        function inactive_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        function if_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+        }
+        function elif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
+        }
+        function else_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*else([[:space:]]|$)/
         }
         function endif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
+        function false_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function parent_active(    i) {
+            for (i = 1; i < conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function current_active(    i) {
+            for (i = 1; i <= conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function update_conditionals(line,    parent) {
+            if (if_directive(line)) {
+                conditional_depth++
+                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                return 1
+            }
+            if (elif_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                return 1
+            }
+            if (else_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth]
+                conditional_taken[conditional_depth] = 1
+                return 1
+            }
+            if (endif_directive(line)) {
+                delete conditional_active[conditional_depth]
+                delete conditional_taken[conditional_depth]
+                conditional_depth--
+                return 1
+            }
+            return 0
         }
         function strip_comments(line,    start, end, out) {
             out = ""
@@ -166,17 +214,10 @@ active_fixed_count_in_file() {
         }
         {
             active = strip_comments($0)
-            if (inactive_depth > 0) {
-                if (inactive_directive(active))
-                    inactive_depth++
-                else if (endif_directive(active))
-                    inactive_depth--
+            if (update_conditionals(active))
                 next
-            }
-            if (inactive_directive(active)) {
-                inactive_depth = 1
+            if (!current_active())
                 next
-            }
             if (index(active, marker) > 0)
                 count++
         }
@@ -189,11 +230,59 @@ active_include_count() {
     local file="${2:-$TEST_FILE}"
 
     awk -v include_name="$include_name" '
-        function inactive_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        function if_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+        }
+        function elif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
+        }
+        function else_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*else([[:space:]]|$)/
         }
         function endif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
+        function false_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function parent_active(    i) {
+            for (i = 1; i < conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function current_active(    i) {
+            for (i = 1; i <= conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function update_conditionals(line,    parent) {
+            if (if_directive(line)) {
+                conditional_depth++
+                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                return 1
+            }
+            if (elif_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                return 1
+            }
+            if (else_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth]
+                conditional_taken[conditional_depth] = 1
+                return 1
+            }
+            if (endif_directive(line)) {
+                delete conditional_active[conditional_depth]
+                delete conditional_taken[conditional_depth]
+                conditional_depth--
+                return 1
+            }
+            return 0
         }
         function strip_comments(line,    start, end, out) {
             out = ""
@@ -219,17 +308,10 @@ active_include_count() {
         }
         {
             active = strip_comments($0)
-            if (inactive_depth > 0) {
-                if (inactive_directive(active))
-                    inactive_depth++
-                else if (endif_directive(active))
-                    inactive_depth--
+            if (update_conditionals(active))
                 next
-            }
-            if (inactive_directive(active)) {
-                inactive_depth = 1
+            if (!current_active())
                 next
-            }
             if (active ~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*"/ &&
                 index(active, "\"" include_name "\"") > 0)
                 count++
@@ -242,11 +324,59 @@ active_run_test_count() {
     local marker="$1"
 
     awk -v marker="$marker" '
-        function inactive_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        function if_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+        }
+        function elif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
+        }
+        function else_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*else([[:space:]]|$)/
         }
         function endif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
+        function false_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function parent_active(    i) {
+            for (i = 1; i < conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function current_active(    i) {
+            for (i = 1; i <= conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function update_conditionals(line,    parent) {
+            if (if_directive(line)) {
+                conditional_depth++
+                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                return 1
+            }
+            if (elif_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                return 1
+            }
+            if (else_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth]
+                conditional_taken[conditional_depth] = 1
+                return 1
+            }
+            if (endif_directive(line)) {
+                delete conditional_active[conditional_depth]
+                delete conditional_taken[conditional_depth]
+                conditional_depth--
+                return 1
+            }
+            return 0
         }
         function strip_comments(line,    start, end, out) {
             out = ""
@@ -272,17 +402,10 @@ active_run_test_count() {
         }
         {
             active = strip_comments($0)
-            if (inactive_depth > 0) {
-                if (inactive_directive(active))
-                    inactive_depth++
-                else if (endif_directive(active))
-                    inactive_depth--
+            if (update_conditionals(active))
                 next
-            }
-            if (inactive_directive(active)) {
-                inactive_depth = 1
+            if (!current_active())
                 next
-            }
             if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index(active, marker) > 0)
                 count++
         }
@@ -294,11 +417,59 @@ active_run_test_line() {
     local marker="$1"
 
     awk -v marker="$marker" '
-        function inactive_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        function if_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+        }
+        function elif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
+        }
+        function else_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*else([[:space:]]|$)/
         }
         function endif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
+        function false_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function parent_active(    i) {
+            for (i = 1; i < conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function current_active(    i) {
+            for (i = 1; i <= conditional_depth; i++)
+                if (!conditional_active[i])
+                    return 0
+            return 1
+        }
+        function update_conditionals(line,    parent) {
+            if (if_directive(line)) {
+                conditional_depth++
+                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                return 1
+            }
+            if (elif_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                return 1
+            }
+            if (else_directive(line)) {
+                parent = parent_active()
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth]
+                conditional_taken[conditional_depth] = 1
+                return 1
+            }
+            if (endif_directive(line)) {
+                delete conditional_active[conditional_depth]
+                delete conditional_taken[conditional_depth]
+                conditional_depth--
+                return 1
+            }
+            return 0
         }
         function strip_comments(line,    start, end, out) {
             out = ""
@@ -324,17 +495,10 @@ active_run_test_line() {
         }
         {
             active = strip_comments($0)
-            if (inactive_depth > 0) {
-                if (inactive_directive(active))
-                    inactive_depth++
-                else if (endif_directive(active))
-                    inactive_depth--
+            if (update_conditionals(active))
                 next
-            }
-            if (inactive_directive(active)) {
-                inactive_depth = 1
+            if (!current_active())
                 next
-            }
             if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index(active, marker) > 0) {
                 print NR
                 found = 1

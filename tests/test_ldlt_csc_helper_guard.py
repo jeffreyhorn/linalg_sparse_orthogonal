@@ -129,6 +129,16 @@ def assert_guard_fails_with(mutator, expected: str) -> None:
             raise AssertionError(f"expected {expected!r} in {message!r}")
 
 
+def assert_guard_passes_with(mutator) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        write_fixture(root)
+        mutator(root)
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_current_tree_passes_guard() -> None:
     result = run_guard(REPO_ROOT)
     if result.returncode != 0:
@@ -184,6 +194,24 @@ def test_block_commented_native_helper_include_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "exactly once as an active include")
+
+
+def test_if_zero_else_native_helper_include_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"',
+                "#if 0\n"
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#else\n"
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
 
 
 def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
@@ -302,6 +330,34 @@ def test_if_zero_run_test_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "as an active RUN_TEST line")
 
 
+def test_if_zero_else_run_test_registration_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"#if 0\n{RUN_TEST_MARKERS[0]}\n#else\n{RUN_TEST_MARKERS[0]}\n#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
+def test_if_zero_elif_run_test_registration_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"#if 0\n{RUN_TEST_MARKERS[0]}\n#elif 1\n{RUN_TEST_MARKERS[0]}\n#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
 def test_reordered_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -375,6 +431,21 @@ def test_if_zero_moved_definition_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
 
 
+def test_if_zero_else_moved_definition_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                f"#if 0\n{MOVED_DEFINITION_MARKERS[0]}\n"
+                f"#else\n{MOVED_DEFINITION_MARKERS[0]}\n#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
 def test_moved_definition_in_proof_owner_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -427,6 +498,7 @@ if __name__ == "__main__":
     test_missing_native_helper_include_fails_clearly()
     test_line_commented_native_helper_include_fails_clearly()
     test_block_commented_native_helper_include_fails_clearly()
+    test_if_zero_else_native_helper_include_passes_guard()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_native_helper_extra_makefile_registration_fails_clearly()
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
@@ -436,11 +508,14 @@ if __name__ == "__main__":
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()
     test_if_zero_run_test_registration_fails_clearly()
+    test_if_zero_else_run_test_registration_passes_guard()
+    test_if_zero_elif_run_test_registration_passes_guard()
     test_reordered_run_test_registration_fails_clearly()
     test_selected_registration_after_solve_block_fails_clearly()
     test_moved_definition_missing_from_native_helper_fails_clearly()
     test_block_commented_moved_definition_fails_clearly()
     test_if_zero_moved_definition_fails_clearly()
+    test_if_zero_else_moved_definition_passes_guard()
     test_moved_definition_in_proof_owner_fails_clearly()
     test_moved_definition_in_wrong_helper_fails_clearly()
     test_native_helper_cmake_registration_fails_clearly()

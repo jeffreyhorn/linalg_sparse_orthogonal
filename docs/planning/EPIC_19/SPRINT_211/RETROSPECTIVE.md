@@ -59,8 +59,9 @@ documentation, and ran integrated validation.
    summary at `100` tests, `0` failures, `0` skips, and `3556` assertions.
 
 4. **The guard became more review-resistant.** Review hardening closed active
-   include, single-translation-unit, Makefile occurrence, `#if 0`, and
-   selected-before-solve boundary gaps.
+   include, single-translation-unit, Makefile occurrence, zero-valued `#if`,
+   and selected-before-solve boundary gaps while centralizing the active-code
+   scanner prelude.
 
 5. **Build-system evidence is explicit.** The Makefile helper prerequisite rule
    covers stale-binary risk, and CMake registration parity stayed aligned at
@@ -72,8 +73,9 @@ documentation, and ran integrated validation.
    but the total test surface gained a selected helper and two Python
    validation files.
 
-2. **Guard complexity grew.** The shell guard now duplicates comment-stripping
-   logic for active fixed-string, include, and registration checks.
+2. **Guard complexity grew.** The shell guard now has one shared active-code
+   scanner prelude, but conditional parsing, comment stripping, and ownership
+   checks remain more complex than the Day 5 baseline guard.
 
 3. **Full validation remains expensive.** The branch changed C/H surfaces, so
    `make format && make lint && make test` was required and slow.
@@ -103,8 +105,8 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 752 | +613 |
-| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 614 | +614 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 509 | +370 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 661 | +661 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

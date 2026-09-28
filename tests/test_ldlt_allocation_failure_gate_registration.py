@@ -87,12 +87,66 @@ def active_run_test_count(text: str, test_name: str) -> int:
     return len(pattern.findall(active_text))
 
 
+def extract_c_function_body(text: str, function_name: str) -> str:
+    active_text = c_source_without_comments(text)
+    signature = re.search(
+        rf"\b{re.escape(function_name)}\s*\([^)]*\)\s*\{{",
+        active_text,
+    )
+    if not signature:
+        raise AssertionError(f"tests/test_ldlt.c missing function: {function_name}")
+
+    body_start = signature.end()
+    depth = 1
+    index = body_start
+    in_string = False
+    in_char = False
+    escaped = False
+    while index < len(active_text):
+        char = active_text[index]
+        if in_string or in_char:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif in_string and char == '"':
+                in_string = False
+            elif in_char and char == "'":
+                in_char = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "'":
+            in_char = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return active_text[body_start:index]
+        index += 1
+
+    raise AssertionError(f"tests/test_ldlt.c has unterminated function: {function_name}")
+
+
 def require_active_run_test_once(text: str, test_name: str) -> None:
     count = active_run_test_count(text, test_name)
     if count != 1:
         raise AssertionError(
             "tests/test_ldlt.c must retain active proof-owner registration "
             f"RUN_TEST({test_name}) exactly once; found {count}"
+        )
+
+
+def require_focused_runner_test_once(runner_body: str, test_name: str) -> None:
+    count = active_run_test_count(runner_body, test_name)
+    if count != 1:
+        raise AssertionError(
+            "tests/test_ldlt.c must register proof-owner test inside "
+            "run_ldlt_linked_list_allocation_failure_tests exactly once: "
+            f"RUN_TEST({test_name}); found {count}"
         )
 
 
@@ -111,8 +165,27 @@ static void run_tests(void) {
         raise AssertionError(f"block-commented RUN_TEST lines must be ignored; found {count}")
 
 
+def test_required_run_test_must_be_in_focused_runner() -> None:
+    sample = """
+static void run_ldlt_linked_list_allocation_failure_tests(void) {
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_outputs);
+}
+
+int main(void) {
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+}
+"""
+    runner_body = extract_c_function_body(sample, "run_ldlt_linked_list_allocation_failure_tests")
+    count = active_run_test_count(runner_body, "test_ldlt_linked_list_success_cleanup_free_safe")
+    if count != 0:
+        raise AssertionError(
+            "focused runner guard must not count RUN_TEST registrations outside the runner"
+        )
+
+
 def main() -> None:
     test_block_comment_run_test_is_ignored()
+    test_required_run_test_must_be_in_focused_runner()
 
     makefile = MAKEFILE.read_text()
     cmake = CMAKE.read_text()
@@ -184,8 +257,13 @@ def main() -> None:
         "test_ldlt_linked_list_allocation_failures_clear_stale_outputs",
         "test_ldlt_linked_list_success_cleanup_free_safe",
     ]
+    focused_runner_body = extract_c_function_body(
+        test_ldlt,
+        "run_ldlt_linked_list_allocation_failure_tests",
+    )
     for test_name in required_tests:
         require_active_run_test_once(test_ldlt, test_name)
+        require_focused_runner_test_once(focused_runner_body, test_name)
 
     require_contains(
         test_ldlt,

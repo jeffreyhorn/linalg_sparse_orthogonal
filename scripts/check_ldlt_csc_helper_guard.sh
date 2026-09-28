@@ -137,7 +137,7 @@ active_fixed_count_in_file() {
 
     awk -v marker="$marker" '
         function if_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef)([[:space:]]|$)/
         }
         function elif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
@@ -150,6 +150,15 @@ active_fixed_count_in_file() {
         }
         function false_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function true_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
+                (line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/ && !false_condition(line)) ||
+                line ~ /^[[:space:]]*#[[:space:]]*elif[[:space:]]+1([[:space:]]|$)/
+        }
+        function unknown_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/ &&
+                !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
             for (i = 1; i < conditional_depth; i++)
@@ -166,14 +175,15 @@ active_fixed_count_in_file() {
         function update_conditionals(line,    parent) {
             if (if_directive(line)) {
                 conditional_depth++
-                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent_active() && true_condition(line)
+                conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (elif_directive(line)) {
                 parent = parent_active()
-                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
+                    unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (else_directive(line)) {
@@ -231,7 +241,7 @@ active_include_count() {
 
     awk -v include_name="$include_name" '
         function if_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef)([[:space:]]|$)/
         }
         function elif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
@@ -244,6 +254,15 @@ active_include_count() {
         }
         function false_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function true_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
+                (line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/ && !false_condition(line)) ||
+                line ~ /^[[:space:]]*#[[:space:]]*elif[[:space:]]+1([[:space:]]|$)/
+        }
+        function unknown_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/ &&
+                !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
             for (i = 1; i < conditional_depth; i++)
@@ -260,14 +279,15 @@ active_include_count() {
         function update_conditionals(line,    parent) {
             if (if_directive(line)) {
                 conditional_depth++
-                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent_active() && true_condition(line)
+                conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (elif_directive(line)) {
                 parent = parent_active()
-                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
+                    unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (else_directive(line)) {
@@ -306,14 +326,22 @@ active_include_count() {
             }
             return out
         }
+        function include_basename_matches(line, include_name,    target) {
+            if (line !~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*"/)
+                return 0
+            target = line
+            sub(/^[[:space:]]*#[[:space:]]*include[[:space:]]*"/, "", target)
+            sub(/".*$/, "", target)
+            sub(/^.*\//, "", target)
+            return target == include_name
+        }
         {
             active = strip_comments($0)
             if (update_conditionals(active))
                 next
             if (!current_active())
                 next
-            if (active ~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*"/ &&
-                index(active, "\"" include_name "\"") > 0)
+            if (include_basename_matches(active, include_name))
                 count++
         }
         END { print count + 0 }
@@ -325,7 +353,7 @@ active_run_test_count() {
 
     awk -v marker="$marker" '
         function if_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef)([[:space:]]|$)/
         }
         function elif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
@@ -338,6 +366,15 @@ active_run_test_count() {
         }
         function false_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function true_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
+                (line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/ && !false_condition(line)) ||
+                line ~ /^[[:space:]]*#[[:space:]]*elif[[:space:]]+1([[:space:]]|$)/
+        }
+        function unknown_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/ &&
+                !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
             for (i = 1; i < conditional_depth; i++)
@@ -354,14 +391,15 @@ active_run_test_count() {
         function update_conditionals(line,    parent) {
             if (if_directive(line)) {
                 conditional_depth++
-                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent_active() && true_condition(line)
+                conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (elif_directive(line)) {
                 parent = parent_active()
-                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
+                    unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (else_directive(line)) {
@@ -418,7 +456,7 @@ active_run_test_line() {
 
     awk -v marker="$marker" '
         function if_directive(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef)([[:space:]]|$)/
         }
         function elif_directive(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/
@@ -431,6 +469,15 @@ active_run_test_line() {
         }
         function false_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+0([[:space:]]|$)/
+        }
+        function true_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
+                (line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/ && !false_condition(line)) ||
+                line ~ /^[[:space:]]*#[[:space:]]*elif[[:space:]]+1([[:space:]]|$)/
+        }
+        function unknown_condition(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/ &&
+                !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
             for (i = 1; i < conditional_depth; i++)
@@ -447,14 +494,15 @@ active_run_test_line() {
         function update_conditionals(line,    parent) {
             if (if_directive(line)) {
                 conditional_depth++
-                conditional_active[conditional_depth] = parent_active() && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent_active() && true_condition(line)
+                conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (elif_directive(line)) {
                 parent = parent_active()
-                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && !false_condition(line)
-                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] || conditional_active[conditional_depth]
+                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
+                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
+                    unknown_condition(line) || conditional_active[conditional_depth]
                 return 1
             }
             if (else_directive(line)) {

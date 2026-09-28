@@ -11,7 +11,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
-| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, counts every literal helper basename occurrence in `Makefile` before accepting the single `build/test_ldlt_csc` prerequisite occurrence, uses branch-aware `#if`/`#elif`/`#else`/`#endif` state for active-code scans, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted include basenames so path-qualified includes are counted, counts every literal helper basename occurrence in `Makefile`, uses branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` state for active-code scans while rejecting ambiguous non-constant `#elif` ownership, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ## Regression Coverage Added
 
@@ -24,13 +24,18 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_native_helper_bare_makefile_registration_fails_clearly()` | Proves a bare helper basename registration is still counted as an extra Makefile occurrence. |
 | `test_native_helper_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit. |
 | `test_native_helper_examples_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit outside `tests`, `src`, or `include`. |
+| `test_native_helper_path_qualified_examples_include_fails_clearly()` | Proves path-qualified helper includes outside the proof owner are counted by basename and rejected. |
 | `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
 | `test_if_zero_else_native_helper_include_passes_guard()` | Proves a helper include in the active `#else` branch of `#if 0` is accepted. |
+| `test_path_qualified_native_helper_include_passes_guard()` | Proves path-qualified helper includes in the proof owner are counted by basename. |
+| `test_ifdef_native_helper_include_passes_guard()` | Proves primary `#ifdef` branches remain scannable for helper includes. |
 | `test_if_zero_else_run_test_registration_passes_guard()` | Proves a selected registration in the active `#else` branch of `#if 0` is accepted. |
 | `test_if_zero_elif_run_test_registration_passes_guard()` | Proves a selected registration in an active `#elif` branch after `#if 0` is accepted. |
+| `test_if_zero_unknown_elif_run_test_registration_fails_closed()` | Proves ambiguous non-constant `#elif` ownership is rejected. |
 | `test_selected_registration_after_solve_block_fails_clearly()` | Proves selected native registrations must remain before the Day 9 solve block. |
 | `test_if_zero_moved_definition_fails_clearly()` | Proves inactive moved definitions under `#if 0` do not satisfy helper ownership. |
 | `test_if_zero_else_moved_definition_passes_guard()` | Proves a moved definition in the active `#else` branch of `#if 0` is accepted. |
+| `test_ifndef_moved_definition_passes_guard()` | Proves primary `#ifndef` branches remain scannable for moved definitions. |
 
 ## Changed Surface
 
@@ -49,8 +54,8 @@ chain remains the Day 12 `make format && make lint && make test` pass.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 704 |
-| `tests/test_ldlt_csc_helper_guard.py` | 534 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 752 |
+| `tests/test_ldlt_csc_helper_guard.py` | 614 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ## Validation

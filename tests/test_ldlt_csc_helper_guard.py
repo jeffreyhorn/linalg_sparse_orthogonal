@@ -214,6 +214,36 @@ def test_if_zero_else_native_helper_include_passes_guard() -> None:
     assert_guard_passes_with(mutate)
 
 
+def test_path_qualified_native_helper_include_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"',
+                '#include "helpers/test_ldlt_csc_native_parity_helpers.h"',
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
+def test_ifdef_native_helper_include_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"',
+                "#ifdef ENABLE_NATIVE_HELPER\n"
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
 def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -282,6 +312,17 @@ def test_native_helper_examples_translation_unit_include_fails_clearly() -> None
         (root / "examples").mkdir()
         (root / "examples" / "example_other.c").write_text(
             '#include "test_ldlt_csc_native_parity_helpers.h"\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be included by examples/example_other.c")
+
+
+def test_native_helper_path_qualified_examples_include_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "examples").mkdir()
+        (root / "examples" / "example_other.c").write_text(
+            '#include "../tests/test_ldlt_csc_native_parity_helpers.h"\n',
             encoding="utf-8",
         )
 
@@ -367,6 +408,24 @@ def test_if_zero_elif_run_test_registration_passes_guard() -> None:
         )
 
     assert_guard_passes_with(mutate)
+
+
+def test_if_zero_unknown_elif_run_test_registration_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                "#if 0\n"
+                f"{RUN_TEST_MARKERS[0]}\n"
+                "#elif ENABLE_NATIVE_REGISTRATION\n"
+                f"{RUN_TEST_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "as an active RUN_TEST line")
 
 
 def test_reordered_run_test_registration_fails_clearly() -> None:
@@ -457,6 +516,22 @@ def test_if_zero_else_moved_definition_passes_guard() -> None:
     assert_guard_passes_with(mutate)
 
 
+def test_ifndef_moved_definition_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                "#ifndef SKIP_NATIVE_DEFINITION\n"
+                f"{MOVED_DEFINITION_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
 def test_moved_definition_in_proof_owner_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -510,24 +585,29 @@ if __name__ == "__main__":
     test_line_commented_native_helper_include_fails_clearly()
     test_block_commented_native_helper_include_fails_clearly()
     test_if_zero_else_native_helper_include_passes_guard()
+    test_path_qualified_native_helper_include_passes_guard()
+    test_ifdef_native_helper_include_passes_guard()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_native_helper_extra_makefile_registration_fails_clearly()
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
     test_native_helper_bare_makefile_registration_fails_clearly()
     test_native_helper_second_translation_unit_include_fails_clearly()
     test_native_helper_examples_translation_unit_include_fails_clearly()
+    test_native_helper_path_qualified_examples_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()
     test_if_zero_run_test_registration_fails_clearly()
     test_if_zero_else_run_test_registration_passes_guard()
     test_if_zero_elif_run_test_registration_passes_guard()
+    test_if_zero_unknown_elif_run_test_registration_fails_closed()
     test_reordered_run_test_registration_fails_clearly()
     test_selected_registration_after_solve_block_fails_clearly()
     test_moved_definition_missing_from_native_helper_fails_clearly()
     test_block_commented_moved_definition_fails_clearly()
     test_if_zero_moved_definition_fails_clearly()
     test_if_zero_else_moved_definition_passes_guard()
+    test_ifndef_moved_definition_passes_guard()
     test_moved_definition_in_proof_owner_fails_clearly()
     test_moved_definition_in_wrong_helper_fails_clearly()
     test_native_helper_cmake_registration_fails_clearly()

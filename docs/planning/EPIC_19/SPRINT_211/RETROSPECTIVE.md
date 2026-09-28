@@ -103,8 +103,8 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 523 | +384 |
-| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 418 | +418 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 539 | +400 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 447 | +447 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

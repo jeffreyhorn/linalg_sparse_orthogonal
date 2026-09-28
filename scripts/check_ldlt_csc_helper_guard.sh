@@ -115,6 +115,22 @@ require_exact_fixed_count() {
     fi
 }
 
+fixed_occurrence_count() {
+    local needle="$1"
+    local file="$2"
+
+    awk -v needle="$needle" '
+        {
+            line = $0
+            while ((pos = index(line, needle)) > 0) {
+                count++
+                line = substr(line, pos + length(needle))
+            }
+        }
+        END { print count + 0 }
+    ' "$file"
+}
+
 active_fixed_count_in_file() {
     local marker="$1"
     local file="$2"
@@ -413,10 +429,7 @@ check_helper_headers() {
         if [ "$count" -ne 1 ]; then
             fail "tests/test_ldlt_csc.c must include $include_name exactly once as an active include (found $count)"
         fi
-        count="$(grep --fixed-strings --count -- "\$(TESTDIR)/$include_name" "$MAKEFILE" 2>/dev/null || true)"
-        if [ -z "$count" ]; then
-            count=0
-        fi
+        count="$(fixed_occurrence_count "$include_name" "$MAKEFILE")"
         if [ "$count" -ne 1 ]; then
             fail "Makefile must list $include_name exactly once, only as a test_ldlt_csc prerequisite (found $count)"
         fi

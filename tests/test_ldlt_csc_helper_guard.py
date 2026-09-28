@@ -212,6 +212,33 @@ def test_native_helper_extra_makefile_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "exactly once, only as a test_ldlt_csc prerequisite")
 
 
+def test_native_helper_duplicate_same_line_makefile_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h",
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h "
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "exactly once, only as a test_ldlt_csc prerequisite")
+
+
+def test_native_helper_bare_makefile_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "TEST_SRCS += test_ldlt_csc_native_parity_helpers.h\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "exactly once, only as a test_ldlt_csc prerequisite")
+
+
 def test_native_helper_second_translation_unit_include_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "tests" / "test_other.c").write_text(
@@ -402,6 +429,8 @@ if __name__ == "__main__":
     test_block_commented_native_helper_include_fails_clearly()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_native_helper_extra_makefile_registration_fails_clearly()
+    test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
+    test_native_helper_bare_makefile_registration_fails_clearly()
     test_native_helper_second_translation_unit_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()

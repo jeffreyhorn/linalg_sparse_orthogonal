@@ -87,7 +87,7 @@ def write_fixture(root: Path) -> None:
         "".join(f'#include "{name}"\n' for name in HELPERS)
         + "\n"
         + "\n".join(RUN_TEST_MARKERS)
-        + "\n",
+        + "\nRUN_TEST(test_solve_null_args);\n",
         encoding="utf-8",
     )
     for name in HELPERS:
@@ -200,6 +200,28 @@ def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must list test_ldlt_csc_native_parity_helpers.h")
 
 
+def test_native_helper_extra_makefile_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "TEST_SRCS += $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "exactly once, only as a test_ldlt_csc prerequisite")
+
+
+def test_native_helper_second_translation_unit_include_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "tests" / "test_other.c").write_text(
+            '#include "test_ldlt_csc_native_parity_helpers.h"\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be included by tests/test_other.c")
+
+
 def test_missing_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -239,6 +261,20 @@ def test_block_commented_run_test_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "as an active RUN_TEST line")
 
 
+def test_if_zero_run_test_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"#if 0\n{RUN_TEST_MARKERS[0]}\n#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "as an active RUN_TEST line")
+
+
 def test_reordered_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -247,11 +283,27 @@ def test_reordered_run_test_registration_fails_clearly() -> None:
             "".join(f'#include "{name}"\n' for name in HELPERS)
             + "\n"
             + "\n".join(reordered)
-            + "\n",
+            + "\nRUN_TEST(test_solve_null_args);\n",
             encoding="utf-8",
         )
 
     assert_guard_fails_with(mutate, "selected RUN_TEST registrations changed order")
+
+
+def test_selected_registration_after_solve_block_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            "".join(f'#include "{name}"\n' for name in HELPERS)
+            + "\n"
+            + "\n".join(RUN_TEST_MARKERS[:-1])
+            + "\nRUN_TEST(test_solve_null_args);\n"
+            + RUN_TEST_MARKERS[-1]
+            + "\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must remain before Day 9 solve registration")
 
 
 def test_moved_definition_missing_from_native_helper_fails_clearly() -> None:
@@ -275,6 +327,20 @@ def test_block_commented_moved_definition_fails_clearly() -> None:
             path.read_text(encoding="utf-8").replace(
                 MOVED_DEFINITION_MARKERS[0],
                 f"/* {MOVED_DEFINITION_MARKERS[0]} */",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
+
+
+def test_if_zero_moved_definition_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                f"#if 0\n{MOVED_DEFINITION_MARKERS[0]}\n#endif",
             ),
             encoding="utf-8",
         )
@@ -335,12 +401,17 @@ if __name__ == "__main__":
     test_line_commented_native_helper_include_fails_clearly()
     test_block_commented_native_helper_include_fails_clearly()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
+    test_native_helper_extra_makefile_registration_fails_clearly()
+    test_native_helper_second_translation_unit_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()
+    test_if_zero_run_test_registration_fails_clearly()
     test_reordered_run_test_registration_fails_clearly()
+    test_selected_registration_after_solve_block_fails_clearly()
     test_moved_definition_missing_from_native_helper_fails_clearly()
     test_block_commented_moved_definition_fails_clearly()
+    test_if_zero_moved_definition_fails_clearly()
     test_moved_definition_in_proof_owner_fails_clearly()
     test_moved_definition_in_wrong_helper_fails_clearly()
     test_native_helper_cmake_registration_fails_clearly()

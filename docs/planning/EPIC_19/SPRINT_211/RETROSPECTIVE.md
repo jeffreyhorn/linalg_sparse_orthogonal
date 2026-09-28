@@ -58,8 +58,9 @@ documentation, and ran integrated validation.
    checks the 13 selected pass markers in order and pins the `test_ldlt_csc`
    summary at `100` tests, `0` failures, `0` skips, and `3556` assertions.
 
-4. **The guard became more review-resistant.** Review hardening closed a real
-   active-include gap so commented helper includes no longer satisfy the guard.
+4. **The guard became more review-resistant.** Review hardening closed active
+   include, single-translation-unit, Makefile occurrence, `#if 0`, and
+   selected-before-solve boundary gaps.
 
 5. **Build-system evidence is explicit.** The Makefile helper prerequisite rule
    covers stale-binary risk, and CMake registration parity stayed aligned at
@@ -102,6 +103,8 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 523 | +384 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 418 | +418 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

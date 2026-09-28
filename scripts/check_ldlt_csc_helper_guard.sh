@@ -37,6 +37,8 @@ RUN_TEST_MARKERS=(
     "RUN_TEST(test_native_2x2_inertia_matches_wrapper);"
 )
 
+SOLVE_RUN_TEST_MARKER="RUN_TEST(test_solve_null_args);"
+
 MOVED_DEFINITION_MARKERS=(
     "static void test_native_1x1_diagonal_matches_wrapper(void) {"
     "static void test_native_1x1_tridiagonal_matches_wrapper(void) {"
@@ -118,6 +120,12 @@ active_fixed_count_in_file() {
     local file="$2"
 
     awk -v marker="$marker" '
+        function inactive_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        }
+        function endif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
         function strip_comments(line,    start, end, out) {
             out = ""
             while (length(line) > 0) {
@@ -142,6 +150,17 @@ active_fixed_count_in_file() {
         }
         {
             active = strip_comments($0)
+            if (inactive_depth > 0) {
+                if (inactive_directive(active))
+                    inactive_depth++
+                else if (endif_directive(active))
+                    inactive_depth--
+                next
+            }
+            if (inactive_directive(active)) {
+                inactive_depth = 1
+                next
+            }
             if (index(active, marker) > 0)
                 count++
         }
@@ -151,8 +170,15 @@ active_fixed_count_in_file() {
 
 active_include_count() {
     local include_name="$1"
+    local file="${2:-$TEST_FILE}"
 
     awk -v include_name="$include_name" '
+        function inactive_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        }
+        function endif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
         function strip_comments(line,    start, end, out) {
             out = ""
             while (length(line) > 0) {
@@ -177,18 +203,35 @@ active_include_count() {
         }
         {
             active = strip_comments($0)
+            if (inactive_depth > 0) {
+                if (inactive_directive(active))
+                    inactive_depth++
+                else if (endif_directive(active))
+                    inactive_depth--
+                next
+            }
+            if (inactive_directive(active)) {
+                inactive_depth = 1
+                next
+            }
             if (active ~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*"/ &&
                 index(active, "\"" include_name "\"") > 0)
                 count++
         }
         END { print count + 0 }
-    ' "$TEST_FILE"
+    ' "$file"
 }
 
 active_run_test_count() {
     local marker="$1"
 
     awk -v marker="$marker" '
+        function inactive_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        }
+        function endif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
         function strip_comments(line,    start, end, out) {
             out = ""
             while (length(line) > 0) {
@@ -213,6 +256,17 @@ active_run_test_count() {
         }
         {
             active = strip_comments($0)
+            if (inactive_depth > 0) {
+                if (inactive_directive(active))
+                    inactive_depth++
+                else if (endif_directive(active))
+                    inactive_depth--
+                next
+            }
+            if (inactive_directive(active)) {
+                inactive_depth = 1
+                next
+            }
             if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index(active, marker) > 0)
                 count++
         }
@@ -224,6 +278,12 @@ active_run_test_line() {
     local marker="$1"
 
     awk -v marker="$marker" '
+        function inactive_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+0([[:space:]]|$)/
+        }
+        function endif_directive(line) {
+            return line ~ /^[[:space:]]*#[[:space:]]*endif([[:space:]]|$)/
+        }
         function strip_comments(line,    start, end, out) {
             out = ""
             while (length(line) > 0) {
@@ -248,6 +308,17 @@ active_run_test_line() {
         }
         {
             active = strip_comments($0)
+            if (inactive_depth > 0) {
+                if (inactive_directive(active))
+                    inactive_depth++
+                else if (endif_directive(active))
+                    inactive_depth--
+                next
+            }
+            if (inactive_directive(active)) {
+                inactive_depth = 1
+                next
+            }
             if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index(active, marker) > 0) {
                 print NR
                 found = 1
@@ -275,6 +346,7 @@ require_increasing_run_test_order() {
     local marker
     local line
     local previous_line=0
+    local solve_line
 
     for marker in "${RUN_TEST_MARKERS[@]}"; do
         line="$(active_run_test_line "$marker")"
@@ -283,6 +355,14 @@ require_increasing_run_test_order() {
         fi
         previous_line="$line"
     done
+
+    solve_line="$(active_run_test_line "$SOLVE_RUN_TEST_MARKER")"
+    if [ -z "$solve_line" ]; then
+        fail "tests/test_ldlt_csc.c must retain Day 9 solve registration '$SOLVE_RUN_TEST_MARKER'"
+    fi
+    if [ "$solve_line" -le "$previous_line" ]; then
+        fail "tests/test_ldlt_csc.c selected RUN_TEST registrations must remain before Day 9 solve registration '$SOLVE_RUN_TEST_MARKER'"
+    fi
 }
 
 require_test_ldlt_csc_rule_prerequisite() {
@@ -333,11 +413,42 @@ check_helper_headers() {
         if [ "$count" -ne 1 ]; then
             fail "tests/test_ldlt_csc.c must include $include_name exactly once as an active include (found $count)"
         fi
+        count="$(grep --fixed-strings --count -- "\$(TESTDIR)/$include_name" "$MAKEFILE" 2>/dev/null || true)"
+        if [ -z "$count" ]; then
+            count=0
+        fi
+        if [ "$count" -ne 1 ]; then
+            fail "Makefile must list $include_name exactly once, only as a test_ldlt_csc prerequisite (found $count)"
+        fi
         require_test_ldlt_csc_rule_prerequisite "\$(TESTDIR)/$include_name" \
             "Makefile test_ldlt_csc prerequisite rule must list $include_name"
     done
 
     pass "helper headers"
+}
+
+check_native_helper_translation_unit() {
+    local include_name
+    local file
+    local rel_file
+    local count
+
+    include_name="$(basename "$NATIVE_HELPER")"
+
+    while IFS= read -r file; do
+        count="$(active_include_count "$include_name" "$file")"
+        if [ "$file" = "$TEST_FILE" ]; then
+            if [ "$count" -ne 1 ]; then
+                fail "tests/test_ldlt_csc.c must be the single active translation-unit includer of $include_name"
+            fi
+        elif [ "$count" -ne 0 ]; then
+            rel_file="${file#$ROOT_DIR/}"
+            fail "$include_name must not be included by $rel_file"
+        fi
+    done < <(find "$ROOT_DIR/tests" "$ROOT_DIR/src" "$ROOT_DIR/include" \
+        -type f \( -name '*.c' -o -name '*.h' \) | sort)
+
+    pass "single translation-unit ownership"
 }
 
 check_header_only_registration() {
@@ -407,6 +518,7 @@ check_moved_definition_ownership() {
 
 check_proof_owner_registration
 check_helper_headers
+check_native_helper_translation_unit
 check_header_only_registration
 check_selected_run_test_registrations
 check_moved_definition_ownership

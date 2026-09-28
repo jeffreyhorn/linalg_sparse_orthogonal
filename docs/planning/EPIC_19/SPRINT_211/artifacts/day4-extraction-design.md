@@ -28,12 +28,14 @@ helpers.
 
 ## Planned Include Direction
 
-`tests/test_ldlt_csc.c` should include the new helper after the oracle helper:
+`tests/test_ldlt_csc.c` should include the new helper between the fixture and
+oracle helpers. The helper itself includes `test_ldlt_csc_oracle_helpers.h`
+for native/wrapper comparison helpers:
 
 ```c
 #include "test_ldlt_csc_fixtures.h"
-#include "test_ldlt_csc_oracle_helpers.h"
 #include "test_ldlt_csc_native_parity_helpers.h"
+#include "test_ldlt_csc_oracle_helpers.h"
 #include "test_ldlt_csc_supernode_helpers.h"
 ```
 
@@ -93,6 +95,11 @@ Do not add the new helper to:
 If Makefile prerequisite updates become necessary, they must attach only to the
 existing `test_ldlt_csc` proof-owner target and must be covered by the LDLT CSC
 helper guard.
+
+The final implementation does require that explicit Makefile prerequisite so
+helper-only edits rebuild `build/test_ldlt_csc`; the helper must still not be
+listed in `TEST_SRCS`, `TEST_BINS`, CMake/CTest registration, or library
+source metadata.
 
 ## Guard Strategy
 

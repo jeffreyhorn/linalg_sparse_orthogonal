@@ -507,8 +507,8 @@ owner, and `RUN_TEST(...)` registration owner.
 | --- | --- |
 | File type | Header-only test helper, matching existing LDLT CSC helper headers. |
 | Visibility | `static` functions in the including translation unit; no external symbols. |
-| Include direction | `tests/test_ldlt_csc.c` includes the new header after `test_ldlt_csc_oracle_helpers.h`. |
-| Source-list registration | Do not add the helper to `TEST_SRCS`, `CMakeLists.txt`, or `build-metadata/library_sources.txt`. |
+| Include direction | `tests/test_ldlt_csc.c` includes the new header between `test_ldlt_csc_fixtures.h` and `test_ldlt_csc_oracle_helpers.h`; the helper itself includes `test_ldlt_csc_oracle_helpers.h` for native/wrapper comparison helpers. |
+| Source-list registration | Do not add the helper to `TEST_SRCS`, `TEST_BINS`, `CMakeLists.txt`, CTest registration, or `build-metadata/library_sources.txt`; the only Makefile mention should be the `build/test_ldlt_csc` prerequisite. |
 | Test registration | Keep all selected `RUN_TEST(...)` calls in `tests/test_ldlt_csc.c`. |
 | Public API impact | None. No production source or public header changes. |
 
@@ -574,8 +574,9 @@ Extend `scripts/check_ldlt_csc_helper_guard.sh` when the new helper is created:
 
 1. Add `tests/test_ldlt_csc_native_parity_helpers.h` to `HELPERS`.
 2. Require the new include guard and exactly one include in `tests/test_ldlt_csc.c`.
-3. Continue rejecting the helper header in `Makefile`, `CMakeLists.txt`, and
-   `build-metadata/library_sources.txt`.
+3. Require the helper headers as explicit prerequisites of the existing
+   `build/test_ldlt_csc` proof-owner target and reject extra Makefile
+   occurrences outside that rule.
 4. Reject `add_sparse_test(test_ldlt_csc_native_parity_helpers)` or equivalent
    standalone proof-owner registration.
 5. Add active-registration checks for the selected native parity `RUN_TEST(...)`
@@ -587,14 +588,10 @@ Extend `scripts/check_ldlt_csc_helper_guard.sh` when the new helper is created:
 
 ### Build And Source-List Plan
 
-No Makefile or CMake test registration change is planned. The only build-list
-touch should be the guard script recognizing the new header and enforcing that
-it remains header-only.
-
-If implementation unexpectedly needs Makefile prerequisite coverage for the
-helper header, add it only to the existing `test_ldlt_csc` proof-owner
-dependency path and record that change in the relevant implementation artifact.
-Do not create a new executable test target.
+No CMake test registration change is planned. The Makefile must list the
+helper headers only as prerequisites of the existing `test_ldlt_csc`
+proof-owner target so helper-only edits rebuild the proof-owner binary. Do not
+create a new executable test target.
 
 ### Behavior Preservation Checks For Implementation
 
@@ -699,6 +696,7 @@ Day 9 solve block.
 Current LDLT CSC helper includes in `tests/test_ldlt_csc.c`:
 
 - `#include "test_ldlt_csc_fixtures.h"`;
+- `#include "test_ldlt_csc_native_parity_helpers.h"`;
 - `#include "test_ldlt_csc_oracle_helpers.h"`;
 - `#include "test_ldlt_csc_supernode_helpers.h"`.
 
@@ -707,8 +705,9 @@ Current proof-owner registrations:
 - `Makefile` contains `$(TESTDIR)/test_ldlt_csc.c`;
 - `CMakeLists.txt` contains `add_sparse_test(test_ldlt_csc)`.
 
-Day 6 should add `#include "test_ldlt_csc_native_parity_helpers.h"` after the
-oracle helper include and should not create a new proof-owner test target.
+Day 6 should add `#include "test_ldlt_csc_native_parity_helpers.h"` between
+the fixture and oracle helper includes and should not create a new proof-owner
+test target.
 
 ### Day 5 Risks And Fallbacks
 
@@ -1312,6 +1311,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c`, rejects extra Makefile occurrences outside the `build/test_ldlt_csc` prerequisite rule, ignores `#if 0` inactive markers, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ### Regression Coverage Added
 
@@ -1319,6 +1319,11 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | --- | --- |
 | `test_line_commented_native_helper_include_fails_clearly()` | Proves a line-commented native helper include no longer satisfies the guard. |
 | `test_block_commented_native_helper_include_fails_clearly()` | Proves a block-commented native helper include no longer satisfies the guard. |
+| `test_native_helper_extra_makefile_registration_fails_clearly()` | Proves the helper cannot be added to an extra Makefile registration surface. |
+| `test_native_helper_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit. |
+| `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
+| `test_selected_registration_after_solve_block_fails_clearly()` | Proves selected native registrations must remain before the Day 9 solve block. |
+| `test_if_zero_moved_definition_fails_clearly()` | Proves inactive moved definitions under `#if 0` do not satisfy helper ownership. |
 
 ### Changed Files
 
@@ -1335,8 +1340,8 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 414 |
-| `tests/test_ldlt_csc_helper_guard.py` | 347 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 523 |
+| `tests/test_ldlt_csc_helper_guard.py` | 418 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ### Validation

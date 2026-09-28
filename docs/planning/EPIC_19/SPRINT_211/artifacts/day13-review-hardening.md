@@ -11,6 +11,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c`, rejects extra Makefile occurrences outside the `build/test_ldlt_csc` prerequisite rule, ignores `#if 0` inactive markers, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ## Regression Coverage Added
 
@@ -18,6 +19,11 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | --- | --- |
 | `test_line_commented_native_helper_include_fails_clearly()` | Proves a line-commented native helper include no longer satisfies the guard. |
 | `test_block_commented_native_helper_include_fails_clearly()` | Proves a block-commented native helper include no longer satisfies the guard. |
+| `test_native_helper_extra_makefile_registration_fails_clearly()` | Proves the helper cannot be added to an extra Makefile registration surface. |
+| `test_native_helper_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit. |
+| `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
+| `test_selected_registration_after_solve_block_fails_clearly()` | Proves selected native registrations must remain before the Day 9 solve block. |
+| `test_if_zero_moved_definition_fails_clearly()` | Proves inactive moved definitions under `#if 0` do not satisfy helper ownership. |
 
 ## Changed Surface
 
@@ -36,8 +42,8 @@ chain remains the Day 12 `make format && make lint && make test` pass.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 414 |
-| `tests/test_ldlt_csc_helper_guard.py` | 347 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 523 |
+| `tests/test_ldlt_csc_helper_guard.py` | 418 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ## Validation

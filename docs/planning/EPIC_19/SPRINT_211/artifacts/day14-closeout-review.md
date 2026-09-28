@@ -69,6 +69,12 @@ observed focused behavior summary.
 | `make quality-review-cmake-compile` | Passed on Day 12; `ctest -N` reported `60` tests and Makefile/CMake parity matched `59` Makefile tests plus `1` focused CTest-only selector. |
 | `git diff --check` | Passed on Day 14 after closeout documentation updates. |
 
+PR #234 review hardening later extended the guard with single translation-unit
+ownership, complete Makefile occurrence checks, `#if 0` awareness, and an
+explicit selected-registration-before-Day-9-solve boundary check. The focused
+guard, guard fixture, behavior runner, and whitespace checks passed after that
+hardening.
+
 ## Residual Risks
 
 - The full CMake `ctest` suite was not rerun locally; Day 12 covered CMake

@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""Guard selected linked-list LDLT allocation-failure gate registration."""
+
+import re
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MAKEFILE = ROOT / "Makefile"
+CMAKE = ROOT / "CMakeLists.txt"
+TEST_LDLT = ROOT / "tests" / "test_ldlt.c"
+
+
+def require_contains(text: str, needle: str, *, owner: Path) -> None:
+    if needle not in text:
+        raise AssertionError(f"{owner.relative_to(ROOT)} missing: {needle}")
+
+
+def require_not_contains(text: str, needle: str, *, owner: Path) -> None:
+    if needle in text:
+        raise AssertionError(f"{owner.relative_to(ROOT)} must not contain: {needle}")
+
+
+def c_source_without_comments(text: str) -> str:
+    result: list[str] = []
+    index = 0
+    in_block_comment = False
+    in_line_comment = False
+    in_string = False
+    in_char = False
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+
+        if in_block_comment:
+            if char == "\n":
+                result.append(char)
+            if char == "*" and next_char == "/":
+                in_block_comment = False
+                index += 2
+                continue
+            index += 1
+            continue
+
+        if in_line_comment:
+            if char == "\n":
+                in_line_comment = False
+                result.append(char)
+            index += 1
+            continue
+
+        if in_string or in_char:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif in_string and char == '"':
+                in_string = False
+            elif in_char and char == "'":
+                in_char = False
+            index += 1
+            continue
+
+        if char == "/" and next_char == "*":
+            in_block_comment = True
+            index += 2
+            continue
+        if char == "/" and next_char == "/":
+            in_line_comment = True
+            index += 2
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "'":
+            in_char = True
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def active_run_test_count(text: str, test_name: str) -> int:
+    active_text = c_source_without_comments(text)
+    pattern = re.compile(rf"^\s*RUN_TEST\({re.escape(test_name)}\);\s*$", re.MULTILINE)
+    return len(pattern.findall(active_text))
+
+
+def extract_c_function_body(text: str, function_name: str) -> str:
+    active_text = c_source_without_comments(text)
+    signature = re.search(
+        rf"\b{re.escape(function_name)}\s*\([^)]*\)\s*\{{",
+        active_text,
+    )
+    if not signature:
+        raise AssertionError(f"tests/test_ldlt.c missing function: {function_name}")
+
+    body_start = signature.end()
+    depth = 1
+    index = body_start
+    in_string = False
+    in_char = False
+    escaped = False
+    while index < len(active_text):
+        char = active_text[index]
+        if in_string or in_char:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif in_string and char == '"':
+                in_string = False
+            elif in_char and char == "'":
+                in_char = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "'":
+            in_char = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return active_text[body_start:index]
+        index += 1
+
+    raise AssertionError(f"tests/test_ldlt.c has unterminated function: {function_name}")
+
+
+def require_active_run_test_once(text: str, test_name: str) -> None:
+    count = active_run_test_count(text, test_name)
+    if count != 1:
+        raise AssertionError(
+            "tests/test_ldlt.c must retain active proof-owner registration "
+            f"RUN_TEST({test_name}) exactly once; found {count}"
+        )
+
+
+def require_focused_runner_test_once(runner_body: str, test_name: str) -> None:
+    count = active_run_test_count(runner_body, test_name)
+    if count != 1:
+        raise AssertionError(
+            "tests/test_ldlt.c must register proof-owner test inside "
+            "run_ldlt_linked_list_allocation_failure_tests exactly once: "
+            f"RUN_TEST({test_name}); found {count}"
+        )
+
+
+def test_block_comment_run_test_is_ignored() -> None:
+    sample = """
+static void run_tests(void) {
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+    /*
+     * RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+     */
+    const char *literal = "RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);";
+}
+"""
+    count = active_run_test_count(sample, "test_ldlt_linked_list_success_cleanup_free_safe")
+    if count != 1:
+        raise AssertionError(f"block-commented RUN_TEST lines must be ignored; found {count}")
+
+
+def test_required_run_test_must_be_in_focused_runner() -> None:
+    sample = """
+static void run_ldlt_linked_list_allocation_failure_tests(void) {
+    RUN_TEST(test_ldlt_linked_list_allocation_failures_clear_outputs);
+}
+
+int main(void) {
+    RUN_TEST(test_ldlt_linked_list_success_cleanup_free_safe);
+}
+"""
+    runner_body = extract_c_function_body(sample, "run_ldlt_linked_list_allocation_failure_tests")
+    count = active_run_test_count(runner_body, "test_ldlt_linked_list_success_cleanup_free_safe")
+    if count != 0:
+        raise AssertionError(
+            "focused runner guard must not count RUN_TEST registrations outside the runner"
+        )
+
+
+def main() -> None:
+    test_block_comment_run_test_is_ignored()
+    test_required_run_test_must_be_in_focused_runner()
+
+    makefile = MAKEFILE.read_text()
+    cmake = CMAKE.read_text()
+    test_ldlt = TEST_LDLT.read_text()
+
+    require_contains(
+        makefile,
+        ".PHONY: ldlt-linked-list-allocation-failure-gate",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "python3 tests/test_ldlt_allocation_failure_gate_registration.py",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1 $(BUILDDIR)/test_ldlt",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "CMAKE_FOCUSED_TESTS = test_ldlt_linked_list_allocation_failure_gate",
+        owner=MAKEFILE,
+    )
+    require_contains(
+        makefile,
+        "expected_count=$$((make_count + focused_count))",
+        owner=MAKEFILE,
+    )
+
+    require_contains(cmake, "add_sparse_test(test_ldlt)", owner=CMAKE)
+    require_contains(
+        cmake,
+        "add_test(NAME test_ldlt_linked_list_allocation_failure_gate COMMAND test_ldlt)",
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        "set_tests_properties(\n    test_ldlt_linked_list_allocation_failure_gate",
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        'ENVIRONMENT "SPARSE_TEST_LDLT_ALLOCATION_ONLY=1"',
+        owner=CMAKE,
+    )
+    require_contains(
+        cmake,
+        'LABELS "ldlt;linked_list;allocation_failure"',
+        owner=CMAKE,
+    )
+    require_not_contains(
+        cmake,
+        'set_tests_properties(test_ldlt PROPERTIES LABELS "ldlt;linked_list;allocation_failure")',
+        owner=CMAKE,
+    )
+
+    required_tests = [
+        "test_ldlt_linked_list_allocation_failures_clear_outputs",
+        "test_ldlt_linked_list_allocation_failures_recover_on_retry",
+        "test_ldlt_linked_list_retry_matches_success_baseline",
+        "test_ldlt_linked_list_allocation_failure_cleanup_repeatable",
+        "test_ldlt_linked_list_allocation_failures_clear_stale_outputs",
+        "test_ldlt_linked_list_success_cleanup_free_safe",
+    ]
+    focused_runner_body = extract_c_function_body(
+        test_ldlt,
+        "run_ldlt_linked_list_allocation_failure_tests",
+    )
+    for test_name in required_tests:
+        require_active_run_test_once(test_ldlt, test_name)
+        require_focused_runner_test_once(focused_runner_body, test_name)
+
+    require_contains(
+        test_ldlt,
+        'tf_env_enabled("SPARSE_TEST_LDLT_ALLOCATION_ONLY")',
+        owner=TEST_LDLT,
+    )
+    require_contains(
+        test_ldlt,
+        'TEST_SUITE_BEGIN("test_ldlt linked-list allocation-failure gate")',
+        owner=TEST_LDLT,
+    )
+    require_contains(
+        test_ldlt,
+        "run_ldlt_linked_list_allocation_failure_tests();",
+        owner=TEST_LDLT,
+    )
+
+    required_cases = [
+        '{"D output array", 0}',
+        '{"D_offdiag output array", 1}',
+        '{"pivot_size output array", 2}',
+        '{"working copy entry buffer", 3}',
+        '{"working copy column-tail scratch", 11}',
+        '{"L row headers", 12}',
+        '{"permutation output array", 18}',
+        '{"column accumulator workspace", 19}',
+        '{"pivot-candidate nonzero list workspace", 24}',
+    ]
+    for case in required_cases:
+        require_contains(test_ldlt, case, owner=TEST_LDLT)
+
+    required_assertions = [
+        "ASSERT_EQ((idx_t)ldlt_allocation_failure_case_count, 25);",
+        "assert_ldlt_failure_output_free_safe(&ldlt);",
+        "assert_ldlt_success_output_free_safe(&ldlt);",
+        "assert_ldlt_stale_output_sentinel_seeded(&ldlt);",
+        "assert_ldlt_success_outputs_match(&expected, &actual);",
+        "assert_ldlt_allocation_opts_unchanged(&opts, &opts_before);",
+        "assert_ldlt_allocation_hook_probe_after_reset();",
+    ]
+    for assertion in required_assertions:
+        require_contains(test_ldlt, assertion, owner=TEST_LDLT)
+
+    print("ldlt-allocation-failure-gate-registration: passed")
+
+
+if __name__ == "__main__":
+    main()

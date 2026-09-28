@@ -195,7 +195,7 @@ future review-surface work explicit.
 | Future need | Sprint 211 handoff |
 | --- | --- |
 | Current Epic 19 status | Start from `docs/planning/EPIC_19/PROJECT_PLAN.md`, which marks Sprint 211 closed and Sprints 212-216 pending. |
-| LDLT CSC helper changes | Run `make ldlt-csc-helper-guard`, `python3 tests/test_ldlt_csc_helper_guard.py`, and `python3 tests/test_ldlt_csc_native_parity_behavior.py`. |
+| LDLT CSC helper changes | Run `make ldlt-csc-helper-guard`; it runs the shell guard plus both Python regression suites. |
 | Source-list/docs validation | Run `make source-list-check`, `make docs-check`, and `git diff --check`. |
 | Source or header changes | Run `make format && make lint && make test` before closeout. |
 | CMake registration checks | Run `make quality-review-cmake-compile`; run full `make quality-review-cmake` only when full CMake suite evidence is required. |

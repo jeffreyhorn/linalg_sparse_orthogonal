@@ -14,8 +14,8 @@ changed surface, validation evidence, non-goals, and residual risks.
 | 211.2 Cluster Boundary | Complete | Day 3 froze `tests/test_ldlt_csc.c` as proof owner and scoped extraction to selected native parity test bodies only. |
 | 211.3 Extraction Design | Complete | Day 4 designed `tests/test_ldlt_csc_native_parity_helpers.h`, proof-owner registrations, Makefile dependency wiring, and guard strategy. |
 | 211.4 Extraction Implementation | Complete | Days 6-7 moved selected 1x1 and 2x2/native solve parity test bodies into the new helper without changing selected test names or registration order. |
-| 211.5 Guard And Test Coverage | Complete | Days 8-10 added Makefile helper prerequisites, active registration/order checks, moved-definition ownership checks, guard fixtures, and focused behavior regression. Day 13 hardened active include detection. |
-| 211.6 Validation And Closeout | Complete | Day 12 ran focused checks, source-list/docs checks, `make format && make lint && make test`, and CMake registration parity. Day 14 reconciles the final status. |
+| 211.5 Guard And Test Coverage | Complete | Days 8-10 added Makefile helper prerequisites, active registration/order checks, moved-definition ownership checks, guard fixtures, and focused behavior regression. Day 13 and PR #234 follow-up hardened active include detection, root-scan ownership, path-qualified include parsing, conditional parsing, and Makefile wiring for the Python guard/behavior suites. |
+| 211.6 Validation And Closeout | Complete | Day 12 ran focused checks, source-list/docs checks, `make format && make lint && make test`, and CMake registration parity. Day 14 and PR #234 follow-up reconcile final status and wire `make ldlt-csc-helper-guard` into the reviewed `quality-review-compile` path. |
 
 ## Final Review-Surface Metrics
 
@@ -60,9 +60,9 @@ observed focused behavior summary.
 
 | Command | Result |
 | --- | --- |
-| `make ldlt-csc-helper-guard` | Passed on Day 13 after active-include hardening. |
-| `python3 tests/test_ldlt_csc_helper_guard.py` | Passed on Day 13 after active-include regression additions. |
-| `python3 tests/test_ldlt_csc_native_parity_behavior.py` | Passed on Day 13. |
+| `make ldlt-csc-helper-guard` | Passed; now runs the shell guard plus `tests/test_ldlt_csc_helper_guard.py` and `tests/test_ldlt_csc_native_parity_behavior.py`. |
+| `python3 tests/test_ldlt_csc_helper_guard.py` | Covered by `make ldlt-csc-helper-guard`; latest PR #234 follow-up run through that target passed. |
+| `python3 tests/test_ldlt_csc_native_parity_behavior.py` | Covered by `make ldlt-csc-helper-guard`; latest PR #234 follow-up run through that target passed. |
 | `make source-list-check` | Passed on Day 12; reported `49` library sources. |
 | `make docs-check` | Passed on Day 12. |
 | `make format && make lint && make test` | Passed on Day 12. |
@@ -70,10 +70,11 @@ observed focused behavior summary.
 | `git diff --check` | Passed on Day 14 after closeout documentation updates. |
 
 PR #234 review hardening later extended the guard with single translation-unit
-ownership, complete Makefile occurrence checks, `#if 0` awareness, and an
-explicit selected-registration-before-Day-9-solve boundary check. The focused
-guard, guard fixture, behavior runner, and whitespace checks passed after that
-hardening.
+ownership, complete Makefile occurrence checks, inactive conditional awareness,
+path-qualified include handling, and an explicit
+selected-registration-before-Day-9-solve boundary check. The Python regression
+suites are wired into `make ldlt-csc-helper-guard`, and that guard is wired into
+the reviewed `quality-review-compile` CI path.
 
 ## Residual Risks
 
@@ -91,5 +92,5 @@ support, external-library parity, or state-of-the-art evidence.
 ## Closeout Decision
 
 Sprint 211 is closed for the selected large review-surface reduction. The
-branch is ready for retrospective creation, final commit, push, and PR creation
-in a later step.
+retrospective, PR follow-up hardening, Make/CI guard wiring, and closeout
+status are recorded on the branch.

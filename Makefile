@@ -647,6 +647,8 @@ source-list-check:
 .PHONY: ldlt-csc-helper-guard
 ldlt-csc-helper-guard:
 	@bash scripts/check_ldlt_csc_helper_guard.sh
+	@python3 tests/test_ldlt_csc_helper_guard.py
+	@python3 tests/test_ldlt_csc_native_parity_behavior.py
 
 .PHONY: qr-external-ref-helper-guard
 qr-external-ref-helper-guard:
@@ -707,7 +709,9 @@ quality-review-compile:
 	@$(MAKE) source-list-check
 	@echo "== quality-review-compile: lint =="
 	@$(MAKE) lint
-	@echo "quality-review-compile: passed (format-check + source-list-check + lint)"
+	@echo "== quality-review-compile: ldlt-csc-helper-guard =="
+	@$(MAKE) ldlt-csc-helper-guard
+	@echo "quality-review-compile: passed (format-check + source-list-check + lint + ldlt-csc-helper-guard)"
 
 .PHONY: quality-review
 quality-review:

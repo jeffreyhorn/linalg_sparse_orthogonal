@@ -622,8 +622,9 @@ check_native_helper_translation_unit() {
             rel_file="${file#$ROOT_DIR/}"
             fail "$include_name must not be included by $rel_file"
         fi
-    done < <(find "$ROOT_DIR/tests" "$ROOT_DIR/src" "$ROOT_DIR/include" \
-        -type f \( -name '*.c' -o -name '*.h' \) | sort)
+    done < <(find "$ROOT_DIR" \
+        \( -path "$ROOT_DIR/.git" -o -path "$ROOT_DIR/build" -o -path "$ROOT_DIR/docs/api" \) -prune -o \
+        -type f \( -name '*.c' -o -name '*.h' \) -print | sort)
 
     pass "single translation-unit ownership"
 }

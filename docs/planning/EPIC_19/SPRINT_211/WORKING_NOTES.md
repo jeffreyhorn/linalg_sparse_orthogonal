@@ -1310,7 +1310,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
-| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c`, counts every literal helper basename occurrence in `Makefile` before accepting the single `build/test_ldlt_csc` prerequisite occurrence, uses branch-aware `#if`/`#elif`/`#else`/`#endif` state for active-code scans, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, and the selected-native block boundary before the Day 9 solve block. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, counts every literal helper basename occurrence in `Makefile` before accepting the single `build/test_ldlt_csc` prerequisite occurrence, uses branch-aware `#if`/`#elif`/`#else`/`#endif` state for active-code scans, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ### Regression Coverage Added
 
@@ -1322,6 +1322,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()` | Proves duplicate helper prerequisites on one Makefile line are counted as duplicate occurrences. |
 | `test_native_helper_bare_makefile_registration_fails_clearly()` | Proves a bare helper basename registration is still counted as an extra Makefile occurrence. |
 | `test_native_helper_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit. |
+| `test_native_helper_examples_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit outside `tests`, `src`, or `include`. |
 | `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
 | `test_if_zero_else_native_helper_include_passes_guard()` | Proves a helper include in the active `#else` branch of `#if 0` is accepted. |
 | `test_if_zero_else_run_test_registration_passes_guard()` | Proves a selected registration in the active `#else` branch of `#if 0` is accepted. |
@@ -1345,8 +1346,8 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 703 |
-| `tests/test_ldlt_csc_helper_guard.py` | 522 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 704 |
+| `tests/test_ldlt_csc_helper_guard.py` | 534 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ### Validation

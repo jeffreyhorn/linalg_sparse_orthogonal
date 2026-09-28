@@ -277,6 +277,17 @@ def test_native_helper_second_translation_unit_include_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must not be included by tests/test_other.c")
 
 
+def test_native_helper_examples_translation_unit_include_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "examples").mkdir()
+        (root / "examples" / "example_other.c").write_text(
+            '#include "test_ldlt_csc_native_parity_helpers.h"\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be included by examples/example_other.c")
+
+
 def test_missing_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -504,6 +515,7 @@ if __name__ == "__main__":
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
     test_native_helper_bare_makefile_registration_fails_clearly()
     test_native_helper_second_translation_unit_include_fails_clearly()
+    test_native_helper_examples_translation_unit_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()

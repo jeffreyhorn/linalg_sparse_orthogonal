@@ -353,6 +353,40 @@ def test_quality_review_compile_runs_helper_guard_fails_clearly() -> None:
     )
 
 
+def test_makefile_guard_target_ignores_commented_python_suite_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@python3 tests/test_ldlt_csc_helper_guard.py\n",
+                "\t# @python3 tests/test_ldlt_csc_helper_guard.py\n",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "ldlt-csc-helper-guard target must run tests/test_ldlt_csc_helper_guard.py",
+    )
+
+
+def test_quality_review_compile_ignores_commented_helper_guard_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@$(MAKE) ldlt-csc-helper-guard\n",
+                "\t# @$(MAKE) ldlt-csc-helper-guard\n",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "quality-review-compile target must run ldlt-csc-helper-guard",
+    )
+
+
 def test_native_helper_extra_makefile_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -746,6 +780,8 @@ if __name__ == "__main__":
     test_makefile_guard_target_runs_python_suite_fails_clearly()
     test_makefile_guard_target_runs_behavior_suite_fails_clearly()
     test_quality_review_compile_runs_helper_guard_fails_clearly()
+    test_makefile_guard_target_ignores_commented_python_suite_fails_clearly()
+    test_quality_review_compile_ignores_commented_helper_guard_fails_clearly()
     test_native_helper_extra_makefile_registration_fails_clearly()
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
     test_native_helper_bare_makefile_registration_fails_clearly()

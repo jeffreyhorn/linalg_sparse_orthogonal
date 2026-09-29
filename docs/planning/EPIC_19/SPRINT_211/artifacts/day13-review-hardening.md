@@ -11,7 +11,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
-| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, selected-native block boundary before the Day 9 solve block, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, and multiline Makefile prerequisite rules. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted include basenames so path-qualified includes are counted, counts every literal helper basename occurrence in `Makefile`, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` ownership, accepts logical Makefile prerequisite rules split with continuations, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, selected-native block boundary before the Day 9 solve block, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, multiline Makefile prerequisite rules, and commented-out target commands. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted include basenames so path-qualified includes are counted, counts every literal helper basename occurrence in `Makefile`, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` ownership, accepts logical Makefile prerequisite rules split with continuations, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, ignores commented-out recipe commands when validating target wiring, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ## Regression Coverage Added
 
@@ -34,6 +34,8 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_makefile_guard_target_runs_python_suite_fails_clearly()` | Proves the Makefile helper target must invoke the guard regression suite. |
 | `test_makefile_guard_target_runs_behavior_suite_fails_clearly()` | Proves the Makefile helper target must invoke the native parity behavior suite. |
 | `test_quality_review_compile_runs_helper_guard_fails_clearly()` | Proves the reviewed compile-quality path must invoke the helper guard target. |
+| `test_makefile_guard_target_ignores_commented_python_suite_fails_clearly()` | Proves a commented-out guard-suite command does not satisfy helper target wiring. |
+| `test_quality_review_compile_ignores_commented_helper_guard_fails_clearly()` | Proves a commented-out recursive helper-guard command does not satisfy reviewed compile wiring. |
 | `test_octal_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 00` do not satisfy the guard. |
 | `test_if_zero_else_run_test_registration_passes_guard()` | Proves a selected registration in the active `#else` branch of `#if 0` is accepted. |
 | `test_if_zero_elif_run_test_registration_passes_guard()` | Proves a selected registration in an active `#elif` branch after `#if 0` is accepted. |
@@ -63,8 +65,8 @@ chain remains the Day 12 `make format && make lint && make test` pass.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 565 |
-| `tests/test_ldlt_csc_helper_guard.py` | 776 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 576 |
+| `tests/test_ldlt_csc_helper_guard.py` | 812 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ## Validation

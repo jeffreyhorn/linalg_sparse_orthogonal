@@ -72,7 +72,12 @@ def write_fixture(root: Path) -> None:
         "\t$(CC) $< -o $@\n\n"
         ".PHONY: ldlt-csc-helper-guard\n"
         "ldlt-csc-helper-guard:\n"
-        "\t@bash scripts/check_ldlt_csc_helper_guard.sh\n",
+        "\t@bash scripts/check_ldlt_csc_helper_guard.sh\n"
+        "\t@python3 tests/test_ldlt_csc_helper_guard.py\n"
+        "\t@python3 tests/test_ldlt_csc_native_parity_behavior.py\n\n"
+        ".PHONY: quality-review-compile\n"
+        "quality-review-compile:\n"
+        "\t@$(MAKE) ldlt-csc-helper-guard\n",
         encoding="utf-8",
     )
     (root / "CMakeLists.txt").write_text(
@@ -274,6 +279,80 @@ def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must list test_ldlt_csc_native_parity_helpers.h")
 
 
+def test_multiline_makefile_prerequisite_rule_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace(
+                "$(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c "
+                "$(TESTDIR)/test_ldlt_csc_fixtures.h "
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h "
+                "$(TESTDIR)/test_ldlt_csc_oracle_helpers.h "
+                "$(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)",
+                "$(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c \\\n"
+                "\t$(TESTDIR)/test_ldlt_csc_fixtures.h \\\n"
+                "\t$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h \\\n"
+                "\t$(TESTDIR)/test_ldlt_csc_oracle_helpers.h \\\n"
+                "\t$(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
+def test_makefile_guard_target_runs_python_suite_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@python3 tests/test_ldlt_csc_helper_guard.py\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "ldlt-csc-helper-guard target must run tests/test_ldlt_csc_helper_guard.py",
+    )
+
+
+def test_makefile_guard_target_runs_behavior_suite_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@python3 tests/test_ldlt_csc_native_parity_behavior.py\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "ldlt-csc-helper-guard target must run tests/test_ldlt_csc_native_parity_behavior.py",
+    )
+
+
+def test_quality_review_compile_runs_helper_guard_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@$(MAKE) ldlt-csc-helper-guard\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "quality-review-compile target must run ldlt-csc-helper-guard",
+    )
+
+
 def test_native_helper_extra_makefile_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -438,6 +517,36 @@ def test_if_zero_elif_run_test_registration_passes_guard() -> None:
         )
 
     assert_guard_passes_with(mutate)
+
+
+def test_if_one_run_test_registration_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"#if 1\n{RUN_TEST_MARKERS[0]}\n#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
+def test_unknown_primary_if_run_test_registration_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                "#if ENABLE_NATIVE_REGISTRATION\n"
+                f"{RUN_TEST_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "as an active RUN_TEST line")
 
 
 def test_if_zero_unknown_elif_run_test_registration_fails_closed() -> None:
@@ -633,6 +742,10 @@ if __name__ == "__main__":
     test_path_qualified_native_helper_include_passes_guard()
     test_ifdef_native_helper_include_passes_guard()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
+    test_multiline_makefile_prerequisite_rule_passes_guard()
+    test_makefile_guard_target_runs_python_suite_fails_clearly()
+    test_makefile_guard_target_runs_behavior_suite_fails_clearly()
+    test_quality_review_compile_runs_helper_guard_fails_clearly()
     test_native_helper_extra_makefile_registration_fails_clearly()
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
     test_native_helper_bare_makefile_registration_fails_clearly()
@@ -646,6 +759,8 @@ if __name__ == "__main__":
     test_octal_zero_run_test_registration_fails_clearly()
     test_if_zero_else_run_test_registration_passes_guard()
     test_if_zero_elif_run_test_registration_passes_guard()
+    test_if_one_run_test_registration_passes_guard()
+    test_unknown_primary_if_run_test_registration_fails_closed()
     test_if_zero_unknown_elif_run_test_registration_fails_closed()
     test_reordered_run_test_registration_fails_clearly()
     test_selected_registration_after_solve_block_fails_clearly()

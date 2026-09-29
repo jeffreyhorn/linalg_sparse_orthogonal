@@ -152,7 +152,10 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
             return expr
         }
         function zero_expression(expr) {
-            return expr ~ /^\(*0([xX]0+|[0]*)\)*$/
+            return expr ~ /^\(*0([xX]0+|[0]*)([uUlL]*)\)*$/
+        }
+        function one_expression(expr) {
+            return expr ~ /^\(*1([uUlL]*)\)*$/
         }
         function false_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+/ &&
@@ -160,11 +163,11 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
         }
         function true_condition(line) {
             return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
-                (line ~ /^[[:space:]]*#[[:space:]]*if([[:space:]]|$)/ && !false_condition(line)) ||
-                line ~ /^[[:space:]]*#[[:space:]]*elif[[:space:]]+1([[:space:]]|$)/
+                (line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+/ &&
+                    one_expression(condition_expression(line)))
         }
         function unknown_condition(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*elif([[:space:]]|$)/ &&
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)([[:space:]]|$)/ &&
                 !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
@@ -355,18 +358,70 @@ require_test_ldlt_csc_rule_prerequisite() {
     local message="$2"
 
     if ! awk -v needle="$needle" '
-        BEGIN { done = 0 }
+        BEGIN { done = 0; ok = 0 }
         /^\$\(BUILDDIR\)\/test_ldlt_csc:/ {
             done = 1
-            exit(index($0, needle) > 0 ? 0 : 1)
+            rule = $0
+            while (rule ~ /\\[[:space:]]*$/ && (getline next_line) > 0) {
+                sub(/\\[[:space:]]*$/, " ", rule)
+                rule = rule next_line
+            }
+            ok = index(rule, needle) > 0
+            exit
         }
         END {
-            if (!done)
+            if (!done || !ok)
                 exit(1)
         }
     ' "$MAKEFILE"; then
         fail "$message"
     fi
+}
+
+require_makefile_target_command() {
+    local target="$1"
+    local command="$2"
+    local message="$3"
+
+    if ! awk -v target="$target" -v command="$command" '
+        BEGIN { in_target = 0; found_target = 0; found_command = 0 }
+        /^[^[:space:]#][^:]*:/ {
+            if (in_target)
+                in_target = 0
+        }
+        index($0, target ":") == 1 {
+            in_target = 1
+            found_target = 1
+            next
+        }
+        in_target && index($0, command) > 0 {
+            found_command = 1
+            exit
+        }
+        END {
+            if (!found_target || !found_command)
+                exit(1)
+        }
+    ' "$MAKEFILE"; then
+        fail "$message"
+    fi
+}
+
+check_makefile_guard_wiring() {
+    require_makefile_target_command "ldlt-csc-helper-guard" \
+        "bash scripts/check_ldlt_csc_helper_guard.sh" \
+        "Makefile ldlt-csc-helper-guard target must run scripts/check_ldlt_csc_helper_guard.sh"
+    require_makefile_target_command "ldlt-csc-helper-guard" \
+        "python3 tests/test_ldlt_csc_helper_guard.py" \
+        "Makefile ldlt-csc-helper-guard target must run tests/test_ldlt_csc_helper_guard.py"
+    require_makefile_target_command "ldlt-csc-helper-guard" \
+        "python3 tests/test_ldlt_csc_native_parity_behavior.py" \
+        "Makefile ldlt-csc-helper-guard target must run tests/test_ldlt_csc_native_parity_behavior.py"
+    require_makefile_target_command "quality-review-compile" \
+        "\$(MAKE) ldlt-csc-helper-guard" \
+        "Makefile quality-review-compile target must run ldlt-csc-helper-guard"
+
+    pass "Makefile guard wiring"
 }
 
 check_proof_owner_registration() {
@@ -500,6 +555,7 @@ check_moved_definition_ownership() {
 }
 
 check_proof_owner_registration
+check_makefile_guard_wiring
 check_helper_headers
 check_native_helper_translation_unit
 check_header_only_registration

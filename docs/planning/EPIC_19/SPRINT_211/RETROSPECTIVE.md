@@ -60,7 +60,8 @@ documentation, and ran integrated validation.
 
 4. **The guard became more review-resistant.** Review hardening closed active
    include, single-translation-unit, Makefile occurrence, zero-valued `#if`,
-   and selected-before-solve boundary gaps while centralizing the active-code
+   unknown-conditional, Makefile wiring, multiline-prerequisite, and
+   selected-before-solve boundary gaps while centralizing the active-code
    scanner prelude.
 
 5. **Build-system evidence is explicit.** The Makefile helper prerequisite rule
@@ -105,8 +106,8 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 509 | +370 |
-| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 661 | +661 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 565 | +426 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 776 | +776 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

@@ -384,16 +384,29 @@ require_makefile_target_command() {
     local message="$3"
 
     if ! awk -v target="$target" -v command="$command" '
-        function active_recipe_line(line,    recipe) {
+        function parsed_recipe_command(line,    recipe) {
             if (line !~ /^[[:space:]]/)
-                return 0
+                return ""
             recipe = line
             sub(/^[[:space:]]+/, "", recipe)
             while (recipe ~ /^[@+-]/) {
                 sub(/^[@+-]/, "", recipe)
                 sub(/^[[:space:]]+/, "", recipe)
             }
-            return recipe !~ /^#/
+            sub(/[[:space:]]+#.*$/, "", recipe)
+            sub(/[[:space:]]+$/, "", recipe)
+            if (recipe ~ /^#/)
+                return ""
+            return recipe
+        }
+        function command_matches(line, command,    recipe, suffix) {
+            recipe = parsed_recipe_command(line)
+            if (recipe == command)
+                return 1
+            if (index(recipe, command) != 1)
+                return 0
+            suffix = substr(recipe, length(command) + 1, 1)
+            return suffix ~ /[[:space:]]/
         }
         BEGIN { in_target = 0; found_target = 0; found_command = 0 }
         /^[^[:space:]#][^:]*:/ {
@@ -405,7 +418,7 @@ require_makefile_target_command() {
             found_target = 1
             next
         }
-        in_target && active_recipe_line($0) && index($0, command) > 0 {
+        in_target && command_matches($0, command) {
             found_command = 1
             exit
         }

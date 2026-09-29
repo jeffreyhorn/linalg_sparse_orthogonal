@@ -151,6 +151,17 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
             gsub(/[[:space:]]+/, "", expr)
             return expr
         }
+        function macro_name(line,    name) {
+            name = line
+            sub(/^[[:space:]]*#[[:space:]]*(ifdef|ifndef)[[:space:]]+/, "", name)
+            sub(/[[:space:]].*$/, "", name)
+            return name
+        }
+        function include_guard_condition(line) {
+            return include_guard != "" &&
+                line ~ /^[[:space:]]*#[[:space:]]*ifndef[[:space:]]+/ &&
+                macro_name(line) == include_guard
+        }
         function zero_expression(expr) {
             return expr ~ /^\(*0([xX]0+|[0]*)([uUlL]*)\)*$/
         }
@@ -162,12 +173,12 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
                 zero_expression(condition_expression(line))
         }
         function true_condition(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*(ifdef|ifndef)([[:space:]]|$)/ ||
+            return include_guard_condition(line) ||
                 (line ~ /^[[:space:]]*#[[:space:]]*(if|elif)[[:space:]]+/ &&
                     one_expression(condition_expression(line)))
         }
         function unknown_condition(line) {
-            return line ~ /^[[:space:]]*#[[:space:]]*(if|elif)([[:space:]]|$)/ &&
+            return line ~ /^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef|elif)([[:space:]]|$)/ &&
                 !false_condition(line) && !true_condition(line)
         }
         function parent_active(    i) {
@@ -235,11 +246,37 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
 AWK
 )"
 
+include_guard_for_file() {
+    local file="$1"
+
+    awk '
+        /^[[:space:]]*#[[:space:]]*ifndef[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/ {
+            guard = $0
+            sub(/^[[:space:]]*#[[:space:]]*ifndef[[:space:]]+/, "", guard)
+            sub(/[[:space:]].*$/, "", guard)
+            next
+        }
+        guard != "" {
+            pattern = "^[[:space:]]*#[[:space:]]*define[[:space:]]+" guard "([[:space:]]|$)"
+            if ($0 ~ pattern) {
+                print guard
+                exit
+            }
+        }
+        NR > 20 {
+            exit
+        }
+    ' "$file"
+}
+
 active_fixed_count_in_file() {
     local marker="$1"
     local file="$2"
+    local include_guard
 
-    awk -v marker="$marker" "$ACTIVE_CODE_AWK"'
+    include_guard="$(include_guard_for_file "$file")"
+
+    awk -v marker="$marker" -v include_guard="$include_guard" "$ACTIVE_CODE_AWK"'
         {
             active = strip_comments($0)
             if (update_conditionals(active))
@@ -256,8 +293,11 @@ active_fixed_count_in_file() {
 active_include_count() {
     local include_name="$1"
     local file="${2:-$TEST_FILE}"
+    local include_guard
 
-    awk -v include_name="$include_name" "$ACTIVE_CODE_AWK"'
+    include_guard="$(include_guard_for_file "$file")"
+
+    awk -v include_name="$include_name" -v include_guard="$include_guard" "$ACTIVE_CODE_AWK"'
         function include_basename_matches(line, include_name,    target) {
             if (line !~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*["<]/)
                 return 0
@@ -283,7 +323,7 @@ active_include_count() {
 active_run_test_count() {
     local marker="$1"
 
-    awk -v marker="$marker" "$ACTIVE_CODE_AWK"'
+    awk -v marker="$marker" -v include_guard="" "$ACTIVE_CODE_AWK"'
         {
             active = strip_comments($0)
             if (update_conditionals(active))
@@ -305,7 +345,7 @@ active_run_test_count() {
 active_run_test_line() {
     local marker="$1"
 
-    awk -v marker="$marker" "$ACTIVE_CODE_AWK"'
+    awk -v marker="$marker" -v include_guard="" "$ACTIVE_CODE_AWK"'
         {
             active = strip_comments($0)
             if (update_conditionals(active))

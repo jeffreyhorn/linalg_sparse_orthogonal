@@ -60,7 +60,7 @@ documentation, and ran integrated validation.
 
 4. **The guard became more review-resistant.** Review hardening closed active
    include, single-translation-unit, Makefile occurrence, zero-valued `#if`,
-   unknown-conditional, angle-bracket include, repeated same-line
+   unknown-macro conditional, angle-bracket include, repeated same-line
    registration, Makefile wiring, commented-command, echoed-command,
    inline-comment, multiline-prerequisite, and selected-before-solve boundary
    gaps while centralizing the active-code scanner prelude.
@@ -107,7 +107,7 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 594 | +455 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 634 | +495 |
 | `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 889 | +889 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |

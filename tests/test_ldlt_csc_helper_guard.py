@@ -263,7 +263,7 @@ def test_angle_bracket_native_helper_include_passes_guard() -> None:
     assert_guard_passes_with(mutate)
 
 
-def test_ifdef_native_helper_include_passes_guard() -> None:
+def test_ifdef_native_helper_include_fails_closed() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
         path.write_text(
@@ -276,7 +276,7 @@ def test_ifdef_native_helper_include_passes_guard() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_passes_with(mutate)
+    assert_guard_fails_with(mutate, "exactly once as an active include")
 
 
 def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
@@ -775,7 +775,7 @@ def test_if_zero_else_moved_definition_passes_guard() -> None:
     assert_guard_passes_with(mutate)
 
 
-def test_ifndef_moved_definition_passes_guard() -> None:
+def test_ifndef_moved_definition_fails_closed() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
         path.write_text(
@@ -788,7 +788,7 @@ def test_ifndef_moved_definition_passes_guard() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_passes_with(mutate)
+    assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
 
 
 def test_moved_definition_in_proof_owner_fails_clearly() -> None:
@@ -847,7 +847,7 @@ if __name__ == "__main__":
     test_parenthesized_zero_native_helper_include_fails_clearly()
     test_path_qualified_native_helper_include_passes_guard()
     test_angle_bracket_native_helper_include_passes_guard()
-    test_ifdef_native_helper_include_passes_guard()
+    test_ifdef_native_helper_include_fails_closed()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_multiline_makefile_prerequisite_rule_passes_guard()
     test_makefile_guard_target_runs_python_suite_fails_clearly()
@@ -882,7 +882,7 @@ if __name__ == "__main__":
     test_if_zero_moved_definition_fails_clearly()
     test_hex_zero_moved_definition_fails_clearly()
     test_if_zero_else_moved_definition_passes_guard()
-    test_ifndef_moved_definition_passes_guard()
+    test_ifndef_moved_definition_fails_closed()
     test_moved_definition_in_proof_owner_fails_clearly()
     test_moved_definition_in_wrong_helper_fails_clearly()
     test_native_helper_cmake_registration_fails_clearly()

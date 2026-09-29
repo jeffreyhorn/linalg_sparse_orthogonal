@@ -290,8 +290,13 @@ active_run_test_count() {
                 next
             if (!current_active())
                 next
-            if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/ && index(active, marker) > 0)
-                count++
+            if (active ~ /^[[:space:]]*RUN_TEST[[:space:]]*\(/) {
+                line = active
+                while ((pos = index(line, marker)) > 0) {
+                    count++
+                    line = substr(line, pos + length(marker))
+                }
+            }
         }
         END { print count + 0 }
     ' "$TEST_FILE"

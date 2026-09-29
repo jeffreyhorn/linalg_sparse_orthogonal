@@ -527,6 +527,20 @@ def test_missing_run_test_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must retain proof-owner registration")
 
 
+def test_duplicate_same_line_run_test_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"{RUN_TEST_MARKERS[0]} {RUN_TEST_MARKERS[0]}",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "as an active RUN_TEST line")
+
+
 def test_line_commented_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -851,6 +865,7 @@ if __name__ == "__main__":
     test_native_helper_examples_translation_unit_include_fails_clearly()
     test_native_helper_path_qualified_examples_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()
+    test_duplicate_same_line_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()
     test_if_zero_run_test_registration_fails_clearly()

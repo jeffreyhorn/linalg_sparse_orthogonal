@@ -115,13 +115,17 @@ require_exact_fixed_count() {
     fi
 }
 
-fixed_occurrence_count() {
+makefile_active_occurrence_count() {
     local needle="$1"
     local file="$2"
 
     awk -v needle="$needle" '
+        function strip_make_comment(line) {
+            sub(/[[:space:]]*#.*/, "", line)
+            return line
+        }
         {
-            line = $0
+            line = strip_make_comment($0)
             while ((pos = index(line, needle)) > 0) {
                 count++
                 line = substr(line, pos + length(needle))
@@ -403,13 +407,17 @@ require_test_ldlt_csc_rule_prerequisite() {
     local message="$2"
 
     if ! awk -v needle="$needle" '
+        function strip_make_comment(line) {
+            sub(/[[:space:]]*#.*/, "", line)
+            return line
+        }
         BEGIN { done = 0; ok = 0 }
         /^\$\(BUILDDIR\)\/test_ldlt_csc:/ {
             done = 1
-            rule = $0
+            rule = strip_make_comment($0)
             while (rule ~ /\\[[:space:]]*$/ && (getline next_line) > 0) {
                 sub(/\\[[:space:]]*$/, " ", rule)
-                rule = rule next_line
+                rule = rule strip_make_comment(next_line)
             }
             ok = index(rule, needle) > 0
             exit
@@ -522,7 +530,7 @@ check_helper_headers() {
         if [ "$count" -ne 1 ]; then
             fail "tests/test_ldlt_csc.c must include $include_name exactly once as an active include (found $count)"
         fi
-        count="$(fixed_occurrence_count "$include_name" "$MAKEFILE")"
+        count="$(makefile_active_occurrence_count "$include_name" "$MAKEFILE")"
         if [ "$count" -ne 1 ]; then
             fail "Makefile must list $include_name exactly once, only as a test_ldlt_csc prerequisite (found $count)"
         fi

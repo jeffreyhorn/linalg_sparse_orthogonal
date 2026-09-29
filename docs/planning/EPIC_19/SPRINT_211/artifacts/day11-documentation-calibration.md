@@ -39,7 +39,7 @@ API, package, or solver-behavior change.
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
 | `scripts/check_ldlt_csc_helper_guard.sh` | 589 after PR #234 guard hardening |
-| `tests/test_ldlt_csc_helper_guard.py` | 848 after PR #234 guard hardening |
+| `tests/test_ldlt_csc_helper_guard.py` | 874 after PR #234 guard hardening |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 | `docs/maintainer_guide.md` | 2206 after Day 11 edits |
 

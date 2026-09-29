@@ -11,7 +11,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
-| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, selected-native block boundary before the Day 9 solve block, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, multiline Makefile prerequisite rules, commented-out target commands, echoed command text, and inline-comment mentions. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted include basenames so path-qualified includes are counted, counts every literal helper basename occurrence in `Makefile`, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` ownership, accepts logical Makefile prerequisite rules split with continuations, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, matches parsed recipe commands at a command boundary after stripping inline comments, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, angle-bracket includes, selected-native block boundary before the Day 9 solve block, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, multiline Makefile prerequisite rules, commented-out target commands, echoed command text, and inline-comment mentions. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted or angle-bracket include basenames so path-qualified includes are counted, counts every literal helper basename occurrence in `Makefile`, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` ownership, accepts logical Makefile prerequisite rules split with continuations, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, matches parsed recipe commands at a command boundary after stripping inline comments, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
 
 ## Regression Coverage Added
 
@@ -23,12 +23,14 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()` | Proves duplicate helper prerequisites on one Makefile line are counted as duplicate occurrences. |
 | `test_native_helper_bare_makefile_registration_fails_clearly()` | Proves a bare helper basename registration is still counted as an extra Makefile occurrence. |
 | `test_native_helper_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit. |
+| `test_native_helper_angle_bracket_second_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit with angle brackets. |
 | `test_native_helper_examples_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit outside `tests`, `src`, or `include`. |
 | `test_native_helper_path_qualified_examples_include_fails_clearly()` | Proves path-qualified helper includes outside the proof owner are counted by basename and rejected. |
 | `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
 | `test_parenthesized_zero_native_helper_include_fails_clearly()` | Proves an inactive helper include under `#if (0)` does not satisfy include ownership. |
 | `test_if_zero_else_native_helper_include_passes_guard()` | Proves a helper include in the active `#else` branch of `#if 0` is accepted. |
 | `test_path_qualified_native_helper_include_passes_guard()` | Proves path-qualified helper includes in the proof owner are counted by basename. |
+| `test_angle_bracket_native_helper_include_passes_guard()` | Proves angle-bracket helper includes in the proof owner are counted by basename. |
 | `test_ifdef_native_helper_include_passes_guard()` | Proves primary `#ifdef` branches remain scannable for helper includes. |
 | `test_multiline_makefile_prerequisite_rule_passes_guard()` | Proves continued Makefile prerequisites are parsed as one logical rule. |
 | `test_makefile_guard_target_runs_python_suite_fails_clearly()` | Proves the Makefile helper target must invoke the guard regression suite. |
@@ -68,7 +70,7 @@ chain remains the Day 12 `make format && make lint && make test` pass.
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
 | `scripts/check_ldlt_csc_helper_guard.sh` | 589 |
-| `tests/test_ldlt_csc_helper_guard.py` | 848 |
+| `tests/test_ldlt_csc_helper_guard.py` | 874 |
 | `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
 
 ## Validation

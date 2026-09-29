@@ -249,6 +249,20 @@ def test_path_qualified_native_helper_include_passes_guard() -> None:
     assert_guard_passes_with(mutate)
 
 
+def test_angle_bracket_native_helper_include_passes_guard() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"',
+                "#include <test_ldlt_csc_native_parity_helpers.h>",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_passes_with(mutate)
+
+
 def test_ifdef_native_helper_include_passes_guard() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -464,6 +478,16 @@ def test_native_helper_second_translation_unit_include_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / "tests" / "test_other.c").write_text(
             '#include "test_ldlt_csc_native_parity_helpers.h"\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be included by tests/test_other.c")
+
+
+def test_native_helper_angle_bracket_second_translation_unit_include_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "tests" / "test_other.c").write_text(
+            "#include <test_ldlt_csc_native_parity_helpers.h>\n",
             encoding="utf-8",
         )
 
@@ -808,6 +832,7 @@ if __name__ == "__main__":
     test_if_zero_else_native_helper_include_passes_guard()
     test_parenthesized_zero_native_helper_include_fails_clearly()
     test_path_qualified_native_helper_include_passes_guard()
+    test_angle_bracket_native_helper_include_passes_guard()
     test_ifdef_native_helper_include_passes_guard()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_multiline_makefile_prerequisite_rule_passes_guard()
@@ -822,6 +847,7 @@ if __name__ == "__main__":
     test_native_helper_duplicate_same_line_makefile_registration_fails_clearly()
     test_native_helper_bare_makefile_registration_fails_clearly()
     test_native_helper_second_translation_unit_include_fails_clearly()
+    test_native_helper_angle_bracket_second_translation_unit_include_fails_clearly()
     test_native_helper_examples_translation_unit_include_fails_clearly()
     test_native_helper_path_qualified_examples_include_fails_clearly()
     test_missing_run_test_registration_fails_clearly()

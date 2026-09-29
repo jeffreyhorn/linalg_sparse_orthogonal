@@ -259,11 +259,11 @@ active_include_count() {
 
     awk -v include_name="$include_name" "$ACTIVE_CODE_AWK"'
         function include_basename_matches(line, include_name,    target) {
-            if (line !~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*"/)
+            if (line !~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*["<]/)
                 return 0
             target = line
-            sub(/^[[:space:]]*#[[:space:]]*include[[:space:]]*"/, "", target)
-            sub(/".*$/, "", target)
+            sub(/^[[:space:]]*#[[:space:]]*include[[:space:]]*["<]/, "", target)
+            sub(/[">].*$/, "", target)
             sub(/^.*\//, "", target)
             return target == include_name
         }

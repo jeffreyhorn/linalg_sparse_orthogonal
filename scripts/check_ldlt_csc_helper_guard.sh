@@ -413,6 +413,13 @@ require_test_ldlt_csc_rule_prerequisite() {
             sub(/[[:space:]]*#.*/, "", line)
             return line
         }
+        function has_prerequisite_token(rule, needle,    field_count, i, fields) {
+            field_count = split(rule, fields, /[[:space:]]+/)
+            for (i = 1; i <= field_count; i++)
+                if (fields[i] == needle)
+                    return 1
+            return 0
+        }
         BEGIN { done = 0; ok = 0 }
         /^\$\(BUILDDIR\)\/test_ldlt_csc:/ {
             done = 1
@@ -421,7 +428,7 @@ require_test_ldlt_csc_rule_prerequisite() {
                 sub(/\\[[:space:]]*$/, " ", rule)
                 rule = rule strip_make_comment(next_line)
             }
-            ok = index(rule, needle) > 0
+            ok = has_prerequisite_token(rule, needle)
             exit
         }
         END {
@@ -581,6 +588,8 @@ check_header_only_registration() {
 
         require_absent_fixed "$include_name" "$CMAKE_FILE" \
             "$include_name must remain header-only and not be named in CMake registration"
+        require_absent_fixed "$include_name" "$LIBRARY_MANIFEST" \
+            "$include_name must not be listed as a library source"
         require_absent_fixed "$helper" "$LIBRARY_MANIFEST" \
             "$helper must not be listed as a library source"
         require_absent_fixed "add_sparse_test($stem)" "$CMAKE_FILE" \

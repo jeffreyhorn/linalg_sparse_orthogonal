@@ -308,6 +308,21 @@ def test_commented_native_helper_makefile_prerequisite_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "exactly once, only as a test_ldlt_csc prerequisite")
 
 
+def test_suffix_native_helper_makefile_prerequisite_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h ",
+                "$(TESTDIR)/test_ldlt_csc_native_parity_helpers.h.extra ",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "test_ldlt_csc prerequisite rule must list")
+
+
 def test_multiline_makefile_prerequisite_rule_passes_guard() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -866,6 +881,18 @@ def test_native_helper_library_source_registration_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must not be listed as a library source")
 
 
+def test_native_helper_bare_library_source_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "build-metadata" / "library_sources.txt"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "test_ldlt_csc_native_parity_helpers.h\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be listed as a library source")
+
+
 if __name__ == "__main__":
     test_current_tree_passes_guard()
     test_fixture_passes_guard()
@@ -879,6 +906,7 @@ if __name__ == "__main__":
     test_ifdef_native_helper_include_fails_closed()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_commented_native_helper_makefile_prerequisite_fails_clearly()
+    test_suffix_native_helper_makefile_prerequisite_fails_clearly()
     test_multiline_makefile_prerequisite_rule_passes_guard()
     test_makefile_guard_target_runs_python_suite_fails_clearly()
     test_makefile_guard_target_runs_behavior_suite_fails_clearly()
@@ -918,3 +946,4 @@ if __name__ == "__main__":
     test_moved_definition_in_wrong_helper_fails_clearly()
     test_native_helper_cmake_registration_fails_clearly()
     test_native_helper_library_source_registration_fails_clearly()
+    test_native_helper_bare_library_source_registration_fails_clearly()

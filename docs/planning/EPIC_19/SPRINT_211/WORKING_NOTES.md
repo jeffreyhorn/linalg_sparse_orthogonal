@@ -1183,9 +1183,9 @@ guidance.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 669 after PR #234 guard hardening |
-| `tests/test_ldlt_csc_helper_guard.py` | 1050 after PR #234 guard hardening |
-| `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 790 after PR #234 guard hardening |
+| `tests/test_ldlt_csc_helper_guard.py` | 1211 after PR #234 guard hardening |
+| `tests/test_ldlt_csc_native_parity_behavior.py` | 108 |
 
 The proof-owner test remains reduced by 295 lines from the Day 5 baseline of
 3469 lines while preserving the Day 10 behavior-regression counts.
@@ -1310,7 +1310,7 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | Finding | Fix |
 | --- | --- |
 | The LDLT CSC helper guard checked helper includes with a raw fixed-string count. A commented-out `#include "test_ldlt_csc_native_parity_helpers.h"` line could satisfy helper presence while the proof-owner test stopped including the helper. | `scripts/check_ldlt_csc_helper_guard.sh` now strips line/block comments before counting helper includes and requires exactly one active include for each LDLT CSC helper header. |
-| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, angle-bracket includes, repeated same-line `RUN_TEST(...)` registrations, repeated same-line moved-definition markers, selected-native block boundary before the Day 9 solve block, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, full-gate build scope, multiline Makefile prerequisite rules, exact prerequisite-token matching, commented-out prerequisites, commented-out target commands, echoed command text, bare helper-basename manifest entries, inline-comment mentions, failure diagnostics, conditional forbidden includes, and repository-wide moved-definition duplicates. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted or angle-bracket include basenames so path-qualified includes are counted, treats possible-active includes under unknown conditionals as forbidden ownership outside the proof owner, counts every literal helper basename occurrence in active Makefile text after stripping comments, counts every selected active `RUN_TEST(...)` marker occurrence on a line, counts every active moved-definition marker occurrence on a line, scans repository C/header files for duplicate moved-definition ownership outside the native helper, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` and unknown `#ifdef`/`#ifndef` required ownership while whitelisting each file's own include guard, accepts only exact Makefile prerequisite tokens after comments and continuations are handled, reports the exact missing `$(TESTDIR)/...` prerequisite token, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, verifies `quality-review-full` runs `quality-review-compile`, rejects helper basenames in `build-metadata/library_sources.txt`, matches parsed recipe commands at a command boundary after stripping inline comments, and requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`. |
+| PR #234 review identified additional guard gaps for single translation-unit ownership, complete Makefile boundary enforcement, conditional-preprocessor awareness, path-qualified includes, angle-bracket includes, repeated same-line `RUN_TEST(...)` registrations, repeated same-line moved-definition markers, selected-native block boundary before the Day 9 solve block, missing Day 9 solve registration diagnostics, duplicated scanner predicates, zero-valued preprocessor expressions, Makefile target wiring, full-gate build scope, multiline Makefile prerequisite rules, exact prerequisite-token matching, commented-out prerequisites, commented-out target commands, echoed command text, bare helper-basename manifest entries, inline-comment mentions, failure diagnostics, conditional forbidden includes, unknown-conditional duplicate ownership, repository-wide moved-definition duplicates, behavior-suite contract drift, comment-only behavior contract bypasses, and diagnostic-output preservation. | The guard now rejects extra active includes of the native helper outside `tests/test_ldlt_csc.c` across repository C/header trees, compares quoted or angle-bracket include basenames so path-qualified includes are counted, treats possible-active includes under unknown conditionals as forbidden ownership outside the proof owner, compares active and possible-active counts for required proof-owner includes, selected `RUN_TEST(...)` registrations, and moved definitions so unknown-conditional duplicates cannot hide, counts every literal helper basename occurrence in active Makefile text after stripping comments, counts every selected active `RUN_TEST(...)` marker occurrence on a line, counts every active moved-definition marker occurrence on a line, scans repository C/header files for duplicate moved-definition ownership outside the native helper, uses one shared branch-aware `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` AWK prelude for active-code scans, treats `#if 00`, `#if 0x0`, and `#if (0)` as inactive zero expressions, rejects ambiguous non-constant `#if`/`#elif` and unknown `#ifdef`/`#ifndef` required ownership while whitelisting each file's own include guard, accepts only exact Makefile prerequisite tokens after comments and continuations are handled, reports the exact missing `$(TESTDIR)/...` prerequisite token, verifies `ldlt-csc-helper-guard` runs both Python suites, verifies `quality-review-compile` runs the helper guard, verifies `quality-review-full` runs `quality-review-compile`, rejects helper basenames in `build-metadata/library_sources.txt`, matches parsed recipe commands at a command boundary after stripping inline comments, requires the selected native registrations to remain before `RUN_TEST(test_solve_null_args);`, reports the missing Day 9 solve registration from the numeric sentinel, validates the behavior suite's executable `SELECTED_TESTS` and `BASELINE_SUMMARY` assignments with Python AST parsing, verifies the behavior suite checks pass-marker order and all-tests marker, and requires bounded command-output excerpts in behavior-regression failures. |
 
 ### Regression Coverage Added
 
@@ -1328,8 +1328,10 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_native_helper_examples_translation_unit_include_fails_clearly()` | Proves the native helper cannot be included by a second translation unit outside `tests`, `src`, or `include`. |
 | `test_native_helper_path_qualified_examples_include_fails_clearly()` | Proves path-qualified helper includes outside the proof owner are counted by basename and rejected. |
 | `test_native_helper_unknown_ifdef_second_translation_unit_include_fails_closed()` | Proves possible-active helper includes under unknown conditionals outside the proof owner are rejected. |
+| `test_native_helper_unknown_ifdef_duplicate_owner_include_fails_closed()` | Proves a duplicate helper include hidden under an unknown conditional in the proof owner is rejected. |
 | `test_if_zero_run_test_registration_fails_clearly()` | Proves inactive selected registrations under `#if 0` do not satisfy the guard. |
 | `test_duplicate_same_line_run_test_registration_fails_clearly()` | Proves repeated selected registrations on one active line are counted as duplicates. |
+| `test_unknown_ifdef_duplicate_run_test_registration_fails_closed()` | Proves a duplicate selected registration hidden under an unknown conditional is rejected. |
 | `test_parenthesized_zero_native_helper_include_fails_clearly()` | Proves an inactive helper include under `#if (0)` does not satisfy include ownership. |
 | `test_if_zero_else_native_helper_include_passes_guard()` | Proves a helper include in the active `#else` branch of `#if 0` is accepted. |
 | `test_path_qualified_native_helper_include_passes_guard()` | Proves path-qualified helper includes in the proof owner are counted by basename. |
@@ -1352,7 +1354,9 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_unknown_primary_if_run_test_registration_fails_closed()` | Proves ambiguous non-constant primary `#if` selected registrations fail closed. |
 | `test_if_zero_unknown_elif_run_test_registration_fails_closed()` | Proves ambiguous non-constant `#elif` ownership is rejected. |
 | `test_selected_registration_after_solve_block_fails_clearly()` | Proves selected native registrations must remain before the Day 9 solve block. |
+| `test_missing_solve_registration_fails_clearly()` | Proves removing the Day 9 solve registration reports the missing-registration diagnostic instead of an ordering fallback. |
 | `test_duplicate_same_line_moved_definition_fails_clearly()` | Proves repeated moved-definition markers on one active line are counted as duplicates. |
+| `test_unknown_ifdef_duplicate_moved_definition_fails_closed()` | Proves a duplicate moved definition hidden under an unknown conditional in the native helper is rejected. |
 | `test_if_zero_moved_definition_fails_clearly()` | Proves inactive moved definitions under `#if 0` do not satisfy helper ownership. |
 | `test_hex_zero_moved_definition_fails_clearly()` | Proves inactive moved definitions under `#if 0x0` do not satisfy helper ownership. |
 | `test_if_zero_else_moved_definition_passes_guard()` | Proves a moved definition in the active `#else` branch of `#if 0` is accepted. |
@@ -1361,13 +1365,19 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | `test_moved_definition_in_examples_translation_unit_fails_clearly()` | Proves moved-definition markers are rejected outside the native helper across repository C files. |
 | `test_unknown_ifdef_moved_definition_outside_native_helper_fails_closed()` | Proves possible-active moved definitions under unknown conditionals outside the native helper are rejected. |
 | `test_native_helper_bare_library_source_registration_fails_clearly()` | Proves a bare helper basename cannot enter the library source manifest. |
+| `test_behavior_suite_missing_selected_marker_fails_clearly()` | Proves the guard fails if the behavior suite stops pinning a selected native parity pass marker. |
+| `test_behavior_suite_commented_selected_marker_fails_clearly()` | Proves a selected marker left only in a Python comment does not satisfy the behavior-suite contract. |
+| `test_behavior_suite_summary_contract_fails_clearly()` | Proves the guard fails if the behavior suite weakens the exact focused summary contract. |
+| `test_behavior_suite_commented_summary_contract_fails_clearly()` | Proves a baseline summary value left only in a Python comment does not satisfy the behavior-suite contract. |
+| `test_behavior_suite_output_diagnostics_contract_fails_clearly()` | Proves the guard fails if behavior-regression failures stop preserving command-output excerpts. |
 
 ### Changed Files
 
 | File | Day 13 change |
 | --- | --- |
-| `scripts/check_ldlt_csc_helper_guard.sh` | Added active include counting, shared conditional parsing, fail-closed forbidden ownership checks for unknown conditionals, repository-wide moved-definition ownership scanning, multiline Makefile prerequisite parsing, Makefile helper-target wiring checks, and parsed recipe-command matching that strips inline comments. |
-| `tests/test_ldlt_csc_helper_guard.py` | Added commented-include, commented-prerequisite, prerequisite-token, commented-command, echoed-command, inline-comment, Makefile wiring, full-gate wiring, multiline prerequisite, same-line moved-definition, repository-wide duplicate-definition, bare-manifest, zero-expression, paired unknown-macro conditional, conditional forbidden-include, and diagnostic regression cases. |
+| `scripts/check_ldlt_csc_helper_guard.sh` | Added active include counting, possible-active duplicate detection for unknown conditionals, shared conditional parsing, fail-closed forbidden ownership checks for unknown conditionals, repository-wide moved-definition ownership scanning, multiline Makefile prerequisite parsing, Makefile helper-target wiring checks, AST-based behavior-suite contract checks, and parsed recipe-command matching that strips inline comments. |
+| `tests/test_ldlt_csc_helper_guard.py` | Added commented-include, commented-prerequisite, prerequisite-token, commented-command, echoed-command, inline-comment, Makefile wiring, full-gate wiring, multiline prerequisite, same-line moved-definition, repository-wide duplicate-definition, bare-manifest, zero-expression, paired unknown-macro conditional, conditional forbidden-include, unknown-conditional duplicate-owner, missing solve-registration sentinel, comment-only behavior-suite contract bypass, behavior-suite contract, and diagnostic regression cases. |
+| `tests/test_ldlt_csc_native_parity_behavior.py` | Preserves bounded command-output excerpts in selected-marker, summary, and all-tests-marker failures. |
 | `Makefile` | Routed `quality-review-full` through `quality-review-compile` so the helper guard is in the strongest local reviewed baseline. |
 | `docs/planning/EPIC_19/SPRINT_211/WORKING_NOTES.md` | Recorded Day 13 review-hardening evidence. |
 | `docs/planning/EPIC_19/SPRINT_211/artifacts/day13-review-hardening.md` | New Day 13 review-hardening artifact. |
@@ -1378,9 +1388,9 @@ selected LDLT CSC native-parity helper extraction and its evidence.
 | --- | ---: |
 | `tests/test_ldlt_csc.c` | 3174 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` | 303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` | 669 |
-| `tests/test_ldlt_csc_helper_guard.py` | 1050 |
-| `tests/test_ldlt_csc_native_parity_behavior.py` | 92 |
+| `scripts/check_ldlt_csc_helper_guard.sh` | 790 |
+| `tests/test_ldlt_csc_helper_guard.py` | 1211 |
+| `tests/test_ldlt_csc_native_parity_behavior.py` | 108 |
 
 ### Validation
 
@@ -1432,7 +1442,7 @@ changed surface, validation evidence, non-goals, and residual risks.
 | 211.2 Cluster Boundary | Complete | Day 3 froze `tests/test_ldlt_csc.c` as proof owner and scoped extraction to selected native parity test bodies only. |
 | 211.3 Extraction Design | Complete | Day 4 designed `tests/test_ldlt_csc_native_parity_helpers.h`, proof-owner registrations, Makefile dependency wiring, and guard strategy. |
 | 211.4 Extraction Implementation | Complete | Days 6-7 moved selected 1x1 and 2x2/native solve parity test bodies into the new helper without changing selected test names or registration order. |
-| 211.5 Guard And Test Coverage | Complete | Days 8-10 added Makefile helper prerequisites, active registration/order checks, moved-definition ownership checks, guard fixtures, and focused behavior regression. Day 13 and PR #234 follow-up hardened active include detection, root-scan ownership, path-qualified include parsing, conditional parsing, conditional forbidden ownership, repository-wide moved-definition scanning, exact diagnostics, and Makefile wiring for the Python guard/behavior suites. |
+| 211.5 Guard And Test Coverage | Complete | Days 8-10 added Makefile helper prerequisites, active registration/order checks, moved-definition ownership checks, guard fixtures, and focused behavior regression. Day 13 and PR #234 follow-up hardened active include detection, root-scan ownership, path-qualified include parsing, conditional parsing, conditional forbidden ownership, repository-wide moved-definition scanning, AST-based behavior-suite contract checks, diagnostic-output preservation, exact diagnostics, and Makefile wiring for the Python guard/behavior suites. |
 | 211.6 Validation And Closeout | Complete | Day 12 ran focused checks, source-list/docs checks, `make format && make lint && make test`, and CMake registration parity. Day 14 and PR #234 follow-up reconcile final status and wire `make ldlt-csc-helper-guard` into the reviewed `quality-review-compile` path and `quality-review-full` through `quality-review-compile`. |
 
 ### Final Review-Surface Metrics

@@ -65,7 +65,10 @@ documentation, and ran integrated validation.
    moved-definition marker, exact prerequisite-token, bare-manifest,
    Makefile wiring, full-gate scope, commented-command, echoed-command,
    inline-comment, multiline-prerequisite, conditional forbidden-ownership,
-   repository-wide duplicate-definition, failure-diagnostic, and
+   repository-wide duplicate-definition, missing solve-registration sentinel,
+   unknown-conditional duplicate ownership, AST-validated behavior-suite
+   contract, comment-only behavior contract bypass,
+   diagnostic-output preservation, failure-diagnostic, and
    selected-before-solve boundary gaps while
    centralizing the active-code scanner prelude.
 
@@ -111,8 +114,9 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 669 | +530 |
-| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 1050 | +1050 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 790 | +651 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 1211 | +1211 |
+| `tests/test_ldlt_csc_native_parity_behavior.py` lines | 0 | 108 | +108 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

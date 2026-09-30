@@ -50,12 +50,20 @@ def require_success(result: subprocess.CompletedProcess[str], command: str) -> N
         raise AssertionError(f"{command} failed\n{result.stdout}{result.stderr}")
 
 
+def output_excerpt(output: str, limit: int = 4000) -> str:
+    if len(output) <= limit:
+        return output
+    return output[:limit] + "\n... output truncated ...\n" + output[-limit:]
+
+
 def parse_summary(output: str) -> dict[str, int]:
     summary: dict[str, int] = {}
     for key in BASELINE_SUMMARY:
         match = re.search(rf"^{re.escape(key)}:\s+(\d+)$", output, re.MULTILINE)
         if not match:
-            raise AssertionError(f"missing summary field {key!r}")
+            raise AssertionError(
+                f"missing summary field {key!r}\n{output_excerpt(output)}"
+            )
         summary[key] = int(match.group(1))
     return summary
 
@@ -66,9 +74,15 @@ def assert_selected_tests_passed_in_order(output: str) -> None:
         marker = f"[PASS] {test_name}"
         index = output.find(marker)
         if index == -1:
-            raise AssertionError(f"missing selected native parity pass marker: {marker}")
+            raise AssertionError(
+                "missing selected native parity pass marker: "
+                f"{marker}\n{output_excerpt(output)}"
+            )
         if index <= previous:
-            raise AssertionError(f"selected native parity pass marker out of order: {marker}")
+            raise AssertionError(
+                "selected native parity pass marker out of order: "
+                f"{marker}\n{output_excerpt(output)}"
+            )
         previous = index
 
 
@@ -83,9 +97,11 @@ def main() -> None:
     assert_selected_tests_passed_in_order(output)
     summary = parse_summary(output)
     if summary != BASELINE_SUMMARY:
-        raise AssertionError(f"unexpected test_ldlt_csc summary: {summary!r}")
+        raise AssertionError(
+            f"unexpected test_ldlt_csc summary: {summary!r}\n{output_excerpt(output)}"
+        )
     if "ALL TESTS PASSED" not in output:
-        raise AssertionError("missing ALL TESTS PASSED marker")
+        raise AssertionError(f"missing ALL TESTS PASSED marker\n{output_excerpt(output)}")
 
 
 if __name__ == "__main__":

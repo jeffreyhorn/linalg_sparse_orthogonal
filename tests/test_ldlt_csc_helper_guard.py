@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "check_ldlt_csc_helper_guard.sh"
+BEHAVIOR_SCRIPT = REPO_ROOT / "tests" / "test_ldlt_csc_native_parity_behavior.py"
 
 HELPERS = [
     "test_ldlt_csc_fixtures.h",
@@ -62,6 +63,10 @@ def write_fixture(root: Path) -> None:
 
     (root / "scripts" / SCRIPT.name).write_text(
         SCRIPT.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (root / "tests" / BEHAVIOR_SCRIPT.name).write_text(
+        BEHAVIOR_SCRIPT.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     helper_prereqs = " ".join(f"$(TESTDIR)/{name}" for name in HELPERS)
@@ -601,6 +606,23 @@ def test_native_helper_unknown_ifdef_second_translation_unit_include_fails_close
     assert_guard_fails_with(mutate, "must not be included by examples/example_other.c")
 
 
+def test_native_helper_unknown_ifdef_duplicate_owner_include_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n',
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#ifdef ENABLE_NATIVE_HELPER\n"
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#endif\n",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "no additional possible-active includes")
+
+
 def test_missing_run_test_registration_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -624,6 +646,23 @@ def test_duplicate_same_line_run_test_registration_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "as an active RUN_TEST line")
+
+
+def test_unknown_ifdef_duplicate_run_test_registration_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                RUN_TEST_MARKERS[0],
+                f"{RUN_TEST_MARKERS[0]}\n"
+                "#ifdef ENABLE_NATIVE_REGISTRATION\n"
+                f"{RUN_TEST_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "no additional possible-active registrations")
 
 
 def test_line_commented_run_test_registration_fails_clearly() -> None:
@@ -789,6 +828,102 @@ def test_selected_registration_after_solve_block_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must remain before Day 9 solve registration")
 
 
+def test_missing_solve_registration_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "RUN_TEST(test_solve_null_args);\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must retain Day 9 solve registration")
+
+
+def test_behavior_suite_missing_selected_marker_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_behavior.py"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '"test_native_1x1_diagonal_matches_wrapper"',
+                '"test_native_1x1_diagonal_drifted"',
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "behavior suite must pin selected native parity test",
+    )
+
+
+def test_behavior_suite_commented_selected_marker_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_behavior.py"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '    "test_native_1x1_diagonal_matches_wrapper",\n',
+                '    # "test_native_1x1_diagonal_matches_wrapper",\n',
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "behavior suite must pin selected native parity tests in SELECTED_TESTS",
+    )
+
+
+def test_behavior_suite_summary_contract_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_behavior.py"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '"Assertions": 3556',
+                '"Assertions": 0',
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "behavior suite must preserve 'Assertions' summary value 3556",
+    )
+
+
+def test_behavior_suite_commented_summary_contract_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_behavior.py"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '    "Assertions": 3556,\n',
+                '    # "Assertions": 3556,\n    "Assertions": 0,\n',
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "behavior suite must preserve 'Assertions' summary value 3556",
+    )
+
+
+def test_behavior_suite_output_diagnostics_contract_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_behavior.py"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("output_excerpt(output)", "output"),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "behavior suite must preserve command-output diagnostics on failure",
+    )
+
+
 def test_moved_definition_missing_from_native_helper_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
@@ -829,6 +964,23 @@ def test_duplicate_same_line_moved_definition_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
+
+
+def test_unknown_ifdef_duplicate_moved_definition_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                f"{MOVED_DEFINITION_MARKERS[0]}\n"
+                "#ifdef ENABLE_NATIVE_DEFINITION\n"
+                f"{MOVED_DEFINITION_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "no additional possible-active definitions")
 
 
 def test_if_zero_moved_definition_fails_clearly() -> None:
@@ -1020,8 +1172,10 @@ if __name__ == "__main__":
     test_native_helper_examples_translation_unit_include_fails_clearly()
     test_native_helper_path_qualified_examples_include_fails_clearly()
     test_native_helper_unknown_ifdef_second_translation_unit_include_fails_closed()
+    test_native_helper_unknown_ifdef_duplicate_owner_include_fails_closed()
     test_missing_run_test_registration_fails_clearly()
     test_duplicate_same_line_run_test_registration_fails_clearly()
+    test_unknown_ifdef_duplicate_run_test_registration_fails_closed()
     test_line_commented_run_test_registration_fails_clearly()
     test_block_commented_run_test_registration_fails_clearly()
     test_if_zero_run_test_registration_fails_clearly()
@@ -1033,9 +1187,16 @@ if __name__ == "__main__":
     test_if_zero_unknown_elif_run_test_registration_fails_closed()
     test_reordered_run_test_registration_fails_clearly()
     test_selected_registration_after_solve_block_fails_clearly()
+    test_missing_solve_registration_fails_clearly()
+    test_behavior_suite_missing_selected_marker_fails_clearly()
+    test_behavior_suite_commented_selected_marker_fails_clearly()
+    test_behavior_suite_summary_contract_fails_clearly()
+    test_behavior_suite_commented_summary_contract_fails_clearly()
+    test_behavior_suite_output_diagnostics_contract_fails_clearly()
     test_moved_definition_missing_from_native_helper_fails_clearly()
     test_block_commented_moved_definition_fails_clearly()
     test_duplicate_same_line_moved_definition_fails_clearly()
+    test_unknown_ifdef_duplicate_moved_definition_fails_closed()
     test_if_zero_moved_definition_fails_clearly()
     test_hex_zero_moved_definition_fails_clearly()
     test_if_zero_else_moved_definition_passes_guard()

@@ -14,6 +14,7 @@ TEST_FILE="$ROOT_DIR/tests/test_ldlt_csc.c"
 MAKEFILE="$ROOT_DIR/Makefile"
 CMAKE_FILE="$ROOT_DIR/CMakeLists.txt"
 LIBRARY_MANIFEST="$ROOT_DIR/build-metadata/library_sources.txt"
+BEHAVIOR_FILE="$ROOT_DIR/tests/test_ldlt_csc_native_parity_behavior.py"
 HELPERS=(
     "tests/test_ldlt_csc_fixtures.h"
     "tests/test_ldlt_csc_native_parity_helpers.h"
@@ -341,8 +342,10 @@ active_include_count() {
 
 active_run_test_count() {
     local marker="$1"
+    local fail_closed_unknown="${2:-0}"
 
-    awk -v marker="$marker" -v include_guard="" "$ACTIVE_CODE_AWK"'
+    awk -v marker="$marker" -v include_guard="" \
+        -v fail_closed_unknown="$fail_closed_unknown" "$ACTIVE_CODE_AWK"'
         {
             active = strip_comments($0)
             if (update_conditionals(active))
@@ -387,10 +390,12 @@ active_run_test_line() {
 require_active_run_test_registration() {
     local marker="$1"
     local count
+    local possible_count
 
     count="$(active_run_test_count "$marker")"
-    if [ "$count" -ne 1 ]; then
-        fail "tests/test_ldlt_csc.c must retain proof-owner registration '$marker' exactly once as an active RUN_TEST line (found $count)"
+    possible_count="$(active_run_test_count "$marker" 1)"
+    if [ "$count" -ne 1 ] || [ "$possible_count" -ne 1 ]; then
+        fail "tests/test_ldlt_csc.c must retain proof-owner registration '$marker' exactly once as an active RUN_TEST line and no additional possible-active registrations (active $count, possible $possible_count)"
     fi
 }
 
@@ -409,7 +414,7 @@ require_increasing_run_test_order() {
     done
 
     solve_line="$(active_run_test_line "$SOLVE_RUN_TEST_MARKER")"
-    if [ -z "$solve_line" ]; then
+    if [ "$solve_line" -eq 0 ]; then
         fail "tests/test_ldlt_csc.c must retain Day 9 solve registration '$SOLVE_RUN_TEST_MARKER'"
     fi
     if [ "$solve_line" -le "$previous_line" ]; then
@@ -542,6 +547,7 @@ check_helper_headers() {
     local include_name
     local guard
     local count
+    local possible_count
 
     for helper in "${HELPERS[@]}"; do
         helper_path="$ROOT_DIR/$helper"
@@ -552,8 +558,9 @@ check_helper_headers() {
         require_fixed "#ifndef $guard" "$helper_path" "$helper is missing include guard $guard"
         require_fixed "#define $guard" "$helper_path" "$helper is missing include guard define $guard"
         count="$(active_include_count "$include_name")"
-        if [ "$count" -ne 1 ]; then
-            fail "tests/test_ldlt_csc.c must include $include_name exactly once as an active include (found $count)"
+        possible_count="$(active_include_count "$include_name" "$TEST_FILE" 1)"
+        if [ "$count" -ne 1 ] || [ "$possible_count" -ne 1 ]; then
+            fail "tests/test_ldlt_csc.c must include $include_name exactly once as an active include and no additional possible-active includes (active $count, possible $possible_count)"
         fi
         count="$(makefile_active_occurrence_count "$include_name" "$MAKEFILE")"
         if [ "$count" -ne 1 ]; then
@@ -626,16 +633,129 @@ check_selected_run_test_registrations() {
     pass "selected RUN_TEST registrations"
 }
 
+check_behavior_regression_contract() {
+    local selected_tests=()
+    local marker
+
+    require_file "$BEHAVIOR_FILE" "tests/test_ldlt_csc_native_parity_behavior.py is missing"
+    for marker in "${RUN_TEST_MARKERS[@]}"; do
+        marker="${marker#RUN_TEST(}"
+        marker="${marker%);}"
+        selected_tests+=("$marker")
+    done
+
+    python3 - "$BEHAVIOR_FILE" "${selected_tests[@]}" <<'PY'
+import ast
+import sys
+from pathlib import Path
+
+behavior_path = Path(sys.argv[1])
+expected_selected = list(sys.argv[2:])
+expected_summary = {
+    "Tests run": 100,
+    "Tests failed": 0,
+    "Tests skipped": 0,
+    "Assertions": 3556,
+}
+
+
+def fail(message: str) -> None:
+    raise SystemExit(message)
+
+
+tree = ast.parse(behavior_path.read_text(encoding="utf-8"), filename=str(behavior_path))
+assignments: dict[str, ast.AST] = {}
+for node in tree.body:
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                assignments[target.id] = node.value
+
+try:
+    selected_tests = ast.literal_eval(assignments["SELECTED_TESTS"])
+except (KeyError, ValueError, SyntaxError):
+    fail("behavior suite must define literal SELECTED_TESTS")
+if selected_tests != expected_selected:
+    fail("behavior suite must pin selected native parity tests in SELECTED_TESTS")
+
+try:
+    baseline_summary = ast.literal_eval(assignments["BASELINE_SUMMARY"])
+except (KeyError, ValueError, SyntaxError):
+    fail("behavior suite must define literal BASELINE_SUMMARY")
+for key, value in expected_summary.items():
+    if baseline_summary.get(key) != value:
+        fail(f"behavior suite must preserve {key!r} summary value {value}")
+if baseline_summary != expected_summary:
+    fail("behavior suite must preserve exact test_ldlt_csc summary contract")
+
+
+def is_name(node: ast.AST, name: str) -> bool:
+    return isinstance(node, ast.Name) and node.id == name
+
+
+def is_call(node: ast.AST, name: str) -> bool:
+    return isinstance(node, ast.Call) and is_name(node.func, name)
+
+
+has_selected_check = any(
+    is_call(node, "assert_selected_tests_passed_in_order")
+    and len(node.args) == 1
+    and is_name(node.args[0], "output")
+    for node in ast.walk(tree)
+)
+if not has_selected_check:
+    fail("behavior suite must check selected native parity pass-marker order")
+
+has_summary_compare = any(
+    isinstance(node, ast.Compare)
+    and is_name(node.left, "summary")
+    and len(node.ops) == 1
+    and isinstance(node.ops[0], ast.NotEq)
+    and len(node.comparators) == 1
+    and is_name(node.comparators[0], "BASELINE_SUMMARY")
+    for node in ast.walk(tree)
+)
+if not has_summary_compare:
+    fail("behavior suite must compare the full baseline summary")
+
+has_all_passed_check = any(
+    isinstance(node, ast.Compare)
+    and isinstance(node.left, ast.Constant)
+    and node.left.value == "ALL TESTS PASSED"
+    and len(node.ops) == 1
+    and isinstance(node.ops[0], ast.NotIn)
+    and len(node.comparators) == 1
+    and is_name(node.comparators[0], "output")
+    for node in ast.walk(tree)
+)
+if not has_all_passed_check:
+    fail("behavior suite must preserve all-tests-passed diagnostic check")
+
+has_output_excerpt = any(
+    is_call(node, "output_excerpt")
+    and len(node.args) >= 1
+    and is_name(node.args[0], "output")
+    for node in ast.walk(tree)
+)
+if not has_output_excerpt:
+    fail("behavior suite must preserve command-output diagnostics on failure")
+PY
+
+    pass "behavior regression contract"
+}
+
 check_moved_definition_ownership() {
     local marker
     local file
     local rel_file
     local count
+    local possible_count
 
     for marker in "${MOVED_DEFINITION_MARKERS[@]}"; do
         count="$(active_fixed_count_in_file "$marker" "$NATIVE_HELPER_PATH")"
-        if [ "$count" -ne 1 ]; then
-            fail "$NATIVE_HELPER must own moved selected-cluster definition '$marker' exactly once as active code (found $count)"
+        possible_count="$(active_fixed_count_in_file "$marker" "$NATIVE_HELPER_PATH" 1)"
+        if [ "$count" -ne 1 ] || [ "$possible_count" -ne 1 ]; then
+            fail "$NATIVE_HELPER must own moved selected-cluster definition '$marker' exactly once as active code and no additional possible-active definitions (active $count, possible $possible_count)"
         fi
 
         while IFS= read -r file; do
@@ -664,6 +784,7 @@ check_helper_headers
 check_native_helper_translation_unit
 check_header_only_registration
 check_selected_run_test_registrations
+check_behavior_regression_contract
 check_moved_definition_ownership
 
 echo "ldlt-csc-helper-guard: passed"

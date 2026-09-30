@@ -77,7 +77,10 @@ def write_fixture(root: Path) -> None:
         "\t@python3 tests/test_ldlt_csc_native_parity_behavior.py\n\n"
         ".PHONY: quality-review-compile\n"
         "quality-review-compile:\n"
-        "\t@$(MAKE) ldlt-csc-helper-guard\n",
+        "\t@$(MAKE) ldlt-csc-helper-guard\n\n"
+        ".PHONY: quality-review-full\n"
+        "quality-review-full:\n"
+        "\t@$(MAKE) quality-review-compile\n",
         encoding="utf-8",
     )
     (root / "CMakeLists.txt").write_text(
@@ -279,6 +282,22 @@ def test_ifdef_native_helper_include_fails_closed() -> None:
     assert_guard_fails_with(mutate, "exactly once as an active include")
 
 
+def test_ifndef_native_helper_include_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc.c"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '#include "test_ldlt_csc_native_parity_helpers.h"',
+                "#ifndef SKIP_NATIVE_HELPER\n"
+                '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "exactly once as an active include")
+
+
 def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "Makefile"
@@ -290,7 +309,10 @@ def test_missing_native_helper_makefile_prerequisite_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "must list test_ldlt_csc_native_parity_helpers.h")
+    assert_guard_fails_with(
+        mutate,
+        "must list exact prerequisite token $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h",
+    )
 
 
 def test_commented_native_helper_makefile_prerequisite_fails_clearly() -> None:
@@ -320,7 +342,10 @@ def test_suffix_native_helper_makefile_prerequisite_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "test_ldlt_csc prerequisite rule must list")
+    assert_guard_fails_with(
+        mutate,
+        "must list exact prerequisite token $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h",
+    )
 
 
 def test_multiline_makefile_prerequisite_rule_passes_guard() -> None:
@@ -394,6 +419,23 @@ def test_quality_review_compile_runs_helper_guard_fails_clearly() -> None:
     assert_guard_fails_with(
         mutate,
         "quality-review-compile target must run ldlt-csc-helper-guard",
+    )
+
+
+def test_quality_review_full_runs_compile_gate_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "Makefile"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "\t@$(MAKE) quality-review-compile\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(
+        mutate,
+        "quality-review-full target must run quality-review-compile",
     )
 
 
@@ -540,6 +582,19 @@ def test_native_helper_path_qualified_examples_include_fails_clearly() -> None:
         (root / "examples").mkdir()
         (root / "examples" / "example_other.c").write_text(
             '#include "../tests/test_ldlt_csc_native_parity_helpers.h"\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must not be included by examples/example_other.c")
+
+
+def test_native_helper_unknown_ifdef_second_translation_unit_include_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / "examples").mkdir()
+        (root / "examples" / "example_other.c").write_text(
+            "#ifdef ENABLE_NATIVE_HELPER\n"
+            '#include "test_ldlt_csc_native_parity_helpers.h"\n'
+            "#endif\n",
             encoding="utf-8",
         )
 
@@ -835,6 +890,22 @@ def test_ifndef_moved_definition_fails_closed() -> None:
     assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
 
 
+def test_ifdef_moved_definition_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                "#ifdef ENABLE_NATIVE_DEFINITION\n"
+                f"{MOVED_DEFINITION_MARKERS[0]}\n"
+                "#endif",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
+
+
 def test_moved_definition_in_proof_owner_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc.c"
@@ -855,6 +926,30 @@ def test_moved_definition_in_wrong_helper_fails_clearly() -> None:
         )
 
     assert_guard_fails_with(mutate, "must not own moved selected-cluster definition")
+
+
+def test_moved_definition_in_examples_translation_unit_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / "examples").mkdir()
+        (root / "examples" / "example_other.c").write_text(
+            f"{MOVED_DEFINITION_MARKERS[0]} }}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "examples/example_other.c must not own")
+
+
+def test_unknown_ifdef_moved_definition_outside_native_helper_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / "examples").mkdir()
+        (root / "examples" / "example_other.c").write_text(
+            "#ifdef ENABLE_NATIVE_DEFINITION\n"
+            f"{MOVED_DEFINITION_MARKERS[0]} }}\n"
+            "#endif\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "examples/example_other.c must not own")
 
 
 def test_native_helper_cmake_registration_fails_clearly() -> None:
@@ -904,6 +999,7 @@ if __name__ == "__main__":
     test_path_qualified_native_helper_include_passes_guard()
     test_angle_bracket_native_helper_include_passes_guard()
     test_ifdef_native_helper_include_fails_closed()
+    test_ifndef_native_helper_include_fails_closed()
     test_missing_native_helper_makefile_prerequisite_fails_clearly()
     test_commented_native_helper_makefile_prerequisite_fails_clearly()
     test_suffix_native_helper_makefile_prerequisite_fails_clearly()
@@ -911,6 +1007,7 @@ if __name__ == "__main__":
     test_makefile_guard_target_runs_python_suite_fails_clearly()
     test_makefile_guard_target_runs_behavior_suite_fails_clearly()
     test_quality_review_compile_runs_helper_guard_fails_clearly()
+    test_quality_review_full_runs_compile_gate_fails_clearly()
     test_makefile_guard_target_ignores_commented_python_suite_fails_clearly()
     test_quality_review_compile_ignores_commented_helper_guard_fails_clearly()
     test_makefile_guard_target_ignores_echoed_python_suite_fails_clearly()
@@ -922,6 +1019,7 @@ if __name__ == "__main__":
     test_native_helper_angle_bracket_second_translation_unit_include_fails_clearly()
     test_native_helper_examples_translation_unit_include_fails_clearly()
     test_native_helper_path_qualified_examples_include_fails_clearly()
+    test_native_helper_unknown_ifdef_second_translation_unit_include_fails_closed()
     test_missing_run_test_registration_fails_clearly()
     test_duplicate_same_line_run_test_registration_fails_clearly()
     test_line_commented_run_test_registration_fails_clearly()
@@ -942,8 +1040,11 @@ if __name__ == "__main__":
     test_hex_zero_moved_definition_fails_clearly()
     test_if_zero_else_moved_definition_passes_guard()
     test_ifndef_moved_definition_fails_closed()
+    test_ifdef_moved_definition_fails_closed()
     test_moved_definition_in_proof_owner_fails_clearly()
     test_moved_definition_in_wrong_helper_fails_clearly()
+    test_moved_definition_in_examples_translation_unit_fails_clearly()
+    test_unknown_ifdef_moved_definition_outside_native_helper_fails_closed()
     test_native_helper_cmake_registration_fails_clearly()
     test_native_helper_library_source_registration_fails_clearly()
     test_native_helper_bare_library_source_registration_fails_clearly()

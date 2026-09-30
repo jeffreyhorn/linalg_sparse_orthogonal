@@ -200,15 +200,24 @@ ACTIVE_CODE_AWK="$(cat <<'AWK'
         function update_conditionals(line,    parent) {
             if (if_directive(line)) {
                 conditional_depth++
-                conditional_active[conditional_depth] = parent_active() && true_condition(line)
-                conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
+                if (fail_closed_unknown && unknown_condition(line)) {
+                    conditional_active[conditional_depth] = parent_active()
+                    conditional_taken[conditional_depth] = 0
+                } else {
+                    conditional_active[conditional_depth] = parent_active() && true_condition(line)
+                    conditional_taken[conditional_depth] = unknown_condition(line) || conditional_active[conditional_depth]
+                }
                 return 1
             }
             if (elif_directive(line)) {
                 parent = parent_active()
-                conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
-                conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
-                    unknown_condition(line) || conditional_active[conditional_depth]
+                if (fail_closed_unknown && unknown_condition(line)) {
+                    conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth]
+                } else {
+                    conditional_active[conditional_depth] = parent && !conditional_taken[conditional_depth] && true_condition(line)
+                    conditional_taken[conditional_depth] = conditional_taken[conditional_depth] ||
+                        unknown_condition(line) || conditional_active[conditional_depth]
+                }
                 return 1
             }
             if (else_directive(line)) {
@@ -276,11 +285,13 @@ include_guard_for_file() {
 active_fixed_count_in_file() {
     local marker="$1"
     local file="$2"
+    local fail_closed_unknown="${3:-0}"
     local include_guard
 
     include_guard="$(include_guard_for_file "$file")"
 
-    awk -v marker="$marker" -v include_guard="$include_guard" "$ACTIVE_CODE_AWK"'
+    awk -v marker="$marker" -v include_guard="$include_guard" \
+        -v fail_closed_unknown="$fail_closed_unknown" "$ACTIVE_CODE_AWK"'
         {
             active = strip_comments($0)
             if (update_conditionals(active))
@@ -299,11 +310,13 @@ active_fixed_count_in_file() {
 active_include_count() {
     local include_name="$1"
     local file="${2:-$TEST_FILE}"
+    local fail_closed_unknown="${3:-0}"
     local include_guard
 
     include_guard="$(include_guard_for_file "$file")"
 
-    awk -v include_name="$include_name" -v include_guard="$include_guard" "$ACTIVE_CODE_AWK"'
+    awk -v include_name="$include_name" -v include_guard="$include_guard" \
+        -v fail_closed_unknown="$fail_closed_unknown" "$ACTIVE_CODE_AWK"'
         function include_basename_matches(line, include_name,    target) {
             if (line !~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*["<]/)
                 return 0
@@ -506,6 +519,9 @@ check_makefile_guard_wiring() {
     require_makefile_target_command "quality-review-compile" \
         "\$(MAKE) ldlt-csc-helper-guard" \
         "Makefile quality-review-compile target must run ldlt-csc-helper-guard"
+    require_makefile_target_command "quality-review-full" \
+        "\$(MAKE) quality-review-compile" \
+        "Makefile quality-review-full target must run quality-review-compile"
 
     pass "Makefile guard wiring"
 }
@@ -541,10 +557,10 @@ check_helper_headers() {
         fi
         count="$(makefile_active_occurrence_count "$include_name" "$MAKEFILE")"
         if [ "$count" -ne 1 ]; then
-            fail "Makefile must list $include_name exactly once, only as a test_ldlt_csc prerequisite (found $count)"
+            fail "Makefile must list exact prerequisite token \$(TESTDIR)/$include_name exactly once, only as a test_ldlt_csc prerequisite (found $count)"
         fi
         require_test_ldlt_csc_rule_prerequisite "\$(TESTDIR)/$include_name" \
-            "Makefile test_ldlt_csc prerequisite rule must list $include_name"
+            "Makefile test_ldlt_csc prerequisite rule must list exact prerequisite token \$(TESTDIR)/$include_name"
     done
 
     pass "helper headers"
@@ -564,7 +580,7 @@ check_native_helper_translation_unit() {
             if [ "$count" -ne 1 ]; then
                 fail "tests/test_ldlt_csc.c must be the single active translation-unit includer of $include_name"
             fi
-        elif [ "$count" -ne 0 ]; then
+        elif [ "$(active_include_count "$include_name" "$file" 1)" -ne 0 ]; then
             rel_file="${file#$ROOT_DIR/}"
             fail "$include_name must not be included by $rel_file"
         fi
@@ -612,8 +628,8 @@ check_selected_run_test_registrations() {
 
 check_moved_definition_ownership() {
     local marker
-    local helper
-    local helper_path
+    local file
+    local rel_file
     local count
 
     for marker in "${MOVED_DEFINITION_MARKERS[@]}"; do
@@ -622,21 +638,21 @@ check_moved_definition_ownership() {
             fail "$NATIVE_HELPER must own moved selected-cluster definition '$marker' exactly once as active code (found $count)"
         fi
 
-        count="$(active_fixed_count_in_file "$marker" "$TEST_FILE")"
-        if [ "$count" -ne 0 ]; then
-            fail "tests/test_ldlt_csc.c must not retain moved selected-cluster definition '$marker'"
-        fi
-
-        for helper in "${HELPERS[@]}"; do
-            if [ "$helper" = "$NATIVE_HELPER" ]; then
+        while IFS= read -r file; do
+            if [ "$file" = "$NATIVE_HELPER_PATH" ]; then
                 continue
             fi
-            helper_path="$ROOT_DIR/$helper"
-            count="$(active_fixed_count_in_file "$marker" "$helper_path")"
+            count="$(active_fixed_count_in_file "$marker" "$file" 1)"
             if [ "$count" -ne 0 ]; then
-                fail "$helper must not own moved selected-cluster definition '$marker'"
+                rel_file="${file#$ROOT_DIR/}"
+                if [ "$file" = "$TEST_FILE" ]; then
+                    fail "tests/test_ldlt_csc.c must not retain moved selected-cluster definition '$marker'"
+                fi
+                fail "$rel_file must not own moved selected-cluster definition '$marker'"
             fi
-        done
+        done < <(find "$ROOT_DIR" \
+            \( -path "$ROOT_DIR/.git" -o -path "$ROOT_DIR/build" -o -path "$ROOT_DIR/docs/api" \) -prune -o \
+            -type f \( -name '*.c' -o -name '*.h' \) -print | sort)
     done
 
     pass "moved definition ownership"

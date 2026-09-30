@@ -766,13 +766,15 @@ quality-review-cmake:
 .PHONY: quality-review-full
 quality-review-full:
 	@echo "quality-review-full: strongest local reviewed baseline"
-	@echo "quality-review-full: rerun failing phases directly with 'make quality-review' or 'make quality-review-cmake'"
+	@echo "quality-review-full: rerun failing phases directly with 'make quality-review-compile', 'make quality-review', or 'make quality-review-cmake'"
 	@echo "quality-review-full: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
+	@echo "== quality-review-full: compile guard path =="
+	@$(MAKE) quality-review-compile
 	@echo "== quality-review-full: Makefile reviewed path =="
 	@$(MAKE) quality-review
 	@echo "== quality-review-full: CMake reviewed parity path =="
 	@$(MAKE) quality-review-cmake
-	@echo "quality-review-full: passed (quality-review + quality-review-cmake)"
+	@echo "quality-review-full: passed (quality-review-compile + quality-review + quality-review-cmake)"
 
 # ─── Helper / prerequisite plumbing for the quality surface ───────────
 #

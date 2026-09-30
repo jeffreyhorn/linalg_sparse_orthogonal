@@ -61,10 +61,10 @@ documentation, and ran integrated validation.
 4. **The guard became more review-resistant.** Review hardening closed active
    include, single-translation-unit, Makefile occurrence, commented
    prerequisite, zero-valued `#if`, unknown-macro conditional, angle-bracket
-   include, repeated same-line registration, Makefile wiring,
-   commented-command, echoed-command, inline-comment, multiline-prerequisite,
-   and selected-before-solve boundary gaps while centralizing the active-code
-   scanner prelude.
+   include, repeated same-line registration, repeated same-line
+   moved-definition marker, Makefile wiring, commented-command, echoed-command,
+   inline-comment, multiline-prerequisite, and selected-before-solve boundary
+   gaps while centralizing the active-code scanner prelude.
 
 5. **Build-system evidence is explicit.** The Makefile helper prerequisite rule
    covers stale-binary risk, and CMake registration parity stayed aligned at
@@ -108,8 +108,8 @@ documentation, and ran integrated validation.
 | --- | ---: | ---: | ---: |
 | `tests/test_ldlt_csc.c` lines | 3469 | 3174 | -295 |
 | `tests/test_ldlt_csc_native_parity_helpers.h` lines | 0 | 303 | +303 |
-| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 642 | +503 |
-| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 905 | +905 |
+| `scripts/check_ldlt_csc_helper_guard.sh` lines | 139 | 644 | +505 |
+| `tests/test_ldlt_csc_helper_guard.py` lines | 0 | 920 | +920 |
 | selected native parity registrations | 13 | 13 | 0 |
 | selected behavior pass markers | 13 | 13 | 0 |
 | `test_ldlt_csc` tests run | 100 | 100 | 0 |

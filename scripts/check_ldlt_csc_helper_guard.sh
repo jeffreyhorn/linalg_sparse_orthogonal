@@ -287,8 +287,10 @@ active_fixed_count_in_file() {
                 next
             if (!current_active())
                 next
-            if (index(active, marker) > 0)
+            while ((pos = index(active, marker)) > 0) {
                 count++
+                active = substr(active, pos + length(marker))
+            }
         }
         END { print count + 0 }
     ' "$file"

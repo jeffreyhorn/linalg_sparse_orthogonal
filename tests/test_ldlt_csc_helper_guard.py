@@ -747,6 +747,20 @@ def test_block_commented_moved_definition_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
 
 
+def test_duplicate_same_line_moved_definition_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                MOVED_DEFINITION_MARKERS[0],
+                f"{MOVED_DEFINITION_MARKERS[0]} {MOVED_DEFINITION_MARKERS[0]}",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "must own moved selected-cluster definition")
+
+
 def test_if_zero_moved_definition_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "tests" / "test_ldlt_csc_native_parity_helpers.h"
@@ -895,6 +909,7 @@ if __name__ == "__main__":
     test_selected_registration_after_solve_block_fails_clearly()
     test_moved_definition_missing_from_native_helper_fails_clearly()
     test_block_commented_moved_definition_fails_clearly()
+    test_duplicate_same_line_moved_definition_fails_clearly()
     test_if_zero_moved_definition_fails_clearly()
     test_hex_zero_moved_definition_fails_clearly()
     test_if_zero_else_moved_definition_passes_guard()

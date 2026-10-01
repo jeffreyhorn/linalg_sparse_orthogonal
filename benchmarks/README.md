@@ -273,6 +273,7 @@ regenerates the canonical bundle and checks only:
 - `repeat_semantics=configured_repeat_1`
 - `baseline=n/a`
 - `threshold=n/a`
+- `backend_context=n/a`
 - `warmup=none_configured`
 - `variance=not_computed_single_sample`
 - `methodology_notes` includes `not_portable_performance_claim`

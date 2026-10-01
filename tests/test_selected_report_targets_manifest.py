@@ -146,6 +146,7 @@ SELECTED_BENCHMARK_CLAIM_SCOPE = (
 SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS = (
     "no portable performance claim",
     "no release benchmark claim",
+    "no hosted timing threshold",
     "no algorithmic superiority claim",
     "no platform parity",
     "no state-of-the-art claim",
@@ -737,17 +738,20 @@ def test_selected_benchmark_manifest_rejects_missing_non_claim() -> None:
     raise AssertionError("expected selected benchmark missing non-claim to fail")
 
 
-def test_selected_benchmark_manifest_rejects_extra_threshold_non_claim() -> None:
+def test_selected_benchmark_manifest_rejects_missing_timing_threshold_non_claim() -> None:
     rows = manifest_rows()
     row = selected_benchmark_row(rows)
-    row["non_claims"] = f"{row['non_claims']};no hosted timing threshold"
+    row["non_claims"] = row["non_claims"].replace(
+        ";no hosted timing threshold",
+        "",
+    )
     try:
         assert_selected_benchmark_manifest_contract(rows)
     except AssertionError as exc:
         if "non_claims must remain the exact selected benchmark" not in str(exc):
             raise
         return
-    raise AssertionError("expected selected benchmark extra non-claim to fail")
+    raise AssertionError("expected selected benchmark missing timing-threshold non-claim to fail")
 
 
 def test_mismatched_workflow_artifact_platforms_fail_clearly() -> None:
@@ -1253,7 +1257,7 @@ def main() -> int:
     test_selected_benchmark_manifest_rejects_workflow_metadata_drift()
     test_selected_benchmark_manifest_rejects_threshold_claim_scope()
     test_selected_benchmark_manifest_rejects_missing_non_claim()
-    test_selected_benchmark_manifest_rejects_extra_threshold_non_claim()
+    test_selected_benchmark_manifest_rejects_missing_timing_threshold_non_claim()
     test_mismatched_workflow_artifact_platforms_fail_clearly()
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()

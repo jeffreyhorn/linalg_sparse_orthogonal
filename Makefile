@@ -237,6 +237,9 @@ $(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LI
 $(BUILDDIR)/test_svd: $(TESTDIR)/test_svd.c $(TESTDIR)/test_svd_helpers.h $(TESTDIR)/test_svd_selected_helpers.h $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
+$(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c $(TESTDIR)/test_ldlt_csc_fixtures.h $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h $(TESTDIR)/test_ldlt_csc_oracle_helpers.h $(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
@@ -644,6 +647,8 @@ source-list-check:
 .PHONY: ldlt-csc-helper-guard
 ldlt-csc-helper-guard:
 	@bash scripts/check_ldlt_csc_helper_guard.sh
+	@python3 tests/test_ldlt_csc_helper_guard.py
+	@python3 tests/test_ldlt_csc_native_parity_behavior.py
 
 .PHONY: qr-external-ref-helper-guard
 qr-external-ref-helper-guard:
@@ -704,7 +709,9 @@ quality-review-compile:
 	@$(MAKE) source-list-check
 	@echo "== quality-review-compile: lint =="
 	@$(MAKE) lint
-	@echo "quality-review-compile: passed (format-check + source-list-check + lint)"
+	@echo "== quality-review-compile: ldlt-csc-helper-guard =="
+	@$(MAKE) ldlt-csc-helper-guard
+	@echo "quality-review-compile: passed (format-check + source-list-check + lint + ldlt-csc-helper-guard)"
 
 .PHONY: quality-review
 quality-review:
@@ -759,13 +766,15 @@ quality-review-cmake:
 .PHONY: quality-review-full
 quality-review-full:
 	@echo "quality-review-full: strongest local reviewed baseline"
-	@echo "quality-review-full: rerun failing phases directly with 'make quality-review' or 'make quality-review-cmake'"
+	@echo "quality-review-full: rerun failing phases directly with 'make quality-review-compile', 'make quality-review', or 'make quality-review-cmake'"
 	@echo "quality-review-full: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
+	@echo "== quality-review-full: compile guard path =="
+	@$(MAKE) quality-review-compile
 	@echo "== quality-review-full: Makefile reviewed path =="
 	@$(MAKE) quality-review
 	@echo "== quality-review-full: CMake reviewed parity path =="
 	@$(MAKE) quality-review-cmake
-	@echo "quality-review-full: passed (quality-review + quality-review-cmake)"
+	@echo "quality-review-full: passed (quality-review-compile + quality-review + quality-review-cmake)"
 
 # ─── Helper / prerequisite plumbing for the quality surface ───────────
 #

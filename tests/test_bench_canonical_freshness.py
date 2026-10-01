@@ -329,6 +329,7 @@ def test_positive_local_report_records_exact_threshold_free_methodology() -> Non
             "warmup": "none_configured",
             "variance": "not_computed_single_sample",
             "repeat_semantics": "configured_repeat_1",
+            "backend_context": "n/a",
             "support_tier": "local_only",
             "claim_boundary": "local_threshold_free",
         }
@@ -480,6 +481,17 @@ def test_selected_threshold_stays_threshold_free() -> None:
         report = copy_report(Path(tmp))
         mutate_selected_field(report, "threshold", "200.0")
         assert_fails_with(report, "field=threshold expected=n/a observed=200.0")
+
+
+def test_selected_backend_context_stays_threshold_free() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(report, "backend_context", "chol_spd_backend_claim")
+        assert_fails_with(
+            report,
+            "field=backend_context expected=n/a observed=chol_spd_backend_claim",
+        )
 
 
 def test_selected_status_cannot_become_performance_pass_claim() -> None:
@@ -736,6 +748,7 @@ def main() -> None:
         test_selected_variance_is_required,
         test_selected_baseline_stays_threshold_free,
         test_selected_threshold_stays_threshold_free,
+        test_selected_backend_context_stays_threshold_free,
         test_selected_status_cannot_become_performance_pass_claim,
         test_selected_methodology_notes_require_non_portable_boundary,
         test_selected_methodology_notes_reject_threshold_promotion,

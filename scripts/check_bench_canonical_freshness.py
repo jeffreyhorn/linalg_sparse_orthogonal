@@ -369,7 +369,12 @@ def check_selected_values(
             f"field=methodology_notes expected_token={REQUIRED_METHODOLOGY_NOTE} "
             f"observed={row['methodology_notes']}"
         )
-    forbidden_notes = [note for note in notes if note in FORBIDDEN_METHODOLOGY_NOTES]
+    forbidden_note_map = {note.lower(): note for note in FORBIDDEN_METHODOLOGY_NOTES}
+    forbidden_notes = [
+        forbidden_note_map[note.lower()]
+        for note in notes
+        if note.lower() in forbidden_note_map
+    ]
     if forbidden_notes:
         error(
             "freshness: error: benchmark_selected_value: "

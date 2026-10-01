@@ -538,6 +538,22 @@ def test_selected_methodology_notes_reject_spaced_threshold_promotion() -> None:
         )
 
 
+def test_selected_methodology_notes_reject_capitalized_threshold_promotion() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        promoted_notes = (
+            "threshold_free_local_measurement;"
+            "not_portable_performance_claim;"
+            "HOSTED_TIMING_THRESHOLD"
+        )
+        mutate_selected_field(report, "methodology_notes", promoted_notes)
+        assert_fails_with(
+            report,
+            "field=methodology_notes forbidden_token=hosted_timing_threshold",
+        )
+
+
 def test_manifest_selected_matrix_size_must_match() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -724,6 +740,7 @@ def main() -> None:
         test_selected_methodology_notes_require_non_portable_boundary,
         test_selected_methodology_notes_reject_threshold_promotion,
         test_selected_methodology_notes_reject_spaced_threshold_promotion,
+        test_selected_methodology_notes_reject_capitalized_threshold_promotion,
         test_manifest_selected_matrix_size_must_match,
         test_manifest_methodology_notes_must_match_selected_row,
         test_row_width_mismatch_is_rejected,

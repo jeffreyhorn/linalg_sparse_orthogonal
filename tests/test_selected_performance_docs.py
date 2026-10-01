@@ -211,15 +211,16 @@ def test_forbidden_hosted_timing_gate_overclaim_fails_clearly() -> None:
 
 def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
     relative_path = "benchmarks/README.md"
-    text = (
-        read_doc(relative_path)
-        + "\nThe selected canonical benchmark is a timing-threshold.\n"
-        + "The selected canonical benchmark provides a timing threshold.\n"
+    claims = (
+        "The selected canonical benchmark is a timing-threshold.",
+        "The selected canonical benchmark provides a timing threshold.",
     )
-    assert_raises_with(
-        lambda: validate_docs({relative_path: text}),
-        "unsupported selected performance claim",
-    )
+    for claim in claims:
+        text = read_doc(relative_path) + f"\n{claim}\n"
+        assert_raises_with(
+            lambda text=text: validate_docs({relative_path: text}),
+            "unsupported selected performance claim",
+        )
 
 
 def main() -> int:

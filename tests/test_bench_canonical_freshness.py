@@ -591,6 +591,17 @@ def test_manifest_methodology_notes_must_match_selected_row() -> None:
         )
 
 
+def test_manifest_backend_context_must_match_selected_row() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_manifest_value(report, "backend_context", "chol_spd_backend_claim")
+        assert_fails_with(
+            report,
+            "field=backend_context row=n/a manifest=chol_spd_backend_claim",
+        )
+
+
 def test_row_width_mismatch_is_rejected() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -756,6 +767,7 @@ def main() -> None:
         test_selected_methodology_notes_reject_capitalized_threshold_promotion,
         test_manifest_selected_matrix_size_must_match,
         test_manifest_methodology_notes_must_match_selected_row,
+        test_manifest_backend_context_must_match_selected_row,
         test_row_width_mismatch_is_rejected,
         test_unselected_rows_cannot_be_hosted_selected,
         test_unselected_rows_cannot_claim_hosted_threshold_free_boundary,

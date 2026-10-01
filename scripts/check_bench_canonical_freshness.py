@@ -148,6 +148,7 @@ MANIFEST_MATCH_FIELDS = (
     "claim_boundary",
     "baseline",
     "threshold",
+    "backend_context",
     "warmup",
     "variance",
     "matrix_size",

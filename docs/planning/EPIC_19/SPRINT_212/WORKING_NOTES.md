@@ -986,9 +986,9 @@ Maintainers should repair selected benchmark freshness failures by:
 | `benchmarks/README.md` | 839 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 546 |
-| `tests/test_bench_canonical_freshness.py` | 729 |
-| `tests/test_selected_performance_docs.py` | 220 |
+| `scripts/check_bench_canonical_freshness.py` | 555 |
+| `tests/test_bench_canonical_freshness.py` | 763 |
+| `tests/test_selected_performance_docs.py` | 279 |
 | `tests/test_selected_report_targets_manifest.py` | 1292 |
 
 ### Day 11 Validation
@@ -1072,9 +1072,9 @@ or planning examples of rejected claims rather than active support claims.
 | `benchmarks/README.md` | 839 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 546 |
-| `tests/test_bench_canonical_freshness.py` | 746 |
-| `tests/test_selected_performance_docs.py` | 236 |
+| `scripts/check_bench_canonical_freshness.py` | 555 |
+| `tests/test_bench_canonical_freshness.py` | 763 |
+| `tests/test_selected_performance_docs.py` | 279 |
 | `tests/test_selected_report_targets_manifest.py` | 1292 |
 
 ### Day 13 Validation
@@ -1152,9 +1152,9 @@ No `.c` or `.h` files changed during Sprint 212, so the full C quality gate
 | `benchmarks/README.md` | 839 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 546 |
-| `tests/test_bench_canonical_freshness.py` | 746 |
-| `tests/test_selected_performance_docs.py` | 236 |
+| `scripts/check_bench_canonical_freshness.py` | 555 |
+| `tests/test_bench_canonical_freshness.py` | 763 |
+| `tests/test_selected_performance_docs.py` | 279 |
 | `tests/test_selected_report_targets_manifest.py` | 1292 |
 
 ### Residual Risks And Non-Claims

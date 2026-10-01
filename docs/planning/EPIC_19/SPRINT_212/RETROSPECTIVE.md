@@ -158,9 +158,9 @@ regression coverage.
 | `benchmarks/README.md` | 839 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 546 |
-| `tests/test_bench_canonical_freshness.py` | 746 |
-| `tests/test_selected_performance_docs.py` | 236 |
+| `scripts/check_bench_canonical_freshness.py` | 555 |
+| `tests/test_bench_canonical_freshness.py` | 763 |
+| `tests/test_selected_performance_docs.py` | 279 |
 | `tests/test_selected_report_targets_manifest.py` | 1292 |
 | `docs/planning/EPIC_19/SPRINT_212/WORKING_NOTES.md` | 1186 |
 | `docs/planning/EPIC_19/SPRINT_212/artifacts/day14-closeout-review.md` | 97 |

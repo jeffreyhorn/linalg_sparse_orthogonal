@@ -273,6 +273,9 @@ regenerates the canonical bundle and checks only:
 - `repeat_semantics=configured_repeat_1`
 - `baseline=n/a`
 - `threshold=n/a`
+- `warmup=none_configured`
+- `variance=not_computed_single_sample`
+- `methodology_notes` includes `not_portable_performance_claim`
 
 The reviewed Linux and macOS hosted selected-performance lanes run the same
 selected-row check in hosted mode. In raw report metadata, that means
@@ -328,6 +331,9 @@ This is intentionally not a pass/fail timing gate:
 - read the hosted selected-performance lane as freshness and methodology
   evidence for the selected `bench_refactor_csc` row only, not as portable
   speed evidence or broad benchmark publication
+- require stable runner-class, compiler, repeat, warmup, variance, baseline,
+  threshold, retained-artifact, and non-claim evidence before promoting this
+  selected canonical row to any timing-threshold policy
 - keep `bench-fast` as the bounded runtime lane and `wall-check` as the narrow
   thresholded regression gate that already has a justified machine-class
   baseline
@@ -490,6 +496,9 @@ canonical index, find it with:
 - `claim_boundary=local_threshold_free` locally, or
   `hosted_selected_threshold_free` only in the reviewed Linux/macOS hosted
   freshness lanes.
+- `baseline=n/a`, `threshold=n/a`, `warmup=none_configured`,
+  `variance=not_computed_single_sample`, and `methodology_notes` containing
+  `not_portable_performance_claim`.
 
 Local selected regression smoke evidence comes from:
 

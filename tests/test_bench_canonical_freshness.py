@@ -317,6 +317,47 @@ def test_selected_benchmark_csv_matches_index_fixture_contract() -> None:
         assert csv_row["ldlt_dense_backend_fallback"] == "n/a"
 
 
+def test_positive_local_report_records_exact_threshold_free_methodology() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        row = selected_index_row(report)
+        exact_fields = {
+            "status": "measurement",
+            "baseline": "n/a",
+            "threshold": "n/a",
+            "warmup": "none_configured",
+            "variance": "not_computed_single_sample",
+            "repeat_semantics": "configured_repeat_1",
+            "support_tier": "local_only",
+            "claim_boundary": "local_threshold_free",
+        }
+        for field, expected in exact_fields.items():
+            observed = row[field]
+            if observed != expected:
+                raise AssertionError(
+                    f"expected selected {field}={expected!r}, observed {observed!r}"
+                )
+        notes = row["methodology_notes"].split(";")
+        if checker.REQUIRED_METHODOLOGY_NOTE not in notes:
+            raise AssertionError(
+                "selected methodology_notes missing "
+                f"{checker.REQUIRED_METHODOLOGY_NOTE!r}"
+            )
+        unexpected_notes = [
+            note for note in notes if note in checker.FORBIDDEN_METHODOLOGY_NOTES
+        ]
+        if unexpected_notes:
+            raise AssertionError(
+                f"selected methodology_notes has forbidden tokens {unexpected_notes!r}"
+            )
+        manifest = checker.read_manifest(report / "manifest.txt")
+        if manifest["methodology_notes"] != row["methodology_notes"]:
+            raise AssertionError(
+                "selected methodology_notes must match manifest methodology_notes"
+            )
+
+
 def test_selected_benchmark_csv_wrong_fixture_fails() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -449,12 +490,77 @@ def test_selected_status_cannot_become_performance_pass_claim() -> None:
         assert_fails_with(report, "field=status expected=measurement observed=pass")
 
 
+def test_selected_methodology_notes_require_non_portable_boundary() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_selected_field(
+            report,
+            "methodology_notes",
+            "threshold_free_local_measurement",
+        )
+        assert_fails_with(
+            report,
+            "field=methodology_notes expected_token=not_portable_performance_claim",
+        )
+
+
+def test_selected_methodology_notes_reject_threshold_promotion() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        for forbidden_note in checker.FORBIDDEN_METHODOLOGY_NOTES:
+            report = copy_report(Path(tmp) / forbidden_note)
+            promoted_notes = (
+                "threshold_free_local_measurement;"
+                "not_portable_performance_claim;"
+                f"{forbidden_note}"
+            )
+            mutate_selected_field(report, "methodology_notes", promoted_notes)
+            assert_fails_with(
+                report,
+                f"field=methodology_notes forbidden_token={forbidden_note}",
+            )
+
+
+def test_selected_methodology_notes_reject_spaced_threshold_promotion() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        promoted_notes = (
+            "threshold_free_local_measurement;"
+            "not_portable_performance_claim;"
+            " selected_timing_threshold "
+        )
+        mutate_selected_field(report, "methodology_notes", promoted_notes)
+        assert_fails_with(
+            report,
+            "field=methodology_notes forbidden_token=selected_timing_threshold",
+        )
+
+
 def test_manifest_selected_matrix_size_must_match() -> None:
     generate_local_report()
     with tempfile.TemporaryDirectory() as tmp:
         report = copy_report(Path(tmp))
         mutate_manifest_value(report, "selected_matrix_size", "n=101")
         assert_fails_with(report, "field=matrix_size row=n=100 manifest=n=101")
+
+
+def test_manifest_methodology_notes_must_match_selected_row() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_manifest_value(
+            report,
+            "methodology_notes",
+            "threshold_free_manifest_drift;not_portable_performance_claim",
+        )
+        assert_fails_with(
+            report,
+            "field=methodology_notes "
+            "row=threshold_free_local_measurement;not_portable_performance_claim "
+            "manifest=threshold_free_manifest_drift;not_portable_performance_claim",
+        )
 
 
 def test_row_width_mismatch_is_rejected() -> None:
@@ -471,6 +577,23 @@ def test_unselected_rows_cannot_be_hosted_selected() -> None:
         report = copy_report(Path(tmp))
         mutate_artifact_field(report, "bench_chol_csc", "support_tier", "hosted_selected")
         assert_fails_with(report, "freshness: error: benchmark_unselected_claim_boundary")
+
+
+def test_unselected_rows_cannot_claim_hosted_threshold_free_boundary() -> None:
+    generate_local_report()
+    with tempfile.TemporaryDirectory() as tmp:
+        report = copy_report(Path(tmp))
+        mutate_artifact_field(
+            report,
+            "bench_chol_csc",
+            "claim_boundary",
+            "hosted_selected_threshold_free",
+        )
+        assert_fails_with(
+            report,
+            "artifact=bench_chol_csc field=claim_boundary "
+            "expected=local_threshold_free observed=hosted_selected_threshold_free",
+        )
 
 
 def test_positive_hosted_report_keeps_unselected_rows_local() -> None:
@@ -584,6 +707,7 @@ def main() -> None:
         test_positive_local_report,
         test_selected_benchmark_manifest_matches_checker_contract,
         test_selected_benchmark_csv_matches_index_fixture_contract,
+        test_positive_local_report_records_exact_threshold_free_methodology,
         test_selected_benchmark_csv_wrong_fixture_fails,
         test_selected_benchmark_csv_missing_required_column_fails,
         test_selected_benchmark_csv_extra_row_fails,
@@ -597,9 +721,14 @@ def main() -> None:
         test_selected_baseline_stays_threshold_free,
         test_selected_threshold_stays_threshold_free,
         test_selected_status_cannot_become_performance_pass_claim,
+        test_selected_methodology_notes_require_non_portable_boundary,
+        test_selected_methodology_notes_reject_threshold_promotion,
+        test_selected_methodology_notes_reject_spaced_threshold_promotion,
         test_manifest_selected_matrix_size_must_match,
+        test_manifest_methodology_notes_must_match_selected_row,
         test_row_width_mismatch_is_rejected,
         test_unselected_rows_cannot_be_hosted_selected,
+        test_unselected_rows_cannot_claim_hosted_threshold_free_boundary,
         test_positive_hosted_report_keeps_unselected_rows_local,
         test_positive_macos_hosted_report_metadata,
         test_hosted_runner_context_cannot_be_local_placeholder,

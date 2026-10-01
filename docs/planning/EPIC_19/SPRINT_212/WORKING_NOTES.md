@@ -875,7 +875,7 @@ The exact selected benchmark manifest contract now covers:
 | Workflow metadata drift | Changing selected benchmark workflow file, job, artifact, or platform tuple fails. |
 | Threshold claim scope | Replacing threshold-free freshness wording with hosted timing threshold wording fails. |
 | Missing non-claim | Removing one required non-claim fails. |
-| Extra threshold non-claim | Adding an extra non-claim token fails, preserving exactness instead of substring-only coverage. |
+| Missing timing-threshold non-claim | Removing the required `no hosted timing threshold` token fails, preserving the Day 5 non-claim boundary. |
 
 ### Schema Confirmation
 
@@ -983,13 +983,13 @@ Maintainers should repair selected benchmark freshness failures by:
 | --- | ---: |
 | `README.md` | 1132 |
 | `INSTALL.md` | 618 |
-| `benchmarks/README.md` | 839 |
+| `benchmarks/README.md` | 840 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 555 |
-| `tests/test_bench_canonical_freshness.py` | 763 |
-| `tests/test_selected_performance_docs.py` | 279 |
-| `tests/test_selected_report_targets_manifest.py` | 1292 |
+| `scripts/check_bench_canonical_freshness.py` | 557 |
+| `tests/test_bench_canonical_freshness.py` | 788 |
+| `tests/test_selected_performance_docs.py` | 289 |
+| `tests/test_selected_report_targets_manifest.py` | 1296 |
 
 ### Day 11 Validation
 
@@ -1069,13 +1069,13 @@ or planning examples of rejected claims rather than active support claims.
 | --- | ---: |
 | `README.md` | 1132 |
 | `INSTALL.md` | 618 |
-| `benchmarks/README.md` | 839 |
+| `benchmarks/README.md` | 840 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 555 |
-| `tests/test_bench_canonical_freshness.py` | 763 |
-| `tests/test_selected_performance_docs.py` | 279 |
-| `tests/test_selected_report_targets_manifest.py` | 1292 |
+| `scripts/check_bench_canonical_freshness.py` | 557 |
+| `tests/test_bench_canonical_freshness.py` | 788 |
+| `tests/test_selected_performance_docs.py` | 289 |
+| `tests/test_selected_report_targets_manifest.py` | 1296 |
 
 ### Day 13 Validation
 
@@ -1149,13 +1149,13 @@ No `.c` or `.h` files changed during Sprint 212, so the full C quality gate
 | --- | ---: |
 | `README.md` | 1132 |
 | `INSTALL.md` | 618 |
-| `benchmarks/README.md` | 839 |
+| `benchmarks/README.md` | 840 |
 | `docs/maintainer_guide.md` | 2231 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
-| `scripts/check_bench_canonical_freshness.py` | 555 |
-| `tests/test_bench_canonical_freshness.py` | 763 |
-| `tests/test_selected_performance_docs.py` | 279 |
-| `tests/test_selected_report_targets_manifest.py` | 1292 |
+| `scripts/check_bench_canonical_freshness.py` | 557 |
+| `tests/test_bench_canonical_freshness.py` | 788 |
+| `tests/test_selected_performance_docs.py` | 289 |
+| `tests/test_selected_report_targets_manifest.py` | 1296 |
 
 ### Residual Risks And Non-Claims
 

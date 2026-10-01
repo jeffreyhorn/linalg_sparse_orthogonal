@@ -112,7 +112,7 @@ FORBIDDEN_PATTERNS = (
     ),
     re.compile(
         rf"selected{WS}performance{WS}"
-        rf"(?:is|acts{WS}as|provides|creates|defines|establishes|guarantees){WS}"
+        rf"(?:is|acts{WS}as|has|provides|creates|defines|establishes|guarantees){WS}"
         rf"a{WS}timing(?:-|{WS})threshold",
         re.I,
     ),
@@ -245,6 +245,7 @@ def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
         "The selected canonical benchmark provides a timing\nthreshold.",
         "The selected canonical benchmark guarantees a timing threshold.",
         "The selected performance is a timing threshold.",
+        "The selected performance has a timing threshold.",
         "The selected performance guarantees a timing threshold.",
     )
     for claim in claims:

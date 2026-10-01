@@ -43,7 +43,7 @@ The selected benchmark manifest row must remain:
 | `test_selected_benchmark_manifest_rejects_workflow_metadata_drift` | Rejects workflow file, job, artifact, and platform tuple drift, including Windows expansion. |
 | `test_selected_benchmark_manifest_rejects_threshold_claim_scope` | Rejects hosted timing-threshold wording in the selected benchmark claim scope. |
 | `test_selected_benchmark_manifest_rejects_missing_non_claim` | Rejects loss of a required selected benchmark non-claim. |
-| `test_selected_benchmark_manifest_rejects_extra_threshold_non_claim` | Rejects extra non-claim tuple drift so the row stays exact rather than substring-valid. |
+| `test_selected_benchmark_manifest_rejects_missing_timing_threshold_non_claim` | Rejects removal of the required `no hosted timing threshold` token so the row preserves the Day 5 non-claim boundary. |
 
 ## Schema Confirmation
 

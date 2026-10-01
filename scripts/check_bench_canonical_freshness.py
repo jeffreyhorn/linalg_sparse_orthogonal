@@ -38,10 +38,14 @@ FORBIDDEN_METHODOLOGY_NOTES = (
     "performance_superiority_claim",
     "state_of_the_art_claim",
     "hosted_timing_gate",
+    "hosted_timing_threshold",
+    "hosted_performance_threshold",
     "timing_threshold_gate",
+    "timing_threshold",
     "portable_speed_claim",
     "cross_platform_performance_claim",
     "selected_timing_threshold",
+    "selected_performance_threshold",
     "regression_threshold",
 )
 

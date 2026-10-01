@@ -93,7 +93,9 @@ FORBIDDEN_PATTERNS = (
     re.compile(r"selected performance (?:proves|is) state-of-the-art", re.I),
     re.compile(r"hosted selected performance (?:is|acts as) a timing gate", re.I),
     re.compile(
-        r"selected canonical benchmark (?:is|acts as) a timing[- ]threshold",
+        r"selected canonical benchmark "
+        r"(?:is|acts as|provides|creates|defines|establishes) "
+        r"a timing[- ]threshold",
         re.I,
     ),
     re.compile(r"selected performance guarantees linux/macos timing parity", re.I),
@@ -212,6 +214,7 @@ def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
     text = (
         read_doc(relative_path)
         + "\nThe selected canonical benchmark is a timing-threshold.\n"
+        + "The selected canonical benchmark provides a timing threshold.\n"
     )
     assert_raises_with(
         lambda: validate_docs({relative_path: text}),

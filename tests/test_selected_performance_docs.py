@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+WS = r"\s+"
 
 DOC_MARKERS = {
     "README.md": (
@@ -89,21 +90,41 @@ DOC_MARKERS = {
 }
 
 FORBIDDEN_PATTERNS = (
-    re.compile(r"selected performance (?:proves|guarantees) portable performance", re.I),
-    re.compile(r"selected performance (?:proves|is) state-of-the-art", re.I),
-    re.compile(r"hosted selected performance (?:is|acts as) a timing gate", re.I),
     re.compile(
-        r"selected canonical benchmark "
-        r"(?:is|acts as|provides|creates|defines|establishes) "
-        r"a timing[- ]threshold",
+        rf"selected{WS}performance{WS}(?:proves|guarantees)"
+        rf"{WS}portable{WS}performance",
         re.I,
     ),
-    re.compile(r"selected performance guarantees linux/macos timing parity", re.I),
     re.compile(
-        r"sprint168-selected-performance-freshness (?:proves|guarantees) performance superiority",
+        rf"selected{WS}performance{WS}(?:proves|is){WS}state-of-the-art",
         re.I,
     ),
-    re.compile(r"bench-canonical-report-freshness (?:proves|guarantees) speedup", re.I),
+    re.compile(
+        rf"hosted{WS}selected{WS}performance{WS}(?:is|acts{WS}as)"
+        rf"{WS}a{WS}timing{WS}gate",
+        re.I,
+    ),
+    re.compile(
+        rf"selected{WS}canonical{WS}benchmark{WS}"
+        rf"(?:is|acts{WS}as|provides|creates|defines|establishes){WS}"
+        rf"a{WS}timing(?:-|{WS})threshold",
+        re.I,
+    ),
+    re.compile(
+        rf"selected{WS}performance{WS}guarantees{WS}"
+        rf"linux(?:/|{WS}and{WS})macos{WS}timing{WS}parity",
+        re.I,
+    ),
+    re.compile(
+        rf"sprint168-selected-performance-freshness{WS}"
+        rf"(?:proves|guarantees){WS}performance{WS}superiority",
+        re.I,
+    ),
+    re.compile(
+        rf"bench-canonical-report-freshness{WS}(?:proves|guarantees)"
+        rf"{WS}speedup",
+        re.I,
+    ),
 )
 
 
@@ -214,6 +235,23 @@ def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
     claims = (
         "The selected canonical benchmark is a timing-threshold.",
         "The selected canonical benchmark provides a timing threshold.",
+        "The selected canonical benchmark provides a\ntiming threshold.",
+        "The selected canonical benchmark provides a timing\nthreshold.",
+    )
+    for claim in claims:
+        text = read_doc(relative_path) + f"\n{claim}\n"
+        assert_raises_with(
+            lambda text=text: validate_docs({relative_path: text}),
+            "unsupported selected performance claim",
+        )
+
+
+def test_forbidden_selected_linux_macos_parity_overclaim_fails_clearly() -> None:
+    relative_path = "README.md"
+    claims = (
+        "The selected performance guarantees linux/macos timing parity.",
+        "The selected performance guarantees Linux and macOS timing parity.",
+        "The selected performance guarantees Linux and macOS\ntiming parity.",
     )
     for claim in claims:
         text = read_doc(relative_path) + f"\n{claim}\n"
@@ -232,6 +270,7 @@ def main() -> int:
     test_missing_maintainer_repair_marker_fails_clearly()
     test_forbidden_hosted_timing_gate_overclaim_fails_clearly()
     test_forbidden_selected_timing_threshold_overclaim_fails_clearly()
+    test_forbidden_selected_linux_macos_parity_overclaim_fails_clearly()
     print("test-selected-performance-docs: ok")
     return 0
 

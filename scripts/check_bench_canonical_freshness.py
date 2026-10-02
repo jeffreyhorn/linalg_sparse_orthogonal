@@ -32,6 +32,22 @@ SELECTED_COMMAND = "tests/data/suitesparse/nos4.mtx --repeat 1"
 SELECTED_FIXTURE = "nos4.mtx"
 SELECTED_REPEAT = "configured_repeat_1"
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+REQUIRED_METHODOLOGY_NOTE = "not_portable_performance_claim"
+FORBIDDEN_METHODOLOGY_NOTES = (
+    "portable_performance_claim",
+    "performance_superiority_claim",
+    "state_of_the_art_claim",
+    "hosted_timing_gate",
+    "hosted_timing_threshold",
+    "hosted_performance_threshold",
+    "timing_threshold_gate",
+    "timing_threshold",
+    "portable_speed_claim",
+    "cross_platform_performance_claim",
+    "selected_timing_threshold",
+    "selected_performance_threshold",
+    "regression_threshold",
+)
 
 REQUIRED_COLUMNS = (
     "surface",
@@ -106,6 +122,7 @@ SELECTED_VALUES = {
     "variance": "not_computed_single_sample",
     "baseline": "n/a",
     "threshold": "n/a",
+    "backend_context": "n/a",
 }
 SELECTED_CSV_VALUES = {
     "benchmark": "bench_refactor_csc",
@@ -131,6 +148,7 @@ MANIFEST_MATCH_FIELDS = (
     "claim_boundary",
     "baseline",
     "threshold",
+    "backend_context",
     "warmup",
     "variance",
     "matrix_size",
@@ -346,11 +364,23 @@ def check_selected_values(
             f"observed={row['generated_at_utc']}"
         )
 
-    notes = row["methodology_notes"].split(";")
-    if "not_portable_performance_claim" not in notes:
+    notes = [note.strip() for note in row["methodology_notes"].split(";")]
+    if REQUIRED_METHODOLOGY_NOTE not in notes:
         error(
             "freshness: error: benchmark_selected_value: "
-            "field=methodology_notes expected_token=not_portable_performance_claim "
+            f"field=methodology_notes expected_token={REQUIRED_METHODOLOGY_NOTE} "
+            f"observed={row['methodology_notes']}"
+        )
+    forbidden_note_map = {note.lower(): note for note in FORBIDDEN_METHODOLOGY_NOTES}
+    forbidden_notes = [
+        forbidden_note_map[note.lower()]
+        for note in notes
+        if note.lower() in forbidden_note_map
+    ]
+    if forbidden_notes:
+        error(
+            "freshness: error: benchmark_selected_value: "
+            f"field=methodology_notes forbidden_token={forbidden_notes[0]} "
             f"observed={row['methodology_notes']}"
         )
 

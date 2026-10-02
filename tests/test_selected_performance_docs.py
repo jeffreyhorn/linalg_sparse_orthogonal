@@ -117,7 +117,7 @@ FORBIDDEN_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"selected{WS}performance{WS}guarantees{WS}"
+        rf"selected{WS}(?:performance|canonical{WS}benchmark){WS}guarantees{WS}"
         rf"linux(?:/|{WS}and{WS})macos{WS}timing{WS}parity",
         re.I,
     ),
@@ -263,6 +263,7 @@ def test_forbidden_selected_linux_macos_parity_overclaim_fails_clearly() -> None
         "The selected performance guarantees linux/macos timing parity.",
         "The selected performance guarantees Linux and macOS timing parity.",
         "The selected performance guarantees Linux and macOS\ntiming parity.",
+        "The selected canonical benchmark guarantees Linux and macOS timing parity.",
     )
     for claim in claims:
         text = read_doc(relative_path) + f"\n{claim}\n"

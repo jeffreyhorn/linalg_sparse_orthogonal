@@ -105,7 +105,7 @@ FORBIDDEN_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"selected{WS}canonical{WS}benchmark{WS}"
+        rf"selected{WS}(?:canonical{WS})?benchmark{WS}"
         rf"(?:is|acts{WS}as|has|provides|creates|defines|establishes|guarantees){WS}"
         rf"a{WS}(?:hosted{WS})?timing(?:-|{WS})threshold",
         re.I,
@@ -117,7 +117,7 @@ FORBIDDEN_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"selected{WS}(?:performance|canonical{WS}benchmark){WS}guarantees{WS}"
+        rf"selected{WS}(?:performance|(?:canonical{WS})?benchmark){WS}guarantees{WS}"
         rf"linux(?:/|{WS}and{WS})macos{WS}timing{WS}parity",
         re.I,
     ),
@@ -244,6 +244,7 @@ def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
         "The selected canonical benchmark provides a\ntiming threshold.",
         "The selected canonical benchmark provides a timing\nthreshold.",
         "The selected canonical benchmark provides a hosted timing threshold.",
+        "The selected benchmark provides a timing threshold.",
         "The selected canonical benchmark guarantees a timing threshold.",
         "The selected canonical benchmark has a timing threshold.",
         "The selected performance is a timing threshold.",
@@ -267,6 +268,7 @@ def test_forbidden_selected_linux_macos_parity_overclaim_fails_clearly() -> None
         "The selected performance guarantees Linux and macOS timing parity.",
         "The selected performance guarantees Linux and macOS\ntiming parity.",
         "The selected canonical benchmark guarantees Linux and macOS timing parity.",
+        "The selected benchmark guarantees Linux and macOS timing parity.",
     )
     for claim in claims:
         text = read_doc(relative_path) + f"\n{claim}\n"

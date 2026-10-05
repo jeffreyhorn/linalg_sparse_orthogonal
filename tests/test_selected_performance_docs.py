@@ -101,13 +101,14 @@ FORBIDDEN_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"hosted{WS}selected{WS}performance{WS}(?:is|acts{WS}as)"
+        rf"hosted{WS}selected{WS}performance{WS}"
+        rf"(?:is|acts{WS}as|has|sets|provides|creates|defines|establishes|guarantees)"
         rf"{WS}a{WS}timing{WS}gate",
         re.I,
     ),
     re.compile(
         rf"selected{WS}(?:canonical{WS})?benchmark{WS}"
-        rf"(?:is|acts{WS}as|has|provides|creates|defines|establishes|guarantees){WS}"
+        rf"(?:is|acts{WS}as|has|sets|provides|creates|defines|establishes|guarantees){WS}"
         rf"a{WS}(?:hosted{WS})?timing(?:-(?:{WS})?|{WS})threshold",
         re.I,
     ),
@@ -231,11 +232,23 @@ def test_missing_maintainer_repair_marker_fails_clearly() -> None:
 
 def test_forbidden_hosted_timing_gate_overclaim_fails_clearly() -> None:
     relative_path = "benchmarks/README.md"
-    text = read_doc(relative_path) + "\nHosted selected performance is a timing gate.\n"
-    assert_raises_with(
-        lambda: validate_docs({relative_path: text}),
-        "unsupported selected performance claim",
+    claims = (
+        "Hosted selected performance is a timing gate.",
+        "Hosted selected performance acts as a timing gate.",
+        "Hosted selected performance has a timing gate.",
+        "Hosted selected performance sets a timing gate.",
+        "Hosted selected performance provides a timing gate.",
+        "Hosted selected performance creates a timing gate.",
+        "Hosted selected performance defines a timing gate.",
+        "Hosted selected performance establishes a timing gate.",
+        "Hosted selected performance guarantees a timing gate.",
     )
+    for claim in claims:
+        text = read_doc(relative_path) + f"\n{claim}\n"
+        assert_raises_with(
+            lambda text=text: validate_docs({relative_path: text}),
+            "unsupported selected performance claim",
+        )
 
 
 def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
@@ -248,8 +261,10 @@ def test_forbidden_selected_timing_threshold_overclaim_fails_clearly() -> None:
         "The selected canonical benchmark provides a timing-\nthreshold.",
         "The selected canonical benchmark provides a hosted timing threshold.",
         "The selected benchmark provides a timing threshold.",
+        "The selected benchmark sets a timing threshold.",
         "The selected canonical benchmark guarantees a timing threshold.",
         "The selected canonical benchmark has a timing threshold.",
+        "The selected canonical benchmark sets a timing threshold.",
         "The selected performance is a timing threshold.",
         "The selected performance has a timing threshold.",
         "The selected performance provides a timing-\nthreshold.",

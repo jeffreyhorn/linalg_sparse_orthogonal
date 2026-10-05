@@ -320,6 +320,21 @@ def test_html_required_route_is_allowed() -> None:
         routing.validate_api_routes(root)
 
 
+def test_html_entity_encoded_required_route_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        copy_fixture(root)
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "[docs/api_reference.md](docs/api_reference.md)",
+                '<a href="docs&#x2F;api_reference.md">API reference</a>',
+            ),
+            encoding="utf-8",
+        )
+        routing.validate_api_routes(root)
+
+
 def test_entity_encoded_required_route_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -581,6 +596,18 @@ def test_html_entity_href_generated_api_link_fails_clearly() -> None:
     assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
 
 
+def test_html_percent_encoded_href_generated_api_link_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '\n<a href="docs/%61pi/html/index.html">Generated HTML</a>\n',
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
 def test_markdown_entity_generated_api_link_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "README.md"
@@ -795,6 +822,18 @@ def test_repository_actions_artifact_fails_clearly() -> None:
         path.write_text(
             path.read_text(encoding="utf-8")
             + "\n[Generated API artifact](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/123/artifacts/456)\n",
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "unsupported generated or hosted API publication target")
+
+
+def test_repository_suite_artifact_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\n[Generated API artifact](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/suites/123/artifacts/456)\n",
             encoding="utf-8",
         )
 
@@ -1263,6 +1302,48 @@ def test_hidden_local_only_text_does_not_satisfy_contract() -> None:
     assert_routing_fails_with(mutate, "missing required local-only API routing text")
 
 
+def test_missing_api_reference_durable_route_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "api_reference.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "For durable links, use this page and checked-in public headers rather than",
+                "For links, use the available generated reference rather than",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_readme_no_artifact_route_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Do not use CI artifacts, release downloads, Pages deployments, or repository",
+                "Generated API publication details may use repository",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_install_local_view_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "INSTALL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Generated API HTML is an on-demand local view, not an install, release,",
+                "Generated API HTML is available as installation documentation,",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
 def test_missing_maintainer_claim_boundary_text_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         path = root / "docs" / "maintainer_guide.md"
@@ -1270,6 +1351,62 @@ def test_missing_maintainer_claim_boundary_text_fails_clearly() -> None:
             path.read_text(encoding="utf-8").replace(
                 "removes `api-docs-routing` from `make api-docs-freshness` without replacing",
                 "removes generated API routing checks without replacing",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_maintainer_repair_workflow_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "maintainer_guide.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Generated API local-only repair workflow:",
+                "Generated API notes:",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_maintainer_expected_repair_artifact_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "maintainer_guide.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Expected repair artifacts are regenerated local `docs/api/html/` output plus",
+                "Expected repair artifacts are updated generated documentation plus",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_future_publication_reopening_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "maintainer_guide.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "reopen the product decision and validate the selected publication policy",
+                "reopen the product decision",
+            ),
+            encoding="utf-8",
+        )
+
+    assert_routing_fails_with(mutate, "missing required local-only API routing text")
+
+
+def test_missing_unclaimed_publication_options_text_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        path = root / "docs" / "maintainer_guide.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Remaining unclaimed generated API publication options are hosted HTML,",
+                "Remaining generated API options are documented separately,",
             ),
             encoding="utf-8",
         )
@@ -1438,6 +1575,7 @@ def main() -> None:
     test_reference_style_required_route_is_allowed()
     test_normalized_required_route_is_allowed()
     test_html_required_route_is_allowed()
+    test_html_entity_encoded_required_route_is_allowed()
     test_entity_encoded_required_route_is_allowed()
     test_image_only_required_route_does_not_satisfy_contract()
     test_top_level_route_after_unterminated_blockquoted_fence_is_allowed()
@@ -1458,6 +1596,7 @@ def main() -> None:
     test_html_href_after_quoted_greater_than_generated_api_link_fails_clearly()
     test_unquoted_html_href_generated_api_link_fails_clearly()
     test_html_entity_href_generated_api_link_fails_clearly()
+    test_html_percent_encoded_href_generated_api_link_fails_clearly()
     test_markdown_entity_generated_api_link_fails_clearly()
     test_empty_html_href_is_ignored_without_traceback()
     test_protocol_relative_hosted_publication_url_fails_clearly()
@@ -1476,6 +1615,7 @@ def main() -> None:
     test_repository_api_reference_permalink_with_slash_ref_is_allowed()
     test_repository_release_generated_api_artifact_fails_clearly()
     test_repository_actions_artifact_fails_clearly()
+    test_repository_suite_artifact_fails_clearly()
     test_repository_generated_api_path_link_fails_clearly()
     test_repository_doxygen_path_link_fails_clearly()
     test_top_level_forbidden_link_after_unterminated_blockquoted_fence_fails_clearly()
@@ -1514,7 +1654,14 @@ def main() -> None:
     test_route_fragment_in_fenced_heading_does_not_satisfy_contract()
     test_missing_local_only_text_fails_clearly()
     test_hidden_local_only_text_does_not_satisfy_contract()
+    test_missing_api_reference_durable_route_text_fails_clearly()
+    test_missing_readme_no_artifact_route_text_fails_clearly()
+    test_missing_install_local_view_text_fails_clearly()
     test_missing_maintainer_claim_boundary_text_fails_clearly()
+    test_missing_maintainer_repair_workflow_text_fails_clearly()
+    test_missing_maintainer_expected_repair_artifact_text_fails_clearly()
+    test_missing_future_publication_reopening_text_fails_clearly()
+    test_missing_unclaimed_publication_options_text_fails_clearly()
     test_positive_retained_generated_artifact_claim_fails_clearly()
     test_missing_makefile_routing_dependency_fails_clearly()
     test_missing_makefile_docs_check_dependency_fails_clearly()

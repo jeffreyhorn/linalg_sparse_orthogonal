@@ -68,6 +68,7 @@ REQUIRED_TEXT = {
     "docs/api_reference.md": (
         "The generated HTML tree is local-only generated output.",
         "is not a hosted or source-controlled publication surface.",
+        "For durable links, use this page and checked-in public headers rather than",
         "source-controlled API reference path.",
     ),
     "docs/tutorial.md": (),
@@ -76,10 +77,12 @@ REQUIRED_TEXT = {
     "README.md": (
         "For API documentation, the supported source-controlled entry point is",
         "that generated HTML is local-only ignored output, not hosted",
+        "Do not use CI artifacts, release downloads, Pages deployments, or repository",
     ),
     "INSTALL.md": (
         "| Local generated API HTML | local-only |",
         "No hosted API publication, retained generated-doc artifact, committed generated HTML,",
+        "Generated API HTML is an on-demand local view, not an install, release,",
     ),
     "docs/maintainer_guide.md": (
         "`docs/api_reference.md` is the user-facing API reference entry point.",
@@ -87,7 +90,11 @@ REQUIRED_TEXT = {
         "`make api-docs-freshness` runs `docs-check` plus the local-only generated",
         "`api-docs-routing` proves user-facing docs route API readers",
         "source-controlled reference path is `docs/api_reference.md` plus checked-in",
+        "Generated API local-only repair workflow:",
+        "Expected repair artifacts are regenerated local `docs/api/html/` output plus",
         "hosted documentation publication, retained generated-doc artifacts,",
+        "reopen the product decision and validate the selected publication policy",
+        "Remaining unclaimed generated API publication options are hosted HTML,",
         "removes `api-docs-routing` from `make api-docs-freshness` without replacing",
     ),
 }

@@ -76,6 +76,46 @@ require_doxyfile_setting() {
     pass "Doxyfile $key local-only contract"
 }
 
+strip_yaml_comments() {
+    python3 - "$1" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        in_single = False
+        in_double = False
+        escaped = False
+        comment_at = None
+        for index, char in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\" and in_double:
+                escaped = True
+                continue
+            if char == "'" and not in_double:
+                in_single = not in_single
+                continue
+            if char == '"' and not in_single:
+                in_double = not in_double
+                continue
+            if (
+                char == "#"
+                and not in_single
+                and not in_double
+                and (index == 0 or line[index - 1].isspace())
+            ):
+                comment_at = index
+                break
+        if comment_at is not None:
+            line = line[:comment_at].rstrip()
+        if line.strip():
+            print(line)
+PY
+}
+
 require_workflows_do_not_reference() {
     local needle="$1"
     local label="$2"
@@ -91,7 +131,7 @@ require_workflows_do_not_reference() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file" |
+            strip_yaml_comments "$workflow_file" |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -F -n "$needle" || true
@@ -120,7 +160,7 @@ require_workflows_do_not_match() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            sed -E 's/[[:space:]]+#.*$//;/^[[:space:]]*#/d' "$workflow_file" |
+            strip_yaml_comments "$workflow_file" |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -E -n "$pattern" || true
@@ -176,45 +216,7 @@ check_no_workflow_publication_semantics() {
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
-        stripped_text="$(
-            python3 - "$workflow_file" <<'PY'
-import sys
-
-path = sys.argv[1]
-with open(path, encoding="utf-8") as handle:
-    for raw_line in handle:
-        line = raw_line.rstrip("\n")
-        in_single = False
-        in_double = False
-        escaped = False
-        comment_at = None
-        for index, char in enumerate(line):
-            if escaped:
-                escaped = False
-                continue
-            if char == "\\" and in_double:
-                escaped = True
-                continue
-            if char == "'" and not in_double:
-                in_single = not in_single
-                continue
-            if char == '"' and not in_single:
-                in_double = not in_double
-                continue
-            if (
-                char == "#"
-                and not in_single
-                and not in_double
-                and (index == 0 or line[index - 1].isspace())
-            ):
-                comment_at = index
-                break
-        if comment_at is not None:
-            line = line[:comment_at].rstrip()
-        if line.strip():
-            print(line)
-PY
-        )"
+        stripped_text="$(strip_yaml_comments "$workflow_file")"
         normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
         flattened_text="$(printf '%s\n' "$normalized_text" | tr '\n' ' ')"
         dynamic_block_path_matches="$(
@@ -259,11 +261,13 @@ PY
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
-            printf '%s\n' "$normalized_text" | grep -Eq "$docs_staging_command_regex"; then
+            { printf '%s\n' "$normalized_text" | grep -Eq "$docs_staging_command_regex" ||
+                printf '%s\n' "$flattened_text" | grep -Eq "$docs_staging_command_regex"; }; then
             fail "$rel_path stages docs for publication or artifact upload while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
-            printf '%s\n' "$normalized_text" | grep -Eq "$docs_archive_command_regex"; then
+            { printf '%s\n' "$normalized_text" | grep -Eq "$docs_archive_command_regex" ||
+                printf '%s\n' "$flattened_text" | grep -Eq "$docs_archive_command_regex"; }; then
             fail "$rel_path archives docs for publication or artifact upload while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&

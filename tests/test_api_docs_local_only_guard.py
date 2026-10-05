@@ -136,6 +136,38 @@ def test_workflow_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API HTML output path")
 
 
+def test_workflow_quoted_hash_before_generated_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'printf \"marker # value\"; ls docs/api/html'\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API HTML output path")
+
+
+def test_yaml_workflow_generated_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yaml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: ls docs/api/html\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API HTML output path")
+
+
 def test_workflow_generated_api_root_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1280,6 +1312,29 @@ def test_workflow_moved_docs_artifact_upload_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_folded_staged_docs_artifact_upload_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: >\n"
+            "          cp -R\n"
+            "          docs artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_archived_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1291,6 +1346,29 @@ def test_workflow_archived_docs_artifact_upload_fails_clearly() -> None:
             "    steps:\n"
             "      - run: make api-docs-freshness\n"
             "      - run: tar -czf artifact.tgz docs/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact.tgz\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "archives docs for publication")
+
+
+def test_workflow_folded_archived_docs_artifact_upload_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - run: >\n"
+            "          tar -czf artifact.tgz\n"
+            "          docs/\n"
             "      - uses: actions/upload-artifact@v4\n"
             "        with:\n"
             "          name: generated-api-html\n"
@@ -1364,6 +1442,8 @@ def main() -> None:
     test_current_tree_passes_guard()
     test_fixture_passes_guard()
     test_workflow_generated_api_path_fails_clearly()
+    test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
+    test_yaml_workflow_generated_api_path_fails_clearly()
     test_workflow_generated_api_root_path_fails_clearly()
     test_workflow_rooted_generated_api_root_path_fails_clearly()
     test_workflow_relative_generated_api_root_path_fails_clearly()
@@ -1423,7 +1503,9 @@ def main() -> None:
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()
+    test_workflow_folded_staged_docs_artifact_upload_fails_clearly()
     test_workflow_archived_docs_artifact_upload_fails_clearly()
+    test_workflow_folded_archived_docs_artifact_upload_fails_clearly()
     test_workflow_7z_archived_docs_artifact_upload_fails_clearly()
     test_tracked_generated_api_file_fails_clearly()
     test_staged_generated_api_file_fails_clearly()

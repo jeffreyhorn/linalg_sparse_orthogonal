@@ -80,39 +80,126 @@ strip_yaml_comments() {
     python3 - "$1" <<'PY'
 import sys
 
+def strip_yaml_comment(line):
+    in_single = False
+    in_double = False
+    escaped = False
+    value_start = 0
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_double:
+            escaped = True
+            continue
+        if char in ":,{[" and not in_single and not in_double:
+            value_start = index + 1
+            continue
+        if char == "'" and not in_double:
+            if in_single:
+                in_single = False
+            elif line[value_start:index].strip() == "":
+                in_single = True
+            continue
+        if char == '"' and not in_single:
+            if in_double:
+                in_double = False
+            elif line[value_start:index].strip() == "":
+                in_double = True
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+    return line
+
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     for raw_line in handle:
-        line = raw_line.rstrip("\n")
-        in_single = False
-        in_double = False
-        escaped = False
-        comment_at = None
-        for index, char in enumerate(line):
-            if escaped:
-                escaped = False
-                continue
-            if char == "\\" and in_double:
-                escaped = True
-                continue
-            if char == "'" and not in_double:
-                in_single = not in_single
-                continue
-            if char == '"' and not in_single:
-                in_double = not in_double
-                continue
-            if (
-                char == "#"
-                and not in_single
-                and not in_double
-                and (index == 0 or line[index - 1].isspace())
-            ):
-                comment_at = index
-                break
-        if comment_at is not None:
-            line = line[:comment_at].rstrip()
+        line = strip_yaml_comment(raw_line.rstrip("\n"))
         if line.strip():
             print(line)
+PY
+}
+
+fold_yaml_run_blocks() {
+    python3 - "$1" <<'PY'
+import re
+import sys
+
+def strip_yaml_comment(line):
+    in_single = False
+    in_double = False
+    escaped = False
+    value_start = 0
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_double:
+            escaped = True
+            continue
+        if char in ":,{[" and not in_single and not in_double:
+            value_start = index + 1
+            continue
+        if char == "'" and not in_double:
+            if in_single:
+                in_single = False
+            elif line[value_start:index].strip() == "":
+                in_single = True
+            continue
+        if char == '"' and not in_single:
+            if in_double:
+                in_double = False
+            elif line[value_start:index].strip() == "":
+                in_double = True
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+    return line
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    lines = [strip_yaml_comment(line.rstrip("\n")) for line in handle]
+
+index = 0
+while index < len(lines):
+    line = lines[index]
+    match = re.match(r"^([ ]*)-?[ ]*run[ ]*:[ ]*[>|]", line, re.IGNORECASE)
+    if not match:
+        index += 1
+        continue
+    block_indent = len(match.group(1))
+    index += 1
+    block_lines = []
+    while index < len(lines):
+        candidate = lines[index]
+        if not candidate.strip():
+            index += 1
+            continue
+        line_indent = len(candidate) - len(candidate.lstrip(" "))
+        if line_indent <= block_indent:
+            break
+        block_lines.append(candidate.strip())
+        index += 1
+    if block_lines:
+        print(" ".join(block_lines))
 PY
 }
 
@@ -192,7 +279,7 @@ check_no_workflow_publication_semantics() {
     local dynamic_inline_path_regex
     local stripped_text
     local normalized_text
-    local flattened_text
+    local folded_run_text
     local dynamic_block_path_matches
 
     if [ ! -d "$workflows_dir" ]; then
@@ -218,7 +305,7 @@ check_no_workflow_publication_semantics() {
         rel_path="${workflow_file#$ROOT_DIR/}"
         stripped_text="$(strip_yaml_comments "$workflow_file")"
         normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
-        flattened_text="$(printf '%s\n' "$normalized_text" | tr '\n' ' ')"
+        folded_run_text="$(fold_yaml_run_blocks "$workflow_file" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
         dynamic_block_path_matches="$(
             printf '%s\n' "$normalized_text" |
                 awk '
@@ -255,19 +342,19 @@ check_no_workflow_publication_semantics() {
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
         if { printf '%s\n' "$normalized_text" | grep -Eq "$command_publication_regex" ||
-            printf '%s\n' "$flattened_text" | grep -Eq "$command_publication_regex"; } &&
+            printf '%s\n' "$folded_run_text" | grep -Eq "$command_publication_regex"; } &&
             { printf '%s\n' "$normalized_text" | grep -Eq "$broad_command_path_regex" ||
-                printf '%s\n' "$flattened_text" | grep -Eq "$broad_command_path_regex"; }; then
+                printf '%s\n' "$folded_run_text" | grep -Eq "$broad_command_path_regex"; }; then
             fail "$rel_path publishes docs or repository roots that can include local generated API HTML while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
             { printf '%s\n' "$normalized_text" | grep -Eq "$docs_staging_command_regex" ||
-                printf '%s\n' "$flattened_text" | grep -Eq "$docs_staging_command_regex"; }; then
+                printf '%s\n' "$folded_run_text" | grep -Eq "$docs_staging_command_regex"; }; then
             fail "$rel_path stages docs for publication or artifact upload while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
             { printf '%s\n' "$normalized_text" | grep -Eq "$docs_archive_command_regex" ||
-                printf '%s\n' "$flattened_text" | grep -Eq "$docs_archive_command_regex"; }; then
+                printf '%s\n' "$folded_run_text" | grep -Eq "$docs_archive_command_regex"; }; then
             fail "$rel_path archives docs for publication or artifact upload while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
@@ -277,7 +364,7 @@ check_no_workflow_publication_semantics() {
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_command_publication_regex" ||
-            printf '%s\n' "$flattened_text" | grep -Eq "$dynamic_command_publication_regex"; then
+            printf '%s\n' "$folded_run_text" | grep -Eq "$dynamic_command_publication_regex"; then
             fail "$rel_path uses dynamic publication paths while generated API HTML is local-only"
         fi
     done

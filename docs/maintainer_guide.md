@@ -1826,6 +1826,12 @@ Current threshold-free reporting surface:
   - validates selected artifact presence, `index.tsv` schema, selected row
     identity, required methodology metadata, threshold-free baseline/threshold
     values, `methodology_notes`, and `manifest.txt` agreement
+  - requires `methodology_notes` to include
+    `not_portable_performance_claim`
+  - rejects methodology-note tokens that promote portable performance,
+    performance superiority, state-of-the-art status, hosted timing gates,
+    timing threshold gates, portable speed, cross-platform performance,
+    selected timing thresholds, or regression thresholds
   - is mirrored by reviewed Linux and macOS hosted selected-performance
     freshness jobs, which run the checker in hosted mode with
     `hosted_selected` and `hosted_selected_threshold_free` metadata on the
@@ -1845,9 +1851,11 @@ Current threshold-free reporting surface:
     parity, package/ABI support, broad platform support, release proof, or
     state-of-the-art performance
   - should remain `baseline=n/a`, `threshold=n/a`, and `status=measurement`
-    until a future sprint records a hosted-runner baseline, variance model,
-    tolerance, and same-machine comparison policy; do not promote this lane to
-    `status=pass` as a shortcut for performance regression governance
+    until a future sprint records stable runner-class evidence, compiler
+    evidence, repeat policy, warmup policy, variance rule, baseline
+    provenance, threshold value, retained-artifact policy, and updated
+    non-claim evidence; do not promote this lane to `status=pass` as a
+    shortcut for performance regression governance
 
 Selected performance platform/build caveats:
 
@@ -1879,6 +1887,23 @@ Selected performance platform/build caveats:
   separate platform/package evidence and do not inherit selected-performance
   meaning; only the reviewed Sprint 202 `selected-performance-freshness` lane
   carries macOS hosted selected benchmark freshness evidence
+
+Selected performance repair workflow:
+
+- if `make bench-canonical-report-freshness` fails, rerun it before editing
+  documentation; stale or missing generated files should be repaired by the
+  generator path, not by hand-editing ignored artifacts
+- if `python3 tests/test_bench_canonical_freshness.py` fails, inspect whether
+  the failure is selected row identity, threshold-free field drift,
+  methodology-note drift, selected CSV mismatch, hosted metadata, unselected
+  row locality, or manifest agreement
+- if `python3 tests/test_selected_report_targets_manifest.py` fails for
+  `SRT-BENCH-REFACTOR-CSC-NOS4`, keep the selected benchmark manifest tuple
+  exact unless the same change updates docs, freshness tests, workflow
+  metadata, and non-claim wording together
+- if `python3 tests/test_selected_performance_docs.py` fails, fix the
+  user-facing or maintainer-facing wording rather than weakening the
+  threshold-free markers or forbidden-claim checks
 
 Current bounded local sentinel bundle:
 

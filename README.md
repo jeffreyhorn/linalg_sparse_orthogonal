@@ -229,6 +229,10 @@ When to widen beyond the first examples:
   lanes run the same selected-row freshness check with platform-specific
   hosted metadata on that selected row only, still without a timing threshold
   or portable performance claim
+- Promoting that selected canonical benchmark to a timing threshold would
+  require a documented stable runner class, compiler, repeat policy, warmup
+  policy, variance rule, baseline provenance, threshold value, retained
+  artifact policy, and updated non-claim wording
 - `make performance-sentinels` writes a local sentinel bundle: thresholded
   status is limited to the existing S5 wall-check lane and the S6 selected
   `bench_refactor_csc` local smoke ceiling, while Cholesky CSC and LDLT KKT
@@ -384,7 +388,9 @@ agreement, and `hosted_selected_threshold_free` claim boundaries. They do not
 compare timing values across platforms, set a regression threshold, claim
 portable speed, promote the other canonical benchmark rows, or provide
 external-library, package, ABI, broad platform, release, or state-of-the-art
-evidence.
+evidence. A future timing-threshold promotion would need stable-runner,
+compiler, repeat, warmup, variance, baseline, threshold, retained-artifact,
+and non-claim evidence before the user-facing claim boundary changes.
 
 ### With CMake
 
@@ -937,7 +943,10 @@ measurement artifacts, not portable performance guarantees; the generated
 `index.tsv` records methodology fields such as support tier, claim boundary,
 repeat semantics, warmup and variance state, baseline, threshold, and
 methodology notes. Use `make bench-canonical-report-freshness` for the
-selected `bench_refactor_csc` row freshness check. Use
+selected `bench_refactor_csc` row freshness check; it remains a
+threshold-free freshness check until stable-runner, compiler, repeat, warmup,
+variance, baseline, threshold, retained-artifact, and non-claim evidence are
+recorded together. Use
 `make performance-sentinels` when you need the bounded local sentinel bundle:
 it reports the existing hard `wall-check` gate, the S6 selected-lane local
 smoke ceiling, and threshold-free Cholesky CSC / LDLT KKT backend context

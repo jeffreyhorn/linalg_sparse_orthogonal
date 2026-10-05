@@ -105,9 +105,48 @@ WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOB = "selected-qr-incompatible-comparison-freshness"
 WINDOWS_QR_INCOMPATIBLE_ARTIFACT = "sprint209-windows-selected-comparison-qr-incompatible"
 SELECTED_BENCHMARK_TARGET_ID = "SRT-BENCH-REFACTOR-CSC-NOS4"
+SELECTED_BENCHMARK_FAMILY = "benchmark"
+SELECTED_BENCHMARK_SUBFAMILY = "canonical"
+SELECTED_BENCHMARK_TARGET_KEY = "bench_refactor_csc"
+SELECTED_BENCHMARK_ROW_MEANING = (
+    "selected canonical benchmark freshness for nos4 repeat-one workload"
+)
+SELECTED_BENCHMARK_SELECTION_SCOPE = "hosted_selected"
+SELECTED_BENCHMARK_SUPPORT_TIER = "hosted_selected"
+SELECTED_BENCHMARK_FRESHNESS_POLICY = "generated_local_advisory"
+SELECTED_BENCHMARK_GENERATOR_COMMAND = "make bench-canonical-report-freshness"
+SELECTED_BENCHMARK_ARTIFACT_PATTERN = (
+    "build/bench-reports/canonical/bench_refactor_csc.csv"
+)
+SELECTED_BENCHMARK_REQUIRED_FILES = (
+    "bench_refactor_csc.csv",
+    "index.tsv",
+    "manifest.txt",
+)
+SELECTED_BENCHMARK_EXPECTED_ROWS = "1"
+SELECTED_BENCHMARK_EXPECTED_ROW_IDS = ("bench_refactor_csc",)
+SELECTED_BENCHMARK_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/macos-ci.yml",
+)
+SELECTED_BENCHMARK_WORKFLOW_JOBS = (
+    "hosted-performance-freshness",
+    "selected-performance-freshness",
+)
+SELECTED_BENCHMARK_WORKFLOW_ARTIFACTS = (
+    "sprint168-selected-performance-freshness",
+    "sprint202-macos-selected-performance-freshness",
+)
+SELECTED_BENCHMARK_WORKFLOW_PLATFORMS = ("linux", "macos")
+SELECTED_BENCHMARK_CLAIM_SCOPE = (
+    "Selected canonical benchmark report metadata is fresh for bench_refactor_csc "
+    "on tests/data/suitesparse/nos4.mtx --repeat 1 with threshold-free "
+    "methodology fields on reviewed Linux and macOS hosted lanes."
+)
 SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS = (
     "no portable performance claim",
     "no release benchmark claim",
+    "no hosted timing threshold",
     "no algorithmic superiority claim",
     "no platform parity",
     "no state-of-the-art claim",
@@ -274,6 +313,74 @@ def selected_benchmark_row(rows: list[dict[str, str]]) -> dict[str, str]:
             f"expected one {SELECTED_BENCHMARK_TARGET_ID} row, got {len(matches)}"
         )
     return matches[0]
+
+
+def assert_selected_benchmark_manifest_contract(rows: list[dict[str, str]]) -> None:
+    row = selected_benchmark_row(rows)
+    exact_fields = {
+        "family": SELECTED_BENCHMARK_FAMILY,
+        "subfamily": SELECTED_BENCHMARK_SUBFAMILY,
+        "target_key": SELECTED_BENCHMARK_TARGET_KEY,
+        "row_meaning": SELECTED_BENCHMARK_ROW_MEANING,
+        "selection_scope": SELECTED_BENCHMARK_SELECTION_SCOPE,
+        "support_tier": SELECTED_BENCHMARK_SUPPORT_TIER,
+        "freshness_policy": SELECTED_BENCHMARK_FRESHNESS_POLICY,
+        "generator_command": SELECTED_BENCHMARK_GENERATOR_COMMAND,
+        "artifact_pattern": SELECTED_BENCHMARK_ARTIFACT_PATTERN,
+        "claim_scope": SELECTED_BENCHMARK_CLAIM_SCOPE,
+    }
+    for field, expected in exact_fields.items():
+        if row[field] != expected:
+            raise AssertionError(
+                f"{SELECTED_BENCHMARK_TARGET_ID} {field} must remain {expected!r}"
+            )
+    if row["expected_rows"] != SELECTED_BENCHMARK_EXPECTED_ROWS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} expected_rows must remain "
+            f"{SELECTED_BENCHMARK_EXPECTED_ROWS}"
+        )
+    required_files = tuple(split_manifest_values(row["required_files"]))
+    if required_files != SELECTED_BENCHMARK_REQUIRED_FILES:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} required_files must remain the exact "
+            "selected benchmark artifact set"
+        )
+    expected_row_ids = tuple(split_manifest_values(row["expected_row_ids"]))
+    if expected_row_ids != SELECTED_BENCHMARK_EXPECTED_ROW_IDS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} expected_row_ids must remain the exact "
+            "selected benchmark row id set"
+        )
+    workflow_files = tuple(split_manifest_values(row["workflow_file"]))
+    if workflow_files != SELECTED_BENCHMARK_WORKFLOW_FILES:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} workflow_file must remain the exact "
+            "Linux/macOS selected benchmark workflow tuple"
+        )
+    workflow_jobs = tuple(split_manifest_values(row["workflow_job"]))
+    if workflow_jobs != SELECTED_BENCHMARK_WORKFLOW_JOBS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} workflow_job must remain the exact "
+            "Linux/macOS selected benchmark job tuple"
+        )
+    workflow_artifacts = tuple(split_manifest_values(row["workflow_artifact"]))
+    if workflow_artifacts != SELECTED_BENCHMARK_WORKFLOW_ARTIFACTS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} workflow_artifact must remain the exact "
+            "Linux/macOS selected benchmark artifact tuple"
+        )
+    workflow_platforms = tuple(split_manifest_values(row["workflow_platforms"]))
+    if workflow_platforms != SELECTED_BENCHMARK_WORKFLOW_PLATFORMS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} workflow_platforms must remain "
+            "linux/macos for selected benchmark freshness"
+        )
+    non_claims = tuple(split_manifest_values(row["non_claims"]))
+    if non_claims != SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS:
+        raise AssertionError(
+            f"{SELECTED_BENCHMARK_TARGET_ID} non_claims must remain the exact "
+            "selected benchmark threshold-free claim-boundary set"
+        )
 
 
 def with_windows_cholesky_metadata(
@@ -543,13 +650,108 @@ def test_missing_hosted_workflow_metadata_fails_clearly() -> None:
 
 
 def test_selected_benchmark_manifest_records_distribution_non_claims() -> None:
-    row = selected_benchmark_row(manifest_rows())
-    non_claims = split_manifest_values(row["non_claims"])
-    for non_claim in SELECTED_BENCHMARK_REQUIRED_NON_CLAIMS:
-        if non_claim not in non_claims:
-            raise AssertionError(
-                f"{SELECTED_BENCHMARK_TARGET_ID} missing non_claim {non_claim!r}"
+    assert_selected_benchmark_manifest_contract(manifest_rows())
+
+
+def test_selected_benchmark_manifest_rejects_identity_drift() -> None:
+    drift_values = {
+        "family": "sentinel",
+        "subfamily": "canonical_threshold",
+        "target_key": "bench_chol_csc",
+        "row_meaning": "selected canonical benchmark threshold pass",
+        "selection_scope": "reviewed_cross_platform_selected",
+        "support_tier": "reviewed_cross_platform",
+        "freshness_policy": "generated_compare_inputs",
+        "generator_command": "make performance-sentinels",
+        "artifact_pattern": "build/bench-reports/sentinels/sentinels.tsv",
+    }
+    for field_name, drift_value in drift_values.items():
+        rows = manifest_rows()
+        selected_benchmark_row(rows)[field_name] = drift_value
+        try:
+            assert_selected_benchmark_manifest_contract(rows)
+        except AssertionError as exc:
+            expected = (
+                f"{SELECTED_BENCHMARK_TARGET_ID} {field_name} must remain"
             )
+            if expected not in str(exc):
+                raise
+            continue
+        raise AssertionError(
+            f"expected selected benchmark {field_name} drift to fail"
+        )
+
+
+def test_selected_benchmark_manifest_rejects_workflow_metadata_drift() -> None:
+    drift_values = {
+        "workflow_file": ".github/workflows/ci.yml;.github/workflows/windows-ci.yml",
+        "workflow_job": "hosted-performance-freshness;windows-performance-freshness",
+        "workflow_artifact": (
+            "sprint168-selected-performance-freshness;"
+            "sprint212-windows-selected-performance-freshness"
+        ),
+        "workflow_platforms": "linux;windows",
+    }
+    for field_name, drift_value in drift_values.items():
+        rows = manifest_rows()
+        selected_benchmark_row(rows)[field_name] = drift_value
+        try:
+            assert_selected_benchmark_manifest_contract(rows)
+        except AssertionError as exc:
+            expected = f"{SELECTED_BENCHMARK_TARGET_ID} {field_name} must remain"
+            if expected not in str(exc):
+                raise
+            continue
+        raise AssertionError(
+            f"expected selected benchmark {field_name} drift to fail"
+        )
+
+
+def test_selected_benchmark_manifest_rejects_threshold_claim_scope() -> None:
+    rows = manifest_rows()
+    selected_benchmark_row(rows)["claim_scope"] = (
+        "Selected canonical benchmark report metadata passes a hosted timing "
+        "threshold for bench_refactor_csc on reviewed Linux and macOS lanes."
+    )
+    try:
+        assert_selected_benchmark_manifest_contract(rows)
+    except AssertionError as exc:
+        if "claim_scope must remain" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected selected benchmark threshold claim scope to fail")
+
+
+def test_selected_benchmark_manifest_rejects_missing_non_claim() -> None:
+    rows = manifest_rows()
+    row = selected_benchmark_row(rows)
+    row["non_claims"] = row["non_claims"].replace(
+        ";no broad package-manager distribution claim",
+        "",
+    )
+    try:
+        assert_selected_benchmark_manifest_contract(rows)
+    except AssertionError as exc:
+        if "non_claims must remain the exact selected benchmark" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected selected benchmark missing non-claim to fail")
+
+
+def test_selected_benchmark_manifest_rejects_missing_timing_threshold_non_claim() -> None:
+    rows = manifest_rows()
+    row = selected_benchmark_row(rows)
+    row["non_claims"] = row["non_claims"].replace(
+        ";no hosted timing threshold",
+        "",
+    )
+    try:
+        assert_selected_benchmark_manifest_contract(rows)
+    except AssertionError as exc:
+        if "non_claims must remain the exact selected benchmark" not in str(exc):
+            raise
+        return
+    raise AssertionError("expected selected benchmark missing timing-threshold non-claim to fail")
 
 
 def test_mismatched_workflow_artifact_platforms_fail_clearly() -> None:
@@ -1051,6 +1253,11 @@ def main() -> int:
     test_missing_generated_required_files_fails_clearly()
     test_missing_hosted_workflow_metadata_fails_clearly()
     test_selected_benchmark_manifest_records_distribution_non_claims()
+    test_selected_benchmark_manifest_rejects_identity_drift()
+    test_selected_benchmark_manifest_rejects_workflow_metadata_drift()
+    test_selected_benchmark_manifest_rejects_threshold_claim_scope()
+    test_selected_benchmark_manifest_rejects_missing_non_claim()
+    test_selected_benchmark_manifest_rejects_missing_timing_threshold_non_claim()
     test_mismatched_workflow_artifact_platforms_fail_clearly()
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()

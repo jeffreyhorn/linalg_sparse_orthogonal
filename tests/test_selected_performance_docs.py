@@ -118,7 +118,8 @@ FORBIDDEN_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"selected{WS}(?:performance|(?:canonical{WS})?benchmark){WS}guarantees{WS}"
+        rf"selected{WS}(?:performance|(?:canonical{WS})?benchmark){WS}"
+        rf"(?:is|acts{WS}as|has|sets|provides|creates|defines|establishes|guarantees){WS}"
         rf"linux(?:/|{WS}and{WS})macos{WS}timing{WS}parity",
         re.I,
     ),
@@ -273,7 +274,22 @@ def test_forbidden_selected_linux_macos_parity_overclaim_fails_clearly() -> None
         "The selected canonical benchmark guarantees Linux and macOS timing parity.",
         "The selected benchmark guarantees Linux and macOS timing parity.",
     )
-    for claim in claims:
+    positive_verbs = (
+        "is",
+        "acts as",
+        "has",
+        "sets",
+        "provides",
+        "creates",
+        "defines",
+        "establishes",
+        "guarantees",
+    )
+    expanded_claims = claims + tuple(
+        f"The selected canonical benchmark {verb} Linux and macOS timing parity."
+        for verb in positive_verbs
+    )
+    for claim in expanded_claims:
         text = read_doc(relative_path) + f"\n{claim}\n"
         assert_raises_with(
             lambda text=text: validate_docs({relative_path: text}),

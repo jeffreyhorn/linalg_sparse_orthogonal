@@ -160,7 +160,7 @@ regression coverage.
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 440 |
 | `scripts/check_bench_canonical_freshness.py` | 557 |
 | `tests/test_bench_canonical_freshness.py` | 788 |
-| `tests/test_selected_performance_docs.py` | 299 |
+| `tests/test_selected_performance_docs.py` | 315 |
 | `tests/test_selected_report_targets_manifest.py` | 1296 |
 | `docs/planning/EPIC_19/SPRINT_212/WORKING_NOTES.md` | 1186 |
 | `docs/planning/EPIC_19/SPRINT_212/artifacts/day14-closeout-review.md` | 97 |

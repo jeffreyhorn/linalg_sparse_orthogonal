@@ -128,24 +128,108 @@ def strip_yaml_comment(line):
         line = line[:comment_at].rstrip()
     return line
 
+def strip_shell_comment(line):
+    in_single = False
+    in_double = False
+    escaped = False
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+    return line
+
+def quoted_scalar_continues(value):
+    value = value.strip()
+    if not value or value[0] not in "'\"":
+        return None
+    quote = value[0]
+    escaped = False
+    index = 1
+    while index < len(value):
+        char = value[index]
+        if quote == '"' and escaped:
+            escaped = False
+        elif quote == '"' and char == "\\":
+            escaped = True
+        elif (
+            quote == "'"
+            and char == "'"
+            and index + 1 < len(value)
+            and value[index + 1] == "'"
+        ):
+            index += 1
+        elif char == quote:
+            return None
+        index += 1
+    return quote
+
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     block_indent = None
+    block_key = None
+    quote_indent = None
+    quote_char = None
     for raw_line in handle:
         line = raw_line.rstrip("\n")
+        if quote_char is not None:
+            if line.strip():
+                line_indent = len(line) - len(line.lstrip(" "))
+                if line_indent <= quote_indent:
+                    quote_char = None
+                else:
+                    print(line)
+                    if quoted_scalar_continues(f"{quote_char}{line}") is None:
+                        quote_char = None
+                    continue
+            else:
+                print(line)
+                continue
         if block_indent is not None:
             if line.strip():
                 line_indent = len(line) - len(line.lstrip(" "))
                 if line_indent > block_indent:
-                    print(line)
+                    if block_key == "run":
+                        stripped_shell = strip_shell_comment(line)
+                        if stripped_shell.strip():
+                            print(stripped_shell)
+                    else:
+                        print(line)
                     continue
                 block_indent = None
+                block_key = None
             else:
                 continue
         stripped = strip_yaml_comment(line)
         block_match = re.match(r"^[ ]*(?:-[ ]*)?([^:]+?)[ ]*:[ ]*[>|]", stripped)
         if block_match:
             block_indent = block_match.start(1)
+            block_key = block_match.group(1).strip("'\"").lower()
+        scalar_match = re.match(r"^[ ]*(?:-[ ]*)?['\"]?[^:]+['\"]?[ ]*:[ ]*(.*)$", stripped)
+        if scalar_match:
+            continuing_quote = quoted_scalar_continues(scalar_match.group(1))
+            if continuing_quote is not None:
+                quote_char = continuing_quote
+                quote_indent = len(stripped) - len(stripped.lstrip(" "))
         line = stripped
         if line.strip():
             print(line)
@@ -204,6 +288,36 @@ def strip_yaml_comment(line):
         line = line[:comment_at].rstrip()
     return line
 
+def strip_shell_comment(line):
+    in_single = False
+    in_double = False
+    escaped = False
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+    return line
+
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     lines = [line.rstrip("\n") for line in handle]
@@ -236,14 +350,18 @@ while index < len(lines):
                 continue
             current = logical_line.rstrip()
             if pending:
-                current = f"{pending} {current.lstrip()}"
+                current = f"{pending}{current.lstrip()}"
             if current.endswith("\\"):
-                pending = current[:-1].rstrip()
+                pending = current[:-1]
             else:
-                print(current)
+                stripped = strip_shell_comment(current)
+                if stripped:
+                    print(stripped)
                 pending = ""
         if pending:
-            print(pending)
+            stripped = strip_shell_comment(pending)
+            if stripped:
+                print(stripped)
 
     def unquote_yaml_scalar(value):
         value = value.strip()
@@ -253,29 +371,57 @@ while index < len(lines):
             return value[1:-1]
         return value
 
+    raw_block_lines = []
     while index < len(lines):
         candidate = lines[index]
         if not candidate.strip():
-            block_lines.append(None)
+            raw_block_lines.append(None)
             index += 1
             continue
         line_indent = len(candidate) - len(candidate.lstrip(" "))
         if line_indent <= run_key_column:
             break
-        content = candidate.strip() if style else strip_yaml_comment(candidate).strip()
-        if content:
-            block_lines.append((line_indent, content))
+        raw_block_lines.append((line_indent, candidate))
         index += 1
+
+    nonblank_raw_indents = [
+        block_line[0] for block_line in raw_block_lines if block_line is not None
+    ]
+    content_indent = min(nonblank_raw_indents) if nonblank_raw_indents else None
+    for block_line in raw_block_lines:
+        if block_line is None:
+            block_lines.append(None)
+            continue
+        line_indent, raw_content = block_line
+        content = raw_content[content_indent:] if content_indent is not None else raw_content
+        if style:
+            block_lines.append((line_indent, content))
+        else:
+            block_lines.append((line_indent, strip_yaml_comment(content)))
 
     if style is None:
         scalar_lines = []
         if value:
             scalar_lines.append(value)
-        scalar_lines.extend(
-            block_line[1] for block_line in block_lines if block_line is not None
-        )
+        for block_line in block_lines:
+            if block_line is None:
+                scalar_lines.append(None)
+            else:
+                scalar_lines.append(block_line[1])
         if scalar_lines:
-            emit_shell_lines([unquote_yaml_scalar(" ".join(scalar_lines))])
+            logical_lines = []
+            paragraph = []
+            for scalar_line in scalar_lines:
+                if scalar_line is None:
+                    if paragraph:
+                        logical_lines.append(unquote_yaml_scalar(" ".join(paragraph)))
+                        paragraph = []
+                    logical_lines.append(None)
+                else:
+                    paragraph.append(scalar_line)
+            if paragraph:
+                logical_lines.append(unquote_yaml_scalar(" ".join(paragraph)))
+            emit_shell_lines(logical_lines)
         continue
 
     if not block_lines:

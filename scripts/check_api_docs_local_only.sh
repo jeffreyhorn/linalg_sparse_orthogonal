@@ -211,27 +211,20 @@ with open(path, encoding="utf-8") as handle:
 index = 0
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
-    match = re.match(r"^([ ]*)(?:-[ ]*)?(run)[ ]*:[ ]*([>|])", line, re.IGNORECASE)
+    match = re.match(
+        r"^([ ]*)(?:-[ ]*)?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
+        line,
+        re.IGNORECASE,
+    )
     if not match:
         index += 1
         continue
     run_key_column = line.index(match.group(2))
-    style = match.group(3)
+    value = match.group(3).strip()
+    style_match = re.match(r"([>|])", value)
+    style = style_match.group(1) if style_match else None
     index += 1
     block_lines = []
-    while index < len(lines):
-        candidate = lines[index]
-        if not candidate.strip():
-            block_lines.append(None)
-            index += 1
-            continue
-        line_indent = len(candidate) - len(candidate.lstrip(" "))
-        if line_indent <= run_key_column:
-            break
-        block_lines.append((line_indent, candidate.strip()))
-        index += 1
-    if not block_lines:
-        continue
 
     def emit_shell_lines(logical_lines):
         pending = ""
@@ -251,6 +244,42 @@ while index < len(lines):
                 pending = ""
         if pending:
             print(pending)
+
+    def unquote_yaml_scalar(value):
+        value = value.strip()
+        if len(value) >= 2 and value[0] == "'" and value[-1] == "'":
+            return value[1:-1].replace("''", "'")
+        if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+            return value[1:-1]
+        return value
+
+    while index < len(lines):
+        candidate = lines[index]
+        if not candidate.strip():
+            block_lines.append(None)
+            index += 1
+            continue
+        line_indent = len(candidate) - len(candidate.lstrip(" "))
+        if line_indent <= run_key_column:
+            break
+        content = candidate.strip() if style else strip_yaml_comment(candidate).strip()
+        if content:
+            block_lines.append((line_indent, content))
+        index += 1
+
+    if style is None:
+        scalar_lines = []
+        if value:
+            scalar_lines.append(value)
+        scalar_lines.extend(
+            block_line[1] for block_line in block_lines if block_line is not None
+        )
+        if scalar_lines:
+            emit_shell_lines([unquote_yaml_scalar(" ".join(scalar_lines))])
+        continue
+
+    if not block_lines:
+        continue
 
     if style == "|":
         emit_shell_lines(

@@ -78,6 +78,7 @@ require_doxyfile_setting() {
 
 strip_yaml_comments() {
     python3 - "$1" <<'PY'
+import re
 import sys
 
 def strip_yaml_comment(line):
@@ -122,8 +123,23 @@ def strip_yaml_comment(line):
 
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
+    block_indent = None
     for raw_line in handle:
-        line = strip_yaml_comment(raw_line.rstrip("\n"))
+        line = raw_line.rstrip("\n")
+        if block_indent is not None:
+            if line.strip():
+                line_indent = len(line) - len(line.lstrip(" "))
+                if line_indent > block_indent:
+                    print(line)
+                    continue
+                block_indent = None
+            else:
+                continue
+        stripped = strip_yaml_comment(line)
+        block_match = re.match(r"^[ ]*-?[ ]*[^:]+:[ ]*[>|]", stripped)
+        if block_match:
+            block_indent = len(stripped) - len(stripped.lstrip(" "))
+        line = stripped
         if line.strip():
             print(line)
 PY
@@ -176,30 +192,46 @@ def strip_yaml_comment(line):
 
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
-    lines = [strip_yaml_comment(line.rstrip("\n")) for line in handle]
+    lines = [line.rstrip("\n") for line in handle]
 
 index = 0
 while index < len(lines):
-    line = lines[index]
-    match = re.match(r"^([ ]*)-?[ ]*run[ ]*:[ ]*[>|]", line, re.IGNORECASE)
+    line = strip_yaml_comment(lines[index])
+    match = re.match(r"^([ ]*)(?:-[ ]*)?(run)[ ]*:[ ]*([>|])", line, re.IGNORECASE)
     if not match:
         index += 1
         continue
-    block_indent = len(match.group(1))
+    run_key_column = line.index(match.group(2))
+    style = match.group(3)
     index += 1
     block_lines = []
     while index < len(lines):
         candidate = lines[index]
         if not candidate.strip():
+            block_lines.append("")
             index += 1
             continue
         line_indent = len(candidate) - len(candidate.lstrip(" "))
-        if line_indent <= block_indent:
+        if line_indent <= run_key_column:
             break
         block_lines.append(candidate.strip())
         index += 1
-    if block_lines:
-        print(" ".join(block_lines))
+    if not block_lines:
+        continue
+    if style == "|":
+        for block_line in block_lines:
+            if block_line:
+                print(block_line)
+    else:
+        paragraph = []
+        for block_line in block_lines:
+            if block_line:
+                paragraph.append(block_line)
+            elif paragraph:
+                print(" ".join(paragraph))
+                paragraph = []
+        if paragraph:
+            print(" ".join(paragraph))
 PY
 }
 
@@ -291,7 +323,7 @@ check_no_workflow_publication_semantics() {
     command_publication_regex="aws[[:space:]]+s3[[:space:]]+(sync|cp)|gsutil[[:space:]]+(-m[[:space:]]+)?(rsync|cp)|az[[:space:]]+storage[[:space:]]+blob[[:space:]]+upload|netlify[[:space:]]+deploy|vercel[[:space:]]+deploy|firebase[[:space:]]+deploy|wrangler[[:space:]]+pages[[:space:]]+deploy|surge[[:space:]]|gh[[:space:]]+release[[:space:]]+upload|rclone[[:space:]]+(copy|sync|move)|rsync[[:space:]].*:[^[:space:]]*|scp[[:space:]].*:[^[:space:]]*"
     generated_path_regex="docs/api(/|$)|docs/api/html"
     broad_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
-    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"'])[^[:space:]"'"'"']*)?)["'"'"']?[[:space:]]*$'
+    broad_block_path_regex='^[[:space:]]*-?[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:]"'"'"']+/)*([.][.]/)?docs($|[/.[:space:]#]|[*]|["'"'"'])[^"'"'"']*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.[:space:]#]|[*]|["'"'"'])[^"'"'"']*)?)["'"'"']?[[:space:]]*$'
     broad_command_path_regex='(^|[[:space:]])["'"'"']?(([$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?)?([.]/)?docs($|[/.*[:space:]])|([.]/)?([*][*]([/][*])?|[.]([/][*][*])?)($|[[:space:]])|/($|[[:space:]]))'
     docs_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)[[:space:]][^;&|]*["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     docs_archive_command_regex='(^|[[:space:]])(tar|zip|7z|7za|7zr)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'

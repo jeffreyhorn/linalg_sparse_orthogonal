@@ -1217,6 +1217,27 @@ def test_workflow_quoted_hash_before_docs_publish_command_fails_clearly() -> Non
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_literal_run_hash_before_generated_copy_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          printf \"marker # value\"; cp -R docs/api/html artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
 def test_workflow_folded_docs_publish_command_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1448,6 +1469,81 @@ def test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed() 
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_folded_build_copy_before_same_step_name_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: >\n"
+            "          cp build/result.txt build/copy.txt\n"
+            "        name: Check docs\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
+def test_workflow_literal_build_copy_then_echo_docs_upload_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          cp build/result.txt build/copy.txt\n"
+            "          echo docs/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
+def test_workflow_literal_build_archive_then_echo_docs_upload_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          tar -czf build/results.tgz build/results/\n"
+            "          echo docs/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_7z_archived_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1567,6 +1663,7 @@ def main() -> None:
     test_workflow_broad_chomped_block_docs_artifact_path_fails_clearly()
     test_workflow_broad_docs_custom_deploy_command_fails_clearly()
     test_workflow_quoted_hash_before_docs_publish_command_fails_clearly()
+    test_workflow_literal_run_hash_before_generated_copy_fails_clearly()
     test_workflow_folded_docs_publish_command_fails_clearly()
     test_workflow_rclone_docs_publish_command_fails_clearly()
     test_workflow_gh_release_upload_docs_glob_fails_clearly()
@@ -1578,6 +1675,9 @@ def main() -> None:
     test_workflow_folded_archived_docs_artifact_upload_fails_clearly()
     test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed()
     test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed()
+    test_workflow_folded_build_copy_before_same_step_name_is_allowed()
+    test_workflow_literal_build_copy_then_echo_docs_upload_is_allowed()
+    test_workflow_literal_build_archive_then_echo_docs_upload_is_allowed()
     test_workflow_7z_archived_docs_artifact_upload_fails_clearly()
     test_tracked_generated_api_file_fails_clearly()
     test_staged_generated_api_file_fails_clearly()

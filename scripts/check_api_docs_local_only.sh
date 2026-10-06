@@ -85,9 +85,13 @@ def strip_yaml_comment(line):
     in_single = False
     in_double = False
     escaped = False
+    skip_next = False
     value_start = 0
     comment_at = None
     for index, char in enumerate(line):
+        if skip_next:
+            skip_next = False
+            continue
         if escaped:
             escaped = False
             continue
@@ -99,6 +103,9 @@ def strip_yaml_comment(line):
             continue
         if char == "'" and not in_double:
             if in_single:
+                if index + 1 < len(line) and line[index + 1] == "'":
+                    skip_next = True
+                    continue
                 in_single = False
             elif line[value_start:index].strip() == "":
                 in_single = True
@@ -136,9 +143,9 @@ with open(path, encoding="utf-8") as handle:
             else:
                 continue
         stripped = strip_yaml_comment(line)
-        block_match = re.match(r"^[ ]*-?[ ]*[^:]+:[ ]*[>|]", stripped)
+        block_match = re.match(r"^[ ]*(?:-[ ]*)?([^:]+?)[ ]*:[ ]*[>|]", stripped)
         if block_match:
-            block_indent = len(stripped) - len(stripped.lstrip(" "))
+            block_indent = block_match.start(1)
         line = stripped
         if line.strip():
             print(line)
@@ -154,9 +161,13 @@ def strip_yaml_comment(line):
     in_single = False
     in_double = False
     escaped = False
+    skip_next = False
     value_start = 0
     comment_at = None
     for index, char in enumerate(line):
+        if skip_next:
+            skip_next = False
+            continue
         if escaped:
             escaped = False
             continue
@@ -168,6 +179,9 @@ def strip_yaml_comment(line):
             continue
         if char == "'" and not in_double:
             if in_single:
+                if index + 1 < len(line) and line[index + 1] == "'":
+                    skip_next = True
+                    continue
                 in_single = False
             elif line[value_start:index].strip() == "":
                 in_single = True
@@ -208,30 +222,66 @@ while index < len(lines):
     while index < len(lines):
         candidate = lines[index]
         if not candidate.strip():
-            block_lines.append("")
+            block_lines.append(None)
             index += 1
             continue
         line_indent = len(candidate) - len(candidate.lstrip(" "))
         if line_indent <= run_key_column:
             break
-        block_lines.append(candidate.strip())
+        block_lines.append((line_indent, candidate.strip()))
         index += 1
     if not block_lines:
         continue
+
+    def emit_shell_lines(logical_lines):
+        pending = ""
+        for logical_line in logical_lines:
+            if logical_line is None:
+                if pending:
+                    print(pending)
+                    pending = ""
+                continue
+            current = logical_line.rstrip()
+            if pending:
+                current = f"{pending} {current.lstrip()}"
+            if current.endswith("\\"):
+                pending = current[:-1].rstrip()
+            else:
+                print(current)
+                pending = ""
+        if pending:
+            print(pending)
+
     if style == "|":
-        for block_line in block_lines:
-            if block_line:
-                print(block_line)
+        emit_shell_lines(
+            block_line[1] if block_line is not None else None
+            for block_line in block_lines
+        )
     else:
+        nonblank_indents = [
+            block_line[0] for block_line in block_lines if block_line is not None
+        ]
+        base_indent = min(nonblank_indents)
+        folded_lines = []
         paragraph = []
         for block_line in block_lines:
-            if block_line:
-                paragraph.append(block_line)
-            elif paragraph:
-                print(" ".join(paragraph))
-                paragraph = []
+            if block_line is None:
+                if paragraph:
+                    folded_lines.append(" ".join(paragraph))
+                    paragraph = []
+                folded_lines.append(None)
+                continue
+            line_indent, content = block_line
+            if line_indent > base_indent:
+                if paragraph:
+                    folded_lines.append(" ".join(paragraph))
+                    paragraph = []
+                folded_lines.append(content)
+            else:
+                paragraph.append(content)
         if paragraph:
-            print(" ".join(paragraph))
+            folded_lines.append(" ".join(paragraph))
+        emit_shell_lines(folded_lines)
 PY
 }
 

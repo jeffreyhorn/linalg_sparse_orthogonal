@@ -501,36 +501,42 @@ while index < len(lines):
 
     def emit_shell_lines(logical_lines):
         pending = ""
+        pending_state = None
         shell_state = (False, False, False)
         for logical_line in logical_lines:
             if logical_line is None:
                 if pending:
                     stripped, shell_state = strip_shell_comment_stateful(
                         pending,
-                        shell_state,
+                        pending_state,
                     )
                     if stripped:
                         print(stripped)
                     pending = ""
+                    pending_state = None
                 shell_state = (False, False, False)
                 continue
             current = logical_line.rstrip()
+            scan_state = shell_state
             if pending:
                 current = f"{pending}{current.lstrip()}"
+                scan_state = pending_state
             stripped, shell_state = strip_shell_comment_stateful(
                 current,
-                shell_state,
+                scan_state,
             )
             if stripped.endswith("\\"):
                 pending = stripped[:-1]
+                pending_state = scan_state
             else:
                 if stripped:
                     print(stripped)
                 pending = ""
+                pending_state = None
         if pending:
             stripped, shell_state = strip_shell_comment_stateful(
                 pending,
-                shell_state,
+                pending_state,
             )
             if stripped:
                 print(stripped)
@@ -571,10 +577,26 @@ while index < len(lines):
                     for line in unquoted
                 ]
             else:
-                unquoted = [
-                    yaml_double_unescape(line) if line is not None else None
-                    for line in unquoted
-                ]
+                merged = []
+                pending = None
+                for line in unquoted:
+                    if line is None:
+                        if pending is not None:
+                            merged.append(yaml_double_unescape(pending))
+                            pending = None
+                        merged.append(None)
+                        continue
+                    current = line
+                    if pending is not None:
+                        current = f"{pending}{current.lstrip()}"
+                        pending = None
+                    if current.endswith("\\"):
+                        pending = current[:-1]
+                    else:
+                        merged.append(yaml_double_unescape(current))
+                if pending is not None:
+                    merged.append(yaml_double_unescape(pending))
+                unquoted = merged
         return unquoted
 
     raw_block_lines = []

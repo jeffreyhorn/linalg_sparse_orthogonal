@@ -438,11 +438,11 @@ def decode_value(value, quote):
 
 def decode_quoted_paths(line):
     line = DOUBLE_FLOW_PATTERN.sub(
-        lambda match: f"{match.group('prefix')}{decode_value(match.group('value'), '\"')}",
+        lambda match: match.group("prefix") + decode_value(match.group("value"), '"'),
         line,
     )
     line = SINGLE_FLOW_PATTERN.sub(
-        lambda match: f"{match.group('prefix')}{decode_value(match.group('value'), "'")}",
+        lambda match: match.group("prefix") + decode_value(match.group("value"), "'"),
         line,
     )
     return line
@@ -761,6 +761,32 @@ while index < len(lines):
             return unquoted
         first = unquoted[first_index].strip()
         last = unquoted[last_index].strip()
+        if first and first[0] in "'\"":
+            quote = first[0]
+            if not last.endswith(quote):
+                raw_last = unquoted[last_index].rstrip()
+                escaped = False
+                index = 1 if first_index == last_index else 0
+                while index < len(raw_last):
+                    char = raw_last[index]
+                    if quote == '"' and escaped:
+                        escaped = False
+                    elif quote == '"' and char == "\\":
+                        escaped = True
+                    elif (
+                        quote == "'"
+                        and char == "'"
+                        and index + 1 < len(raw_last)
+                        and raw_last[index + 1] == "'"
+                    ):
+                        index += 1
+                    elif char == quote:
+                        suffix = raw_last[index + 1:]
+                        if not suffix.strip() or suffix.lstrip().startswith("#"):
+                            unquoted[last_index] = raw_last[: index + 1]
+                            last = unquoted[last_index].strip()
+                        break
+                    index += 1
         if first and first[0] in "'\"" and last.endswith(first[0]):
             quote = first[0]
             unquoted[first_index] = unquoted[first_index].lstrip()[1:]

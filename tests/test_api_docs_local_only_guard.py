@@ -1735,6 +1735,48 @@ def test_workflow_multiline_quoted_docs_copy_artifact_upload_fails() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_multiline_single_quoted_docs_copy_with_trailing_comment_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'cp -R\n"
+            "          docs artifact/' # stage docs\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
+def test_workflow_multiline_double_quoted_docs_copy_with_trailing_comment_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: \"cp -R\n"
+            "          docs artifact/\" # stage docs\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_multiline_quoted_docs_archive_artifact_upload_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2385,6 +2427,8 @@ def main() -> None:
     test_workflow_multiline_plain_docs_copy_artifact_upload_fails()
     test_workflow_multiline_plain_docs_archive_artifact_upload_fails()
     test_workflow_multiline_quoted_docs_copy_artifact_upload_fails()
+    test_workflow_multiline_single_quoted_docs_copy_with_trailing_comment_fails()
+    test_workflow_multiline_double_quoted_docs_copy_with_trailing_comment_fails()
     test_workflow_multiline_quoted_docs_archive_artifact_upload_fails()
     test_workflow_multiline_single_quoted_hash_before_docs_copy_fails()
     test_workflow_multiline_double_quoted_hash_before_docs_copy_fails()

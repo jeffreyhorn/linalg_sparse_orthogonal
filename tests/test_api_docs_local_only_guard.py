@@ -294,6 +294,26 @@ def test_workflow_windows_generated_api_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
 
 
+def test_workflow_escaped_generated_api_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: \"\\x64ocs/api/html\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
 def test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -1720,6 +1740,27 @@ def test_workflow_double_quoted_yaml_escaped_hash_before_split_docs_copy_fails()
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_double_quoted_yaml_newline_comment_before_docs_copy_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: \"echo marker # note\\ncp -R\n"
+            "          docs artifact/\"\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_double_quoted_yaml_escaped_linebreak_docs_copy_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2193,6 +2234,7 @@ def main() -> None:
     test_workflow_relative_generated_api_root_path_fails_clearly()
     test_workflow_publication_semantics_fail_clearly()
     test_workflow_windows_generated_api_artifact_path_fails_clearly()
+    test_workflow_escaped_generated_api_artifact_path_fails_clearly()
     test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly()
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_windows_broad_docs_artifact_path_fails_clearly()
@@ -2264,6 +2306,7 @@ def main() -> None:
     test_workflow_multiline_single_quoted_hash_before_docs_copy_fails()
     test_workflow_multiline_double_quoted_hash_before_docs_copy_fails()
     test_workflow_double_quoted_yaml_escaped_hash_before_split_docs_copy_fails()
+    test_workflow_double_quoted_yaml_newline_comment_before_docs_copy_fails()
     test_workflow_double_quoted_yaml_escaped_linebreak_docs_copy_fails()
     test_workflow_double_quoted_yaml_escaped_linebreak_docs_archive_fails()
     test_workflow_double_quoted_yaml_hex_docs_copy_fails()

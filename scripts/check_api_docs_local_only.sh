@@ -306,6 +306,76 @@ with open(path, encoding="utf-8") as handle:
 PY
 }
 
+decode_yaml_publication_paths() {
+    python3 -c "$(cat <<'PY'
+import re
+import sys
+
+PUBLICATION_PATH_KEYS = (
+    "path",
+    "publish_dir",
+    "publish-dir",
+    "directory",
+    "folder",
+    "files",
+    "asset_path",
+)
+
+KEY_PATTERN = "|".join(re.escape(key) for key in PUBLICATION_PATH_KEYS)
+SCALAR_PATTERN = re.compile(
+    rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)(['\"])(.*)\2(\s*)$",
+    re.IGNORECASE,
+)
+
+def yaml_double_unescape(value):
+    def replace_match(match):
+        escape = match.group(1)
+        if escape == "0":
+            return "\0"
+        if escape == "a":
+            return "\a"
+        if escape == "b":
+            return "\b"
+        if escape == "t" or escape == "\t":
+            return "\t"
+        if escape == "n":
+            return "\n"
+        if escape == "v":
+            return "\v"
+        if escape == "f":
+            return "\f"
+        if escape == "r":
+            return "\r"
+        if escape == "e":
+            return "\033"
+        if escape in {'"', "/", "\\", "_", " "}:
+            return escape
+        if escape.startswith("x") and len(escape) == 3:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("u") and len(escape) == 5:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("U") and len(escape) == 9:
+            return chr(int(escape[1:], 16))
+        return f"\\{escape}"
+
+    return re.sub(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)", replace_match, value)
+
+for raw_line in sys.stdin:
+    line = raw_line.rstrip("\n")
+    match = SCALAR_PATTERN.match(line)
+    if not match:
+        print(line)
+        continue
+    prefix, quote, value, suffix = match.groups()
+    if quote == "'":
+        value = value.replace("''", "'")
+    else:
+        value = yaml_double_unescape(value)
+    print(f"{prefix}{value}{suffix}")
+PY
+)"
+}
+
 fold_yaml_run_blocks() {
     python3 - "$1" <<'PY'
 import re
@@ -503,7 +573,8 @@ while index < len(lines):
         pending = ""
         pending_state = None
         shell_state = (False, False, False)
-        for logical_line in logical_lines:
+        def emit_one(logical_line):
+            nonlocal pending, pending_state, shell_state
             if logical_line is None:
                 if pending:
                     stripped, shell_state = strip_shell_comment_stateful(
@@ -513,9 +584,9 @@ while index < len(lines):
                     if stripped:
                         print(stripped)
                     pending = ""
-                    pending_state = None
+                pending_state = None
                 shell_state = (False, False, False)
-                continue
+                return
             current = logical_line.rstrip()
             scan_state = shell_state
             if pending:
@@ -533,6 +604,13 @@ while index < len(lines):
                     print(stripped)
                 pending = ""
                 pending_state = None
+
+        for logical_line in logical_lines:
+            if logical_line is None:
+                emit_one(None)
+                continue
+            for embedded_line in logical_line.split("\n"):
+                emit_one(embedded_line)
         if pending:
             stripped, shell_state = strip_shell_comment_stateful(
                 pending,
@@ -794,7 +872,7 @@ check_no_workflow_publication_semantics() {
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
-        stripped_text="$(strip_yaml_comments "$workflow_file")"
+        stripped_text="$(strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths)"
         normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
         folded_run_text="$(fold_yaml_run_blocks "$workflow_file" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
         dynamic_block_path_matches="$(

@@ -158,6 +158,37 @@ def strip_shell_comment(line):
         line = line[:comment_at].rstrip()
     return line
 
+def strip_shell_comment_stateful(line, state):
+    in_single, in_double, escaped = state
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+        in_single = False
+        in_double = False
+        escaped = False
+    return line, (in_single, in_double, escaped)
+
 def quoted_scalar_continues(value):
     value = value.strip()
     if not value or value[0] not in "'\"":
@@ -189,6 +220,7 @@ with open(path, encoding="utf-8") as handle:
     block_key = None
     quote_indent = None
     quote_char = None
+    shell_state = (False, False, False)
     for raw_line in handle:
         line = raw_line.rstrip("\n")
         if quote_char is not None:
@@ -209,7 +241,10 @@ with open(path, encoding="utf-8") as handle:
                 line_indent = len(line) - len(line.lstrip(" "))
                 if line_indent > block_indent:
                     if block_key == "run":
-                        stripped_shell = strip_shell_comment(line)
+                        stripped_shell, shell_state = strip_shell_comment_stateful(
+                            line,
+                            shell_state,
+                        )
                         if stripped_shell.strip():
                             print(stripped_shell)
                     else:
@@ -217,6 +252,7 @@ with open(path, encoding="utf-8") as handle:
                     continue
                 block_indent = None
                 block_key = None
+                shell_state = (False, False, False)
             else:
                 continue
         stripped = strip_yaml_comment(line)
@@ -224,6 +260,7 @@ with open(path, encoding="utf-8") as handle:
         if block_match:
             block_indent = block_match.start(1)
             block_key = block_match.group(1).strip("'\"").lower()
+            shell_state = (False, False, False)
         scalar_match = re.match(r"^[ ]*(?:-[ ]*)?['\"]?[^:]+['\"]?[ ]*:[ ]*(.*)$", stripped)
         if scalar_match:
             continuing_quote = quoted_scalar_continues(scalar_match.group(1))
@@ -318,6 +355,62 @@ def strip_shell_comment(line):
         line = line[:comment_at].rstrip()
     return line
 
+def strip_shell_comment_stateful(line, state):
+    in_single, in_double, escaped = state
+    comment_at = None
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+        in_single = False
+        in_double = False
+        escaped = False
+    return line, (in_single, in_double, escaped)
+
+def quoted_scalar_continues(value):
+    value = value.strip()
+    if not value or value[0] not in "'\"":
+        return None
+    quote = value[0]
+    escaped = False
+    index = 1
+    while index < len(value):
+        char = value[index]
+        if quote == '"' and escaped:
+            escaped = False
+        elif quote == '"' and char == "\\":
+            escaped = True
+        elif (
+            quote == "'"
+            and char == "'"
+            and index + 1 < len(value)
+            and value[index + 1] == "'"
+        ):
+            index += 1
+        elif char == quote:
+            return None
+        index += 1
+    return quote
+
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     lines = [line.rstrip("\n") for line in handle]
@@ -342,11 +435,18 @@ while index < len(lines):
 
     def emit_shell_lines(logical_lines):
         pending = ""
+        shell_state = (False, False, False)
         for logical_line in logical_lines:
             if logical_line is None:
                 if pending:
-                    print(pending)
+                    stripped, shell_state = strip_shell_comment_stateful(
+                        pending,
+                        shell_state,
+                    )
+                    if stripped:
+                        print(stripped)
                     pending = ""
+                shell_state = (False, False, False)
                 continue
             current = logical_line.rstrip()
             if pending:
@@ -354,12 +454,18 @@ while index < len(lines):
             if current.endswith("\\"):
                 pending = current[:-1]
             else:
-                stripped = strip_shell_comment(current)
+                stripped, shell_state = strip_shell_comment_stateful(
+                    current,
+                    shell_state,
+                )
                 if stripped:
                     print(stripped)
                 pending = ""
         if pending:
-            stripped = strip_shell_comment(pending)
+            stripped, shell_state = strip_shell_comment_stateful(
+                pending,
+                shell_state,
+            )
             if stripped:
                 print(stripped)
 
@@ -370,6 +476,35 @@ while index < len(lines):
         if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
             return value[1:-1]
         return value
+
+    def unquote_yaml_scalar_lines(lines):
+        unquoted = list(lines)
+        first_index = next(
+            (line_index for line_index, line in enumerate(unquoted) if line is not None),
+            None,
+        )
+        last_index = next(
+            (
+                line_index
+                for line_index in range(len(unquoted) - 1, -1, -1)
+                if unquoted[line_index] is not None
+            ),
+            None,
+        )
+        if first_index is None or last_index is None:
+            return unquoted
+        first = unquoted[first_index].strip()
+        last = unquoted[last_index].strip()
+        if first and first[0] in "'\"" and last.endswith(first[0]):
+            quote = first[0]
+            unquoted[first_index] = unquoted[first_index].lstrip()[1:]
+            unquoted[last_index] = unquoted[last_index].rstrip()[:-1]
+            if quote == "'":
+                unquoted = [
+                    line.replace("''", "'") if line is not None else None
+                    for line in unquoted
+                ]
+        return unquoted
 
     raw_block_lines = []
     while index < len(lines):
@@ -388,6 +523,7 @@ while index < len(lines):
         block_line[0] for block_line in raw_block_lines if block_line is not None
     ]
     content_indent = min(nonblank_raw_indents) if nonblank_raw_indents else None
+    yaml_quote = quoted_scalar_continues(value) if style is None else None
     for block_line in raw_block_lines:
         if block_line is None:
             block_lines.append(None)
@@ -396,6 +532,10 @@ while index < len(lines):
         content = raw_content[content_indent:] if content_indent is not None else raw_content
         if style:
             block_lines.append((line_indent, content))
+        elif yaml_quote is not None:
+            block_lines.append((line_indent, content))
+            if quoted_scalar_continues(f"{yaml_quote}{content}") is None:
+                yaml_quote = None
         else:
             block_lines.append((line_indent, strip_yaml_comment(content)))
 
@@ -409,18 +549,19 @@ while index < len(lines):
             else:
                 scalar_lines.append(block_line[1])
         if scalar_lines:
+            scalar_lines = unquote_yaml_scalar_lines(scalar_lines)
             logical_lines = []
             paragraph = []
             for scalar_line in scalar_lines:
                 if scalar_line is None:
                     if paragraph:
-                        logical_lines.append(unquote_yaml_scalar(" ".join(paragraph)))
+                        logical_lines.append(" ".join(paragraph))
                         paragraph = []
                     logical_lines.append(None)
                 else:
                     paragraph.append(scalar_line)
             if paragraph:
-                logical_lines.append(unquote_yaml_scalar(" ".join(paragraph)))
+                logical_lines.append(" ".join(paragraph))
             emit_shell_lines(logical_lines)
         continue
 

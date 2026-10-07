@@ -1653,6 +1653,73 @@ def test_workflow_multiline_double_quoted_hash_before_docs_copy_fails() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_literal_shell_multiline_string_before_generated_copy_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          printf \"marker\n"
+            "          # value\"; cp -R docs/api/html artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
+def test_workflow_multiline_quoted_hash_before_split_docs_copy_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'printf \"marker\n"
+            "          # value\"; cp -R\n"
+            "          docs artifact/'\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
+def test_workflow_multiline_quoted_split_docs_copy_blank_echo_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'cp -R\n"
+            "          docs artifact/\n"
+            "\n"
+            "          echo complete'\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_quoted_run_key_folded_docs_copy_artifact_upload_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2065,6 +2132,9 @@ def main() -> None:
     test_workflow_multiline_quoted_docs_archive_artifact_upload_fails()
     test_workflow_multiline_single_quoted_hash_before_docs_copy_fails()
     test_workflow_multiline_double_quoted_hash_before_docs_copy_fails()
+    test_workflow_literal_shell_multiline_string_before_generated_copy_fails()
+    test_workflow_multiline_quoted_hash_before_split_docs_copy_fails()
+    test_workflow_multiline_quoted_split_docs_copy_blank_echo_fails()
     test_workflow_quoted_run_key_folded_docs_copy_artifact_upload_fails()
     test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed()
     test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed()

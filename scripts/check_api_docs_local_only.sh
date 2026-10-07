@@ -189,6 +189,39 @@ def strip_shell_comment_stateful(line, state):
         escaped = False
     return line, (in_single, in_double, escaped)
 
+def yaml_double_unescape(value):
+    def replace_match(match):
+        escape = match.group(1)
+        if escape == "0":
+            return "\0"
+        if escape == "a":
+            return "\a"
+        if escape == "b":
+            return "\b"
+        if escape == "t" or escape == "\t":
+            return "\t"
+        if escape == "n":
+            return "\n"
+        if escape == "v":
+            return "\v"
+        if escape == "f":
+            return "\f"
+        if escape == "r":
+            return "\r"
+        if escape == "e":
+            return "\033"
+        if escape in {'"', "/", "\\", "_", " "}:
+            return escape
+        if escape.startswith("x") and len(escape) == 3:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("u") and len(escape) == 5:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("U") and len(escape) == 9:
+            return chr(int(escape[1:], 16))
+        return f"\\{escape}"
+
+    return re.sub(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)", replace_match, value)
+
 def quoted_scalar_continues(value):
     value = value.strip()
     if not value or value[0] not in "'\"":
@@ -386,6 +419,39 @@ def strip_shell_comment_stateful(line, state):
         escaped = False
     return line, (in_single, in_double, escaped)
 
+def yaml_double_unescape(value):
+    def replace_match(match):
+        escape = match.group(1)
+        if escape == "0":
+            return "\0"
+        if escape == "a":
+            return "\a"
+        if escape == "b":
+            return "\b"
+        if escape == "t" or escape == "\t":
+            return "\t"
+        if escape == "n":
+            return "\n"
+        if escape == "v":
+            return "\v"
+        if escape == "f":
+            return "\f"
+        if escape == "r":
+            return "\r"
+        if escape == "e":
+            return "\033"
+        if escape in {'"', "/", "\\", "_", " "}:
+            return escape
+        if escape.startswith("x") and len(escape) == 3:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("u") and len(escape) == 5:
+            return chr(int(escape[1:], 16))
+        if escape.startswith("U") and len(escape) == 9:
+            return chr(int(escape[1:], 16))
+        return f"\\{escape}"
+
+    return re.sub(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)", replace_match, value)
+
 def quoted_scalar_continues(value):
     value = value.strip()
     if not value or value[0] not in "'\"":
@@ -451,13 +517,13 @@ while index < len(lines):
             current = logical_line.rstrip()
             if pending:
                 current = f"{pending}{current.lstrip()}"
-            if current.endswith("\\"):
-                pending = current[:-1]
+            stripped, shell_state = strip_shell_comment_stateful(
+                current,
+                shell_state,
+            )
+            if stripped.endswith("\\"):
+                pending = stripped[:-1]
             else:
-                stripped, shell_state = strip_shell_comment_stateful(
-                    current,
-                    shell_state,
-                )
                 if stripped:
                     print(stripped)
                 pending = ""
@@ -502,6 +568,11 @@ while index < len(lines):
             if quote == "'":
                 unquoted = [
                     line.replace("''", "'") if line is not None else None
+                    for line in unquoted
+                ]
+            else:
+                unquoted = [
+                    yaml_double_unescape(line) if line is not None else None
                     for line in unquoted
                 ]
         return unquoted

@@ -171,6 +171,46 @@ def test_workflow_plain_scalar_apostrophe_before_comment_is_allowed() -> None:
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_multiline_single_quoted_trailing_comment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: 'Build followed by\n"
+            "  output' # docs/api/html remains local-only\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make test\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
+def test_workflow_multiline_double_quoted_trailing_comment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: \"Build followed by\n"
+            "  output\" # docs/api/html remains local-only\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make test\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_single_quoted_doubled_apostrophe_before_copy_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -308,6 +348,45 @@ def test_workflow_escaped_generated_api_artifact_path_fails_clearly() -> None:
             "        with:\n"
             "          name: generated-api-html\n"
             "          path: \"\\x64ocs/api/html\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
+def test_workflow_flow_mapping_escaped_generated_api_artifact_path_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with: {name: generated-api-html, path: \"\\x64ocs/api/html\"}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
+def test_workflow_multiline_escaped_generated_api_artifact_path_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: \"\\x64ocs/\\\n"
+            "            api/html\"\n",
             encoding="utf-8",
         )
 
@@ -2227,6 +2306,8 @@ def main() -> None:
     test_workflow_generated_api_path_fails_clearly()
     test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
     test_workflow_plain_scalar_apostrophe_before_comment_is_allowed()
+    test_workflow_multiline_single_quoted_trailing_comment_is_allowed()
+    test_workflow_multiline_double_quoted_trailing_comment_is_allowed()
     test_workflow_single_quoted_doubled_apostrophe_before_copy_fails()
     test_yaml_workflow_generated_api_path_fails_clearly()
     test_workflow_generated_api_root_path_fails_clearly()
@@ -2235,6 +2316,8 @@ def main() -> None:
     test_workflow_publication_semantics_fail_clearly()
     test_workflow_windows_generated_api_artifact_path_fails_clearly()
     test_workflow_escaped_generated_api_artifact_path_fails_clearly()
+    test_workflow_flow_mapping_escaped_generated_api_artifact_path_fails()
+    test_workflow_multiline_escaped_generated_api_artifact_path_fails()
     test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly()
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_windows_broad_docs_artifact_path_fails_clearly()

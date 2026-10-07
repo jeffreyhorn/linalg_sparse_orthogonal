@@ -128,6 +128,45 @@ def strip_yaml_comment(line):
         line = line[:comment_at].rstrip()
     return line
 
+def strip_yaml_comment_continuation(line, quote):
+    in_single = quote == "'"
+    in_double = quote == '"'
+    escaped = False
+    skip_next = False
+    comment_at = None
+    for index, char in enumerate(line):
+        if skip_next:
+            skip_next = False
+            continue
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_double:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            if in_single:
+                if index + 1 < len(line) and line[index + 1] == "'":
+                    skip_next = True
+                    continue
+                in_single = False
+            continue
+        if char == '"' and not in_single:
+            if in_double:
+                in_double = False
+            continue
+        if (
+            char == "#"
+            and not in_single
+            and not in_double
+            and (index == 0 or line[index - 1].isspace())
+        ):
+            comment_at = index
+            break
+    if comment_at is not None:
+        line = line[:comment_at].rstrip()
+    return line
+
 def strip_shell_comment(line):
     in_single = False
     in_double = False
@@ -262,8 +301,9 @@ with open(path, encoding="utf-8") as handle:
                 if line_indent <= quote_indent:
                     quote_char = None
                 else:
-                    print(line)
-                    if quoted_scalar_continues(f"{quote_char}{line}") is None:
+                    stripped = strip_yaml_comment_continuation(line, quote_char)
+                    print(stripped)
+                    if quoted_scalar_continues(f"{quote_char}{stripped}") is None:
                         quote_char = None
                     continue
             else:
@@ -307,7 +347,10 @@ PY
 }
 
 decode_yaml_publication_paths() {
-    python3 -c "$(cat <<'PY'
+    local path_decode_input
+    path_decode_input="$(mktemp)"
+    cat > "$path_decode_input"
+    python3 - "$path_decode_input" <<'PY'
 import re
 import sys
 
@@ -324,6 +367,18 @@ PUBLICATION_PATH_KEYS = (
 KEY_PATTERN = "|".join(re.escape(key) for key in PUBLICATION_PATH_KEYS)
 SCALAR_PATTERN = re.compile(
     rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)(['\"])(.*)\2(\s*)$",
+    re.IGNORECASE,
+)
+SCALAR_START_PATTERN = re.compile(
+    rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)(['\"])(.*)$",
+    re.IGNORECASE,
+)
+DOUBLE_FLOW_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)\"(?P<value>(?:\\.|[^\"])*)\"" % KEY_PATTERN,
+    re.IGNORECASE,
+)
+SINGLE_FLOW_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)'(?P<value>(?:''|[^'])*)'" % KEY_PATTERN,
     re.IGNORECASE,
 )
 
@@ -360,20 +415,81 @@ def yaml_double_unescape(value):
 
     return re.sub(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)", replace_match, value)
 
+def quoted_value_tail(value, quote):
+    escaped = False
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if quote == '"' and escaped:
+            escaped = False
+        elif quote == '"' and char == "\\":
+            escaped = True
+        elif quote == "'" and char == "'" and index + 1 < len(value) and value[index + 1] == "'":
+            index += 1
+        elif char == quote:
+            return value[:index], value[index + 1:]
+        index += 1
+    return None
+
+def decode_value(value, quote):
+    if quote == "'":
+        return value.replace("''", "'")
+    return yaml_double_unescape(value)
+
+def decode_quoted_paths(line):
+    line = DOUBLE_FLOW_PATTERN.sub(
+        lambda match: f"{match.group('prefix')}{decode_value(match.group('value'), '\"')}",
+        line,
+    )
+    line = SINGLE_FLOW_PATTERN.sub(
+        lambda match: f"{match.group('prefix')}{decode_value(match.group('value'), "'")}",
+        line,
+    )
+    return line
+
+pending_prefix = None
+pending_quote = None
+pending_value = None
+
+sys.stdin = open(sys.argv[1], encoding="utf-8")
 for raw_line in sys.stdin:
     line = raw_line.rstrip("\n")
-    match = SCALAR_PATTERN.match(line)
-    if not match:
-        print(line)
+    if pending_prefix is not None:
+        current = line.lstrip()
+        if pending_value.endswith("\\"):
+            current = f"{pending_value[:-1]}{current}"
+        else:
+            current = f"{pending_value} {current}"
+        tail = quoted_value_tail(current, pending_quote)
+        if tail is None:
+            pending_value = current
+            continue
+        value, suffix = tail
+        print(f"{pending_prefix}{decode_value(value, pending_quote)}{suffix}")
+        pending_prefix = None
+        pending_quote = None
+        pending_value = None
         continue
-    prefix, quote, value, suffix = match.groups()
-    if quote == "'":
-        value = value.replace("''", "'")
-    else:
-        value = yaml_double_unescape(value)
-    print(f"{prefix}{value}{suffix}")
+
+    start = SCALAR_START_PATTERN.match(line)
+    if start is not None:
+        prefix, quote, value = start.groups()
+        tail = quoted_value_tail(value, quote)
+        if tail is None:
+            pending_prefix = prefix
+            pending_quote = quote
+            pending_value = value
+            continue
+        decoded_value, suffix = tail
+        print(f"{prefix}{decode_value(decoded_value, quote)}{suffix}")
+        continue
+
+    print(decode_quoted_paths(line))
+
+if pending_prefix is not None:
+    print(f"{pending_prefix}{decode_value(pending_value, pending_quote)}")
 PY
-)"
+    rm -f "$path_decode_input"
 }
 
 fold_yaml_run_blocks() {

@@ -436,13 +436,28 @@ def decode_value(value, quote):
         return value.replace("''", "'")
     return yaml_double_unescape(value)
 
+def decoded_path_lines(prefix, value, quote, suffix=""):
+    decoded = decode_value(value, quote)
+    lines = [line.strip() for line in decoded.splitlines()]
+    lines = [line for line in lines if line]
+    if not lines:
+        return [prefix + suffix]
+    return [
+        prefix + line + (suffix if index == len(lines) - 1 else "")
+        for index, line in enumerate(lines)
+    ]
+
 def decode_quoted_paths(line):
     line = DOUBLE_FLOW_PATTERN.sub(
-        lambda match: match.group("prefix") + decode_value(match.group("value"), '"'),
+        lambda match: "\n".join(
+            decoded_path_lines(match.group("prefix"), match.group("value"), '"'),
+        ),
         line,
     )
     line = SINGLE_FLOW_PATTERN.sub(
-        lambda match: match.group("prefix") + decode_value(match.group("value"), "'"),
+        lambda match: "\n".join(
+            decoded_path_lines(match.group("prefix"), match.group("value"), "'"),
+        ),
         line,
     )
     return line
@@ -465,7 +480,8 @@ for raw_line in sys.stdin:
             pending_value = current
             continue
         value, suffix = tail
-        print(f"{pending_prefix}{decode_value(value, pending_quote)}{suffix}")
+        for decoded_line in decoded_path_lines(pending_prefix, value, pending_quote, suffix):
+            print(decoded_line)
         pending_prefix = None
         pending_quote = None
         pending_value = None
@@ -481,13 +497,15 @@ for raw_line in sys.stdin:
             pending_value = value
             continue
         decoded_value, suffix = tail
-        print(f"{prefix}{decode_value(decoded_value, quote)}{suffix}")
+        for decoded_line in decoded_path_lines(prefix, decoded_value, quote, suffix):
+            print(decoded_line)
         continue
 
     print(decode_quoted_paths(line))
 
 if pending_prefix is not None:
-    print(f"{pending_prefix}{decode_value(pending_value, pending_quote)}")
+    for decoded_line in decoded_path_lines(pending_prefix, pending_value, pending_quote):
+        print(decoded_line)
 PY
     rm -f "$path_decode_input"
 }
@@ -670,16 +688,26 @@ with open(path, encoding="utf-8") as handle:
 index = 0
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
+    flow_run = False
     match = re.match(
         r"^([ ]*)(?:-[ ]*)?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
         line,
         re.IGNORECASE,
     )
     if not match:
+        match = re.match(
+            r"^([ ]*)-[ ]*[{][^#]*?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
+            line,
+            re.IGNORECASE,
+        )
+        flow_run = match is not None
+    if not match:
         index += 1
         continue
     run_key_column = line.index(match.group(2))
     value = match.group(3).strip()
+    if flow_run:
+        value = re.sub(r"\s*}[,]?\s*$", "", value).strip()
     style_match = re.match(r"([>|])", value)
     style = style_match.group(1) if style_match else None
     index += 1
@@ -862,6 +890,15 @@ while index < len(lines):
             else:
                 scalar_lines.append(block_line[1])
         if scalar_lines:
+            if flow_run:
+                for scalar_index in range(len(scalar_lines) - 1, -1, -1):
+                    if scalar_lines[scalar_index] is not None:
+                        scalar_lines[scalar_index] = re.sub(
+                            r"\s*}[,]?\s*$",
+                            "",
+                            scalar_lines[scalar_index],
+                        )
+                        break
             scalar_lines = unquote_yaml_scalar_lines(scalar_lines)
             logical_lines = []
             paragraph = []
@@ -929,7 +966,7 @@ require_workflows_do_not_reference() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            strip_yaml_comments "$workflow_file" |
+            { strip_yaml_comments "$workflow_file"; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -F -n "$needle" || true
@@ -958,7 +995,7 @@ require_workflows_do_not_match() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            strip_yaml_comments "$workflow_file" |
+            { strip_yaml_comments "$workflow_file"; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -E -n "$pattern" || true

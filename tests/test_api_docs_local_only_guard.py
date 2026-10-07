@@ -152,6 +152,22 @@ def test_workflow_quoted_hash_before_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API HTML output path")
 
 
+def test_workflow_escaped_run_generated_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: \"ls \\x64ocs/api/html\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API HTML output path")
+
+
 def test_workflow_plain_scalar_apostrophe_before_comment_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -391,6 +407,26 @@ def test_workflow_multiline_escaped_generated_api_artifact_path_fails() -> None:
         )
 
     assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+
+
+def test_workflow_newline_escaped_docs_artifact_path_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: \"build/\\ndocs/\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
 def test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly() -> None:
@@ -1693,6 +1729,27 @@ def test_workflow_multiline_plain_docs_copy_artifact_upload_fails() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_multiline_flow_run_docs_copy_artifact_upload_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - {run: cp -R\n"
+            "          docs artifact/}\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_multiline_plain_docs_archive_artifact_upload_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2347,6 +2404,7 @@ def main() -> None:
     test_fixture_passes_guard()
     test_workflow_generated_api_path_fails_clearly()
     test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
+    test_workflow_escaped_run_generated_api_path_fails_clearly()
     test_workflow_plain_scalar_apostrophe_before_comment_is_allowed()
     test_workflow_multiline_single_quoted_trailing_comment_is_allowed()
     test_workflow_multiline_double_quoted_trailing_comment_is_allowed()
@@ -2360,6 +2418,7 @@ def main() -> None:
     test_workflow_escaped_generated_api_artifact_path_fails_clearly()
     test_workflow_flow_mapping_escaped_generated_api_artifact_path_fails()
     test_workflow_multiline_escaped_generated_api_artifact_path_fails()
+    test_workflow_newline_escaped_docs_artifact_path_fails()
     test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly()
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_windows_broad_docs_artifact_path_fails_clearly()
@@ -2425,6 +2484,7 @@ def main() -> None:
     test_workflow_literal_split_token_docs_copy_artifact_upload_fails()
     test_workflow_literal_split_token_docs_archive_artifact_upload_fails()
     test_workflow_multiline_plain_docs_copy_artifact_upload_fails()
+    test_workflow_multiline_flow_run_docs_copy_artifact_upload_fails()
     test_workflow_multiline_plain_docs_archive_artifact_upload_fails()
     test_workflow_multiline_quoted_docs_copy_artifact_upload_fails()
     test_workflow_multiline_single_quoted_docs_copy_with_trailing_comment_fails()

@@ -33,6 +33,12 @@ def write_fixture(root: Path) -> None:
         SCRIPT.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    (root / "scripts" / "api_docs_workflow_yaml_common.py").write_text(
+        (REPO_ROOT / "scripts" / "api_docs_workflow_yaml_common.py").read_text(
+            encoding="utf-8",
+        ),
+        encoding="utf-8",
+    )
     (root / ".gitignore").write_text("docs/api/\n", encoding="utf-8")
     (root / "docs" / "api" / "html" / "index.html").write_text(
         "<!doctype html>\n",

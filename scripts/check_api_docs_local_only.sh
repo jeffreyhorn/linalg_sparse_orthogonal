@@ -362,6 +362,7 @@ PUBLICATION_PATH_KEYS = (
     "folder",
     "files",
     "asset_path",
+    "uses",
 )
 
 KEY_PATTERN = "|".join(re.escape(key) for key in PUBLICATION_PATH_KEYS)
@@ -379,6 +380,10 @@ DOUBLE_FLOW_PATTERN = re.compile(
 )
 SINGLE_FLOW_PATTERN = re.compile(
     r"(?P<prefix>(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)'(?P<value>(?:''|[^'])*)'" % KEY_PATTERN,
+    re.IGNORECASE,
+)
+FLOW_START_PATTERN = re.compile(
+    r"(?P<prefix>.*(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)(?P<quote>['\"])(?P<value>.*)$" % KEY_PATTERN,
     re.IGNORECASE,
 )
 
@@ -490,6 +495,22 @@ for raw_line in sys.stdin:
     start = SCALAR_START_PATTERN.match(line)
     if start is not None:
         prefix, quote, value = start.groups()
+        tail = quoted_value_tail(value, quote)
+        if tail is None:
+            pending_prefix = prefix
+            pending_quote = quote
+            pending_value = value
+            continue
+        decoded_value, suffix = tail
+        for decoded_line in decoded_path_lines(prefix, decoded_value, quote, suffix):
+            print(decoded_line)
+        continue
+
+    flow_start = FLOW_START_PATTERN.match(line)
+    if flow_start is not None:
+        prefix = flow_start.group("prefix")
+        quote = flow_start.group("quote")
+        value = flow_start.group("value")
         tail = quoted_value_tail(value, quote)
         if tail is None:
             pending_prefix = prefix
@@ -705,6 +726,7 @@ while index < len(lines):
         index += 1
         continue
     run_key_column = line.index(match.group(2))
+    boundary_column = len(match.group(1)) if flow_run else run_key_column
     value = match.group(3).strip()
     if flow_run:
         value = re.sub(r"\s*}[,]?\s*$", "", value).strip()
@@ -855,7 +877,7 @@ while index < len(lines):
             index += 1
             continue
         line_indent = len(candidate) - len(candidate.lstrip(" "))
-        if line_indent <= run_key_column:
+        if line_indent <= boundary_column:
             break
         raw_block_lines.append((line_indent, candidate))
         index += 1

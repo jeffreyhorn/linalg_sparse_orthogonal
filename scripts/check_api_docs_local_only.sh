@@ -467,6 +467,38 @@ def decode_plain_value(value):
         return decode_value(value[1:-1], value[0])
     return value
 
+def unquoted_yaml_text(line):
+    chars = list(line)
+    in_single = False
+    in_double = False
+    escaped = False
+    index = 0
+    while index < len(chars):
+        char = chars[index]
+        if in_double:
+            chars[index] = " "
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_double = False
+        elif in_single:
+            chars[index] = " "
+            if char == "'" and index + 1 < len(chars) and chars[index + 1] == "'":
+                chars[index + 1] = " "
+                index += 1
+            elif char == "'":
+                in_single = False
+        elif char == '"':
+            chars[index] = " "
+            in_double = True
+        elif char == "'":
+            chars[index] = " "
+            in_single = True
+        index += 1
+    return "".join(chars)
+
 def decoded_path_lines(prefix, value, quote, suffix=""):
     decoded = decode_value(value, quote)
     lines = [line.strip() for line in decoded.splitlines()]
@@ -501,7 +533,7 @@ pending_value = None
 sys.stdin = open(sys.argv[1], encoding="utf-8")
 for raw_line in sys.stdin:
     line = raw_line.rstrip("\n")
-    for anchor_match in ANCHOR_PATTERN.finditer(line):
+    for anchor_match in ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
         anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:
         current = line.lstrip()
@@ -563,10 +595,6 @@ for raw_line in sys.stdin:
             pending_quote = quote
             pending_value = value
             continue
-        decoded_value, suffix = tail
-        for decoded_line in decoded_path_lines(prefix, decoded_value, quote, suffix):
-            print(decoded_line)
-        continue
 
     line = FLOW_ANCHORED_PATTERN.sub(
         lambda match: (

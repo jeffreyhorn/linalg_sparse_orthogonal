@@ -211,7 +211,7 @@ FLOW_START_PATTERN = re.compile(
     r"(?P<prefix>.*(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)(?P<quote>['\"])(?P<value>.*)$" % KEY_PATTERN,
     re.IGNORECASE,
 )
-ANCHOR_NAME_PATTERN = r"[A-Za-z0-9_-]+"
+ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
 ANCHOR_PATTERN = re.compile(
     r"&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))" % ANCHOR_NAME_PATTERN,
 )

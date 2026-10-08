@@ -386,6 +386,26 @@ FLOW_START_PATTERN = re.compile(
     r"(?P<prefix>.*(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)(?P<quote>['\"])(?P<value>.*)$" % KEY_PATTERN,
     re.IGNORECASE,
 )
+ANCHOR_NAME_PATTERN = r"[A-Za-z0-9_-]+"
+ANCHOR_PATTERN = re.compile(
+    r"&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))" % ANCHOR_NAME_PATTERN,
+)
+ANCHORED_SCALAR_PATTERN = re.compile(
+    rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)&(?P<anchor>{ANCHOR_NAME_PATTERN})\s+(?P<value>.*)$",
+    re.IGNORECASE,
+)
+ALIAS_SCALAR_PATTERN = re.compile(
+    rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)\*(?P<alias>{ANCHOR_NAME_PATTERN})(?P<suffix>\s*)$",
+    re.IGNORECASE,
+)
+FLOW_ANCHORED_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^,}]+))" % (KEY_PATTERN, ANCHOR_NAME_PATTERN),
+    re.IGNORECASE,
+)
+FLOW_ALIAS_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)\*(?P<alias>%s)(?P<suffix>(?:[,\s}]|$))" % (KEY_PATTERN, ANCHOR_NAME_PATTERN),
+    re.IGNORECASE,
+)
 
 def yaml_double_unescape(value):
     def replace_match(match):
@@ -441,6 +461,12 @@ def decode_value(value, quote):
         return value.replace("''", "'")
     return yaml_double_unescape(value)
 
+def decode_plain_value(value):
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        return decode_value(value[1:-1], value[0])
+    return value
+
 def decoded_path_lines(prefix, value, quote, suffix=""):
     decoded = decode_value(value, quote)
     lines = [line.strip() for line in decoded.splitlines()]
@@ -467,6 +493,7 @@ def decode_quoted_paths(line):
     )
     return line
 
+anchors = {}
 pending_prefix = None
 pending_quote = None
 pending_value = None
@@ -474,6 +501,8 @@ pending_value = None
 sys.stdin = open(sys.argv[1], encoding="utf-8")
 for raw_line in sys.stdin:
     line = raw_line.rstrip("\n")
+    for anchor_match in ANCHOR_PATTERN.finditer(line):
+        anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:
         current = line.lstrip()
         if pending_value.endswith("\\"):
@@ -490,6 +519,23 @@ for raw_line in sys.stdin:
         pending_prefix = None
         pending_quote = None
         pending_value = None
+        continue
+
+    anchored_scalar = ANCHORED_SCALAR_PATTERN.match(line)
+    if anchored_scalar is not None:
+        prefix = anchored_scalar.group(1)
+        anchor = anchored_scalar.group("anchor")
+        value = decode_plain_value(anchored_scalar.group("value"))
+        anchors[anchor] = value
+        print(prefix + value)
+        continue
+
+    alias_scalar = ALIAS_SCALAR_PATTERN.match(line)
+    if alias_scalar is not None:
+        prefix = alias_scalar.group(1)
+        alias = alias_scalar.group("alias")
+        suffix = alias_scalar.group("suffix")
+        print(prefix + anchors.get(alias, "*" + alias) + suffix)
         continue
 
     start = SCALAR_START_PATTERN.match(line)
@@ -521,6 +567,20 @@ for raw_line in sys.stdin:
         for decoded_line in decoded_path_lines(prefix, decoded_value, quote, suffix):
             print(decoded_line)
         continue
+
+    line = FLOW_ANCHORED_PATTERN.sub(
+        lambda match: (
+            anchors.setdefault(match.group("anchor"), decode_plain_value(match.group("value")))
+            and match.group("prefix") + anchors[match.group("anchor")]
+        ),
+        line,
+    )
+    line = FLOW_ALIAS_PATTERN.sub(
+        lambda match: match.group("prefix")
+        + anchors.get(match.group("alias"), "*" + match.group("alias"))
+        + match.group("suffix"),
+        line,
+    )
 
     print(decode_quoted_paths(line))
 

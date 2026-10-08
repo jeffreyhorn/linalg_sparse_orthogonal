@@ -142,7 +142,7 @@ freshness, routing, retention, and stale-output controls.
 | `tests/test_api_docs_routing.py` | 7 | Updated | Adds regressions for repository suites artifact URLs and missing future-publication reopening wording. |
 | `docs/planning/EPIC_19/SPRINT_213/WORKING_NOTES.md` | 7 | Updated | Records implementation batch one, validation, and Day 8 handoff. |
 | `docs/planning/EPIC_19/SPRINT_213/artifacts/day7-automation-implementation-batch-one.md` | 7 | Added | Day 7 implementation artifact. |
-| `scripts/check_api_docs_local_only.sh` | 8 | Updated | Extends staging/archive command checks to folded workflow text so multiline commands cannot publish staged `docs/` output. |
+| `scripts/check_api_docs_local_only.sh` | 8 | Updated | Extends staging/archive command checks to independently folded `run` scalar text so multiline commands cannot publish staged `docs/` output without merging unrelated workflow fields. |
 | `tests/test_api_docs_local_only_guard.py` | 8 | Updated | Adds folded `cp -R docs artifact/` and folded `tar ... docs/` artifact-upload regressions. |
 | `docs/planning/EPIC_19/SPRINT_213/WORKING_NOTES.md` | 8 | Updated | Records implementation batch two, validation, and Day 9 handoff. |
 | `docs/planning/EPIC_19/SPRINT_213/artifacts/day8-automation-implementation-batch-two.md` | 8 | Added | Day 8 implementation artifact. |
@@ -803,15 +803,15 @@ allowlist is introduced.
 The local-only workflow guard already rejected single-line staging and archive
 commands such as `cp -R docs artifact/`, `mv docs artifact/`, `tar ... docs/`,
 and `7z ... docs/` when paired with publication or artifact semantics. Day 8
-extends the same checks to the flattened workflow text so folded multiline YAML
-commands cannot split the command and `docs/` operand across lines to bypass
-the guard.
+extends the same checks to each independently folded `run` scalar, preserving
+step and field boundaries while preventing folded multiline YAML commands from
+splitting the command and `docs/` operand across lines to bypass the guard.
 
 ### Implementation
 
 | Path | Change |
 | --- | --- |
-| `scripts/check_api_docs_local_only.sh` | Checks `docs_staging_command_regex` and `docs_archive_command_regex` against both normalized line text and flattened workflow text. |
+| `scripts/check_api_docs_local_only.sh` | Checks `docs_staging_command_regex` and `docs_archive_command_regex` against normalized line text and independently folded `run` scalar text. |
 | `tests/test_api_docs_local_only_guard.py` | Adds `test_workflow_folded_staged_docs_artifact_upload_fails_clearly()`. |
 | `tests/test_api_docs_local_only_guard.py` | Adds `test_workflow_folded_archived_docs_artifact_upload_fails_clearly()`. |
 

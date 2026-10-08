@@ -10,7 +10,7 @@ workflow-command gap while preserving the no-publication decision from Day 5.
 
 | Surface | Change | Rationale |
 | --- | --- | --- |
-| Local-only workflow guard | `scripts/check_api_docs_local_only.sh` now checks staging and archive command patterns against flattened workflow text as well as line-normalized text. | A YAML folded `run: >` block can split `tar`, `cp`, or `docs/` across lines; the guard now sees the rendered command shape. |
+| Local-only workflow guard | `scripts/check_api_docs_local_only.sh` now checks staging and archive command patterns against line-normalized text and independently folded `run` scalar text. | A YAML folded `run: >` block can split `tar`, `cp`, or `docs/` across lines; the guard now sees the rendered command shape without flattening unrelated workflow fields or steps together. |
 | Local-only tests | `tests/test_api_docs_local_only_guard.py` adds a folded `cp -R docs artifact/` upload regression. | Proves staged docs cannot be uploaded through multiline shell syntax. |
 | Local-only tests | `tests/test_api_docs_local_only_guard.py` adds a folded `tar -czf artifact.tgz docs/` upload regression. | Proves archived docs cannot be uploaded through multiline shell syntax. |
 

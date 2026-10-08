@@ -212,8 +212,9 @@ FLOW_START_PATTERN = re.compile(
     re.IGNORECASE,
 )
 ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
-ANCHOR_PATTERN = re.compile(
-    r"&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))" % ANCHOR_NAME_PATTERN,
+NODE_ANCHOR_PATTERN = re.compile(
+    r"^\s*(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))"
+    % ANCHOR_NAME_PATTERN,
 )
 ANCHORED_SCALAR_PATTERN = re.compile(
     rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)&(?P<anchor>{ANCHOR_NAME_PATTERN})\s+(?P<value>.*)$",
@@ -305,7 +306,8 @@ for raw_line in sys.stdin:
         next_block_indent = block_scalar_key_column(line)
         if next_block_indent is not None:
             block_indent = next_block_indent
-        for anchor_match in ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
+        anchor_match = NODE_ANCHOR_PATTERN.match(unquoted_yaml_text(line))
+        if anchor_match is not None:
             anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:
         current = line.lstrip()

@@ -139,6 +139,18 @@ with open(path, encoding="utf-8") as handle:
             block_indent = block_match.start(1)
             block_key = block_match.group(1).strip("'\"").lower()
             shell_state = (False, False, False)
+        else:
+            run_scalar_match = re.match(
+                r"^(\s*(?:-[ ]*)?['\"]?run['\"]?[ ]*:[ ]*)(.*)$",
+                stripped,
+                re.IGNORECASE,
+            )
+            if run_scalar_match is not None:
+                run_value, _ = strip_shell_comment_stateful(
+                    run_scalar_match.group(2),
+                    (False, False, False),
+                )
+                stripped = run_scalar_match.group(1) + run_value
         scalar_match = re.match(r"^[ ]*(?:-[ ]*)?['\"]?[^:]+['\"]?[ ]*:[ ]*(.*)$", stripped)
         if scalar_match:
             continuing_quote = quoted_scalar_continues(scalar_match.group(1))
@@ -248,16 +260,53 @@ def decode_quoted_paths(line):
     )
     return line
 
+def normalize_aliases_and_quoted_paths(line):
+    line = FLOW_ANCHORED_PATTERN.sub(
+        lambda match: (
+            anchors.setdefault(match.group("anchor"), decode_plain_value(match.group("value")))
+            and match.group("prefix") + anchors[match.group("anchor")]
+        ),
+        line,
+    )
+    line = FLOW_ALIAS_PATTERN.sub(
+        lambda match: match.group("prefix")
+        + anchors.get(match.group("alias"), "*" + match.group("alias"))
+        + match.group("suffix"),
+        line,
+    )
+    return decode_quoted_paths(line)
+
+def block_scalar_key_column(line):
+    match = re.match(r"^[ ]*(?:-[ ]*)?([^:]+?)[ ]*:[ ]*[>|]", line)
+    if match is None:
+        return None
+    return match.start(1)
+
 anchors = {}
 pending_prefix = None
 pending_quote = None
 pending_value = None
+block_indent = None
 
 sys.stdin = open(sys.argv[2], encoding="utf-8")
 for raw_line in sys.stdin:
     line = raw_line.rstrip("\n")
-    for anchor_match in ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
-        anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
+    in_block_body = False
+    if block_indent is not None:
+        if line.strip():
+            line_indent = len(line) - len(line.lstrip(" "))
+            if line_indent > block_indent:
+                in_block_body = True
+            else:
+                block_indent = None
+        else:
+            in_block_body = True
+    if not in_block_body:
+        next_block_indent = block_scalar_key_column(line)
+        if next_block_indent is not None:
+            block_indent = next_block_indent
+        for anchor_match in ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
+            anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:
         current = line.lstrip()
         if pending_value.endswith("\\"):
@@ -270,7 +319,7 @@ for raw_line in sys.stdin:
             continue
         value, suffix = tail
         for decoded_line in decoded_path_lines(pending_prefix, value, pending_quote, suffix):
-            print(decoded_line)
+            print(normalize_aliases_and_quoted_paths(decoded_line))
         pending_prefix = None
         pending_quote = None
         pending_value = None
@@ -304,7 +353,7 @@ for raw_line in sys.stdin:
             continue
         decoded_value, suffix = tail
         for decoded_line in decoded_path_lines(prefix, decoded_value, quote, suffix):
-            print(decoded_line)
+            print(normalize_aliases_and_quoted_paths(decoded_line))
         continue
 
     flow_start = FLOW_START_PATTERN.match(line)
@@ -319,25 +368,11 @@ for raw_line in sys.stdin:
             pending_value = value
             continue
 
-    line = FLOW_ANCHORED_PATTERN.sub(
-        lambda match: (
-            anchors.setdefault(match.group("anchor"), decode_plain_value(match.group("value")))
-            and match.group("prefix") + anchors[match.group("anchor")]
-        ),
-        line,
-    )
-    line = FLOW_ALIAS_PATTERN.sub(
-        lambda match: match.group("prefix")
-        + anchors.get(match.group("alias"), "*" + match.group("alias"))
-        + match.group("suffix"),
-        line,
-    )
-
-    print(decode_quoted_paths(line))
+    print(normalize_aliases_and_quoted_paths(line))
 
 if pending_prefix is not None:
     for decoded_line in decoded_path_lines(pending_prefix, pending_value, pending_quote):
-        print(decoded_line)
+        print(normalize_aliases_and_quoted_paths(decoded_line))
 PY
     rm -f "$path_decode_input"
 }

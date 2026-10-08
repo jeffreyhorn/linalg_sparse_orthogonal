@@ -131,7 +131,7 @@ No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
 | Epic project-plan files changed | 1 |
 | Public documentation files changed | 3 |
 | Maintainer documentation files changed | 1 |
-| Local-only guard files changed | 1 |
+| Local-only guard implementation files changed | 2 |
 | Routing guard files changed | 1 |
 | Local-only guard test files changed | 1 |
 | Routing guard test files changed | 1 |
@@ -147,9 +147,10 @@ No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
 | `docs/api_reference.md` | 106 |
 | `docs/maintainer_guide.md` | 2258 |
 | `docs/planning/EPIC_19/PROJECT_PLAN.md` | 449 |
-| `scripts/check_api_docs_local_only.sh` | 369 |
+| `scripts/check_api_docs_local_only.sh` | 916 |
+| `scripts/api_docs_workflow_yaml_common.py` | 242 |
 | `scripts/check_api_docs_routing.py` | 609 |
-| `tests/test_api_docs_local_only_guard.py` | 1517 |
+| `tests/test_api_docs_local_only_guard.py` | 2772 |
 | `tests/test_api_docs_routing.py` | 1678 |
 | `docs/planning/EPIC_19/SPRINT_213/WORKING_NOTES.md` | 1232 |
 | `docs/planning/EPIC_19/SPRINT_213/artifacts/day14-closeout-review.md` | 101 |

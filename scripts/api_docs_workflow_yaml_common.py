@@ -112,7 +112,7 @@ def strip_shell_comment_stateful(line, state):
             char == "#"
             and not in_single
             and not in_double
-            and (index == 0 or line[index - 1].isspace())
+            and (index == 0 or line[index - 1].isspace() or line[index - 1] in ";&|()")
         ):
             comment_at = index
             break

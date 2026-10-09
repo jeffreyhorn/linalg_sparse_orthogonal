@@ -306,7 +306,7 @@ for raw_line in sys.stdin:
         next_block_indent = block_scalar_key_column(line)
         if next_block_indent is not None:
             block_indent = next_block_indent
-        anchor_match = NODE_ANCHOR_PATTERN.match(unquoted_yaml_text(line))
+        anchor_match = NODE_ANCHOR_PATTERN.match(line)
         if anchor_match is not None:
             anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:

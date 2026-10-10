@@ -83,6 +83,7 @@ import sys
 
 sys.path.insert(0, sys.argv[1])
 from api_docs_workflow_yaml_common import (
+    decode_plain_value,
     quoted_scalar_continues,
     strip_shell_comment_stateful,
     strip_yaml_comment,
@@ -147,7 +148,7 @@ with open(path, encoding="utf-8") as handle:
             )
             if run_scalar_match is not None:
                 run_value, _ = strip_shell_comment_stateful(
-                    run_scalar_match.group(2),
+                    decode_plain_value(run_scalar_match.group(2)),
                     (False, False, False),
                 )
                 stripped = run_scalar_match.group(1) + run_value
@@ -214,6 +215,10 @@ FLOW_START_PATTERN = re.compile(
 ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
 NODE_ANCHOR_PATTERN = re.compile(
     r"^\s*(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))"
+    % ANCHOR_NAME_PATTERN,
+)
+FLOW_NODE_ANCHOR_PATTERN = re.compile(
+    r"(?:^|[{,\s])['\"]?[^:'\",{}\[\]]+['\"]?\s*:\s*&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^,}]+))"
     % ANCHOR_NAME_PATTERN,
 )
 ANCHORED_SCALAR_PATTERN = re.compile(
@@ -308,6 +313,8 @@ for raw_line in sys.stdin:
             block_indent = next_block_indent
         anchor_match = NODE_ANCHOR_PATTERN.match(line)
         if anchor_match is not None:
+            anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
+        for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(line):
             anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
     if pending_prefix is not None:
         current = line.lstrip()
@@ -409,7 +416,7 @@ while index < len(lines):
     )
     if not match:
         match = re.match(
-            r"^([ ]*)-[ ]*[{][^#]*?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
+            r"^([ ]*)-[ ]*[{].*?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
             line,
             re.IGNORECASE,
         )

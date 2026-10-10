@@ -553,6 +553,27 @@ def test_workflow_aliased_docs_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_flow_anchored_docs_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "env: {DOCS_PATH: &docs docs/}\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: *docs\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_aliased_docs_path_ignores_quoted_anchor_text() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2033,6 +2054,27 @@ def test_workflow_multiline_named_flow_run_docs_copy_artifact_upload_fails() -> 
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_multiline_quoted_hash_named_flow_run_docs_copy_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - {name: \"Stage # docs\", run: cp -R\n"
+            "          docs artifact/}\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_multiline_plain_docs_archive_artifact_upload_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2521,6 +2563,29 @@ def test_workflow_control_operator_shell_comment_is_allowed() -> None:
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_quoted_run_shell_comment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'echo ok; # docs/api/html remains local-only'\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_literal_build_copy_then_echo_docs_upload_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -2731,6 +2796,7 @@ def main() -> None:
     test_workflow_broad_docs_artifact_path_fails_clearly()
     test_workflow_anchored_docs_artifact_path_fails_clearly()
     test_workflow_aliased_docs_artifact_path_fails_clearly()
+    test_workflow_flow_anchored_docs_artifact_path_fails_clearly()
     test_workflow_aliased_docs_path_ignores_quoted_anchor_text()
     test_workflow_aliased_docs_path_ignores_plain_scalar_anchor_text()
     test_workflow_quoted_anchor_docs_artifact_path_fails_clearly()
@@ -2804,6 +2870,7 @@ def main() -> None:
     test_workflow_multiline_plain_docs_copy_artifact_upload_fails()
     test_workflow_multiline_flow_run_docs_copy_artifact_upload_fails()
     test_workflow_multiline_named_flow_run_docs_copy_artifact_upload_fails()
+    test_workflow_multiline_quoted_hash_named_flow_run_docs_copy_fails()
     test_workflow_multiline_plain_docs_archive_artifact_upload_fails()
     test_workflow_multiline_quoted_docs_copy_artifact_upload_fails()
     test_workflow_multiline_single_quoted_docs_copy_with_trailing_comment_fails()
@@ -2826,6 +2893,7 @@ def main() -> None:
     test_workflow_literal_block_before_commented_sibling_name_is_allowed()
     test_workflow_literal_shell_comment_before_build_copy_upload_is_allowed()
     test_workflow_control_operator_shell_comment_is_allowed()
+    test_workflow_quoted_run_shell_comment_is_allowed()
     test_workflow_literal_build_copy_then_echo_docs_upload_is_allowed()
     test_workflow_multiline_quoted_build_copy_blank_echo_docs_upload_is_allowed()
     test_workflow_multiline_quoted_build_archive_blank_echo_docs_upload_is_allowed()

@@ -190,8 +190,15 @@ PUBLICATION_PATH_KEYS = (
     "asset_path",
     "uses",
 )
+PUBLICATION_PATH_KEY_SET = {key.lower() for key in PUBLICATION_PATH_KEYS}
 
 KEY_PATTERN = "|".join(re.escape(key) for key in PUBLICATION_PATH_KEYS)
+DOUBLE_KEY_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])\s*)\"(?P<key>(?:\\.|[^\"])*)\"(?P<suffix>\s*:)",
+)
+SINGLE_KEY_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])\s*)'(?P<key>(?:''|[^'])*)'(?P<suffix>\s*:)",
+)
 SCALAR_PATTERN = re.compile(
     rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)(['\"])(.*)\2(\s*)$",
     re.IGNORECASE,
@@ -239,6 +246,16 @@ FLOW_ALIAS_PATTERN = re.compile(
 )
 
 # Shared YAML scalar helpers are imported from api_docs_workflow_yaml_common.py
+
+def decode_quoted_publication_keys(line):
+    def replace(match, quote):
+        decoded_key = decode_value(match.group("key"), quote)
+        if decoded_key.lower() not in PUBLICATION_PATH_KEY_SET:
+            return match.group(0)
+        return match.group("prefix") + decoded_key + match.group("suffix")
+
+    line = DOUBLE_KEY_PATTERN.sub(lambda match: replace(match, '"'), line)
+    return SINGLE_KEY_PATTERN.sub(lambda match: replace(match, "'"), line)
 
 def decoded_path_lines(prefix, value, quote, suffix=""):
     decoded = decode_value(value, quote)
@@ -296,7 +313,7 @@ block_indent = None
 
 sys.stdin = open(sys.argv[2], encoding="utf-8")
 for raw_line in sys.stdin:
-    line = raw_line.rstrip("\n")
+    line = decode_quoted_publication_keys(raw_line.rstrip("\n"))
     in_block_body = False
     if block_indent is not None:
         if line.strip():

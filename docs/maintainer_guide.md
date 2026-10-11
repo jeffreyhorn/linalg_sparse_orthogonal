@@ -1314,6 +1314,27 @@ headers do not have generated pages, Doxygen warnings appear without triage, or
 generated installed headers are expected to appear even though they are outside
 the configured Doxygen input set.
 
+Generated API local-only repair workflow:
+
+1. Reproduce with `make api-docs-freshness`.
+2. If Doxygen output is missing or stale, rerun `make docs-check` and inspect
+   `Doxyfile`, checked-in public headers under `include/`, and generated
+   `docs/api/html/` output.
+3. If the local-only guard fails, inspect `git status --short --ignored
+   docs/api include/sparse_version.h`, `.gitignore`, and workflow path changes
+   for generated API output, broad `docs/` uploads, archive staging, Pages
+   deployment, or release artifact publication.
+4. If routing fails, inspect README, INSTALL, `docs/api_reference.md`, tutorial,
+   cookbook, solver-selection, and maintainer-guide links for generated
+   `docs/api/` targets, hosted generated API URLs, repository release/artifact
+   URLs, or missing source-controlled route markers.
+5. Repair source documentation, Doxygen comments, workflow paths, or guard
+   fixtures first; do not hand-edit ignored generated HTML as evidence.
+
+Expected repair artifacts are regenerated local `docs/api/html/` output plus
+passing `api-docs-coverage`, `api-docs-local-only`, and `api-docs-routing`
+checks. They are not retained generated-doc artifacts.
+
 API reference guidance may say that public headers own exact declarations and
 call-site contracts and that `make api-docs-freshness` generates and validates
 local Doxygen HTML while enforcing local-only generated-output staging and API
@@ -1342,6 +1363,12 @@ hosted-API residual remains historical context; any future hosted HTML,
 retained CI artifact, or committed generated output path must deliberately
 reopen the product decision and validate the selected publication policy before
 docs may claim it.
+
+Remaining unclaimed generated API publication options are hosted HTML,
+retained generated-doc artifacts, and committed generated HTML. They remain
+future options only if a later sprint selects exact hosting, retention,
+freshness, routing, rollback, and claim-boundary evidence.
+
 Header-coherence claims should stay declaration-preserving: Doxygen comments
 and docs may become clearer, but the claim does not cover declaration-set
 changes, ABI support, package support, broad platform parity, external-library

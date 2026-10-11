@@ -53,6 +53,11 @@ the repository and is not a hosted or source-controlled publication surface.
 Treat it as current only for the branch and checkout where
 `make api-docs-freshness` has just passed.
 
+For durable links, use this page and checked-in public headers rather than
+`docs/api/html/`. If you need the generated view, regenerate it locally with
+`make api-docs-freshness`; do not use CI artifacts, release assets, or hosted
+pages as substitutes for the source-controlled API route.
+
 The routing guard keeps user-facing links on the source-controlled API path:
 this page, checked-in public headers, the Doxygen configuration, workflow
 guides, and the INSTALL support/readiness matrix. It rejects links that would

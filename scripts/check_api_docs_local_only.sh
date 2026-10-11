@@ -422,6 +422,40 @@ path = sys.argv[2]
 with open(path, encoding="utf-8") as handle:
     lines = [line.rstrip("\n") for line in handle]
 
+def flow_member_value(value):
+    in_single = False
+    in_double = False
+    escaped = False
+    depth = 0
+    for value_index, char in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_double:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            if in_single and value_index + 1 < len(value) and value[value_index + 1] == "'":
+                escaped = True
+                continue
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if in_single or in_double:
+            continue
+        if char in "[{":
+            depth += 1
+            continue
+        if char in "]}":
+            if depth > 0:
+                depth -= 1
+            continue
+        if char == "," and depth == 0:
+            return value[:value_index].strip()
+    return re.sub(r"\s*}[,]?\s*$", "", value).strip()
+
 index = 0
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
@@ -445,7 +479,7 @@ while index < len(lines):
     boundary_column = len(match.group(1)) if flow_run else run_key_column
     value = match.group(3).strip()
     if flow_run:
-        value = re.sub(r"\s*}[,]?\s*$", "", value).strip()
+        value = flow_member_value(value)
     style_match = re.match(r"([>|])", value)
     style = style_match.group(1) if style_match else None
     index += 1

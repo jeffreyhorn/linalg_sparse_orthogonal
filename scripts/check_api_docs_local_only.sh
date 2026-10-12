@@ -470,12 +470,14 @@ for raw_line in sys.stdin:
         if tail is None:
             pending_anchor_value = current
             continue
-        value, _ = tail
+        value, suffix = tail
         anchors[pending_anchor] = decode_value(value, pending_anchor_quote)
         pending_anchor = None
         pending_anchor_quote = None
         pending_anchor_value = None
-        continue
+        if not suffix.strip():
+            continue
+        line = suffix
     in_block_body = False
     in_quoted_body = False
     if block_indent is not None:
@@ -792,6 +794,45 @@ def flow_run_entry(line, open_flow_indent=None):
             index += 1
     return None
 
+def flow_member_start(line):
+    stripped = line.strip()
+    if not stripped or stripped.startswith("}"):
+        return False
+    if stripped.startswith(","):
+        stripped = stripped[1:].lstrip()
+    if stripped.startswith(("'", '"')):
+        quote = stripped[0]
+        index = 1
+        escaped = False
+        while index < len(stripped):
+            char = stripped[index]
+            if quote == '"' and escaped:
+                escaped = False
+                index += 1
+                continue
+            if quote == '"' and char == "\\":
+                escaped = True
+                index += 1
+                continue
+            if quote == "'" and char == "'" and index + 1 < len(stripped) and stripped[index + 1] == "'":
+                index += 2
+                continue
+            if char == quote:
+                index += 1
+                break
+            index += 1
+        else:
+            return False
+    else:
+        index = 0
+        while index < len(stripped) and stripped[index] not in ":,{}[]":
+            index += 1
+        if index == 0:
+            return False
+    while index < len(stripped) and stripped[index].isspace():
+        index += 1
+    return index < len(stripped) and stripped[index] == ":"
+
 index = 0
 open_flow_indent = None
 while index < len(lines):
@@ -981,6 +1022,8 @@ while index < len(lines):
             continue
         line_indent = len(candidate) - len(candidate.lstrip(" "))
         if line_indent <= boundary_column:
+            break
+        if flow_run and flow_member_start(candidate):
             break
         raw_block_lines.append((line_indent, candidate))
         index += 1

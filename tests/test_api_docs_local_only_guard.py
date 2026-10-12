@@ -574,6 +574,24 @@ def test_workflow_flow_anchored_docs_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_multiline_flow_anchor_before_artifact_members_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - {name: &marker \"Upload \\\n"
+            "          docs\", uses: actions/upload-artifact@v4, with: {path: docs/}}\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_aliased_docs_path_ignores_quoted_anchor_text() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2660,6 +2678,30 @@ def test_workflow_folded_build_copy_before_same_step_name_is_allowed() -> None:
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_flow_run_before_sibling_name_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - {run: cp build/result.txt build/copy.txt,\n"
+            "          name: \"Check docs\"}\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_literal_block_before_commented_sibling_name_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -3063,6 +3105,7 @@ def main() -> None:
     test_workflow_anchored_docs_artifact_path_fails_clearly()
     test_workflow_aliased_docs_artifact_path_fails_clearly()
     test_workflow_flow_anchored_docs_artifact_path_fails_clearly()
+    test_workflow_multiline_flow_anchor_before_artifact_members_fails()
     test_workflow_aliased_docs_path_ignores_quoted_anchor_text()
     test_workflow_aliased_docs_path_ignores_multiline_quoted_anchor_text()
     test_workflow_aliased_docs_path_ignores_plain_scalar_anchor_text()
@@ -3164,6 +3207,7 @@ def main() -> None:
     test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed()
     test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed()
     test_workflow_folded_build_copy_before_same_step_name_is_allowed()
+    test_workflow_flow_run_before_sibling_name_is_allowed()
     test_workflow_literal_block_before_commented_sibling_name_is_allowed()
     test_workflow_literal_shell_comment_before_build_copy_upload_is_allowed()
     test_workflow_control_operator_shell_comment_is_allowed()

@@ -85,6 +85,7 @@ sys.path.insert(0, sys.argv[1])
 from api_docs_workflow_yaml_common import (
     decode_plain_value,
     quoted_scalar_continues,
+    quoted_value_tail,
     strip_shell_comment_stateful,
     strip_yaml_comment,
     strip_yaml_comment_continuation,
@@ -94,8 +95,18 @@ from api_docs_workflow_yaml_common import (
 
 path = sys.argv[2]
 
+def complete_quoted_scalar(value):
+    stripped = value.strip()
+    if not stripped or stripped[0] not in "'\"":
+        return value
+    parsed = quoted_value_tail(stripped[1:], stripped[0])
+    if parsed is None:
+        return value
+    scalar_body, _ = parsed
+    return stripped[0] + scalar_body + stripped[0]
+
 def print_decoded_run_scalar(prefix, parts):
-    decoded = decode_plain_value("\n".join(parts))
+    decoded = decode_plain_value(complete_quoted_scalar("\n".join(parts)))
     run_shell_state = (False, False, False)
     for decoded_line in decoded.splitlines():
         if not decoded_line.strip():

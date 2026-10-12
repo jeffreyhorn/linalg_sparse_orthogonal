@@ -2640,6 +2640,28 @@ def test_workflow_quoted_run_key_folded_docs_copy_artifact_upload_fails() -> Non
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_escaped_run_key_folded_docs_copy_artifact_upload_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - \"r\\x75n\": >\n"
+            "          cp -R\n"
+            "          docs artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -3243,6 +3265,7 @@ def main() -> None:
     test_workflow_multiline_quoted_hash_before_split_docs_copy_fails()
     test_workflow_multiline_quoted_split_docs_copy_blank_echo_fails()
     test_workflow_quoted_run_key_folded_docs_copy_artifact_upload_fails()
+    test_workflow_escaped_run_key_folded_docs_copy_artifact_upload_fails()
     test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed()
     test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed()
     test_workflow_folded_build_copy_before_same_step_name_is_allowed()

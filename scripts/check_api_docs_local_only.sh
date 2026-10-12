@@ -690,6 +690,53 @@ def flow_mapping_balance(value):
             balance -= 1
     return balance
 
+def run_key_entry(line):
+    prefix_match = re.match(r"^([ ]*)(?:-[ ]*)?", line)
+    index = len(prefix_match.group(0))
+    if index >= len(line):
+        return None
+    key_column = index
+    if line[index] in "'\"":
+        quote = line[index]
+        index += 1
+        key_parts = []
+        escaped = False
+        while index < len(line):
+            char = line[index]
+            if quote == '"' and escaped:
+                key_parts.append("\\" + char)
+                escaped = False
+                index += 1
+                continue
+            if quote == '"' and char == "\\":
+                escaped = True
+                index += 1
+                continue
+            if quote == "'" and char == "'" and index + 1 < len(line) and line[index + 1] == "'":
+                key_parts.append("''")
+                index += 2
+                continue
+            if char == quote:
+                break
+            key_parts.append(char)
+            index += 1
+        if index >= len(line):
+            return None
+        key = decode_value("".join(key_parts), quote)
+        index += 1
+    else:
+        key_start = index
+        while index < len(line) and line[index] not in ":,{}[]":
+            index += 1
+        key = line[key_start:index].strip()
+    while index < len(line) and line[index].isspace():
+        index += 1
+    if index >= len(line) or line[index] != ":":
+        return None
+    if key.lower() != "run":
+        return None
+    return key_column, line[index + 1:].strip()
+
 def flow_run_entry(line, open_flow_indent=None):
     start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
     if start_match is not None:
@@ -872,18 +919,14 @@ while index < len(lines):
         if line_indent <= open_flow_indent:
             open_flow_indent = None
     flow_run = False
-    match = re.match(
-        r"^([ ]*)(?:-[ ]*)?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
-        line,
-        re.IGNORECASE,
-    )
-    if not match:
+    run_entry = run_key_entry(line)
+    if run_entry is None:
         flow_entry = flow_run_entry(line, open_flow_indent)
         if flow_entry is not None:
             flow_indent, flow_key_column, flow_value = flow_entry
-            match = re.match(r"^(run)$", "run", re.IGNORECASE)
+            run_entry = (flow_key_column, flow_value.strip())
             flow_run = True
-    if not match:
+    if run_entry is None:
         start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
         if start_match is not None:
             remainder = line[line.find("{", start_match.end() - 1):]
@@ -900,12 +943,12 @@ while index < len(lines):
     if flow_run:
         run_key_column = flow_key_column
         boundary_column = len(flow_indent)
-        value = flow_value.strip()
+        value = run_entry[1]
         open_flow_indent = None
     else:
-        run_key_column = line.index(match.group(2))
+        run_key_column = run_entry[0]
         boundary_column = run_key_column
-        value = match.group(3).strip()
+        value = run_entry[1]
     if flow_run:
         value = flow_member_value(value)
     style_match = re.match(r"([>|])", value)

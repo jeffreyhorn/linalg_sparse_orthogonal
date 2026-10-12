@@ -1938,6 +1938,27 @@ def test_workflow_folded_staged_docs_artifact_upload_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_folded_quoted_word_docs_copy_artifact_upload_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: >\n"
+            "          cp -R do''cs artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_archived_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2237,6 +2258,22 @@ def test_workflow_multiline_flow_run_on_later_member_docs_copy_fails() -> None:
             "        with:\n"
             "          name: generated-api-html\n"
             "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
+def test_workflow_flow_sequence_run_docs_copy_artifact_upload_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps: [{run: \"cp -R\n"
+            "      docs artifact/\"}, {uses: actions/upload-artifact@v4, with: {name: generated-api-html, path: artifact/}}]\n",
             encoding="utf-8",
         )
 
@@ -3173,6 +3210,7 @@ def main() -> None:
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()
     test_workflow_folded_staged_docs_artifact_upload_fails_clearly()
+    test_workflow_folded_quoted_word_docs_copy_artifact_upload_fails()
     test_workflow_archived_docs_artifact_upload_fails_clearly()
     test_workflow_folded_archived_docs_artifact_upload_fails_clearly()
     test_workflow_literal_continued_docs_copy_artifact_upload_fails()
@@ -3187,6 +3225,7 @@ def main() -> None:
     test_workflow_multiline_quoted_hash_named_flow_run_docs_copy_fails()
     test_workflow_multiline_flow_run_ignores_quoted_sibling_run_text_fails()
     test_workflow_multiline_flow_run_on_later_member_docs_copy_fails()
+    test_workflow_flow_sequence_run_docs_copy_artifact_upload_fails()
     test_workflow_quoted_flow_run_before_name_docs_copy_fails()
     test_workflow_multiline_plain_docs_archive_artifact_upload_fails()
     test_workflow_multiline_quoted_docs_copy_artifact_upload_fails()

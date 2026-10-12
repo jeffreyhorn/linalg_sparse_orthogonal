@@ -695,6 +695,12 @@ def flow_run_entry(line, open_flow_indent=None):
     if start_match is not None:
         flow_indent = len(start_match.group(1))
         index = line.find("{", start_match.end() - 1) + 1
+    elif re.match(r"^[ ]*steps[ ]*:[ ]*\[", line, re.IGNORECASE):
+        flow_indent = len(line) - len(line.lstrip(" "))
+        flow_start = line.find("{")
+        if flow_start == -1:
+            return None
+        index = flow_start + 1
     elif open_flow_indent is not None:
         if not line.strip():
             return None
@@ -833,6 +839,30 @@ def flow_member_start(line):
         index += 1
     return index < len(stripped) and stripped[index] == ":"
 
+def normalize_shell_words(line):
+    normalized = []
+    in_single = False
+    in_double = False
+    escaped = False
+    for char in line:
+        if escaped:
+            normalized.append(char)
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        normalized.append(char)
+    if escaped:
+        normalized.append("\\")
+    return "".join(normalized)
+
 index = 0
 open_flow_indent = None
 while index < len(lines):
@@ -859,6 +889,10 @@ while index < len(lines):
             remainder = line[line.find("{", start_match.end() - 1):]
             if flow_mapping_balance(remainder) > 0:
                 open_flow_indent = len(start_match.group(1))
+        elif re.match(r"^[ ]*steps[ ]*:[ ]*\[", line, re.IGNORECASE):
+            flow_start = line.find("{")
+            if flow_start != -1 and flow_mapping_balance(line[flow_start:]) > 0:
+                open_flow_indent = len(line) - len(line.lstrip(" "))
         elif open_flow_indent is not None and flow_mapping_balance(line.lstrip()) < 0:
             open_flow_indent = None
         index += 1
@@ -911,7 +945,7 @@ while index < len(lines):
                 pending_state = scan_state
             else:
                 if stripped:
-                    print(stripped)
+                    print(normalize_shell_words(stripped))
                 pending = ""
                 pending_state = None
 
@@ -927,7 +961,7 @@ while index < len(lines):
                 pending_state,
             )
             if stripped:
-                print(stripped)
+                print(normalize_shell_words(stripped))
 
     def unquote_yaml_scalar(value):
         value = value.strip()

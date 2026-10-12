@@ -93,11 +93,29 @@ from api_docs_workflow_yaml_common import (
 # Shared parsing helpers are imported from api_docs_workflow_yaml_common.py
 
 path = sys.argv[2]
+
+def print_decoded_run_scalar(prefix, parts):
+    decoded = decode_plain_value("\n".join(parts))
+    run_shell_state = (False, False, False)
+    for decoded_line in decoded.splitlines():
+        if not decoded_line.strip():
+            run_shell_state = (False, False, False)
+            continue
+        run_value, run_shell_state = strip_shell_comment_stateful(
+            decoded_line,
+            run_shell_state,
+        )
+        if run_value.strip():
+            print(prefix + run_value)
+
 with open(path, encoding="utf-8") as handle:
     block_indent = None
     block_key = None
     quote_indent = None
     quote_char = None
+    quote_key = None
+    quote_prefix = None
+    quote_parts = []
     shell_state = (False, False, False)
     for raw_line in handle:
         line = raw_line.rstrip("\n")
@@ -106,14 +124,33 @@ with open(path, encoding="utf-8") as handle:
                 line_indent = len(line) - len(line.lstrip(" "))
                 if line_indent <= quote_indent:
                     quote_char = None
+                    quote_key = None
+                    quote_prefix = None
+                    quote_parts = []
                 else:
+                    if quote_key == "run":
+                        quote_parts.append(line.strip())
+                        candidate = "\n".join(quote_parts)
+                        if quoted_scalar_continues(candidate) is None:
+                            print_decoded_run_scalar(quote_prefix, quote_parts)
+                            quote_char = None
+                            quote_key = None
+                            quote_prefix = None
+                            quote_parts = []
+                        continue
                     stripped = strip_yaml_comment_continuation(line, quote_char)
                     print(stripped)
                     if quoted_scalar_continues(f"{quote_char}{stripped}") is None:
                         quote_char = None
+                        quote_key = None
+                        quote_prefix = None
+                        quote_parts = []
                     continue
             else:
-                print(line)
+                if quote_key == "run":
+                    quote_parts.append("")
+                else:
+                    print(line)
                 continue
         if block_indent is not None:
             if line.strip():
@@ -152,12 +189,25 @@ with open(path, encoding="utf-8") as handle:
                     (False, False, False),
                 )
                 stripped = run_scalar_match.group(1) + run_value
-        scalar_match = re.match(r"^[ ]*(?:-[ ]*)?['\"]?[^:]+['\"]?[ ]*:[ ]*(.*)$", stripped)
+        scalar_match = re.match(
+            r"^(\s*(?:-[ ]*)?['\"]?([^:'\"]+)['\"]?[ ]*:[ ]*)(.*)$",
+            stripped,
+        )
         if scalar_match:
-            continuing_quote = quoted_scalar_continues(scalar_match.group(1))
+            scalar_key = scalar_match.group(2).lower()
+            scalar_value = scalar_match.group(3)
+            continuing_quote = quoted_scalar_continues(scalar_value)
             if continuing_quote is not None:
                 quote_char = continuing_quote
                 quote_indent = len(stripped) - len(stripped.lstrip(" "))
+                quote_key = scalar_key
+                if quote_key == "run":
+                    quote_prefix = scalar_match.group(1)
+                    quote_parts = [scalar_value.strip()]
+                    continue
+                quote_key = None
+                quote_prefix = None
+                quote_parts = []
         line = stripped
         if line.strip():
             print(line)
@@ -176,6 +226,7 @@ sys.path.insert(0, sys.argv[1])
 from api_docs_workflow_yaml_common import (
     decode_plain_value,
     decode_value,
+    quoted_scalar_continues,
     quoted_value_tail,
     unquoted_yaml_text,
 )
@@ -310,11 +361,14 @@ pending_prefix = None
 pending_quote = None
 pending_value = None
 block_indent = None
+quote_indent = None
+quote_char = None
 
 sys.stdin = open(sys.argv[2], encoding="utf-8")
 for raw_line in sys.stdin:
     line = decode_quoted_publication_keys(raw_line.rstrip("\n"))
     in_block_body = False
+    in_quoted_body = False
     if block_indent is not None:
         if line.strip():
             line_indent = len(line) - len(line.lstrip(" "))
@@ -324,10 +378,29 @@ for raw_line in sys.stdin:
                 block_indent = None
         else:
             in_block_body = True
-    if not in_block_body:
+    if quote_char is not None:
+        if line.strip():
+            line_indent = len(line) - len(line.lstrip(" "))
+            if line_indent > quote_indent:
+                in_quoted_body = True
+                if quoted_scalar_continues(f"{quote_char}{line.strip()}") is None:
+                    quote_indent = None
+                    quote_char = None
+            else:
+                quote_indent = None
+                quote_char = None
+        else:
+            in_quoted_body = True
+    if not in_block_body and not in_quoted_body:
         next_block_indent = block_scalar_key_column(line)
         if next_block_indent is not None:
             block_indent = next_block_indent
+        scalar_match = re.match(r"^[ ]*(?:-[ ]*)?['\"]?[^:]+['\"]?[ ]*:[ ]*(.*)$", line)
+        if scalar_match is not None:
+            continuing_quote = quoted_scalar_continues(scalar_match.group(1))
+            if continuing_quote is not None:
+                quote_indent = len(line) - len(line.lstrip(" "))
+                quote_char = continuing_quote
         anchor_match = NODE_ANCHOR_PATTERN.match(line)
         if anchor_match is not None:
             anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))

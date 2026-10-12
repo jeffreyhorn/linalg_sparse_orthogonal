@@ -368,6 +368,9 @@ def block_scalar_key_column(line):
     return match.start(1)
 
 anchors = {}
+pending_anchor = None
+pending_anchor_quote = None
+pending_anchor_value = None
 pending_prefix = None
 pending_quote = None
 pending_value = None
@@ -375,9 +378,37 @@ block_indent = None
 quote_indent = None
 quote_char = None
 
+def register_anchor(anchor, value):
+    stripped = value.strip()
+    if stripped and stripped[0] in "'\"":
+        tail = quoted_value_tail(stripped[1:], stripped[0])
+        if tail is None:
+            return False
+        scalar_body, _ = tail
+        anchors[anchor] = decode_value(scalar_body, stripped[0])
+    else:
+        anchors[anchor] = decode_plain_value(value)
+    return True
+
 sys.stdin = open(sys.argv[2], encoding="utf-8")
 for raw_line in sys.stdin:
     line = decode_quoted_publication_keys(raw_line.rstrip("\n"))
+    if pending_anchor is not None:
+        current = line.lstrip()
+        if pending_anchor_value.endswith("\\"):
+            current = f"{pending_anchor_value[:-1]}{current}"
+        else:
+            current = f"{pending_anchor_value} {current}"
+        tail = quoted_value_tail(current, pending_anchor_quote)
+        if tail is None:
+            pending_anchor_value = current
+            continue
+        value, _ = tail
+        anchors[pending_anchor] = decode_value(value, pending_anchor_quote)
+        pending_anchor = None
+        pending_anchor_quote = None
+        pending_anchor_value = None
+        continue
     in_block_body = False
     in_quoted_body = False
     if block_indent is not None:
@@ -414,9 +445,17 @@ for raw_line in sys.stdin:
                 quote_char = continuing_quote
         anchor_match = NODE_ANCHOR_PATTERN.match(line)
         if anchor_match is not None:
-            anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
+            anchor_value = anchor_match.group("value")
+            if not register_anchor(anchor_match.group("anchor"), anchor_value):
+                pending_anchor = anchor_match.group("anchor")
+                pending_anchor_quote = anchor_value.strip()[0]
+                pending_anchor_value = anchor_value.strip()[1:]
         for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(line):
-            anchors[anchor_match.group("anchor")] = decode_plain_value(anchor_match.group("value"))
+            anchor_value = anchor_match.group("value")
+            if not register_anchor(anchor_match.group("anchor"), anchor_value):
+                pending_anchor = anchor_match.group("anchor")
+                pending_anchor_quote = anchor_value.strip()[0]
+                pending_anchor_value = anchor_value.strip()[1:]
     if pending_prefix is not None:
         current = line.lstrip()
         if pending_value.endswith("\\"):

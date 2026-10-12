@@ -689,6 +689,27 @@ def test_workflow_multiline_quoted_anchor_docs_artifact_path_fails_clearly() -> 
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_multiline_anchored_path_docs_artifact_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: &docs \"do\\\n"
+            "            cs/\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_dotted_anchor_docs_artifact_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -822,6 +843,27 @@ def test_workflow_escaped_quoted_path_key_docs_artifact_path_fails_clearly() -> 
             "      - run: make api-docs-freshness\n"
             "      - uses: actions/upload-artifact@v4\n"
             '        with: {"name": "generated-api-html", "p\\x61th": docs/}\n',
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
+def test_workflow_multiline_escaped_quoted_path_key_docs_artifact_path_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: make api-docs-freshness\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            '          "pa\\\n'
+            '            th": docs/\n',
             encoding="utf-8",
         )
 
@@ -2140,6 +2182,27 @@ def test_workflow_multiline_quoted_hash_named_flow_run_docs_copy_fails() -> None
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_multiline_flow_run_ignores_quoted_sibling_run_text_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - {name: \"run: # harmless\", run: cp -R\n"
+            "          docs artifact/}\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
 def test_workflow_quoted_flow_run_before_name_docs_copy_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2983,6 +3046,7 @@ def main() -> None:
     test_workflow_aliased_docs_path_ignores_plain_scalar_anchor_text()
     test_workflow_quoted_anchor_docs_artifact_path_fails_clearly()
     test_workflow_multiline_quoted_anchor_docs_artifact_path_fails_clearly()
+    test_workflow_multiline_anchored_path_docs_artifact_path_fails_clearly()
     test_workflow_dotted_anchor_docs_artifact_path_fails_clearly()
     test_workflow_aliased_docs_path_ignores_run_block_anchor_text()
     test_workflow_windows_broad_docs_artifact_path_fails_clearly()
@@ -2990,6 +3054,7 @@ def main() -> None:
     test_workflow_flow_mapping_docs_artifact_path_fails_clearly()
     test_workflow_quoted_flow_mapping_docs_artifact_path_fails_clearly()
     test_workflow_escaped_quoted_path_key_docs_artifact_path_fails_clearly()
+    test_workflow_multiline_escaped_quoted_path_key_docs_artifact_path_fails()
     test_workflow_flow_mapping_escaped_uses_and_quoted_docs_path_fails()
     test_workflow_multiline_flow_mapping_escaped_uses_and_path_fails()
     test_workflow_spaced_path_key_docs_artifact_path_fails_clearly()
@@ -3055,6 +3120,7 @@ def main() -> None:
     test_workflow_multiline_flow_run_docs_copy_artifact_upload_fails()
     test_workflow_multiline_named_flow_run_docs_copy_artifact_upload_fails()
     test_workflow_multiline_quoted_hash_named_flow_run_docs_copy_fails()
+    test_workflow_multiline_flow_run_ignores_quoted_sibling_run_text_fails()
     test_workflow_quoted_flow_run_before_name_docs_copy_fails()
     test_workflow_multiline_plain_docs_archive_artifact_upload_fails()
     test_workflow_multiline_quoted_docs_copy_artifact_upload_fails()

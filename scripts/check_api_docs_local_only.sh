@@ -261,6 +261,12 @@ DOUBLE_KEY_PATTERN = re.compile(
 SINGLE_KEY_PATTERN = re.compile(
     r"(?P<prefix>(?:^|[{,\s])\s*)'(?P<key>(?:''|[^'])*)'(?P<suffix>\s*:)",
 )
+DOUBLE_KEY_START_PATTERN = re.compile(
+    r'^(?P<prefix>\s*(?:-\s*)?)"(?P<key>(?:\\.|[^"])*)$',
+)
+SINGLE_KEY_START_PATTERN = re.compile(
+    r"^(?P<prefix>\s*(?:-\s*)?)'(?P<key>(?:''|[^'])*)$",
+)
 SCALAR_PATTERN = re.compile(
     rf"^(\s*-?\s*['\"]?(?:{KEY_PATTERN})['\"]?\s*:\s*)(['\"])(.*)\2(\s*)$",
     re.IGNORECASE,
@@ -319,6 +325,16 @@ def decode_quoted_publication_keys(line):
     line = DOUBLE_KEY_PATTERN.sub(lambda match: replace(match, '"'), line)
     return SINGLE_KEY_PATTERN.sub(lambda match: replace(match, "'"), line)
 
+def publication_key_start(line):
+    for pattern, quote in (
+        (DOUBLE_KEY_START_PATTERN, '"'),
+        (SINGLE_KEY_START_PATTERN, "'"),
+    ):
+        match = pattern.match(line)
+        if match is not None:
+            return match, quote
+    return None
+
 def decoded_path_lines(prefix, value, quote, suffix=""):
     decoded = decode_value(value, quote)
     lines = [line.strip() for line in decoded.splitlines()]
@@ -371,6 +387,13 @@ anchors = {}
 pending_anchor = None
 pending_anchor_quote = None
 pending_anchor_value = None
+pending_anchored_prefix = None
+pending_anchored_anchor = None
+pending_anchored_quote = None
+pending_anchored_value = None
+pending_key_prefix = None
+pending_key_quote = None
+pending_key_value = None
 pending_prefix = None
 pending_quote = None
 pending_value = None
@@ -392,7 +415,51 @@ def register_anchor(anchor, value):
 
 sys.stdin = open(sys.argv[2], encoding="utf-8")
 for raw_line in sys.stdin:
-    line = decode_quoted_publication_keys(raw_line.rstrip("\n"))
+    line = raw_line.rstrip("\n")
+    if pending_key_prefix is not None:
+        current = line.lstrip()
+        if pending_key_value.endswith("\\"):
+            current = f"{pending_key_value[:-1]}{current}"
+        else:
+            current = f"{pending_key_value} {current}"
+        tail = quoted_value_tail(current, pending_key_quote)
+        if tail is None:
+            pending_key_value = current
+            continue
+        key, suffix = tail
+        decoded_key = decode_value(key, pending_key_quote)
+        line = pending_key_prefix + decoded_key + suffix
+        pending_key_prefix = None
+        pending_key_quote = None
+        pending_key_value = None
+    else:
+        key_start = publication_key_start(line)
+        if key_start is not None:
+            key_match, key_quote = key_start
+            pending_key_prefix = key_match.group("prefix")
+            pending_key_quote = key_quote
+            pending_key_value = key_match.group("key")
+            continue
+    line = decode_quoted_publication_keys(line)
+    if pending_anchored_prefix is not None:
+        current = line.lstrip()
+        if pending_anchored_value.endswith("\\"):
+            current = f"{pending_anchored_value[:-1]}{current}"
+        else:
+            current = f"{pending_anchored_value} {current}"
+        tail = quoted_value_tail(current, pending_anchored_quote)
+        if tail is None:
+            pending_anchored_value = current
+            continue
+        value, suffix = tail
+        decoded = decode_value(value, pending_anchored_quote)
+        anchors[pending_anchored_anchor] = decoded
+        print(pending_anchored_prefix + decoded + suffix)
+        pending_anchored_prefix = None
+        pending_anchored_anchor = None
+        pending_anchored_quote = None
+        pending_anchored_value = None
+        continue
     if pending_anchor is not None:
         current = line.lstrip()
         if pending_anchor_value.endswith("\\"):
@@ -443,19 +510,20 @@ for raw_line in sys.stdin:
             if continuing_quote is not None:
                 quote_indent = len(line) - len(line.lstrip(" "))
                 quote_char = continuing_quote
-        anchor_match = NODE_ANCHOR_PATTERN.match(line)
-        if anchor_match is not None:
-            anchor_value = anchor_match.group("value")
-            if not register_anchor(anchor_match.group("anchor"), anchor_value):
-                pending_anchor = anchor_match.group("anchor")
-                pending_anchor_quote = anchor_value.strip()[0]
-                pending_anchor_value = anchor_value.strip()[1:]
-        for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(line):
-            anchor_value = anchor_match.group("value")
-            if not register_anchor(anchor_match.group("anchor"), anchor_value):
-                pending_anchor = anchor_match.group("anchor")
-                pending_anchor_quote = anchor_value.strip()[0]
-                pending_anchor_value = anchor_value.strip()[1:]
+        if ANCHORED_SCALAR_PATTERN.match(line) is None:
+            anchor_match = NODE_ANCHOR_PATTERN.match(line)
+            if anchor_match is not None:
+                anchor_value = anchor_match.group("value")
+                if not register_anchor(anchor_match.group("anchor"), anchor_value):
+                    pending_anchor = anchor_match.group("anchor")
+                    pending_anchor_quote = anchor_value.strip()[0]
+                    pending_anchor_value = anchor_value.strip()[1:]
+            for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(line):
+                anchor_value = anchor_match.group("value")
+                if not register_anchor(anchor_match.group("anchor"), anchor_value):
+                    pending_anchor = anchor_match.group("anchor")
+                    pending_anchor_quote = anchor_value.strip()[0]
+                    pending_anchor_value = anchor_value.strip()[1:]
     if pending_prefix is not None:
         current = line.lstrip()
         if pending_value.endswith("\\"):
@@ -478,6 +546,20 @@ for raw_line in sys.stdin:
     if anchored_scalar is not None:
         prefix = anchored_scalar.group(1)
         anchor = anchored_scalar.group("anchor")
+        raw_value = anchored_scalar.group("value").strip()
+        if raw_value and raw_value[0] in "'\"":
+            tail = quoted_value_tail(raw_value[1:], raw_value[0])
+            if tail is None:
+                pending_anchored_prefix = prefix
+                pending_anchored_anchor = anchor
+                pending_anchored_quote = raw_value[0]
+                pending_anchored_value = raw_value[1:]
+                continue
+            scalar_value, suffix = tail
+            value = decode_value(scalar_value, raw_value[0])
+            anchors[anchor] = value
+            print(prefix + value + suffix)
+            continue
         value = decode_plain_value(anchored_scalar.group("value"))
         anchors[anchor] = value
         print(prefix + value)
@@ -533,6 +615,7 @@ import sys
 
 sys.path.insert(0, sys.argv[1])
 from api_docs_workflow_yaml_common import (
+    decode_value,
     quoted_scalar_continues,
     strip_shell_comment_stateful,
     strip_yaml_comment,
@@ -579,6 +662,100 @@ def flow_member_value(value):
             return value[:value_index].strip()
     return re.sub(r"\s*}[,]?\s*$", "", value).strip()
 
+def flow_run_entry(line):
+    start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
+    if start_match is None:
+        return None
+    index = line.find("{", start_match.end() - 1) + 1
+    while index < len(line):
+        while index < len(line) and line[index] in " \t,":
+            index += 1
+        if index >= len(line) or line[index] == "}":
+            return None
+        key_column = index
+        if line[index] in "'\"":
+            quote = line[index]
+            index += 1
+            key_start = index
+            escaped = False
+            key_parts = []
+            while index < len(line):
+                char = line[index]
+                if quote == '"' and escaped:
+                    key_parts.append("\\" + char)
+                    escaped = False
+                    index += 1
+                    continue
+                if quote == '"' and char == "\\":
+                    escaped = True
+                    index += 1
+                    continue
+                if quote == "'" and char == "'" and index + 1 < len(line) and line[index + 1] == "'":
+                    key_parts.append("''")
+                    index += 2
+                    continue
+                if char == quote:
+                    break
+                key_parts.append(char)
+                index += 1
+            if index >= len(line):
+                return None
+            key = decode_value("".join(key_parts), quote)
+            index += 1
+        else:
+            key_start = index
+            while index < len(line) and line[index] not in ":,{}[]":
+                index += 1
+            key = line[key_start:index].strip()
+        while index < len(line) and line[index].isspace():
+            index += 1
+        if index >= len(line) or line[index] != ":":
+            return None
+        index += 1
+        value_start = index
+        if key.lower() == "run":
+            return start_match.group(1), key_column, line[value_start:]
+
+        in_single = False
+        in_double = False
+        escaped = False
+        depth = 0
+        while index < len(line):
+            char = line[index]
+            if escaped:
+                escaped = False
+                index += 1
+                continue
+            if char == "\\" and in_double:
+                escaped = True
+                index += 1
+                continue
+            if char == "'" and not in_double:
+                if in_single and index + 1 < len(line) and line[index + 1] == "'":
+                    index += 2
+                    continue
+                in_single = not in_single
+                index += 1
+                continue
+            if char == '"' and not in_single:
+                in_double = not in_double
+                index += 1
+                continue
+            if in_single or in_double:
+                index += 1
+                continue
+            if char in "[{":
+                depth += 1
+            elif char in "]}":
+                if depth == 0:
+                    return None
+                depth -= 1
+            elif char == "," and depth == 0:
+                index += 1
+                break
+            index += 1
+    return None
+
 index = 0
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
@@ -589,18 +766,22 @@ while index < len(lines):
         re.IGNORECASE,
     )
     if not match:
-        match = re.match(
-            r"^([ ]*)-[ ]*[{].*?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
-            line,
-            re.IGNORECASE,
-        )
-        flow_run = match is not None
+        flow_entry = flow_run_entry(line)
+        if flow_entry is not None:
+            flow_indent, flow_key_column, flow_value = flow_entry
+            match = re.match(r"^(run)$", "run", re.IGNORECASE)
+            flow_run = True
     if not match:
         index += 1
         continue
-    run_key_column = line.index(match.group(2))
-    boundary_column = len(match.group(1)) if flow_run else run_key_column
-    value = match.group(3).strip()
+    if flow_run:
+        run_key_column = flow_key_column
+        boundary_column = len(flow_indent)
+        value = flow_value.strip()
+    else:
+        run_key_column = line.index(match.group(2))
+        boundary_column = run_key_column
+        value = match.group(3).strip()
     if flow_run:
         value = flow_member_value(value)
     style_match = re.match(r"([>|])", value)

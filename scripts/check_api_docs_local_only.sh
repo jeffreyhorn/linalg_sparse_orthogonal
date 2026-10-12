@@ -287,6 +287,12 @@ FLOW_START_PATTERN = re.compile(
     r"(?P<prefix>.*(?:^|[{,\s])['\"]?(?:%s)['\"]?\s*:\s*)(?P<quote>['\"])(?P<value>.*)$" % KEY_PATTERN,
     re.IGNORECASE,
 )
+GENERIC_DOUBLE_FLOW_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?[^:'\",{}\[\]]+['\"]?\s*:\s*)\"(?P<value>(?:\\.|[^\"])*)\"",
+)
+GENERIC_SINGLE_FLOW_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[{,\s])['\"]?[^:'\",{}\[\]]+['\"]?\s*:\s*)'(?P<value>(?:''|[^'])*)'",
+)
 ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
 NODE_ANCHOR_PATTERN = re.compile(
     r"^\s*(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))"
@@ -357,6 +363,14 @@ def decode_quoted_paths(line):
         lambda match: "\n".join(
             decoded_path_lines(match.group("prefix"), match.group("value"), "'"),
         ),
+        line,
+    )
+    line = GENERIC_DOUBLE_FLOW_PATTERN.sub(
+        lambda match: match.group("prefix") + decode_value(match.group("value"), '"'),
+        line,
+    )
+    line = GENERIC_SINGLE_FLOW_PATTERN.sub(
+        lambda match: match.group("prefix") + decode_value(match.group("value"), "'"),
         line,
     )
     return line
@@ -1211,7 +1225,7 @@ require_workflows_do_not_reference() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            { strip_yaml_comments "$workflow_file"; fold_yaml_run_blocks "$workflow_file"; } |
+            { strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -F -n "$needle" || true
@@ -1240,7 +1254,7 @@ require_workflows_do_not_match() {
     matches="$(
         for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
             [ -f "$workflow_file" ] || continue
-            { strip_yaml_comments "$workflow_file"; fold_yaml_run_blocks "$workflow_file"; } |
+            { strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
                 grep -E -n "$pattern" || true
@@ -1268,6 +1282,7 @@ check_no_workflow_publication_semantics() {
     local docs_archive_command_regex
     local dynamic_publication_path_regex
     local dynamic_command_publication_regex
+    local dynamic_staging_command_regex
     local broad_inline_path_regex
     local dynamic_inline_path_regex
     local stripped_text
@@ -1290,6 +1305,7 @@ check_no_workflow_publication_semantics() {
     docs_archive_command_regex='(^|[[:space:]])(tar|zip|7z|7za|7zr)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     dynamic_publication_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^#]*([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
     dynamic_command_publication_regex="($command_publication_regex)[^;&|]*([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])"
+    dynamic_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)[[:space:]][^;&|]*["'"'"']?([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])["'"'"']?([/[:space:]]|$)'
     broad_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
     dynamic_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^,}]*([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])'
 
@@ -1344,6 +1360,11 @@ check_no_workflow_publication_semantics() {
             { printf '%s\n' "$normalized_text" | grep -Eq "$docs_staging_command_regex" ||
                 printf '%s\n' "$folded_run_text" | grep -Eq "$docs_staging_command_regex"; }; then
             fail "$rel_path stages docs for publication or artifact upload while generated API HTML is local-only"
+        fi
+        if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
+            { printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_staging_command_regex" ||
+                printf '%s\n' "$folded_run_text" | grep -Eq "$dynamic_staging_command_regex"; }; then
+            fail "$rel_path uses dynamic staging paths while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
             { printf '%s\n' "$normalized_text" | grep -Eq "$docs_archive_command_regex" ||

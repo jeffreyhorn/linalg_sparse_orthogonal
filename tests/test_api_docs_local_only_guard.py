@@ -174,6 +174,27 @@ def test_workflow_escaped_run_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API HTML output path")
 
 
+def test_workflow_escaped_env_generated_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "env: {API_PATH: \"\\x64ocs/api/html\"}\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: echo \"$API_PATH\"\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API output paths")
+
+
 def test_workflow_plain_scalar_apostrophe_before_comment_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -1440,6 +1461,28 @@ def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
         )
 
     assert_guard_fails_with(mutate, "dynamic publication paths")
+
+
+def test_workflow_dynamic_staging_source_artifact_upload_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "env:\n"
+            "  DOCS_ROOT: docs\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: cp -R \"$DOCS_ROOT\" artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic staging paths")
 
 
 def test_workflow_unrelated_publisher_build_path_is_allowed() -> None:
@@ -3143,6 +3186,7 @@ def main() -> None:
     test_workflow_generated_api_path_fails_clearly()
     test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
     test_workflow_escaped_run_generated_api_path_fails_clearly()
+    test_workflow_escaped_env_generated_api_path_fails_clearly()
     test_workflow_plain_scalar_apostrophe_before_comment_is_allowed()
     test_workflow_multiline_single_quoted_trailing_comment_is_allowed()
     test_workflow_multiline_double_quoted_trailing_comment_is_allowed()
@@ -3207,6 +3251,7 @@ def main() -> None:
     test_workflow_dynamic_release_files_path_fails_closed()
     test_workflow_dynamic_release_asset_path_fails_closed()
     test_workflow_dynamic_command_publication_path_fails_closed()
+    test_workflow_dynamic_staging_source_artifact_upload_fails_closed()
     test_workflow_unrelated_publisher_build_path_is_allowed()
     test_workflow_unrelated_publisher_with_unrelated_variable_is_allowed()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()

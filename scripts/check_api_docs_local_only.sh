@@ -1305,7 +1305,7 @@ check_no_workflow_publication_semantics() {
     docs_archive_command_regex='(^|[[:space:]])(tar|zip|7z|7za|7zr)[[:space:]][^;&|]*([[:space:]]|=)["'"'"']?([.]/)?docs($|[/[:space:]"'"'"'])'
     dynamic_publication_path_regex='^[[:space:]]*["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^#]*([$][{][{]|[$][A-Za-z_][A-Za-z0-9_]*|[%][A-Za-z_][A-Za-z0-9_]*[%])'
     dynamic_command_publication_regex="($command_publication_regex)[^;&|]*([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])"
-    dynamic_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)([[:space:]]+-[^[:space:]]+)*[[:space:]]+["'"'"']?[^"'"'"';&|[:space:]]*([$][A-Za-z_][A-Za-z0-9_]*|[$][{][A-Za-z_][A-Za-z0-9_]*[}]|[$][{][{][^}]+[}][}])[^"'"'"';&|[:space:]]*["'"'"']?([/[:space:]]|$)'
+    dynamic_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)([[:space:]]+-[^[:space:]]+)*[[:space:]]+["'"'"']?[^"'"'"';&|[:space:]]*([$][A-Za-z_][A-Za-z0-9_]*|[$][{][^}]+[}]|[$][{][{][^}]+[}][}])[^"'"'"';&|[:space:]]*["'"'"']?([/[:space:]]|$)'
     broad_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
     dynamic_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^,}]*([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])'
 

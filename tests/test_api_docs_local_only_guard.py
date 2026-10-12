@@ -1507,6 +1507,26 @@ def test_workflow_embedded_dynamic_staging_source_artifact_upload_fails_closed()
     assert_guard_fails_with(mutate, "dynamic staging paths")
 
 
+def test_workflow_defaulted_dynamic_staging_source_artifact_upload_fails_closed() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: cp -R \"${DOCS_ROOT:-docs}\" artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "dynamic staging paths")
+
+
 def test_workflow_unrelated_publisher_build_path_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -3275,6 +3295,7 @@ def main() -> None:
     test_workflow_dynamic_command_publication_path_fails_closed()
     test_workflow_dynamic_staging_source_artifact_upload_fails_closed()
     test_workflow_embedded_dynamic_staging_source_artifact_upload_fails_closed()
+    test_workflow_defaulted_dynamic_staging_source_artifact_upload_fails_closed()
     test_workflow_unrelated_publisher_build_path_is_allowed()
     test_workflow_unrelated_publisher_with_unrelated_variable_is_allowed()
     test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly()

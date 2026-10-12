@@ -662,11 +662,47 @@ def flow_member_value(value):
             return value[:value_index].strip()
     return re.sub(r"\s*}[,]?\s*$", "", value).strip()
 
-def flow_run_entry(line):
+def flow_mapping_balance(value):
+    in_single = False
+    in_double = False
+    escaped = False
+    balance = 0
+    for char in value:
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_double:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if in_single or in_double:
+            continue
+        if char == "{":
+            balance += 1
+        elif char == "}":
+            balance -= 1
+    return balance
+
+def flow_run_entry(line, open_flow_indent=None):
     start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
-    if start_match is None:
+    if start_match is not None:
+        flow_indent = len(start_match.group(1))
+        index = line.find("{", start_match.end() - 1) + 1
+    elif open_flow_indent is not None:
+        if not line.strip():
+            return None
+        line_indent = len(line) - len(line.lstrip(" "))
+        if line_indent <= open_flow_indent:
+            return None
+        flow_indent = open_flow_indent
+        index = line_indent
+    else:
         return None
-    index = line.find("{", start_match.end() - 1) + 1
     while index < len(line):
         while index < len(line) and line[index] in " \t,":
             index += 1
@@ -714,7 +750,7 @@ def flow_run_entry(line):
         index += 1
         value_start = index
         if key.lower() == "run":
-            return start_match.group(1), key_column, line[value_start:]
+            return " " * flow_indent, key_column, line[value_start:]
 
         in_single = False
         in_double = False
@@ -757,8 +793,13 @@ def flow_run_entry(line):
     return None
 
 index = 0
+open_flow_indent = None
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
+    if open_flow_indent is not None and line.strip():
+        line_indent = len(line) - len(line.lstrip(" "))
+        if line_indent <= open_flow_indent:
+            open_flow_indent = None
     flow_run = False
     match = re.match(
         r"^([ ]*)(?:-[ ]*)?['\"]?(run)['\"]?[ ]*:[ ]*(.*)$",
@@ -766,18 +807,26 @@ while index < len(lines):
         re.IGNORECASE,
     )
     if not match:
-        flow_entry = flow_run_entry(line)
+        flow_entry = flow_run_entry(line, open_flow_indent)
         if flow_entry is not None:
             flow_indent, flow_key_column, flow_value = flow_entry
             match = re.match(r"^(run)$", "run", re.IGNORECASE)
             flow_run = True
     if not match:
+        start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
+        if start_match is not None:
+            remainder = line[line.find("{", start_match.end() - 1):]
+            if flow_mapping_balance(remainder) > 0:
+                open_flow_indent = len(start_match.group(1))
+        elif open_flow_indent is not None and flow_mapping_balance(line.lstrip()) < 0:
+            open_flow_indent = None
         index += 1
         continue
     if flow_run:
         run_key_column = flow_key_column
         boundary_column = len(flow_indent)
         value = flow_value.strip()
+        open_flow_indent = None
     else:
         run_key_column = line.index(match.group(2))
         boundary_column = run_key_column

@@ -750,6 +750,10 @@ NODE_ANCHOR_PATTERN = re.compile(
     % ANCHOR_NAME_PATTERN,
 )
 RUN_ALIAS_PATTERN = re.compile(r"^\*(?P<alias>%s)\s*$" % ANCHOR_NAME_PATTERN)
+BLOCK_ANCHOR_PATTERN = re.compile(
+    r"^(?P<indent>\s*)(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s*(?P<style>[>|])"
+    % ANCHOR_NAME_PATTERN,
+)
 
 def decode_anchor_value(value):
     stripped = value.strip()
@@ -764,6 +768,58 @@ def register_run_anchor(line, anchors):
     if anchor_match is None:
         return
     anchors[anchor_match.group("anchor")] = decode_anchor_value(anchor_match.group("value"))
+
+def anchored_block_entry(line):
+    match = BLOCK_ANCHOR_PATTERN.match(line)
+    if match is None:
+        return None
+    return len(match.group("indent")), match.group("anchor"), match.group("style")
+
+def render_anchored_block(lines, start_index, boundary_column, style):
+    raw_block_lines = []
+    index = start_index
+    while index < len(lines):
+        candidate = lines[index]
+        if not candidate.strip():
+            raw_block_lines.append(None)
+            index += 1
+            continue
+        line_indent = len(candidate) - len(candidate.lstrip(" "))
+        if line_indent <= boundary_column:
+            break
+        raw_block_lines.append((line_indent, candidate))
+        index += 1
+
+    nonblank_indents = [
+        block_line[0] for block_line in raw_block_lines if block_line is not None
+    ]
+    content_indent = min(nonblank_indents) if nonblank_indents else None
+    block_lines = []
+    for block_line in raw_block_lines:
+        if block_line is None:
+            block_lines.append(None)
+            continue
+        _, raw_content = block_line
+        block_lines.append(
+            raw_content[content_indent:] if content_indent is not None else raw_content,
+        )
+
+    if style == "|":
+        return "\n".join(line if line is not None else "" for line in block_lines), index
+
+    paragraphs = []
+    paragraph = []
+    for block_line in block_lines:
+        if block_line is None:
+            if paragraph:
+                paragraphs.append(" ".join(paragraph))
+                paragraph = []
+            paragraphs.append("")
+        else:
+            paragraph.append(block_line.strip())
+    if paragraph:
+        paragraphs.append(" ".join(paragraph))
+    return "\n".join(paragraphs), index
 
 def run_key_entry(line):
     prefix_match = re.match(r"^([ ]*)(?:-[ ]*)?", line)
@@ -994,6 +1050,16 @@ open_flow_indent = None
 run_anchors = {}
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
+    block_anchor = anchored_block_entry(line)
+    if block_anchor is not None:
+        boundary_column, anchor, block_style = block_anchor
+        run_anchors[anchor], index = render_anchored_block(
+            lines,
+            index + 1,
+            boundary_column,
+            block_style,
+        )
+        continue
     register_run_anchor(line, run_anchors)
     if open_flow_indent is not None and line.strip():
         line_indent = len(line) - len(line.lstrip(" "))

@@ -751,7 +751,7 @@ NODE_ANCHOR_PATTERN = re.compile(
 )
 RUN_ALIAS_PATTERN = re.compile(r"^\*(?P<alias>%s)\s*$" % ANCHOR_NAME_PATTERN)
 BLOCK_ANCHOR_PATTERN = re.compile(
-    r"^(?P<indent>\s*)(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s*(?P<style>[>|])"
+    r"^(?P<indent>\s*)(?:-\s*)?(?:(?P<key>['\"]?[^:'\"]+['\"]?)\s*:\s*)?&(?P<anchor>%s)\s*(?P<style>[>|])"
     % ANCHOR_NAME_PATTERN,
 )
 
@@ -773,7 +773,10 @@ def anchored_block_entry(line):
     match = BLOCK_ANCHOR_PATTERN.match(line)
     if match is None:
         return None
-    return len(match.group("indent")), match.group("anchor"), match.group("style")
+    key = match.group("key")
+    if key is not None:
+        key = key.strip("'\"").lower()
+    return len(match.group("indent")), key, match.group("anchor"), match.group("style")
 
 def render_anchored_block(lines, start_index, boundary_column, style):
     raw_block_lines = []
@@ -1096,6 +1099,56 @@ def normalize_shell_words(line):
         normalized.append("\\")
     return "".join(normalized)
 
+def emit_shell_lines(logical_lines):
+    pending = ""
+    pending_state = None
+    shell_state = (False, False, False)
+    def emit_one(logical_line):
+        nonlocal pending, pending_state, shell_state
+        if logical_line is None:
+            if pending:
+                stripped, shell_state = strip_shell_comment_stateful(
+                    pending,
+                    pending_state,
+                )
+                if stripped:
+                    print(stripped)
+                pending = ""
+            pending_state = None
+            shell_state = (False, False, False)
+            return
+        current = logical_line.rstrip()
+        scan_state = shell_state
+        if pending:
+            current = f"{pending}{current.lstrip()}"
+            scan_state = pending_state
+        stripped, shell_state = strip_shell_comment_stateful(
+            current,
+            scan_state,
+        )
+        if stripped.endswith("\\"):
+            pending = stripped[:-1]
+            pending_state = scan_state
+        else:
+            if stripped:
+                print(normalize_shell_words(stripped))
+            pending = ""
+            pending_state = None
+
+    for logical_line in logical_lines:
+        if logical_line is None:
+            emit_one(None)
+            continue
+        for embedded_line in logical_line.split("\n"):
+            emit_one(embedded_line)
+    if pending:
+        stripped, shell_state = strip_shell_comment_stateful(
+            pending,
+            pending_state,
+        )
+        if stripped:
+            print(normalize_shell_words(stripped))
+
 index = 0
 open_flow_indent = None
 run_anchors = {}
@@ -1103,13 +1156,16 @@ while index < len(lines):
     line = strip_yaml_comment(lines[index])
     block_anchor = anchored_block_entry(line)
     if block_anchor is not None:
-        boundary_column, anchor, block_style = block_anchor
-        run_anchors[anchor], index = render_anchored_block(
+        boundary_column, key, anchor, block_style = block_anchor
+        rendered_block, index = render_anchored_block(
             lines,
             index + 1,
             boundary_column,
             block_style,
         )
+        run_anchors[anchor] = rendered_block
+        if key == "run":
+            emit_shell_lines(rendered_block.split("\n"))
         continue
     register_run_anchor(line, run_anchors)
     if open_flow_indent is not None and line.strip():
@@ -1159,56 +1215,6 @@ while index < len(lines):
     style = style_match.group(1) if style_match else None
     index += 1
     block_lines = []
-
-    def emit_shell_lines(logical_lines):
-        pending = ""
-        pending_state = None
-        shell_state = (False, False, False)
-        def emit_one(logical_line):
-            nonlocal pending, pending_state, shell_state
-            if logical_line is None:
-                if pending:
-                    stripped, shell_state = strip_shell_comment_stateful(
-                        pending,
-                        pending_state,
-                    )
-                    if stripped:
-                        print(stripped)
-                    pending = ""
-                pending_state = None
-                shell_state = (False, False, False)
-                return
-            current = logical_line.rstrip()
-            scan_state = shell_state
-            if pending:
-                current = f"{pending}{current.lstrip()}"
-                scan_state = pending_state
-            stripped, shell_state = strip_shell_comment_stateful(
-                current,
-                scan_state,
-            )
-            if stripped.endswith("\\"):
-                pending = stripped[:-1]
-                pending_state = scan_state
-            else:
-                if stripped:
-                    print(normalize_shell_words(stripped))
-                pending = ""
-                pending_state = None
-
-        for logical_line in logical_lines:
-            if logical_line is None:
-                emit_one(None)
-                continue
-            for embedded_line in logical_line.split("\n"):
-                emit_one(embedded_line)
-        if pending:
-            stripped, shell_state = strip_shell_comment_stateful(
-                pending,
-                pending_state,
-            )
-            if stripped:
-                print(normalize_shell_words(stripped))
 
     def unquote_yaml_scalar(value):
         value = value.strip()

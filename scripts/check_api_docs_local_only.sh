@@ -573,12 +573,13 @@ for raw_line in sys.stdin:
                     pending_anchor = anchor_match.group("anchor")
                     pending_anchor_quote = anchor_value.strip()[0]
                     pending_anchor_value = anchor_value.strip()[1:]
-            for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(line):
-                anchor_value = anchor_match.group("value")
-                if not register_anchor(anchor_match.group("anchor"), anchor_value):
-                    pending_anchor = anchor_match.group("anchor")
-                    pending_anchor_quote = anchor_value.strip()[0]
-                    pending_anchor_value = anchor_value.strip()[1:]
+            if "{" in line:
+                for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
+                    anchor_value = anchor_match.group("value")
+                    if not register_anchor(anchor_match.group("anchor"), anchor_value):
+                        pending_anchor = anchor_match.group("anchor")
+                        pending_anchor_quote = anchor_value.strip()[0]
+                        pending_anchor_value = anchor_value.strip()[1:]
     if pending_prefix is not None:
         current = line.lstrip()
         if pending_value.endswith("\\"):

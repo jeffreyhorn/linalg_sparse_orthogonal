@@ -1210,6 +1210,51 @@ while index < len(lines):
 PY
 }
 
+normalize_workflow_dot_segments() {
+    local dot_segment_input
+    dot_segment_input="$(mktemp)"
+    cat > "$dot_segment_input"
+    python3 - "$dot_segment_input" <<'PY'
+import re
+import sys
+
+PATH_TOKEN = re.compile(r"(?P<prefix>^|[\s\"'=:{,\[])(?P<path>[.]?[^\s\"';&|,}]*[/][^\s\"';&|,}]*)")
+
+def normalize_path(path):
+    path = path.replace("\\", "/")
+    absolute = path.startswith("/")
+    trailing = path.endswith("/")
+    parts = []
+    for part in path.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if parts and parts[-1] != "..":
+                parts.pop()
+            elif not absolute:
+                parts.append(part)
+            continue
+        parts.append(part)
+    normalized = ("/" if absolute else "") + "/".join(parts)
+    if trailing and normalized and not normalized.endswith("/"):
+        normalized += "/"
+    if not normalized:
+        return "/" if absolute else "."
+    return normalized
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        print(
+            PATH_TOKEN.sub(
+                lambda match: match.group("prefix") + normalize_path(match.group("path")),
+                line,
+            )
+        )
+PY
+    rm -f "$dot_segment_input"
+}
+
 require_workflows_do_not_reference() {
     local needle="$1"
     local label="$2"
@@ -1228,7 +1273,8 @@ require_workflows_do_not_reference() {
             { strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
-                grep -F -n "$needle" || true
+                normalize_workflow_dot_segments |
+                awk -v needle="$needle" 'index($0, needle) { print NR ":" $0 }' || true
         done
     )"
     if [ -n "$matches" ]; then
@@ -1257,7 +1303,8 @@ require_workflows_do_not_match() {
             { strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths; fold_yaml_run_blocks "$workflow_file"; } |
                 tr '\\' '/' |
                 tr '[:upper:]' '[:lower:]' |
-                grep -E -n "$pattern" || true
+                normalize_workflow_dot_segments |
+                awk -v pattern="$pattern" '$0 ~ pattern { print NR ":" $0 }' || true
         done
     )"
     if [ -n "$matches" ]; then
@@ -1313,8 +1360,8 @@ check_no_workflow_publication_semantics() {
         [ -f "$workflow_file" ] || continue
         rel_path="${workflow_file#$ROOT_DIR/}"
         stripped_text="$(strip_yaml_comments "$workflow_file" | decode_yaml_publication_paths)"
-        normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
-        folded_run_text="$(fold_yaml_run_blocks "$workflow_file" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
+        normalized_text="$(printf '%s\n' "$stripped_text" | tr '\\' '/' | tr '[:upper:]' '[:lower:]' | normalize_workflow_dot_segments)"
+        folded_run_text="$(fold_yaml_run_blocks "$workflow_file" | tr '\\' '/' | tr '[:upper:]' '[:lower:]' | normalize_workflow_dot_segments)"
         dynamic_block_path_matches="$(
             printf '%s\n' "$normalized_text" |
                 awk '

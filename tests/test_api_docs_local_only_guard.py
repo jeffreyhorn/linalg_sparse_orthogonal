@@ -142,6 +142,22 @@ def test_workflow_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API HTML output path")
 
 
+def test_workflow_dot_segment_generated_api_path_fails_clearly() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: ls docs/./api/html\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API HTML output path")
+
+
 def test_workflow_quoted_hash_before_generated_api_path_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3226,6 +3242,7 @@ def main() -> None:
     test_current_tree_passes_guard()
     test_fixture_passes_guard()
     test_workflow_generated_api_path_fails_clearly()
+    test_workflow_dot_segment_generated_api_path_fails_clearly()
     test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
     test_workflow_escaped_run_generated_api_path_fails_clearly()
     test_workflow_escaped_env_generated_api_path_fails_clearly()

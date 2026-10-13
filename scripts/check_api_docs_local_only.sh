@@ -84,6 +84,7 @@ import sys
 sys.path.insert(0, sys.argv[1])
 from api_docs_workflow_yaml_common import (
     decode_plain_value,
+    decode_value,
     quoted_scalar_continues,
     quoted_value_tail,
     strip_shell_comment_stateful,
@@ -105,8 +106,46 @@ def complete_quoted_scalar(value):
     scalar_body, _ = parsed
     return stripped[0] + scalar_body + stripped[0]
 
+def line_ends_with_unescaped_backslash(line):
+    backslashes = 0
+    for char in reversed(line):
+        if char != "\\":
+            break
+        backslashes += 1
+    return backslashes % 2 == 1
+
+def fold_quoted_scalar_body(body, quote):
+    lines = body.splitlines()
+    if not lines:
+        return body
+
+    folded = []
+    current = None
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if current is not None:
+                folded.append(current)
+                current = None
+            folded.append("")
+            continue
+        if current is None:
+            current = line
+        elif quote == '"' and line_ends_with_unescaped_backslash(current):
+            current = current[:-1] + line
+        else:
+            current += " " + line
+
+    if current is not None:
+        folded.append(current)
+    return "\n".join(folded)
+
 def print_decoded_run_scalar(prefix, parts):
-    decoded = decode_plain_value(complete_quoted_scalar("\n".join(parts)))
+    scalar = complete_quoted_scalar("\n".join(parts)).strip()
+    if len(scalar) >= 2 and scalar[0] == scalar[-1] and scalar[0] in "'\"":
+        decoded = decode_value(fold_quoted_scalar_body(scalar[1:-1], scalar[0]), scalar[0])
+    else:
+        decoded = decode_plain_value(scalar)
     run_shell_state = (False, False, False)
     for decoded_line in decoded.splitlines():
         if not decoded_line.strip():

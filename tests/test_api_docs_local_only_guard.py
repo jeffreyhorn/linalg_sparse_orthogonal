@@ -2982,6 +2982,30 @@ def test_workflow_multiline_single_quoted_run_shell_comment_is_allowed() -> None
             raise AssertionError(result.stdout + result.stderr)
 
 
+def test_workflow_multiline_single_quoted_run_folded_shell_comment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: 'echo ok # harmless\n"
+            "          docs/api/html remains local-only'\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_multiline_double_quoted_run_shell_comment_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -3381,6 +3405,7 @@ def main() -> None:
     test_workflow_control_operator_shell_comment_is_allowed()
     test_workflow_quoted_run_shell_comment_is_allowed()
     test_workflow_multiline_single_quoted_run_shell_comment_is_allowed()
+    test_workflow_multiline_single_quoted_run_folded_shell_comment_is_allowed()
     test_workflow_multiline_double_quoted_run_shell_comment_is_allowed()
     test_workflow_multiline_single_quoted_run_trailing_yaml_comment_is_allowed()
     test_workflow_multiline_double_quoted_run_trailing_yaml_comment_is_allowed()

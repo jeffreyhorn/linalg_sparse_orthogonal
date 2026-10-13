@@ -809,6 +809,10 @@ def flow_run_entry(line, open_flow_indent=None):
             return None
         flow_indent = open_flow_indent
         index = line_indent
+        while index < len(line) and line[index] in " \t,":
+            index += 1
+        if index < len(line) and line[index] == "{":
+            index += 1
     else:
         return None
     while index < len(line):
@@ -988,6 +992,8 @@ while index < len(lines):
         elif re.match(r"^[ ]*steps[ ]*:[ ]*\[", line, re.IGNORECASE):
             flow_start = line.find("{")
             if flow_start != -1 and flow_mapping_balance(line[flow_start:]) > 0:
+                open_flow_indent = len(line) - len(line.lstrip(" "))
+            elif flow_start == -1 and not re.search(r"\]", line):
                 open_flow_indent = len(line) - len(line.lstrip(" "))
         elif open_flow_indent is not None and flow_mapping_balance(line.lstrip()) < 0:
             open_flow_indent = None

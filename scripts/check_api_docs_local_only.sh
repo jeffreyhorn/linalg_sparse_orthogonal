@@ -744,6 +744,27 @@ def flow_mapping_balance(value):
             balance -= 1
     return balance
 
+ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
+NODE_ANCHOR_PATTERN = re.compile(
+    r"^\s*(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s+(?P<value>.+)$"
+    % ANCHOR_NAME_PATTERN,
+)
+RUN_ALIAS_PATTERN = re.compile(r"^\*(?P<alias>%s)\s*$" % ANCHOR_NAME_PATTERN)
+
+def decode_anchor_value(value):
+    stripped = value.strip()
+    if len(stripped) >= 2 and stripped[0] == "'" and stripped[-1] == "'":
+        return decode_value(stripped[1:-1], "'")
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        return decode_value(stripped[1:-1], '"')
+    return stripped
+
+def register_run_anchor(line, anchors):
+    anchor_match = NODE_ANCHOR_PATTERN.match(line)
+    if anchor_match is None:
+        return
+    anchors[anchor_match.group("anchor")] = decode_anchor_value(anchor_match.group("value"))
+
 def run_key_entry(line):
     prefix_match = re.match(r"^([ ]*)(?:-[ ]*)?", line)
     index = len(prefix_match.group(0))
@@ -970,8 +991,10 @@ def normalize_shell_words(line):
 
 index = 0
 open_flow_indent = None
+run_anchors = {}
 while index < len(lines):
     line = strip_yaml_comment(lines[index])
+    register_run_anchor(line, run_anchors)
     if open_flow_indent is not None and line.strip():
         line_indent = len(line) - len(line.lstrip(" "))
         if line_indent <= open_flow_indent:
@@ -1011,6 +1034,9 @@ while index < len(lines):
         value = run_entry[1]
     if flow_run:
         value = flow_member_value(value)
+    alias_match = RUN_ALIAS_PATTERN.match(value.strip())
+    if alias_match is not None:
+        value = run_anchors.get(alias_match.group("alias"), value)
     style_match = re.match(r"([>|])", value)
     style = style_match.group(1) if style_match else None
     index += 1

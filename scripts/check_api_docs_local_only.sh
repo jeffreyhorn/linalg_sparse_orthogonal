@@ -868,14 +868,65 @@ def run_key_entry(line):
         return None
     return key_column, line[index + 1:].strip()
 
+def steps_flow_sequence_entry(line):
+    indent = len(line) - len(line.lstrip(" "))
+    index = indent
+    if index >= len(line):
+        return None
+    if line[index] in "'\"":
+        quote = line[index]
+        index += 1
+        key_parts = []
+        escaped = False
+        while index < len(line):
+            char = line[index]
+            if quote == '"' and escaped:
+                key_parts.append("\\" + char)
+                escaped = False
+                index += 1
+                continue
+            if quote == '"' and char == "\\":
+                escaped = True
+                index += 1
+                continue
+            if quote == "'" and char == "'" and index + 1 < len(line) and line[index + 1] == "'":
+                key_parts.append("''")
+                index += 2
+                continue
+            if char == quote:
+                break
+            key_parts.append(char)
+            index += 1
+        if index >= len(line):
+            return None
+        key = decode_value("".join(key_parts), quote)
+        index += 1
+    else:
+        key_start = index
+        while index < len(line) and line[index] not in ":,{}[]":
+            index += 1
+        key = line[key_start:index].strip()
+    while index < len(line) and line[index].isspace():
+        index += 1
+    if index >= len(line) or line[index] != ":":
+        return None
+    if key.lower() != "steps":
+        return None
+    index += 1
+    while index < len(line) and line[index].isspace():
+        index += 1
+    if index >= len(line) or line[index] != "[":
+        return None
+    return indent, index + 1
+
 def flow_run_entry(line, open_flow_indent=None):
     start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
     if start_match is not None:
         flow_indent = len(start_match.group(1))
         index = line.find("{", start_match.end() - 1) + 1
-    elif re.match(r"^[ ]*steps[ ]*:[ ]*\[", line, re.IGNORECASE):
-        flow_indent = len(line) - len(line.lstrip(" "))
-        flow_start = line.find("{")
+    elif (steps_entry := steps_flow_sequence_entry(line)) is not None:
+        flow_indent, sequence_start = steps_entry
+        flow_start = line.find("{", sequence_start)
         if flow_start == -1:
             return None
         index = flow_start + 1
@@ -1079,12 +1130,13 @@ while index < len(lines):
             remainder = line[line.find("{", start_match.end() - 1):]
             if flow_mapping_balance(remainder) > 0:
                 open_flow_indent = len(start_match.group(1))
-        elif re.match(r"^[ ]*steps[ ]*:[ ]*\[", line, re.IGNORECASE):
-            flow_start = line.find("{")
+        elif (steps_entry := steps_flow_sequence_entry(line)) is not None:
+            steps_indent, sequence_start = steps_entry
+            flow_start = line.find("{", sequence_start)
             if flow_start != -1 and flow_mapping_balance(line[flow_start:]) > 0:
-                open_flow_indent = len(line) - len(line.lstrip(" "))
+                open_flow_indent = steps_indent
             elif flow_start == -1 and not re.search(r"\]", line):
-                open_flow_indent = len(line) - len(line.lstrip(" "))
+                open_flow_indent = steps_indent
         elif open_flow_indent is not None and flow_mapping_balance(line.lstrip()) < 0:
             open_flow_indent = None
         index += 1

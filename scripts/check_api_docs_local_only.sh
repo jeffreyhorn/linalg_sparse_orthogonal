@@ -867,7 +867,12 @@ def anchored_block_entry(line):
         return None
     key = match.group("key")
     if key is not None:
-        key = key.strip("'\"").lower()
+        key = key.strip()
+        if len(key) >= 2 and key[0] == "'" and key[-1] == "'":
+            key = decode_value(key[1:-1], "'")
+        elif len(key) >= 2 and key[0] == '"' and key[-1] == '"':
+            key = decode_value(key[1:-1], '"')
+        key = key.lower()
     return len(match.group("indent")), key, match.group("anchor"), match.group("style")
 
 def render_anchored_block(lines, start_index, boundary_column, style):

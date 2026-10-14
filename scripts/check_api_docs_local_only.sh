@@ -1702,6 +1702,7 @@ check_no_workflow_publication_semantics() {
     local dynamic_publication_path_regex
     local dynamic_command_publication_regex
     local dynamic_staging_command_regex
+    local dynamic_powershell_staging_regex
     local broad_inline_path_regex
     local dynamic_inline_path_regex
     local stripped_text
@@ -1727,6 +1728,7 @@ check_no_workflow_publication_semantics() {
     dynamic_staging_command_regex='(^|[[:space:]])(cp|mv|rsync)([[:space:]]+-[^[:space:]]+)*[[:space:]]+["'"'"']?[^"'"'"';&|[:space:]]*([$][(]|[$][A-Za-z_][A-Za-z0-9_]*|[$][{][^}]+[}]|[$][{][{][^}]+[}][}])[^"'"'"';&|[:space:]]*["'"'"']?([/[:space:]]|$)'
     broad_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?(\.|[.]/|[.]/[*][*]|[*][*]([/][*])?|/|([.]/)?([^[:space:],"'"'"'}]+/)*([.][.]/)?docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*|[$][{][{][[:space:]]*github[.]workspace[[:space:]]*[}][}]/?(/docs($|[/.]|[*]|["'"'"',}])[^[:space:],"'"'"'}]*)?)["'"'"']?([[:space:],}]|$)'
     dynamic_inline_path_regex='(^|[,{][[:space:]]*)["'"'"']?(path|publish_dir|publish-dir|directory|folder|files|asset_path)["'"'"']?[[:space:]]*:[^,}]*([$][{][{]|[$][a-z_][a-z0-9_]*|[%][a-z_][a-z0-9_]*[%])'
+    dynamic_powershell_staging_regex='(^|[[:space:]])(copy-item|move-item|compress-archive)[[:space:]][^;&|]*([$][(]|[$][a-z_][a-z0-9_:]*|[$][{][^}]+[}])'
 
     for workflow_file in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
         [ -f "$workflow_file" ] || continue
@@ -1782,7 +1784,9 @@ check_no_workflow_publication_semantics() {
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&
             { printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_staging_command_regex" ||
-                printf '%s\n' "$folded_run_text" | grep -Eq "$dynamic_staging_command_regex"; }; then
+                printf '%s\n' "$folded_run_text" | grep -Eq "$dynamic_staging_command_regex" ||
+                printf '%s\n' "$normalized_text" | grep -Eq "$dynamic_powershell_staging_regex" ||
+                printf '%s\n' "$folded_run_text" | grep -Eq "$dynamic_powershell_staging_regex"; }; then
             fail "$rel_path uses dynamic staging paths while generated API HTML is local-only"
         fi
         if printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex" &&

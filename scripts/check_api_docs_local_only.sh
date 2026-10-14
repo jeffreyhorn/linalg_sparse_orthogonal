@@ -1299,7 +1299,86 @@ def normalize_shell_words(line):
         normalized.append("\\")
     return "".join(normalized)
 
-def emit_shell_lines(logical_lines):
+def mapping_entry(line):
+    match = re.match(r"^(?P<indent> *)(?:-[ ]*)?(?P<key>\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[A-Za-z_][\w-]*)\s*:\s*(?P<value>.*)$", strip_yaml_comment(line))
+    if match is None:
+        return None
+    key = match.group("key")
+    if key.startswith(("'", '"')):
+        key = decode_value(key[1:-1], key[0])
+    value = match.group("value").strip()
+    if value.startswith(("'", '"')) and value.endswith(value[0]):
+        value = decode_value(value[1:-1], value[0])
+    return len(match.group("indent")), key.lower(), value
+
+def scope_end(start, indent):
+    for cursor in range(start + 1, len(lines)):
+        if lines[cursor].strip() and len(lines[cursor]) - len(lines[cursor].lstrip(" ")) <= indent:
+            return cursor
+    return len(lines)
+
+def effective_run_shell(run_index, run_column):
+    steps_index = next(
+        (cursor for cursor in range(run_index, -1, -1)
+         if (entry := mapping_entry(lines[cursor])) is not None
+         and entry[1] == "steps" and entry[0] < run_column
+         and scope_end(cursor, entry[0]) > run_index),
+        None,
+    )
+    step_shell = None
+    job_shell = None
+    windows_runner = False
+    if steps_index is not None:
+        step_index = next(
+            (cursor for cursor in range(run_index, steps_index, -1)
+             if re.match(r"^\s*-\s+", lines[cursor])
+             and len(lines[cursor]) - len(lines[cursor].lstrip(" ")) < run_column),
+            None,
+        )
+        if step_index is not None:
+            step_indent = len(lines[step_index]) - len(lines[step_index].lstrip(" "))
+            for cursor in range(step_index, scope_end(step_index, step_indent)):
+                entry = mapping_entry(lines[cursor])
+                if entry is not None and entry[1] == "shell" and entry[0] <= run_column:
+                    step_shell = entry[2]
+                    break
+        job_index = next(
+            (cursor for cursor in range(steps_index - 1, -1, -1)
+             if (entry := mapping_entry(lines[cursor])) is not None
+             and entry[0] < mapping_entry(lines[steps_index])[0]
+             and scope_end(cursor, entry[0]) > steps_index),
+            None,
+        )
+        if job_index is not None:
+            job_indent = mapping_entry(lines[job_index])[0]
+            job_end = scope_end(job_index, job_indent)
+            job_key_indent = mapping_entry(lines[steps_index])[0]
+            for cursor in range(job_index + 1, job_end):
+                entry = mapping_entry(lines[cursor])
+                if entry is None or entry[0] != job_key_indent:
+                    continue
+                if entry[1] == "runs-on" and "windows" in entry[2].lower():
+                    windows_runner = True
+                if entry[1] == "defaults":
+                    defaults_end = scope_end(cursor, entry[0])
+                    for nested in range(cursor + 1, defaults_end):
+                        candidate = mapping_entry(lines[nested])
+                        if candidate is not None and candidate[1] == "shell":
+                            job_shell = candidate[2]
+                            break
+    workflow_shell = None
+    for cursor, line in enumerate(lines):
+        entry = mapping_entry(line)
+        if entry is not None and entry[1] == "defaults" and entry[0] == 0:
+            for nested in range(cursor + 1, scope_end(cursor, 0)):
+                candidate = mapping_entry(lines[nested])
+                if candidate is not None and candidate[1] == "shell":
+                    workflow_shell = candidate[2]
+                    break
+    shell = step_shell or job_shell or workflow_shell or ("pwsh" if windows_runner else "bash")
+    return shell.split()[0].lower() in ("pwsh", "powershell")
+
+def emit_shell_lines(logical_lines, powershell=False):
     pending = ""
     pending_state = None
     shell_state = (False, False, False)
@@ -1326,7 +1405,12 @@ def emit_shell_lines(logical_lines):
             current,
             scan_state,
         )
-        if stripped.endswith("\\"):
+        continuation = "`" if powershell else "\\"
+        trailing = len(stripped) - len(stripped.rstrip(continuation))
+        continues = trailing % 2 == 1 and (
+            not powershell or logical_line.endswith("`")
+        )
+        if continues:
             pending = stripped[:-1]
             pending_state = scan_state
         else:
@@ -1353,6 +1437,7 @@ index = 0
 open_flow_indent = None
 run_anchors = {}
 while index < len(lines):
+    run_index = index
     line = strip_yaml_comment(lines[index])
     block_anchor = anchored_block_entry(line)
     if block_anchor is not None:
@@ -1365,7 +1450,7 @@ while index < len(lines):
         )
         run_anchors[anchor] = rendered_block
         if key == "run":
-            emit_shell_lines(rendered_block.split("\n"))
+            emit_shell_lines(rendered_block.split("\n"), effective_run_shell(run_index, boundary_column))
         continue
     index, registered_anchor = register_run_anchor(lines, index, run_anchors)
     if open_flow_indent is not None and line.strip():
@@ -1406,6 +1491,7 @@ while index < len(lines):
         run_key_column = run_entry[0]
         boundary_column = run_key_column
         value = run_entry[1]
+    powershell = effective_run_shell(run_index, run_key_column)
     if flow_run:
         value = flow_member_value(value)
     decoded_anchor = registered_anchor is not None
@@ -1574,7 +1660,7 @@ while index < len(lines):
                     paragraph.append(scalar_line)
             if paragraph:
                 logical_lines.append(" ".join(paragraph))
-            emit_shell_lines(logical_lines)
+            emit_shell_lines(logical_lines, powershell)
         continue
 
     if not block_lines:
@@ -1582,8 +1668,8 @@ while index < len(lines):
 
     if style == "|":
         emit_shell_lines(
-            block_line[1] if block_line is not None else None
-            for block_line in block_lines
+            (block_line[1] if block_line is not None else None
+             for block_line in block_lines), powershell
         )
     else:
         nonblank_indents = [
@@ -1609,7 +1695,7 @@ while index < len(lines):
                 paragraph.append(content)
         if paragraph:
             folded_lines.append(" ".join(paragraph))
-        emit_shell_lines(folded_lines)
+        emit_shell_lines(folded_lines, powershell)
 PY
 }
 

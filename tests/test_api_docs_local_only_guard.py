@@ -2097,6 +2097,46 @@ def test_workflow_powershell_docs_publication_commands() -> None:
                 raise AssertionError(f"{command}: expected {expected!r}: {output}")
 
 
+def test_workflow_powershell_backtick_continuations() -> None:
+    cases = (
+        ("windows-latest", "", "", "      - shell: pwsh\n        run: |\n", "docs", "stages docs"),
+        ("windows-latest", "", "", "      - run: |\n", "docs", "stages docs"),
+        ("windows-latest", "", "", "      - run: |\n", "build", None),
+        ("ubuntu-latest", "defaults:\n  run:\n    shell: pwsh\n", "", "      - run: |\n", "docs", "stages docs"),
+        ("ubuntu-latest", "", "    defaults:\n      run:\n        shell: powershell\n", "      - run: |\n", "docs", "stages docs"),
+        ("windows-latest", "", "", "      - shell: bash\n        run: |\n", "docs", None),
+    )
+    for runner, workflow_defaults, job_defaults, step_header, source, expected in cases:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture(root)
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: windows-artifacts\n"
+                "on: [push]\n"
+                f"{workflow_defaults}"
+                "jobs:\n"
+                "  build:\n"
+                f"    runs-on: {runner}\n"
+                f"{job_defaults}"
+                "    steps:\n"
+                f"{step_header}"
+                "          Copy-Item -Recurse -Path `\n"
+                f"            {source} -Destination artifact\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+            result = run_guard(root)
+            output = result.stdout + result.stderr
+            if expected is None:
+                if result.returncode != 0:
+                    raise AssertionError(output)
+            elif result.returncode == 0 or expected not in output:
+                raise AssertionError(f"expected {expected!r}: {output}")
+
+
 def test_workflow_staged_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3873,6 +3913,7 @@ def main() -> None:
     test_workflow_gh_release_upload_docs_glob_fails_clearly()
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
     test_workflow_powershell_docs_publication_commands()
+    test_workflow_powershell_backtick_continuations()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()
     test_workflow_folded_staged_docs_artifact_upload_fails_clearly()

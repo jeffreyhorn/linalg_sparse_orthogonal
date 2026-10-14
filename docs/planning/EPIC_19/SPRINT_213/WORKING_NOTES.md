@@ -28,7 +28,7 @@ freshness, routing, retention, and stale-output controls.
 | 213.3 Automation Implementation | Implement workflow, retention, route, staging, or stronger local-only guard behavior for the selected policy. | Functionally complete for selected automation path; Day 7 hardens routing required text and Day 8 hardens folded workflow staging/archive detection. |
 | 213.4 Routing And Guard Tests | Add tests for publication links, generated-output staging, workflow references, and source-controlled route coverage. | Complete for main bypass categories; Day 7 adds routing regressions, Day 8 adds folded staging/archive regressions, Day 9 adds encoded HTML-anchor route/link regressions, and Day 10 adds quote-aware workflow literal and `.yaml` coverage. |
 | 213.5 User And Maintainer Docs | Update API reference, README, INSTALL, maintainer guide, and generated API evidence docs. | Complete; Day 11 completes user-facing docs and Day 12 completes maintainer repair/residual guidance for stronger local-only generated API closure. |
-| 213.6 Validation And Closeout | Run docs-check, api-docs-freshness, routing/local-only tests, workflow checks, and full C gate if headers changed. | Complete; Days 13-14 pass `make docs-check`, focused API docs regression suites, `make api-docs-freshness`, closeout reconciliation, and whitespace/status checks. Full C gate is skipped because no `.c` or `.h` files changed. |
+| 213.6 Validation And Closeout | Run docs-check, api-docs-freshness, routing/local-only tests, workflow checks, and the full C gate when C/header files change. | Complete; Days 13-14 pass the API docs checks and closeout reconciliation. Post-closeout C test changes were validated with `make format && make lint && make test`. |
 
 ## Day 1: Generated API Evidence Intake
 
@@ -1163,7 +1163,7 @@ artifacts, or commit generated HTML.
 | 213.3 Automation Implementation | Complete | Days 7-8 harden routing required-text checks and folded workflow staging/archive detection for the selected policy. |
 | 213.4 Routing And Guard Tests | Complete | Days 7-10 add generated-output, hosted/publication, encoded-link, folded-command, quote-aware workflow, and `.yaml` workflow regressions. |
 | 213.5 User And Maintainer Docs | Complete | Days 11-12 update README, INSTALL, API reference, maintainer guide, and Epic 19 status/residual wording. |
-| 213.6 Validation And Closeout | Complete | Days 13-14 record integrated validation, final status reconciliation, residual options, and the no-C/header full-gate decision. |
+| 213.6 Validation And Closeout | Complete | Days 13-14 record integrated validation, final status reconciliation, and residual options; post-closeout C test changes also passed the full C gate. |
 
 ### Final Evidence
 
@@ -1190,10 +1190,11 @@ Closeout validation passed:
 - `python3 tests/test_api_docs_routing.py`;
 - `make api-docs-freshness`;
 - `git diff --check`;
-- `git diff --name-only -- '*.c' '*.h'`.
+- `make format && make lint && make test` after the PR changed `tests/test_ldlt.c` and `tests/test_reorder_nd.c`.
 
-No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
-`make format && make lint && make test` is not required by the sprint rule.
+The Day 14 no-C/header exemption applied to the original closeout snapshot,
+not to the final PR revision. The C test changes were validated in the
+post-closeout CI fix (`a5e4692e`).
 
 ### Residual Risks And Non-Claims
 

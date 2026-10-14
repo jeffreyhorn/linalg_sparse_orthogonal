@@ -909,7 +909,8 @@ def anchored_block_entry(line):
         elif len(key) >= 2 and key[0] == '"' and key[-1] == '"':
             key = decode_value(key[1:-1], '"')
         key = key.lower()
-    return len(match.group("indent")), key, match.group("anchor"), match.group("style")
+    boundary_column = match.start("key") if key is not None else len(match.group("indent"))
+    return boundary_column, key, match.group("anchor"), match.group("style")
 
 def render_anchored_block(lines, start_index, boundary_column, style):
     raw_block_lines = []
@@ -936,12 +937,13 @@ def render_anchored_block(lines, start_index, boundary_column, style):
             block_lines.append(None)
             continue
         _, raw_content = block_line
-        block_lines.append(
+        block_lines.append((
+            block_line[0],
             raw_content[content_indent:] if content_indent is not None else raw_content,
-        )
+        ))
 
     if style == "|":
-        return "\n".join(line if line is not None else "" for line in block_lines), index
+        return "\n".join(line[1] if line is not None else "" for line in block_lines), index
 
     paragraphs = []
     paragraph = []
@@ -951,8 +953,15 @@ def render_anchored_block(lines, start_index, boundary_column, style):
                 paragraphs.append(" ".join(paragraph))
                 paragraph = []
             paragraphs.append("")
+            continue
+        line_indent, content = block_line
+        if line_indent > content_indent:
+            if paragraph:
+                paragraphs.append(" ".join(paragraph))
+                paragraph = []
+            paragraphs.append(content)
         else:
-            paragraph.append(block_line.strip())
+            paragraph.append(content)
     if paragraph:
         paragraphs.append(" ".join(paragraph))
     return "\n".join(paragraphs), index
@@ -1245,7 +1254,11 @@ def normalize_shell_words(line):
                 continue
             prev_char = line[index - 1] if index > 0 else ""
             next_char = line[index + 1] if index + 1 < len(line) else ""
-            if in_single or (
+            quoted_command = (
+                re.search(r"(?:^|[;&|])\s*$", "".join(normalized)) is not None
+                and re.match(r"'[A-Za-z_][A-Za-z0-9_-]*'(?=\s|[;&|]|$)", line[index:]) is not None
+            )
+            if in_single or quoted_command or (
                 prev_char
                 and next_char
                 and is_shell_word_char(prev_char)
@@ -1263,7 +1276,11 @@ def normalize_shell_words(line):
                 continue
             prev_char = line[index - 1] if index > 0 else ""
             next_char = line[index + 1] if index + 1 < len(line) else ""
-            if in_double or (
+            quoted_command = (
+                re.search(r"(?:^|[;&|])\s*$", "".join(normalized)) is not None
+                and re.match(r'"[A-Za-z_][A-Za-z0-9_-]*"(?=\s|[;&|]|$)', line[index:]) is not None
+            )
+            if in_double or quoted_command or (
                 prev_char
                 and next_char
                 and is_shell_word_char(prev_char)

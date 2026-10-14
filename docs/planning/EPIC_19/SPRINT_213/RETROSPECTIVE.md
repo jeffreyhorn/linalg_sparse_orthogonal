@@ -43,7 +43,8 @@ status without publishing generated API HTML.
 - [x] Updated README, INSTALL, API reference, maintainer guide, and Epic 19
       project-plan wording for stronger local-only generated API closure.
 - [x] Ran generated API docs checks, focused regression suites, aggregate
-      freshness validation, whitespace validation, and no-C/header checks.
+      freshness validation, whitespace validation, and the full C quality gate
+      after post-closeout C test changes.
 
 ## What Went Well
 
@@ -99,10 +100,11 @@ status without publishing generated API HTML.
 | `python3 tests/test_api_docs_routing.py` | passed |
 | `make api-docs-freshness` | passed |
 | final `git diff --check` | passed |
-| final `git diff --name-only -- '*.c' '*.h'` | no C/header changes |
+| `make format && make lint && make test` | passed after the PR added two C test changes |
 
-No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
-`make format && make lint && make test` was not required by the sprint rule.
+The original Day 14 snapshot had no C/header changes. The final PR includes
+`tests/test_ldlt.c` and `tests/test_reorder_nd.c`; their post-closeout CI fix
+passed the full C quality gate (`a5e4692e`).
 
 ### Generated API Policy Metrics
 
@@ -136,7 +138,7 @@ No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
 | Local-only guard test files changed | 1 |
 | Routing guard test files changed | 1 |
 | Public API/ABI declarations changed | 0 |
-| C/header files changed | 0 |
+| C/header files changed in final PR | 2 |
 
 ### Line Snapshot
 

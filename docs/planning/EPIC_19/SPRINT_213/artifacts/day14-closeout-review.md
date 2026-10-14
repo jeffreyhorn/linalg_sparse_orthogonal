@@ -32,7 +32,7 @@ artifacts, or commit generated HTML.
 | 213.3 Automation Implementation | Complete | Days 7-8 harden routing required-text checks and folded workflow staging/archive detection for the selected policy. |
 | 213.4 Routing And Guard Tests | Complete | Days 7-10 add generated-output, hosted/publication, encoded-link, folded-command, quote-aware workflow, and `.yaml` workflow regressions. |
 | 213.5 User And Maintainer Docs | Complete | Days 11-12 update README, INSTALL, API reference, maintainer guide, and Epic 19 status/residual wording. |
-| 213.6 Validation And Closeout | Complete | Days 13-14 record integrated validation, final status reconciliation, residual options, and the no-C/header full-gate decision. |
+| 213.6 Validation And Closeout | Complete | Days 13-14 record integrated validation, final status reconciliation, and residual options; post-closeout C test changes also passed the full C gate. |
 
 ## Final Evidence
 
@@ -59,10 +59,11 @@ artifacts, or commit generated HTML.
 | `python3 tests/test_api_docs_routing.py` | Passed | Source-controlled route, generated/hosted publication link, encoded-link, and docs-marker regression suite. |
 | `make api-docs-freshness` | Passed | Aggregate generated API freshness, local-only, and routing validation. |
 | `git diff --check` | Passed | Whitespace validation. |
-| `git diff --name-only -- '*.c' '*.h'` | Passed | Confirms no C/header files changed. |
+| `make format && make lint && make test` | Passed after closeout | Validates the two C test changes added in the PR CI fix. |
 
-No `.c` or `.h` files changed during Sprint 213, so the full C quality gate
-`make format && make lint && make test` is not required by the sprint rule.
+At the Day 14 snapshot, no C/header files had changed. The final PR later
+changed `tests/test_ldlt.c` and `tests/test_reorder_nd.c`; the full C quality
+gate passed for those changes in the post-closeout CI fix (`a5e4692e`).
 
 ## Residual Risks And Non-Claims
 

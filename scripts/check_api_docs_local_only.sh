@@ -1216,6 +1216,9 @@ def normalize_shell_words(line):
     in_double = False
     escaped = False
     index = 0
+    def is_shell_word_char(char):
+        return char not in " \t\r\n;&|()<>"
+
     while index < len(line):
         char = line[index]
         if escaped:
@@ -1231,7 +1234,17 @@ def normalize_shell_words(line):
             if index + 1 < len(line) and line[index + 1] == "'":
                 index += 2
                 continue
-            normalized.append(char)
+            prev_char = line[index - 1] if index > 0 else ""
+            next_char = line[index + 1] if index + 1 < len(line) else ""
+            if in_single or (
+                prev_char
+                and next_char
+                and is_shell_word_char(prev_char)
+                and is_shell_word_char(next_char)
+            ):
+                pass
+            else:
+                normalized.append(char)
             in_single = not in_single
             index += 1
             continue
@@ -1239,7 +1252,17 @@ def normalize_shell_words(line):
             if index + 1 < len(line) and line[index + 1] == '"':
                 index += 2
                 continue
-            normalized.append(char)
+            prev_char = line[index - 1] if index > 0 else ""
+            next_char = line[index + 1] if index + 1 < len(line) else ""
+            if in_double or (
+                prev_char
+                and next_char
+                and is_shell_word_char(prev_char)
+                and is_shell_word_char(next_char)
+            ):
+                pass
+            else:
+                normalized.append(char)
             in_double = not in_double
             index += 1
             continue

@@ -219,10 +219,16 @@ static void test_nd_4x4_grid_valid_permutation(void) {
         goto cleanup;
     ASSERT_TRUE(sep_count > 0);
     ASSERT_TRUE(sep_count <= 16);
+    if (sep_count <= 0 || sep_count > 16)
+        goto cleanup;
     /* Every vertex in the tail slice perm[16-sep_count .. 16) must
      * be labeled `2` by the partitioner. */
-    for (idx_t i = 16 - sep_count; i < 16; i++)
+    for (idx_t i = 16 - sep_count; i < 16; i++) {
+        ASSERT_TRUE(perm[i] >= 0 && perm[i] < G.n);
+        if (perm[i] < 0 || perm[i] >= G.n)
+            goto cleanup;
         ASSERT_EQ(part[perm[i]], 2);
+    }
 
 cleanup:
     free(part);

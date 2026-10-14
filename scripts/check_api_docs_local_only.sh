@@ -796,16 +796,70 @@ BLOCK_ANCHOR_PATTERN = re.compile(
 def decode_anchor_value(value):
     stripped = value.strip()
     if len(stripped) >= 2 and stripped[0] == "'" and stripped[-1] == "'":
-        return decode_value(stripped[1:-1], "'")
+        return decode_value(fold_quoted_anchor_body(stripped[1:-1], "'"), "'")
     if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
-        return decode_value(stripped[1:-1], '"')
+        return decode_value(fold_quoted_anchor_body(stripped[1:-1], '"'), '"')
     return stripped
 
-def register_run_anchor(line, anchors):
+def anchor_line_continues(value):
+    stripped = value.strip()
+    if not stripped or stripped[0] not in "'\"":
+        return False
+    return quoted_scalar_continues(stripped) is not None
+
+def line_ends_with_unescaped_backslash(line):
+    backslashes = 0
+    for char in reversed(line):
+        if char != "\\":
+            break
+        backslashes += 1
+    return backslashes % 2 == 1
+
+def fold_quoted_anchor_body(body, quote):
+    lines = body.splitlines()
+    if not lines:
+        return body
+    folded = []
+    current = None
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if current is not None:
+                folded.append(current)
+                current = None
+            folded.append("")
+            continue
+        if current is None:
+            current = line
+        elif quote == '"' and line_ends_with_unescaped_backslash(current):
+            current = current[:-1] + line
+        else:
+            current += " " + line
+    if current is not None:
+        folded.append(current)
+    return "\n".join(folded)
+
+def register_run_anchor(lines, index, anchors):
+    line = lines[index]
     anchor_match = NODE_ANCHOR_PATTERN.match(line)
     if anchor_match is None:
-        return
-    anchors[anchor_match.group("anchor")] = decode_anchor_value(anchor_match.group("value"))
+        return index
+    value_parts = [anchor_match.group("value").strip()]
+    boundary_column = len(line) - len(line.lstrip(" "))
+    next_index = index + 1
+    while anchor_line_continues("\n".join(value_parts)) and next_index < len(lines):
+        candidate = lines[next_index]
+        if not candidate.strip():
+            value_parts.append("")
+            next_index += 1
+            continue
+        line_indent = len(candidate) - len(candidate.lstrip(" "))
+        if line_indent <= boundary_column:
+            break
+        value_parts.append(candidate.strip())
+        next_index += 1
+    anchors[anchor_match.group("anchor")] = decode_anchor_value("\n".join(value_parts))
+    return next_index - 1
 
 def anchored_block_entry(line):
     match = BLOCK_ANCHOR_PATTERN.match(line)
@@ -1222,7 +1276,7 @@ while index < len(lines):
         if key == "run":
             emit_shell_lines(rendered_block.split("\n"))
         continue
-    register_run_anchor(line, run_anchors)
+    index = register_run_anchor(lines, index, run_anchors)
     if open_flow_indent is not None and line.strip():
         line_indent = len(line) - len(line.lstrip(" "))
         if line_indent <= open_flow_indent:

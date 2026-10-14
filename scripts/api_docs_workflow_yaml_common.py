@@ -11,6 +11,10 @@ def strip_yaml_comment(line):
     skip_next = False
     value_start = 0
     comment_at = None
+    def starts_quoted_value(index):
+        prefix = line[value_start:index].strip()
+        return not prefix or re.fullmatch(r"&[^\s\[\]{} ,]+", prefix) is not None
+
     for index, char in enumerate(line):
         if skip_next:
             skip_next = False
@@ -30,13 +34,13 @@ def strip_yaml_comment(line):
                     skip_next = True
                     continue
                 in_single = False
-            elif line[value_start:index].strip() == "":
+            elif starts_quoted_value(index):
                 in_single = True
             continue
         if char == '"' and not in_single:
             if in_double:
                 in_double = False
-            elif line[value_start:index].strip() == "":
+            elif starts_quoted_value(index):
                 in_double = True
             continue
         if (

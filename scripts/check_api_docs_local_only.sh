@@ -879,7 +879,7 @@ def register_run_anchor(lines, index, anchors):
     line = lines[index]
     anchor_match = NODE_ANCHOR_PATTERN.match(line)
     if anchor_match is None:
-        return index
+        return index, None
     value_parts = [anchor_match.group("value").strip()]
     boundary_column = len(line) - len(line.lstrip(" "))
     next_index = index + 1
@@ -894,8 +894,9 @@ def register_run_anchor(lines, index, anchors):
             break
         value_parts.append(candidate.strip())
         next_index += 1
-    anchors[anchor_match.group("anchor")] = decode_anchor_value("\n".join(value_parts))
-    return next_index - 1
+    anchor = anchor_match.group("anchor")
+    anchors[anchor] = decode_anchor_value("\n".join(value_parts))
+    return next_index - 1, anchor
 
 def anchored_block_entry(line):
     match = BLOCK_ANCHOR_PATTERN.match(line)
@@ -1366,7 +1367,7 @@ while index < len(lines):
         if key == "run":
             emit_shell_lines(rendered_block.split("\n"))
         continue
-    index = register_run_anchor(lines, index, run_anchors)
+    index, registered_anchor = register_run_anchor(lines, index, run_anchors)
     if open_flow_indent is not None and line.strip():
         line_indent = len(line) - len(line.lstrip(" "))
         if line_indent <= open_flow_indent:
@@ -1407,10 +1408,13 @@ while index < len(lines):
         value = run_entry[1]
     if flow_run:
         value = flow_member_value(value)
+    decoded_anchor = registered_anchor is not None
+    if decoded_anchor:
+        value = run_anchors[registered_anchor]
     alias_match = RUN_ALIAS_PATTERN.match(value.strip())
     if alias_match is not None:
         value = run_anchors.get(alias_match.group("alias"), value)
-    style_match = re.match(r"([>|])", value)
+    style_match = re.match(r"([>|])", value) if not decoded_anchor else None
     style = style_match.group(1) if style_match else None
     index += 1
     block_lines = []
@@ -1556,7 +1560,8 @@ while index < len(lines):
                             scalar_lines[scalar_index],
                         )
                         break
-            scalar_lines = unquote_yaml_scalar_lines(scalar_lines)
+            if not decoded_anchor:
+                scalar_lines = unquote_yaml_scalar_lines(scalar_lines)
             logical_lines = []
             paragraph = []
             for scalar_line in scalar_lines:

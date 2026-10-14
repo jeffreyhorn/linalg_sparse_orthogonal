@@ -2880,6 +2880,75 @@ def test_workflow_aliased_multiline_quoted_run_docs_copy_artifact_upload_fails()
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_direct_anchored_quoted_hash_docs_copy_fails() -> None:
+    for command in (
+        '"printf \' # note\'; cp -R docs artifact/"',
+        "'printf \" # note\"; cp -R docs artifact/'",
+    ):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: generated-api\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  docs:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - run: &stage {command} # docs/api/html remains local-only\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: generated-api-html\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+
+        assert_guard_fails_with(mutate, "stages docs for publication")
+
+
+def test_workflow_direct_anchored_multiline_quoted_docs_copy_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: &stage \"cp -R\n"
+            "          docs artifact/\"\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: generated-api-html\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs for publication")
+
+
+def test_workflow_direct_anchored_quoted_trailing_comment_is_allowed() -> None:
+    for scalar in ('"echo ok"', "'echo ok'"):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            write_fixture(root)
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: build-artifact\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  package:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - run: &stage {scalar} # docs/api/html remains local-only\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: build-output\n"
+                "          path: build/\n",
+                encoding="utf-8",
+            )
+            result = run_guard(root)
+            if result.returncode != 0:
+                raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_aliased_folded_run_docs_copy_artifact_upload_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3841,6 +3910,9 @@ def main() -> None:
     test_workflow_double_quoted_yaml_hex_docs_copy_fails()
     test_workflow_aliased_escaped_run_docs_copy_artifact_upload_fails()
     test_workflow_aliased_multiline_quoted_run_docs_copy_artifact_upload_fails()
+    test_workflow_direct_anchored_quoted_hash_docs_copy_fails()
+    test_workflow_direct_anchored_multiline_quoted_docs_copy_fails()
+    test_workflow_direct_anchored_quoted_trailing_comment_is_allowed()
     test_workflow_aliased_folded_run_docs_copy_artifact_upload_fails()
     test_workflow_anchored_folded_run_docs_copy_artifact_upload_fails()
     test_workflow_quoted_copy_executable_stages_docs_fails()

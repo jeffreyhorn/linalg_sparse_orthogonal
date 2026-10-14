@@ -370,6 +370,9 @@ GENERIC_DOUBLE_FLOW_PATTERN = re.compile(
 GENERIC_SINGLE_FLOW_PATTERN = re.compile(
     r"(?P<prefix>(?:^|[{,\s])['\"]?[^:'\",{}\[\]]+['\"]?\s*:\s*)'(?P<value>(?:''|[^'])*)'",
 )
+GENERIC_SCALAR_START_PATTERN = re.compile(
+    r"^(\s*-?\s*(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^:'\",{}\[\]]+)\s*:\s*)(['\"])(.*)$",
+)
 ANCHOR_NAME_PATTERN = r"[^\s\[\]\{\},]+"
 NODE_ANCHOR_PATTERN = re.compile(
     r"^\s*(?:-\s*)?(?:['\"]?[^:'\"]+['\"]?\s*:\s*)?&(?P<anchor>%s)\s+(?P<value>(?:\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[^#,\]}]+))"
@@ -485,6 +488,9 @@ pending_anchored_value = None
 pending_key_prefix = None
 pending_key_quote = None
 pending_key_value = None
+pending_generic_prefix = None
+pending_generic_quote = None
+pending_generic_value = None
 pending_prefix = None
 pending_quote = None
 pending_value = None
@@ -569,6 +575,23 @@ for raw_line in sys.stdin:
         if not suffix.strip():
             continue
         line = suffix
+    if pending_generic_prefix is not None:
+        current = line.lstrip()
+        if pending_generic_value.endswith("\\"):
+            current = f"{pending_generic_value[:-1]}{current}"
+        else:
+            current = f"{pending_generic_value} {current}"
+        tail = quoted_value_tail(current, pending_generic_quote)
+        if tail is None:
+            pending_generic_value = current
+            continue
+        value, suffix = tail
+        decoded = decode_value(value, pending_generic_quote)
+        print(normalize_aliases_and_quoted_paths(pending_generic_prefix + decoded + suffix))
+        pending_generic_prefix = None
+        pending_generic_quote = None
+        pending_generic_value = None
+        continue
     in_block_body = False
     in_quoted_body = False
     if block_indent is not None:
@@ -692,6 +715,19 @@ for raw_line in sys.stdin:
             pending_quote = quote
             pending_value = value
             continue
+
+    generic_start = GENERIC_SCALAR_START_PATTERN.match(line)
+    if generic_start is not None:
+        prefix, quote, value = generic_start.groups()
+        tail = quoted_value_tail(value, quote)
+        if tail is None:
+            pending_generic_prefix = prefix
+            pending_generic_quote = quote
+            pending_generic_value = value
+            continue
+        decoded_value, suffix = tail
+        print(normalize_aliases_and_quoted_paths(prefix + decode_value(decoded_value, quote) + suffix))
+        continue
 
     print(normalize_aliases_and_quoted_paths(line))
 

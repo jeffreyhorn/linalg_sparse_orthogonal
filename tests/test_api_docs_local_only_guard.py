@@ -211,6 +211,25 @@ def test_workflow_escaped_env_generated_api_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "generated API output paths")
 
 
+def test_workflow_multiline_escaped_env_generated_api_path_fails() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: generated-api\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  docs:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    env:\n"
+            "      API_PATH: \"\\x64ocs/api/\\\n"
+            "        html\"\n"
+            "    steps:\n"
+            "      - run: test -d \"$API_PATH\"\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "generated API HTML output path")
+
+
 def test_workflow_plain_scalar_apostrophe_before_comment_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -3535,6 +3554,7 @@ def main() -> None:
     test_workflow_quoted_hash_before_generated_api_path_fails_clearly()
     test_workflow_escaped_run_generated_api_path_fails_clearly()
     test_workflow_escaped_env_generated_api_path_fails_clearly()
+    test_workflow_multiline_escaped_env_generated_api_path_fails()
     test_workflow_plain_scalar_apostrophe_before_comment_is_allowed()
     test_workflow_multiline_single_quoted_trailing_comment_is_allowed()
     test_workflow_multiline_double_quoted_trailing_comment_is_allowed()

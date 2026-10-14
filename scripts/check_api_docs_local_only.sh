@@ -1056,17 +1056,20 @@ def steps_flow_sequence_entry(line):
     return indent, index + 1
 
 def flow_run_entry(line, open_flow_indent=None):
+    in_steps_sequence = False
     start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
     if start_match is not None:
         flow_indent = len(start_match.group(1))
         index = line.find("{", start_match.end() - 1) + 1
     elif (steps_entry := steps_flow_sequence_entry(line)) is not None:
+        in_steps_sequence = True
         flow_indent, sequence_start = steps_entry
         flow_start = line.find("{", sequence_start)
         if flow_start == -1:
             return None
         index = flow_start + 1
     elif open_flow_indent is not None:
+        in_steps_sequence = True
         if not line.strip():
             return None
         line_indent = len(line) - len(line.lstrip(" "))
@@ -1083,8 +1086,14 @@ def flow_run_entry(line, open_flow_indent=None):
     while index < len(line):
         while index < len(line) and line[index] in " \t,":
             index += 1
-        if index >= len(line) or line[index] == "}":
+        if index >= len(line):
             return None
+        if line[index] == "}":
+            next_mapping = re.match(r"}\s*,\s*{", line[index:])
+            if not in_steps_sequence or next_mapping is None:
+                return None
+            index += next_mapping.end()
+            continue
         key_column = index
         if line[index] in "'\"":
             quote = line[index]
@@ -1161,7 +1170,7 @@ def flow_run_entry(line, open_flow_indent=None):
                 depth += 1
             elif char in "]}":
                 if depth == 0:
-                    return None
+                    break
                 depth -= 1
             elif char == "," and depth == 0:
                 index += 1

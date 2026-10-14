@@ -2050,6 +2050,46 @@ def test_workflow_gh_pages_publish_dir_docs_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_powershell_docs_publication_commands() -> None:
+    cases = (
+        ("Copy-Item -Recurse docs artifact", "stages docs"),
+        ('Copy-Item -Path ".\\docs\\*" -Destination artifact -Recurse', "stages docs"),
+        ("Move-Item -Path docs -Destination artifact", "stages docs"),
+        ("Compress-Archive -Path docs -DestinationPath artifact.zip", "archives docs"),
+        ('Compress-Archive -Path ".\\docs\\*" -DestinationPath artifact.zip', "archives docs"),
+        ("Copy-Item -Recurse build artifact", None),
+        ("Move-Item -Path build -Destination artifact", None),
+        ("Compress-Archive -Path build -DestinationPath artifact.zip", None),
+    )
+    for command, expected in cases:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture(root)
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: windows-artifacts\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: windows-latest\n"
+                "    steps:\n"
+                "      - shell: pwsh\n"
+                "        run: |\n"
+                f"          {command}\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact*\n",
+                encoding="utf-8",
+            )
+            result = run_guard(root)
+            output = result.stdout + result.stderr
+            if expected is None:
+                if result.returncode != 0:
+                    raise AssertionError(f"{command}: {output}")
+            elif result.returncode == 0 or expected not in output:
+                raise AssertionError(f"{command}: expected {expected!r}: {output}")
+
+
 def test_workflow_staged_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3663,6 +3703,7 @@ def main() -> None:
     test_workflow_rclone_docs_publish_command_fails_clearly()
     test_workflow_gh_release_upload_docs_glob_fails_clearly()
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
+    test_workflow_powershell_docs_publication_commands()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()
     test_workflow_folded_staged_docs_artifact_upload_fails_clearly()

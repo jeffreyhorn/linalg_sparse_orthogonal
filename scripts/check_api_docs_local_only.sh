@@ -140,6 +140,52 @@ def fold_quoted_scalar_body(body, quote):
         folded.append(current)
     return "\n".join(folded)
 
+def mapping_entry(line):
+    prefix_match = re.match(r"^(\s*(?:-\s*)?)", line)
+    prefix = prefix_match.group(1)
+    index = len(prefix)
+    if index >= len(line):
+        return None
+    key_column = index
+    if line[index] in "'\"":
+        quote = line[index]
+        index += 1
+        key_parts = []
+        escaped = False
+        while index < len(line):
+            char = line[index]
+            if quote == '"' and escaped:
+                key_parts.append("\\" + char)
+                escaped = False
+                index += 1
+                continue
+            if quote == '"' and char == "\\":
+                escaped = True
+                index += 1
+                continue
+            if quote == "'" and char == "'" and index + 1 < len(line) and line[index + 1] == "'":
+                key_parts.append("''")
+                index += 2
+                continue
+            if char == quote:
+                break
+            key_parts.append(char)
+            index += 1
+        if index >= len(line):
+            return None
+        key = decode_value("".join(key_parts), quote)
+        index += 1
+    else:
+        key_start = index
+        while index < len(line) and line[index] not in ":,{}[]":
+            index += 1
+        key = line[key_start:index].strip()
+    while index < len(line) and line[index].isspace():
+        index += 1
+    if index >= len(line) or line[index] != ":":
+        return None
+    return prefix, key_column, key.lower(), line[index + 1:]
+
 def print_decoded_run_scalar(prefix, parts):
     scalar = complete_quoted_scalar("\n".join(parts)).strip()
     if len(scalar) >= 2 and scalar[0] == scalar[-1] and scalar[0] in "'\"":
@@ -222,37 +268,29 @@ with open(path, encoding="utf-8") as handle:
             else:
                 continue
         stripped = strip_yaml_comment(line)
-        block_match = re.match(r"^[ ]*(?:-[ ]*)?([^:]+?)[ ]*:[ ]*[>|]", stripped)
-        if block_match:
-            block_indent = block_match.start(1)
-            block_key = block_match.group(1).strip("'\"").lower()
+        entry = mapping_entry(stripped)
+        if entry is not None and re.match(r"\s*[>|]", entry[3]):
+            block_indent = entry[1]
+            block_key = entry[2]
             shell_state = (False, False, False)
         else:
-            run_scalar_match = re.match(
-                r"^(\s*(?:-[ ]*)?['\"]?run['\"]?[ ]*:[ ]*)(.*)$",
-                stripped,
-                re.IGNORECASE,
-            )
-            if run_scalar_match is not None:
+            if entry is not None and entry[2] == "run":
                 run_value, _ = strip_shell_comment_stateful(
-                    decode_plain_value(run_scalar_match.group(2)),
+                    decode_plain_value(entry[3]),
                     (False, False, False),
                 )
-                stripped = run_scalar_match.group(1) + run_value
-        scalar_match = re.match(
-            r"^(\s*(?:-[ ]*)?['\"]?([^:'\"]+)['\"]?[ ]*:[ ]*)(.*)$",
-            stripped,
-        )
-        if scalar_match:
-            scalar_key = scalar_match.group(2).lower()
-            scalar_value = scalar_match.group(3)
+                stripped = entry[0] + "run: " + run_value
+                entry = mapping_entry(stripped)
+        if entry is not None:
+            scalar_key = entry[2]
+            scalar_value = entry[3]
             continuing_quote = quoted_scalar_continues(scalar_value)
             if continuing_quote is not None:
                 quote_char = continuing_quote
                 quote_indent = len(stripped) - len(stripped.lstrip(" "))
                 quote_key = scalar_key
                 if quote_key == "run":
-                    quote_prefix = scalar_match.group(1)
+                    quote_prefix = entry[0] + "run: "
                     quote_parts = [scalar_value.strip()]
                     continue
                 quote_key = None
@@ -1042,6 +1080,8 @@ def flow_member_start(line):
         return False
     if stripped.startswith(","):
         stripped = stripped[1:].lstrip()
+    if stripped.startswith("{"):
+        stripped = stripped[1:].lstrip()
     if stripped.startswith(("'", '"')):
         quote = stripped[0]
         index = 1
@@ -1080,21 +1120,36 @@ def normalize_shell_words(line):
     in_single = False
     in_double = False
     escaped = False
-    for char in line:
+    index = 0
+    while index < len(line):
+        char = line[index]
         if escaped:
             normalized.append(char)
             escaped = False
+            index += 1
             continue
         if char == "\\" and not in_single:
             escaped = True
+            index += 1
             continue
         if char == "'" and not in_double:
+            if index + 1 < len(line) and line[index + 1] == "'":
+                index += 2
+                continue
+            normalized.append(char)
             in_single = not in_single
+            index += 1
             continue
         if char == '"' and not in_single:
+            if index + 1 < len(line) and line[index + 1] == '"':
+                index += 2
+                continue
+            normalized.append(char)
             in_double = not in_double
+            index += 1
             continue
         normalized.append(char)
+        index += 1
     if escaped:
         normalized.append("\\")
     return "".join(normalized)
@@ -1263,7 +1318,10 @@ while index < len(lines):
                         index += 1
                     elif char == quote:
                         suffix = raw_last[index + 1:]
-                        if not suffix.strip() or suffix.lstrip().startswith("#"):
+                        if (
+                            not suffix.strip()
+                            or suffix.lstrip().startswith(("#", "}", ","))
+                        ):
                             unquoted[last_index] = raw_last[: index + 1]
                             last = unquoted[last_index].strip()
                         break

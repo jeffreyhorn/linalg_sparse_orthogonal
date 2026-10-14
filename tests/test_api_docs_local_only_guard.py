@@ -2915,6 +2915,31 @@ def test_workflow_escaped_run_key_folded_docs_copy_artifact_upload_fails() -> No
     assert_guard_fails_with(mutate, "stages docs for publication")
 
 
+def test_workflow_escaped_run_key_comment_generated_api_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - \"r\\u0075n\": |\n"
+            "          # docs/api/html remains local-only\n"
+            "          make test\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir).resolve()
@@ -2929,6 +2954,29 @@ def test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed() -> 
             "      - run: cp build/result.txt build/copy.txt\n"
             "      - name: Check docs\n"
             "        run: make docs-check\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: build-output\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
+def test_workflow_quoted_staging_text_before_build_upload_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir).resolve()
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: build-artifact\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  package:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: echo \"cp -R docs artifact/\"\n"
             "      - uses: actions/upload-artifact@v4\n"
             "        with:\n"
             "          name: build-output\n"
@@ -3555,7 +3603,9 @@ def main() -> None:
     test_workflow_multiline_quoted_split_docs_copy_blank_echo_fails()
     test_workflow_quoted_run_key_folded_docs_copy_artifact_upload_fails()
     test_workflow_escaped_run_key_folded_docs_copy_artifact_upload_fails()
+    test_workflow_escaped_run_key_comment_generated_api_path_is_allowed()
     test_workflow_unrelated_build_copy_before_check_docs_upload_is_allowed()
+    test_workflow_quoted_staging_text_before_build_upload_is_allowed()
     test_workflow_unrelated_build_archive_before_check_docs_upload_is_allowed()
     test_workflow_folded_build_copy_before_same_step_name_is_allowed()
     test_workflow_flow_run_before_sibling_name_is_allowed()

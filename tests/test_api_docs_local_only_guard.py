@@ -2188,6 +2188,65 @@ def test_workflow_powershell_backtick_windows_paths() -> None:
                 raise AssertionError(f"expected {expected!r}: {output}")
 
 
+def test_workflow_flow_step_powershell_override_stages_docs() -> None:
+    for step in (
+        '      - {shell: pwsh, run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact"}\n',
+        '      - {run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact", shell: pwsh}\n',
+    ):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: flow-powershell\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"{step}"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+
+        assert_guard_fails_with(mutate, "stages docs")
+
+
+def test_workflow_folded_blank_line_continuation_stages_docs() -> None:
+    for style, blank_lines, expected in (
+        (">", "\n", "stages docs"),
+        (">", "\n\n", None),
+        ("|", "\n", None),
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture(root)
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: paragraph-continuation\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - run: {style}\n"
+                "          cp -R \\\n"
+                f"{blank_lines}"
+                "          docs artifact/\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+            result = run_guard(root)
+            output = result.stdout + result.stderr
+            if expected is None:
+                if result.returncode != 0:
+                    raise AssertionError(output)
+            elif result.returncode == 0 or expected not in output:
+                raise AssertionError(f"expected {expected!r}: {output}")
+
+
 def test_workflow_folded_run_shell_comment_before_generated_path_is_allowed() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -3992,6 +4051,8 @@ def main() -> None:
     test_workflow_powershell_docs_publication_commands()
     test_workflow_powershell_backtick_continuations()
     test_workflow_powershell_backtick_windows_paths()
+    test_workflow_flow_step_powershell_override_stages_docs()
+    test_workflow_folded_blank_line_continuation_stages_docs()
     test_workflow_folded_run_shell_comment_before_generated_path_is_allowed()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()

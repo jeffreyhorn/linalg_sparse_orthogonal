@@ -740,6 +740,7 @@ from api_docs_workflow_yaml_common import (
     quoted_scalar_continues,
     strip_shell_comment_stateful,
     strip_yaml_comment,
+    unquoted_yaml_text,
     yaml_double_unescape,
 )
 
@@ -1308,7 +1309,19 @@ def scope_end(start, indent):
             return cursor
     return len(lines)
 
-def effective_run_shell(run_index, run_column):
+def flow_step_shell(line):
+    match = re.search(r"(?:^|[{,])\s*shell\s*:", unquoted_yaml_text(line))
+    if match is None:
+        return None
+    value_start = match.end()
+    while value_start < len(line) and line[value_start].isspace():
+        value_start += 1
+    value = flow_member_value(line[value_start:])
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        return decode_value(value[1:-1], value[0])
+    return value
+
+def effective_run_shell(run_index, run_column, flow_line=None):
     steps_index = next(
         (cursor for cursor in range(run_index, -1, -1)
          if (entry := mapping_entry(lines[cursor])) is not None
@@ -1316,7 +1329,7 @@ def effective_run_shell(run_index, run_column):
          and scope_end(cursor, entry[0]) > run_index),
         None,
     )
-    step_shell = None
+    step_shell = flow_step_shell(flow_line) if flow_line is not None else None
     job_shell = None
     windows_runner = False
     if steps_index is not None:
@@ -1482,7 +1495,9 @@ while index < len(lines):
         run_key_column = run_entry[0]
         boundary_column = run_key_column
         value = run_entry[1]
-    powershell = effective_run_shell(run_index, run_key_column)
+    powershell = effective_run_shell(
+        run_index, run_key_column, line if flow_run else None,
+    )
     if flow_run:
         value = flow_member_value(value)
     decoded_anchor = registered_anchor is not None
@@ -1686,7 +1701,16 @@ while index < len(lines):
                 paragraph.append(content)
         if paragraph:
             folded_lines.append(" ".join(paragraph))
-        emit_shell_lines(folded_lines, powershell)
+        rendered_lines = []
+        blank_lines = 0
+        for folded_line in folded_lines:
+            if folded_line is None:
+                blank_lines += 1
+                continue
+            rendered_lines.extend([None] * max(0, blank_lines - 1))
+            blank_lines = 0
+            rendered_lines.append(folded_line)
+        emit_shell_lines(rendered_lines, powershell)
 PY
 }
 

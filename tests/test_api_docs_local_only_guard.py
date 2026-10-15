@@ -646,6 +646,27 @@ def test_workflow_flow_anchored_docs_artifact_path_fails_clearly() -> None:
     assert_guard_fails_with(mutate, "publishes docs or repository roots")
 
 
+def test_workflow_quoted_flow_anchored_docs_artifact_paths_fail() -> None:
+    for value in ("'docs/'", '"docs/"', '"\\x64ocs/"'):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: generated-api\n"
+                "on: [push]\n"
+                f"env: {{DOCS_PATH: &docs {value}}}\n"
+                "jobs:\n"
+                "  docs:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: generated-api-html\n"
+                "          path: *docs\n",
+                encoding="utf-8",
+            )
+
+        assert_guard_fails_with(mutate, "publishes docs or repository roots")
+
+
 def test_workflow_multiline_flow_anchor_before_artifact_members_fails() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3842,6 +3863,7 @@ def main() -> None:
     test_workflow_anchored_docs_artifact_path_fails_clearly()
     test_workflow_aliased_docs_artifact_path_fails_clearly()
     test_workflow_flow_anchored_docs_artifact_path_fails_clearly()
+    test_workflow_quoted_flow_anchored_docs_artifact_paths_fail()
     test_workflow_multiline_flow_anchor_before_artifact_members_fails()
     test_workflow_aliased_docs_path_ignores_quoted_anchor_text()
     test_workflow_aliased_docs_path_ignores_flow_quoted_anchor_text()

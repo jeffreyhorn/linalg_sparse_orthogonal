@@ -636,7 +636,7 @@ for raw_line in sys.stdin:
                     pending_anchor_value = anchor_value.strip()[1:]
             if "{" in line:
                 for anchor_match in FLOW_NODE_ANCHOR_PATTERN.finditer(unquoted_yaml_text(line)):
-                    anchor_value = anchor_match.group("value")
+                    anchor_value = line[anchor_match.end("anchor"):anchor_match.end("value")].strip()
                     if not register_anchor(anchor_match.group("anchor"), anchor_value):
                         pending_anchor = anchor_match.group("anchor")
                         pending_anchor_quote = anchor_value.strip()[0]

@@ -212,7 +212,6 @@ with open(path, encoding="utf-8") as handle:
     quote_key = None
     quote_prefix = None
     quote_parts = []
-    shell_state = (False, False, False)
     for raw_line in handle:
         line = raw_line.rstrip("\n")
         if quote_char is not None:
@@ -252,19 +251,12 @@ with open(path, encoding="utf-8") as handle:
             if line.strip():
                 line_indent = len(line) - len(line.lstrip(" "))
                 if line_indent > block_indent:
-                    if block_key == "run":
-                        stripped_shell, shell_state = strip_shell_comment_stateful(
-                            line,
-                            shell_state,
-                        )
-                        if stripped_shell.strip():
-                            print(stripped_shell)
-                    else:
+                    # Run bodies are rendered and comment-stripped by fold_yaml_run_blocks.
+                    if block_key != "run":
                         print(line)
                     continue
                 block_indent = None
                 block_key = None
-                shell_state = (False, False, False)
             else:
                 continue
         stripped = strip_yaml_comment(line)
@@ -272,7 +264,6 @@ with open(path, encoding="utf-8") as handle:
         if entry is not None and re.match(r"\s*[>|]", entry[3]):
             block_indent = entry[1]
             block_key = entry[2]
-            shell_state = (False, False, False)
         else:
             if entry is not None and entry[2] == "run":
                 run_value, _ = strip_shell_comment_stateful(
@@ -1229,7 +1220,7 @@ def flow_member_start(line):
         index += 1
     return index < len(stripped) and stripped[index] == ":"
 
-def normalize_shell_words(line):
+def normalize_shell_words(line, powershell=False):
     normalized = []
     in_single = False
     in_double = False
@@ -1245,7 +1236,7 @@ def normalize_shell_words(line):
             escaped = False
             index += 1
             continue
-        if char == "\\" and not in_single:
+        if char == "\\" and not in_single and not powershell:
             escaped = True
             index += 1
             continue
@@ -1415,7 +1406,7 @@ def emit_shell_lines(logical_lines, powershell=False):
             pending_state = scan_state
         else:
             if stripped:
-                print(normalize_shell_words(stripped))
+                print(normalize_shell_words(stripped, powershell))
             pending = ""
             pending_state = None
 
@@ -1431,7 +1422,7 @@ def emit_shell_lines(logical_lines, powershell=False):
             pending_state,
         )
         if stripped:
-            print(normalize_shell_words(stripped))
+            print(normalize_shell_words(stripped, powershell))
 
 index = 0
 open_flow_indent = None
@@ -1874,7 +1865,8 @@ check_no_workflow_publication_semantics() {
                     }
                 '
         )"
-        if printf '%s\n' "$normalized_text" | grep -Eq "$generated_path_regex" &&
+        if { printf '%s\n' "$normalized_text" | grep -Eq "$generated_path_regex" ||
+            printf '%s\n' "$folded_run_text" | grep -Eq "$generated_path_regex"; } &&
             printf '%s\n' "$normalized_text" | grep -Eq "$publication_regex"; then
             fail "$rel_path combines generated API output paths with publication, artifact, or Pages semantics while generated API HTML is local-only"
         fi

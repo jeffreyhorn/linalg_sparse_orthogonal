@@ -2158,6 +2158,61 @@ def test_workflow_powershell_backtick_continuations() -> None:
                 raise AssertionError(f"expected {expected!r}: {output}")
 
 
+def test_workflow_powershell_backtick_windows_paths() -> None:
+    for source, expected in ((r".\docs\*", "stages docs"), (r".\build\*", None)):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture(root)
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: windows-artifacts\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: windows-latest\n"
+                "    steps:\n"
+                "      - run: |\n"
+                "          Copy-Item -Recurse -Path `\n"
+                f"            {source} -Destination artifact\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+            result = run_guard(root)
+            output = result.stdout + result.stderr
+            if expected is None:
+                if result.returncode != 0:
+                    raise AssertionError(output)
+            elif result.returncode == 0 or expected not in output:
+                raise AssertionError(f"expected {expected!r}: {output}")
+
+
+def test_workflow_folded_run_shell_comment_before_generated_path_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: comments\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: >\n"
+            "          echo ready # explanation\n"
+            "          docs/api/html remains local-only\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: results\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_staged_docs_artifact_upload_fails_clearly() -> None:
     def mutate(root: Path) -> None:
         (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -3936,6 +3991,8 @@ def main() -> None:
     test_workflow_gh_pages_publish_dir_docs_fails_clearly()
     test_workflow_powershell_docs_publication_commands()
     test_workflow_powershell_backtick_continuations()
+    test_workflow_powershell_backtick_windows_paths()
+    test_workflow_folded_run_shell_comment_before_generated_path_is_allowed()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()
     test_workflow_folded_staged_docs_artifact_upload_fails_clearly()

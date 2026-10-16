@@ -96,14 +96,14 @@ def strip_yaml_comment_continuation(line, quote):
     return line
 
 
-def strip_shell_comment_stateful(line, state):
+def strip_shell_comment_stateful(line, state, powershell=False):
     in_single, in_double, escaped = state
     comment_at = None
     for index, char in enumerate(line):
         if escaped:
             escaped = False
             continue
-        if char == "\\" and not in_single:
+        if char == ("`" if powershell else "\\") and (powershell or not in_single):
             escaped = True
             continue
         if char == "'" and not in_double:

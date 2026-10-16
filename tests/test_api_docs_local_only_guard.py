@@ -2192,6 +2192,8 @@ def test_workflow_flow_step_powershell_override_stages_docs() -> None:
     for step in (
         '      - {shell: pwsh, run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact"}\n',
         '      - {run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact", shell: pwsh}\n',
+        '      - {"shell": pwsh, run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact"}\n',
+        '      - {run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact", "shell": pwsh}\n',
     ):
         def mutate(root: Path) -> None:
             (root / ".github" / "workflows" / "api-docs.yml").write_text(
@@ -2210,6 +2212,28 @@ def test_workflow_flow_step_powershell_override_stages_docs() -> None:
             )
 
         assert_guard_fails_with(mutate, "stages docs")
+
+
+def test_workflow_powershell_backtick_escaped_quote_stages_docs() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: windows-artifacts\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: windows-latest\n"
+            "    steps:\n"
+            "      - shell: pwsh\n"
+            "        run: |\n"
+            '          Write-Host "marker`" # data"; Copy-Item -Recurse docs artifact/\n'
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: results\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs")
 
 
 def test_workflow_folded_blank_line_continuation_stages_docs() -> None:
@@ -2245,6 +2269,53 @@ def test_workflow_folded_blank_line_continuation_stages_docs() -> None:
                     raise AssertionError(output)
             elif result.returncode == 0 or expected not in output:
                 raise AssertionError(f"expected {expected!r}: {output}")
+
+
+def test_workflow_anchored_folded_blank_line_continuation_stages_docs() -> None:
+    for anchor in ("", "&stage "):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: paragraph-continuation\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - run: {anchor}>\n"
+                "          cp -R \\\n"
+                "\n"
+                "          docs artifact/\n"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+
+        assert_guard_fails_with(mutate, "stages docs")
+
+
+def test_workflow_literal_blank_line_preserves_open_shell_quote() -> None:
+    def mutate(root: Path) -> None:
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: quoted-paragraph\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            '          echo "marker\n'
+            "\n"
+            '          # data"; cp -R docs artifact/\n'
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: results\n"
+            "          path: artifact/\n",
+            encoding="utf-8",
+        )
+
+    assert_guard_fails_with(mutate, "stages docs")
 
 
 def test_workflow_folded_run_shell_comment_before_generated_path_is_allowed() -> None:

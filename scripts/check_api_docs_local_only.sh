@@ -957,7 +957,17 @@ def render_anchored_block(lines, start_index, boundary_column, style):
             paragraph.append(content)
     if paragraph:
         paragraphs.append(" ".join(paragraph))
-    return "\n".join(paragraphs), index
+    rendered = []
+    blank_lines = 0
+    for paragraph in paragraphs:
+        if not paragraph:
+            blank_lines += 1
+            continue
+        if rendered:
+            rendered.extend([""] * max(0, blank_lines - 1))
+        blank_lines = 0
+        rendered.append(paragraph)
+    return "\n".join(rendered), index
 
 def run_key_entry(line):
     prefix_match = re.match(r"^([ ]*)(?:-[ ]*)?", line)
@@ -1310,16 +1320,23 @@ def scope_end(start, indent):
     return len(lines)
 
 def flow_step_shell(line):
-    match = re.search(r"(?:^|[{,])\s*shell\s*:", unquoted_yaml_text(line))
-    if match is None:
-        return None
-    value_start = match.end()
-    while value_start < len(line) and line[value_start].isspace():
-        value_start += 1
-    value = flow_member_value(line[value_start:])
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-        return decode_value(value[1:-1], value[0])
-    return value
+    unquoted = unquoted_yaml_text(line)
+    for match in re.finditer(
+        r"(?P<separator>[{,])\s*(?P<key>\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[A-Za-z_][\w-]*)\s*:",
+        line,
+    ):
+        if unquoted[match.start("separator")] != match.group("separator"):
+            continue
+        key = match.group("key")
+        if key.startswith(("'", '"')):
+            key = decode_value(key[1:-1], key[0])
+        if key.lower() != "shell":
+            continue
+        value = flow_member_value(line[match.end():].lstrip())
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            return decode_value(value[1:-1], value[0])
+        return value
+    return None
 
 def effective_run_shell(run_index, run_column, flow_line=None):
     steps_index = next(
@@ -1393,12 +1410,13 @@ def emit_shell_lines(logical_lines, powershell=False):
                 stripped, shell_state = strip_shell_comment_stateful(
                     pending,
                     pending_state,
+                    powershell,
                 )
                 if stripped:
                     print(stripped)
                 pending = ""
             pending_state = None
-            shell_state = (False, False, False)
+            shell_state = (shell_state[0], shell_state[1], False)
             return
         current = logical_line.rstrip()
         scan_state = shell_state
@@ -1408,6 +1426,7 @@ def emit_shell_lines(logical_lines, powershell=False):
         stripped, shell_state = strip_shell_comment_stateful(
             current,
             scan_state,
+            powershell,
         )
         continuation = "`" if powershell else "\\"
         trailing = len(stripped) - len(stripped.rstrip(continuation))
@@ -1433,6 +1452,7 @@ def emit_shell_lines(logical_lines, powershell=False):
         stripped, shell_state = strip_shell_comment_stateful(
             pending,
             pending_state,
+            powershell,
         )
         if stripped:
             print(normalize_shell_words(stripped, powershell))

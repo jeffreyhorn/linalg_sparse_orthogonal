@@ -1314,13 +1314,42 @@ def mapping_entry(line):
     return len(match.group("indent")), key.lower(), value
 
 def scope_end(start, indent):
+    steps_scope = (entry := mapping_entry(lines[start])) is not None and entry[1] == "steps"
     for cursor in range(start + 1, len(lines)):
-        if lines[cursor].strip() and len(lines[cursor]) - len(lines[cursor].lstrip(" ")) <= indent:
-            return cursor
+        stripped = lines[cursor].lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        line_indent = len(lines[cursor]) - len(stripped)
+        if line_indent > indent:
+            continue
+        if steps_scope and line_indent == indent and re.match(r"-\s", stripped):
+            continue
+        return cursor
     return len(lines)
 
-def flow_step_shell(line):
-    unquoted = unquoted_yaml_text(line)
+def flow_step_shell(run_index, run_column, start_index):
+    source = "\n".join(lines[start_index:])
+    run_offset = sum(len(lines[cursor]) + 1 for cursor in range(start_index, run_index)) + run_column
+    unquoted = unquoted_yaml_text(source)
+    openings = []
+    for index, char in enumerate(unquoted[:run_offset + 1]):
+        if char == "{":
+            openings.append(index)
+        elif char == "}" and openings:
+            openings.pop()
+    if not openings:
+        return None
+    opening = openings[-1]
+    depth = 0
+    for index in range(opening, len(unquoted)):
+        if unquoted[index] == "{":
+            depth += 1
+        elif unquoted[index] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+    line = source[opening:index + 1]
+    unquoted = unquoted[opening:index + 1]
     for match in re.finditer(
         r"(?P<separator>[{,])\s*(?P<key>\"(?:\\.|[^\"])*\"|'(?:''|[^'])*'|[A-Za-z_][\w-]*)\s*:",
         line,
@@ -1338,7 +1367,7 @@ def flow_step_shell(line):
         return value
     return None
 
-def effective_run_shell(run_index, run_column, flow_line=None):
+def effective_run_shell(run_index, run_column, flow_start_index=None):
     steps_index = next(
         (cursor for cursor in range(run_index, -1, -1)
          if (entry := mapping_entry(lines[cursor])) is not None
@@ -1346,7 +1375,10 @@ def effective_run_shell(run_index, run_column, flow_line=None):
          and scope_end(cursor, entry[0]) > run_index),
         None,
     )
-    step_shell = flow_step_shell(flow_line) if flow_line is not None else None
+    step_shell = (
+        flow_step_shell(run_index, run_column, flow_start_index)
+        if flow_start_index is not None else None
+    )
     job_shell = None
     windows_runner = False
     if steps_index is not None:
@@ -1356,7 +1388,7 @@ def effective_run_shell(run_index, run_column, flow_line=None):
              and len(lines[cursor]) - len(lines[cursor].lstrip(" ")) < run_column),
             None,
         )
-        if step_index is not None:
+        if step_index is not None and flow_start_index is None:
             step_indent = len(lines[step_index]) - len(lines[step_index].lstrip(" "))
             for cursor in range(step_index, scope_end(step_index, step_indent)):
                 entry = mapping_entry(lines[cursor])
@@ -1459,6 +1491,7 @@ def emit_shell_lines(logical_lines, powershell=False):
 
 index = 0
 open_flow_indent = None
+open_flow_start_index = None
 run_anchors = {}
 while index < len(lines):
     run_index = index
@@ -1481,42 +1514,48 @@ while index < len(lines):
         line_indent = len(line) - len(line.lstrip(" "))
         if line_indent <= open_flow_indent:
             open_flow_indent = None
+            open_flow_start_index = None
     flow_run = False
-    run_entry = run_key_entry(line)
-    if run_entry is None:
-        flow_entry = flow_run_entry(line, open_flow_indent)
-        if flow_entry is not None:
-            flow_indent, flow_key_column, flow_value = flow_entry
-            run_entry = (flow_key_column, flow_value.strip())
-            flow_run = True
+    flow_entry = flow_run_entry(line, open_flow_indent)
+    run_entry = run_key_entry(line) if flow_entry is None else None
+    if flow_entry is not None:
+        flow_indent, flow_key_column, flow_value = flow_entry
+        run_entry = (flow_key_column, flow_value.strip())
+        flow_run = True
     if run_entry is None:
         start_match = re.match(r"^([ ]*)-[ ]*[{]", line)
         if start_match is not None:
             remainder = line[line.find("{", start_match.end() - 1):]
             if flow_mapping_balance(remainder) > 0:
                 open_flow_indent = len(start_match.group(1))
+                open_flow_start_index = run_index
         elif (steps_entry := steps_flow_sequence_entry(line)) is not None:
             steps_indent, sequence_start = steps_entry
             flow_start = line.find("{", sequence_start)
             if flow_start != -1 and flow_mapping_balance(line[flow_start:]) > 0:
                 open_flow_indent = steps_indent
+                open_flow_start_index = run_index
             elif flow_start == -1 and not re.search(r"\]", line):
                 open_flow_indent = steps_indent
+                open_flow_start_index = run_index
         elif open_flow_indent is not None and flow_mapping_balance(line.lstrip()) < 0:
             open_flow_indent = None
+            open_flow_start_index = None
         index += 1
         continue
     if flow_run:
         run_key_column = flow_key_column
         boundary_column = len(flow_indent)
         value = run_entry[1]
+        flow_start_index = open_flow_start_index if open_flow_start_index is not None else run_index
         open_flow_indent = None
+        open_flow_start_index = None
     else:
         run_key_column = run_entry[0]
         boundary_column = run_key_column
         value = run_entry[1]
     powershell = effective_run_shell(
-        run_index, run_key_column, line if flow_run else None,
+        run_index, run_key_column, flow_start_index if flow_run else None,
     )
     if flow_run:
         value = flow_member_value(value)

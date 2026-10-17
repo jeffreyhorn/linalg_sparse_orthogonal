@@ -2211,7 +2211,65 @@ def test_workflow_flow_step_powershell_override_stages_docs() -> None:
                 encoding="utf-8",
             )
 
+        try:
+            assert_guard_fails_with(mutate, "stages docs")
+        except AssertionError as error:
+            raise AssertionError(f"{step!r}: {error}") from error
+
+
+def test_workflow_windows_shell_scope_across_comments_and_indentless_steps() -> None:
+    for steps_prefix, step_indent in (("# workflow comment\n", "      "), ("", "    ")):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: windows-artifacts\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: windows-latest\n"
+                "    steps:\n"
+                f"{steps_prefix}"
+                f"{step_indent}- run: |\n"
+                "          Copy-Item -Recurse -Path `\n"
+                "            docs -Destination artifact\n"
+                f"{step_indent}- uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+
         assert_guard_fails_with(mutate, "stages docs")
+
+
+def test_workflow_multiline_flow_step_shell_override_stages_docs() -> None:
+    for step in (
+        '      - {run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact",\n'
+        "         shell: pwsh}\n",
+        '      - {run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact",\n'
+        '         "shell": pwsh}\n',
+        "      - {shell: pwsh,\n"
+        '         run: "Copy-Item -Recurse -Path `\\ndocs -Destination artifact"}\n',
+    ):
+        def mutate(root: Path) -> None:
+            (root / ".github" / "workflows" / "api-docs.yml").write_text(
+                "name: flow-powershell\n"
+                "on: [push]\n"
+                "jobs:\n"
+                "  build:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"{step}"
+                "      - uses: actions/upload-artifact@v4\n"
+                "        with:\n"
+                "          name: results\n"
+                "          path: artifact/\n",
+                encoding="utf-8",
+            )
+
+        try:
+            assert_guard_fails_with(mutate, "stages docs")
+        except AssertionError as error:
+            raise AssertionError(f"{step!r}: {error}") from error
 
 
 def test_workflow_powershell_backtick_escaped_quote_stages_docs() -> None:
@@ -4148,6 +4206,8 @@ def main() -> None:
     test_workflow_powershell_backtick_continuations()
     test_workflow_powershell_backtick_windows_paths()
     test_workflow_flow_step_powershell_override_stages_docs()
+    test_workflow_windows_shell_scope_across_comments_and_indentless_steps()
+    test_workflow_multiline_flow_step_shell_override_stages_docs()
     test_workflow_powershell_backtick_escaped_quote_stages_docs()
     test_workflow_powershell_single_quoted_backtick_comment_is_allowed()
     test_workflow_folded_blank_line_continuation_stages_docs()

@@ -22,6 +22,26 @@ if(BUILD_SHARED_LIBS)
     )
 endif()
 
+# Package-specific link-mode selectors are not implemented. Reject even OFF or
+# STATIC values so a misspelled/unsupported option cannot look accepted.
+get_cmake_property(_sparse_cache_variables CACHE_VARIABLES)
+foreach(_sparse_cache_variable IN LISTS _sparse_cache_variables)
+    string(TOUPPER "${_sparse_cache_variable}" _sparse_option_name)
+    if(_sparse_option_name MATCHES "^SPARSE_.*SHARED" OR
+       _sparse_option_name STREQUAL "SPARSE_LINKAGE" OR
+       _sparse_option_name STREQUAL "SPARSE_LINK_MODE" OR
+       _sparse_option_name STREQUAL "SPARSE_LIBRARY_TYPE" OR
+       _sparse_option_name STREQUAL "SPARSE_LIBRARY_KIND" OR
+       (_sparse_option_name STREQUAL "BUILD_SHARED_LIBS" AND
+        NOT _sparse_cache_variable STREQUAL "BUILD_SHARED_LIBS"))
+        message(FATAL_ERROR
+            "${_sparse_cache_variable} is not a supported sparse package "
+            "selector. The maintained package is static-only; shared-library "
+            "packaging and dynamic ABI support remain deferred."
+        )
+    endif()
+endforeach()
+
 # Generate sparse_version.h from template and VERSION file
 set(SPARSE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(SPARSE_VERSION_MINOR ${PROJECT_VERSION_MINOR})

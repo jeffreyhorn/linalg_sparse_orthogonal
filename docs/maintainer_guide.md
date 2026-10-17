@@ -370,6 +370,14 @@ Focused install/package regression ownership:
   package-manager support, shared-library support, dynamic ABI support,
   runtime-loader behavior, or broad Windows parity
 
+Sprint 214 keeps the selected path static-first and records a
+[release-readiness checklist](planning/EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md)
+for future candidate source, tag, provenance, platform CI, approval, and
+rollback review. The checklist is a set of gates, not a release artifact or
+evidence that any tag, reproducible archive, binary package, shared ABI, or
+provider path has been approved. Preserve the Sprint 170/207 non-claims when
+reviewing release notes or source-install wording.
+
 Normalized report-index interpretation:
 
 - `python3 scripts/normalize_report_index.py --family package --check`

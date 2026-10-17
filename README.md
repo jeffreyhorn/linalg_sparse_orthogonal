@@ -1119,6 +1119,8 @@ path, public tap, Homebrew/core readiness claim, bottle, Linuxbrew claim,
 binary package, release package, or change to the supported install commands
 above. The static/shared package decision is recorded in the
 [Sprint 170 shared-library and ABI product decision](docs/planning/EPIC_15/SPRINT_170/artifacts/day9-shared-library-abi-product-decision.md).
+Release readiness and a reproducible source archive are not claimed by these
+install instructions; the Sprint 214 release checklist remains a future gate.
 
 ## Documentation
 

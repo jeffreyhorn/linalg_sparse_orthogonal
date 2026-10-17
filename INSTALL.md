@@ -31,6 +31,8 @@ The maintained install contract is static-first. Shared-library packaging,
 dynamic ABI compatibility, runtime-loader behavior, package-manager
 distribution, static/shared selectors, Windows Makefile parity, and Windows
 `pkg-config` execution parity are intentionally out of scope.
+These source/install instructions do not claim a tagged release,
+reproducible source archive, binary release package, or release readiness.
 
 ## Prerequisites
 
@@ -118,6 +120,9 @@ hosted, or artifact publication surface. Users should link to
 `docs/api_reference.md` and checked-in public headers for durable API
 documentation, then run `make api-docs-freshness` only when they need to inspect
 local Doxygen output for the current checkout.
+
+Maintainers track future release inputs and stop conditions in the
+[Sprint 214 release readiness checklist](docs/planning/EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md).
 
 ## Quick Start (Makefile)
 

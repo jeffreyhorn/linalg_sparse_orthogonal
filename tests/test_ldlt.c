@@ -1183,6 +1183,8 @@ static void test_ldlt_linked_list_retry_matches_success_baseline(void) {
     for (size_t i = 0; i < retry_case_count; ++i) {
         size_t case_index = retry_case_indices[i];
         ASSERT_TRUE(case_index < ldlt_allocation_failure_case_count);
+        if (case_index >= ldlt_allocation_failure_case_count)
+            return;
         printf("    linked-list LDLT retry baseline-match site: %s\n",
                ldlt_allocation_failure_cases[case_index].name);
         expect_ldlt_retry_matches_success_baseline(&ldlt_allocation_failure_cases[case_index]);

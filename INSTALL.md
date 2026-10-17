@@ -113,6 +113,12 @@ maintainer interpretation of the same evidence, use
 | Shared-library and dynamic ABI support | deferred | Static install only | Static package deferral guard, Sprint 170 package/ABI decision | No `.so`, `.dylib`, `.dll`, import-library, loader, SONAME, install-name/RPATH, selector, or dynamic ABI support. |
 | Broad ecosystem or state-of-the-art parity | not claimed | Use selected evidence docs only for scoped proof | Epic 17 review/todo, selected target manifest, benchmark/corpus docs | No broad SuiteSparse/PETSc/Trilinos/Eigen/SciPy parity, portable superiority, or unqualified state-of-the-art status. |
 
+Generated API HTML is an on-demand local view, not an install, release,
+hosted, or artifact publication surface. Users should link to
+`docs/api_reference.md` and checked-in public headers for durable API
+documentation, then run `make api-docs-freshness` only when they need to inspect
+local Doxygen output for the current checkout.
+
 ## Quick Start (Makefile)
 
 Use this path when you want the maintained Unix-side static install surface and

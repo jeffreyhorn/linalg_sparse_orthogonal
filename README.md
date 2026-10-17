@@ -358,6 +358,11 @@ documentation, a retained artifact, source-controlled output, or release
 evidence. Use [docs/api_reference.md](docs/api_reference.md) for the generated
 API policy and exact source-controlled route.
 
+Do not use CI artifacts, release downloads, Pages deployments, or repository
+`docs/api/` paths as the API documentation route. For durable links, cite the
+source-controlled API reference and checked-in public headers; regenerate local
+HTML only when you need a local Doxygen view for the current checkout.
+
 The normalized report index is a maintainer navigation and current-output
 diagnostic aid. It does not replace the underlying validation commands or turn
 local benchmark, coverage, dead-code, comparison, or package metadata rows into

@@ -103,7 +103,7 @@ def strip_shell_comment_stateful(line, state, powershell=False):
         if escaped:
             escaped = False
             continue
-        if char == ("`" if powershell else "\\") and (powershell or not in_single):
+        if char == ("`" if powershell else "\\") and not in_single:
             escaped = True
             continue
         if char == "'" and not in_double:

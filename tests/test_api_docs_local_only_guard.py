@@ -2236,6 +2236,31 @@ def test_workflow_powershell_backtick_escaped_quote_stages_docs() -> None:
     assert_guard_fails_with(mutate, "stages docs")
 
 
+def test_workflow_powershell_single_quoted_backtick_comment_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        write_fixture(root)
+        (root / ".github" / "workflows" / "api-docs.yml").write_text(
+            "name: windows-artifacts\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: windows-latest\n"
+            "    steps:\n"
+            "      - shell: pwsh\n"
+            "        run: |\n"
+            "          Write-Host 'tick`'; # docs/api/html\n"
+            "      - uses: actions/upload-artifact@v4\n"
+            "        with:\n"
+            "          name: results\n"
+            "          path: build/\n",
+            encoding="utf-8",
+        )
+        result = run_guard(root)
+        if result.returncode != 0:
+            raise AssertionError(result.stdout + result.stderr)
+
+
 def test_workflow_folded_blank_line_continuation_stages_docs() -> None:
     for style, blank_lines, expected in (
         (">", "\n", "stages docs"),
@@ -4123,7 +4148,11 @@ def main() -> None:
     test_workflow_powershell_backtick_continuations()
     test_workflow_powershell_backtick_windows_paths()
     test_workflow_flow_step_powershell_override_stages_docs()
+    test_workflow_powershell_backtick_escaped_quote_stages_docs()
+    test_workflow_powershell_single_quoted_backtick_comment_is_allowed()
     test_workflow_folded_blank_line_continuation_stages_docs()
+    test_workflow_anchored_folded_blank_line_continuation_stages_docs()
+    test_workflow_literal_blank_line_preserves_open_shell_quote()
     test_workflow_folded_run_shell_comment_before_generated_path_is_allowed()
     test_workflow_staged_docs_artifact_upload_fails_clearly()
     test_workflow_moved_docs_artifact_upload_fails_clearly()

@@ -82,7 +82,10 @@ jobs:
       - name: Run CMake install/export package proof
         run: bash tests/test_cmake_install.sh
 
-      - name: Run static-first package deferral proof
+      - name: Test static install contract failure diagnostics
+        run: python3 tests/test_static_install_contract.py
+
+      - name: Run static-first deferral and documentation-claim proof
         run: bash scripts/static_package_deferral_check.sh
 
       - name: Run package-manager provider claim guard

@@ -145,6 +145,72 @@ check_build_shared_rejected() {
     pass "BUILD_SHARED_LIBS rejection"
 }
 
+check_unselected_package_selectors_rejected() {
+    local selector
+    local index=0
+    local build_dir
+    local output_file
+    local output
+    local selectors=(
+        SPARSE_BUILD_SHARED=ON
+        SPARSE_BUILD_SHARED=OFF
+        SPARSE_BUILD_SHARED_LIBS=ON
+        SPARSE_ENABLE_SHARED=ON
+        sparse_shared=on
+        SPARSE_LIBRARY_TYPE=SHARED
+        SPARSE_LIBRARY_TYPE=STATIC
+        SPARSE_LIBRARY_KIND=SHARED
+        SPARSE_LINKAGE=shared
+        SPARSE_LINK_MODE=shared
+        build_shared_libs=ON
+    )
+
+    for selector in "${selectors[@]}"; do
+        index=$((index + 1))
+        build_dir="$TMPDIR/build-unsupported-selector-$index"
+        output_file="$TMPDIR/unsupported-selector-$index.log"
+        if cmake -S "$ROOT_DIR" -B "$build_dir" "-D$selector" >"$output_file" 2>&1; then
+            fail "$selector unexpectedly configured as a maintained package option"
+        fi
+        output="$(cat "$output_file")"
+        printf '%s\n' "$output" | grep -Fq "${selector%%=*} is not a supported sparse package" ||
+            fail "$selector failed for a reason other than the unsupported selector"
+        printf '%s\n' "$output" | grep -Fq "static-only" ||
+            fail "$selector rejection lost the static-only boundary"
+    done
+
+    pass "unsupported shared/linkage selectors rejected"
+}
+
+check_default_generated_metadata() {
+    local build_dir="$TMPDIR/build-default"
+    local output_file="$TMPDIR/build-default.log"
+
+    if ! cmake -S "$ROOT_DIR" -B "$build_dir" >"$output_file" 2>&1; then
+        cat "$output_file" >&2
+        fail "default static CMake configure failed"
+    fi
+
+    require_grep \
+        '^Description: Static archive package metadata for sparse linear algebra$' \
+        "$build_dir/sparse.pc" \
+        "generated pkg-config metadata lost the static archive description"
+    require_grep \
+        '^Libs: -L\$\{libdir\} -lsparse_lu_ortho -lm[[:space:]]*$' \
+        "$build_dir/sparse.pc" \
+        "generated pkg-config metadata lost the static archive link flags"
+    require_absent_grep \
+        '(^|[^[:alnum:]_])(shared|dylib|dll|soname|SPARSE_ABI|SPARSE_SHARED|IMPORTED_IMPLIB)([^[:alnum:]_]|$)' \
+        "$build_dir/sparse.pc" \
+        "generated pkg-config metadata advertises deferred shared/ABI behavior"
+    require_absent_grep \
+        'SHARED IMPORTED|MODULE IMPORTED|IMPORTED_IMPLIB|IMPORTED_SONAME|SPARSE_ABI|Sparse::.*shared' \
+        "$build_dir/SparseConfig.cmake" \
+        "generated CMake package config advertises deferred shared/ABI behavior"
+
+    pass "default configure generates static-only package metadata"
+}
+
 check_static_target() {
     require_grep \
         'add_library[[:space:]]*\([[:space:]]*sparse_lu_ortho[[:space:]]+STATIC' \
@@ -347,6 +413,8 @@ check_windows_workflow_no_unselected_package_execution() {
 
 check_decision_record
 check_build_shared_rejected
+check_unselected_package_selectors_rejected
+check_default_generated_metadata
 check_static_target
 check_makefile_static_archive_contract
 check_static_install_metadata

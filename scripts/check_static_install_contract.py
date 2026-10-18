@@ -20,7 +20,7 @@ FORBIDDEN_CMAKE = re.compile(
     r"IMPORTED_SONAME(?:_[A-Z_]+)?|IMPORTED_NO_SONAME(?:_[A-Z_]+)?|"
     r"SOVERSION|INSTALL_NAME_DIR|MACOSX_RPATH|CMAKE_INSTALL_RPATH|"
     r"BUILD_SHARED_LIBS|SPARSE_(?:ABI|EXPORT|IMPORT|LINKAGE|LINK_MODE|"
-    r"LIBRARY_TYPE|LIBRARY_KIND)|"
+    r"LIBRARY_TYPE|LIBRARY_KIND)(?:_[A-Z0-9_]*)?|"
     r"SPARSE_[A-Z0-9_]*(?:SHARED|STATIC)[A-Z0-9_]*)\b|"
     r"\bCOMPONENTS?\s+(?:STATIC|SHARED)\b|Sparse::[^\s\"']*shared",
     re.IGNORECASE,
@@ -85,8 +85,9 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
         "SparseConfigVersion.cmake",
         "SparseTargets.cmake",
     }
-    files = list(package_dir.glob("*.cmake"))
+    files = sorted(package_dir.glob("*.cmake"))
     names = {path.name for path in files}
+    contents: dict[str, str] = {}
     missing = required - names
     if missing:
         errors.append(f"missing CMake package files: {sorted(missing)}")
@@ -99,6 +100,7 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
         ):
             errors.append(f"unexpected CMake package file: {path.name}")
         content = read_text(path, errors)
+        contents[path.name] = content
         match = FORBIDDEN_CMAKE.search(content)
         if match:
             errors.append(f"unsupported CMake loader/selector metadata in {path.name}: "
@@ -108,29 +110,24 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
             errors.append(f"dynamic imported location in {path.name}: "
                           f"{dynamic_location.group(0)}")
 
-    targets = read_text(package_dir / "SparseTargets.cmake", errors)
-    declarations = IMPORTED_TARGET.findall(targets)
+    declarations = [declaration for content in contents.values()
+                    for declaration in IMPORTED_TARGET.findall(content)]
     if declarations != [("Sparse::sparse_lu_ortho", "STATIC")]:
         errors.append(f"CMake imported targets differ from static contract: "
                       f"{declarations}")
-    configurations = "\n".join(
-        read_text(path, errors) for path in files
-        if re.fullmatch(r"SparseTargets-[A-Za-z0-9_]+\.cmake", path.name)
-    )
+    package_contents = "\n".join(contents.values())
     expected_location = "${_IMPORT_PREFIX}/lib/" + archive_name
     locations = re.findall(
-        r'\bIMPORTED_LOCATION(?:_[A-Z_]+)?\s+"([^"]+)"', configurations
+        r'\bIMPORTED_LOCATION(?:_[A-Z_]+)?\s+"([^"]+)"', package_contents
     )
     if not locations or any(location != expected_location for location in locations):
         errors.append(
             f"CMake imported locations differ from {expected_location}: {locations}"
         )
-    if "SparseTargets.cmake" not in read_text(
-        package_dir / "SparseConfig.cmake", errors
-    ):
+    if "SparseTargets.cmake" not in contents.get("SparseConfig.cmake", ""):
         errors.append("CMake config does not load the static target")
-    if f'PACKAGE_VERSION "{version}"' not in read_text(
-        package_dir / "SparseConfigVersion.cmake", errors
+    if f'PACKAGE_VERSION "{version}"' not in contents.get(
+        "SparseConfigVersion.cmake", ""
     ):
         errors.append(f"CMake package version does not match {version}")
 

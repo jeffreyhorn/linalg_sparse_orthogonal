@@ -136,6 +136,9 @@ class StaticInstallContractTests(unittest.TestCase):
             'add_library(Sparse::shared SHARED IMPORTED)\n',
             'set_property(TARGET Sparse::sparse_lu_ortho PROPERTY IMPORTED_IMPLIB "x")\n',
             'set(SPARSE_ABI 1)\n',
+            'set(SPARSE_ABI_EPOCH 1)\n',
+            'set(SPARSE_EXPORT_SYMBOLS "extra")\n',
+            'set(SPARSE_IMPORT_TABLE "extra")\n',
             'set(SPARSE_BUILD_SHARED ON)\n',
             'set(SPARSE_BUILD_STATIC ON)\n',
             'set(SPARSE_LINKAGE shared)\n',
@@ -156,6 +159,28 @@ class StaticInstallContractTests(unittest.TestCase):
         config.write_text('set(IMPORTED_LOCATION_RELEASE "build/library.so")\n',
                           encoding="utf-8")
         self.assert_rejects("CMake imported locations differ")
+
+    def test_rejects_extra_target_declared_in_package_config(self) -> None:
+        config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
+        config.write_text(
+            config.read_text(encoding="utf-8")
+            + 'add_library(Sparse::extra STATIC IMPORTED)\n',
+            encoding="utf-8",
+        )
+        self.assert_rejects("CMake imported targets differ")
+
+    def test_rejects_imported_location_override_in_package_config(self) -> None:
+        config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
+        original = config.read_text(encoding="utf-8")
+        for property_name in ("IMPORTED_LOCATION_RELEASE", "IMPORTED_LOCATION_NOCONFIG"):
+            with self.subTest(property_name=property_name):
+                config.write_text(
+                    original
+                    + 'set_target_properties(Sparse::sparse_lu_ortho PROPERTIES\n'
+                    + f'  {property_name} "/outside/other.a")\n',
+                    encoding="utf-8",
+                )
+                self.assert_rejects("CMake imported locations differ")
 
     def test_rejects_second_dynamic_imported_location(self) -> None:
         config = self.prefix / "lib/cmake/Sparse/SparseTargets-release.cmake"

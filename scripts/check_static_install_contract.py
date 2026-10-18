@@ -117,9 +117,10 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
                       f"{declarations}")
     package_contents = "\n".join(contents.values())
     expected_location = "${_IMPORT_PREFIX}/lib/" + archive_name
-    locations = re.findall(
-        r'\bIMPORTED_LOCATION(?:_[A-Z_]+)?\s+"([^"]+)"', package_contents
-    )
+    locations = [quoted or unquoted for quoted, unquoted in re.findall(
+        r'\bIMPORTED_LOCATION(?:_[A-Z_]+)?\s+(?:"([^"]+)"|([^\s)]+))',
+        package_contents,
+    )]
     if not locations or any(location != expected_location for location in locations):
         errors.append(
             f"CMake imported locations differ from {expected_location}: {locations}"

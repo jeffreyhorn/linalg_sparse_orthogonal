@@ -182,6 +182,19 @@ class StaticInstallContractTests(unittest.TestCase):
                 )
                 self.assert_rejects("CMake imported locations differ")
 
+    def test_rejects_unquoted_imported_location_override(self) -> None:
+        config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
+        original = config.read_text(encoding="utf-8")
+        for command in (
+            "set_target_properties(Sparse::sparse_lu_ortho PROPERTIES "
+            "IMPORTED_LOCATION_RELEASE /outside/other.a)\n",
+            "set_property(TARGET Sparse::sparse_lu_ortho PROPERTY "
+            "IMPORTED_LOCATION_RELEASE /outside/other.a)\n",
+        ):
+            with self.subTest(command=command):
+                config.write_text(original + command, encoding="utf-8")
+                self.assert_rejects("CMake imported locations differ")
+
     def test_rejects_second_dynamic_imported_location(self) -> None:
         config = self.prefix / "lib/cmake/Sparse/SparseTargets-release.cmake"
         config.write_text(

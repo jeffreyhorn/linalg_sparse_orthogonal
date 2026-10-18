@@ -30,7 +30,8 @@ IMPORTED_DYNAMIC_LOCATION = re.compile(
     re.IGNORECASE,
 )
 IMPORTED_TARGET = re.compile(
-    r"(?m)^\s*add_library\(\s*(Sparse::[^\s)]+)\s+([A-Z]+)\s+IMPORTED\s*\)"
+    r"(?m)^\s*add_library\(\s*(Sparse::[^\s)]+)\s+([A-Z]+)\s+IMPORTED"
+    r"(?:\s+GLOBAL)?\s*\)"
 )
 
 

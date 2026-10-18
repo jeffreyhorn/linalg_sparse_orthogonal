@@ -162,12 +162,14 @@ class StaticInstallContractTests(unittest.TestCase):
 
     def test_rejects_extra_target_declared_in_package_config(self) -> None:
         config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
-        config.write_text(
-            config.read_text(encoding="utf-8")
-            + 'add_library(Sparse::extra STATIC IMPORTED)\n',
-            encoding="utf-8",
-        )
-        self.assert_rejects("CMake imported targets differ")
+        original = config.read_text(encoding="utf-8")
+        for declaration in (
+            'add_library(Sparse::extra STATIC IMPORTED)\n',
+            'add_library(Sparse::extra STATIC IMPORTED GLOBAL)\n',
+        ):
+            with self.subTest(declaration=declaration):
+                config.write_text(original + declaration, encoding="utf-8")
+                self.assert_rejects("CMake imported targets differ")
 
     def test_rejects_imported_location_override_in_package_config(self) -> None:
         config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"

@@ -19,6 +19,14 @@ show_consumer_output() { printf '%s\n' "$1" | sed 's/^/    /'; }
 same_dir() {
     [ -n "$1" ] && [ -n "$2" ] && [ -d "$1" ] && [ -d "$2" ] && [ "$1" -ef "$2" ]
 }
+missing_archive_diagnostic() {
+    local diagnostic="$1"
+    printf '%s\n' "$diagnostic" | grep -Eiq \
+        'library.*sparse_lu_ortho.*not found|library not found for -lsparse_lu_ortho|cannot find -lsparse_lu_ortho|unable to find library -lsparse_lu_ortho' && return 0
+    [[ "$diagnostic" == *"$ARCHIVE"* ]] && \
+        printf '%s\n' "$diagnostic" | grep -Eiq \
+            'no such file|not found|cannot open|unable to open|cannot find'
+}
 
 echo "=== Install Validation Tests ==="
 echo "  root:   $ROOT_DIR"
@@ -273,18 +281,30 @@ echo "--- Missing installed archive consumer check ---"
 ARCHIVE="$PREFIX/lib/libsparse_lu_ortho.a"
 MISSING_ARCHIVE_LOG="$TMPDIR/missing_archive_link.log"
 if [ -f "$ARCHIVE" ] && [ -n "${CFLAGS_PC:-}" ] && [ -n "${LIBS_PC:-}" ]; then
+    # A searchable copy exercises the no-fallback contract even on a host with
+    # another sparse installation. The missing absolute archive must fail.
+    mkdir -p "$TMPDIR/host-lib"
+    cp "$ARCHIVE" "$TMPDIR/host-lib/libsparse_lu_ortho.a"
     mv "$ARCHIVE" "$ARCHIVE.hidden"
-    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC \
+    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" "$ARCHIVE" \
+        -L"$TMPDIR/host-lib" -lm \
         -o "$TMPDIR/test_link_missing_archive" >"$MISSING_ARCHIVE_LOG" 2>&1; then
         fail "consumer unexpectedly linked without installed static archive"
-    elif grep -Eiq 'library.*sparse_lu_ortho.*not found|cannot find -lsparse_lu_ortho' \
-        "$MISSING_ARCHIVE_LOG"; then
+    elif missing_archive_diagnostic "$(<"$MISSING_ARCHIVE_LOG")"; then
         pass "consumer link rejects missing installed static archive"
     else
         fail "missing archive link failed without expected library diagnostic"
         cat "$MISSING_ARCHIVE_LOG"
     fi
     mv "$ARCHIVE.hidden" "$ARCHIVE"
+    for diagnostic in \
+        'ld: library not found for -lsparse_lu_ortho' \
+        'ld.lld: error: unable to find library -lsparse_lu_ortho' \
+        'ld: cannot find -lsparse_lu_ortho'; do
+        if ! missing_archive_diagnostic "$diagnostic"; then
+            fail "missing archive diagnostic was not recognized: $diagnostic"
+        fi
+    done
 else
     fail "missing archive link check prerequisites unavailable"
 fi

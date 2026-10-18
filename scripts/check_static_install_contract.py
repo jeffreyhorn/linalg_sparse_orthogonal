@@ -30,8 +30,9 @@ IMPORTED_DYNAMIC_LOCATION = re.compile(
     re.IGNORECASE,
 )
 IMPORTED_TARGET = re.compile(
-    r"(?m)^\s*add_library\(\s*(Sparse::[^\s)]+)\s+([A-Z]+)\s+IMPORTED"
-    r"(?:\s+GLOBAL)?\s*\)"
+    r"(?m)^\s*add_library\s*\(\s*(Sparse::[^\s)]+)\s+([A-Z]+)\s+IMPORTED"
+    r"(?:\s+GLOBAL)?\s*\)",
+    re.IGNORECASE,
 )
 
 
@@ -111,15 +112,16 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
             errors.append(f"dynamic imported location in {path.name}: "
                           f"{dynamic_location.group(0)}")
 
-    declarations = [declaration for content in contents.values()
-                    for declaration in IMPORTED_TARGET.findall(content)]
+    declarations = [(target, library_type.upper()) for content in contents.values()
+                    for target, library_type in IMPORTED_TARGET.findall(content)]
     if declarations != [("Sparse::sparse_lu_ortho", "STATIC")]:
         errors.append(f"CMake imported targets differ from static contract: "
                       f"{declarations}")
     package_contents = "\n".join(contents.values())
     expected_location = "${_IMPORT_PREFIX}/lib/" + archive_name
     locations = [quoted or unquoted for quoted, unquoted in re.findall(
-        r'\bIMPORTED_LOCATION(?:_[A-Z_]+)?\s+(?:"([^"]+)"|([^\s)]+))',
+        r'(?<!\w)"?IMPORTED_LOCATION(?:_[A-Z0-9_]+)?"?\s+'
+        r'(?:"([^"]+)"|([^\s)]+))',
         package_contents,
     )]
     if not locations or any(location != expected_location for location in locations):

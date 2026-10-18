@@ -323,7 +323,7 @@ explicit decision and evidence.
 | `tests/test_cmake_install.sh` | 9 | Updated | Print successful CMake package and exact-version consumer output. |
 | `docs/planning/EPIC_19/SPRINT_214/WORKING_NOTES.md` | 9 | Updated | Static consumer outputs, symbol/metadata boundary, and future fixture handoff. |
 | `docs/planning/EPIC_19/SPRINT_214/artifacts/day9-installed-consumer-evidence.md` | 9 | Added | Executed local static consumer evidence and future ELF/Mach-O/PE shared-consumer specification. |
-| `tests/test_install.sh` | 10 | Updated | Require missing installed archive to fail a `pkg-config` consumer link with library diagnostic. |
+| `tests/test_install.sh` | 10 | Updated | Day 10 required a missing-archive link failure; PR #237 review follow-up added installed-prefix validation before another package-flag link and narrowed the explicit-path link to missing-file diagnostics, not host-library fallback proof. |
 | `tests/test_cmake_install.sh` | 10 | Updated | Require version-specific mismatch diagnostic and missing imported archive validation/configure failures. |
 | `docs/planning/EPIC_19/SPRINT_214/WORKING_NOTES.md` | 10 | Updated | Consumer negative evidence, validation results, and Day 11 handoff. |
 | `docs/planning/EPIC_19/SPRINT_214/artifacts/day10-consumer-negative-matrix.md` | 10 | Added | Executed static and future-only dynamic negative matrix with CI ownership. |

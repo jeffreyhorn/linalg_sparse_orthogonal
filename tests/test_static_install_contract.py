@@ -166,6 +166,8 @@ class StaticInstallContractTests(unittest.TestCase):
         for declaration in (
             'add_library(Sparse::extra STATIC IMPORTED)\n',
             'add_library(Sparse::extra STATIC IMPORTED GLOBAL)\n',
+            'ADD_LIBRARY(Sparse::extra STATIC IMPORTED)\n',
+            'add_library (Sparse::extra STATIC IMPORTED)\n',
         ):
             with self.subTest(declaration=declaration):
                 config.write_text(original + declaration, encoding="utf-8")
@@ -192,6 +194,14 @@ class StaticInstallContractTests(unittest.TestCase):
             "IMPORTED_LOCATION_RELEASE /outside/other.a)\n",
             "set_property(TARGET Sparse::sparse_lu_ortho PROPERTY "
             "IMPORTED_LOCATION_RELEASE /outside/other.a)\n",
+            'set_target_properties(Sparse::sparse_lu_ortho PROPERTIES '
+            '"IMPORTED_LOCATION_RELEASE" "/outside/other.a")\n',
+            'set_property(TARGET Sparse::sparse_lu_ortho PROPERTY '
+            '"IMPORTED_LOCATION_RELEASE" "/outside/other.a")\n',
+            'set_target_properties(Sparse::sparse_lu_ortho PROPERTIES '
+            'IMPORTED_LOCATION_RELEASE64 "/outside/other.a")\n',
+            'set_property(TARGET Sparse::sparse_lu_ortho PROPERTY '
+            '"IMPORTED_LOCATION_RELEASE64" "/outside/other.a")\n',
         ):
             with self.subTest(command=command):
                 config.write_text(original + command, encoding="utf-8")

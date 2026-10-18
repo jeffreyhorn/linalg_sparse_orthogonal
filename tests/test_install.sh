@@ -275,23 +275,33 @@ else
     fi
 fi
 
-# A package file can still resolve after its archive disappears. The installed
-# consumer must not silently link a different sparse library from the host.
+# A package file can still resolve after its archive disappears. Validation
+# must reject the installed prefix before a consumer uses its linker flags.
 echo "--- Missing installed archive consumer check ---"
 ARCHIVE="$PREFIX/lib/libsparse_lu_ortho.a"
 MISSING_ARCHIVE_LOG="$TMPDIR/missing_archive_link.log"
+MISSING_ARCHIVE_VALIDATOR_LOG="$TMPDIR/missing_archive_validator.log"
 if [ -f "$ARCHIVE" ] && [ -n "${CFLAGS_PC:-}" ] && [ -n "${LIBS_PC:-}" ]; then
-    # A searchable copy exercises the no-fallback contract even on a host with
-    # another sparse installation. The missing absolute archive must fail.
-    mkdir -p "$TMPDIR/host-lib"
-    cp "$ARCHIVE" "$TMPDIR/host-lib/libsparse_lu_ortho.a"
     mv "$ARCHIVE" "$ARCHIVE.hidden"
+    if python3 "$ROOT_DIR/scripts/check_static_install_contract.py" "$PREFIX" \
+        --mode make --platform unix --version "$EXPECTED_VERSION" \
+        >"$MISSING_ARCHIVE_VALIDATOR_LOG" 2>&1; then
+        fail "installed-prefix validator accepted missing static archive"
+    elif grep -Fq 'missing regular static archive:' "$MISSING_ARCHIVE_VALIDATOR_LOG" && \
+        grep -Fq 'libsparse_lu_ortho.a' "$MISSING_ARCHIVE_VALIDATOR_LOG"; then
+        pass "installed-prefix validator rejects missing static archive"
+    else
+        fail "missing archive validator failed without expected diagnostic"
+        cat "$MISSING_ARCHIVE_VALIDATOR_LOG"
+    fi
+    # The explicit path tests the linker's missing-file diagnostic only. The
+    # validator above rejects this prefix before another pkg-config link.
     if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" "$ARCHIVE" \
-        -L"$TMPDIR/host-lib" -lm \
+        -lm \
         -o "$TMPDIR/test_link_missing_archive" >"$MISSING_ARCHIVE_LOG" 2>&1; then
         fail "consumer unexpectedly linked without installed static archive"
     elif missing_archive_diagnostic "$(<"$MISSING_ARCHIVE_LOG")"; then
-        pass "consumer link rejects missing installed static archive"
+        pass "explicit-path consumer link rejects missing installed static archive"
     else
         fail "missing archive link failed without expected library diagnostic"
         cat "$MISSING_ARCHIVE_LOG"

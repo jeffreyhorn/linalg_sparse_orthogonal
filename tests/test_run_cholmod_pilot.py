@@ -96,6 +96,23 @@ class PilotParserTests(unittest.TestCase):
             self.assertEqual(launch_error["failure_kind"], "launch_error")
             self.assertIn("cannot launch", (bundle / "launch_error.stderr.txt").read_text(encoding="utf-8"))
 
+    def test_completed_command_preserves_raw_streams(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            stdout = b"ready\r\nvalue=\xff\r\n"
+            stderr = b"warning\r\nbyte=\xfe\r\n"
+            completed = subprocess.CompletedProcess(["probe"], 0, stdout=stdout, stderr=stderr)
+            with mock.patch.object(pilot.subprocess, "run", return_value=completed) as run_command:
+                entry = pilot.command(bundle, "completed", ["probe"])
+            self.assertNotIn("text", run_command.call_args.kwargs)
+            self.assertEqual(entry["returncode"], 0)
+            self.assertEqual(entry["stdout"], "ready\r\nvalue=\ufffd")
+            self.assertEqual((bundle / "completed.stdout.txt").read_bytes(), stdout)
+            self.assertEqual((bundle / "completed.stderr.txt").read_bytes(), stderr)
+            for stream in ("stdout", "stderr"):
+                self.assertEqual(entry["files"][stream]["sha256"],
+                                 pilot.sha256(bundle / entry["files"][stream]["path"]))
+
     def test_schema_gate_blocks_before_build_or_solver(self) -> None:
         for scenario in ("missing_schema", "missing_validator", "failing_self_test"):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temp:
@@ -110,35 +127,45 @@ class PilotParserTests(unittest.TestCase):
                     schema.touch()
                 if scenario != "missing_validator":
                     validator.touch()
-                responses = {
-                    "cholmod_version": "5.3.4",
-                    "cholmod_prefix": str(prefix),
-                    "cholmod_cflags": "",
-                    "cholmod_libs": "",
-                    "git_commit": "a" * 40,
-                    "git_status": "",
-                    "compiler_version": "test compiler",
-                    "library_linkage": "test linkage",
-                }
-
-                def probe(_bundle, _attempts, label, _argv):
-                    if label == "schema_preflight" and scenario == "failing_self_test":
-                        raise pilot.PilotError("missing_dependency", "validator self-test exited 1")
-                    return responses.get(label, "")
-
+                commands = []
+                original_sha256 = pilot.sha256
                 def selected_hash(path):
-                    return pilot.FIXTURE_SHA256 if path == pilot.FIXTURE else pilot.LIB_SHA256
+                    return pilot.LIB_SHA256 if path == library else original_sha256(path)
+
+                def completed_command(argv, **_kwargs):
+                    commands.append(argv)
+                    if argv[:2] == ["pkg-config", "--modversion"]:
+                        stdout = b"5.3.4\n"
+                    elif argv[:2] == ["pkg-config", "--variable=prefix"]:
+                        stdout = str(prefix).encode("utf-8") + b"\n"
+                    elif argv[:2] in (["pkg-config", "--cflags"], ["pkg-config", "--libs"]):
+                        stdout = b""
+                    elif argv[:2] == ["git", "rev-parse"]:
+                        stdout = b"a" * 40 + b"\n"
+                    elif argv[:2] == ["git", "status"]:
+                        stdout = b""
+                    elif argv[:2] == ["cc", "--version"]:
+                        stdout = b"test compiler\n"
+                    elif argv[0] == "otool":
+                        stdout = b"test linkage\n"
+                    elif "--self-test" in argv:
+                        return subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b"negative fixture failed\n")
+                    else:
+                        self.fail(f"unexpected build or solver command: {argv}")
+                    return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr=b"")
 
                 with mock.patch.object(pilot, "EVIDENCE_SCHEMA", schema), \
                      mock.patch.object(pilot, "EVIDENCE_VALIDATOR", validator), \
                      mock.patch.object(pilot, "sha256", side_effect=selected_hash), \
-                     mock.patch.object(pilot, "checked_probe", side_effect=probe) as probes, \
-                     mock.patch.object(pilot, "command") as solver_command:
+                     mock.patch.object(pilot.subprocess, "run", side_effect=completed_command):
                     record = pilot.run(root)
-                labels = [call.args[2] for call in probes.call_args_list]
-                self.assertNotIn("project_library_build", labels)
-                self.assertNotIn("compile_helper", labels)
-                solver_command.assert_not_called()
+                self.assertFalse(any(argv[0] == "make" for argv in commands))
+                self.assertFalse(any(argv[0] == "cc" and "--version" not in argv for argv in commands))
+                self.assertFalse(any("cholmod_pilot" in argv[0] for argv in commands))
+                self.assertNotIn("project_library_build", record["commands"])
+                self.assertNotIn("compile_helper", record["commands"])
+                self.assertNotIn("project", record["commands"])
+                self.assertNotIn("baseline", record["commands"])
                 self.assertEqual(record["provisional_status"], "blocked")
                 self.assertEqual(record["sides"], {})
                 self.assertEqual(record["timing"], "not_run")
@@ -146,11 +173,11 @@ class PilotParserTests(unittest.TestCase):
                     self.assertEqual(record["status_reason"], "schema_validation_failed")
                     self.assertEqual(record["schema_validation"],
                                      {"status": "failed", "reason": "validator_self_test_failed"})
-                    self.assertIn("schema_preflight", labels)
+                    self.assertEqual(record["commands"]["schema_preflight"]["returncode"], 1)
                 else:
                     self.assertEqual(record["status_reason"], "schema_validation_unavailable")
                     self.assertEqual(record["schema_validation"]["reason"], "v1_schema_or_validator_missing")
-                    self.assertNotIn("schema_preflight", labels)
+                    self.assertNotIn("schema_preflight", record["commands"])
 
     def test_missing_optional_dependency_yields_blocked_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

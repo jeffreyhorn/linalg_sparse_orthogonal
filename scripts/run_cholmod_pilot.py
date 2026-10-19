@@ -109,7 +109,7 @@ def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
     failure_kind = None
     try:
         result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True,
-                                text=True, errors="replace", timeout=120, check=False)
+                                timeout=120, check=False)
         stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or b""

@@ -124,6 +124,14 @@ class StaticInstallContractTests(unittest.TestCase):
         (self.prefix / "lib/cmake/Sparse/SparseTargets.cmake").unlink()
         self.assert_rejects("missing CMake package files")
 
+    def test_rejects_commented_out_cmake_targets_include(self) -> None:
+        config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
+        config.write_text(
+            '# include("${CMAKE_CURRENT_LIST_DIR}/SparseTargets.cmake")\n',
+            encoding="utf-8",
+        )
+        self.assert_rejects("CMake config does not load the static target")
+
     def test_rejects_wrong_cmake_package_version(self) -> None:
         version_file = self.prefix / "lib/cmake/Sparse/SparseConfigVersion.cmake"
         version_file.write_text('set(PACKAGE_VERSION "2.3.0")\n', encoding="utf-8")
@@ -168,6 +176,8 @@ class StaticInstallContractTests(unittest.TestCase):
             'add_library(Sparse::extra STATIC IMPORTED GLOBAL)\n',
             'ADD_LIBRARY(Sparse::extra STATIC IMPORTED)\n',
             'add_library (Sparse::extra STATIC IMPORTED)\n',
+            'add_library("Sparse::extra" STATIC IMPORTED)\n',
+            'add_library(sparse_extra STATIC IMPORTED)\n',
         ):
             with self.subTest(declaration=declaration):
                 config.write_text(original + declaration, encoding="utf-8")
@@ -239,6 +249,14 @@ class StaticInstallContractTests(unittest.TestCase):
             with self.subTest(changed=changed[-40:]):
                 path.write_text(changed, encoding="utf-8")
                 self.assert_rejects("pkg-config")
+
+    def test_rejects_relative_pkgconfig_prefix(self) -> None:
+        path = self.prefix / "lib/pkgconfig/sparse.pc"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(f"prefix={self.prefix}", "prefix=."),
+            encoding="utf-8",
+        )
+        self.assert_rejects("pkg-config prefix must be absolute")
 
     def test_rejects_cmake_metadata_in_make_install(self) -> None:
         self.assertIn(

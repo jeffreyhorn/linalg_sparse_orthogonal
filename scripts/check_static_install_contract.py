@@ -30,9 +30,13 @@ IMPORTED_DYNAMIC_LOCATION = re.compile(
     re.IGNORECASE,
 )
 IMPORTED_TARGET = re.compile(
-    r"(?m)^\s*add_library\s*\(\s*(Sparse::[^\s)]+)\s+([A-Z]+)\s+IMPORTED"
+    r'(?m)^\s*add_library\s*\(\s*(?:"([^"]+)"|([^\s()"]+))\s+([A-Z]+)\s+IMPORTED'
     r"(?:\s+GLOBAL)?\s*\)",
     re.IGNORECASE,
+)
+TARGETS_INCLUDE = re.compile(
+    r'(?m)^[ \t]*(?i:include)\s*\(\s*"?\$\{CMAKE_CURRENT_LIST_DIR\}'
+    r'/SparseTargets\.cmake"?\s*\)'
 )
 
 
@@ -66,8 +70,12 @@ def check_pc(path: Path, prefix: Path, version: str, errors: list[str]) -> None:
 
     if set(variables) != PC_VARIABLES:
         errors.append(f"pkg-config variables differ: {sorted(variables)}")
-    if "prefix" in variables and Path(variables["prefix"]).resolve() != prefix.resolve():
-        errors.append(f"pkg-config prefix differs from install prefix: {variables['prefix']}")
+    if "prefix" in variables:
+        stored_prefix = Path(variables["prefix"])
+        if not stored_prefix.is_absolute():
+            errors.append(f"pkg-config prefix must be absolute: {variables['prefix']}")
+        elif stored_prefix.resolve() != prefix.resolve():
+            errors.append(f"pkg-config prefix differs from install prefix: {variables['prefix']}")
     for key, expected_value in {
         "exec_prefix": "${prefix}",
         "libdir": "${exec_prefix}/lib",
@@ -112,8 +120,9 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
             errors.append(f"dynamic imported location in {path.name}: "
                           f"{dynamic_location.group(0)}")
 
-    declarations = [(target, library_type.upper()) for content in contents.values()
-                    for target, library_type in IMPORTED_TARGET.findall(content)]
+    declarations = [(quoted or unquoted, library_type.upper())
+                    for content in contents.values()
+                    for quoted, unquoted, library_type in IMPORTED_TARGET.findall(content)]
     if declarations != [("Sparse::sparse_lu_ortho", "STATIC")]:
         errors.append(f"CMake imported targets differ from static contract: "
                       f"{declarations}")
@@ -128,7 +137,7 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
         errors.append(
             f"CMake imported locations differ from {expected_location}: {locations}"
         )
-    if "SparseTargets.cmake" not in contents.get("SparseConfig.cmake", ""):
+    if not TARGETS_INCLUDE.search(contents.get("SparseConfig.cmake", "")):
         errors.append("CMake config does not load the static target")
     if f'PACKAGE_VERSION "{version}"' not in contents.get(
         "SparseConfigVersion.cmake", ""

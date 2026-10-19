@@ -1,0 +1,133 @@
+{
+  "schema_version": "external_baseline_evidence_v1",
+  "record_id": "example-s215-cholmod-symmetric4-blueprint",
+  "selection_id": "s215-cholmod-v7_12_2-symmetric4-spdsolve-v1",
+  "cell_id": null,
+  "cell_id_reason": "runtime_build_host_and_loaded_binary_not_verified",
+  "run_id": null,
+  "record_kind": "blueprint",
+  "evidence_origin": "planning",
+  "evidence_status": "planned",
+  "status_reason": "selection_and_methodology_only_no_solver_run",
+  "claim_scope": "planned_one_cell_local_correctness_methodology_only",
+  "non_claims": "no_external_solver_result;no_timing_result;no_portable_speed;no_hosted_threshold;no_cross_platform_timing_parity;no_state_of_the_art_claim",
+  "publication_review": "pending",
+  "cell": {
+    "matrix": {
+      "path": "tests/data/symmetric_4.mtx",
+      "sha256": "ead030a6d92a4c3197409aba1f4addb9d1e78f3696d52e072686d762705a7335",
+      "format": "matrix_market_coordinate",
+      "field": "real",
+      "symmetry": "symmetric",
+      "rows": 4,
+      "cols": 4,
+      "stored_nnz": 7,
+      "expanded_nnz": 10,
+      "source_commit": "aa1c04ea",
+      "attribution_review": "pending"
+    },
+    "problem": {
+      "class": "spd_linear_solve",
+      "operation": "A*x=b",
+      "precision": "float64",
+      "project_index_abi": "int32",
+      "baseline_index_abi": null,
+      "index_abi_reason": "external_runtime_abi_not_verified",
+      "rhs_count": 1
+    },
+    "rhs": {
+      "values": [13, 14, 17, 16],
+      "oracle": [1, 1, 1, 1]
+    },
+    "project": {
+      "solver_api": ["sparse_cholesky_factor_opts", "sparse_cholesky_solve"],
+      "ordering": "none",
+      "backend": "linked_list",
+      "git_commit": null,
+      "worktree_state": null,
+      "patch_sha256": null,
+      "compiler": null,
+      "compile_flags": null,
+      "build_mode": null,
+      "binary_sha256": null,
+      "runtime_reason": "project_pilot_not_built_or_executed"
+    },
+    "baseline": {
+      "project": "SuiteSparse CHOLMOD",
+      "suite_sparse_version": "v7.12.2",
+      "cholmod_version": "5.3.4",
+      "source_commit": "42151688813c45846a597edcb601435a0e38f3dd",
+      "source_url": "https://github.com/DrTimothyAldenDavis/SuiteSparse/releases/tag/v7.12.2",
+      "acquisition": "local_homebrew_candidate",
+      "solver_api": ["cholmod_analyze", "cholmod_factorize", "cholmod_solve(CHOLMOD_A)"],
+      "ordering": "natural",
+      "backend": "simplicial",
+      "postorder": false,
+      "candidate_binary_sha256": "0f99009a37904313dd3b1c05d30fa3d43ab7cfe8b3a7641b71ac4b725ae8710c",
+      "loaded_library_path": null,
+      "loaded_library_sha256": null,
+      "build_options": null,
+      "module_composition": null,
+      "dependencies": null,
+      "runtime_reason": "loaded_library_and_build_provenance_not_verified"
+    }
+  },
+  "methodology": {
+    "identity": {
+      "path": "docs/planning/EPIC_19/SPRINT_215/artifacts/day3-methodology-inputs.md",
+      "sha256": null
+    },
+    "correctness": {
+      "path": "docs/planning/EPIC_19/SPRINT_215/artifacts/day4-correctness-and-tolerance-contract.md",
+      "sha256": null
+    },
+    "measurement": {
+      "path": "docs/planning/EPIC_19/SPRINT_215/artifacts/day5-external-comparison-methodology.md",
+      "sha256": null
+    },
+    "hash_reason": "methodology_files_not_frozen_for_an_execution",
+    "timing_policy": "not_run",
+    "correctness_units": {
+      "residual_inf": "rhs_units",
+      "oracle_error_inf": "solution_units",
+      "backward_error": "dimensionless"
+    },
+    "timing_unit": "ns",
+    "planned_warmup_pairs": 5,
+    "planned_timed_pairs": 50,
+    "planned_clock": "clock_gettime(CLOCK_MONOTONIC)",
+    "planned_phases": ["factor_ready", "one_solve", "factor_plus_first_solve"]
+  },
+  "environment": null,
+  "environment_reason": "no_execution_environment_captured",
+  "correctness": {
+    "project": {
+      "state": "not_run",
+      "phase_statuses": null,
+      "solution": null,
+      "residual_inf": null,
+      "oracle_error_inf": null,
+      "raw_artifact": null,
+      "availability_reason": "no_solver_run"
+    },
+    "baseline": {
+      "state": "not_run",
+      "phase_statuses": null,
+      "solution": null,
+      "residual_inf": null,
+      "oracle_error_inf": null,
+      "raw_artifact": null,
+      "availability_reason": "no_solver_run"
+    }
+  },
+  "timing": {
+    "state": "not_run",
+    "unit": "ns",
+    "warmup_pairs_observed": null,
+    "timed_pairs_observed": null,
+    "raw_samples_artifact": null,
+    "median_ns": null,
+    "availability_reason": "correctness_only_blueprint"
+  },
+  "artifacts": []
+}

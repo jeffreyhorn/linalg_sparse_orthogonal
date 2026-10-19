@@ -1923,6 +1923,46 @@ Selected performance platform/build caveats:
   meaning; only the reviewed Sprint 202 `selected-performance-freshness` lane
   carries macOS hosted selected benchmark freshness evidence
 
+Sprint 215's [external-baseline claim matrix](planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+is a separate evidence track. Its selected local correctness-only cell is
+project linked-list Cholesky versus SuiteSparse `v7.12.2` / CHOLMOD 5.3.4 on
+`tests/data/symmetric_4.mtx`. The [Day 10 preflight](planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md)
+was blocked by the absent v1 evidence schema and validator before either
+solver ran; no external numerical result or timing sample was accepted. Do
+not interpret the selected `bench_refactor_csc` freshness row, selected
+source-controlled-helper comparison rows, or that blocked preflight as
+external-library parity or a speed result. An observed external row requires
+the separate validator, complete runtime provenance, and both Day 4 numerical
+gates; publication also requires fixture attribution and CHOLMOD module-license
+review. Keep the selected manifests and normalized index unchanged until a
+separately reviewed promotion.
+
+For this external track, the [Day 7 planning JSON](planning/EPIC_19/SPRINT_215/artifacts/day7-external-evidence-blueprint.example.json)
+uses `record_kind=blueprint`, `evidence_origin=planning`,
+`evidence_status=planned`, and `cell_id=null`; it is not a run. The opt-in
+[`scripts/run_cholmod_pilot.py`](../scripts/run_cholmod_pilot.py) instead writes
+an ignored `build/external-baseline/<selection_id>/<run_id>/attempt.json`
+with `provisional_status`, `status_reason`, `schema_validation`, `sides`, and
+`timing` fields. The Day 10 attempt has `provisional_status=blocked`,
+`status_reason=schema_validation_unavailable`, `sides={}` and
+`timing=not_run`. These provisional fields are **not** the proposed v1
+`evidence_status` vocabulary and must not be mapped to selected report
+`status=pass` or renamed to `evidence.json`.
+
+The retry gate is: implement the v1 schema and semantic validator with its
+negative fixtures; verify a complete cell ID, exact matrix/RHS and conversion,
+project build and loaded CHOLMOD/transitive binary hashes, ABI, build/module
+settings and effective ordering/backend/thread controls; retain command,
+cwd, exit status and SHA-256-referenced raw stdout/stderr for both sides; then
+apply the frozen Day 4 status, finite-solution, residual, oracle-error and
+cross-solver checks. Only a validated, fully proven one-cell run can become
+`correctness_observed`. Optional `measured` timing additionally needs the
+separate Day 5 warmup, paired-trial, clock, dispersion and host-provenance
+contract. `blocked`, `non_comparable`, or `timing_invalid` cannot be reported
+as a pass or speed result. More matrices, solvers or platforms each require
+new frozen cells and validated runs; state-of-the-art wording requires a
+representative, fair, reproducible study rather than one measurement.
+
 Selected performance repair workflow:
 
 - if `make bench-canonical-report-freshness` fails, rerun it before editing

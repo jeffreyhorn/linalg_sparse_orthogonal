@@ -248,6 +248,17 @@ Selected performance evidence path:
 | Local selected regression smoke gate | `make performance-sentinels` | [benchmarks/README.md#report-index-handoff](benchmarks/README.md#report-index-handoff) |
 | Cross-report navigation | `python3 scripts/normalize_report_index.py --check-freshness` | [docs/maintainer_guide.md#normalized-report-index-workflow](docs/maintainer_guide.md#normalized-report-index-workflow) |
 
+Sprint 215 selected one separate **external-baseline design**: a local,
+correctness-only project Cholesky versus SuiteSparse `v7.12.2` / CHOLMOD
+5.3.4 solve on `tests/data/symmetric_4.mtx`. Its [pilot preflight](docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md)
+was blocked before either solver ran because the v1 evidence validator and
+schema are absent. No external numerical result or timing sample was
+accepted. The [benchmark guide](benchmarks/README.md#report-index-handoff)
+and [claim matrix](docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+separate this blueprint and blocked attempt from internal selected freshness.
+They do not establish CHOLMOD parity, portable speed, cross-platform
+performance, or state-of-the-art standing.
+
 Generated report artifacts remain under ignored `build/` paths. Regenerate
 them before interpreting rows, and treat them as navigation or local evidence
 within their recorded fixture, command, branch, build, and machine context.

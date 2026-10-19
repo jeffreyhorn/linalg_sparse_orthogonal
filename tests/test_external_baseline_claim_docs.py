@@ -27,7 +27,7 @@ BROAD = (
     r"(?:linux\s*(?:and|/)\s*macos|cross[- ]platform|platform)\s*"
     r"(?:timing\s*)?parity|cross[- ]platform\s+(?:performance|speed))"
 )
-UNSUPPORTED = re.compile(rf"\b{SUBJECT}\s+{POSITIVE}\s+[^.!?]{{0,80}}?{BROAD}\b", re.I)
+UNSUPPORTED = re.compile(rf"\b{SUBJECT}\s+{POSITIVE}\s+(?!(?:not|never)\b)[^.!?]{{0,80}}?{BROAD}\b", re.I)
 
 
 def validate_docs(overrides: dict[str, str] | None = None) -> None:
@@ -72,7 +72,12 @@ class ExternalBaselineClaimDocsTests(unittest.TestCase):
     def test_explicit_nonclaim_is_allowed(self) -> None:
         path = "README.md"
         content = (ROOT / path).read_text(encoding="utf-8")
-        validate_docs({path: content + "\nThe Sprint 215 blueprint does not prove state-of-the-art performance.\n"})
+        for claim in (
+            "The Sprint 215 blueprint does not prove state-of-the-art performance.",
+            "The blocked pilot is not state-of-the-art.",
+        ):
+            with self.subTest(claim=claim):
+                validate_docs({path: content + "\n" + claim + "\n"})
 
 
 if __name__ == "__main__":

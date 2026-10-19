@@ -67,7 +67,12 @@ definition, not merely an equal cell hash.
 
 Units are part of the schema: `residual_inf` is in RHS units,
 `oracle_error_inf` in solution units, `backward_error` dimensionless, and
-all timing durations/aggregates in integer nanoseconds. Do not accept `ms`
+raw timing durations in integer nanoseconds. Aggregate statistics such as
+median, quartiles, IQR and MAD are finite numeric nanosecond values and may
+be fractional under the declared statistical convention: two middle raw
+samples of 1000 and 1001 ns have a median of 1000.5 ns. Recompute aggregates
+from the raw integer samples; do not round to satisfy an integer type.
+Do not accept `ms`
 under a field ending in `_ns`, a stringified number, NaN/Inf, or zero as a
 substitute for an unavailable metric. An unavailable optional memory or fill
 value is JSON `null` with `availability_reason=not_collected|not_exposed|

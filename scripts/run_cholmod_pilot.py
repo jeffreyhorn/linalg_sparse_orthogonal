@@ -89,6 +89,8 @@ def check_correctness(solution: tuple[float, ...]) -> dict:
     oracle_error_inf = max(abs(value - 1.0) for value in solution)
     x_inf = max(abs(value) for value in solution)
     denominator = 17.0 * x_inf + 17.0
+    if not math.isfinite(denominator):
+        raise PilotError("nonfinite_metric", "residual denominator is nonfinite")
     t = 32.0 * 4.0 * sys.float_info.epsilon
     residual_limit = t * 17.0 + t * denominator
     oracle_limit = 2.0 * t * (17.0 / 7.0)
@@ -104,19 +106,34 @@ def check_correctness(solution: tuple[float, ...]) -> dict:
 
 def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
             env: dict | None = None) -> dict:
+    failure_kind = None
     try:
         result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True,
                                 text=True, errors="replace", timeout=120, check=False)
         stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or b""
+        stderr = exc.stderr or b""
+        returncode = 124
+        failure_kind = "timeout"
+    except OSError as exc:
         stdout, stderr, returncode = "", str(exc), 127
+        failure_kind = "launch_error"
     files = {}
     for suffix, value in (("stdout", stdout), ("stderr", stderr)):
         path = bundle / f"{label}.{suffix}.txt"
-        path.write_text(value, encoding="utf-8")
+        if isinstance(value, bytes):
+            path.write_bytes(value)
+        else:
+            path.write_text(value, encoding="utf-8")
         files[suffix] = {"path": path.name, "sha256": sha256(path)}
-    return {"argv": argv, "cwd": str(cwd), "returncode": returncode,
-            "files": files, "stdout": stdout.strip()}
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode("utf-8", errors="replace")
+    entry = {"argv": argv, "cwd": str(cwd), "returncode": returncode,
+             "files": files, "stdout": stdout.strip()}
+    if failure_kind:
+        entry["failure_kind"] = failure_kind
+    return entry
 
 
 def checked_probe(bundle: Path, attempts: dict, label: str, argv: list[str]) -> str:
@@ -167,9 +184,13 @@ def run(bundle: Path) -> dict:
         if not EVIDENCE_SCHEMA.is_file() or not EVIDENCE_VALIDATOR.is_file():
             record["schema_validation"]["reason"] = "v1_schema_or_validator_missing"
             raise PilotError("schema_validation_unavailable", "v1 schema and validator are required before solving")
-        checked_probe(bundle, attempts, "schema_preflight", [
-            sys.executable, str(EVIDENCE_VALIDATOR), "--schema", str(EVIDENCE_SCHEMA), "--self-test",
-        ])
+        try:
+            checked_probe(bundle, attempts, "schema_preflight", [
+                sys.executable, str(EVIDENCE_VALIDATOR), "--schema", str(EVIDENCE_SCHEMA), "--self-test",
+            ])
+        except PilotError as exc:
+            record["schema_validation"] = {"status": "failed", "reason": "validator_self_test_failed"}
+            raise PilotError("schema_validation_failed", str(exc)) from exc
         record["schema_validation"] = {"status": "preflight_pass", "reason": "negative_fixtures_checked"}
         checked_probe(bundle, attempts, "project_library_build", ["make", "build/libsparse_lu_ortho.a"])
         project_archive = ROOT / "build/libsparse_lu_ortho.a"
@@ -204,7 +225,7 @@ def run(bundle: Path) -> dict:
         record["provisional_status"] = "blocked" if exc.code in {
             "missing_dependency", "baseline_version_mismatch", "baseline_binary_mismatch",
             "loaded_library_mismatch", "fixture_hash_mismatch", "fixture_missing",
-            "schema_validation_unavailable",
+            "schema_validation_unavailable", "schema_validation_failed",
         } else "failed"
         record["status_reason"] = exc.code
         record["status_detail"] = str(exc)

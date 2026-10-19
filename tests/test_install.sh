@@ -15,8 +15,17 @@ FAIL=0
 
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
+show_consumer_output() { printf '%s\n' "$1" | sed 's/^/    /'; }
 same_dir() {
     [ -n "$1" ] && [ -n "$2" ] && [ -d "$1" ] && [ -d "$2" ] && [ "$1" -ef "$2" ]
+}
+missing_archive_diagnostic() {
+    local diagnostic="$1"
+    printf '%s\n' "$diagnostic" | grep -Eiq \
+        'library.*sparse_lu_ortho.*not found|library not found for -lsparse_lu_ortho|cannot find -lsparse_lu_ortho|unable to find library -lsparse_lu_ortho' && return 0
+    [[ "$diagnostic" == *"$ARCHIVE"* ]] && \
+        printf '%s\n' "$diagnostic" | grep -Eiq \
+            'no such file|not found|cannot open|unable to open|cannot find'
 }
 
 echo "=== Install Validation Tests ==="
@@ -175,6 +184,13 @@ else
     fail "pkg-config --modversion expected $EXPECTED_VERSION, got '$PC_VERSION'"
 fi
 
+if python3 "$ROOT_DIR/scripts/check_static_install_contract.py" "$PREFIX" \
+    --mode make --platform unix --version "$EXPECTED_VERSION"; then
+    pass "installed Make package matches static artifact and metadata contract"
+else
+    fail "installed Make package contains unexpected artifact or metadata"
+fi
+
 # ── 4. Compile and link downstream consumers against installed library ─────
 echo "--- Compiling downstream consumers against installed library ---"
 cat > "$TMPDIR/test_link.c" << 'CEOF'
@@ -221,6 +237,7 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
             echo "$OUTPUT" | grep -q "nnz: 1" && \
             echo "$OUTPUT" | grep -q "OK"; then
             pass "basic pkg-config consumer runs correctly"
+            show_consumer_output "$OUTPUT"
         else
             fail "basic pkg-config consumer output unexpected: $OUTPUT"
         fi
@@ -245,6 +262,7 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
             echo "$OUTPUT" | grep -q "Solution:" && \
             echo "$OUTPUT" | grep -q "OK"; then
             pass "maintained example source runs with pkg-config install"
+            show_consumer_output "$OUTPUT"
         else
             fail "maintained example source output unexpected: $OUTPUT"
         fi
@@ -255,6 +273,50 @@ else
         echo "pkg-config output:"
         cat "$PKG_CONFIG_LOG"
     fi
+fi
+
+# A package file can still resolve after its archive disappears. Validation
+# must reject the installed prefix before a consumer uses its linker flags.
+echo "--- Missing installed archive consumer check ---"
+ARCHIVE="$PREFIX/lib/libsparse_lu_ortho.a"
+MISSING_ARCHIVE_LOG="$TMPDIR/missing_archive_link.log"
+MISSING_ARCHIVE_VALIDATOR_LOG="$TMPDIR/missing_archive_validator.log"
+if [ -f "$ARCHIVE" ] && [ -n "${CFLAGS_PC:-}" ] && [ -n "${LIBS_PC:-}" ]; then
+    mv "$ARCHIVE" "$ARCHIVE.hidden"
+    if python3 "$ROOT_DIR/scripts/check_static_install_contract.py" "$PREFIX" \
+        --mode make --platform unix --version "$EXPECTED_VERSION" \
+        >"$MISSING_ARCHIVE_VALIDATOR_LOG" 2>&1; then
+        fail "installed-prefix validator accepted missing static archive"
+    elif grep -Fq 'missing regular static archive:' "$MISSING_ARCHIVE_VALIDATOR_LOG" && \
+        grep -Fq 'libsparse_lu_ortho.a' "$MISSING_ARCHIVE_VALIDATOR_LOG"; then
+        pass "installed-prefix validator rejects missing static archive"
+    else
+        fail "missing archive validator failed without expected diagnostic"
+        cat "$MISSING_ARCHIVE_VALIDATOR_LOG"
+    fi
+    # The explicit path tests the linker's missing-file diagnostic only. The
+    # validator above rejects this prefix before another pkg-config link.
+    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" "$ARCHIVE" \
+        -lm \
+        -o "$TMPDIR/test_link_missing_archive" >"$MISSING_ARCHIVE_LOG" 2>&1; then
+        fail "consumer unexpectedly linked without installed static archive"
+    elif missing_archive_diagnostic "$(<"$MISSING_ARCHIVE_LOG")"; then
+        pass "explicit-path consumer link rejects missing installed static archive"
+    else
+        fail "missing archive link failed without expected library diagnostic"
+        cat "$MISSING_ARCHIVE_LOG"
+    fi
+    mv "$ARCHIVE.hidden" "$ARCHIVE"
+    for diagnostic in \
+        'ld: library not found for -lsparse_lu_ortho' \
+        'ld.lld: error: unable to find library -lsparse_lu_ortho' \
+        'ld: cannot find -lsparse_lu_ortho'; do
+        if ! missing_archive_diagnostic "$diagnostic"; then
+            fail "missing archive diagnostic was not recognized: $diagnostic"
+        fi
+    done
+else
+    fail "missing archive link check prerequisites unavailable"
 fi
 
 # ── 5. make uninstall ───────────────────────────────────────────────

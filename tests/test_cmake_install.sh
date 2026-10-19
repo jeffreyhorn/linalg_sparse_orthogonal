@@ -15,6 +15,7 @@ VERSION_EXACT_BUILD="$TMPDIR/version_exact_build"
 VERSION_MISMATCH_BUILD="$TMPDIR/version_mismatch_build"
 VERSION_EXACT_SRC="$TMPDIR/version_exact_src"
 VERSION_MISMATCH_SRC="$TMPDIR/version_mismatch_src"
+VERSION_MISMATCH_LOG="$TMPDIR/version_mismatch.log"
 LOG="$TMPDIR/cmake.log"
 CMAKE_PACKAGE_DIR="$PREFIX/lib/cmake/Sparse"
 SPARSE_TARGETS="$CMAKE_PACKAGE_DIR/SparseTargets.cmake"
@@ -26,6 +27,7 @@ SKIP=0
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1: $2"; FAIL=$((FAIL + 1)); }
 skip() { echo "  [SKIP] $1: $2"; SKIP=$((SKIP + 1)); }
+show_consumer_output() { printf '%s\n' "$1" | sed 's/^/    /'; }
 
 echo "=== CMake Install Validation Tests ==="
 echo "  root:   $ROOT_DIR"
@@ -179,6 +181,13 @@ else
     fail "pkg-config unsupported metadata" "unexpected unsupported package or ABI wording in $PC_FILE: $PC_UNSUPPORTED_METADATA"
 fi
 
+if python3 "$ROOT_DIR/scripts/check_static_install_contract.py" "$PREFIX" \
+    --mode cmake --platform unix --version "$EXPECTED_VERSION"; then
+    pass "installed CMake package matches static artifact and metadata contract"
+else
+    fail "installed CMake package" "unexpected artifact or metadata under $PREFIX"
+fi
+
 # ── 3. Build cmake_example against installed library ────────────────
 echo "--- Building cmake_example with find_package(Sparse) ---"
 mkdir -p "$EXAMPLE_BUILD"
@@ -203,6 +212,7 @@ if [ -x "$EXAMPLE_BUILD/example" ]; then
         echo "$OUTPUT" | grep -q "Solution:" && \
         echo "$OUTPUT" | grep -q "OK"; then
         pass "cmake_example runs correctly"
+        show_consumer_output "$OUTPUT"
     else
         fail "cmake_example run" "unexpected output: $OUTPUT"
     fi
@@ -247,6 +257,7 @@ if [ -x "$VERSION_EXACT_BUILD/version_exact" ]; then
         echo "$OUTPUT" | grep -q "Solution:" && \
         echo "$OUTPUT" | grep -q "OK"; then
         pass "find_package exact-version consumer runs correctly"
+        show_consumer_output "$OUTPUT"
     else
         fail "find_package exact-version consumer run" "unexpected output: $OUTPUT"
     fi
@@ -277,11 +288,16 @@ EOF
 echo "--- mismatched-version configure ---" >>"$LOG"
 if cmake -S "$VERSION_MISMATCH_SRC" -B "$VERSION_MISMATCH_BUILD" \
     -DCMAKE_PREFIX_PATH="$PREFIX" \
-    >>"$LOG" 2>&1; then
-    fail "find_package mismatched version" "configure unexpectedly succeeded; see $LOG"
-    tail -20 "$LOG"
-else
+    >"$VERSION_MISMATCH_LOG" 2>&1; then
+    fail "find_package mismatched version" "configure unexpectedly succeeded"
+    tail -20 "$VERSION_MISMATCH_LOG"
+elif grep -Fq 'Could not find a configuration file for package "Sparse" that is compatible' \
+    "$VERSION_MISMATCH_LOG" && \
+    grep -Fq "version: $EXPECTED_VERSION" "$VERSION_MISMATCH_LOG"; then
     pass "find_package mismatched version is rejected"
+else
+    fail "find_package mismatched version" "rejected without package-version diagnostic"
+    tail -20 "$VERSION_MISMATCH_LOG"
 fi
 fi
 
@@ -295,6 +311,40 @@ if [ "$PC_VERSION" = "$EXPECTED_VERSION" ]; then
     pass "pkg-config version = $PC_VERSION"
 else
     fail "pkg-config version" "expected $EXPECTED_VERSION, got '$PC_VERSION'"
+fi
+
+echo "--- Missing installed archive consumer checks ---"
+ARCHIVE="$PREFIX/lib/libsparse_lu_ortho.a"
+MISSING_ARCHIVE_VALIDATOR_LOG="$TMPDIR/missing_archive_validator.log"
+MISSING_ARCHIVE_CMAKE_LOG="$TMPDIR/missing_archive_cmake.log"
+if [ -f "$ARCHIVE" ]; then
+    mv "$ARCHIVE" "$TMPDIR/libsparse_lu_ortho.a.saved"
+    if python3 "$ROOT_DIR/scripts/check_static_install_contract.py" "$PREFIX" \
+        --mode cmake --platform unix --version "$EXPECTED_VERSION" \
+        >"$MISSING_ARCHIVE_VALIDATOR_LOG" 2>&1; then
+        fail "missing archive validation" "unexpectedly accepted absent static archive"
+    elif grep -Eq 'missing regular static archive: .*libsparse_lu_ortho\.a$' \
+        "$MISSING_ARCHIVE_VALIDATOR_LOG"; then
+        pass "installed package validator rejects missing static archive"
+    else
+        fail "missing archive validation" "missing expected archive diagnostic"
+        cat "$MISSING_ARCHIVE_VALIDATOR_LOG"
+    fi
+
+    if cmake -S "$ROOT_DIR/examples/cmake_example" \
+        -B "$TMPDIR/missing_archive_build" -DCMAKE_PREFIX_PATH="$PREFIX" \
+        >"$MISSING_ARCHIVE_CMAKE_LOG" 2>&1; then
+        fail "missing archive consumer" "configure unexpectedly succeeded"
+    elif grep -Fq 'references the file' "$MISSING_ARCHIVE_CMAKE_LOG" && \
+        grep -Fq 'libsparse_lu_ortho.a' "$MISSING_ARCHIVE_CMAKE_LOG"; then
+        pass "installed CMake consumer rejects missing archive location"
+    else
+        fail "missing archive consumer" "rejected without imported-file diagnostic"
+        tail -20 "$MISSING_ARCHIVE_CMAKE_LOG"
+    fi
+    mv "$TMPDIR/libsparse_lu_ortho.a.saved" "$ARCHIVE"
+else
+    fail "missing archive consumer checks" "static archive unavailable"
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────

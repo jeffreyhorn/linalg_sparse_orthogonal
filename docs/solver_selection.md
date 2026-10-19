@@ -119,6 +119,14 @@ platform parity claims, or portable performance claims.
 | Symmetric indefinite matrix | LDLT | Use when symmetry is part of the problem model, such as KKT-style systems. Singular pivots report `SPARSE_ERR_SINGULAR`; non-symmetric inputs use the documented `SPARSE_ERR_NOT_SPD` symmetry-check status. |
 | Rectangular or rank-sensitive least-squares | QR | Use QR-specific APIs for rectangular, least-squares, minimum-norm, and rank-sensitive workflows. Maintained corpus lanes prove fixture-local QR rank/nullity/nullspace and minimum-norm rows; `make report-index-comparison-freshness` adds selected fixture-local QR minimum-norm, compatible least-squares, and incompatible least-squares comparisons for `qr_underdetermined_minnorm_2x4`, `qr_overdetermined_compatible_5x3`, and `qr_overdetermined_incompatible_4x2` against the selected source-controlled dense reference helper. The same gate also includes the selected partial-SVD, LU, and Cholesky comparisons described below. This is not broad QR, broad least-squares, or external-library parity. |
 
+The separate Sprint 215 [CHOLMOD baseline blueprint](planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+selects `symmetric_4.mtx` and project linked-list Cholesky for one local
+correctness-only comparison. Its preflight was blocked before either solver
+ran, so it adds no observed CHOLMOD result to the selected
+`cholesky_spd_tridiag_5` source-controlled-helper comparison above. Solver
+choice remains based on matrix assumptions, not an external parity or speed
+claim.
+
 Use the explicit repeated-run direct lifecycle when reuse is the point:
 
 1. `sparse_analyze(...)`

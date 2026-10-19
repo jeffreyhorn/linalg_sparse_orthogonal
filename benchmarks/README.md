@@ -560,6 +560,20 @@ studies only. Freshness diagnostics do not convert local timing rows into
 portable performance claims or local comparison rows into broad
 external-library parity.
 
+Sprint 215's separate external-baseline blueprint selects one local,
+correctness-only SPD factor-and-solve cell: the project linked-list Cholesky
+path versus SuiteSparse `v7.12.2` / CHOLMOD 5.3.4 on the exact
+`tests/data/symmetric_4.mtx` fixture. The [Day 10 outcome](../docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md)
+is **blocked before either solver ran** because the v1 evidence schema and
+validator are absent. It contains discovery/preflight data, not numerical or
+timing results. This cell is distinct from the selected internal
+`bench_refactor_csc` / `nos4.mtx --repeat 1` freshness row and from selected
+source-controlled-helper comparisons. Neither its blueprint nor its blocked
+preflight adds an external-baseline row to the canonical or normalized report
+index, or supports parity, speed, or state-of-the-art wording. See the
+[Day 11 claim matrix](../docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+for the evidence gates.
+
 The selected performance freshness check is deliberately outside broad
 normalized-index promotion: it validates the `bench_refactor_csc` canonical
 row currently named by the selected-target manifest, generated artifact paths,

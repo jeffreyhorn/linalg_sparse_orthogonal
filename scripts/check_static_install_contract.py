@@ -38,6 +38,10 @@ TARGETS_INCLUDE = re.compile(
     r'(?m)^[ \t]*(?i:include)\s*\(\s*"?\$\{CMAKE_CURRENT_LIST_DIR\}'
     r'/SparseTargets\.cmake"?\s*\)'
 )
+PACKAGE_VERSION_ASSIGNMENT = re.compile(
+    r'(?m)^[ \t]*(?i:set)\s*\(\s*PACKAGE_VERSION\s+'
+    r'(?:"([^"]+)"|([^\s)]+))\s*\)'
+)
 
 
 def read_text(path: Path, errors: list[str]) -> str:
@@ -139,9 +143,11 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
         )
     if not TARGETS_INCLUDE.search(contents.get("SparseConfig.cmake", "")):
         errors.append("CMake config does not load the static target")
-    if f'PACKAGE_VERSION "{version}"' not in contents.get(
-        "SparseConfigVersion.cmake", ""
-    ):
+    versions = [quoted or unquoted for quoted, unquoted in
+                PACKAGE_VERSION_ASSIGNMENT.findall(
+                    contents.get("SparseConfigVersion.cmake", ""))]
+    generated_arch_mismatch_version = '${PACKAGE_VERSION} (${installedBits}bit)'
+    if versions not in ([version], [version, generated_arch_mismatch_version]):
         errors.append(f"CMake package version does not match {version}")
 
 

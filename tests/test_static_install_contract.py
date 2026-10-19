@@ -137,6 +137,28 @@ class StaticInstallContractTests(unittest.TestCase):
         version_file.write_text('set(PACKAGE_VERSION "2.3.0")\n', encoding="utf-8")
         self.assert_rejects("CMake package version does not match")
 
+    def test_rejects_commented_cmake_package_version(self) -> None:
+        version_file = self.prefix / "lib/cmake/Sparse/SparseConfigVersion.cmake"
+        for content in (
+            '# set(PACKAGE_VERSION "2.2.0")\n',
+            '# set(PACKAGE_VERSION "2.2.0")\nset(PACKAGE_VERSION "2.3.0")\n',
+            'set(PACKAGE_VERSION "2.2.0")\nset(PACKAGE_VERSION "2.3.0")\n',
+        ):
+            with self.subTest(content=content):
+                version_file.write_text(content, encoding="utf-8")
+                self.assert_rejects("CMake package version does not match")
+
+    def test_accepts_generated_arch_mismatch_version_assignment(self) -> None:
+        version_file = self.prefix / "lib/cmake/Sparse/SparseConfigVersion.cmake"
+        version_file.write_text(
+            'set(PACKAGE_VERSION "2.2.0")\n'
+            'if(NOT CMAKE_SIZEOF_VOID_P STREQUAL "8")\n'
+            '  set(PACKAGE_VERSION "${PACKAGE_VERSION} (${installedBits}bit)")\n'
+            'endif()\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.errors(), [])
+
     def test_rejects_cmake_loader_and_selector_metadata(self) -> None:
         path = self.prefix / "lib/cmake/Sparse/SparseTargets.cmake"
         original = path.read_text(encoding="utf-8")

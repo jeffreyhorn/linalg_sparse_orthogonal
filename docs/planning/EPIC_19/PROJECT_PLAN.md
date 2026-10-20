@@ -85,10 +85,14 @@ API publication decision as stronger local-only generated API closure with
 workflow/staging, routing/link, user-doc, maintainer-doc, and validation guard
 hardening. Sprint 214 closes the ABI/shared-library/release decision as
 complete design and stronger static-first deferral, not a shared proof or
-release promotion.
-Local Make/CMake static install and consumer tests, deferral guards, and
-reviewed quality gates passed; candidate-specific hosted and release evidence
-remain absent. Sprints 215-216 remain pending future execution.
+release promotion. Sprint 215 closes the external-baseline evidence blueprint
+and fail-closed pilot fallback: the external v1 schema and validator were
+absent, so neither solver ran and no external result was accepted. Sprint 216
+closed for its selected evidence, claim, validation, retrospective and queue
+deliverables on `sprint-216`, subject to review and merge. Local Make/CMake static install and
+consumer tests, deferral guards, and reviewed quality gates passed in their
+recorded sprint scopes; candidate-specific hosted and release evidence remain
+absent. Historical passes are not a current-tree rerun.
 
 | Sprint | Current disposition | Evidence |
 | --- | --- | --- |
@@ -100,7 +104,16 @@ remain absent. Sprints 215-216 remain pending future execution.
 | 212 | Closed with selected threshold-free benchmark methodology hardening | `SPRINT_212/PLAN.md`; `SPRINT_212/WORKING_NOTES.md`; `SPRINT_212/RETROSPECTIVE.md`; `SPRINT_212/artifacts/day1-benchmark-evidence-intake.md`; `SPRINT_212/artifacts/day2-current-benchmark-baseline.md`; `SPRINT_212/artifacts/day3-runner-and-variance-inventory.md`; `SPRINT_212/artifacts/day4-decision-criteria.md`; `SPRINT_212/artifacts/day5-product-policy-decision.md`; `SPRINT_212/artifacts/day6-methodology-schema-design.md`; `SPRINT_212/artifacts/day7-tooling-implementation-batch-one.md`; `SPRINT_212/artifacts/day8-tooling-implementation-batch-two.md`; `SPRINT_212/artifacts/day9-manifest-and-report-guards.md`; `SPRINT_212/artifacts/day10-documentation-calibration.md`; `SPRINT_212/artifacts/day11-maintainer-documentation.md`; `SPRINT_212/artifacts/day12-integrated-validation.md`; `SPRINT_212/artifacts/day13-review-hardening.md`; `SPRINT_212/artifacts/day14-closeout-review.md`; Sprint 212 selects threshold-free deferral hardening for `SRT-BENCH-REFACTOR-CSC-NOS4`, strengthens freshness tooling, selected manifest exactness, user-facing documentation, maintainer repair guidance, docs guards, and integrated validation while retaining no portable performance, timing-threshold, release benchmark, platform parity, Windows selected benchmark freshness, package/ABI, broad package-manager distribution, or state-of-the-art claim. |
 | 213 | Closed with stronger local-only generated API closure | `SPRINT_213/PLAN.md`; `SPRINT_213/WORKING_NOTES.md`; `SPRINT_213/artifacts/day1-generated-api-evidence-intake.md`; `SPRINT_213/artifacts/day2-current-local-only-baseline.md`; `SPRINT_213/artifacts/day3-publication-option-inventory.md`; `SPRINT_213/artifacts/day4-decision-criteria.md`; `SPRINT_213/artifacts/day5-product-policy-decision.md`; `SPRINT_213/artifacts/day6-automation-design.md`; `SPRINT_213/artifacts/day7-automation-implementation-batch-one.md`; `SPRINT_213/artifacts/day8-automation-implementation-batch-two.md`; `SPRINT_213/artifacts/day9-routing-and-link-validation.md`; `SPRINT_213/artifacts/day10-workflow-and-staging-validation.md`; `SPRINT_213/artifacts/day11-user-documentation-update.md`; `SPRINT_213/artifacts/day12-maintainer-documentation-and-residuals.md`; `SPRINT_213/artifacts/day13-integrated-validation.md`; `SPRINT_213/artifacts/day14-closeout-review.md`; Sprint 213 selects stronger local-only generated API closure, hardens workflow/staging and routing/link guards, updates README, INSTALL, API reference, maintainer guide, and planning residuals, and validates with docs-check, focused API docs regressions, and `make api-docs-freshness`. Hosted generated API HTML, retained generated-doc artifacts, committed generated HTML, release evidence, package/ABI support, broad platform support, portable performance, external-library parity, and state-of-the-art claims remain unearned. |
 | 214 | Closed as ABI/release design with stronger static-first deferral | `SPRINT_214/PLAN.md`; `SPRINT_214/WORKING_NOTES.md`; `SPRINT_214/RETROSPECTIVE.md`; `SPRINT_214/artifacts/day2-abi-release-scope-decision.md`; `SPRINT_214/artifacts/day3-symbol-visibility-policy.md`; `SPRINT_214/artifacts/day4-abi-compatibility-policy.md`; `SPRINT_214/artifacts/day5-loader-and-build-design.md`; `SPRINT_214/artifacts/day6-build-path-or-deferral-guard.md`; `SPRINT_214/artifacts/day7-install-and-metadata-contract.md`; `SPRINT_214/artifacts/day8-automation-and-consumer-design.md`; `SPRINT_214/artifacts/day9-installed-consumer-evidence.md`; `SPRINT_214/artifacts/day10-consumer-negative-matrix.md`; `SPRINT_214/RELEASE_READINESS_CHECKLIST.md`; `SPRINT_214/artifacts/day11-release-sources-and-tags.md`; `SPRINT_214/artifacts/day12-release-provenance-and-ci-gates.md`; `SPRINT_214/artifacts/day13-integrated-validation.md`; `SPRINT_214/artifacts/day14-closeout-review.md`; `SPRINT_214/RESIDUAL_QUEUE.md`. Static Make/CMake install and out-of-tree consumer proof passed locally with stronger shared-selector, artifact, and metadata rejection. Future ABI/export/loader policy and a release checklist are specified, not implemented as a shared artifact or approved release. Hosted candidate results, dynamic ABI compatibility, public provider distribution, and release readiness remain unclaimed. |
-| 215-216 | Pending future execution | No Epic 19 branch-local execution artifacts are present yet for these sprint sections. |
+| 215 | Closed as pinned external-baseline blueprint and blocked preflight, not an accepted comparison | [Retrospective](SPRINT_215/RETROSPECTIVE.md); [feasibility decision](SPRINT_215/artifacts/day8-pilot-feasibility-decision.md); [blocked pilot outcome](SPRINT_215/artifacts/day10-selected-pilot-outcome.md); [Day 13 validation](SPRINT_215/artifacts/day13-integrated-validation.md); [Day 14 closeout](SPRINT_215/artifacts/day14-closeout-review.md); [residual queue](SPRINT_215/RESIDUAL_QUEUE.md); merged [PR #238](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/238). The v1 schema/validator were absent at preflight, so the project and CHOLMOD solver sides did not run, `timing=not_run`, and provisional `attempt.json` is not accepted `evidence.json` or a selected report row. |
+| 216 | Selected deliverables complete on branch; review/merge pending | [Sprint 216 plan](SPRINT_216/PLAN.md), [working notes](SPRINT_216/WORKING_NOTES.md), [sprint retrospective](SPRINT_216/RETROSPECTIVE.md), [Day 14 integrated closeout](SPRINT_216/artifacts/day14-integrated-validation-closeout.md), [Epic retrospective](EPIC_19_RETROSPECTIVE.md), and [prioritized residual queue](SPRINT_216/RESIDUAL_QUEUE.md). The selected evidence/claim closeout is complete locally; no stronger support, release, external parity or state-of-the-art claim is approved. |
+
+The [Day 6 ledger](SPRINT_216/artifacts/day6-project-plan-status-207-211.md)
+and [Day 7 ledger](SPRINT_216/artifacts/day7-project-plan-status-212-215.md)
+record one evidence-backed selected-deliverable disposition for each Sprint
+207-215 item while preserving the original descriptions and estimates below.
+A completed decision, design, or blocked fallback is not a promoted product
+capability. Sprint 216's selected-item statuses are assigned below from the
+Day 14 current-tree validation and closeout record.
 
 ## Sprint 207: Package Distribution Support Decision
 
@@ -413,6 +426,16 @@ feasible, one selected external-baseline pilot without broad parity claims.
 - Optional selected external-baseline pilot.
 - Updated claim-boundary docs and residual queue.
 
+**Evidence boundary:** The merged Sprint 215
+[pilot outcome](SPRINT_215/artifacts/day10-selected-pilot-outcome.md) is blocked
+before either solver ran because the external v1 evidence schema and validator
+are absent. Its planning JSON and provisional `attempt.json` are not accepted
+external comparison rows, optional-data solver passes, or timing evidence.
+The [Sprint 215 claim matrix](SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+keeps a blueprint distinct from an executed, validated result. The
+[Day 7 status ledger](SPRINT_216/artifacts/day7-project-plan-status-212-215.md)
+records item-level disposition without promoting that blocked pilot.
+
 ### Total Estimate
 
 166 hours
@@ -442,6 +465,22 @@ support or state-of-the-art claim is earned.
 | 216.4 | Integrated Validation | Run final focused gates plus full quality gates required by changed surfaces. | 34 |
 | 216.5 | Epic Retrospective | Create `EPIC_19_RETROSPECTIVE.md` with outcomes, evidence, non-claims, residuals, and state-of-the-art assessment. | 26 |
 | 216.6 | Residual Queue | Publish a prioritized next-epic residual queue with exact closure targets and long-horizon deferrals. | 22 |
+
+### Final Item Status On Branch
+
+These dispositions close the selected Sprint 216 deliverables on this branch,
+subject to review and merge. `complete` does not promote any residual
+capability. The [Day 14 integrated record](SPRINT_216/artifacts/day14-integrated-validation-closeout.md)
+names the local checks and unrun hosted/external lanes.
+
+| Item | Status | Evidence and boundary |
+| --- | --- | --- |
+| 216.1 | complete | [Day 2 reconciliation](SPRINT_216/artifacts/day2-outcome-validation-reconciliation.md), [Day 3 freeze](SPRINT_216/artifacts/day3-claim-inventory.md), and [Day 14 closeout](SPRINT_216/artifacts/day14-integrated-validation-closeout.md) reconcile all nine prior sprints; missing current hosted/external evidence remains explicit. |
+| 216.2 | complete | [Day 5 claim matrix](SPRINT_216/artifacts/day5-benchmark-api-corpus-claims.md), [Day 13 audit](SPRINT_216/artifacts/day13-retrospective-review.md), and [Day 14 checks](SPRINT_216/artifacts/day14-integrated-validation-closeout.md) bound the named public/maintainer/benchmark/API/corpus/planning surfaces; wording is not feature proof. |
+| 216.3 | complete | [Day 6](SPRINT_216/artifacts/day6-project-plan-status-207-211.md) and [Day 7](SPRINT_216/artifacts/day7-project-plan-status-212-215.md) ledgers assign all 54 prior selected items exactly once; Day 14 audits those plus 216.1-216.6. Deferred capabilities remain in the queue. |
+| 216.4 | complete | [Day 10 focused validation](SPRINT_216/artifacts/day10-focused-validation.md), [Day 11 static/package gates](SPRINT_216/artifacts/day11-quality-gate-and-retro-outline.md), and [Day 14 changed-surface reruns](SPRINT_216/artifacts/day14-integrated-validation-closeout.md) pass locally. No `.c`/`.h` change triggered the full C quality chain; hosted/external/release lanes remain unrun. |
+| 216.5 | complete | [Epic retrospective](EPIC_19_RETROSPECTIVE.md), [Day 13 audit](SPRINT_216/artifacts/day13-retrospective-review.md), and [Day 14 closeout](SPRINT_216/artifacts/day14-integrated-validation-closeout.md) record outcomes, non-claims, state-of-the-art denial and exact future gates. |
+| 216.6 | complete | [Prioritized queue](SPRINT_216/RESIDUAL_QUEUE.md), [source crosswalk](SPRINT_216/artifacts/day8-residual-queue-intake.md), and [Day 14 audit](SPRINT_216/artifacts/day14-integrated-validation-closeout.md) retain 21 distinct acceptance targets with owner, dependency/trigger, evidence, stop and claim fields. |
 
 ### Deliverables
 

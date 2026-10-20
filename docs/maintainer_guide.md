@@ -105,7 +105,7 @@ deciding which focused gate applies to a change.
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts, Sprint 203 artifacts, Sprint 209 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines remain deferred. Sprint 203 closed local QR incompatible proof and guards while re-deferring hosted Windows/MSVC QR promotion. Sprint 209 keeps the QR manifest Linux/macOS-only and `local_only` while adding guarded Windows workflow and artifact-inspection coverage for future evidence collection. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflows, Sprint 192 artifacts, Sprint 202 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The Linux/macOS hosted selected lanes are threshold-free methodology evidence for one row, not portable speed, timing-threshold, platform-parity, release, or state-of-the-art evidence. |
 | Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts; `tests/test_svd.c`, `tests/test_svd_helpers.h`, `tests/test_svd_selected_helpers.h`, `scripts/check_svd_helper_guard.sh`, `tests/test_svd_helper_guard.py`, Sprint 201 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, `make svd-helper-guard`, `python3 tests/test_svd_helper_guard.py`, focused proof-owner binaries, full C gate after header/test changes | One selected QR external-reference cluster and one selected SVD rank/pseudoinverse/dense-low-rank cluster were moved. The SVD selected bodies live in a proof-owner-only selected helper, while shared fixtures stay in the shared SVD helper. Other large surfaces and broad review-surface cleanup remain future work. |
-| Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194 artifacts, Sprint 204 artifacts, Sprint 205 artifacts | `make docs-check`, `make api-docs-freshness`, `make support-docs-guard`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Sprint 204 owns the current stronger local-only generated API policy, and Sprint 205 owns the compact problem-shape quick-reference/support-truth routing. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
+| Adoption/API coherence | README, INSTALL, tutorial/cookbook/solver-selection docs, examples README, public headers, Sprint 194, 204, 205, and 213 artifacts | `make docs-check`, `make api-docs-freshness`, `make support-docs-guard`, `make qr-header-docs-guard`, install checks, full C gate for header edits | `INSTALL.md#support-readiness-matrix` is the public support truth. Sprint 213 owns the latest stronger local-only generated API decision and workflow/routing guards; Sprint 204 is earlier policy history, and Sprint 205 owns compact problem-shape quick-reference/support-truth routing. Public headers keep declaration-adjacent contracts, not broad workflow claims. |
 | Reliability/failure-path proof | `src/sparse_etree.c`, `tests/test_etree.c`, `src/sparse_ldlt.c`, `tests/test_ldlt.c`, focused allocation-failure guards, README/INSTALL/maintainer wording, Sprint 195 artifacts, Sprint 200 artifacts, Sprint 210 artifacts | `make symbolic-allocation-failure-gate`, `make symbolic-lu-allocation-failure-gate`, `make ldlt-linked-list-allocation-failure-gate`, `python3 tests/test_symbolic_allocation_failure_gate_registration.py`, `python3 tests/test_symbolic_lu_allocation_failure_gate_registration.py`, `python3 tests/test_ldlt_allocation_failure_gate_registration.py`, full C gate after code/header changes | The proof is selected to `sparse_symbolic_cholesky()` output allocation behavior, the selected `sparse_symbolic_lu()` owner, and the selected no-reorder linked-list LDLT numeric factorization owner; broader OOM, concurrency, CSC LDLT, reordered LDLT, broad direct solver, matrix construction, analysis, and hosted gate claims remain unowned. |
 
 ## Reviewed Baseline and Warning Authority
@@ -377,6 +377,13 @@ rollback review. The checklist is a set of gates, not a release artifact or
 evidence that any tag, reproducible archive, binary package, shared ABI, or
 provider path has been approved. Preserve the Sprint 170/207 non-claims when
 reviewing release notes or source-install wording.
+
+Sprint 214's installed-consumer results are local static Make/CMake evidence.
+When claiming a current checkout passed that contract, rerun
+`bash tests/test_install.sh`, `bash tests/test_cmake_install.sh`, and
+`bash scripts/static_package_deferral_check.sh`. Reviewed Linux/macOS/Windows
+workflow lanes define platform-specific owners; their registration is not a
+fresh hosted candidate result, and Windows `sparse.pc` remains metadata-only.
 
 Normalized report-index interpretation:
 
@@ -1282,8 +1289,9 @@ under `include/`.
 `docs/api/html/` is generated Doxygen output from the configured input set in
 `Doxyfile`. The maintained Sprint 179 product decision keeps this tree
 local-only and ignored rather than committed, hosted, or artifact-published.
-Sprint 186 retained that decision during closeout, and Sprint 204 is the
-current policy owner.
+Sprint 186 retained that decision during closeout, Sprint 204 strengthened its
+local checks, and Sprint 213 is the latest local-only publication decision and
+workflow/routing guard owner.
 
 Use this command to refresh and validate the local generated API view and its
 source-controlled routing:
@@ -1367,7 +1375,8 @@ When reviewing generated API docs changes, reject any patch that:
 
 Sprint 204 final closeout treats generated API evidence as a guard-backed
 local freshness proof, not as a publication milestone. The earlier Sprint 186
-hosted-API residual remains historical context; any future hosted HTML,
+hosted-API residual remains historical context. Sprint 213 retained local-only
+output and hardened publication/staging guards; any future hosted HTML,
 retained CI artifact, or committed generated output path must deliberately
 reopen the product decision and validate the selected publication policy before
 docs may claim it.

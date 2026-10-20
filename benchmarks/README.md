@@ -510,7 +510,7 @@ make performance-sentinels
 In `build/bench-reports/sentinels/sentinels.tsv`, find the S6 row with
 `sentinel_id=S6`, `matrix_or_fixture=nos4.mtx`, and
 `metric=refactor_csc_ms`. The S6 row is a local smoke ceiling only; it is not a
-replacement for the threshold-free canonical selected publication row.
+replacement for the threshold-free canonical selected freshness row.
 
 Read hosted selected-performance rows and local S6 rows with their recorded
 platform, compiler, build mode, thread, CPU, fixture, and command context.
@@ -572,7 +572,9 @@ source-controlled-helper comparisons. Neither its blueprint nor its blocked
 preflight adds an external-baseline row to the canonical or normalized report
 index, or supports parity, speed, or state-of-the-art wording. See the
 [Day 11 claim matrix](../docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
-for the evidence gates.
+for the evidence gates. The provisional `attempt.json` is not an accepted
+external result; adding one would require the separate v1 validator,
+two-sided correctness proof, and an explicit report-publication decision.
 
 The selected performance freshness check is deliberately outside broad
 normalized-index promotion: it validates the `bench_refactor_csc` canonical

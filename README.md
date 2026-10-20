@@ -65,7 +65,7 @@ needs them.
 ### Direct Solvers
 - **One-shot direct solves** — LU, Cholesky, LDL^T, and QR remain the default public entry points for most callers.
 - **Explicit repeated-run direct lifecycle** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
-- **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide faster large-matrix paths behind the existing public APIs.
+- **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide compressed-storage paths behind the existing public APIs for workloads that use those formats. Performance depends on the matrix, backend, build, and host; see the selected measurements in [benchmarks/README.md](benchmarks/README.md).
 - **Multi-RHS and refinement support** — block solves, iterative refinement, rank diagnostics, and minimum-norm QR paths stay available without changing the one-shot-first workflow.
 
 ### Singular Value Decomposition (SVD)
@@ -750,7 +750,7 @@ Important behavior:
 - `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
 
-**CSR LU (high-performance path):**
+**CSR LU (compressed-storage path):**
 - `lu_csr_from_sparse(A, fill_factor, &csr)` — convert to CSR working format
 - `lu_csr_eliminate(csr, tol, drop_tol, piv)` — scatter-gather LU elimination
 - `lu_csr_eliminate_block(csr, tol, drop_tol, min_block, piv)` — with dense block optimization
@@ -937,7 +937,7 @@ For n x n sparse matrices with nnz non-zeros:
 |-----------|------------|-------|
 | Insert/Remove | O(row_nnz + col_nnz) | Maintains sorted row and column order |
 | MatVec | O(nnz) | Parallel with OpenMP when enabled |
-| LU Factor | O(n^3) worst case | Usually much better on sparse structured matrices |
+| LU Factor | O(n^3) worst case | Actual work depends on sparsity, fill, and ordering |
 | Solve | O(nnz_LU) | Forward/back substitution |
 | QR Factor | O(mn^2) | Householder transformations |
 | SVD | O(mn^2) | Bidiagonalization plus QR |

@@ -113,7 +113,15 @@ maintainer interpretation of the same evidence, use
 | Local generated API HTML | local-only | `docs/api_reference.md`, `make api-docs-freshness` | `Doxyfile`, API docs coverage/local-only/routing scripts | No hosted API publication, retained generated-doc artifact, committed generated HTML, or completeness beyond checked-in public headers selected by Doxyfile. |
 | Package-manager distribution | not claimed | Use source install via Make or CMake | Sprint 198 Homebrew proof material, Sprint 207 continued-deferral decision, package-manager deferral guard | No user-facing Homebrew install path, Homebrew/core, bottles, Linuxbrew, tap, vcpkg, Conan, pkgsrc, distro/system package, binary package, release package, package-manager release readiness, or broad provider support. |
 | Shared-library and dynamic ABI support | deferred | Static install only | Static package deferral guard, Sprint 170 package/ABI decision | No `.so`, `.dylib`, `.dll`, import-library, loader, SONAME, install-name/RPATH, selector, or dynamic ABI support. |
-| Broad ecosystem or state-of-the-art parity | not claimed | Use selected evidence docs only for scoped proof | Epic 17 review/todo, selected target manifest, benchmark/corpus docs | No broad SuiteSparse/PETSc/Trilinos/Eigen/SciPy parity, portable superiority, or unqualified state-of-the-art status. |
+| External baseline comparison | blueprint-only: the Sprint 215 pilot blocked before either solver ran | [Sprint 215 selected pilot outcome](docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md) | [Sprint 215 claim matrix](docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md), absent v1 evidence schema/validator | No accepted CHOLMOD/project correctness result, timing sample, or external-library parity. |
+| Broad ecosystem or state-of-the-art parity | not claimed | Use selected evidence docs only for scoped proof | Sprint 215 blueprint and blocked pilot, selected target manifest, benchmark/corpus docs | No broad SuiteSparse/PETSc/Trilinos/Eigen/SciPy parity, portable superiority, or unqualified state-of-the-art status. |
+
+The supported/validated install cells describe the maintained static Make and
+CMake consumer contracts. Sprint 214 recorded local installed-consumer checks;
+the reviewed platform workflow entries identify their exact CI lanes, not a
+fresh hosted result for this checkout or a release approval. The
+[release readiness checklist](docs/planning/EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md)
+lists further candidate, provenance, platform, and approval gates.
 
 Generated API HTML is an on-demand local view, not an install, release,
 hosted, or artifact publication surface. Users should link to

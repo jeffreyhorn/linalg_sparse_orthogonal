@@ -217,7 +217,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         double rel = s217_iter_relative_residual(rnorms[k], bnorms[k]);
         if (!isfinite(rel))
             goto block_cg_numeric_failure;
-        if (rel > o->tol)
+        if (!(rel <= o->tol))
             all_converged = 0;
     }
 

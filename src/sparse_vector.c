@@ -28,7 +28,16 @@ double vec_norm2(const double *v, idx_t n) {
     }
     if (has_infinity)
         return INFINITY;
-    return scale == 0.0 ? 0.0 : scale * sqrt(ssq);
+    if (scale == 0.0)
+        return 0.0;
+    double norm = scale * sqrt(ssq);
+    if (isinf(norm)) {
+        /* A rounded sqrt can overflow the product even when the exact norm fits. */
+        norm = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            norm = hypot(norm, v[i]);
+    }
+    return norm;
 }
 
 double vec_norminf(const double *v, idx_t n) {

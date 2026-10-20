@@ -1268,6 +1268,10 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         if (srel <= o->tol) {
             /* Accept half-step: x = x + alpha * p_hat */
             vec_axpy(alpha, p_eff, x, n);
+            if (!s217_iter_vector_finite(x, n)) {
+                numeric_err = SPARSE_ERR_NUMERIC;
+                break;
+            }
             rel_res = srel;
             converged = 1;
             iter++;
@@ -1530,6 +1534,10 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         }
         if (srel <= o->tol) {
             vec_axpy(alpha, p_eff, x, n);
+            if (!s217_iter_vector_finite(x, n)) {
+                numeric_err = SPARSE_ERR_NUMERIC;
+                break;
+            }
             rel_res = srel;
             converged = 1;
             iter++;

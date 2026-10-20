@@ -95,6 +95,16 @@ static void test_norm2_near_max_finite_pair(void) {
     ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
 }
 
+static void test_norm2_rounded_product_boundary(void) {
+    double v[] = {0x1.26e978d4fdf3ap+1017, 0x1.fffab1049a9a5p+1023};
+    double expected = hypot(v[0], v[1]);
+    double actual = vec_norm2(v, 2);
+    ASSERT_TRUE(isfinite(expected) && expected <= DBL_MAX);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+    double overflowing[] = {DBL_MAX, DBL_MAX};
+    ASSERT_TRUE(isinf(vec_norm2(overflowing, 2)));
+}
+
 static void test_norm2_smallest_subnormal(void) {
     double smallest = nextafter(0.0, 1.0);
     double singleton[] = {-smallest};
@@ -490,6 +500,7 @@ int main(void) {
     RUN_TEST(test_norm2_finite_singleton_and_zero_controls);
     RUN_TEST(test_norm2_double_max_boundary);
     RUN_TEST(test_norm2_near_max_finite_pair);
+    RUN_TEST(test_norm2_rounded_product_boundary);
     RUN_TEST(test_norm2_smallest_subnormal);
     RUN_TEST(test_norm2_infinities);
     RUN_TEST(test_norm2_nan_precedes_infinity);

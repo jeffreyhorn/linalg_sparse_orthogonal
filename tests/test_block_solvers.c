@@ -160,6 +160,22 @@ static void test_s217_block_cg_computed_numeric_failure(void) {
     sparse_free(A);
 }
 
+static void test_s217_block_cg_nan_tolerance_not_converged(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    double B[] = {1.0}, X[] = {0.0};
+    sparse_iter_opts_t opts = {.max_iter = 0, .tol = NAN};
+    sparse_iter_result_t result = {.converged = 1};
+    ASSERT_ERR(sparse_cg_solve_block(A, B, 1, X, &opts, NULL, NULL, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    ASSERT_NEAR(result.residual_norm, 1.0, 0.0);
+    sparse_free(A);
+}
+
 /* Test: Residual check for all columns */
 static void test_block_cg_residuals(void) {
     idx_t n = 15;
@@ -527,6 +543,7 @@ int main(void) {
     RUN_TEST(test_block_cg_3rhs);
     RUN_TEST(test_s217_block_cg_nonfinite_column);
     RUN_TEST(test_s217_block_cg_computed_numeric_failure);
+    RUN_TEST(test_s217_block_cg_nan_tolerance_not_converged);
     RUN_TEST(test_block_cg_residuals);
     RUN_TEST(test_block_cg_iteration_count);
 

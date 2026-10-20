@@ -5,6 +5,7 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 #include "test_solver_helpers.h"
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1468,6 +1469,42 @@ static void test_s217_bicgstab_nonfinite_entry(void) {
     sparse_free(A);
 }
 
+static sparse_err_t s217_bicgstab_overflow_precond(const void *ctx, idx_t n, const double *r,
+                                                   double *z) {
+    (void)ctx;
+    if (n != 2)
+        return SPARSE_ERR_SHAPE;
+    z[0] = r[0] + DBL_MAX * r[1];
+    z[1] = r[1];
+    return SPARSE_OK;
+}
+
+static void test_s217_bicgstab_halfstep_solution_overflow(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 1, 1, 1.0), SPARSE_OK);
+    double b[] = {0.0, 1.0};
+    double x[] = {DBL_MAX, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-12};
+    sparse_iter_result_t result = {.converged = 1};
+    ASSERT_ERR(sparse_solve_bicgstab(A, b, x, &opts, s217_bicgstab_overflow_precond, NULL, &result),
+               SPARSE_ERR_NUMERIC);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isnan(result.residual_norm));
+
+    x[0] = DBL_MAX;
+    x[1] = 0.0;
+    result.converged = 1;
+    ASSERT_ERR(sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 2, b, x, &opts,
+                                        s217_bicgstab_overflow_precond, NULL, &result),
+               SPARSE_ERR_NUMERIC);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isnan(result.residual_norm));
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1478,6 +1515,7 @@ int main(void) {
     RUN_TEST(test_s217_bicgstab_tiny_rhs_not_false_success);
     RUN_TEST(test_s217_bicgstab_nonfinite_computed_residual);
     RUN_TEST(test_s217_bicgstab_nonfinite_entry);
+    RUN_TEST(test_s217_bicgstab_halfstep_solution_overflow);
 
     /* Error handling */
     RUN_TEST(test_bicgstab_null_A);

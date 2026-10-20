@@ -88,6 +88,20 @@ manifest authority for named freshness gates; formal deferrals and
 environment-residual checks are tracked in planning evidence and closeout
 artifacts, not by adding fake selected rows or widening `workflow_platforms`.
 
+### External Baseline Boundary
+
+Sprint 215's [external-baseline blueprint](../../../docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+does not add an external target to either manifest or the normalized report
+index. The [provisional pilot](../../../docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md)
+has `status_reason=schema_validation_unavailable` and no executed solver side;
+its `attempt.json` is not accepted `evidence.json`, a generated comparison
+`pass`, or an `external_optional` pass row. The proposed external v1 evidence
+schema and semantic validator are not implemented. Add an external report
+family or selected target only after a separately reviewed v1 validator,
+two-sided correctness result, artifact provenance, and publication decision.
+Existing optional-data skip/defer and source-controlled contract rows cannot
+stand in for those gates.
+
 ## Selected Oracle Freshness Gate
 
 Sprint 152 selects the local oracle family for required freshness through:

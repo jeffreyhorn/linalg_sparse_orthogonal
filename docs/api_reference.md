@@ -65,17 +65,16 @@ send readers to generated HTML under `docs/api/` or to an unsupported hosted
 API publication.
 
 Sprint 179 made the original local-only product decision, Sprint 186 retained
-it during closeout, and Sprint 204 is the current policy owner: this generated
-tree stays local-only rather than hosted, artifact-published, or committed. Use
-this page and the public headers above as the source-controlled API reference
-path.
+it during closeout, and Sprint 204 strengthened the local checks. Sprint 213
+is the latest publication-policy decision: this generated tree stays local-only
+rather than hosted, artifact-published, or committed. Use this page and the
+public headers above as the source-controlled API reference path.
 
 Passing generated API checks is evidence for the configured local Doxygen
 input/output contract and staging guard only; it is not evidence for hosted
-HTML, retained CI
-artifacts, package-manager distribution, dynamic ABI compatibility, broad
-Windows parity, or completeness beyond checked-in public headers selected by
-`Doxyfile`.
+HTML, retained CI artifacts, package-manager distribution, dynamic ABI
+compatibility, broad Windows parity, or completeness beyond checked-in public
+headers selected by `Doxyfile`.
 
 The current Doxygen configuration reads checked-in headers under `include/`.
 Generated install headers such as `sparse_version.h` are owned by install

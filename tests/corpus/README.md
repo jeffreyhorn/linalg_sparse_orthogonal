@@ -92,6 +92,18 @@ Report index rows aggregate generated output locations and row status. They
 preserve row meaning; they are not release proof, broad coverage proof, or
 state-of-the-art evidence.
 
+Sprint 215's external-baseline blueprint is separate from this corpus's
+optional-data policy and selected report targets. Its chosen
+`tests/data/symmetric_4.mtx` Cholesky/CHOLMOD cell is a planned comparison,
+not an observed external comparison. The [pilot outcome](../../docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md)
+has `status_reason=schema_validation_unavailable` and was blocked before
+either solver ran; the v1 evidence schema and validator are absent. Its
+provisional `attempt.json` is not `comparison_status=pass`, an accepted
+`evidence.json`, or a selected report row. Optional-data skip/defer rows
+cannot fill that gap.
+See the [claim matrix](../../docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md)
+before proposing an external row or parity claim.
+
 Report-family contract rows in `manifests/report_families.tsv` are the
 source-controlled vocabulary for normalized report indexing. They define how a
 family should be discovered and interpreted, but they do not prove that any

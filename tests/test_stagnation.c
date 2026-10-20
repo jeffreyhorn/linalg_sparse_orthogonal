@@ -217,7 +217,13 @@ static void test_minres_stagnation_detected(void) {
     printf("    MINRES stagnation: iters=%d, stagnated=%d, converged=%d, res=%.3e\n",
            (int)result.iterations, result.stagnated, result.converged, result.residual_norm);
 
-    if (!result.converged) {
+    if (err == SPARSE_ERR_NUMERIC) {
+        /* A nonzero recurrence estimate can underflow when divided by
+         * ||b||. That is a numeric failure, not zero-residual convergence. */
+        ASSERT_FALSE(result.converged);
+        ASSERT_TRUE(isnan(result.residual_norm));
+        ASSERT_TRUE(result.iterations > 0 && result.iterations < 5000);
+    } else if (!result.converged) {
         ASSERT_ERR(err, SPARSE_ERR_NOT_CONVERGED);
         /* Stagnation is a heuristic — depending on the platform's
          * floating-point trajectory on this 1e8-diagonal fixture, MINRES

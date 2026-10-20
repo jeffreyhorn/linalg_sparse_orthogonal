@@ -181,15 +181,32 @@ Use `sparse_iter_result_t` to inspect `iterations`, final relative
 `residual_norm`, `converged`, `stagnated`, `residual_history_count`, and
 `breakdown`. For APIs that document it, result fields and the approximate
 solution `x` are populated on both `SPARSE_OK` and
-`SPARSE_ERR_NOT_CONVERGED`. Treat `SPARSE_ERR_NOT_CONVERGED` as iteration
-budget exhaustion, not as singularity or invalid input. Use the input `x`
-vector as the initial guess; pass a zeroed vector when you want no prior guess.
+`SPARSE_ERR_NOT_CONVERGED`. Non-convergence alone does not establish
+singularity or invalid input; inspect the breakdown and stagnation flags as
+well as the iteration count. Use the input `x` vector as the initial guess;
+pass a zeroed vector when you want no prior guess.
+
+For CG, GMRES, MINRES, and BiCGSTAB single-RHS solves, their documented
+matrix-free variants, and block CG, a non-finite caller RHS or initial guess
+is `SPARSE_ERR_BADARG` on a nonempty system. A solver-detected invalid norm,
+relative residual, or selected recurrence value is `SPARSE_ERR_NUMERIC`:
+`converged=0` and `residual_norm=NaN` identify the unavailable finite
+diagnostic. A finite zero RHS retains its successful trivial solve. On other
+hard errors, including callback or allocation failures, do not treat the
+approximation or final residual as valid unless the specific API says so.
+These selected checks are not an all-family convergence guarantee.
 
 Preconditioners are acceleration tools, not universal guarantees:
 
 - ILU(0) and ILUT are the general/nonsymmetric preconditioner family.
 - IC(0) is the symmetric positive-definite preconditioner family.
 - Match the preconditioner to the solver assumptions.
+
+The selected `west0067` ILUT fixture verifies that finite `z` solves the
+computed `L*U` factor system to a bounded backward error. Incomplete factors
+are not A itself: this is not a check that `A*z=r`, nor evidence that ILUT
+produces convergence on that matrix. See [`sparse_ilu.h`](../include/sparse_ilu.h)
+and the selected [`test_ilu.c`](../tests/test_ilu.c) fixture.
 
 Useful starting example:
 

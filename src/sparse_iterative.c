@@ -240,9 +240,15 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
     if (o->max_iter < 0 || o->tol < 0.0)
         return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
+    if (n > 0 && (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n)))
+        return SPARSE_ERR_BADARG;
     double bnorm = 0.0;
     if (s85_iter_handle_trivial_system(n, b, x, result, &bnorm))
         return SPARSE_OK;
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
+    }
 
     sparse_cg_workspace_view_t cg_ws;
     if (sparse_iter_workspace_prepare_cg(workspace, n, &cg_ws) != SPARSE_OK)
@@ -278,19 +284,21 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 
     double rz = vec_dot(r, z, n); /* r^T * z */
     double rnorm = vec_norm2(r, n);
+    double rel_res = s217_iter_relative_residual(rnorm, bnorm);
 
     idx_t iter = 0;
     int converged = 0;
     int stagnated = 0;
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    if (!isfinite(rz) || !isfinite(rel_res))
+        goto cg_numeric_failure;
 
     double cg_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     for (iter = 0; iter < o->max_iter; iter++) {
         /* Check convergence */
-        if (rnorm / bnorm <= o->tol) {
-            converged = 1;
+        if (rel_res <= o->tol) {
             break;
         }
 
@@ -306,25 +314,29 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
             if (o->progress_cb(&pp, o->progress_user) != 0) {
                 if (result) {
                     result->iterations = iter;
-                    result->residual_norm = rnorm / bnorm;
+                    result->residual_norm = rel_res;
                 }
                 sparse_iter_stag_free(&stag);
                 return SPARSE_ERR_CANCELLED;
             }
         }
 
-        iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
+        iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rel_res);
 
         /* Ap = A*p */
         sparse_matvec(A, p, Ap);
 
         /* alpha = (r^T * z) / (p^T * Ap) */
         double pAp = vec_dot(p, Ap, n);
+        if (!isfinite(pAp))
+            goto cg_numeric_failure;
         if (fabs(pAp) < sparse_rel_tol(0, DROP_TOL)) {
             breakdown = 1;
             break;
         }
         double alpha = rz / pAp;
+        if (!isfinite(alpha))
+            goto cg_numeric_failure;
 
         /* x_{k+1} = x_k + alpha * p_k */
         vec_axpy(alpha, p, x, n);
@@ -333,10 +345,13 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
         vec_axpy(-alpha, Ap, r, n);
 
         rnorm = vec_norm2(r, n);
+        rel_res = s217_iter_relative_residual(rnorm, bnorm);
+        if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n))
+            goto cg_numeric_failure;
 
         /* Record post-update residual and check stagnation */
-        reshist_record(&rh, rnorm / bnorm);
-        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        reshist_record(&rh, rel_res);
+        sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
@@ -355,11 +370,15 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 
         /* beta = (r_{k+1}^T * z_{k+1}) / (r_k^T * z_k) */
         double rz_new = vec_dot(r, z, n);
+        if (!isfinite(rz_new))
+            goto cg_numeric_failure;
         if (fabs(rz) < sparse_rel_tol(0, DROP_TOL)) {
             breakdown = 1;
             break;
         }
         double beta = rz_new / rz;
+        if (!isfinite(beta))
+            goto cg_numeric_failure;
 
         /* p_{k+1} = z_{k+1} + beta * p_k */
         for (idx_t i = 0; i < n; i++)
@@ -368,13 +387,20 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
         rz = rz_new;
     }
 
-    /* Final convergence check if loop exhausted */
-    if (!converged && rnorm / bnorm <= o->tol)
-        converged = 1;
+    /* Verify the reported result against the actual system residual. */
+    if (!s217_iter_vector_finite(x, n))
+        goto cg_numeric_failure;
+    sparse_matvec(A, x, Ap);
+    for (idx_t i = 0; i < n; i++)
+        r[i] = b[i] - Ap[i];
+    rel_res = s217_iter_relative_residual(vec_norm2(r, n), bnorm);
+    if (!isfinite(rel_res))
+        goto cg_numeric_failure;
+    converged = (rel_res <= o->tol);
 
     if (result) {
         result->iterations = iter;
-        result->residual_norm = rnorm / bnorm;
+        result->residual_norm = rel_res;
         result->converged = converged;
         result->stagnated = stagnated;
         result->breakdown = breakdown;
@@ -383,6 +409,11 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 
     sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+
+cg_numeric_failure:
+    s217_iter_numeric_result(result, iter, rh.count < rh.len ? rh.count : rh.len);
+    sparse_iter_stag_free(&stag);
+    return SPARSE_ERR_NUMERIC;
 }
 
 sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
@@ -425,9 +456,15 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         return SPARSE_ERR_BADARG;
     if (n < 0)
         return SPARSE_ERR_BADARG;
+    if (n > 0 && (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n)))
+        return SPARSE_ERR_BADARG;
     double bnorm = 0.0;
     if (s85_iter_handle_trivial_system(n, b, x, result, &bnorm))
         return SPARSE_OK;
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
+    }
 
     sparse_iter_workspace_t workspace;
     sparse_cg_workspace_view_t cg_ws;
@@ -461,6 +498,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     vec_copy(z, p, n);
     double rz = vec_dot(r, z, n);
     double rnorm = vec_norm2(r, n);
+    double rel_res = s217_iter_relative_residual(rnorm, bnorm);
 
     stag_tracker_t stag = {0};
     if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
@@ -473,12 +511,13 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     int stagnated = 0;
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    if (!isfinite(rz) || !isfinite(rel_res))
+        goto cg_mf_numeric_failure;
 
     double cg_mf_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     for (iter = 0; iter < o->max_iter; iter++) {
-        if (rnorm / bnorm <= o->tol) {
-            converged = 1;
+        if (rel_res <= o->tol) {
             break;
         }
 
@@ -492,7 +531,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
             if (o->progress_cb(&pp, o->progress_user) != 0) {
                 if (result) {
                     result->iterations = iter;
-                    result->residual_norm = rnorm / bnorm;
+                    result->residual_norm = rel_res;
                 }
                 sparse_iter_stag_free(&stag);
                 sparse_iter_workspace_free(&workspace);
@@ -500,7 +539,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
             }
         }
 
-        iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
+        iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rel_res);
 
         merr = matvec(matvec_ctx, n, p, Ap);
         if (merr != SPARSE_OK) {
@@ -510,18 +549,25 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         }
 
         double pAp = vec_dot(p, Ap, n);
+        if (!isfinite(pAp))
+            goto cg_mf_numeric_failure;
         if (fabs(pAp) < sparse_rel_tol(0, DROP_TOL)) {
             breakdown = 1;
             break;
         }
         double alpha = rz / pAp;
+        if (!isfinite(alpha))
+            goto cg_mf_numeric_failure;
 
         vec_axpy(alpha, p, x, n);
         vec_axpy(-alpha, Ap, r, n);
         rnorm = vec_norm2(r, n);
+        rel_res = s217_iter_relative_residual(rnorm, bnorm);
+        if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n))
+            goto cg_mf_numeric_failure;
 
-        reshist_record(&rh, rnorm / bnorm);
-        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        reshist_record(&rh, rel_res);
+        sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
@@ -539,11 +585,15 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         }
 
         double rz_new = vec_dot(r, z, n);
+        if (!isfinite(rz_new))
+            goto cg_mf_numeric_failure;
         if (fabs(rz) < sparse_rel_tol(0, DROP_TOL)) {
             breakdown = 1;
             break;
         }
         double beta = rz_new / rz;
+        if (!isfinite(beta))
+            goto cg_mf_numeric_failure;
 
         for (idx_t i = 0; i < n; i++)
             p[i] = z[i] + beta * p[i];
@@ -551,12 +601,24 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         rz = rz_new;
     }
 
-    if (!converged && rnorm / bnorm <= o->tol)
-        converged = 1;
+    if (!s217_iter_vector_finite(x, n))
+        goto cg_mf_numeric_failure;
+    merr = matvec(matvec_ctx, n, x, Ap);
+    if (merr != SPARSE_OK) {
+        sparse_iter_stag_free(&stag);
+        sparse_iter_workspace_free(&workspace);
+        return merr;
+    }
+    for (idx_t i = 0; i < n; i++)
+        r[i] = b[i] - Ap[i];
+    rel_res = s217_iter_relative_residual(vec_norm2(r, n), bnorm);
+    if (!isfinite(rel_res))
+        goto cg_mf_numeric_failure;
+    converged = (rel_res <= o->tol);
 
     if (result) {
         result->iterations = iter;
-        result->residual_norm = rnorm / bnorm;
+        result->residual_norm = rel_res;
         result->converged = converged;
         result->stagnated = stagnated;
         result->breakdown = breakdown;
@@ -566,6 +628,12 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     sparse_iter_stag_free(&stag);
     sparse_iter_workspace_free(&workspace);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+
+cg_mf_numeric_failure:
+    s217_iter_numeric_result(result, iter, rh.count < rh.len ? rh.count : rh.len);
+    sparse_iter_stag_free(&stag);
+    sparse_iter_workspace_free(&workspace);
+    return SPARSE_ERR_NUMERIC;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -629,9 +697,15 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         return SPARSE_ERR_BADARG;
     idx_t m = o->restart; /* restart parameter */
     int right_precond = (precond && o->precond_side == SPARSE_PRECOND_RIGHT);
+    if (n > 0 && (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n)))
+        return SPARSE_ERR_BADARG;
     double bnorm = 0.0;
     if (s85_iter_handle_trivial_system(n, b, x, result, &bnorm))
         return SPARSE_OK;
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
+    }
 
     sparse_err_t merr;
 
@@ -648,8 +722,12 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         }
         for (idx_t i = 0; i < n; i++)
             tmp[i] = b[i] - tmp[i];
-        double rr = vec_norm2(tmp, n) / bnorm;
+        double rr = s217_iter_relative_residual(vec_norm2(tmp, n), bnorm);
         free(tmp);
+        if (!isfinite(rr)) {
+            s217_iter_numeric_result(result, 0, 0);
+            return SPARSE_ERR_NUMERIC;
+        }
         int conv = (rr <= o->tol);
         if (result) {
             result->iterations = 0;
@@ -669,6 +747,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
 
     /* Check initial true residual before allocating the full workspace,
      * so we return cheaply if the initial guess already satisfies tol */
+    double initial_rel = NAN;
     {
         double *tmp = NULL;
         if (sparse_malloc_idx_array(n, sizeof(double), (void **)&tmp) != SPARSE_OK)
@@ -680,8 +759,13 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         }
         for (idx_t i = 0; i < n; i++)
             tmp[i] = b[i] - tmp[i];
-        double rr = vec_norm2(tmp, n) / bnorm;
+        double rr = s217_iter_relative_residual(vec_norm2(tmp, n), bnorm);
         free(tmp);
+        if (!isfinite(rr)) {
+            s217_iter_numeric_result(result, 0, 0);
+            return SPARSE_ERR_NUMERIC;
+        }
+        initial_rel = rr;
         if (rr <= o->tol) {
             if (result) {
                 result->iterations = 0;
@@ -752,9 +836,11 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         }
 
         double beta = vec_norm2(V(0), n);
+        if (!isfinite(beta))
+            goto gmres_numeric_failure;
         if (beta == 0.0) {
-            converged = 1;
-            rel_res = 0.0;
+            breakdown = 1;
+            rel_res = initial_rel;
             break;
         }
 
@@ -762,6 +848,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         double inv_beta = 1.0 / beta;
         for (idx_t i = 0; i < n; i++)
             V(0)[i] *= inv_beta;
+        if (!s217_iter_vector_finite(V(0), n))
+            goto gmres_numeric_failure;
 
         /* Initialize residual vector g = beta * e_1 */
         for (idx_t i = 0; i <= m; i++)
@@ -803,6 +891,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                     sparse_iter_stag_free(&stag);
                     return perr;
                 }
+                if (!s217_iter_vector_finite(V(j + 1), n))
+                    goto gmres_numeric_failure;
                 merr = matvec(matvec_ctx, n, V(j + 1), w);
                 if (merr != SPARSE_OK) {
                     sparse_iter_stag_free(&stag);
@@ -824,15 +914,21 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                         sparse_iter_stag_free(&stag);
                         return perr;
                     }
+                    if (!s217_iter_vector_finite(w, n))
+                        goto gmres_numeric_failure;
                 }
             }
 
             /* Arnoldi: modified Gram-Schmidt orthogonalization */
             for (idx_t i = 0; i <= j; i++) {
                 H(i, j) = vec_dot(w, V(i), n);
+                if (!isfinite(H(i, j)))
+                    goto gmres_numeric_failure;
                 vec_axpy(-H(i, j), V(i), w, n);
             }
             H(j + 1, j) = vec_norm2(w, n);
+            if (!isfinite(H(j + 1, j)))
+                goto gmres_numeric_failure;
 
             /* Check for lucky breakdown (before Givens rotation zeroes H(j+1,j)) */
             int lucky = (H(j + 1, j) < sparse_rel_tol(0, DROP_TOL));
@@ -843,6 +939,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 double inv_h = 1.0 / H(j + 1, j);
                 for (idx_t i = 0; i < n; i++)
                     V(j + 1)[i] = w[i] * inv_h;
+                if (!s217_iter_vector_finite(V(j + 1), n))
+                    goto gmres_numeric_failure;
             }
 
             /* Apply previous Givens rotations to column j of H */
@@ -857,6 +955,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 double a = H(j, j);
                 double b_val = H(j + 1, j);
                 double r = hypot(a, b_val);
+                if (!isfinite(r))
+                    goto gmres_numeric_failure;
                 if (r > 0.0) {
                     cs[j] = a / r;
                     sn[j] = b_val / r;
@@ -876,7 +976,9 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 g[j] = tmp;
             }
 
-            rel_res = fabs(g[j + 1]) / bnorm;
+            rel_res = s217_iter_relative_residual(fabs(g[j + 1]), bnorm);
+            if (!isfinite(rel_res) || !isfinite(g[j]))
+                goto gmres_numeric_failure;
 
             reshist_record(&rh, rel_res);
             iter_report(o->callback, o->callback_ctx, o->verbose, "GMRES", total_iter - 1, rel_res);
@@ -899,6 +1001,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 y[i] /= H(i, i);
             else
                 y[i] = 0.0; /* singular Hessenberg diagonal — treat as zero */
+            if (!isfinite(y[i]))
+                goto gmres_numeric_failure;
         }
 
         /* Update solution */
@@ -913,12 +1017,16 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 sparse_iter_stag_free(&stag);
                 return perr;
             }
+            if (!s217_iter_vector_finite(V(0), n))
+                goto gmres_numeric_failure;
             vec_axpy(1.0, V(0), x, n);
         } else {
             /* Left precond / unpreconditioned: x = x + V * y */
             for (idx_t k = 0; k < j; k++)
                 vec_axpy(y[k], V(k), x, n);
         }
+        if (!s217_iter_vector_finite(x, n))
+            goto gmres_numeric_failure;
 
         /* Compute true residual to decide convergence */
         merr = matvec(matvec_ctx, n, x, w);
@@ -928,7 +1036,10 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         }
         for (idx_t i = 0; i < n; i++)
             w[i] = b[i] - w[i];
-        rel_res = vec_norm2(w, n) / bnorm;
+        rel_res = s217_iter_relative_residual(vec_norm2(w, n), bnorm);
+        if (!isfinite(rel_res))
+            goto gmres_numeric_failure;
+        initial_rel = rel_res;
 
         if (rel_res <= o->tol) {
             converged = 1;
@@ -954,6 +1065,11 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
 
     sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+
+gmres_numeric_failure:
+    s217_iter_numeric_result(result, total_iter, rh.count < rh.len ? rh.count : rh.len);
+    sparse_iter_stag_free(&stag);
+    return SPARSE_ERR_NUMERIC;
 }
 
 sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
@@ -1023,9 +1139,15 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     if (o->max_iter < 0 || o->tol < 0.0)
         return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
+    if (n > 0 && (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n)))
+        return SPARSE_ERR_BADARG;
     double bnorm = 0.0;
     if (s85_iter_handle_trivial_system(n, b, x, result, &bnorm))
         return SPARSE_OK;
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
+    }
 
     /* Allocate workspace */
     bicgstab_workspace_t ws;
@@ -1052,6 +1174,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
 
     double rho = vec_dot(ws.r_hat, ws.r, n);
     double rnorm = vec_norm2(ws.r, n);
+    double rel_res = s217_iter_relative_residual(rnorm, bnorm);
 
     idx_t iter = 0;
     int converged = 0;
@@ -1059,9 +1182,13 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     int breakdown = 0;
     sparse_err_t numeric_err = SPARSE_OK;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    if (!isfinite(rel_res) || !isfinite(rho)) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        goto done;
+    }
 
     /* Check if already converged */
-    if (rnorm / bnorm <= o->tol) {
+    if (rel_res <= o->tol) {
         converged = 1;
         goto done;
     }
@@ -1086,7 +1213,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
             if (o->progress_cb(&pp, o->progress_user) != 0) {
                 if (result) {
                     result->iterations = iter;
-                    result->residual_norm = rnorm / bnorm;
+                    result->residual_norm = rel_res;
                 }
                 sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
@@ -1094,8 +1221,8 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
             }
         }
 
-        reshist_record(&rh, rnorm / bnorm);
-        iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rnorm / bnorm);
+        reshist_record(&rh, rel_res);
+        iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rel_res);
 
         /* --- First half-step: BiCG direction --- */
 
@@ -1133,10 +1260,15 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
 
         /* Check if ||s|| is small enough for early termination */
         double snorm = vec_norm2(ws.s, n);
-        if (snorm / bnorm <= o->tol) {
+        double srel = s217_iter_relative_residual(snorm, bnorm);
+        if (!isfinite(srel)) {
+            numeric_err = SPARSE_ERR_NUMERIC;
+            break;
+        }
+        if (srel <= o->tol) {
             /* Accept half-step: x = x + alpha * p_hat */
             vec_axpy(alpha, p_eff, x, n);
-            rnorm = snorm;
+            rel_res = srel;
             converged = 1;
             iter++;
             break;
@@ -1180,6 +1312,11 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
             for (idx_t i = 0; i < n; i++)
                 ws.r[i] = b[i] - ws.r[i];
             rnorm = vec_norm2(ws.r, n);
+            rel_res = s217_iter_relative_residual(rnorm, bnorm);
+            if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n)) {
+                numeric_err = SPARSE_ERR_NUMERIC;
+                break;
+            }
             vec_copy(ws.r, ws.p, n);
             rho = vec_dot(ws.r_hat, ws.r, n);
             if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
@@ -1198,21 +1335,21 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         vec_axpy(-omega, ws.t, ws.r, n);
 
         rnorm = vec_norm2(ws.r, n);
-
-        if (!isfinite(rnorm)) {
+        rel_res = s217_iter_relative_residual(rnorm, bnorm);
+        if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n)) {
             numeric_err = SPARSE_ERR_NUMERIC;
             break;
         }
 
         /* Check convergence */
-        if (rnorm / bnorm <= o->tol) {
+        if (rel_res <= o->tol) {
             converged = 1;
             iter++;
             break;
         }
 
         /* Stagnation check */
-        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
@@ -1241,14 +1378,19 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
 
 done:;
     /* Compute true residual ||b - Ax|| / ||b|| for the final report. */
-    double true_rel_res = rnorm / bnorm;
-    if (iter > 0) {
+    double true_rel_res = rel_res;
+    if (iter > 0 && numeric_err == SPARSE_OK) {
         sparse_matvec(A, x, ws.r);
         for (idx_t i = 0; i < n; i++)
             ws.r[i] = b[i] - ws.r[i];
-        true_rel_res = vec_norm2(ws.r, n) / bnorm;
+        true_rel_res = s217_iter_relative_residual(vec_norm2(ws.r, n), bnorm);
         if (true_rel_res > o->tol)
             converged = 0;
+    }
+    if (!isfinite(true_rel_res) || numeric_err != SPARSE_OK) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        converged = 0;
+        true_rel_res = NAN;
     }
 
     if (result) {
@@ -1285,9 +1427,15 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         return SPARSE_ERR_BADARG;
     if (n < 0)
         return SPARSE_ERR_BADARG;
+    if (n > 0 && (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n)))
+        return SPARSE_ERR_BADARG;
     double bnorm = 0.0;
     if (s85_iter_handle_trivial_system(n, b, x, result, &bnorm))
         return SPARSE_OK;
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
+    }
 
     bicgstab_workspace_t ws;
     sparse_err_t werr = bicgstab_workspace_alloc(n, precond != NULL, &ws);
@@ -1315,6 +1463,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
 
     double rho = vec_dot(ws.r_hat, ws.r, n);
     double rnorm = vec_norm2(ws.r, n);
+    double rel_res = s217_iter_relative_residual(rnorm, bnorm);
 
     idx_t iter = 0;
     int converged = 0;
@@ -1322,8 +1471,12 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     int breakdown = 0;
     sparse_err_t numeric_err = SPARSE_OK;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    if (!isfinite(rel_res) || !isfinite(rho)) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        goto done_mf;
+    }
 
-    if (rnorm / bnorm <= o->tol) {
+    if (rel_res <= o->tol) {
         converged = 1;
         goto done_mf;
     }
@@ -1334,8 +1487,8 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     }
 
     for (iter = 0; iter < o->max_iter; iter++) {
-        reshist_record(&rh, rnorm / bnorm);
-        iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rnorm / bnorm);
+        reshist_record(&rh, rel_res);
+        iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rel_res);
 
         double *p_eff = ws.p;
         if (precond) {
@@ -1370,9 +1523,14 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         vec_axpy(-alpha, ws.v, ws.s, n);
 
         double snorm = vec_norm2(ws.s, n);
-        if (snorm / bnorm <= o->tol) {
+        double srel = s217_iter_relative_residual(snorm, bnorm);
+        if (!isfinite(srel)) {
+            numeric_err = SPARSE_ERR_NUMERIC;
+            break;
+        }
+        if (srel <= o->tol) {
             vec_axpy(alpha, p_eff, x, n);
-            rnorm = snorm;
+            rel_res = srel;
             converged = 1;
             iter++;
             break;
@@ -1418,6 +1576,11 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
             for (idx_t i = 0; i < n; i++)
                 ws.r[i] = b[i] - ws.r[i];
             rnorm = vec_norm2(ws.r, n);
+            rel_res = s217_iter_relative_residual(rnorm, bnorm);
+            if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n)) {
+                numeric_err = SPARSE_ERR_NUMERIC;
+                break;
+            }
             vec_copy(ws.r, ws.p, n);
             rho = vec_dot(ws.r_hat, ws.r, n);
             if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
@@ -1433,20 +1596,20 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         vec_copy(ws.s, ws.r, n);
         vec_axpy(-omega, ws.t, ws.r, n);
         rnorm = vec_norm2(ws.r, n);
-
-        if (!isfinite(rnorm)) {
+        rel_res = s217_iter_relative_residual(rnorm, bnorm);
+        if (!isfinite(rel_res) || !s217_iter_vector_finite(x, n)) {
             numeric_err = SPARSE_ERR_NUMERIC;
             break;
         }
 
-        if (rnorm / bnorm <= o->tol) {
+        if (rel_res <= o->tol) {
             converged = 1;
             iter++;
             break;
         }
 
         /* Stagnation check */
-        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
@@ -1471,8 +1634,8 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     }
 
 done_mf:;
-    double true_rel_res = rnorm / bnorm;
-    if (iter > 0) {
+    double true_rel_res = rel_res;
+    if (iter > 0 && numeric_err == SPARSE_OK) {
         merr = matvec(matvec_ctx, n, x, ws.r);
         if (merr != SPARSE_OK) {
             sparse_iter_stag_free(&stag);
@@ -1481,9 +1644,14 @@ done_mf:;
         }
         for (idx_t i = 0; i < n; i++)
             ws.r[i] = b[i] - ws.r[i];
-        true_rel_res = vec_norm2(ws.r, n) / bnorm;
+        true_rel_res = s217_iter_relative_residual(vec_norm2(ws.r, n), bnorm);
         if (true_rel_res > o->tol)
             converged = 0;
+    }
+    if (!isfinite(true_rel_res) || numeric_err != SPARSE_OK) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        converged = 0;
+        true_rel_res = NAN;
     }
 
     if (result) {

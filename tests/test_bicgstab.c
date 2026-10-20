@@ -1401,12 +1401,83 @@ static void test_bicgstab_mf_n_zero(void) {
     ASSERT_TRUE(result.converged);
 }
 
+static void test_s217_bicgstab_tiny_rhs_not_false_success(void) {
+    SparseMatrix *A = build_identity(2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double control_b[] = {2.0, -3.0}, control_x[] = {0.0, 0.0};
+    double tiny_b[] = {1e-200, -2e-200}, tiny_x[] = {0.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 5, .tol = 1e-10};
+    sparse_iter_result_t control_result = {0}, tiny_result = {0};
+    sparse_err_t control_err =
+        sparse_solve_bicgstab(A, control_b, control_x, &opts, NULL, NULL, &control_result);
+    sparse_err_t tiny_err =
+        sparse_solve_bicgstab(A, tiny_b, tiny_x, &opts, NULL, NULL, &tiny_result);
+    double tiny_rel =
+        hypot(tiny_b[0] - tiny_x[0], tiny_b[1] - tiny_x[1]) / hypot(tiny_b[0], tiny_b[1]);
+    sparse_free(A);
+
+    ASSERT_ERR(control_err, SPARSE_OK);
+    ASSERT_TRUE(control_result.converged && fabs(control_x[0] - 2.0) < 1e-12 &&
+                fabs(control_x[1] + 3.0) < 1e-12);
+    printf("    s217 BiCGSTAB tiny RHS: status=%d converged=%d true_rel=%.17g\n", (int)tiny_err,
+           tiny_result.converged, tiny_rel);
+    ASSERT_TRUE(tiny_err == SPARSE_OK || tiny_err == SPARSE_ERR_NOT_CONVERGED ||
+                tiny_err == SPARSE_ERR_NUMERIC);
+    if (tiny_err == SPARSE_OK)
+        ASSERT_TRUE(tiny_result.converged && isfinite(tiny_rel) && tiny_rel <= opts.tol);
+    else
+        ASSERT_FALSE(tiny_result.converged);
+}
+
+static void test_s217_bicgstab_nonfinite_computed_residual(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1e308);
+    sparse_insert(A, 1, 1, 1.0);
+    double b[] = {1.0, 1.0}, x[] = {2.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 1, .tol = 1e-10};
+    sparse_iter_result_t result = {.converged = 1};
+    sparse_err_t err = sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, &result);
+    sparse_free(A);
+    printf("    s217 BiCGSTAB overflowed initial residual: status=%d\n", (int)err);
+    ASSERT_ERR(err, SPARSE_ERR_NUMERIC);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isnan(result.residual_norm));
+}
+
+static void test_s217_bicgstab_nonfinite_entry(void) {
+    SparseMatrix *A = build_identity(2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[2] = {NAN, 1.0}, x[2] = {0.0, 0.0};
+    sparse_iter_result_t result = {.converged = 1};
+    ASSERT_ERR(sparse_solve_bicgstab(A, b, x, NULL, NULL, NULL, &result), SPARSE_ERR_BADARG);
+    ASSERT_FALSE(result.converged);
+    b[0] = 0.0;
+    b[1] = 0.0;
+    x[0] = INFINITY;
+    ASSERT_ERR(sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 2, b, x, NULL, NULL, NULL, &result),
+               SPARSE_ERR_BADARG);
+    ASSERT_FALSE(result.converged);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
     TEST_SUITE_BEGIN("BiCGSTAB");
+
+    RUN_TEST(test_s217_bicgstab_tiny_rhs_not_false_success);
+    RUN_TEST(test_s217_bicgstab_nonfinite_computed_residual);
+    RUN_TEST(test_s217_bicgstab_nonfinite_entry);
 
     /* Error handling */
     RUN_TEST(test_bicgstab_null_A);

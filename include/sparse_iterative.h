@@ -17,6 +17,15 @@
  * each preconditioner to the solver assumptions and inspect
  * `sparse_iter_result_t` for convergence and residual diagnostics. Use this
  * header as the exact declaration and option/result reference.
+ *
+ * @par Selected numerical-input contract
+ * The single-RHS CG, GMRES, MINRES, and BiCGSTAB paths, their documented
+ * matrix-free variants, and block CG reject non-finite caller-supplied RHS
+ * or initial-guess entries with SPARSE_ERR_BADARG for nonempty systems.
+ * A computed non-finite norm, residual ratio, or selected recurrence value
+ * instead returns SPARSE_ERR_NUMERIC. This does not imply identical
+ * numerical behavior for every block adapter or every solver family.
+ * The existing empty-system and finite zero-RHS success paths remain.
  */
 
 #include "sparse_matrix.h"
@@ -154,13 +163,20 @@ typedef struct {
  * buffers. Pass NULL if result information is not needed.
  * Interpret fields only together with the function return code: successful
  * convergence, non-convergence, stagnation, and breakdown use the same struct
- * but have different meanings for the approximation in `x`/`X`.
+ * but have different meanings for the approximation in `x`/`X`. For the
+ * selected numerical-input paths described above, a computed numeric failure
+ * sets converged=0 and residual_norm=NaN. Iteration and history counts may
+ * retain completed work. Invalid caller input returns SPARSE_ERR_BADARG and
+ * does not establish a valid residual. Other hard errors, including callback
+ * and allocation failures, do not promise a usable final residual or x/X.
  * `residual_history_count` is 0 when no residual history buffer was supplied
  * or no entries were recorded.
  */
 typedef struct {
     idx_t iterations;              /**< Number of iterations performed */
-    sparse_scalar_t residual_norm; /**< Final true relative residual norm ||b - A*x|| / ||b|| */
+    sparse_scalar_t residual_norm; /**< Final true relative residual on a completed
+                                        selected solve; 0 for a successful zero RHS,
+                                        NaN on selected computed numeric failures. */
     int converged;                 /**< Nonzero if solver converged within tolerance */
     int stagnated;                 /**< Nonzero if stagnation was detected (residual stopped
                                         decreasing over the stagnation window). Only set when
@@ -323,12 +339,17 @@ sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx
  *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
  *                    cancellation, or callback errors, fields are
  *                    best-effort/unspecified unless documented otherwise.
+ *                    A computed numeric failure sets converged=0 and
+ *                    residual_norm=NaN; x may be partially updated.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or nonempty
+ *         b or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result does not claim convergence.
  *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
@@ -372,8 +393,8 @@ sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const sparse_sca
  * GMRES is applicable to general (possibly unsymmetric) square matrices.
  * Uses the Arnoldi process with Givens rotations for the Hessenberg
  * least-squares problem. Supports left and right preconditioning via
- * opts->precond_side (default: left). With right preconditioning, the
- * GMRES residual norm equals the true residual ||b - Ax|| (no gap).
+ * opts->precond_side (default: left). Final convergence reporting
+ * recomputes the true residual ||b - Ax|| for either side.
  *
  * The input x is used as the initial guess (pass a zero vector for no guess).
  *
@@ -390,12 +411,17 @@ sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const sparse_sca
  *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
  *                    cancellation, or callback errors, fields are
  *                    best-effort/unspecified unless documented otherwise.
+ *                    A computed numeric failure sets converged=0 and
+ *                    residual_norm=NaN; x may be partially updated.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or restart <= 0.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, restart <= 0,
+ *         or nonempty b or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result does not claim convergence.
  *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
@@ -455,13 +481,18 @@ sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const sparse_
  * @param result      Output: iterations = max across columns, residual = max
  *                    across columns (may be NULL). Populated after per-column
  *                    solves complete; on hard errors, fields are
- *                    best-effort/unspecified.
+ *                    best-effort/unspecified. A computed numeric failure
+ *                    sets converged=0 and residual_norm=NaN; X may be
+ *                    partially updated.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
- * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative, opts has invalid values,
+ *         or nonempty B or the initial X contains NaN or infinity.
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value in any column; no aggregate convergence claim.
  * @return Other error codes may be propagated from the preconditioner callback.
  */
 sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const sparse_scalar_t *B, idx_t nrhs,
@@ -519,8 +550,9 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const sparse_scalar
  * positive-definite; unlike GMRES, it exploits symmetry to use only
  * short recurrences (O(n) storage, no restart needed).
  *
- * The residual norm decreases monotonically at every iteration (a
- * guarantee that CG and GMRES(k) do not provide).
+ * The ideal MINRES recurrence minimizes a residual estimate; finite-precision
+ * reported true residuals are checked separately and need not decrease at
+ * every iteration.
  *
  * The input x is used as the initial guess (pass a zero vector for no guess).
  *
@@ -546,13 +578,18 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const sparse_scalar
  *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
  *                    cancellation, or callback errors, fields are
  *                    best-effort/unspecified unless documented otherwise.
+ *                    A computed numeric failure sets converged=0 and
+ *                    residual_norm=NaN; x may be partially updated.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or if a
- *         provided preconditioner is non-SPD (r^T M^{-1} r < 0) or degenerate.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, nonempty b
+ *         or the initial x contains NaN or infinity, or a provided
+ *         preconditioner is non-SPD (r^T M^{-1} r < 0) or degenerate.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result does not claim convergence.
  *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
@@ -665,13 +702,17 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const sparse_scala
  *                    SPARSE_ERR_NOT_CONVERGED; on validation, allocation,
  *                    cancellation, numeric, or callback errors, fields are
  *                    best-effort/unspecified unless documented otherwise.
+ *                    A computed numeric failure sets converged=0 and
+ *                    residual_norm=NaN; x may be partially updated.
  * @return SPARSE_OK if converged within tolerance.
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or nonempty
+ *         b or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
- * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result does not claim convergence.
  *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
@@ -756,8 +797,11 @@ typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const sparse_
  *                   callback errors, fields are best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
- * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.
+ * @return SPARSE_ERR_BADARG if n < 0, opts has invalid fields, or nonempty b
+ *         or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result has converged=0 and residual_norm=NaN.
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
@@ -786,8 +830,11 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
  *                   callback errors, fields are best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
- * @return SPARSE_ERR_BADARG if n < 0, restart <= 0, or opts has invalid fields.
+ * @return SPARSE_ERR_BADARG if n < 0, restart <= 0, opts has invalid fields,
+ *         or nonempty b or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result has converged=0 and residual_norm=NaN.
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
@@ -817,9 +864,11 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
  *                   best-effort/unspecified.
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
- * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.
+ * @return SPARSE_ERR_BADARG if n < 0, opts has invalid fields, or nonempty b
+ *         or the initial x contains NaN or infinity.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
- * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
+ * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
+ *         recurrence value; result has converged=0 and residual_norm=NaN.
  * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,

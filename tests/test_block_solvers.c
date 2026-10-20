@@ -126,6 +126,40 @@ static void test_block_cg_3rhs(void) {
     sparse_free(A);
 }
 
+static void test_s217_block_cg_nonfinite_column(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 1, 1.0), SPARSE_OK);
+    double B[] = {1.0, -1.0, NAN, 2.0};
+    double X[] = {0.0, 0.0, 0.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {.converged = 1};
+    sparse_err_t err = sparse_cg_solve_block(A, B, 2, X, &opts, NULL, NULL, &result);
+    sparse_free(A);
+    printf("    s217 block CG nonfinite second column: status=%d\n", (int)err);
+    ASSERT_ERR(err, SPARSE_ERR_BADARG);
+    ASSERT_FALSE(result.converged);
+}
+
+static void test_s217_block_cg_computed_numeric_failure(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1e308), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 1, 1.0), SPARSE_OK);
+    double B[2] = {1.0, 1.0}, X[2] = {2.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 1, .tol = 1e-10};
+    sparse_iter_result_t result = {.converged = 1};
+    ASSERT_ERR(sparse_cg_solve_block(A, B, 1, X, &opts, NULL, NULL, &result), SPARSE_ERR_NUMERIC);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isnan(result.residual_norm));
+    sparse_free(A);
+}
+
 /* Test: Residual check for all columns */
 static void test_block_cg_residuals(void) {
     idx_t n = 15;
@@ -491,6 +525,8 @@ int main(void) {
     RUN_TEST(test_block_cg_nrhs_zero);
     RUN_TEST(test_block_cg_single_rhs);
     RUN_TEST(test_block_cg_3rhs);
+    RUN_TEST(test_s217_block_cg_nonfinite_column);
+    RUN_TEST(test_s217_block_cg_computed_numeric_failure);
     RUN_TEST(test_block_cg_residuals);
     RUN_TEST(test_block_cg_iteration_count);
 

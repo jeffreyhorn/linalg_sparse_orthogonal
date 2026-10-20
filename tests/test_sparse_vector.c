@@ -3,6 +3,8 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include <float.h>
+#include <math.h>
 #include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -25,9 +27,103 @@ static void test_norm2_zero(void) {
 }
 
 static void test_norm2_null(void) {
-    ASSERT_NEAR(vec_norm2(NULL, 5), 0.0, 0.0);
+    double null_norm = vec_norm2(NULL, 5);
+    ASSERT_TRUE(null_norm == 0.0 && !signbit(null_norm));
     double v[] = {1.0};
-    ASSERT_NEAR(vec_norm2(v, 0), 0.0, 0.0);
+    double empty_norm = vec_norm2(v, 0);
+    ASSERT_TRUE(empty_norm == 0.0 && !signbit(empty_norm));
+}
+
+static void test_norm2_large_finite(void) {
+    double v[] = {1e200, -1e200};
+    double expected = hypot(v[0], v[1]);
+    double actual = vec_norm2(v, 2);
+    printf("    large finite norm2: actual=%.17g expected=%.17g\n", actual, expected);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+}
+
+static void test_norm2_tiny_finite(void) {
+    double v[] = {1e-200, -1e-200};
+    double expected = hypot(v[0], v[1]);
+    double actual = vec_norm2(v, 2);
+    printf("    tiny finite norm2: actual=%.17g expected=%.17g\n", actual, expected);
+    ASSERT_TRUE(isfinite(actual) && actual > 0.0 &&
+                fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+}
+
+static void test_norm2_mixed_scales(void) {
+    double v[] = {1e200, 1e-200, -1e200, -1e-200};
+    double expected = hypot(v[0], v[2]);
+    double actual = vec_norm2(v, 4);
+    printf("    mixed finite norm2: actual=%.17g expected=%.17g\n", actual, expected);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+}
+
+static void test_norm2_near_equal_opposite_signs(void) {
+    double v[] = {1e154, -1e154 * (1.0 + DBL_EPSILON)};
+    double expected = hypot(v[0], v[1]);
+    double actual = vec_norm2(v, 2);
+    printf("    near-equal signed norm2: actual=%.17g expected=%.17g\n", actual, expected);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+}
+
+static void test_norm2_finite_singleton_and_zero_controls(void) {
+    double v[] = {-1e100};
+    double zeros[] = {0.0, -0.0};
+    double actual = vec_norm2(v, 1);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / 1e100 - 1.0) <= 8.0 * DBL_EPSILON);
+    double zero_norm = vec_norm2(zeros, 2);
+    double empty_norm = vec_norm2(v, -1);
+    ASSERT_TRUE(isfinite(zero_norm) && zero_norm == 0.0 && !signbit(zero_norm));
+    ASSERT_TRUE(isfinite(empty_norm) && empty_norm == 0.0 && !signbit(empty_norm));
+}
+
+static void test_norm2_double_max_boundary(void) {
+    double singleton[] = {-DBL_MAX};
+    double pair[] = {DBL_MAX, -DBL_MAX};
+    double singleton_norm = vec_norm2(singleton, 1);
+    double pair_norm = vec_norm2(pair, 2);
+    ASSERT_TRUE(isfinite(singleton_norm) && singleton_norm == DBL_MAX);
+    ASSERT_TRUE(isinf(pair_norm) && !signbit(pair_norm));
+}
+
+static void test_norm2_near_max_finite_pair(void) {
+    double v[] = {DBL_MAX / 2.0, -DBL_MAX / 2.0};
+    double expected = hypot(v[0], v[1]);
+    double actual = vec_norm2(v, 2);
+    ASSERT_TRUE(isfinite(expected) && expected > 0.0);
+    ASSERT_TRUE(isfinite(actual) && fabs(actual / expected - 1.0) <= 8.0 * DBL_EPSILON);
+}
+
+static void test_norm2_smallest_subnormal(void) {
+    double smallest = nextafter(0.0, 1.0);
+    double singleton[] = {-smallest};
+    double pair[] = {smallest, -smallest};
+    double expected = hypot(pair[0], pair[1]);
+    double singleton_norm = vec_norm2(singleton, 1);
+    double pair_norm = vec_norm2(pair, 2);
+    ASSERT_TRUE(smallest > 0.0 && smallest < DBL_MIN);
+    ASSERT_TRUE(isfinite(singleton_norm) && singleton_norm == smallest);
+    ASSERT_TRUE(isfinite(pair_norm) && pair_norm > 0.0 &&
+                fabs(pair_norm - expected) <= 2.0 * smallest);
+}
+
+static void test_norm2_infinities(void) {
+    double positive[] = {1.0, INFINITY};
+    double negative[] = {-INFINITY, -2.0};
+    double positive_norm = vec_norm2(positive, 2);
+    double negative_norm = vec_norm2(negative, 2);
+    ASSERT_TRUE(isinf(positive_norm) && !signbit(positive_norm));
+    ASSERT_TRUE(isinf(negative_norm) && !signbit(negative_norm));
+}
+
+static void test_norm2_nan_precedes_infinity(void) {
+    double nan_only[] = {NAN, 2.0};
+    double nan_first[] = {NAN, INFINITY};
+    double inf_first[] = {-INFINITY, NAN};
+    ASSERT_TRUE(isnan(vec_norm2(nan_only, 2)));
+    ASSERT_TRUE(isnan(vec_norm2(nan_first, 2)));
+    ASSERT_TRUE(isnan(vec_norm2(inf_first, 2)));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -40,6 +136,57 @@ static void test_norminf_basic(void) {
 }
 
 static void test_norminf_null(void) { ASSERT_NEAR(vec_norminf(NULL, 5), 0.0, 0.0); }
+
+static void test_norminf_empty_and_signed_zero(void) {
+    double zeros[] = {-0.0, 0.0};
+    double zero_norm = vec_norminf(zeros, 2);
+    double empty_norm = vec_norminf(zeros, -1);
+    double zero_length_norm = vec_norminf(zeros, 0);
+    double null_norm = vec_norminf(NULL, 2);
+    ASSERT_TRUE(zero_norm == 0.0 && !signbit(zero_norm));
+    ASSERT_TRUE(empty_norm == 0.0 && !signbit(empty_norm));
+    ASSERT_TRUE(zero_length_norm == 0.0 && !signbit(zero_length_norm));
+    ASSERT_TRUE(null_norm == 0.0 && !signbit(null_norm));
+}
+
+static void test_norminf_finite_extremes(void) {
+    double v[] = {DBL_MAX, -1e-200, 0.0};
+    double tiny[] = {-1e-200};
+    double subnormal[] = {-nextafter(0.0, 1.0)};
+    double large_norm = vec_norminf(v, 3);
+    double tiny_norm = vec_norminf(tiny, 1);
+    ASSERT_TRUE(isfinite(large_norm) && large_norm == DBL_MAX);
+    ASSERT_TRUE(isfinite(tiny_norm) && tiny_norm == 1e-200);
+    ASSERT_TRUE(vec_norminf(subnormal, 1) == -subnormal[0]);
+}
+
+static void test_norminf_infinities(void) {
+    double positive[] = {INFINITY, -1.0};
+    double negative[] = {-INFINITY, 2.0};
+    double positive_norm = vec_norminf(positive, 2);
+    double negative_norm = vec_norminf(negative, 2);
+    ASSERT_TRUE(isinf(positive_norm) && !signbit(positive_norm));
+    ASSERT_TRUE(isinf(negative_norm) && !signbit(negative_norm));
+}
+
+static void test_norminf_nan_only(void) {
+    double v[] = {NAN};
+    ASSERT_TRUE(isnan(vec_norminf(v, 1)));
+}
+
+static void test_norminf_nan_with_finite(void) {
+    double first[] = {NAN, 3.0};
+    double last[] = {3.0, NAN};
+    ASSERT_TRUE(isnan(vec_norminf(first, 2)));
+    ASSERT_TRUE(isnan(vec_norminf(last, 2)));
+}
+
+static void test_norminf_nan_with_infinity(void) {
+    double first[] = {NAN, INFINITY};
+    double last[] = {-INFINITY, NAN};
+    ASSERT_TRUE(isnan(vec_norminf(first, 2)));
+    ASSERT_TRUE(isnan(vec_norminf(last, 2)));
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * vec_axpy tests
@@ -336,10 +483,26 @@ int main(void) {
     RUN_TEST(test_norm2_single);
     RUN_TEST(test_norm2_zero);
     RUN_TEST(test_norm2_null);
+    RUN_TEST(test_norm2_large_finite);
+    RUN_TEST(test_norm2_tiny_finite);
+    RUN_TEST(test_norm2_mixed_scales);
+    RUN_TEST(test_norm2_near_equal_opposite_signs);
+    RUN_TEST(test_norm2_finite_singleton_and_zero_controls);
+    RUN_TEST(test_norm2_double_max_boundary);
+    RUN_TEST(test_norm2_near_max_finite_pair);
+    RUN_TEST(test_norm2_smallest_subnormal);
+    RUN_TEST(test_norm2_infinities);
+    RUN_TEST(test_norm2_nan_precedes_infinity);
 
     /* vec_norminf */
     RUN_TEST(test_norminf_basic);
     RUN_TEST(test_norminf_null);
+    RUN_TEST(test_norminf_empty_and_signed_zero);
+    RUN_TEST(test_norminf_finite_extremes);
+    RUN_TEST(test_norminf_infinities);
+    RUN_TEST(test_norminf_nan_only);
+    RUN_TEST(test_norminf_nan_with_finite);
+    RUN_TEST(test_norminf_nan_with_infinity);
 
     /* vec_axpy */
     RUN_TEST(test_axpy_basic);

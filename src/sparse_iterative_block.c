@@ -51,6 +51,8 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         return SPARSE_ERR_ALLOC;
     if (blk > (size_t)INT32_MAX)
         return SPARSE_ERR_ALLOC;
+    if (!s217_iter_vector_finite(B, (idx_t)blk) || !s217_iter_vector_finite(X, (idx_t)blk))
+        return SPARSE_ERR_BADARG;
 
     sparse_iter_workspace_t workspace;
     sparse_block_cg_workspace_view_t block_ws;
@@ -74,6 +76,11 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     for (idx_t k = 0; k < nrhs; k++) {
         size_t off = n_size * (size_t)k;
         bnorms[k] = vec_norm2(&B[off], n);
+        if (!isfinite(bnorms[k])) {
+            s217_iter_numeric_result(result, 0, 0);
+            sparse_iter_workspace_free(&workspace);
+            return SPARSE_ERR_NUMERIC;
+        }
         if (bnorms[k] == 0.0) {
             vec_zero(&X[off], n);
             bnorms[k] = 1.0; /* avoid div-by-zero; already converged */
@@ -114,12 +121,16 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
     idx_t max_iter_done = 0;
     int all_converged = 0;
+    for (idx_t k = 0; k < nrhs; k++) {
+        if (!isfinite(rz[k]) || !isfinite(s217_iter_relative_residual(rnorms[k], bnorms[k])))
+            goto block_cg_numeric_failure;
+    }
 
     for (idx_t iter = 0; iter < o->max_iter; iter++) {
         /* Check convergence for all columns */
         all_converged = 1;
         for (idx_t k = 0; k < nrhs; k++) {
-            if (!conv[k] && rnorms[k] / bnorms[k] <= o->tol)
+            if (!conv[k] && s217_iter_relative_residual(rnorms[k], bnorms[k]) <= o->tol)
                 conv[k] = 1;
             if (!conv[k])
                 all_converged = 0;
@@ -144,9 +155,13 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
             /* alpha = rz / (P^T * AP) */
             double pAp = vec_dot(&P[n * k], &AP[n * k], n);
+            if (!isfinite(pAp))
+                goto block_cg_numeric_failure;
             if (pAp == 0.0)
                 continue; /* breakdown for this column */
             double alpha = rz[k] / pAp;
+            if (!isfinite(alpha))
+                goto block_cg_numeric_failure;
 
             /* X(:,k) += alpha * P(:,k) */
             vec_axpy(alpha, &P[n * k], &X[n * k], n);
@@ -155,6 +170,9 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
             vec_axpy(-alpha, &AP[n * k], &R[n * k], n);
 
             rnorms[k] = vec_norm2(&R[n * k], n);
+            if (!isfinite(s217_iter_relative_residual(rnorms[k], bnorms[k])) ||
+                !s217_iter_vector_finite(&X[n * k], n))
+                goto block_cg_numeric_failure;
 
             /* Z(:,k) = M^{-1} * R(:,k) */
             if (precond) {
@@ -169,7 +187,11 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
             /* beta = rz_new / rz_old */
             double rz_new = vec_dot(&R[n * k], &Z[n * k], n);
+            if (!isfinite(rz_new))
+                goto block_cg_numeric_failure;
             double beta = (rz[k] != 0.0) ? rz_new / rz[k] : 0.0;
+            if (!isfinite(beta))
+                goto block_cg_numeric_failure;
 
             /* P(:,k) = Z(:,k) + beta * P(:,k) */
             for (idx_t i = 0; i < n; i++)
@@ -179,15 +201,24 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         }
     }
 
-    /* Final convergence check */
-    if (!all_converged) {
-        all_converged = 1;
-        for (idx_t k = 0; k < nrhs; k++) {
-            if (!conv[k] && rnorms[k] / bnorms[k] <= o->tol)
-                conv[k] = 1;
-            if (!conv[k])
-                all_converged = 0;
-        }
+    /* Recompute true residuals before publishing an aggregate status. */
+    if (!s217_iter_vector_finite(X, (idx_t)blk))
+        goto block_cg_numeric_failure;
+    sparse_err_t final_mv_err = sparse_matvec_block(A, X, nrhs, AP);
+    if (final_mv_err != SPARSE_OK) {
+        sparse_iter_workspace_free(&workspace);
+        return final_mv_err;
+    }
+    all_converged = 1;
+    for (idx_t k = 0; k < nrhs; k++) {
+        for (idx_t i = 0; i < n; i++)
+            R[i + n * k] = B[i + n * k] - AP[i + n * k];
+        rnorms[k] = vec_norm2(&R[n * k], n);
+        double rel = s217_iter_relative_residual(rnorms[k], bnorms[k]);
+        if (!isfinite(rel))
+            goto block_cg_numeric_failure;
+        if (rel > o->tol)
+            all_converged = 0;
     }
 
     if (result) {
@@ -195,7 +226,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         /* Report max residual across columns */
         double max_res = 0.0;
         for (idx_t k = 0; k < nrhs; k++) {
-            double rel = rnorms[k] / bnorms[k];
+            double rel = s217_iter_relative_residual(rnorms[k], bnorms[k]);
             if (rel > max_res)
                 max_res = rel;
         }
@@ -205,6 +236,11 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
     sparse_iter_workspace_free(&workspace);
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+
+block_cg_numeric_failure:
+    s217_iter_numeric_result(result, max_iter_done, 0);
+    sparse_iter_workspace_free(&workspace);
+    return SPARSE_ERR_NUMERIC;
 }
 
 typedef sparse_err_t (*iter_block_column_solver_fn)(const SparseMatrix *A, const double *b,
@@ -224,6 +260,7 @@ static sparse_err_t solve_block_independent_columns(const SparseMatrix *A, const
     int all_converged = 1;
     int any_stagnated = 0;
     int any_breakdown = 0;
+    int any_numeric_failure = 0;
     sparse_err_t worst_err = SPARSE_OK;
 
     for (idx_t k = 0; k < nrhs; k++) {
@@ -234,7 +271,9 @@ static sparse_err_t solve_block_independent_columns(const SparseMatrix *A, const
 
         if (col_result.iterations > max_iters)
             max_iters = col_result.iterations;
-        if (col_result.residual_norm > max_residual)
+        if (err == SPARSE_ERR_NUMERIC || !isfinite(col_result.residual_norm))
+            any_numeric_failure = 1;
+        else if (col_result.residual_norm > max_residual)
             max_residual = col_result.residual_norm;
         if (!col_result.converged)
             all_converged = 0;
@@ -249,12 +288,14 @@ static sparse_err_t solve_block_independent_columns(const SparseMatrix *A, const
 
     if (result) {
         result->iterations = max_iters;
-        result->residual_norm = max_residual;
-        result->converged = all_converged;
+        result->residual_norm = any_numeric_failure ? NAN : max_residual;
+        result->converged = all_converged && !any_numeric_failure;
         result->stagnated = any_stagnated;
         result->breakdown = any_breakdown;
     }
 
+    if (any_numeric_failure)
+        return SPARSE_ERR_NUMERIC;
     if (worst_err != SPARSE_OK)
         return worst_err;
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;

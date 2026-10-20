@@ -190,6 +190,8 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
 
     if (!ilu->L || !ilu->U)
         return SPARSE_ERR_NULL;
+    if (!isfinite(ilu->factor_norm))
+        return SPARSE_ERR_NUMERIC;
 
     /* If pivoting was used, apply row permutation to RHS:
      * solve P*L*U*z = r  →  L*U*z = P^{-1}*r  →  permuted_r[i] = r[perm[i]] */
@@ -208,14 +210,30 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
      * L is unit lower triangular, so z[i] = rhs[i] - sum_{j<i} L(i,j)*z[j] */
     for (idx_t i = 0; i < n; i++) {
         double sum = 0.0;
+        if (!isfinite(rhs[i])) {
+            free(pr);
+            return SPARSE_ERR_NUMERIC;
+        }
         Node *node = ilu->L->row_headers[i];
         while (node) {
+            if (!isfinite(node->value)) {
+                free(pr);
+                return SPARSE_ERR_NUMERIC;
+            }
             if (node->col < i) {
                 sum += node->value * z[node->col];
+                if (!isfinite(sum)) {
+                    free(pr);
+                    return SPARSE_ERR_NUMERIC;
+                }
             }
             node = node->right;
         }
         z[i] = rhs[i] - sum;
+        if (!isfinite(z[i])) {
+            free(pr);
+            return SPARSE_ERR_NUMERIC;
+        }
     }
 
     /* Backward substitution: U*z = y  (y is already in z)
@@ -225,10 +243,18 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
         double diag = 0.0;
         Node *node = ilu->U->row_headers[i];
         while (node) {
+            if (!isfinite(node->value)) {
+                free(pr);
+                return SPARSE_ERR_NUMERIC;
+            }
             if (node->col == i) {
                 diag = node->value;
             } else if (node->col > i) {
                 sum += node->value * z[node->col];
+                if (!isfinite(sum)) {
+                    free(pr);
+                    return SPARSE_ERR_NUMERIC;
+                }
             }
             node = node->right;
         }
@@ -237,6 +263,10 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
             return SPARSE_ERR_SINGULAR;
         }
         z[i] = (z[i] - sum) / diag;
+        if (!isfinite(z[i])) {
+            free(pr);
+            return SPARSE_ERR_NUMERIC;
+        }
     }
 
     free(pr);

@@ -94,6 +94,10 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu);
  * @return SPARSE_ERR_NULL if any argument is NULL, or if ilu->L/ilu->U are
  *         NULL when n > 0 (e.g., factorization was not performed or failed).
  * @return SPARSE_ERR_SINGULAR if a U diagonal pivot is zero or near-zero.
+ * @return SPARSE_ERR_NUMERIC if the cached factor norm, RHS, stored factors,
+ *         or a computed substitution value is non-finite. This includes
+ *         overflow from otherwise finite operands. Output may be partially
+ *         written on failure and must not be used as a solved vector.
  */
 sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *z);
 
@@ -115,7 +119,10 @@ void sparse_ilu_free(sparse_ilu_t *ilu);
  * @param n    Vector length (must match ilu->n).
  * @param r    Input vector.
  * @param z    Output vector.
- * @return SPARSE_OK on success, or an error code.
+ * @return SPARSE_OK on success; SPARSE_ERR_NULL for NULL ctx;
+ *         SPARSE_ERR_SHAPE if n differs from ilu->n; otherwise a
+ *         sparse_ilu_solve() error, including SPARSE_ERR_NUMERIC for a
+ *         non-finite factor-system solve.
  */
 sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n, const double *r, double *z);
 
@@ -155,6 +162,10 @@ typedef struct {
  *   @c sparse_ilu_t.perm and applied during solve.
  *
  * The original matrix A is not modified.
+ * A successful factorization does not establish that the factors accurately
+ * approximate A or that applying them will make a Krylov solve converge.
+ * Check sparse_ilu_solve() status before using its output. In particular,
+ * factor-system accuracy is distinct from the residual of A*z = r.
  *
  * @note The factorization operates on the physical storage of A and requires
  *       identity permutations.  Passing a matrix whose permutation arrays
@@ -193,7 +204,10 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
  * @param n    Vector length (must match ilu->n).
  * @param r    Input vector.
  * @param z    Output vector.
- * @return SPARSE_OK on success, or an error code.
+ * @return SPARSE_OK on success; SPARSE_ERR_NULL for NULL ctx;
+ *         SPARSE_ERR_SHAPE if n differs from ilu->n; otherwise a
+ *         sparse_ilu_solve() error, including SPARSE_ERR_NUMERIC for a
+ *         non-finite factor-system solve.
  */
 sparse_err_t sparse_ilut_precond(const void *ctx, idx_t n, const double *r, double *z);
 

@@ -334,3 +334,9 @@ and 12/12 selected CTest results are separate supporting evidence. Skips,
 ASan's disabled leak detection, nonfatal CMake warnings, and the local-host
 scope are stated in the closeout record. The selected norm and solver-status
 owner is complete; no all-solver or ILUT convergence claim is made.
+
+The Day 13 and Day 14 totals above were measured on 2026-10-20, before the
+PR #241 review fixes. The [2026-10-21 post-fix validation](artifacts/day14-validation-claim-closeout.md#post-fix-validation-2026-10-21)
+records a subsequent passing `make format && make lint && make test` run on
+the updated tree and the affected focused counts. UBSan, ASan, and selected
+CTest were not rerun after those fixes.

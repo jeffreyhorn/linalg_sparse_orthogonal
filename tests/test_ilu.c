@@ -1259,7 +1259,7 @@ static void test_s217_ilut_factor_oracle_controls(void) {
     }
 
     double zero[2] = {0.0, 0.0};
-    ASSERT_NEAR((double)s217_ilut_factor_backward_error(&ilu, r, zero), 1.0, 1e-15);
+    ASSERT_TRUE(fabsl(s217_ilut_factor_backward_error(&ilu, r, zero) - 1.0L) <= 1e-15L);
     z[0] = NAN;
     ASSERT_TRUE(isnan(s217_ilut_factor_backward_error(&ilu, r, z)));
     z[0] = INFINITY;
@@ -1282,7 +1282,7 @@ static void test_s217_ilut_factor_oracle_scaled_product(void) {
     ASSERT_ERR(sparse_insert(ilu.L, 0, 0, 1.0), SPARSE_OK);
     ASSERT_ERR(sparse_insert(ilu.U, 0, 0, DBL_MAX), SPARSE_OK);
     double r[1] = {0.0}, z[1] = {DBL_MAX};
-    ASSERT_NEAR((double)s217_ilut_factor_backward_error(&ilu, r, z), 1.0, 1e-15);
+    ASSERT_TRUE(fabsl(s217_ilut_factor_backward_error(&ilu, r, z) - 1.0L) <= 1e-15L);
     sparse_ilu_free(&ilu);
 }
 

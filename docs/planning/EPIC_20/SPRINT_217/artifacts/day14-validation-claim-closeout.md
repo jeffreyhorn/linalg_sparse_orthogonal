@@ -4,7 +4,7 @@
 
 ## Required Final Gate
 
-The required sequence `make format && make lint && make test` exited **0** on the normal, non-sanitized build. A `make -s format-check` passed both before and after the sequence; formatting introduced no new source change requiring a separate focused rerun. `make lint` completed its strict `-Werror` compile, `clang-tidy`, and `cppcheck` phases without a blocking diagnostic. The ordinary `make test` run completed 59 test binaries:
+On 2026-10-20, the required sequence `make format && make lint && make test` exited **0** on the normal, non-sanitized build. A `make -s format-check` passed both before and after the sequence; formatting introduced no new source change requiring a separate focused rerun. `make lint` completed its strict `-Werror` compile, `clang-tidy`, and `cppcheck` phases without a blocking diagnostic. The ordinary `make test` run completed 59 test binaries on that day's tree, before the later PR #241 review fixes:
 
 | Measure | Result |
 | --- | ---: |
@@ -49,3 +49,24 @@ The hours below are the **plan estimates**, not a claim of measured elapsed labo
 The selected owner is complete: finite representable vector norms avoid intermediate square/sum overflow or whole-norm underflow in the covered cases; NaN takes precedence over infinity; the selected CG/GMRES/MINRES/BiCGSTAB and block-CG paths do not publish convergence for the covered nonfinite caller or computed diagnostics; and `west0067` has a finite-entry, independent factor-system gate rather than `norm > 0` alone. NULL/nonpositive-length vector compatibility remains unchanged.
 
 This does **not** establish all-solver numerical conformance, accurate `A*z=r` behavior for ILUT, useful preconditioned convergence on `west0067`, leak freedom, cross-platform parity, performance improvement, external-baseline parity, or state-of-the-art status. The skipped modes are not accepted as evidence for their own coverage; the required selected norm and ILUT checks ran and passed. The CMake warning scope and local-host-only validation also remain visible above. No residual issue blocks the selected Sprint 217 completion criteria; broader numerical and performance work stays with later Epic 20 sprints.
+
+## Post-Fix Validation (2026-10-21)
+
+After the PR #241 review fixes, including the near-maximum norm boundary
+regressions and ordered ILUT backward-error assertions,
+`make format && make lint && make test` exited 0 on the normal build.
+`make test` passed all 59 Make test binaries. The affected binaries were
+also run directly on the updated tree:
+
+| Binary | Tests run | Failed | Skipped | Assertions |
+| --- | ---: | ---: | ---: | ---: |
+| `test_sparse_vector` | 43 | 0 | 0 | 90 |
+| `test_ilu` | 37 | 0 | 0 | 520 |
+| `test_bicgstab` | 53 | 0 | 0 | 395 |
+| `test_block_solvers` | 18 | 0 | 0 | 184 |
+| `test_stagnation` | 47 | 0 | 0 | 322 |
+
+The October 20 full-suite, sanitizer, and selected CTest counts above and in
+the Day 13 ledger remain dated historical evidence, not a claim that those
+instrumented or CMake gates ran again after the review fixes. The post-fix
+Make gate is the validation of the updated source tree.

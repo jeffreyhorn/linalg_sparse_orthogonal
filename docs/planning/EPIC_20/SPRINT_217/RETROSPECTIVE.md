@@ -100,6 +100,11 @@ numerically conformant or that ILUT makes `west0067` converge.
 | Generated API checks | 18 public-header reference pages and 18 source pages; routing/local-only guards passed |
 | `west0067` ILUT gate | 67/67 finite entries; factor-system error `8.249302e-80 <= 1e-12`; both ILUT-GMRES variants nonconverged at 500 iterations |
 
+These metrics are the October 20 close state, before the PR #241 review
+regressions. The [post-fix validation](artifacts/day14-validation-claim-closeout.md#post-fix-validation-2026-10-21)
+records a later passing full Make chain and updated affected-binary counts;
+the instrumented and selected CTest runs above were not repeated on that tree.
+
 The earned result is the **selected shared norm and solver-diagnostic owner**,
 including a meaningful ILUT factor-system regression. It is not broad
 solver-family numerical conformance, accurate `A*z=r` for incomplete

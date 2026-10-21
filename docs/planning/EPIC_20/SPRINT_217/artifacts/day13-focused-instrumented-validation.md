@@ -4,6 +4,12 @@
 changes from Days 3-10, and the [Day 1 baseline](day1-norm-consumer-inventory.md).
 All commands below ran locally on 2026-10-20 on branch `sprint-217`.
 
+These counts describe the Day 13 tree, before the later PR #241 review fixes;
+they are not counts for the final reviewed tree. See the
+[post-fix validation](day14-validation-claim-closeout.md#post-fix-validation-2026-10-21)
+for the subsequent Make gate and updated affected-binary counts. The UBSan,
+ASan, and selected CTest results below were not rerun after those fixes.
+
 ## Focused Make Tests
 
 `make -s build/test_sparse_vector build/test_ilu build/test_iterative

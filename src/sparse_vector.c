@@ -1,5 +1,27 @@
 #include "sparse_vector.h"
+#include <float.h>
 #include <math.h>
+
+static int vec_norm2_overflows(const double *v, idx_t n) {
+    double hi = 0.0;
+    double lo = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double a = scalbn(fabs(v[i]), 1 - DBL_MAX_EXP);
+        double square = a * a;
+        double square_error = fma(a, a, -square);
+        double sum = hi + square;
+        double part = sum - hi;
+        double add_error = (hi - (sum - part)) + (square - part);
+        double correction = lo + (square_error + add_error);
+        hi = sum + correction;
+        lo = (sum - hi) + correction;
+        if (hi >= 4.0)
+            return 1;
+    }
+    /* The squared round-to-nearest overflow midpoint after exponent scaling. */
+    double threshold_hi = nextafter(4.0, 0.0);
+    return hi > threshold_hi || (hi == threshold_hi && lo >= scalbn(1.0, -2 * DBL_MANT_DIG));
+}
 
 double vec_norm2(const double *v, idx_t n) {
     if (!v || n <= 0)
@@ -31,12 +53,10 @@ double vec_norm2(const double *v, idx_t n) {
     if (scale == 0.0)
         return 0.0;
     double norm = scale * sqrt(ssq);
-    if (isinf(norm)) {
-        /* A rounded sqrt can overflow the product even when the exact norm fits. */
-        norm = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            norm = hypot(norm, v[i]);
-    }
+    if (norm >= DBL_MAX / 2.0 && vec_norm2_overflows(v, n))
+        return INFINITY;
+    if (isinf(norm))
+        return DBL_MAX;
     return norm;
 }
 

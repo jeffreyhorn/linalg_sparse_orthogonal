@@ -117,6 +117,14 @@ static void test_norm2_rounded_finite_overflow_boundary(void) {
     ASSERT_TRUE(isinf(vec_norm2(v, 2)));
 }
 
+static void test_norm2_order_independent_overflow_boundary(void) {
+    double v[] = {0x1.fffffffffffffp+1023, 0x1p+997, 0x1.fffffffffffffp+996,
+                  0x1.fffffffffffffp+969};
+    double reversed[] = {v[3], v[2], v[1], v[0]};
+    ASSERT_TRUE(isinf(vec_norm2(v, 4)));
+    ASSERT_TRUE(isinf(vec_norm2(reversed, 4)));
+}
+
 static void test_norm2_smallest_subnormal(void) {
     double smallest = nextafter(0.0, 1.0);
     double singleton[] = {-smallest};
@@ -515,6 +523,7 @@ int main(void) {
     RUN_TEST(test_norm2_rounded_product_boundary);
     RUN_TEST(test_norm2_multi_entry_near_max_boundary);
     RUN_TEST(test_norm2_rounded_finite_overflow_boundary);
+    RUN_TEST(test_norm2_order_independent_overflow_boundary);
     RUN_TEST(test_norm2_smallest_subnormal);
     RUN_TEST(test_norm2_infinities);
     RUN_TEST(test_norm2_nan_precedes_infinity);

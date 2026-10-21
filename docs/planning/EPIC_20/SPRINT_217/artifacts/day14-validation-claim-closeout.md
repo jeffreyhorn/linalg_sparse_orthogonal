@@ -53,14 +53,15 @@ This does **not** establish all-solver numerical conformance, accurate `A*z=r` b
 ## Post-Fix Validation (2026-10-21)
 
 After the PR #241 review fixes, including the near-maximum norm boundary
-regressions and ordered ILUT backward-error assertions,
+regressions, an exact fallback for ambiguous overflow classification with
+both input orderings covered, and ordered ILUT backward-error assertions,
 `make format && make lint && make test` exited 0 on the normal build.
 `make test` passed all 59 Make test binaries. The affected binaries were
 also run directly on the updated tree:
 
 | Binary | Tests run | Failed | Skipped | Assertions |
 | --- | ---: | ---: | ---: | ---: |
-| `test_sparse_vector` | 43 | 0 | 0 | 90 |
+| `test_sparse_vector` | 44 | 0 | 0 | 92 |
 | `test_ilu` | 37 | 0 | 0 | 520 |
 | `test_bicgstab` | 53 | 0 | 0 | 395 |
 | `test_block_solvers` | 18 | 0 | 0 | 184 |

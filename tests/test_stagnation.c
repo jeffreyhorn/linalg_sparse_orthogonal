@@ -919,7 +919,7 @@ static void test_gmres_lucky_breakdown(void) {
 }
 
 static void test_gmres_lucky_breakdown_identity(void) {
-    /* Identity matrix: GMRES should converge in exactly 1 iteration via lucky breakdown */
+    /* A basis vector stays exact through normalization and Arnoldi on I. */
     idx_t n = 10;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
@@ -927,8 +927,7 @@ static void test_gmres_lucky_breakdown_identity(void) {
 
     double *b = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1);
+    b[0] = 1.0;
 
     sparse_gmres_opts_t opts = {.max_iter = 100, .restart = 20, .tol = 1e-12};
     sparse_iter_result_t result;
@@ -944,6 +943,27 @@ static void test_gmres_lucky_breakdown_identity(void) {
 
     free(b);
     free(x);
+    sparse_free(A);
+}
+
+static void test_gmres_identity_multi_entry_convergence(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    double b[10], x[10] = {0};
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_gmres_opts_t opts = {.max_iter = 100, .restart = 20, .tol = 1e-12};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 1);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], b[i], 1e-10);
+
     sparse_free(A);
 }
 
@@ -1345,6 +1365,7 @@ int main(void) {
     /* GMRES breakdown */
     RUN_TEST(test_gmres_lucky_breakdown);
     RUN_TEST(test_gmres_lucky_breakdown_identity);
+    RUN_TEST(test_gmres_identity_multi_entry_convergence);
     RUN_TEST(test_gmres_no_breakdown_general);
 
     /* MINRES breakdown */

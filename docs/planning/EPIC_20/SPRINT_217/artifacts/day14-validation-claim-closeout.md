@@ -71,3 +71,19 @@ The October 20 full-suite, sanitizer, and selected CTest counts above and in
 the Day 13 ledger remain dated historical evidence, not a claim that those
 instrumented or CMake gates ran again after the review fixes. The post-fix
 Make gate is the validation of the updated source tree.
+
+## CG Initialization Follow-Up Validation (2026-10-21)
+
+After moving initial residual checks ahead of unused CG recurrence products
+in assembled, matrix-free, and block paths, `make format && make lint && make test`
+exited 0. The full Make suite passed. The directly rerun affected binaries were:
+
+| Binary | Tests run | Failed | Skipped | Assertions |
+| --- | ---: | ---: | ---: | ---: |
+| `test_iterative` | 95 | 0 | 0 | 795 |
+| `test_block_solvers` | 19 | 0 | 0 | 191 |
+
+The new cases cover a near-converged large RHS with an otherwise overflowing
+preconditioned dot product in all three CG paths, including a mixed block where
+the unconverged column still iterates. The earlier instrumented and CMake gates
+were not rerun for this follow-up.

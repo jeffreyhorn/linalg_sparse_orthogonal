@@ -99,8 +99,22 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         for (idx_t i = 0; i < n; i++)
             R[i + n * k] = B[i + n * k] - AP[i + n * k];
 
-    /* Apply preconditioner: Z = M^{-1}*R (or Z = R) */
+    idx_t max_iter_done = 0;
+    int all_converged = 0;
     for (idx_t k = 0; k < nrhs; k++) {
+        rnorms[k] = vec_norm2(&R[n * k], n);
+        double rel = s217_iter_relative_residual(rnorms[k], bnorms[k]);
+        if (!isfinite(rel))
+            goto block_cg_numeric_failure;
+        if (rel <= o->tol) {
+            conv[k] = 1;
+            vec_zero(&P[n * k], n);
+            continue;
+        }
+        if (o->max_iter == 0) {
+            vec_zero(&P[n * k], n);
+            continue;
+        }
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, &R[n * k], &Z[n * k]); // NOLINT
             if (perr != SPARSE_OK) {
@@ -110,19 +124,9 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         } else {
             vec_copy(&R[n * k], &Z[n * k], n); // NOLINT
         }
-    }
-
-    /* P = Z, compute rz = R^T*Z per column */
-    for (idx_t k = 0; k < nrhs; k++) {
         vec_copy(&Z[n * k], &P[n * k], n);
         rz[k] = vec_dot(&R[n * k], &Z[n * k], n);
-        rnorms[k] = vec_norm2(&R[n * k], n);
-    }
-
-    idx_t max_iter_done = 0;
-    int all_converged = 0;
-    for (idx_t k = 0; k < nrhs; k++) {
-        if (!isfinite(rz[k]) || !isfinite(s217_iter_relative_residual(rnorms[k], bnorms[k])))
+        if (!isfinite(rz[k]))
             goto block_cg_numeric_failure;
     }
 

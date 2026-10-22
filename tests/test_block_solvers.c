@@ -176,6 +176,35 @@ static void test_s217_block_cg_nan_tolerance_not_converged(void) {
     sparse_free(A);
 }
 
+static sparse_err_t s217_block_large_scale_preconditioner(const void *ctx, idx_t n, const double *r,
+                                                          double *z) {
+    int *calls = (int *)ctx;
+    (*calls)++;
+    for (idx_t i = 0; i < n; i++)
+        z[i] = 1e200 * r[i];
+    return SPARSE_OK;
+}
+
+static void test_s217_block_cg_initial_convergence_skips_recurrence(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    double B[] = {1e100, 1e-100}, X[] = {1e100 * (1.0 - 1e-12), 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_cg_solve_block(A, B, 2, X, &opts, s217_block_large_scale_preconditioner,
+                                     &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 2);
+    ASSERT_NEAR(X[1], B[1], 0.0);
+    sparse_free(A);
+}
+
 /* Test: Residual check for all columns */
 static void test_block_cg_residuals(void) {
     idx_t n = 15;
@@ -544,6 +573,7 @@ int main(void) {
     RUN_TEST(test_s217_block_cg_nonfinite_column);
     RUN_TEST(test_s217_block_cg_computed_numeric_failure);
     RUN_TEST(test_s217_block_cg_nan_tolerance_not_converged);
+    RUN_TEST(test_s217_block_cg_initial_convergence_skips_recurrence);
     RUN_TEST(test_block_cg_residuals);
     RUN_TEST(test_block_cg_iteration_count);
 

@@ -268,31 +268,32 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - Ap[i];
 
-    /* Apply preconditioner: z_0 = M^{-1}*r_0 (or z_0 = r_0 if none) */
-    if (precond) {
-        sparse_err_t perr = precond(precond_ctx, n, r, z);
-        if (perr != SPARSE_OK) {
-            sparse_iter_stag_free(&stag);
-            return perr;
-        }
-    } else {
-        vec_copy(r, z, n);
-    }
-
-    /* p_0 = z_0 */
-    vec_copy(z, p, n);
-
-    double rz = vec_dot(r, z, n); /* r^T * z */
     double rnorm = vec_norm2(r, n);
     double rel_res = s217_iter_relative_residual(rnorm, bnorm);
+    double rz = 0.0;
 
     idx_t iter = 0;
     int converged = 0;
     int stagnated = 0;
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
-    if (!isfinite(rz) || !isfinite(rel_res))
+    if (!isfinite(rel_res))
         goto cg_numeric_failure;
+    if (o->max_iter > 0 && !(rel_res <= o->tol)) {
+        if (precond) {
+            sparse_err_t perr = precond(precond_ctx, n, r, z);
+            if (perr != SPARSE_OK) {
+                sparse_iter_stag_free(&stag);
+                return perr;
+            }
+        } else {
+            vec_copy(r, z, n);
+        }
+        vec_copy(z, p, n);
+        rz = vec_dot(r, z, n);
+        if (!isfinite(rz))
+            goto cg_numeric_failure;
+    }
 
     double cg_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
@@ -485,20 +486,9 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - Ap[i];
 
-    if (precond) {
-        sparse_err_t perr = precond(precond_ctx, n, r, z);
-        if (perr != SPARSE_OK) {
-            sparse_iter_workspace_free(&workspace);
-            return perr;
-        }
-    } else {
-        vec_copy(r, z, n);
-    }
-
-    vec_copy(z, p, n);
-    double rz = vec_dot(r, z, n);
     double rnorm = vec_norm2(r, n);
     double rel_res = s217_iter_relative_residual(rnorm, bnorm);
+    double rz = 0.0;
 
     stag_tracker_t stag = {0};
     if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
@@ -511,8 +501,24 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     int stagnated = 0;
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
-    if (!isfinite(rz) || !isfinite(rel_res))
+    if (!isfinite(rel_res))
         goto cg_mf_numeric_failure;
+    if (o->max_iter > 0 && !(rel_res <= o->tol)) {
+        if (precond) {
+            sparse_err_t perr = precond(precond_ctx, n, r, z);
+            if (perr != SPARSE_OK) {
+                sparse_iter_stag_free(&stag);
+                sparse_iter_workspace_free(&workspace);
+                return perr;
+            }
+        } else {
+            vec_copy(r, z, n);
+        }
+        vec_copy(z, p, n);
+        rz = vec_dot(r, z, n);
+        if (!isfinite(rz))
+            goto cg_mf_numeric_failure;
+    }
 
     double cg_mf_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 

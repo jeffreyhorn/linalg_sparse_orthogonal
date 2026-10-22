@@ -2914,6 +2914,52 @@ static sparse_err_t s217_nan_preconditioner(const void *ctx, idx_t n, const doub
     return SPARSE_OK;
 }
 
+static sparse_err_t s217_large_scale_preconditioner(const void *ctx, idx_t n, const double *r,
+                                                    double *z) {
+    int *calls = (int *)ctx;
+    (*calls)++;
+    for (idx_t i = 0; i < n; i++)
+        z[i] = 1e200 * r[i];
+    return SPARSE_OK;
+}
+
+static void test_s217_cg_initial_convergence_skips_recurrence(void) {
+    SparseMatrix *A = build_identity(1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {1e100}, x[] = {1e100 * (1.0 - 1e-12)};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, s217_large_scale_preconditioner, &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 0);
+    sparse_free(A);
+}
+
+static void test_s217_cg_mf_initial_convergence_skips_recurrence(void) {
+    SparseMatrix *A = build_identity(1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {1e100}, x[] = {1e100 * (1.0 - 1e-12)};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_solve_cg_mf(sparse_matvec_cb, A, 1, b, x, &opts,
+                                  s217_large_scale_preconditioner, &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 0);
+    sparse_free(A);
+}
+
 static void test_s217_gmres_nonfinite_computed_residual(void) {
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_NOT_NULL(A);
@@ -2981,6 +3027,8 @@ int main(void) {
     RUN_TEST(test_s217_cg_nonfinite_initial_guess_precedes_zero_rhs);
     RUN_TEST(test_s217_gmres_nonfinite_computed_residual);
     RUN_TEST(test_s217_nonfinite_preconditioned_norms);
+    RUN_TEST(test_s217_cg_initial_convergence_skips_recurrence);
+    RUN_TEST(test_s217_cg_mf_initial_convergence_skips_recurrence);
     RUN_TEST(test_s217_matrix_free_entry_validation);
 
     /* CG solver tests */

@@ -1732,6 +1732,43 @@ static void test_s217_minres_computed_numeric_failure(void) {
     sparse_free(A);
 }
 
+typedef struct {
+    SparseMatrix *A;
+    sparse_err_t insert_err;
+    int calls;
+} s217_minres_final_residual_ctx_t;
+
+static void s217_minres_corrupt_final_residual(const sparse_iter_progress_t *progress, void *ctx) {
+    s217_minres_final_residual_ctx_t *state = (s217_minres_final_residual_ctx_t *)ctx;
+    (void)progress;
+    state->calls++;
+    state->insert_err = sparse_insert(state->A, 0, 0, NAN);
+}
+
+static void test_s217_minres_final_numeric_failure_clamps_iterations(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 1, 2.0), SPARSE_OK);
+    double b[] = {1.0, 1.0}, x[] = {0.0, 0.0};
+    s217_minres_final_residual_ctx_t ctx = {.A = A, .insert_err = SPARSE_OK, .calls = 0};
+    sparse_iter_opts_t opts = {.max_iter = 1,
+                               .tol = 0.0,
+                               .callback = s217_minres_corrupt_final_residual,
+                               .callback_ctx = &ctx};
+    sparse_iter_result_t result = {0};
+
+    ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, NULL, NULL, &result), SPARSE_ERR_NUMERIC);
+    ASSERT_ERR(ctx.insert_err, SPARSE_OK);
+    ASSERT_EQ(ctx.calls, 1);
+    ASSERT_EQ(result.iterations, opts.max_iter);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(isnan(result.residual_norm));
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1742,6 +1779,7 @@ int main(void) {
     RUN_TEST(test_s217_minres_tiny_rhs_not_false_success);
     RUN_TEST(test_s217_minres_nonfinite_rhs);
     RUN_TEST(test_s217_minres_computed_numeric_failure);
+    RUN_TEST(test_s217_minres_final_numeric_failure_clamps_iterations);
     RUN_TEST(test_s217_minres_zero_budget_skips_lanczos);
     RUN_TEST(test_s217_minres_zero_preconditioned_inner_product_breaks_down);
 

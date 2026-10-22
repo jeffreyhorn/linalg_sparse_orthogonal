@@ -318,7 +318,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 
 minres_numeric_failure:
-    s217_iter_numeric_result(result, iter, rh.count < rh.len ? rh.count : rh.len);
+    s217_iter_numeric_result(result, iter > o->max_iter ? o->max_iter : iter,
+                             rh.count < rh.len ? rh.count : rh.len);
     sparse_iter_stag_free(&stag);
     return SPARSE_ERR_NUMERIC;
 }

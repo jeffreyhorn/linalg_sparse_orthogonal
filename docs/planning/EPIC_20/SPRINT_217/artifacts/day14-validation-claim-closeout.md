@@ -103,3 +103,14 @@ exited 0. The full Make suite passed. Direct runs of the affected binaries gave:
 These additions cover the three CG post-update paths and both BiCGSTAB entry
 points with large finite initial residuals, including zero-iteration-budget
 behavior. The earlier sanitizer and CMake gates were not rerun for this change.
+
+## MINRES Follow-Up Validation (2026-10-22)
+
+After handling zero iteration budgets before Lanczos initialization and
+clarifying the zero-inner-product breakdown contract,
+`make format && make lint && make test` exited 0. The full Make suite passed.
+A direct `test_minres` run recorded 48 tests, 0 failures, 0 skips, and 743
+assertions. The new cases cover zero-budget residual reporting without a
+preconditioner call and both zero-output and underflowed positive initial
+preconditioned inner products. Sanitizer and CMake gates were not rerun for
+this follow-up.

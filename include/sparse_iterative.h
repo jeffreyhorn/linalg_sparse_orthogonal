@@ -581,12 +581,14 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const sparse_scalar
  *                    A computed numeric failure sets converged=0 and
  *                    residual_norm=NaN; x may be partially updated.
  * @return SPARSE_OK if converged within tolerance.
- * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
+ * @return SPARSE_ERR_NOT_CONVERGED if the iteration budget is exhausted without
+ *         convergence, or the initial preconditioned inner product is zero
+ *         (including underflow to zero); the latter sets result->breakdown=1.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, nonempty b
  *         or the initial x contains NaN or infinity, or a provided
- *         preconditioner is non-SPD (r^T M^{-1} r < 0) or degenerate.
+ *         preconditioner yields a negative inner product (r^T M^{-1} r < 0).
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  * @return SPARSE_ERR_NUMERIC for a computed invalid norm, ratio, or selected
  *         recurrence value; result does not claim convergence.

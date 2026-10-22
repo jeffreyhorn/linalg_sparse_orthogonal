@@ -99,6 +99,12 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         sparse_iter_stag_free(&stag);
         return SPARSE_OK;
     }
+    if (o->max_iter == 0) {
+        if (result)
+            result->residual_norm = r0rel;
+        sparse_iter_stag_free(&stag);
+        return SPARSE_ERR_NOT_CONVERGED;
+    }
 
     double beta;
     if (precond) {

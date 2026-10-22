@@ -1635,6 +1635,81 @@ static sparse_err_t s217_minres_nan_preconditioner(const void *ctx, idx_t n, con
     return SPARSE_OK;
 }
 
+static sparse_err_t s217_minres_counted_identity_preconditioner(const void *ctx, idx_t n,
+                                                                const double *r, double *z) {
+    int *calls = (int *)ctx;
+    (*calls)++;
+    for (idx_t i = 0; i < n; i++)
+        z[i] = r[i];
+    return SPARSE_OK;
+}
+
+static sparse_err_t s217_minres_zero_preconditioner(const void *ctx, idx_t n, const double *r,
+                                                    double *z) {
+    (void)ctx;
+    (void)r;
+    for (idx_t i = 0; i < n; i++)
+        z[i] = 0.0;
+    return SPARSE_OK;
+}
+
+static void test_s217_minres_zero_budget_skips_lanczos(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    double b[] = {0x1p600}, x[] = {0.0};
+    sparse_iter_opts_t opts = {.max_iter = 0, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, s217_minres_counted_identity_preconditioner,
+                                   &calls, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm == 1.0);
+    ASSERT_EQ(calls, 0);
+
+    x[0] = b[0];
+    ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, s217_minres_counted_identity_preconditioner,
+                                   &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm == 0.0);
+    ASSERT_EQ(calls, 0);
+    sparse_free(A);
+}
+
+static void test_s217_minres_zero_preconditioned_inner_product_breaks_down(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    double b[] = {1.0}, x[] = {0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, s217_minres_zero_preconditioner, NULL, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(result.breakdown);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm == 1.0);
+
+    int calls = 0;
+    b[0] = 1e-200;
+    ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, s217_minres_counted_identity_preconditioner,
+                                   &calls, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    ASSERT_TRUE(result.breakdown);
+    ASSERT_TRUE(result.residual_norm == 1.0);
+    ASSERT_EQ(calls, 1);
+    sparse_free(A);
+}
+
 static void test_s217_minres_computed_numeric_failure(void) {
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_NOT_NULL(A);
@@ -1667,6 +1742,8 @@ int main(void) {
     RUN_TEST(test_s217_minres_tiny_rhs_not_false_success);
     RUN_TEST(test_s217_minres_nonfinite_rhs);
     RUN_TEST(test_s217_minres_computed_numeric_failure);
+    RUN_TEST(test_s217_minres_zero_budget_skips_lanczos);
+    RUN_TEST(test_s217_minres_zero_preconditioned_inner_product_breaks_down);
 
     /* Entry validation */
     RUN_TEST(test_minres_null_args);

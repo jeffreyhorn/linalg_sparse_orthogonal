@@ -1505,6 +1505,49 @@ static void test_s217_bicgstab_halfstep_solution_overflow(void) {
     sparse_free(A);
 }
 
+static void test_s217_bicgstab_initial_convergence_skips_rho(void) {
+    SparseMatrix *A = build_identity(1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {0x1p600}, x[] = {0x1p600 - 0x1p560};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    ASSERT_ERR(sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+
+    opts.max_iter = 0;
+    x[0] = 0.0;
+    ASSERT_ERR(sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    sparse_free(A);
+}
+
+static void test_s217_bicgstab_mf_initial_convergence_skips_rho(void) {
+    SparseMatrix *A = build_identity(1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {0x1p600}, x[] = {0x1p600 - 0x1p560};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    ASSERT_ERR(sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 1, b, x, &opts, NULL, NULL, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 0);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+
+    opts.max_iter = 0;
+    x[0] = 0.0;
+    ASSERT_ERR(sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 1, b, x, &opts, NULL, NULL, &result),
+               SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_FALSE(result.converged);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1516,6 +1559,8 @@ int main(void) {
     RUN_TEST(test_s217_bicgstab_nonfinite_computed_residual);
     RUN_TEST(test_s217_bicgstab_nonfinite_entry);
     RUN_TEST(test_s217_bicgstab_halfstep_solution_overflow);
+    RUN_TEST(test_s217_bicgstab_initial_convergence_skips_rho);
+    RUN_TEST(test_s217_bicgstab_mf_initial_convergence_skips_rho);
 
     /* Error handling */
     RUN_TEST(test_bicgstab_null_A);

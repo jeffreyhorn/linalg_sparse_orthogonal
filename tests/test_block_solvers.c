@@ -200,8 +200,42 @@ static void test_s217_block_cg_initial_convergence_skips_recurrence(void) {
                SPARSE_OK);
     ASSERT_TRUE(result.converged);
     ASSERT_TRUE(result.residual_norm <= opts.tol);
-    ASSERT_EQ(calls, 2);
+    ASSERT_EQ(calls, 1);
     ASSERT_NEAR(X[1], B[1], 0.0);
+    sparse_free(A);
+}
+
+static sparse_err_t s217_block_postupdate_preconditioner(const void *ctx, idx_t n, const double *r,
+                                                         double *z) {
+    int *calls = (int *)ctx;
+    (*calls)++;
+    if (n != 2)
+        return SPARSE_ERR_SHAPE;
+    z[0] = r[0];
+    z[1] = 0x1p1000 * r[1];
+    return SPARSE_OK;
+}
+
+static void test_s217_block_cg_postupdate_convergence_skips_recurrence(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 0, 1, 0x1p-40), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 0, 0x1p-40), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(A, 1, 1, 1.0), SPARSE_OK);
+    double B[] = {0x1p60, 0.0}, X[] = {0.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_cg_solve_block(A, B, 1, X, &opts, s217_block_postupdate_preconditioner,
+                                     &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 1);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 1);
     sparse_free(A);
 }
 
@@ -574,6 +608,7 @@ int main(void) {
     RUN_TEST(test_s217_block_cg_computed_numeric_failure);
     RUN_TEST(test_s217_block_cg_nan_tolerance_not_converged);
     RUN_TEST(test_s217_block_cg_initial_convergence_skips_recurrence);
+    RUN_TEST(test_s217_block_cg_postupdate_convergence_skips_recurrence);
     RUN_TEST(test_block_cg_residuals);
     RUN_TEST(test_block_cg_iteration_count);
 

@@ -87,3 +87,19 @@ The new cases cover a near-converged large RHS with an otherwise overflowing
 preconditioned dot product in all three CG paths, including a mixed block where
 the unconverged column still iterates. The earlier instrumented and CMake gates
 were not rerun for this follow-up.
+
+## Recurrence Follow-Up Validation (2026-10-22)
+
+After moving CG post-update convergence ahead of next-step recurrence work and
+BiCGSTAB initial convergence ahead of `rho`, `make format && make lint && make test`
+exited 0. The full Make suite passed. Direct runs of the affected binaries gave:
+
+| Binary | Tests run | Failed | Skipped | Assertions |
+| --- | ---: | ---: | ---: | ---: |
+| `test_iterative` | 97 | 0 | 0 | 807 |
+| `test_block_solvers` | 20 | 0 | 0 | 201 |
+| `test_bicgstab` | 55 | 0 | 0 | 409 |
+
+These additions cover the three CG post-update paths and both BiCGSTAB entry
+points with large finite initial residuals, including zero-iteration-budget
+behavior. The earlier sanitizer and CMake gates were not rerun for this change.

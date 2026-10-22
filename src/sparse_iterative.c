@@ -352,6 +352,10 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 
         /* Record post-update residual and check stagnation */
         reshist_record(&rh, rel_res);
+        if (rel_res <= o->tol || iter + 1 == o->max_iter) {
+            iter++;
+            break;
+        }
         sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
@@ -573,6 +577,10 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
             goto cg_mf_numeric_failure;
 
         reshist_record(&rh, rel_res);
+        if (rel_res <= o->tol || iter + 1 == o->max_iter) {
+            iter++;
+            break;
+        }
         sparse_iter_stag_record(&stag, rel_res);
         if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
@@ -1178,9 +1186,9 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     /* p_0 = r_0 */
     vec_copy(ws.r, ws.p, n);
 
-    double rho = vec_dot(ws.r_hat, ws.r, n);
     double rnorm = vec_norm2(ws.r, n);
     double rel_res = s217_iter_relative_residual(rnorm, bnorm);
+    double rho = 0.0;
 
     idx_t iter = 0;
     int converged = 0;
@@ -1188,7 +1196,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     int breakdown = 0;
     sparse_err_t numeric_err = SPARSE_OK;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
-    if (!isfinite(rel_res) || !isfinite(rho)) {
+    if (!isfinite(rel_res)) {
         numeric_err = SPARSE_ERR_NUMERIC;
         goto done;
     }
@@ -1198,8 +1206,15 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         converged = 1;
         goto done;
     }
+    if (o->max_iter == 0)
+        goto done;
 
     /* Initial rho must be safely nonzero before starting BiCGSTAB recurrences. */
+    rho = vec_dot(ws.r_hat, ws.r, n);
+    if (!isfinite(rho)) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        goto done;
+    }
     if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
         breakdown = 1;
         goto done;
@@ -1471,9 +1486,9 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     vec_copy(ws.r, ws.r_hat, n);
     vec_copy(ws.r, ws.p, n);
 
-    double rho = vec_dot(ws.r_hat, ws.r, n);
     double rnorm = vec_norm2(ws.r, n);
     double rel_res = s217_iter_relative_residual(rnorm, bnorm);
+    double rho = 0.0;
 
     idx_t iter = 0;
     int converged = 0;
@@ -1481,7 +1496,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     int breakdown = 0;
     sparse_err_t numeric_err = SPARSE_OK;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
-    if (!isfinite(rel_res) || !isfinite(rho)) {
+    if (!isfinite(rel_res)) {
         numeric_err = SPARSE_ERR_NUMERIC;
         goto done_mf;
     }
@@ -1490,7 +1505,14 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         converged = 1;
         goto done_mf;
     }
+    if (o->max_iter == 0)
+        goto done_mf;
 
+    rho = vec_dot(ws.r_hat, ws.r, n);
+    if (!isfinite(rho)) {
+        numeric_err = SPARSE_ERR_NUMERIC;
+        goto done_mf;
+    }
     if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
         breakdown = 1;
         goto done_mf;

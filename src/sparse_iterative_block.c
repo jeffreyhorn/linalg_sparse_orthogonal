@@ -174,9 +174,15 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
             vec_axpy(-alpha, &AP[n * k], &R[n * k], n);
 
             rnorms[k] = vec_norm2(&R[n * k], n);
-            if (!isfinite(s217_iter_relative_residual(rnorms[k], bnorms[k])) ||
-                !s217_iter_vector_finite(&X[n * k], n))
+            double rel = s217_iter_relative_residual(rnorms[k], bnorms[k]);
+            if (!isfinite(rel) || !s217_iter_vector_finite(&X[n * k], n))
                 goto block_cg_numeric_failure;
+            if (rel <= o->tol || iter + 1 == o->max_iter) {
+                if (rel <= o->tol)
+                    conv[k] = 1;
+                vec_zero(&P[n * k], n);
+                continue;
+            }
 
             /* Z(:,k) = M^{-1} * R(:,k) */
             if (precond) {

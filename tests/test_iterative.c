@@ -2960,6 +2960,65 @@ static void test_s217_cg_mf_initial_convergence_skips_recurrence(void) {
     sparse_free(A);
 }
 
+static SparseMatrix *s217_cg_postupdate_matrix(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    if (!A)
+        return NULL;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 0x1p-40);
+    sparse_insert(A, 1, 0, 0x1p-40);
+    sparse_insert(A, 1, 1, 1.0);
+    return A;
+}
+
+static sparse_err_t s217_cg_postupdate_preconditioner(const void *ctx, idx_t n, const double *r,
+                                                      double *z) {
+    int *calls = (int *)ctx;
+    (*calls)++;
+    if (n != 2)
+        return SPARSE_ERR_SHAPE;
+    z[0] = r[0];
+    z[1] = 0x1p1000 * r[1];
+    return SPARSE_OK;
+}
+
+static void test_s217_cg_postupdate_convergence_skips_recurrence(void) {
+    SparseMatrix *A = s217_cg_postupdate_matrix();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {0x1p60, 0.0}, x[] = {0.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, s217_cg_postupdate_preconditioner, &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 1);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 1);
+    sparse_free(A);
+}
+
+static void test_s217_cg_mf_postupdate_convergence_skips_recurrence(void) {
+    SparseMatrix *A = s217_cg_postupdate_matrix();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double b[] = {0x1p60, 0.0}, x[] = {0.0, 0.0};
+    sparse_iter_opts_t opts = {.max_iter = 2, .tol = 1e-10};
+    sparse_iter_result_t result = {0};
+    int calls = 0;
+    ASSERT_ERR(sparse_solve_cg_mf(sparse_matvec_cb, A, 2, b, x, &opts,
+                                  s217_cg_postupdate_preconditioner, &calls, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    ASSERT_EQ(result.iterations, 1);
+    ASSERT_TRUE(result.residual_norm <= opts.tol);
+    ASSERT_EQ(calls, 1);
+    sparse_free(A);
+}
+
 static void test_s217_gmres_nonfinite_computed_residual(void) {
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_NOT_NULL(A);
@@ -3029,6 +3088,8 @@ int main(void) {
     RUN_TEST(test_s217_nonfinite_preconditioned_norms);
     RUN_TEST(test_s217_cg_initial_convergence_skips_recurrence);
     RUN_TEST(test_s217_cg_mf_initial_convergence_skips_recurrence);
+    RUN_TEST(test_s217_cg_postupdate_convergence_skips_recurrence);
+    RUN_TEST(test_s217_cg_mf_postupdate_convergence_skips_recurrence);
     RUN_TEST(test_s217_matrix_free_entry_validation);
 
     /* CG solver tests */

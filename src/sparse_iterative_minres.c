@@ -42,6 +42,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             result->converged = 1;
         return SPARSE_OK;
     }
+    if (!s217_iter_vector_finite(b, n) || !s217_iter_vector_finite(x, n))
+        return SPARSE_ERR_BADARG;
 
     double bnorm = vec_norm2(b, n);
     if (bnorm == 0.0) {
@@ -51,6 +53,10 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             result->residual_norm = 0.0;
         }
         return SPARSE_OK;
+    }
+    if (!isfinite(bnorm)) {
+        s217_iter_numeric_result(result, 0, 0);
+        return SPARSE_ERR_NUMERIC;
     }
 
     sparse_minres_workspace_view_t minres_ws;
@@ -70,9 +76,35 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
     if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
+    idx_t iter = 0;
+    int converged = 0;
+    int stagnated = 0;
+    int breakdown = 0;
+    double true_res_cached = -1.0;
+    reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+
     sparse_matvec(A, x, w);
     for (idx_t i = 0; i < n; i++)
         v[i] = b[i] - w[i];
+
+    double r0norm = vec_norm2(v, n);
+    double r0rel = s217_iter_relative_residual(r0norm, bnorm);
+    if (!isfinite(r0rel))
+        goto minres_numeric_failure;
+    if (r0rel <= o->tol) {
+        if (result) {
+            result->converged = 1;
+            result->residual_norm = r0rel;
+        }
+        sparse_iter_stag_free(&stag);
+        return SPARSE_OK;
+    }
+    if (o->max_iter == 0) {
+        if (result)
+            result->residual_norm = r0rel;
+        sparse_iter_stag_free(&stag);
+        return SPARSE_ERR_NOT_CONVERGED;
+    }
 
     double beta;
     if (precond) {
@@ -82,29 +114,23 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             return perr;
         }
         beta = vec_dot(v, z, n);
+        if (!isfinite(beta))
+            goto minres_numeric_failure;
         if (beta < 0.0) {
             sparse_iter_stag_free(&stag);
             return SPARSE_ERR_BADARG;
         }
         beta = sqrt(beta);
         if (beta <= 0.0) {
-            sparse_iter_stag_free(&stag);
-            return SPARSE_ERR_BADARG;
-        }
-    } else {
-        beta = vec_norm2(v, n);
-    }
-
-    {
-        double r0norm = vec_norm2(v, n);
-        if (r0norm / bnorm <= o->tol) {
             if (result) {
-                result->converged = 1;
-                result->residual_norm = r0norm / bnorm;
+                result->breakdown = 1;
+                result->residual_norm = r0rel;
             }
             sparse_iter_stag_free(&stag);
-            return SPARSE_OK;
+            return SPARSE_ERR_NOT_CONVERGED;
         }
+    } else {
+        beta = r0norm;
     }
 
     {
@@ -115,6 +141,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             for (idx_t i = 0; i < n; i++)
                 z[i] *= inv_beta;
         }
+        if (!s217_iter_vector_finite(v, n) || (precond && !s217_iter_vector_finite(z, n)))
+            goto minres_numeric_failure;
     }
 
     double cs = 1.0, sn = 0.0;
@@ -122,12 +150,6 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
     double phi_bar = beta;
     double beta_old = 0.0;
 
-    idx_t iter = 0;
-    int converged = 0;
-    int stagnated = 0;
-    int breakdown = 0;
-    double true_res_cached = -1.0;
-    reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
     double minres_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     for (iter = 1; iter <= o->max_iter; iter++) {
@@ -152,6 +174,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             sparse_matvec(A, v, w);
 
         double alpha = precond ? vec_dot(z, w, n) : vec_dot(v, w, n);
+        if (!isfinite(alpha))
+            goto minres_numeric_failure;
 
         for (idx_t i = 0; i < n; i++)
             w[i] = w[i] - alpha * v[i] - beta_old * v_old[i];
@@ -164,6 +188,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
                 return perr;
             }
             double inner = vec_dot(w, z_tmp, n);
+            if (!isfinite(inner))
+                goto minres_numeric_failure;
             if (inner < 0.0) {
                 sparse_iter_stag_free(&stag);
                 return SPARSE_ERR_BADARG;
@@ -172,12 +198,16 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         } else {
             beta_new = vec_norm2(w, n);
         }
+        if (!isfinite(beta_new))
+            goto minres_numeric_failure;
 
         double eps = sn_old * beta_old;
         double delta_bar = cs_old * beta_old;
         double delta = cs * delta_bar + sn * alpha;
         double gamma_bar = -sn * delta_bar + cs * alpha;
-        double gamma = sqrt(gamma_bar * gamma_bar + beta_new * beta_new);
+        double gamma = hypot(gamma_bar, beta_new);
+        if (!isfinite(gamma))
+            goto minres_numeric_failure;
 
         if (gamma < sparse_rel_tol(0, DROP_TOL)) {
             breakdown = 1;
@@ -189,6 +219,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         double sn_new = beta_new / gamma;
         double phi = cs_new * phi_bar;
         phi_bar = -sn_new * phi_bar;
+        if (!isfinite(phi) || !isfinite(phi_bar))
+            goto minres_numeric_failure;
 
         {
             const double *dv = precond ? z : v;
@@ -199,20 +231,23 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
 
         for (idx_t i = 0; i < n; i++)
             x[i] += phi * d0[i];
+        if (!s217_iter_vector_finite(x, n))
+            goto minres_numeric_failure;
 
-        double relres = fabs(phi_bar) / bnorm;
+        double relres = s217_iter_relative_residual(fabs(phi_bar), bnorm);
+        if (!isfinite(relres))
+            goto minres_numeric_failure;
 
         iter_report(o->callback, o->callback_ctx, o->verbose, "MINRES", iter - 1, relres);
         reshist_record(&rh, relres);
 
         if (relres <= o->tol) {
             sparse_matvec(A, x, d2);
-            double tr = 0.0;
-            for (idx_t i = 0; i < n; i++) {
-                double di = d2[i] - b[i];
-                tr += di * di;
-            }
-            double verified_res = sqrt(tr) / bnorm;
+            for (idx_t i = 0; i < n; i++)
+                d2[i] -= b[i];
+            double verified_res = s217_iter_relative_residual(vec_norm2(d2, n), bnorm);
+            if (!isfinite(verified_res))
+                goto minres_numeric_failure;
             if (verified_res <= o->tol) {
                 true_res_cached = verified_res;
                 break;
@@ -260,13 +295,13 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         true_res = true_res_cached;
     } else {
         sparse_matvec(A, x, w);
-        true_res = 0.0;
-        for (idx_t i = 0; i < n; i++) {
-            double di = w[i] - b[i];
-            true_res += di * di;
-        }
-        true_res = sqrt(true_res) / bnorm;
+        for (idx_t i = 0; i < n; i++)
+            w[i] -= b[i];
+        true_res = s217_iter_relative_residual(vec_norm2(w, n), bnorm);
     }
+
+    if (!isfinite(true_res))
+        goto minres_numeric_failure;
 
     converged = (true_res <= o->tol);
 
@@ -281,6 +316,12 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
 
     sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+
+minres_numeric_failure:
+    s217_iter_numeric_result(result, iter > o->max_iter ? o->max_iter : iter,
+                             rh.count < rh.len ? rh.count : rh.len);
+    sparse_iter_stag_free(&stag);
+    return SPARSE_ERR_NUMERIC;
 }
 
 sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,

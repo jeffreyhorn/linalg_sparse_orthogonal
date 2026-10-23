@@ -7,26 +7,41 @@
  *
  * Small helpers for BLAS-like operations on caller-allocated arrays.
  * Used by the LU solver, iterative refinement, and benchmarks.
- * All functions are NULL-safe (no-op on NULL inputs, return 0.0 where applicable).
+ * All functions accept NULL pointers: mutating helpers do nothing, and
+ * scalar-returning helpers return 0.0. This is a compatibility convention,
+ * not a mathematical norm or dot product for a missing vector.
  */
 
 #include "sparse_types.h"
 
 /**
- * @brief Compute the Euclidean (2-) norm: sqrt(sum(v[i]^2)).
+ * @brief Compute the Euclidean (2-) norm using scaled sum of squares.
  *
- * @param v  Input vector (NULL returns 0.0).
- * @param n  Vector length (n <= 0 returns 0.0).
- * @return The 2-norm of v.
+ * Scaling avoids a false infinity or zero from directly squaring finite
+ * components when the final nonzero norm is representable. Tiny individual
+ * contributions can still round away. It does not extend the range of the
+ * double return type: a final norm too large for double is +infinity.
+ * NaN in any element takes precedence over infinity, regardless of order.
+ * An infinite element without NaN yields +infinity; a finite zero vector
+ * yields +0.0. No error code or allocation is involved.
+ *
+ * @param v  Input vector (NULL returns +0.0 without dereferencing).
+ * @param n  Vector length (n <= 0 returns +0.0 without dereferencing).
+ * @return The nonnegative 2-norm if representable, +infinity on final-result
+ *         overflow or an infinite element, or NaN if any element is NaN.
  */
 double vec_norm2(const double *v, idx_t n);
 
 /**
  * @brief Compute the infinity norm: max(|v[i]|).
  *
- * @param v  Input vector (NULL returns 0.0).
- * @param n  Vector length.
- * @return The infinity norm of v.
+ * NaN in any element returns NaN even if another element is infinite.
+ * Otherwise an infinite element returns +infinity, and an all-zero vector
+ * returns +0.0. Finite inputs cannot overflow this maximum.
+ *
+ * @param v  Input vector (NULL returns +0.0 without dereferencing).
+ * @param n  Vector length (n <= 0 returns +0.0 without dereferencing).
+ * @return The nonnegative infinity norm, or NaN if any element is NaN.
  */
 double vec_norminf(const double *v, idx_t n);
 

@@ -9,6 +9,7 @@
 
 #include "sparse_iterative.h"
 #include "sparse_iterative_workspace_internal.h"
+#include <math.h>
 #include <stdio.h>
 
 typedef struct {
@@ -36,6 +37,33 @@ sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
 const sparse_iter_opts_t *s85_iter_cg_defaults(void);
 void s85_iter_result_reset(sparse_iter_result_t *result);
 void s85_iter_result_mark_converged(sparse_iter_result_t *result);
+
+static inline int s217_iter_vector_finite(const double *values, idx_t n) {
+    for (idx_t i = 0; i < n; i++) {
+        if (!isfinite(values[i]))
+            return 0;
+    }
+    return 1;
+}
+
+static inline double s217_iter_relative_residual(double rnorm, double bnorm) {
+    if (!isfinite(rnorm) || !isfinite(bnorm) || rnorm < 0.0 || bnorm <= 0.0)
+        return NAN;
+    double rel = rnorm / bnorm;
+    if (!isfinite(rel) || (rel == 0.0 && rnorm != 0.0))
+        return NAN;
+    return rel;
+}
+
+static inline void s217_iter_numeric_result(sparse_iter_result_t *result, idx_t iterations,
+                                            idx_t history_count) {
+    if (result) {
+        result->iterations = iterations;
+        result->residual_norm = NAN;
+        result->converged = 0;
+        result->residual_history_count = history_count;
+    }
+}
 sparse_err_t sparse_iter_stag_init(stag_tracker_t *st, idx_t window);
 void sparse_iter_stag_free(stag_tracker_t *st);
 void sparse_iter_stag_record(stag_tracker_t *st, double residual);

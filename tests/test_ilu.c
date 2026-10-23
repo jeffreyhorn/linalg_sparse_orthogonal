@@ -6,6 +6,7 @@
 #include "sparse_vector.h"
 #include "test_framework.h"
 #include "test_solver_helpers.h"
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1118,7 +1119,210 @@ static void test_ilut_tridiagonal(void) {
     sparse_free(A);
 }
 
-/* ILUT on west0067 → succeeds where ILU(0) fails */
+static long double s217_ilut_factor_backward_error(const sparse_ilu_t *ilu, const double *r,
+                                                   const double *z) {
+    if (!ilu || !ilu->L || !ilu->U || !r || !z || ilu->n <= 0)
+        return NAN;
+
+    idx_t n = ilu->n;
+    if (sparse_rows(ilu->L) != n || sparse_cols(ilu->L) != n || sparse_rows(ilu->U) != n ||
+        sparse_cols(ilu->U) != n)
+        return NAN;
+    long double *uz = calloc((size_t)n, sizeof(*uz));
+    if (!uz)
+        return NAN;
+
+    long double lmax = 0.0L, umax = 0.0L, zmax = 0.0L, pmax = 0.0L;
+    if (ilu->perm) {
+        for (idx_t i = 0; i < n; i++) {
+            if (ilu->perm[i] < 0 || ilu->perm[i] >= n) {
+                free(uz);
+                return NAN;
+            }
+            for (idx_t j = 0; j < i; j++) {
+                if (ilu->perm[j] == ilu->perm[i]) {
+                    free(uz);
+                    return NAN;
+                }
+            }
+        }
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        idx_t source = ilu->perm ? ilu->perm[i] : i;
+        if (!isfinite(z[i]) || !isfinite(r[source])) {
+            free(uz);
+            return NAN;
+        }
+        zmax = fmaxl(zmax, fabsl((long double)z[i]));
+        pmax = fmaxl(pmax, fabsl((long double)r[source]));
+        for (idx_t j = 0; j < n; j++) {
+            double l = sparse_get(ilu->L, i, j);
+            double u = sparse_get(ilu->U, i, j);
+            if (!isfinite(l) || !isfinite(u)) {
+                free(uz);
+                return NAN;
+            }
+            lmax = fmaxl(lmax, fabsl((long double)l));
+            umax = fmaxl(umax, fabsl((long double)u));
+        }
+    }
+    if (lmax == 0.0L || umax == 0.0L || (zmax == 0.0L && pmax == 0.0L)) {
+        free(uz);
+        return NAN;
+    }
+    if (zmax == 0.0L) {
+        free(uz);
+        return 1.0L;
+    }
+
+    int le, ue, ze, pe = 0;
+    long double lm = frexpl(lmax, &le);
+    long double um = frexpl(umax, &ue);
+    long double zm = frexpl(zmax, &ze);
+    long double pm = pmax > 0.0L ? frexpl(pmax, &pe) : 0.0L;
+    int factor_exp = le + ue + ze;
+    int base_exp = factor_exp > pe ? factor_exp : pe;
+    long double factor_weight = ldexpl(lm * um * zm, factor_exp - base_exp);
+    long double rhs_weight = ldexpl(pm, pe - base_exp);
+
+    long double lnorm = 0.0L, unorm = 0.0L, error = 0.0L;
+    for (idx_t i = 0; i < n; i++) {
+        long double row_sum = 0.0L;
+        for (idx_t j = 0; j < n; j++) {
+            long double u = (long double)sparse_get(ilu->U, i, j) / umax;
+            uz[i] += u * ((long double)z[j] / zmax);
+            row_sum += fabsl(u);
+        }
+        unorm = fmaxl(unorm, row_sum);
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        idx_t source = ilu->perm ? ilu->perm[i] : i;
+        long double q = 0.0L, row_sum = 0.0L;
+        for (idx_t j = 0; j < n; j++) {
+            long double l = (long double)sparse_get(ilu->L, i, j) / lmax;
+            q += l * uz[j];
+            row_sum += fabsl(l);
+        }
+        lnorm = fmaxl(lnorm, row_sum);
+        long double p = pmax > 0.0L ? rhs_weight * ((long double)r[source] / pmax) : 0.0L;
+        error = fmaxl(error, fabsl(factor_weight * q - p));
+    }
+
+    free(uz);
+    long double scale = factor_weight * lnorm * unorm + rhs_weight;
+    if (!isfinite(scale) || !isfinite(error) || scale <= 0.0L)
+        return NAN;
+    return error / scale;
+}
+
+static void test_s217_ilut_factor_oracle_controls(void) {
+    sparse_ilu_t ilu = {
+        .L = sparse_create(2, 2), .U = sparse_create(2, 2), .n = 2, .factor_norm = 5.0};
+    ASSERT_NOT_NULL(ilu.L);
+    ASSERT_NOT_NULL(ilu.U);
+    if (!ilu.L || !ilu.U) {
+        sparse_ilu_free(&ilu);
+        return;
+    }
+    ASSERT_ERR(sparse_insert(ilu.L, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.L, 1, 0, 2.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.L, 1, 1, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, 3.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 1, 4.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.U, 1, 1, 5.0), SPARSE_OK);
+
+    double r[2] = {11.0, 32.0}, z[2] = {0.0, 0.0};
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+    ASSERT_NEAR(z[0], 1.0, 1e-14);
+    ASSERT_NEAR(z[1], 2.0, 1e-14);
+    ASSERT_TRUE(s217_ilut_factor_backward_error(&ilu, r, z) < 1e-15L);
+
+    ilu.perm = malloc(2 * sizeof(*ilu.perm));
+    ASSERT_NOT_NULL(ilu.perm);
+    if (ilu.perm) {
+        ilu.perm[0] = 1;
+        ilu.perm[1] = 0;
+        double rp[2] = {32.0, 11.0};
+        ASSERT_ERR(sparse_ilu_solve(&ilu, rp, z), SPARSE_OK);
+        ASSERT_NEAR(z[0], 1.0, 1e-14);
+        ASSERT_NEAR(z[1], 2.0, 1e-14);
+        ASSERT_TRUE(s217_ilut_factor_backward_error(&ilu, rp, z) < 1e-15L);
+        rp[1] = NAN;
+        ASSERT_ERR(sparse_ilu_solve(&ilu, rp, z), SPARSE_ERR_NUMERIC);
+        rp[1] = 11.0;
+        ASSERT_ERR(sparse_ilu_solve(&ilu, rp, z), SPARSE_OK);
+        ilu.perm[1] = 1;
+        ASSERT_TRUE(isnan(s217_ilut_factor_backward_error(&ilu, rp, z)));
+        ilu.perm[1] = 0;
+    }
+
+    double zero[2] = {0.0, 0.0};
+    ASSERT_TRUE(fabsl(s217_ilut_factor_backward_error(&ilu, r, zero) - 1.0L) <= 1e-15L);
+    z[0] = NAN;
+    ASSERT_TRUE(isnan(s217_ilut_factor_backward_error(&ilu, r, z)));
+    z[0] = INFINITY;
+    ASSERT_TRUE(isnan(s217_ilut_factor_backward_error(&ilu, r, z)));
+    z[0] = 1.0;
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, NAN), SPARSE_OK);
+    ASSERT_TRUE(isnan(s217_ilut_factor_backward_error(&ilu, r, z)));
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, 3.0), SPARSE_OK);
+    sparse_ilu_free(&ilu);
+}
+
+static void test_s217_ilut_factor_oracle_scaled_product(void) {
+    sparse_ilu_t ilu = {.L = sparse_create(1, 1), .U = sparse_create(1, 1), .n = 1};
+    ASSERT_NOT_NULL(ilu.L);
+    ASSERT_NOT_NULL(ilu.U);
+    if (!ilu.L || !ilu.U) {
+        sparse_ilu_free(&ilu);
+        return;
+    }
+    ASSERT_ERR(sparse_insert(ilu.L, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, DBL_MAX), SPARSE_OK);
+    double r[1] = {0.0}, z[1] = {DBL_MAX};
+    ASSERT_TRUE(fabsl(s217_ilut_factor_backward_error(&ilu, r, z) - 1.0L) <= 1e-15L);
+    sparse_ilu_free(&ilu);
+}
+
+static void test_s217_ilut_nonfinite_solve_status(void) {
+    sparse_ilu_t ilu = {
+        .L = sparse_create(1, 1), .U = sparse_create(1, 1), .n = 1, .factor_norm = 1.0};
+    ASSERT_NOT_NULL(ilu.L);
+    ASSERT_NOT_NULL(ilu.U);
+    if (!ilu.L || !ilu.U) {
+        sparse_ilu_free(&ilu);
+        return;
+    }
+    ASSERT_ERR(sparse_insert(ilu.L, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, 2.0), SPARSE_OK);
+    double r[1] = {4.0}, z[1] = {77.0};
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+    ASSERT_NEAR(z[0], 2.0, 1e-15);
+
+    r[0] = NAN;
+    z[0] = 77.0;
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_ERR_NUMERIC);
+    ASSERT_NEAR(z[0], 77.0, 0.0);
+    r[0] = 4.0;
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, INFINITY), SPARSE_OK);
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_ERR_NUMERIC);
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, 2.0), SPARSE_OK);
+    ASSERT_ERR(sparse_insert(ilu.L, 0, 0, NAN), SPARSE_OK);
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_ERR_NUMERIC);
+    ASSERT_ERR(sparse_insert(ilu.L, 0, 0, 1.0), SPARSE_OK);
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+    ASSERT_NEAR(z[0], 2.0, 1e-15);
+
+    ilu.factor_norm = 1e-300;
+    r[0] = 1e300;
+    ASSERT_ERR(sparse_insert(ilu.U, 0, 0, 1e-300), SPARSE_OK);
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_ERR_NUMERIC);
+    sparse_ilu_free(&ilu);
+}
+
+/* ILUT on west0067 -> succeeds where ILU(0) fails */
 static void test_ilut_west0067(void) {
     SparseMatrix *A = NULL;
     sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
@@ -1142,26 +1346,61 @@ static void test_ilut_west0067(void) {
     sparse_ilu_t ilut;
     sparse_err_t ilut_err = sparse_ilut_factor(A, &opts, &ilut);
     printf("    west0067: ILUT returns %s\n", sparse_strerror(ilut_err));
-
-    if (ilut_err == SPARSE_OK) {
-        /* Verify ILUT solve works */
-        idx_t n = sparse_rows(A);
-        double *r = malloc((size_t)n * sizeof(double));
-        double *z = malloc((size_t)n * sizeof(double));
-        ASSERT_NOT_NULL(r);
-        ASSERT_NOT_NULL(z);
-        if (r && z) {
-            for (idx_t i = 0; i < n; i++)
-                r[i] = 1.0;
-            ASSERT_ERR(sparse_ilu_solve(&ilut, r, z), SPARSE_OK);
-            double znorm = vec_norm2(z, n);
-            printf("    west0067: ILUT solve norm=%.3e\n", znorm);
-            ASSERT_TRUE(znorm > 0.0);
-        }
-        free(r);
-        free(z);
+    ASSERT_ERR(ilut_err, SPARSE_OK);
+    if (ilut_err != SPARSE_OK) {
         sparse_ilu_free(&ilut);
+        sparse_free(A);
+        return;
     }
+    ASSERT_NOT_NULL(ilut.L);
+    ASSERT_NOT_NULL(ilut.U);
+    if (!ilut.L || !ilut.U) {
+        sparse_ilu_free(&ilut);
+        sparse_free(A);
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *r = malloc((size_t)n * sizeof(double));
+    double *z = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(r);
+    ASSERT_NOT_NULL(z);
+    if (r && z) {
+        for (idx_t i = 0; i < n; i++)
+            r[i] = 1.0;
+        sparse_err_t solve_err = sparse_ilu_solve(&ilut, r, z);
+        ASSERT_ERR(solve_err, SPARSE_OK);
+        if (solve_err == SPARSE_OK) {
+            if (tf_env_enabled("SPARSE_TEST_ILUT_VALUES")) {
+                for (idx_t i = 0; i < n; i++)
+                    printf("    west0067: z[%lld]=%.17g\n", (long long)i, z[i]);
+            }
+            double znorm = vec_norm2(z, n);
+            idx_t finite_entries = 0;
+            double zmax = 0.0;
+            for (idx_t i = 0; i < n; i++) {
+                if (isfinite(z[i])) {
+                    finite_entries++;
+                    if (fabs(z[i]) > zmax)
+                        zmax = fabs(z[i]);
+                }
+            }
+            long double eta = s217_ilut_factor_backward_error(&ilut, r, z);
+            long double eta_limit = fmaxl(1e-12L, 64.0L * (long double)n * DBL_EPSILON);
+            double norm_upper_bound = sqrt((double)n) * zmax;
+            printf("    west0067: ILUT solve norm=%.3e\n", znorm);
+            printf("    west0067: ILUT finite_z=%lld/%lld max_abs_z=%.6e "
+                   "norm_upper_bound=%.6e factor_eta=%.6Le limit=%.6Le\n",
+                   (long long)finite_entries, (long long)n, zmax, norm_upper_bound, eta, eta_limit);
+            ASSERT_EQ(finite_entries, n);
+            ASSERT_TRUE(isfinite(norm_upper_bound) && norm_upper_bound < DBL_MAX);
+            ASSERT_TRUE(isfinite(znorm) && znorm > 0.0);
+            ASSERT_TRUE(isfinite(eta) && eta <= eta_limit);
+        }
+    }
+    free(r);
+    free(z);
+    sparse_ilu_free(&ilut);
 
     sparse_free(A);
 }
@@ -1229,7 +1468,10 @@ static void test_ilut_gmres_west0067(void) {
     /* GMRES is expected not to converge on this pathological matrix */
     ASSERT_TRUE(solve_err == SPARSE_OK || solve_err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations > 0);
-    ASSERT_TRUE(result.residual_norm >= 0.0);
+    ASSERT_TRUE(isfinite(result.residual_norm) && result.residual_norm >= 0.0);
+    ASSERT_TRUE(isfinite(res));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_TRUE(isfinite(x[i]));
 
     free(x_exact);
     free(b);
@@ -1716,6 +1958,10 @@ static void test_ilut_pivot_gmres_west0067(void) {
      * We validate that the solver runs without crashing. */
     ASSERT_TRUE(solve_err == SPARSE_OK || solve_err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations > 0);
+    ASSERT_TRUE(isfinite(result.residual_norm) && result.residual_norm >= 0.0);
+    ASSERT_TRUE(isfinite(res));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_TRUE(isfinite(x[i]));
 
     free(x_exact);
     free(b);
@@ -1948,6 +2194,9 @@ int main(void) {
     /* ILUT tests (Sprint 6 Day 2) */
     RUN_TEST(test_ilut_3x3_dense);
     RUN_TEST(test_ilut_tridiagonal);
+    RUN_TEST(test_s217_ilut_factor_oracle_controls);
+    RUN_TEST(test_s217_ilut_factor_oracle_scaled_product);
+    RUN_TEST(test_s217_ilut_nonfinite_solve_status);
     RUN_TEST(test_ilut_west0067);
     RUN_TEST(test_ilut_gmres_west0067);
     RUN_TEST(test_ilut_cg_nos4);

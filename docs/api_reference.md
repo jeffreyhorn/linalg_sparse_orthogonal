@@ -14,7 +14,7 @@ truth for API declarations and call-site contracts:
 | --- | --- |
 | `sparse_matrix.h` | Matrix construction, mutation, copy/free, norms, and dense conversion |
 | `sparse_types.h` | Shared scalar, error, and compressed-format types |
-| `sparse_vector.h` | Vector helpers |
+| `sparse_vector.h` | Vector helpers, including scaled 2-norm and NaN-aware infinity norm |
 | `sparse_lu.h` | One-shot LU and LU option/result contracts |
 | `sparse_lu_csr.h` | CSR LU support surface |
 | `sparse_cholesky.h` | Cholesky factorization and solve contracts |
@@ -37,6 +37,27 @@ Installed packages also include a generated `sparse_version.h` derived from
 the current support/readiness status of installed packages, generated API HTML,
 platforms, package managers, shared libraries, and ABI boundaries, use
 [`INSTALL.md#support-readiness-matrix`](../INSTALL.md#support-readiness-matrix).
+
+## Selected Numerical Diagnostics
+
+[`sparse_vector.h`](../include/sparse_vector.h) specifies scaled `vec_norm2`
+accumulation: finite inputs with a representable nonzero 2-norm do not become
+zero or infinity merely because direct component squaring underflows or
+overflows; tiny contributions can still round away. A final norm too large
+for `double` is infinity. Both norm helpers propagate any NaN, even in the
+presence of infinity, and retain the historical zero result for NULL or
+nonpositive length. These
+arithmetic properties do not imply accuracy for every ill-conditioned solve.
+
+[`sparse_iterative.h`](../include/sparse_iterative.h) distinguishes non-finite
+caller vectors (`SPARSE_ERR_BADARG`) from selected solver-detected invalid
+norms or residual ratios (`SPARSE_ERR_NUMERIC`, no convergence, NaN result
+diagnostic). The selection is CG, GMRES, MINRES, BiCGSTAB, their documented
+matrix-free variants, and block CG; it is not all-solver numerical parity.
+[`sparse_ilu.h`](../include/sparse_ilu.h) specifies that an ILUT factor solve
+can report `SPARSE_ERR_NUMERIC`, with partial output on failure. A successful
+factor-system solve does not prove `A*z=r` or useful preconditioning. These
+bounded contracts do not establish state-of-the-art numerical performance.
 
 ## Generated HTML
 

@@ -896,6 +896,14 @@ remain one-shot compatibility surfaces.
 - `sparse_ilu_precond` / `sparse_ilut_precond` — callbacks compatible with `sparse_precond_fn`
 - `sparse_ilu_free(&ilu)` — free ILU/ILUT factors
 
+Check the factorization and `sparse_ilu_solve` return codes before using `z`;
+`SPARSE_ERR_NUMERIC` means a non-finite factor-system solve and `z` may be
+partial. The selected `west0067` regression checks finite ILUT output and an
+independent, scale-aware backward error for the computed `L*U` factor system.
+It does not show that `A*z = r`, that ILUT makes this matrix easy to solve,
+or that the iterative solver converges on it. See the
+[`sparse_ilu.h`](include/sparse_ilu.h) contract.
+
 **IC(0) preconditioner (incomplete Cholesky):**
 - `sparse_ic_factor(A, &ic)` — IC(0) factorization for SPD matrices (L*L^T ≈ A, no fill-in)
 - `sparse_ic_solve(&ic, r, z)` — apply preconditioner: solve L*L^T*z = r

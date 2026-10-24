@@ -388,7 +388,7 @@ On 2026-10-24, PR #242's first Linux reviewed CMake run failed compiling
 benchmark now defines `_POSIX_C_SOURCE=200809L` before its headers on POSIX.
 Its fixture construction, timer call, post-timer validation, and library
 code are unchanged. The new benchmark source SHA-256 is
-`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`;
+`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61` at that point;
 the [Day 11 provenance note](artifacts/day11-failure-closure-measurement-protocol.md)
 pins the original measurement driver at `806b31ed`. The two frozen
 benchmark executable hashes remain `fb8df0a3...` and `d65c68c5...`;
@@ -413,3 +413,20 @@ Day 12's binary and samples still refer to the frozen source hash.
 | --- | --- | --- | --- |
 | 2026-10-24 | `make format`; `make BUILDDIR=build/s218-postci-normal lint`; `make BUILDDIR=build/s218-postci-normal test` | All exit 0; `All tests passed.` | Full local Make quality path after pointer-size spelling change. |
 | 2026-10-24 | `cmake --build build/s218-postci-cmake --target test_matmul --parallel 4`; `ctest --test-dir build/s218-postci-cmake -R '^test_matmul$' --output-on-failure` | Both exit 0; focused CTest 1/1 passed. | Rebuilt library and matmul test; Linux clang-tidy confirmation still awaits CI. |
+
+## PR #242 Benchmark Review Follow-Up
+
+The benchmark's no-argument mode now runs `banded`, `wide-row`, and
+`rectangular` for `make bench`; an explicit fixture retains the one-row CSV
+interface used by Day 12. The aggregate Make loop now propagates a benchmark
+failure. The current driver SHA-256 is
+`11e2321d73bc662f5ba5b81b9ed05662dd0cd34541fbecb74f12496147508877`.
+The frozen Day 12 binary and raw-sample hashes still refer to the pinned
+`806b31ed` driver; none were rebuilt or resampled for this review fix.
+
+| Date | Command | Outcome | Scope / limit |
+| --- | --- | --- | --- |
+| 2026-10-24 | `make format`; `make BUILDDIR=build/s218-postci-normal lint`; `make BUILDDIR=build/s218-postci-normal test` | All exit 0; full Make test suite passed. | Required C-source quality gates on normal build. |
+| 2026-10-24 | `make bench BENCH_BINS=build/s218-postci-normal/bench_matmul`; `build/s218-postci-normal/bench_matmul banded` | Both exit 0; aggregate emits one header and three fixture rows; explicit mode emits one row. | Focused command-line contract, not a new paired measurement. |
+| 2026-10-24 | `make bench BENCH_BINS=/usr/bin/false` | Fails as expected. | Negative check that aggregate propagates child failure. |
+| 2026-10-24 | `shasum -a 256 -c docs/planning/EPIC_20/SPRINT_218/artifacts/day12-raw-sha256.txt` | Exit 0; 180 raw files verified. | Frozen evidence unchanged. |

@@ -334,7 +334,7 @@ ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt
 bench: $(BENCH_BINS)
 	@for b in $(BENCH_BINS); do \
 		echo "=== Running $$(basename $$b) ==="; \
-		$$b; \
+		$$b || exit $$?; \
 		echo; \
 	done
 

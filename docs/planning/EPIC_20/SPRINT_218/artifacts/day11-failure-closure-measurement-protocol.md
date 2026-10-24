@@ -80,13 +80,16 @@ Post-PR portability note (2026-10-24): the commands above record the original
 Day 11 build, not a new measurement recipe against the latest branch tip.
 The pinned benchmark source is available at
 `git show 806b31ed3efc9959bf585c34a8d4000171c796c5:benchmarks/bench_matmul.c`.
-The current source adds a pre-include POSIX feature macro for strict C11
-Linux builds and has SHA-256
+The post-portability-fix source includes a pre-include POSIX feature macro for
+strict C11 Linux builds and has SHA-256
 `61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
-It does not change fixture, timing, or validation logic, but rebuilding from
-it produces a different source provenance. Do not combine a new binary with
-the frozen Day 12 samples; a new comparison needs both variants rebuilt and
-new hashes and raw samples.
+The later PR #242 review fix added a no-argument mode that runs all three
+fixtures; its source SHA-256 is
+`11e2321d73bc662f5ba5b81b9ed05662dd0cd34541fbecb74f12496147508877`.
+Neither change alters single-fixture timing or validation logic, but
+rebuilding from either source produces different provenance. Do not combine
+a new binary with the frozen Day 12 samples; a new comparison needs both
+variants rebuilt and new hashes and raw samples.
 
 ## Day 12 Sampling Contract
 

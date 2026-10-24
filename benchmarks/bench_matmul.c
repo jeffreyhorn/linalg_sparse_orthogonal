@@ -102,24 +102,7 @@ static int validate_output(const matmul_fixture_t *fixture, const SparseMatrix *
     return 1;
 }
 
-int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s {banded|wide-row|rectangular}\n", argv[0]);
-        return 2;
-    }
-
-    const matmul_fixture_t *fixture = NULL;
-    for (size_t i = 0; i < sizeof(fixtures) / sizeof(fixtures[0]); i++) {
-        if (strcmp(argv[1], fixtures[i].name) == 0) {
-            fixture = &fixtures[i];
-            break;
-        }
-    }
-    if (!fixture) {
-        fprintf(stderr, "unknown fixture: %s\n", argv[1]);
-        return 2;
-    }
-
+static int run_fixture(const matmul_fixture_t *fixture, int print_header) {
     SparseMatrix *a = sparse_create(fixture->a_rows, fixture->a_cols);
     SparseMatrix *b = sparse_create(fixture->a_cols, fixture->b_cols);
     SparseMatrix *c = NULL;
@@ -143,7 +126,8 @@ int main(int argc, char **argv) {
         goto done;
     }
 
-    printf("fixture,a_rows,a_cols,b_cols,a_nnz,b_nnz,c_nnz,zero_drops,elapsed_ms\n");
+    if (print_header)
+        printf("fixture,a_rows,a_cols,b_cols,a_nnz,b_nnz,c_nnz,zero_drops,elapsed_ms\n");
     printf("%s,%lld,%lld,%lld,%lld,%lld,%lld,0,%.6f\n", fixture->name, (long long)fixture->a_rows,
            (long long)fixture->a_cols, (long long)fixture->b_cols, (long long)fixture->a_nnz,
            (long long)fixture->b_nnz, (long long)fixture->c_nnz, (end - start) * 1000.0);
@@ -154,4 +138,25 @@ done:
     sparse_free(b);
     sparse_free(a);
     return status;
+}
+
+int main(int argc, char **argv) {
+    if (argc == 1) {
+        for (size_t i = 0; i < sizeof(fixtures) / sizeof(fixtures[0]); i++) {
+            if (run_fixture(&fixtures[i], i == 0) != 0)
+                return 1;
+        }
+        return 0;
+    }
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s [banded|wide-row|rectangular]\n", argv[0]);
+        return 2;
+    }
+
+    for (size_t i = 0; i < sizeof(fixtures) / sizeof(fixtures[0]); i++) {
+        if (strcmp(argv[1], fixtures[i].name) == 0)
+            return run_fixture(&fixtures[i], 1);
+    }
+    fprintf(stderr, "unknown fixture: %s\n", argv[1]);
+    return 2;
 }

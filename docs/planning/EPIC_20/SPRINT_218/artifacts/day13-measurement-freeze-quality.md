@@ -27,9 +27,11 @@ artifacts; neither samples nor summaries were edited on Day 13.
 | Baseline benchmark binary | `fb8df0a351faa52991ebbae908d7f8176ad893385e9f084f460ce19aa6a4ad33` |
 | Candidate benchmark binary | `d65c68c52d7482ae3c85a0d06be784a47900a6fd91640ae34e40f8287c4a024c` |
 
-The 2026-10-24 POSIX feature-macro addition changed the current benchmark
+The 2026-10-24 POSIX feature-macro addition changed the benchmark
 source hash to
 `61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
+The later PR #242 no-argument benchmark mode changed it again to
+`11e2321d73bc662f5ba5b81b9ed05662dd0cd34541fbecb74f12496147508877`.
 The table describes the frozen binaries and samples, not a build from the
 latest source; see the [Day 11 provenance note](day11-failure-closure-measurement-protocol.md).
 The later Linux Make lint fix also changes the current candidate

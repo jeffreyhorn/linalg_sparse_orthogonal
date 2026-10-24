@@ -91,8 +91,11 @@ The original Day 14 result predates PR #242's Linux reviewed CMake failure:
 the new benchmark compiled on macOS, but strict C11 on Linux did not expose
 `clock_gettime` or `CLOCK_MONOTONIC`. A pre-include POSIX feature declaration
 was added to `benchmarks/bench_matmul.c`; no fixture, timer, validation, or
-library logic was changed. The current benchmark source hash is
+library logic was changed. The benchmark source hash after that fix was
 `61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
+The later PR #242 review fix adds a no-argument mode for `make bench`; its
+source hash is
+`11e2321d73bc662f5ba5b81b9ed05662dd0cd34541fbecb74f12496147508877`.
 The original benchmark source and two frozen binaries retain the hashes in
 the [Day 13 table](day13-measurement-freeze-quality.md). All 180 raw Day 12
 files still verify against their manifest; no measurement was resampled or

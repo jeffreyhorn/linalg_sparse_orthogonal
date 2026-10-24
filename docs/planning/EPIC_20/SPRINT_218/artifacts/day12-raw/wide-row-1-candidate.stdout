@@ -1,0 +1,2 @@
+fixture,a_rows,a_cols,b_cols,a_nnz,b_nnz,c_nnz,zero_drops,elapsed_ms
+wide-row,1,1024,1024,1024,1024,1024,0,0.092000

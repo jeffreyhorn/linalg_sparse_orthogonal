@@ -48,6 +48,10 @@ def main() -> None:
         "RUN_TEST(test_matmul_acc_allocation_failure_clears_stale_output);",
         "RUN_TEST(test_matmul_remaining_workspace_allocation_failures_clear_stale_output);",
         "RUN_TEST(test_matmul_workspace_allocation_failure_recovers);",
+        "RUN_TEST(test_matmul_result_shell_and_first_node_allocation_failures);",
+        "RUN_TEST(test_matmul_later_node_slab_failure_after_partial_links);",
+        "RUN_TEST(test_matmul_node_slab_failure_sweep_rollback_and_retry);",
+        "RUN_TEST(test_matmul_zero_dimensions_rejected_by_constructor);",
     ]
     for test_name in required_tests:
         require_contains(test_matmul, test_name, owner=TEST_MATMUL)

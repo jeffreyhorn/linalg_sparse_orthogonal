@@ -1,0 +1,2 @@
+fixture,a_rows,a_cols,b_cols,a_nnz,b_nnz,c_nnz,zero_drops,elapsed_ms
+banded,256,256,256,256,766,766,0,0.084000

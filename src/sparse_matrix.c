@@ -18,7 +18,7 @@
 
 /* ─── Pool allocator ─────────────────────────────────────────────────── */
 
-Node *pool_alloc(NodePool *pool) {
+static Node *pool_alloc_impl(NodePool *pool, int injectable) {
     /* Try the free list first */
     if (pool->free_list) {
         Node *node = pool->free_list;
@@ -28,7 +28,13 @@ Node *pool_alloc(NodePool *pool) {
 
     /* Allocate from current slab or create a new one */
     if (!pool->current || pool->current->used >= NODES_PER_SLAB) {
-        NodeSlab *slab = malloc(sizeof(NodeSlab));
+        NodeSlab *slab = NULL;
+        if (injectable) {
+            if (sparse_malloc_array(1, sizeof(*slab), (void **)&slab) != SPARSE_OK)
+                return NULL;
+        } else {
+            slab = malloc(sizeof(*slab));
+        }
         if (!slab)
             return NULL;
         slab->used = 0;
@@ -43,6 +49,8 @@ Node *pool_alloc(NodePool *pool) {
 
     return &pool->current->nodes[pool->current->used++];
 }
+
+Node *pool_alloc(NodePool *pool) { return pool_alloc_impl(pool, 0); }
 
 void pool_release(NodePool *pool, Node *node) {
     /* Push onto the free list (reuse ->right as the next pointer) */
@@ -94,8 +102,9 @@ sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...) {
     return err;
 }
 
-Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
-    Node *n = pool_alloc(&mat->pool);
+static Node *sparse_matrix_make_node_impl(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v,
+                                          int injectable) {
+    Node *n = pool_alloc_impl(&mat->pool, injectable);
     if (!n)
         return NULL;
     n->row = r;
@@ -104,6 +113,10 @@ Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar
     n->right = NULL;
     n->down = NULL;
     return n;
+}
+
+Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
+    return sparse_matrix_make_node_impl(mat, r, c, v, 0);
 }
 
 static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat) {
@@ -175,11 +188,17 @@ static int sparse_memory_usage_add_idx_bytes(size_t *total, idx_t count, size_t 
 
 /* ─── Lifecycle ──────────────────────────────────────────────────────── */
 
-SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
+static SparseMatrix *sparse_create_impl(idx_t rows, idx_t cols, int injectable_shell) {
     if (rows <= 0 || cols <= 0)
         return NULL;
 
-    SparseMatrix *mat = malloc(sizeof(SparseMatrix));
+    SparseMatrix *mat = NULL;
+    if (injectable_shell) {
+        if (sparse_malloc_array(1, sizeof(*mat), (void **)&mat) != SPARSE_OK)
+            return NULL;
+    } else {
+        mat = malloc(sizeof(*mat));
+    }
     if (!mat)
         return NULL;
 
@@ -227,6 +246,8 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
 
     return mat;
 }
+
+SparseMatrix *sparse_create(idx_t rows, idx_t cols) { return sparse_create_impl(rows, cols, 0); }
 
 void sparse_free(SparseMatrix *mat) {
     if (!mat)
@@ -791,6 +812,32 @@ static int cmp_idx(const void *a, const void *b) {
     return (va > vb) - (va < vb);
 }
 
+static sparse_err_t matmul_append_row_node(SparseMatrix *out, idx_t row, idx_t col,
+                                           sparse_scalar_t value, Node **row_tail,
+                                           Node **col_tails) {
+    if (out->nnz == IDX_MAX)
+        return SPARSE_ERR_ALLOC;
+
+    Node *node = sparse_matrix_make_node_impl(out, row, col, value, 1);
+    if (!node)
+        return SPARSE_ERR_ALLOC;
+
+    if (*row_tail)
+        (*row_tail)->right = node;
+    else
+        out->row_headers[row] = node;
+    *row_tail = node;
+
+    if (col_tails[col])
+        col_tails[col]->down = node;
+    else
+        out->col_headers[col] = node;
+    col_tails[col] = node;
+
+    out->nnz++;
+    return SPARSE_OK;
+}
+
 sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseMatrix **C) {
     if (!C)
         return SPARSE_ERR_NULL;
@@ -801,11 +848,9 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         return SPARSE_ERR_SHAPE;
 
     idx_t m = A->rows;
-    idx_t k = A->cols;
     idx_t nc = B->cols;
-    (void)k;
 
-    SparseMatrix *out = sparse_create(m, nc);
+    SparseMatrix *out = sparse_create_impl(m, nc, 1);
     if (!out)
         return SPARSE_ERR_ALLOC;
 
@@ -813,19 +858,20 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
     sparse_scalar_t *acc = NULL;
     int *nz_flag = NULL;
     idx_t *touched = NULL;
+    Node **col_tails = NULL;
+    sparse_err_t err = SPARSE_OK;
     if (sparse_calloc_idx_array(nc, sizeof(sparse_scalar_t), (void **)&acc) != SPARSE_OK ||
         sparse_calloc_idx_array(nc, sizeof(int), (void **)&nz_flag) != SPARSE_OK ||
-        sparse_malloc_idx_array(nc, sizeof(idx_t), (void **)&touched) != SPARSE_OK) {
-        free(acc);
-        free(nz_flag);
-        free(touched);
-        sparse_free(out);
-        return SPARSE_ERR_ALLOC;
+        sparse_malloc_idx_array(nc, sizeof(idx_t), (void **)&touched) != SPARSE_OK ||
+        sparse_calloc_idx_array(nc, sizeof(Node *), (void **)&col_tails) != SPARSE_OK) {
+        err = SPARSE_ERR_ALLOC;
+        goto fail;
     }
 
     for (idx_t i = 0; i < m; i++) {
         /* Accumulate row i of C: sum over j of A(i,j) * row_j(B) */
         idx_t ntouched = 0;
+        Node *row_tail = NULL;
         Node *a_node = A->row_headers[i];
         while (a_node) {
             idx_t j = a_node->col;
@@ -844,10 +890,7 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
             a_node = a_node->right;
         }
 
-        /* Sort touched columns so inserts are in ascending order. sparse_insert
-         * scans from the row head each time, so total flush cost per row is
-         * O(nnz_row^2) in the worst case. Sorting avoids the pathological
-         * reverse-order case and gives good practical performance. */
+        /* Sort touched columns for ordered output row links. */
         if (ntouched > 1)
             qsort(touched, (size_t)ntouched, sizeof(idx_t), cmp_idx);
 
@@ -855,14 +898,9 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         for (idx_t t = 0; t < ntouched; t++) {
             idx_t col = touched[t];
             if (fabs(acc[col]) >= 1e-15) {
-                sparse_err_t err = sparse_insert(out, i, col, acc[col]);
-                if (err != SPARSE_OK) {
-                    free(acc);
-                    free(nz_flag);
-                    free(touched);
-                    sparse_free(out);
-                    return err;
-                }
+                err = matmul_append_row_node(out, i, col, acc[col], &row_tail, col_tails);
+                if (err != SPARSE_OK)
+                    goto fail;
             }
             acc[col] = 0.0;
             nz_flag[col] = 0;
@@ -872,8 +910,17 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
     free(acc);
     free(nz_flag);
     free(touched);
+    free(col_tails);
     *C = out;
     return SPARSE_OK;
+
+fail:
+    free(acc);
+    free(nz_flag);
+    free(touched);
+    free(col_tails);
+    sparse_free(out);
+    return err;
 }
 
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */

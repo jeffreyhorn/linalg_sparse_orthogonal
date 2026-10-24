@@ -191,7 +191,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_eigs_reuse.c \
              $(BENCHDIR)/bench_reorder.c \
              $(BENCHDIR)/bench_amd_qg.c \
-             $(BENCHDIR)/bench_iterative_reuse.c
+             $(BENCHDIR)/bench_iterative_reuse.c \
+             $(BENCHDIR)/bench_matmul.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources
@@ -333,7 +334,7 @@ ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt
 bench: $(BENCH_BINS)
 	@for b in $(BENCH_BINS); do \
 		echo "=== Running $$(basename $$b) ==="; \
-		$$b; \
+		$$b || exit $$?; \
 		echo; \
 	done
 

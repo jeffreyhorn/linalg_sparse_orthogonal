@@ -863,7 +863,7 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
     if (sparse_calloc_idx_array(nc, sizeof(sparse_scalar_t), (void **)&acc) != SPARSE_OK ||
         sparse_calloc_idx_array(nc, sizeof(int), (void **)&nz_flag) != SPARSE_OK ||
         sparse_malloc_idx_array(nc, sizeof(idx_t), (void **)&touched) != SPARSE_OK ||
-        sparse_calloc_idx_array(nc, sizeof(*col_tails), (void **)&col_tails) != SPARSE_OK) {
+        sparse_calloc_idx_array(nc, sizeof(Node *), (void **)&col_tails) != SPARSE_OK) {
         err = SPARSE_ERR_ALLOC;
         goto fail;
     }

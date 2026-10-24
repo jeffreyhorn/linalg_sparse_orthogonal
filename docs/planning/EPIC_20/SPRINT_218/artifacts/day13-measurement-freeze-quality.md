@@ -32,6 +32,12 @@ source hash to
 `61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
 The table describes the frozen binaries and samples, not a build from the
 latest source; see the [Day 11 provenance note](day11-failure-closure-measurement-protocol.md).
+The later Linux Make lint fix also changes the current candidate
+`src/sparse_matrix.c` SHA-256 to
+`7cd4c6cf461db03557b6b680961b1eb8f5d94d782ce90f09b40103345b0f2ff1`.
+It only spells the existing `Node *` array element size explicitly; the
+candidate library and benchmark binary hashes in this table remain the
+historical measurement inputs.
 
 The baseline detached worktree remains clean at
 `271bd3b704326296332cb397385ed458436ca0b7`. Both comparison builds

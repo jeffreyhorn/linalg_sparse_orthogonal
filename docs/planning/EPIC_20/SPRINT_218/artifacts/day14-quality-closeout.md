@@ -104,3 +104,16 @@ attributed to the revised source. Local post-fix checks passed: `make format`,
 `make source-list-check`, and `git diff --check` also passed. Both frozen
 benchmark binaries retain their Day 13 hashes. These macOS checks do not
 replace a new Linux CI run for the originally failing platform.
+
+The follow-up Linux reviewed CMake job passed on commit `8236f10f`, but the
+Linux reviewed Make lint job then failed a different check: clang-tidy
+reported `bugprone-sizeof-expression` for `sizeof(*col_tails)` in the matmul
+workspace allocation. That element is a `Node *`; spelling its size as
+`sizeof(Node *)`, as the existing row/column header allocations do, leaves
+the allocation unchanged. The current `src/sparse_matrix.c` SHA-256 is
+`7cd4c6cf461db03557b6b680961b1eb8f5d94d782ce90f09b40103345b0f2ff1`.
+The Day 12 profile and its frozen binaries still refer to the earlier
+source hash in the Day 13 table. Local `make format`, normal-build
+`make lint` and `make test`, and a rebuilt CMake `test_matmul` CTest all
+passed after this second change. A new Linux lint result is required to
+confirm the diagnostic is cleared by CI's clang-tidy version.

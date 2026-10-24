@@ -399,3 +399,17 @@ all 180 raw files still pass the SHA-256 manifest. No profile was rerun.
 | 2026-10-24 | `make format`; `make BUILDDIR=build/s218-postci-normal lint`; `make BUILDDIR=build/s218-postci-normal test` | All exit 0; `All tests passed.` | Fresh normal build after feature-macro change. |
 | 2026-10-24 | `make QUALITY_REVIEW_CMAKE_DIR=build/s218-postci-cmake quality-review-cmake` | Exit 0; `bench_matmul` built; parity passed; 60/60 CTests passed. | Clean reviewed CMake path on macOS Apple Clang 17; Linux confirmation awaits CI. |
 | 2026-10-24 | `make format-check`; `make source-list-check`; `git diff --check`; raw manifest `shasum -a 256 -c` | All exit 0; 49 sources, 180 raw files verified. | Formatting, source list, whitespace, and frozen evidence integrity. |
+
+The same PR's Linux reviewed CMake job passed on `8236f10f`, but its
+reviewed Make lint job failed clang-tidy's `bugprone-sizeof-expression`
+check on `sizeof(*col_tails)` in `src/sparse_matrix.c`. The allocation
+element is `Node *`; the expression now uses `sizeof(Node *)`, matching the
+existing row/column header allocations. The current candidate source
+SHA-256 is
+`7cd4c6cf461db03557b6b680961b1eb8f5d94d782ce90f09b40103345b0f2ff1`;
+Day 12's binary and samples still refer to the frozen source hash.
+
+| Date | Command | Outcome | Scope / limit |
+| --- | --- | --- | --- |
+| 2026-10-24 | `make format`; `make BUILDDIR=build/s218-postci-normal lint`; `make BUILDDIR=build/s218-postci-normal test` | All exit 0; `All tests passed.` | Full local Make quality path after pointer-size spelling change. |
+| 2026-10-24 | `cmake --build build/s218-postci-cmake --target test_matmul --parallel 4`; `ctest --test-dir build/s218-postci-cmake -R '^test_matmul$' --output-on-failure` | Both exit 0; focused CTest 1/1 passed. | Rebuilt library and matmul test; Linux clang-tidy confirmation still awaits CI. |

@@ -22,10 +22,16 @@ artifacts; neither samples nor summaries were edited on Day 13.
 | `day12-raw-sha256.txt` | `16f1e98114d32dc9c56d23893364ca1050f46b726d973e8f8f1f8a7def279108` |
 | `day12-samples.csv` | `c3b30ae97bf8bc8babd847a239c07a53abefd319228e31cd23dffb81f31024fe` |
 | `day12-matmul-profile.md` | `c82b584d8e7bb0305f70e9b774154d5190645da6ba44944bbf6afe4d1aa7e8b9` |
-| `benchmarks/bench_matmul.c` (same driver for both) | `0995357c0f272bfb94ac6150d48f434307e9ec4f77b6368ad1794a8c3b93b3cb` |
+| `benchmarks/bench_matmul.c` at `806b31ed` (same driver for both) | `0995357c0f272bfb94ac6150d48f434307e9ec4f77b6368ad1794a8c3b93b3cb` |
 | Candidate `src/sparse_matrix.c` | `6da7faf6298260d6708401ce17af351e22824fdd4774c7660fe2ad9530f2e1dc` |
 | Baseline benchmark binary | `fb8df0a351faa52991ebbae908d7f8176ad893385e9f084f460ce19aa6a4ad33` |
 | Candidate benchmark binary | `d65c68c52d7482ae3c85a0d06be784a47900a6fd91640ae34e40f8287c4a024c` |
+
+The 2026-10-24 POSIX feature-macro addition changed the current benchmark
+source hash to
+`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
+The table describes the frozen binaries and samples, not a build from the
+latest source; see the [Day 11 provenance note](day11-failure-closure-measurement-protocol.md).
 
 The baseline detached worktree remains clean at
 `271bd3b704326296332cb397385ed458436ca0b7`. Both comparison builds

@@ -49,8 +49,8 @@ Both CMake caches specify `/usr/bin/clang`, `CMAKE_C_FLAGS=-O2`, an empty
 `SANITIZE`, and `SPARSE_OPENMP=OFF`. The `src/sparse_matrix.c`
 `compile_commands.json` entries contain identical `-O2 -std=c11` and
 project warning flags, apart from source/include/build paths. Both library
-targets were built fresh. The benchmark driver is the **same current file**
-for both binaries, SHA-256
+targets were built fresh. The benchmark driver was the **same file at
+measurement time** for both binaries, SHA-256
 `0995357c0f272bfb94ac6150d48f434307e9ec4f77b6368ad1794a8c3b93b3cb`.
 The baseline commit predates the benchmark; compiling this one driver
 against each archive avoids comparing different harness revisions. Its
@@ -75,6 +75,18 @@ the existing clean baseline worktree when it is already present. If source
 or driver hashes change before Day 12, rebuild both and record new hashes
 before comparing. Do not reuse Make's `build/libsparse_lu_ortho.a` or an
 ASan/UBSan tree for either side.
+
+Post-PR portability note (2026-10-24): the commands above record the original
+Day 11 build, not a new measurement recipe against the latest branch tip.
+The pinned benchmark source is available at
+`git show 806b31ed3efc9959bf585c34a8d4000171c796c5:benchmarks/bench_matmul.c`.
+The current source adds a pre-include POSIX feature macro for strict C11
+Linux builds and has SHA-256
+`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
+It does not change fixture, timing, or validation logic, but rebuilding from
+it produces a different source provenance. Do not combine a new binary with
+the frozen Day 12 samples; a new comparison needs both variants rebuilt and
+new hashes and raw samples.
 
 ## Day 12 Sampling Contract
 

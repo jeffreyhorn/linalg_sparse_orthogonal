@@ -1,5 +1,11 @@
 /* Pinned sparse_matmul fixtures. One invocation measures one multiply. */
 
+/* Expose clock_gettime and CLOCK_MONOTONIC under strict C11 on POSIX. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "sparse_matrix.h"
 
 #include <math.h>

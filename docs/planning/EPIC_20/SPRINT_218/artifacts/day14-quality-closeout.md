@@ -84,3 +84,23 @@ The raw manifest, derived CSV, driver, candidate source, and baseline and
 candidate executable hashes still match the [Day 13 freeze](day13-measurement-freeze-quality.md).
 The baseline detached worktree remains clean; the sprint worktree remains
 uncommitted for the subsequent retrospective and PR step.
+
+## Post-PR Portability Follow-Up (2026-10-24)
+
+The original Day 14 result predates PR #242's Linux reviewed CMake failure:
+the new benchmark compiled on macOS, but strict C11 on Linux did not expose
+`clock_gettime` or `CLOCK_MONOTONIC`. A pre-include POSIX feature declaration
+was added to `benchmarks/bench_matmul.c`; no fixture, timer, validation, or
+library logic was changed. The current benchmark source hash is
+`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`.
+The original benchmark source and two frozen binaries retain the hashes in
+the [Day 13 table](day13-measurement-freeze-quality.md). All 180 raw Day 12
+files still verify against their manifest; no measurement was resampled or
+attributed to the revised source. Local post-fix checks passed: `make format`,
+`make BUILDDIR=build/s218-postci-normal lint`,
+`make BUILDDIR=build/s218-postci-normal test`, and
+`make QUALITY_REVIEW_CMAKE_DIR=build/s218-postci-cmake quality-review-cmake`
+(60/60 CTests, count parity). `make format-check`,
+`make source-list-check`, and `git diff --check` also passed. Both frozen
+benchmark binaries retain their Day 13 hashes. These macOS checks do not
+replace a new Linux CI run for the originally failing platform.

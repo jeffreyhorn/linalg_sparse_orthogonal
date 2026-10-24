@@ -379,3 +379,23 @@ platform and performance claims remain out of scope.
 | 2026-10-23, same working tree | `ctest --test-dir build/s218-day14-cmake -L '^matmul$' --output-on-failure` | Exit 0; 1/1 focused test passed. | Labeled matmul selector. |
 | 2026-10-23, same working tree | `make BUILDDIR=build/s218-day14-normal matmul-allocation-failure-gate` | Exit 0; registration passed, 41 tests, 372262 assertions. | Final ownership, rollback, and retry check on normal build. |
 | 2026-10-23, same working tree | `make format-check`, `make source-list-check`, `git diff --check`, raw manifest `shasum -a 256 -c` | All exit 0; 49 library sources, 180 raw files verified. | Post-gate hygiene and frozen evidence integrity. |
+
+## Post-PR Linux Benchmark Build Follow-Up
+
+On 2026-10-24, PR #242's first Linux reviewed CMake run failed compiling
+`benchmarks/bench_matmul.c` under strict C11: `clock_gettime` and
+`CLOCK_MONOTONIC` were hidden without a POSIX feature declaration. The
+benchmark now defines `_POSIX_C_SOURCE=200809L` before its headers on POSIX.
+Its fixture construction, timer call, post-timer validation, and library
+code are unchanged. The new benchmark source SHA-256 is
+`61d5bf2cd0896dc4b9f6b5507195781f5a72be20f4891370e3d683dc3806aa61`;
+the [Day 11 provenance note](artifacts/day11-failure-closure-measurement-protocol.md)
+pins the original measurement driver at `806b31ed`. The two frozen
+benchmark executable hashes remain `fb8df0a3...` and `d65c68c5...`;
+all 180 raw files still pass the SHA-256 manifest. No profile was rerun.
+
+| Date | Command | Outcome | Scope / limit |
+| --- | --- | --- | --- |
+| 2026-10-24 | `make format`; `make BUILDDIR=build/s218-postci-normal lint`; `make BUILDDIR=build/s218-postci-normal test` | All exit 0; `All tests passed.` | Fresh normal build after feature-macro change. |
+| 2026-10-24 | `make QUALITY_REVIEW_CMAKE_DIR=build/s218-postci-cmake quality-review-cmake` | Exit 0; `bench_matmul` built; parity passed; 60/60 CTests passed. | Clean reviewed CMake path on macOS Apple Clang 17; Linux confirmation awaits CI. |
+| 2026-10-24 | `make format-check`; `make source-list-check`; `git diff --check`; raw manifest `shasum -a 256 -c` | All exit 0; 49 sources, 180 raw files verified. | Formatting, source list, whitespace, and frozen evidence integrity. |

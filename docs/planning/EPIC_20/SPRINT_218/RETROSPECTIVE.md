@@ -88,6 +88,12 @@ portable.
    Some opt-in/framework fixtures were skipped, and macOS ASan leak
    detection was disabled. Those are recorded as limits, not silently
    counted as covered behavior.
+5. **The benchmark lacked a strict-C11 Linux feature declaration.** The
+   first Linux reviewed CMake run stopped compiling `bench_matmul` because
+   glibc did not expose `clock_gettime` and `CLOCK_MONOTONIC`. A pre-include
+   `_POSIX_C_SOURCE` declaration fixes the source visibility; the frozen
+   Day 12 binary and raw measurements remain tied to the earlier driver
+   revision rather than being silently regenerated.
 
 ## Final Metrics And Claim
 

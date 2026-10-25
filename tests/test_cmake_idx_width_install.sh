@@ -177,7 +177,7 @@ for width in 32 64; do
         if cmake -S "$ROOT_DIR/tests/cmake_width_consumer" -B "$stale" \
             -DCMAKE_PREFIX_PATH="$other_prefix" \
             -DSPARSE_TEST_CONSUMER_BITS="$other_width" >>"$stale_log" 2>&1 && \
-            cmake --build "$stale" >>"$stale_log" 2>&1; then
+            cmake --build "$stale" --clean-first >>"$stale_log" 2>&1; then
             if grep -Fq "Sparse_DIR:PATH=$other_prefix/lib/cmake/Sparse" \
                 "$stale/CMakeCache.txt" && \
                 "$stale/width_consumer" >"$TMP_ROOT/stale-rebound-$width.log" 2>&1 && \

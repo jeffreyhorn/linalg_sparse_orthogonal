@@ -34,8 +34,9 @@ location to the opposite archive and verifies the verbose link uses that
 path. The resulting executable exits with `consumer=N header=N archive=M`
 before printing a version, solution, or `OK`. The reconfigure fixture first
 builds and runs against its original prefix, then changes `CMAKE_PREFIX_PATH`
-and the explicit width in the same build tree. CMake versions can either
-retain the original `Sparse_DIR`, which must reject the opposite width at
+and the explicit width in the same build tree. It cleans before rebuilding
+so an old consumer object cannot satisfy the second configuration. CMake can
+either retain the original `Sparse_DIR`, which must reject the opposite width at
 compile time, or resolve the new package. A successful reconfigure passes
 only if the cache names the new package and the consumer runs at its width.
 

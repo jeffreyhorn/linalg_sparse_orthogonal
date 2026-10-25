@@ -274,3 +274,21 @@ Local Day 14 quality work is complete. **Sprint 219 remains open:** item
 219.5's hosted gate and item 219.6's final acceptance gate require green
 branch-specific hosted jobs before their allocations or the 140-hour sprint
 total can be closed. No commit, push, or PR was requested for this day.
+
+## Post-Publication CI Follow-Up (2026-10-25)
+
+PR [#243](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/243)
+published the Day 14 work. Branch-specific hosted runs exposed fixture and
+guard assumptions that local macOS did not reveal:
+
+| Hosted evidence | Failure observed | Local correction and check |
+| --- | --- | --- |
+| [Initial Linux package job](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40159894087/job/121069056001) at `bbb3b839` | Missing-archive negative stopped at an omitted local helper header, before linking. | Give its compile the same helper include path as the positive consumer; `test_install.sh` 26/26 passed. |
+| [Initial macOS CMake package job](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40159894097/job/121069056035) at `bbb3b839` and [follow-up](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40213018713/job/121228121993) at `52f84d67` | A reconfigured consumer object could remain up to date in a reused CMake tree; the second configure then did not prove the requested width. | Clean before the second build; accept only a compile-time mismatch rejection or a verified new-package rebind and solve. CMake matrix 18/18 passed locally. |
+| [Linux package job](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40212468541/job/121226460960) at `e865c200` and [follow-up](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40212771504/job/121227383232) at `5d4b41df` | Linux `pkg-config` leaves trailing spaces in cflags/libs; raw string checks failed positive fixtures. | Compare exact ordered flag tokens; pkg-config matrix 40/40 and archive pre-use matrix 12/12 passed locally. |
+| [Linux package job](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/40213250515/job/121228820257) at `1b35c244` | The static-first deferral guard expected pre-Sprint-219 `sparse.pc.in` cflags without width metadata. | Require the include flag and generated width placeholder; the full static-first and package-manager deferral guards passed locally. |
+
+These earlier hosted failures are not current-head passes. The new Linux and
+macOS package jobs must complete successfully at the final branch SHA before
+items 219.5 or 219.6 can be closed. Windows success on earlier SHAs does not
+replace the final-head Windows result.

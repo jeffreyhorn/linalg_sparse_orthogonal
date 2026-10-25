@@ -52,8 +52,11 @@ for width in 32 64; do
     export PKG_CONFIG_PATH=""
     cflags="$(pkg-config --cflags sparse)"
     libs="$(pkg-config --libs sparse)"
+    read -r -a cflag_tokens <<< "$cflags"
     pkg_consumer="$TMP_ROOT/pkg-consumer-$width"
-    if [ "$cflags" = "-I$prefix/include -DSPARSE_PACKAGE_IDX_BITS=$width" ] && \
+    if [ "${#cflag_tokens[@]}" -eq 2 ] && \
+        [ "${cflag_tokens[0]}" = "-I$prefix/include" ] && \
+        [ "${cflag_tokens[1]}" = "-DSPARSE_PACKAGE_IDX_BITS=$width" ] && \
         cc -std=c11 -Wall -Wextra -Werror $cflags \
             "$ROOT_DIR/examples/cmake_example/main.c" $libs -o "$pkg_consumer" \
             >"$log" 2>&1 && \

@@ -243,7 +243,10 @@ all: $(LIB)
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR) $(BUILDDIR)/include
 
-$(SPARSE_WIDTH_STAMP): | $(BUILDDIR)
+.PHONY: force-sparse-width-stamp
+force-sparse-width-stamp:
+
+$(SPARSE_WIDTH_STAMP): force-sparse-width-stamp | $(BUILDDIR)
 	@set -eu; tmp="$@.$$$$"; \
 		printf '%s\n' '$(SPARSE_IDX_BITS)' > "$$tmp"; \
 		if ln "$$tmp" "$@" 2>/dev/null; then \

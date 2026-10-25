@@ -90,6 +90,16 @@ for width in 32 64; do
         fail "$width-bit same-width tree reuse"
         tail -15 "$TMP_ROOT/reuse-$width.log"
     fi
+
+    stamp_check_log="$TMP_ROOT/stamp-check-$width.log"
+    if make -C "$ROOT_DIR" -n BUILDDIR="$build_dir" SPARSE_IDX_BITS="$width" \
+        "$build_dir/test_sparse_matrix" >"$stamp_check_log" 2>&1 && \
+        grep -Fq "Could not create $build_dir/.sparse-idx-bits" "$stamp_check_log"; then
+        pass "$width-bit existing stamp is rechecked on prerequisite traversal"
+    else
+        fail "$width-bit existing stamp was skipped"
+        tail -15 "$stamp_check_log"
+    fi
 done
 
 mixed_binary="$TMP_ROOT/mixed-width"

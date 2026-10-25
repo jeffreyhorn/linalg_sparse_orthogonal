@@ -167,6 +167,7 @@ for width in 32 64; do
 
     stale="$TMP_ROOT/stale-cache-$width"
     stale_log="$TMP_ROOT/stale-cache-$width.log"
+    stale_conflict_log="$TMP_ROOT/stale-conflict-$width.log"
     if cmake -S "$ROOT_DIR/tests/cmake_width_consumer" -B "$stale" \
         -DCMAKE_PREFIX_PATH="$prefix" -DSPARSE_TEST_VERSION="$VERSION" \
         >"$stale_log" 2>&1 && \
@@ -176,27 +177,36 @@ for width in 32 64; do
         grep -Fq "Sparse_DIR:PATH=$prefix/lib/cmake/Sparse" "$stale/CMakeCache.txt"; then
         if cmake -S "$ROOT_DIR/tests/cmake_width_consumer" -B "$stale" \
             -DCMAKE_PREFIX_PATH="$other_prefix" \
-            -DSPARSE_TEST_CONSUMER_BITS="$other_width" >>"$stale_log" 2>&1 && \
-            cmake --build "$stale" --clean-first >>"$stale_log" 2>&1; then
-            if grep -Fq "Sparse_DIR:PATH=$other_prefix/lib/cmake/Sparse" \
-                "$stale/CMakeCache.txt" && \
-                "$stale/width_consumer" >"$TMP_ROOT/stale-rebound-$width.log" 2>&1 && \
-                grep -Fxq "Sparse index width $other_width" \
-                    "$TMP_ROOT/stale-rebound-$width.log" && \
-                grep -Fxq 'OK' "$TMP_ROOT/stale-rebound-$width.log"; then
-                pass "$width-bit cache rebound to opposite package safely"
-            else
-                fail "$width-bit reconfigured consumer built without verified package rebind"
-                tail -25 "$stale_log" "$TMP_ROOT/stale-rebound-$width.log" 2>/dev/null || true
-                grep -F 'Sparse_DIR:' "$stale/CMakeCache.txt" || true
-            fi
+            -DSparse_DIR:PATH="$prefix/lib/cmake/Sparse" \
+            -DSPARSE_TEST_CONSUMER_BITS="$other_width" >"$stale_conflict_log" 2>&1 && \
+            cmake --build "$stale" --clean-first >>"$stale_conflict_log" 2>&1; then
+            fail "$width-bit conflicting-width rebuild unexpectedly succeeded"
         elif grep -Fq "Sparse_DIR:PATH=$prefix/lib/cmake/Sparse" \
             "$stale/CMakeCache.txt" && \
-            grep -Fq 'SPARSE_IDX_BITS must match SPARSE_BUILT_IDX_BITS' "$stale_log"; then
+            grep -Fq 'SPARSE_IDX_BITS must match SPARSE_BUILT_IDX_BITS' \
+                "$stale_conflict_log"; then
             pass "$width-bit stale cache rejected at compile before use"
         else
             fail "$width-bit stale cache missing expected diagnostic"
-            tail -25 "$stale_log"
+            tail -25 "$stale_conflict_log"
+            grep -F 'Sparse_DIR:' "$stale/CMakeCache.txt" || true
+        fi
+
+        if cmake -S "$ROOT_DIR/tests/cmake_width_consumer" -B "$stale" \
+            -DCMAKE_PREFIX_PATH="$other_prefix" \
+            -DSparse_DIR:PATH="$other_prefix/lib/cmake/Sparse" \
+            >>"$stale_log" 2>&1 && \
+            cmake --build "$stale" --clean-first >>"$stale_log" 2>&1 && \
+            grep -Fq "Sparse_DIR:PATH=$other_prefix/lib/cmake/Sparse" \
+                "$stale/CMakeCache.txt" && \
+            "$stale/width_consumer" >"$TMP_ROOT/stale-rebound-$width.log" 2>&1 && \
+            grep -Fxq "Sparse index width $other_width" \
+                "$TMP_ROOT/stale-rebound-$width.log" && \
+            grep -Fxq 'OK' "$TMP_ROOT/stale-rebound-$width.log"; then
+            pass "$width-bit cache rebound to opposite package safely"
+        else
+            fail "$width-bit cache rebind to opposite package"
+            tail -25 "$stale_log" "$TMP_ROOT/stale-rebound-$width.log" 2>/dev/null || true
         fi
     else
         fail "$width-bit initial cache consumer did not use its own package"

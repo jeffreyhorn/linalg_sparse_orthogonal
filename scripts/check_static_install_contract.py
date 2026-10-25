@@ -166,13 +166,11 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
         contents.get("SparseTargets.cmake", ""),
     )
     definitions = [definition for value in target_values
-                   for definition in value.split(";")
-                   if definition.startswith("SPARSE_PACKAGE_IDX_BITS")]
+                   for definition in value.split(";") if definition]
     other_widths = [name for name, content in contents.items()
                     if name != "SparseTargets.cmake" and "SPARSE_PACKAGE_IDX_BITS" in content]
-    if len(definitions) != 1 or definitions[0] not in (
-        "SPARSE_PACKAGE_IDX_BITS=32", "SPARSE_PACKAGE_IDX_BITS=64"
-    ) or other_widths:
+    if definitions not in (["SPARSE_PACKAGE_IDX_BITS=32"],
+                           ["SPARSE_PACKAGE_IDX_BITS=64"]) or other_widths:
         errors.append("CMake imported target must declare one supported package width: "
                       f"{definitions}; other files: {other_widths}")
         return None

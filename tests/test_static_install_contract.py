@@ -320,7 +320,8 @@ class StaticInstallContractTests(unittest.TestCase):
         path = self.prefix / "lib/cmake/Sparse/SparseTargets.cmake"
         original = path.read_text(encoding="utf-8")
         for value in ("", "SPARSE_PACKAGE_IDX_BITS=128",
-                      "SPARSE_PACKAGE_IDX_BITS=32;SPARSE_PACKAGE_IDX_BITS=32"):
+                      "SPARSE_PACKAGE_IDX_BITS=32;SPARSE_PACKAGE_IDX_BITS=32",
+                      "SPARSE_PACKAGE_IDX_BITS=32;SPARSE_IDX_BITS=64"):
             with self.subTest(value=value):
                 path.write_text(original.replace("SPARSE_PACKAGE_IDX_BITS=32", value),
                                 encoding="utf-8")

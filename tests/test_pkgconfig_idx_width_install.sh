@@ -49,10 +49,15 @@ for route in make cmake; do
         cflags="$(pkg-config --cflags sparse)"
         libs="$(pkg-config --libs sparse)"
         pc_prefix="$(pkg-config --variable=prefix sparse)"
-        set -- $cflags
-        if [ "$#" -eq 2 ] && [ "$1" = "-I$prefix/include" ] && \
-            [ "$2" = "-DSPARSE_PACKAGE_IDX_BITS=$width" ] && \
-            [ "$libs" = "-L$prefix/lib -lsparse_lu_ortho -lm" ] && \
+        read -r -a cflag_tokens <<< "$cflags"
+        read -r -a lib_tokens <<< "$libs"
+        if [ "${#cflag_tokens[@]}" -eq 2 ] && \
+            [ "${cflag_tokens[0]}" = "-I$prefix/include" ] && \
+            [ "${cflag_tokens[1]}" = "-DSPARSE_PACKAGE_IDX_BITS=$width" ] && \
+            [ "${#lib_tokens[@]}" -eq 3 ] && \
+            [ "${lib_tokens[0]}" = "-L$prefix/lib" ] && \
+            [ "${lib_tokens[1]}" = "-lsparse_lu_ortho" ] && \
+            [ "${lib_tokens[2]}" = "-lm" ] && \
             [ "$pc_prefix" = "$prefix" ] && \
             [ "$(pkg-config --modversion sparse)" = "$VERSION" ] && \
             ! grep -Fq "$build" "$prefix/lib/pkgconfig/sparse.pc"; then

@@ -22,22 +22,22 @@ case; the target selects it.
 | 32-bit | Own archive passes static identity validation | 64-bit header ahead of target include path | Compile |
 | 32-bit | Own archive runs the solver | Imported target redirected to 64-bit archive | Executable pre-use check, before matrix calls |
 | 32-bit | Exact installed version resolves | Wrong exact version (`2.3.0`) | Configure |
-| 32-bit | Fresh cache finds 32-bit package | Reused cache retains 32-bit `Sparse_DIR` while asked for 64-bit selector | Compile |
+| 32-bit | Fresh cache finds 32-bit package | Reconfigure for 64-bit prefix and selector | Compile rejection if still bound to 32-bit package; otherwise verified 64-bit rebind and solve |
 | 64-bit | Relocated consumer reports width 64, package version, and `OK` | Explicit 32-bit selector, via C flags and target definition | Compile |
 | 64-bit | Own archive passes static identity validation | 32-bit header ahead of target include path | Compile |
 | 64-bit | Own archive runs the solver | Imported target redirected to 32-bit archive | Executable pre-use check, before matrix calls |
 | 64-bit | Exact installed version resolves | Wrong exact version (`2.3.0`) | Configure |
-| 64-bit | Fresh cache finds 64-bit package | Reused cache retains 64-bit `Sparse_DIR` while asked for 32-bit selector | Compile |
+| 64-bit | Fresh cache finds 64-bit package | Reconfigure for 32-bit prefix and selector | Compile rejection if still bound to 64-bit package; otherwise verified 32-bit rebind and solve |
 
 The archive override is fixture-only: it changes the imported target's
 location to the opposite archive and verifies the verbose link uses that
 path. The resulting executable exits with `consumer=N header=N archive=M`
-before printing a version, solution, or `OK`. The stale-cache fixture first
+before printing a version, solution, or `OK`. The reconfigure fixture first
 builds and runs against its original prefix, then changes `CMAKE_PREFIX_PATH`
-in the same build tree while explicitly retaining the original `Sparse_DIR`.
-This pins the stale binding even on CMake versions that rediscover a package
-when only the prefix path changes. The opposite explicit width must fail
-compilation.
+and the explicit width in the same build tree. CMake versions can either
+retain the original `Sparse_DIR`, which must reject the opposite width at
+compile time, or resolve the new package. A successful reconfigure passes
+only if the cache names the new package and the consumer runs at its width.
 
 ## Verification And Limits
 

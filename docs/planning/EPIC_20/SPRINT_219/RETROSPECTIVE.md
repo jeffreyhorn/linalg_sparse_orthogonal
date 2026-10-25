@@ -49,9 +49,11 @@ actual hours worked.
    and the real archive's `sparse_idx_bits()` result.
 4. **Negative consumers test failure before unsafe use.** Relocated CMake
    imports, isolated `PKG_CONFIG_LIBDIR` consumers, swapped archives,
-   foreign include/library order, stale caches, and wrong explicit widths
-   have named rejection phases. The maintained example checks the linked
-   archive before its first index-bearing matrix operation.
+   foreign include/library order, stale package bindings, and wrong explicit
+   widths have named rejection phases. When CMake instead resolves the new
+   package during reconfigure, the fixture verifies its cached path and
+   runtime width. The maintained example checks the linked archive before
+   its first index-bearing matrix operation.
 5. **Selected 64-bit behavior has executable evidence.** A fresh 64-bit
    lane checks header/archive identity, insertion and LU, Matrix Market,
    CSR/CSC conversion, and text indices above `INT32_MAX` without a huge

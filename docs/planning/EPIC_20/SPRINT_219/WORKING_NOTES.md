@@ -192,8 +192,11 @@ CMake-installed consumer matrix and stale/mixed-prefix negatives.
 The CMake consumer matrix closes Day 9's 10-hour portion of item 219.4.
 The fixture requests the exact current package version and confirms wrong
 versions fail during configure. A stale `Sparse_DIR` binding is made visible
-by an opposing explicit width, which fails at compile time. Day 10 should
-complete the pkg-config and remaining mixed-prefix consumer cases.
+by an opposing explicit width and fails at compile time on this local CMake
+version. Other versions can rediscover the new prefix; the final fixture
+accepts that outcome only after checking the new cache path and runtime
+width. Day 10 should complete the pkg-config and remaining mixed-prefix
+consumer cases.
 
 ## Day 10 Evidence And Handoff
 

@@ -85,6 +85,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake pkg-config
 
+      - name: Run Make index-width build-tree contract checks
+        run: bash tests/test_make_idx_width.sh
+
       - name: Run Make install and pkg-config package proof
         run: bash tests/test_install.sh
 

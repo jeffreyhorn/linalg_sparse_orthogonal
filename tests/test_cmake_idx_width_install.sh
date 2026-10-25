@@ -176,6 +176,7 @@ for width in 32 64; do
         grep -Fq "Sparse_DIR:PATH=$prefix/lib/cmake/Sparse" "$stale/CMakeCache.txt"; then
         if cmake -S "$ROOT_DIR/tests/cmake_width_consumer" -B "$stale" \
             -DCMAKE_PREFIX_PATH="$other_prefix" \
+            -DSparse_DIR:PATH="$prefix/lib/cmake/Sparse" \
             -DSPARSE_TEST_CONSUMER_BITS="$other_width" >>"$stale_log" 2>&1 && \
             cmake --build "$stale" >>"$stale_log" 2>&1; then
             fail "$width-bit stale cache unexpectedly accepted opposite width"

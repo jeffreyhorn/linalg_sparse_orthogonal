@@ -33,9 +33,11 @@ The archive override is fixture-only: it changes the imported target's
 location to the opposite archive and verifies the verbose link uses that
 path. The resulting executable exits with `consumer=N header=N archive=M`
 before printing a version, solution, or `OK`. The stale-cache fixture first
-builds and runs against its original prefix, changes `CMAKE_PREFIX_PATH` in
-the same build tree, then confirms that cached `Sparse_DIR` remains bound to
-the original package and an opposite explicit width fails compilation.
+builds and runs against its original prefix, then changes `CMAKE_PREFIX_PATH`
+in the same build tree while explicitly retaining the original `Sparse_DIR`.
+This pins the stale binding even on CMake versions that rediscover a package
+when only the prefix path changes. The opposite explicit width must fail
+compilation.
 
 ## Verification And Limits
 

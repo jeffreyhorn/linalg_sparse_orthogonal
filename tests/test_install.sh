@@ -303,7 +303,8 @@ if [ -f "$ARCHIVE" ] && [ -n "${CFLAGS_PC:-}" ] && [ -n "${LIBS_PC:-}" ]; then
     fi
     # The explicit path tests the linker's missing-file diagnostic only. The
     # validator above rejects this prefix before another pkg-config link.
-    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" "$ARCHIVE" \
+    if $CC -std=c11 -Wall -I"$ROOT_DIR/examples/cmake_example" $CFLAGS_PC \
+        "$TMPDIR/test_link.c" "$ARCHIVE" \
         -lm \
         -o "$TMPDIR/test_link_missing_archive" >"$MISSING_ARCHIVE_LOG" 2>&1; then
         fail "consumer unexpectedly linked without installed static archive"

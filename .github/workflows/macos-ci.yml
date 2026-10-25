@@ -97,6 +97,15 @@ jobs:
           make clean
           make CC=${{ matrix.cc }} sanitize
 
+  selected-index-width-64:
+    name: macOS selected 64-bit index functional lane
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run selected 64-bit CMake functional cases
+        run: bash tests/test_cmake_idx_width_functional.sh
+
   # Verify the reviewed macOS static-first Make install/`pkg-config` path.
   # This job installs to a temp prefix and runs the maintained Unix-side
   # package proof script on the hosted macOS runner. It proves the static
@@ -112,6 +121,9 @@ jobs:
       - name: Run reviewed Make install/pkg-config proof
         run: bash tests/test_install.sh
 
+      - name: Run 32/64-bit pkg-config and mixed-prefix matrix
+        run: bash tests/test_pkgconfig_idx_width_install.sh
+
   # Verify the reviewed macOS static-first CMake install/export path. This
   # job performs a full CMake install/export and downstream find_package proof
   # on the hosted macOS runner, plus the static-first deferral guard. It proves
@@ -126,6 +138,12 @@ jobs:
 
       - name: Run reviewed CMake install/export proof
         run: bash tests/test_cmake_install.sh
+
+      - name: Run 32/64-bit CMake installed-consumer matrix
+        run: bash tests/test_cmake_idx_width_install.sh
+
+      - name: Run installed archive-width pre-use checks
+        run: bash tests/test_installed_width_check.sh
 
       - name: Test static install contract failure diagnostics
         run: python3 tests/test_static_install_contract.py

@@ -7,15 +7,20 @@
  *   cmake --build .
  *   ./example
  */
-#include <sparse/sparse_types.h>
-#include <sparse/sparse_matrix.h>
+#include "installed_width_check.h"
 #include <sparse/sparse_lu.h>
 #include <sparse/sparse_lu_csr.h>
+#include <sparse/sparse_matrix.h>
+#include <sparse/sparse_types.h>
 #include <stdio.h>
 
 int main(void) {
-    printf("Sparse library version %s (int %d)\n",
-           SPARSE_VERSION_STRING, SPARSE_VERSION);
+    size_t archive_bits = 0;
+    if (!sparse_installed_width_check(&archive_bits))
+        return 1;
+
+    printf("Sparse index width %zu\n", archive_bits);
+    printf("Sparse library version %s (int %d)\n", SPARSE_VERSION_STRING, SPARSE_VERSION);
 
     /* Create a small 3x3 SPD system and solve with LU */
     SparseMatrix *A = sparse_create(3, 3);

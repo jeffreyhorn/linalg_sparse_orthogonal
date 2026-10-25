@@ -9,6 +9,20 @@ CFLAGS += -isysroot $(SYSROOT)
 endif
 LDFLAGS = -lm
 
+SPARSE_IDX_BITS ?= 32
+ifneq ($(SPARSE_IDX_BITS),32)
+ifneq ($(SPARSE_IDX_BITS),64)
+$(error SPARSE_IDX_BITS must be 32 or 64 (got '$(SPARSE_IDX_BITS)'))
+endif
+endif
+ifneq ($(findstring SPARSE_IDX_BITS,$(CFLAGS)),)
+$(error Set SPARSE_IDX_BITS=32 or 64; do not define it in CFLAGS)
+endif
+ifneq ($(findstring SPARSE_IDX_BITS,$(CC)),)
+$(error Set SPARSE_IDX_BITS=32 or 64; do not define it in CC)
+endif
+override SPARSE_CFLAGS = $(CFLAGS) -DSPARSE_IDX_BITS=$(SPARSE_IDX_BITS)
+
 DLOPEN_PROBE_FREE_GOALS = clean docs format format-check uninstall
 
 ifeq ($(strip $(MAKECMDGOALS)),)
@@ -58,6 +72,8 @@ SRCDIR  = src
 TESTDIR = tests
 BENCHDIR = benchmarks
 BUILDDIR = build
+GENERATED_VERSION = $(BUILDDIR)/include/sparse_version.h
+SPARSE_WIDTH_STAMP = $(BUILDDIR)/.sparse-idx-bits
 
 # Library sources
 LIB_SRCS = $(SRCDIR)/sparse_types.c \
@@ -114,6 +130,8 @@ LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
 # Test sources
 TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
+            $(TESTDIR)/test_idx_width.c \
+            $(TESTDIR)/test_idx_width_functional.c \
             $(TESTDIR)/test_sparse_lu.c \
             $(TESTDIR)/test_sparse_io.c \
             $(TESTDIR)/test_known_matrices.c \
@@ -200,6 +218,23 @@ EXDIR = examples
 EX_SRCS = $(wildcard $(EXDIR)/*.c)
 EX_BINS = $(patsubst $(EXDIR)/%.c,$(BUILDDIR)/%,$(EX_SRCS))
 
+SPARSE_WIDTH_FREE_GOALS = clean docs format format-check uninstall
+ifeq ($(strip $(MAKECMDGOALS)),)
+SPARSE_WIDTH_CHECK = yes
+else ifneq ($(filter-out $(SPARSE_WIDTH_FREE_GOALS),$(MAKECMDGOALS)),)
+SPARSE_WIDTH_CHECK = yes
+endif
+ifeq ($(SPARSE_WIDTH_CHECK),yes)
+ifneq ($(wildcard $(SPARSE_WIDTH_STAMP)),)
+SPARSE_CACHED_IDX_BITS := $(shell sed -n '1p' "$(SPARSE_WIDTH_STAMP)")
+ifneq ($(SPARSE_CACHED_IDX_BITS),$(SPARSE_IDX_BITS))
+$(error $(BUILDDIR) has SPARSE_IDX_BITS=$(SPARSE_CACHED_IDX_BITS), requested $(SPARSE_IDX_BITS); use another BUILDDIR or make clean)
+endif
+else ifneq ($(wildcard $(GENERATED_VERSION) $(LIB_OBJS) $(LIB) $(TEST_BINS) $(BENCH_BINS) $(EX_BINS)),)
+$(error $(BUILDDIR) has unstamped build artifacts; use another BUILDDIR or make clean)
+endif
+endif
+
 # Default target
 .PHONY: all
 all: $(LIB)
@@ -207,15 +242,26 @@ all: $(LIB)
 # Build directory
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR) $(BUILDDIR)/include
-	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
-		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
-		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
-		-e 's|@SPARSE_VERSION_STRING@|$(VERSION)|g' \
-		include/sparse_version.h.in > $(GENERATED_VERSION)
+
+$(SPARSE_WIDTH_STAMP): | $(BUILDDIR)
+	@set -eu; tmp="$@.$$$$"; \
+		printf '%s\n' '$(SPARSE_IDX_BITS)' > "$$tmp"; \
+		if ln "$$tmp" "$@" 2>/dev/null; then \
+			rm -f "$$tmp"; \
+		else \
+			rm -f "$$tmp"; \
+			if [ ! -f "$@" ]; then \
+				echo "Could not create $(SPARSE_WIDTH_STAMP)" >&2; exit 1; \
+			fi; \
+			cached=$$(sed -n '1p' "$@"); \
+			if [ "$$cached" != '$(SPARSE_IDX_BITS)' ]; then \
+				echo "$(BUILDDIR) has SPARSE_IDX_BITS=$$cached, requested $(SPARSE_IDX_BITS); use another BUILDDIR or make clean" >&2; exit 1; \
+			fi; \
+		fi
 
 # Library objects
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c $(GENERATED_VERSION) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -c $< -o $@
 
 # Static library.  `ar rcs $@ $(LIB_OBJS)` instead of `$@ $^` because
 # the `$(LIB): $(GENERATED_VERSION)` rule below adds the generated
@@ -230,28 +276,28 @@ $(LIB): $(LIB_OBJS)
 # Thread tests need -pthread.  -lm is explicit here because CI may
 # override LDFLAGS (e.g., TSAN builds) without including -lm.
 $(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
 
 $(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
 
 $(BUILDDIR)/test_svd: $(TESTDIR)/test_svd.c $(TESTDIR)/test_svd_helpers.h $(TESTDIR)/test_svd_selected_helpers.h $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 $(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c $(TESTDIR)/test_ldlt_csc_fixtures.h $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h $(TESTDIR)/test_ldlt_csc_oracle_helpers.h $(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Benchmark executables
 $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Example executables
 $(BUILDDIR)/example_%: $(EXDIR)/example_%.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Compile example binaries without running them.  Pairs with `bench-build`
 # to give the local quality flow compile-only coverage for the public example
@@ -551,6 +597,7 @@ tsan: clean test
 TSAN_CC ?= $(firstword $(wildcard /usr/local/opt/llvm/bin/clang /opt/homebrew/opt/llvm/bin/clang))
 TSAN_BUILDDIR := $(BUILDDIR)/tsan
 TSAN_CFLAGS_BASE := -std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer
+TSAN_CFLAGS_BASE += -DSPARSE_IDX_BITS=$(SPARSE_IDX_BITS)
 ifneq ($(SYSROOT),)
 TSAN_CFLAGS_BASE += -isysroot $(SYSROOT)
 endif
@@ -621,13 +668,13 @@ format-check:
 
 # Run all linters
 .PHONY: lint
-lint: build/include/sparse_version.h tooling-build
+lint: $(GENERATED_VERSION) tooling-build
 	@echo "Compiling with strict warnings (-Werror)..."
-	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
+	$(CC) $(SPARSE_CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
 		$(INCLUDE) -fsyntax-only $(LIB_SRCS)
 	@echo ""
 	@echo "Running clang-tidy..."
-	clang-tidy $(LIB_SRCS) -- $(INCLUDE) $(CFLAGS)
+	clang-tidy $(LIB_SRCS) -- $(INCLUDE) $(SPARSE_CFLAGS)
 	@echo ""
 	@echo "Running cppcheck..."
 	cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
@@ -635,7 +682,7 @@ lint: build/include/sparse_version.h tooling-build
 		--suppress=constVariable --suppress=variableScope \
 		--suppress=nullPointerOutOfMemory --suppress=uninitvar \
 		--suppress=constParameterPointer --suppress=unreadVariable \
-		-I include $(SRCDIR) $(TESTDIR)
+		-I $(BUILDDIR)/include -I include $(SRCDIR) $(TESTDIR)
 
 # Legacy direct aggregate: keep semantics stable (`format-check + lint + test`)
 .PHONY: check
@@ -1059,17 +1106,16 @@ endif
 endif
 
 # Generate sparse_version.h from VERSION file and template
-GENERATED_VERSION = $(BUILDDIR)/include/sparse_version.h
-
 .PHONY: generate-version
 generate-version: $(GENERATED_VERSION)
 
-$(GENERATED_VERSION): VERSION include/sparse_version.h.in
+$(GENERATED_VERSION): VERSION include/sparse_version.h.in | $(SPARSE_WIDTH_STAMP)
 	@mkdir -p $(BUILDDIR)/include
 	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
 		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
 		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
 		-e 's|@SPARSE_VERSION_STRING@|$(VERSION)|g' \
+		-e 's|@SPARSE_BUILT_IDX_BITS@|$(SPARSE_IDX_BITS)|g' \
 		include/sparse_version.h.in > $(GENERATED_VERSION)
 	@echo "Generated $(GENERATED_VERSION) ($(VERSION))"
 
@@ -1088,6 +1134,7 @@ install: $(LIB)
 	done
 	install -m 644 $(GENERATED_VERSION) $(INSTALL_INC)/
 	@sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' \
+		-e 's|@SPARSE_PACKAGE_IDX_BITS@|$(SPARSE_IDX_BITS)|g' \
 		-e 's|@SPARSE_PC_LIBS_EXTRA@|$(SPARSE_PC_LIBS_EXTRA)|g' \
 		sparse.pc.in > $(INSTALL_PC)/sparse.pc
 	@echo "Installed:"

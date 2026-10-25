@@ -72,13 +72,13 @@ def test_current_windows_workflow_structural_validation() -> None:
 
 def test_windows_ctest_count_drift_fails_clearly() -> None:
     drifted = read_workflow().replace(
-        'EXPECTED_WINDOWS_CTEST_COUNT: "60"',
-        'EXPECTED_WINDOWS_CTEST_COUNT: "59"',
+        'EXPECTED_WINDOWS_CTEST_COUNT: "62"',
+        'EXPECTED_WINDOWS_CTEST_COUNT: "61"',
         1,
     )
     assert_raises_with(
         lambda: validator.validate_workflow_structure(drifted),
-        "must pin EXPECTED_WINDOWS_CTEST_COUNT to 60",
+        "must pin EXPECTED_WINDOWS_CTEST_COUNT to 62",
     )
 
 

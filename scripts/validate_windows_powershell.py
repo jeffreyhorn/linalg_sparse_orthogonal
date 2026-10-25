@@ -40,7 +40,7 @@ DEFERRAL_MARKER = "Windows report freshness remains formally deferred"
 WORKFLOW_SELECTED_CHOLESKY_MARKER = "Sprint 190 promotes one bounded selected Cholesky comparison"
 WORKFLOW_SELECTED_QR_MARKER = "Sprint 209 adds one bounded selected QR incompatible"
 WINDOWS_RUNNER = "windows-2022"
-EXPECTED_WINDOWS_CTEST_COUNT = 'EXPECTED_WINDOWS_CTEST_COUNT: "60"'
+EXPECTED_WINDOWS_CTEST_COUNT = 'EXPECTED_WINDOWS_CTEST_COUNT: "62"'
 FORBIDDEN_SELECTED_FRESHNESS = (
     "report-index-oracle-freshness",
     "report-index-comparison-freshness",
@@ -740,7 +740,7 @@ def validate_workflow_structure(
     pass_msg("windows workflow selected QR comment")
     if EXPECTED_WINDOWS_CTEST_COUNT not in text:
         raise ValidationError(
-            "windows workflow must pin EXPECTED_WINDOWS_CTEST_COUNT to 60 for "
+            "windows workflow must pin EXPECTED_WINDOWS_CTEST_COUNT to 62 for "
             "the reviewed CMake test surface"
         )
     pass_msg("windows workflow expected CTest count")

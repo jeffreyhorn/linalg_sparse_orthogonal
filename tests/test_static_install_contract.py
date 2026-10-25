@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -22,7 +23,7 @@ includedir=${prefix}/include
 Name: sparse
 Description: Static archive package metadata for sparse linear algebra
 Version: 2.2.0
-Cflags: -I${includedir}
+Cflags: -I${includedir} -DSPARSE_PACKAGE_IDX_BITS=32
 Libs: -L${libdir} -lsparse_lu_ortho -lm
 """
 
@@ -34,6 +35,11 @@ def write_fixture(prefix: Path, mode: str = "cmake", platform: str = "unix") -> 
         "sparse_lu_ortho.lib" if platform == "windows" else "libsparse_lu_ortho.a"
     )
     (library_dir / archive).write_bytes(b"static archive fixture")
+    header_dir = prefix / "include" / "sparse"
+    header_dir.mkdir(parents=True)
+    (header_dir / "sparse_version.h").write_text(
+        "#define SPARSE_BUILT_IDX_BITS 32\n", encoding="utf-8"
+    )
     (library_dir / "pkgconfig" / "sparse.pc").write_text(
         PC.replace("prefix=/tmp/sparse-prefix", f"prefix={prefix}"),
         encoding="utf-8",
@@ -50,7 +56,9 @@ def write_fixture(prefix: Path, mode: str = "cmake", platform: str = "unix") -> 
         'set(PACKAGE_VERSION "2.2.0")\n', encoding="utf-8"
     )
     (package_dir / "SparseTargets.cmake").write_text(
-        'add_library(Sparse::sparse_lu_ortho STATIC IMPORTED)\n',
+        'add_library(Sparse::sparse_lu_ortho STATIC IMPORTED)\n'
+        'set_target_properties(Sparse::sparse_lu_ortho PROPERTIES\n'
+        '  INTERFACE_COMPILE_DEFINITIONS "SPARSE_PACKAGE_IDX_BITS=32")\n',
         encoding="utf-8",
     )
     (package_dir / "SparseTargets-release.cmake").write_text(
@@ -66,6 +74,10 @@ class StaticInstallContractTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.prefix = Path(self.temp_dir.name) / "prefix"
         write_fixture(self.prefix)
+        archive_probe = patch("check_static_install_contract.query_archive_bits",
+                              return_value=32)
+        self.archive_probe = archive_probe.start()
+        self.addCleanup(archive_probe.stop)
 
     def errors(self, mode: str = "cmake", platform: str = "unix") -> list[str]:
         return validate(self.prefix, mode, platform, VERSION)
@@ -279,6 +291,64 @@ class StaticInstallContractTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assert_rejects("pkg-config prefix must be absolute")
+
+    def test_rejects_bad_pkgconfig_width_flags(self) -> None:
+        path = self.prefix / "lib/pkgconfig/sparse.pc"
+        original = path.read_text(encoding="utf-8")
+        for flags in (
+            "-I${includedir}",
+            "-I${includedir} -DSPARSE_PACKAGE_IDX_BITS=32 -DSPARSE_PACKAGE_IDX_BITS=32",
+            "-I${includedir} -DSPARSE_PACKAGE_IDX_BITS=128",
+            "-I${includedir} -DSPARSE_IDX_BITS=32",
+            "-I${includedir} -DSPARSE_PACKAGE_IDX_BITS=64 -I/build/include",
+        ):
+            with self.subTest(flags=flags):
+                path.write_text(original.replace(
+                    "-I${includedir} -DSPARSE_PACKAGE_IDX_BITS=32", flags
+                ), encoding="utf-8")
+                self.assert_rejects("pkg-config Cflags")
+        path.write_text(original, encoding="utf-8")
+
+    def test_rejects_mismatched_pkgconfig_width(self) -> None:
+        path = self.prefix / "lib/pkgconfig/sparse.pc"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "SPARSE_PACKAGE_IDX_BITS=32", "SPARSE_PACKAGE_IDX_BITS=64"
+        ), encoding="utf-8")
+        self.assert_rejects("installed index widths disagree")
+
+    def test_rejects_bad_exported_target_width(self) -> None:
+        path = self.prefix / "lib/cmake/Sparse/SparseTargets.cmake"
+        original = path.read_text(encoding="utf-8")
+        for value in ("", "SPARSE_PACKAGE_IDX_BITS=128",
+                      "SPARSE_PACKAGE_IDX_BITS=32;SPARSE_PACKAGE_IDX_BITS=32"):
+            with self.subTest(value=value):
+                path.write_text(original.replace("SPARSE_PACKAGE_IDX_BITS=32", value),
+                                encoding="utf-8")
+                self.assert_rejects("CMake imported target must declare one supported package width")
+        path.write_text(original.replace("SPARSE_PACKAGE_IDX_BITS=32",
+                                         "SPARSE_PACKAGE_IDX_BITS=64"), encoding="utf-8")
+        self.assert_rejects("installed index widths disagree")
+
+    def test_rejects_width_declaration_outside_exported_target(self) -> None:
+        target = self.prefix / "lib/cmake/Sparse/SparseTargets.cmake"
+        config = self.prefix / "lib/cmake/Sparse/SparseConfig.cmake"
+        target.write_text(target.read_text(encoding="utf-8").replace(
+            'INTERFACE_COMPILE_DEFINITIONS "SPARSE_PACKAGE_IDX_BITS=32"',
+            'INTERFACE_COMPILE_DEFINITIONS ""'
+        ), encoding="utf-8")
+        config.write_text(config.read_text(encoding="utf-8") +
+                          'set_property(TARGET Sparse::sparse_lu_ortho PROPERTY '
+                          'INTERFACE_COMPILE_DEFINITIONS "SPARSE_PACKAGE_IDX_BITS=32")\n',
+                          encoding="utf-8")
+        self.assert_rejects("CMake imported target must declare one supported package width")
+
+    def test_rejects_header_or_archive_width_disagreement(self) -> None:
+        path = self.prefix / "include/sparse/sparse_version.h"
+        path.write_text("#define SPARSE_BUILT_IDX_BITS 64\n", encoding="utf-8")
+        self.assert_rejects("installed index widths disagree")
+        path.write_text("#define SPARSE_BUILT_IDX_BITS 32\n", encoding="utf-8")
+        self.archive_probe.return_value = 64
+        self.assert_rejects("installed index widths disagree")
 
     def test_rejects_cmake_metadata_in_make_install(self) -> None:
         self.assertIn(

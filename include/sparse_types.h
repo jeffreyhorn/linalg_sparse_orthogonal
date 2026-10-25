@@ -26,18 +26,38 @@
  * dimensions at ~2.1 billion and nonzero counts at INT32_MAX (~2.1 billion
  * entries).
  *
- * Select the width at compile time with `-DSPARSE_IDX_BITS=32` or
- * `-DSPARSE_IDX_BITS=64`. The library is compiled for one width at a time;
- * callers and downstream code that store or pass index values must rebuild
- * against the same width and use @c idx_t instead of bare integer types.
+ * Make selects the width with SPARSE_IDX_BITS=32 or 64; CMake uses
+ * -DSPARSE_IDX_BITS=32 or 64. Both default to 32. Build each width in a
+ * separate clean tree; install each width to a separate clean prefix. The
+ * generated sparse_version.h records the library width as
+ * @c SPARSE_BUILT_IDX_BITS. An explicit consumer
+ * @c SPARSE_IDX_BITS or installed-package @c SPARSE_PACKAGE_IDX_BITS that
+ * disagrees with the header is rejected at compile time. A wrong archive
+ * linked directly is not detected by the header: before any index-bearing
+ * call, compare @c sparse_idx_bits() with @c SPARSE_BUILT_IDX_BITS and
+ * sizeof(idx_t) * CHAR_BIT. Rebuild callers against the selected width and
+ * use @c idx_t for stored or passed indices; mixed-width and cross-version
+ * ABI compatibility are not supported.
  *
  * **Rationale:** 32-bit indices halve memory for index arrays compared to
  * 64-bit, improving cache efficiency for typical sparse matrix sizes. The
- * 64-bit path is the bounded wider-index modernization seam for larger
- * matrices that need it.
+ * 64-bit path has selected functional and installed-consumer coverage, not
+ * universal algorithm coverage.
  */
+#if SPARSE_BUILT_IDX_BITS != 32 && SPARSE_BUILT_IDX_BITS != 64
+#error "SPARSE_BUILT_IDX_BITS must be 32 or 64"
+#endif
+
 #ifndef SPARSE_IDX_BITS
-#define SPARSE_IDX_BITS 32
+#define SPARSE_IDX_BITS SPARSE_BUILT_IDX_BITS
+#endif
+
+#if SPARSE_IDX_BITS != SPARSE_BUILT_IDX_BITS
+#error "SPARSE_IDX_BITS must match SPARSE_BUILT_IDX_BITS"
+#endif
+
+#if defined(SPARSE_PACKAGE_IDX_BITS) && SPARSE_PACKAGE_IDX_BITS != SPARSE_BUILT_IDX_BITS
+#error "SPARSE_PACKAGE_IDX_BITS must match SPARSE_BUILT_IDX_BITS"
 #endif
 
 #if SPARSE_IDX_BITS == 32
@@ -303,8 +323,10 @@ int sparse_errno(void);
 /**
  * @brief Return the configured width of @c idx_t in bits.
  *
- * Reports the compile-time width contract selected via @c SPARSE_IDX_BITS
- * for the currently built library.
+ * Reports the width compiled into the linked archive. An installed consumer
+ * should compare this with @c SPARSE_BUILT_IDX_BITS and
+ * sizeof(idx_t) * CHAR_BIT before any index-bearing library call; the header
+ * alone cannot detect an opposite-width archive selected by the linker.
  *
  * @return 32 or 64.
  */

@@ -65,6 +65,15 @@ jobs:
       - name: Run enforced reviewed CMake parity path
         run: make quality-review-cmake
 
+  selected-index-width-64:
+    name: Linux selected 64-bit index functional lane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run selected 64-bit CMake functional cases
+        run: bash tests/test_cmake_idx_width_functional.sh
+
   package-contract:
     name: Linux reviewed static-first package contract
     runs-on: ubuntu-latest
@@ -81,6 +90,15 @@ jobs:
 
       - name: Run CMake install/export package proof
         run: bash tests/test_cmake_install.sh
+
+      - name: Run 32/64-bit CMake installed-consumer matrix
+        run: bash tests/test_cmake_idx_width_install.sh
+
+      - name: Run 32/64-bit pkg-config and mixed-prefix matrix
+        run: bash tests/test_pkgconfig_idx_width_install.sh
+
+      - name: Run installed archive-width pre-use checks
+        run: bash tests/test_installed_width_check.sh
 
       - name: Test static install contract failure diagnostics
         run: python3 tests/test_static_install_contract.py

@@ -55,6 +55,8 @@ jobs:
             run_direct_make_test: "true"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # The differential guard reads its frozen baseline commit.
 
       - name: Validate structured API docs workflow reader (Apple Clang leg)
         if: matrix.compiler == 'apple-clang'

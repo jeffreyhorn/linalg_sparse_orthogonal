@@ -14,12 +14,42 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from api_docs_workflow_reader import read_workflows  # noqa: E402
 from run_api_docs_workflow_differential import (  # noqa: E402
     MIXED_VARIANTS, _classify, _edge_stage_matches, _unexpected_count, load_oracle, run,
 )
 
 
 class DifferentialHarnessTests(unittest.TestCase):
+    def test_ci_jobs_running_differential_fetch_baseline_history(self):
+        checked_jobs = set()
+        for workflow in read_workflows(ROOT):
+            for job in workflow.jobs:
+                differential_steps = [
+                    step for step in job.steps
+                    if step.run_value is not None
+                    and "tests/test_api_docs_workflow_differential.py" in step.run_value.value
+                ]
+                if not differential_steps:
+                    continue
+                checked_jobs.add((workflow.path.name, job.key))
+                checkout_steps = [
+                    step for step in job.steps
+                    if step.action_identity is not None
+                    and step.action_identity.value.startswith("actions/checkout@")
+                    and step.step_index < differential_steps[0].step_index
+                ]
+                self.assertTrue(checkout_steps, f"{workflow.path.name}:{job.key} lacks checkout")
+                inputs = dict(checkout_steps[-1].with_inputs)
+                self.assertEqual(
+                    "0", inputs["fetch-depth"].value,
+                    f"{workflow.path.name}:{job.key} needs frozen baseline history",
+                )
+        self.assertEqual(
+            {("ci.yml", "build-and-test"), ("macos-ci.yml", "build-and-test")},
+            checked_jobs,
+        )
+
     def test_frozen_registration_and_mixed_variant_counts(self):
         _, oracle, registered = load_oracle()
         self.assertEqual(190, len(oracle))

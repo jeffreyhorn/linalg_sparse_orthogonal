@@ -1,0 +1,10 @@
+name: safe static artifact
+on: [push]
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ready
+      - uses: actions/upload-artifact@v4
+        with:
+          path: build/output

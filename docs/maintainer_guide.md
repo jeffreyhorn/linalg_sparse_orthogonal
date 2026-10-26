@@ -1351,6 +1351,80 @@ Expected repair artifacts are regenerated local `docs/api/html/` output plus
 passing `api-docs-coverage`, `api-docs-local-only`, and `api-docs-routing`
 checks. They are not retained generated-doc artifacts.
 
+#### Structured workflow guard
+
+The workflow publication check reads every `.yml` and `.yaml` file under
+`.github/workflows/` with the pinned `PyYAML==6.0.3` dependency in
+`requirements-api-docs.txt`. Linux and macOS CI install that requirement in
+an isolated virtual environment. For a local reproduction from the repository
+root, use a virtual-environment Python path appropriate for your host:
+
+```bash
+python3 -m venv /tmp/api-docs-reader-venv
+/tmp/api-docs-reader-venv/bin/python -m pip install -r requirements-api-docs.txt
+make api-docs-local-only API_DOCS_PYTHON=/tmp/api-docs-reader-venv/bin/python
+/tmp/api-docs-reader-venv/bin/python tests/test_api_docs_workflow_reader.py
+/tmp/api-docs-reader-venv/bin/python tests/test_api_docs_workflow_policy.py
+/tmp/api-docs-reader-venv/bin/python tests/test_api_docs_workflow_mutations.py
+```
+
+`make api-docs-local-only` runs `docs-check` first, so it also requires
+Doxygen. The focused Python tests exercise the reader and policy but do not
+replace the integrated gate. A missing PyYAML installation is a setup failure,
+not permission to skip the publication check.
+
+The reader preserves workflow, job, and step boundaries and source locations.
+It handles block and flow collections, static anchors and aliases, quoted and
+block `run` scalars, and YAML comments. The effective shell comes from the
+step's `shell`, then job `defaults.run.shell`, then workflow
+`defaults.run.shell`, then a recognized runner default. The policy checks
+generated API references in action identities, inputs, environment values,
+and active commands; broad docs or repository publication paths; and
+same-job, ordered staging into a later upload or publisher. An unrelated
+upload or a different job does not inherit a staged path.
+
+Action path inputs are split into entries, with backslashes treated as path
+separators, dot segments normalized, and case folded for matching. Shell
+commands are interpreted separately using the effective shell. Staging and
+publisher recognition covers the explicit POSIX and PowerShell command forms
+in `scripts/api_docs_workflow_staging.py`; this is not general shell analysis.
+The current maintained `cmd` steps have been inspected, but arbitrary `cmd`
+or unknown-shell staging is not a coverage claim. Add a focused fixture and
+review before relying on a new command family or shell form.
+
+Malformed YAML, duplicate keys, unknown aliases, cycles, merge keys, custom
+tags, missing `run`/`uses`, and unsupported job or step shapes fail at the
+reader. Dynamic or unresolved action identities and publication paths fail
+at policy validation. For a rejection, run the reader or policy directly to
+separate parsing from publication analysis:
+
+```bash
+/tmp/api-docs-reader-venv/bin/python scripts/api_docs_workflow_reader.py .
+/tmp/api-docs-reader-venv/bin/python scripts/api_docs_workflow_policy.py .
+git status --short --ignored docs/api
+```
+
+Reader errors identify the workflow file, line, column, and parse or
+unsupported-feature reason. Policy errors identify the file, line, column,
+`jobs.<job>` and, where applicable, `steps[<zero-based index>]`. A staging
+error can point to its producing `run` step, so inspect later upload steps in
+the same job as well. The shell guard delegates workflow checks to this
+structured policy; rerun the direct policy command to isolate workflow
+diagnostics from Git-state, Doxyfile, or wording failures.
+
+For unsupported YAML, use a supported static form and add a reader fixture
+before expanding the grammar. For an unresolved action identity or dynamic
+publication path, make the identity and source path explicit and add a policy
+fixture; do not suppress the check. A syntactically valid but unclassified
+third-party action is not proof that the action cannot publish: review its
+inputs and add a targeted fixture before depending on it for a new workflow
+route. Repair path ownership in the indicated job and inspect any upstream
+staging command before changing the policy. If generated HTML publication is
+actually required, reopen the product decision with hosting or retention,
+freshness, routing, rollback, and security evidence. A guard pass or bypass
+does not authorize hosted HTML, a retained CI artifact, a release asset, or
+committed generated output.
+
 API reference guidance may say that public headers own exact declarations and
 call-site contracts and that `make api-docs-freshness` generates and validates
 local Doxygen HTML while enforcing local-only generated-output staging and API

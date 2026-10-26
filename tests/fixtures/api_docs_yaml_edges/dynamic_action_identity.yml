@@ -1,0 +1,9 @@
+name: dynamic publisher
+on: [push]
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ${{ inputs.publisher }}
+        with:
+          path: build/output

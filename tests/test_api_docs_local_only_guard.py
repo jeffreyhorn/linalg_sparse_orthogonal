@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import tempfile
+import os
 from pathlib import Path
 
 
@@ -39,6 +41,16 @@ def write_fixture(root: Path) -> None:
         ),
         encoding="utf-8",
     )
+    for name in (
+        "api_docs_workflow_reader.py",
+        "api_docs_workflow_policy_inputs.py",
+        "api_docs_workflow_policy.py",
+        "api_docs_workflow_staging.py",
+    ):
+        (root / "scripts" / name).write_text(
+            (REPO_ROOT / "scripts" / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
     (root / ".gitignore").write_text("docs/api/\n", encoding="utf-8")
     (root / "docs" / "api" / "html" / "index.html").write_text(
         "<!doctype html>\n",
@@ -89,7 +101,15 @@ def write_fixture(root: Path) -> None:
 
 
 def run_guard(root: Path) -> subprocess.CompletedProcess[str]:
-    return run(["bash", "scripts/check_api_docs_local_only.sh"], root)
+    return subprocess.run(
+        ["bash", "scripts/check_api_docs_local_only.sh"],
+        cwd=root,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, "API_DOCS_PYTHON": sys.executable},
+    )
 
 
 def run_git(root: Path, *args: str) -> None:
@@ -139,7 +159,7 @@ def test_workflow_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_dot_segment_generated_api_path_fails_clearly() -> None:
@@ -155,7 +175,7 @@ def test_workflow_dot_segment_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_quoted_hash_before_generated_api_path_fails_clearly() -> None:
@@ -171,7 +191,7 @@ def test_workflow_quoted_hash_before_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_shell_quoted_path_fragments_generated_api_path_fails() -> None:
@@ -187,7 +207,7 @@ def test_workflow_shell_quoted_path_fragments_generated_api_path_fails() -> None
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_escaped_run_generated_api_path_fails_clearly() -> None:
@@ -203,7 +223,7 @@ def test_workflow_escaped_run_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_escaped_env_generated_api_path_fails_clearly() -> None:
@@ -224,7 +244,7 @@ def test_workflow_escaped_env_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API output paths")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_multiline_escaped_env_generated_api_path_fails() -> None:
@@ -243,7 +263,7 @@ def test_workflow_multiline_escaped_env_generated_api_path_fails() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_plain_scalar_apostrophe_before_comment_is_allowed() -> None:
@@ -322,7 +342,7 @@ def test_workflow_single_quoted_doubled_apostrophe_before_copy_fails() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_yaml_workflow_generated_api_path_fails_clearly() -> None:
@@ -338,7 +358,7 @@ def test_yaml_workflow_generated_api_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API HTML output path")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_generated_api_root_path_fails_clearly() -> None:
@@ -354,7 +374,7 @@ def test_workflow_generated_api_root_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API output root")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_rooted_generated_api_root_path_fails_clearly() -> None:
@@ -370,7 +390,7 @@ def test_workflow_rooted_generated_api_root_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API output root")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_relative_generated_api_root_path_fails_clearly() -> None:
@@ -386,7 +406,7 @@ def test_workflow_relative_generated_api_root_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API output root")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_publication_semantics_fail_clearly() -> None:
@@ -405,7 +425,7 @@ def test_workflow_publication_semantics_fail_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_windows_generated_api_artifact_path_fails_clearly() -> None:
@@ -425,7 +445,7 @@ def test_workflow_windows_generated_api_artifact_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_escaped_generated_api_artifact_path_fails_clearly() -> None:
@@ -445,7 +465,7 @@ def test_workflow_escaped_generated_api_artifact_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_escaped_upload_artifact_action_reference_fails() -> None:
@@ -484,7 +504,7 @@ def test_workflow_flow_mapping_escaped_generated_api_artifact_path_fails() -> No
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_flow_mapping_multiline_escaped_generated_api_artifact_path_fails() -> None:
@@ -503,7 +523,7 @@ def test_workflow_flow_mapping_multiline_escaped_generated_api_artifact_path_fai
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_multiline_escaped_generated_api_artifact_path_fails() -> None:
@@ -524,7 +544,7 @@ def test_workflow_multiline_escaped_generated_api_artifact_path_fails() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_newline_escaped_docs_artifact_path_fails() -> None:
@@ -560,7 +580,7 @@ def test_workflow_mixed_case_backslash_generated_api_reference_fails_clearly() -
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "generated API output root")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_broad_docs_artifact_path_fails_clearly() -> None:
@@ -861,7 +881,7 @@ def test_workflow_dotted_anchor_docs_artifact_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+    assert_guard_fails_with(mutate, "parse: while scanning an anchor")
 
 
 def test_workflow_aliased_docs_path_ignores_run_block_anchor_text() -> None:
@@ -924,7 +944,7 @@ def test_workflow_uppercase_windows_broad_docs_artifact_path_fails_clearly() -> 
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_flow_mapping_docs_artifact_path_fails_clearly() -> None:
@@ -999,7 +1019,7 @@ def test_workflow_multiline_escaped_quoted_path_key_docs_artifact_path_fails() -
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+    assert_guard_fails_with(mutate, "parse: while scanning a simple key")
 
 
 def test_workflow_flow_mapping_escaped_uses_and_quoted_docs_path_fails() -> None:
@@ -1034,7 +1054,7 @@ def test_workflow_multiline_flow_mapping_escaped_uses_and_path_fails() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_spaced_path_key_docs_artifact_path_fails_clearly() -> None:
@@ -1356,7 +1376,7 @@ def test_workflow_broad_workspace_docs_artifact_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_artifact_path_fails_closed() -> None:
@@ -1376,7 +1396,7 @@ def test_workflow_dynamic_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_embedded_expression_artifact_path_fails_closed() -> None:
@@ -1396,7 +1416,7 @@ def test_workflow_embedded_expression_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_flow_mapping_artifact_path_fails_closed() -> None:
@@ -1410,11 +1430,11 @@ def test_workflow_dynamic_flow_mapping_artifact_path_fails_closed() -> None:
             "    steps:\n"
             "      - run: make api-docs-freshness\n"
             "      - uses: actions/upload-artifact@v4\n"
-            "        with: {name: generated-api-html, path: ${{ env.DOCS_PATH }}}\n",
+            "        with: {name: generated-api-html, path: '${{ env.DOCS_PATH }}'}\n",
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_block_artifact_path_fails_closed() -> None:
@@ -1435,7 +1455,7 @@ def test_workflow_dynamic_block_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_chomped_block_artifact_path_fails_closed() -> None:
@@ -1456,7 +1476,7 @@ def test_workflow_dynamic_chomped_block_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_quoted_dynamic_block_artifact_path_fails_closed() -> None:
@@ -1477,7 +1497,7 @@ def test_workflow_quoted_dynamic_block_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_embedded_dynamic_block_artifact_path_fails_closed() -> None:
@@ -1498,7 +1518,7 @@ def test_workflow_embedded_dynamic_block_artifact_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_release_files_path_fails_closed() -> None:
@@ -1517,7 +1537,7 @@ def test_workflow_dynamic_release_files_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_release_asset_path_fails_closed() -> None:
@@ -1536,7 +1556,7 @@ def test_workflow_dynamic_release_asset_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
@@ -1553,7 +1573,7 @@ def test_workflow_dynamic_command_publication_path_fails_closed() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "dynamic publication paths")
+    assert_guard_fails_with(mutate, "dynamic publication path in run command")
 
 
 def test_workflow_dynamic_staging_source_artifact_upload_fails_closed() -> None:
@@ -1698,7 +1718,7 @@ def test_workflow_broad_workspace_docs_without_trailing_slash_fails_clearly() ->
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_broad_workspace_root_artifact_path_fails_clearly() -> None:
@@ -1718,7 +1738,7 @@ def test_workflow_broad_workspace_root_artifact_path_fails_clearly() -> None:
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publishes docs or repository roots")
+    assert_guard_fails_with(mutate, "dynamic or unresolved publication path")
 
 
 def test_workflow_broad_docs_glob_artifact_path_fails_clearly() -> None:
@@ -1996,7 +2016,7 @@ def test_workflow_literal_run_hash_before_generated_copy_fails_clearly() -> None
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_folded_docs_publish_command_fails_clearly() -> None:
@@ -2219,6 +2239,8 @@ def test_workflow_flow_step_powershell_override_stages_docs() -> None:
 
 def test_workflow_windows_shell_scope_across_comments_and_indentless_steps() -> None:
     for steps_prefix, step_indent in (("# workflow comment\n", "      "), ("", "    ")):
+        with_indent = step_indent + "  "
+        input_indent = with_indent + "  "
         def mutate(root: Path) -> None:
             (root / ".github" / "workflows" / "api-docs.yml").write_text(
                 "name: windows-artifacts\n"
@@ -2232,9 +2254,9 @@ def test_workflow_windows_shell_scope_across_comments_and_indentless_steps() -> 
                 "          Copy-Item -Recurse -Path `\n"
                 "            docs -Destination artifact\n"
                 f"{step_indent}- uses: actions/upload-artifact@v4\n"
-                "        with:\n"
-                "          name: results\n"
-                "          path: artifact/\n",
+                f"{with_indent}with:\n"
+                f"{input_indent}name: results\n"
+                f"{input_indent}path: artifact/\n",
                 encoding="utf-8",
             )
 
@@ -2836,7 +2858,7 @@ def test_workflow_flow_sequence_run_docs_copy_artifact_upload_fails() -> None:
 def test_workflow_flow_sequence_after_non_run_step_docs_copy_fails() -> None:
     prefixes = (
         "steps: [{uses: actions/checkout@v4}, ",
-        'steps: [{name: "quoted } and {run: harmless"}, {uses: actions/checkout@v4, with: {fetch-depth: 1}}, ',
+        'steps: [{name: "quoted } and {run: harmless", uses: actions/checkout@v4}, {uses: actions/checkout@v4, with: {fetch-depth: 1}}, ',
     )
     for prefix in prefixes:
         def mutate(root: Path) -> None:
@@ -3411,7 +3433,7 @@ def test_workflow_literal_shell_multiline_string_before_generated_copy_fails() -
             encoding="utf-8",
         )
 
-    assert_guard_fails_with(mutate, "publication, artifact, or Pages semantics")
+    assert_guard_fails_with(mutate, "generated API output path")
 
 
 def test_workflow_multiline_quoted_hash_before_split_docs_copy_fails() -> None:

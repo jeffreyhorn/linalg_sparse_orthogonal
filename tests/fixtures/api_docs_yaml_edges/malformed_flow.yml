@@ -1,0 +1,9 @@
+name: malformed flow
+on: [push]
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          path: [docs/api/html

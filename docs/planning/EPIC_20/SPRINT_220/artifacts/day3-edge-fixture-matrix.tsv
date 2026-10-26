@@ -1,0 +1,11 @@
+fixture	expected_class	failure_stage	legacy_class	reason
+duplicate_with_path.yml	REJECT	parse	REJECT	Duplicate with.path must not hide a docs/api/html upload.
+duplicate_step_run.yml	REJECT	parse	REJECT	Duplicate step.run must not hide an active generated-API reference.
+malformed_flow.yml	REJECT	parse	REJECT	Incomplete flow sequence is malformed YAML.
+unknown_alias.yml	REJECT	parse	ALLOW	Undefined alias must not silently erase the upload path.
+merge_key.yml	REJECT	unsupported	REJECT	Merge-key expansion is outside the supported workflow subset.
+custom_tag.yml	REJECT	unsupported	ALLOW	Custom tag in a publication field has no safe interpretation.
+dynamic_upload_path.yml	REJECT	policy	REJECT	Unresolved publishing path might select generated HTML.
+dynamic_action_identity.yml	REJECT	policy	ALLOW	Unresolved action identity might select a publisher.
+safe_anchor.yml	ALLOW	-	ALLOW	Resolved static anchor selects build/output only.
+safe_static.yml	ALLOW	-	ALLOW	Static build/output upload with unrelated prior run is safe.

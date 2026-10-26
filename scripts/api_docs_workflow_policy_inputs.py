@@ -74,6 +74,7 @@ class PolicyInput:
     env_values: tuple[tuple[str, ScalarValue], ...]
     path_inputs: tuple[PathInput, ...]
     rendered_command: ScalarValue | None
+    working_directory: ScalarValue | None
     effective_shell: str
     shell_family: str
     staging_relations: tuple[StagedOutputRelation, ...]
@@ -112,7 +113,7 @@ def read_policy_inputs(root: Path) -> tuple[PolicyInput, ...]:
                         workflow.path, job.key, None, job.location, job.uses,
                         bool(_DYNAMIC_PATH.search(job.uses.value)),
                         job.with_inputs, workflow.env + job.env,
-                        _path_inputs(job.with_inputs), None,
+                        _path_inputs(job.with_inputs), None, None,
                         "unknown", "unknown", (),
                     )
                 )
@@ -124,6 +125,7 @@ def read_policy_inputs(root: Path) -> tuple[PolicyInput, ...]:
                         action, action is not None and bool(_DYNAMIC_PATH.search(action.value)),
                         step.with_inputs, workflow.env + job.env + step.env,
                         _path_inputs(step.with_inputs), step.run_value,
+                        step.working_directory,
                         step.effective_shell, step.shell_family, (),
                     )
                 )

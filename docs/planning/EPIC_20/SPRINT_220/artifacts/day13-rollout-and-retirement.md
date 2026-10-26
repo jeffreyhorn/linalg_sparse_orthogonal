@@ -18,11 +18,13 @@ This does not permit uploading `docs/` or `docs/api/html`.
 ## Frozen Oracle And Diagnostics
 
 The frozen 225-variant differential passed with zero fixture errors and zero
-current-versus-structured workflow verdict differences. It still reports 43
-historical legacy false positives relative to the frozen oracle, not new
-missed bypasses. The ten YAML edge fixtures passed, with two historical
-legacy false positives. The 190-function guard suite and 13-case mutation
-matrix passed separately.
+current-versus-structured workflow verdict differences. During PR #244 review,
+the report was regenerated with the historical guard and helper loaded from
+the same revision; it has no legacy discrepancies. The ten YAML edge fixtures
+still show three legacy missed bypasses. The previously reported 43 frozen
+false positives and two edge false positives came from a mismatched helper
+and were not valid policy findings. The 190-function guard suite and 13-case
+mutation matrix passed separately.
 
 The fixture verdict manifest was not changed. Assertions expecting the old
 file-scoped phrases for generated paths or publication now check the

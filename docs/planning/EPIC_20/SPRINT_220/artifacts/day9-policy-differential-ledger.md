@@ -12,8 +12,9 @@ the four mixed functions. For each temporary fixture worktree it runs:
    `05dba39abaa7c0acb38ff064690cdf5f67acf352`.
 3. The standalone structured reader and publication policy.
 
-Only the temporary fixture's `scripts/` directory receives a baseline guard
-copy; the checked-out project is not modified by the runner. The one
+Only the temporary fixture's `scripts/` directory receives copies of the
+baseline guard and its historical workflow-helper module; the checked-out
+project is not modified by the runner. The one
 `test_current_tree_passes_guard` control runs its baseline from a temporary
 script with root lookup redirected to the checkout. The six non-workflow
 contract cases compare the legacy and combined guards; the standalone
@@ -46,6 +47,14 @@ in these two frozen corpora. This is local differential evidence, not a
 claim that every possible shell command or future workflow is covered.
 Implicit publisher inputs and additional command forms remain explicit Day 10
 mutation-review targets.
+
+During PR #244 review, the differential runner was found to load the frozen
+guard with the current checkout's helper module. Import failures were then
+misclassified as legacy policy rejections. Both checked-in JSONL reports were
+regenerated with the guard and helper from the same frozen revision. The
+corrected full corpus has no legacy discrepancies; the edge corpus retains
+the three missed bypasses listed above. Earlier reports of 43 frozen-corpus
+legacy false positives and two edge false positives were harness artifacts.
 
 ## Local Verification
 

@@ -17,6 +17,27 @@ from test_api_docs_local_only_guard import run_guard, write_fixture  # noqa: E40
 
 
 class PolicyInputTests(unittest.TestCase):
+    def test_working_directory_precedence_reaches_run_inputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workflows = root / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "case.yml").write_text(
+                "defaults:\n  run:\n    working-directory: workflow-dir\n"
+                "jobs:\n  first:\n    runs-on: ubuntu-latest\n    steps:\n"
+                "      - run: echo workflow\n"
+                "  second:\n    runs-on: ubuntu-latest\n"
+                "    defaults:\n      run:\n        working-directory: job-dir\n"
+                "    steps:\n      - run: echo job\n"
+                "      - run: echo step\n        working-directory: step-dir\n",
+                encoding="utf-8",
+            )
+            inputs = read_policy_inputs(root)
+            self.assertEqual(
+                [item.working_directory.value for item in inputs],
+                ["workflow-dir", "job-dir", "step-dir"],
+            )
+
     def test_real_workflow_inventory(self):
         inputs = read_policy_inputs(REPO_ROOT)
         self.assertEqual(len(inputs), 110)

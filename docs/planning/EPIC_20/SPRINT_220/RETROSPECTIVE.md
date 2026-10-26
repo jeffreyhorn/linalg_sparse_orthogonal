@@ -44,10 +44,13 @@ jobs had not run at closeout and are not counted as passing evidence.
    the unrelated `checkout path: docs/` false positive without weakening the
    frozen rejection cases.
 4. **Differential evidence exposed both old failures and new behavior.** The
-   historical guard had three missed YAML-edge bypasses and 43 false-positive
-   verdicts against the frozen oracle. The final current and structured
-   workflow verdicts agreed across all 225 variants, with zero fixture errors.
-   The ten-edge matrix and mutation gate remained green after retirement.
+   historical guard had three missed YAML-edge bypasses. The final current
+   and structured workflow verdicts agreed across all 225 variants, with zero
+   fixture errors. During PR #244 review, the harness was corrected to load
+   the historical helper alongside the guard; the regenerated frozen report
+   has no legacy discrepancies. The earlier 43 false-positive verdicts were
+   import failures, not policy findings. The ten-edge matrix and mutation
+   gate remained green after retirement.
 5. **The product decision stayed narrow.** Local Doxygen output remained
    ignored, untracked, and unstaged. All nine maintained upload-artifact steps
    were inspected, and none selected generated API HTML. No Pages, release, or

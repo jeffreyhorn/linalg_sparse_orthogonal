@@ -67,6 +67,7 @@ class StepRecord:
     location: SourceLocation
     runs_on: ScalarValue | None
     shell: ScalarValue | None
+    working_directory: ScalarValue | None
     effective_shell: str
     shell_source: str
     shell_family: str
@@ -200,8 +201,8 @@ def _scalar_items(
     )
 
 
-def _default_shell(
-    path: Path, fields: dict[str, yaml.Node], text: str, label: str
+def _default_run_scalar(
+    path: Path, fields: dict[str, yaml.Node], text: str, label: str, key: str
 ) -> ScalarValue | None:
     defaults = fields.get("defaults")
     if defaults is None:
@@ -209,7 +210,10 @@ def _default_shell(
     run = _mapping(path, defaults, f"{label}.defaults").get("run")
     if run is None:
         return None
-    return _optional_scalar(path, _mapping(path, run, f"{label}.defaults.run"), text, "shell", label)
+    return _optional_scalar(
+        path, _mapping(path, run, f"{label}.defaults.run"), text, key,
+        f"{label}.defaults.run.{key}",
+    )
 
 
 def _effective_shell(
@@ -268,12 +272,16 @@ def read_workflow(path: Path) -> WorkflowRecord:
     jobs_map = _mapping(path, jobs_node, "jobs")
     if not jobs_map:
         raise _error("parse", path, jobs_node, "jobs must not be empty")
-    workflow_shell = _default_shell(path, fields, text, "workflow")
+    workflow_shell = _default_run_scalar(path, fields, text, "workflow", "shell")
+    workflow_directory = _default_run_scalar(path, fields, text, "workflow", "working-directory")
     workflow_env = _scalar_items(path, fields.get("env"), text, "workflow.env")
     jobs: list[JobRecord] = []
     for job_key, job_node in jobs_map.items():
         job_fields = _mapping(path, job_node, f"jobs.{job_key}")
-        job_shell = _default_shell(path, job_fields, text, f"jobs.{job_key}")
+        job_shell = _default_run_scalar(path, job_fields, text, f"jobs.{job_key}", "shell")
+        job_directory = _default_run_scalar(
+            path, job_fields, text, f"jobs.{job_key}", "working-directory"
+        )
         job_env = _scalar_items(path, job_fields.get("env"), text, f"jobs.{job_key}.env")
         runner = _optional_scalar(path, job_fields, text, "runs-on", f"jobs.{job_key}.runs-on")
         job_uses = _optional_scalar(path, job_fields, text, "uses", f"jobs.{job_key}.uses")
@@ -302,6 +310,9 @@ def read_workflow(path: Path) -> WorkflowRecord:
             if run is not None and "with" in step_fields:
                 raise _error("parse", path, step_fields["with"], f"{label}.with requires uses")
             step_shell = _optional_scalar(path, step_fields, text, "shell", f"{label}.shell")
+            step_directory = _optional_scalar(
+                path, step_fields, text, "working-directory", f"{label}.working-directory"
+            )
             effective_shell, shell_source, shell_family = _effective_shell(
                 step_shell, job_shell, workflow_shell, runner
             )
@@ -314,6 +325,7 @@ def read_workflow(path: Path) -> WorkflowRecord:
                     location=_location(path, step_node),
                     runs_on=runner,
                     shell=step_shell,
+                    working_directory=step_directory or job_directory or workflow_directory,
                     effective_shell=effective_shell,
                     shell_source=shell_source,
                     shell_family=shell_family,

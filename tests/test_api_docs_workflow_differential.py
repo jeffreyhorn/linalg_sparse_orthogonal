@@ -16,11 +16,30 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from api_docs_workflow_reader import read_workflows  # noqa: E402
 from run_api_docs_workflow_differential import (  # noqa: E402
-    MIXED_VARIANTS, _classify, _edge_stage_matches, _unexpected_count, load_oracle, run,
+    MIXED_VARIANTS, _baseline_files, _classify, _edge_stage_matches,
+    _run_legacy, _unexpected_count, load_oracle, run,
 )
 
 
 class DifferentialHarnessTests(unittest.TestCase):
+    def test_baseline_uses_matching_helper_and_reports_execution_errors(self):
+        from test_api_docs_local_only_guard import write_fixture
+
+        revision, _, _ = load_oracle()
+        baseline, helper = _baseline_files(revision)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root)
+            verdict, detail = _run_legacy(root, baseline, helper)
+            self.assertEqual("ALLOW", verdict, detail)
+            broken, detail = _run_legacy(root, baseline, "")
+            self.assertEqual("EXECUTION_ERROR", broken)
+            self.assertIn("ImportError", detail)
+            self.assertEqual(
+                ["baseline_execution_error"],
+                _classify("ALLOW", broken, "ALLOW", "ALLOW", ""),
+            )
+
     def test_ci_jobs_running_differential_fetch_baseline_history(self):
         checked_jobs = set()
         for workflow in read_workflows(ROOT):

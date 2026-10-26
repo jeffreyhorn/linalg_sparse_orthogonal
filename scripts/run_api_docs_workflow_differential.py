@@ -62,6 +62,7 @@ LOCATION = re.compile(r"(?P<path>\.github/workflows/[^:\s]+):(?P<line>\d+):(?P<c
 UNEXPECTED = frozenset((
     "current_guard_regression", "structured_false_positive", "structured_missed_bypass",
     "parser_error", "unclassified_disagreement", "edge_stage_mismatch",
+    "baseline_execution_error",
 ))
 
 
@@ -99,27 +100,45 @@ def _diagnostic(result: subprocess.CompletedProcess[str], root: Path) -> str:
     return _redact_root(output, root)
 
 
-def _run_legacy(root: Path, baseline: str) -> tuple[str, str]:
+def _baseline_files(revision: str) -> tuple[str, str]:
+    files = ("check_api_docs_local_only.sh", "api_docs_workflow_yaml_common.py")
+    try:
+        return tuple(
+            subprocess.run(
+                ["git", "show", f"{revision}:scripts/{name}"],
+                cwd=ROOT, text=True, capture_output=True, check=True,
+            ).stdout
+            for name in files
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"frozen baseline {revision} is unavailable; fetch full Git history"
+        ) from exc
+
+
+def _run_legacy(root: Path, baseline: str, helper: str) -> tuple[str, str]:
     env = {**os.environ, "API_DOCS_PYTHON": sys.executable}
-    if root.resolve() == ROOT:
-        # This one fixture uses the checkout itself. Redirect root lookup in a
-        # temporary script instead of writing a baseline file into the checkout.
-        with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / "legacy_guard.sh"
-            root_line = 'ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"'
-            if baseline.count(root_line) != 1:
-                raise ValueError("baseline root declaration changed")
-            script.write_text(baseline.replace(root_line, f"ROOT_DIR={shlex.quote(str(root))}"), encoding="utf-8")
-            result = subprocess.run(["bash", str(script)], cwd=root, env=env,
-                                    text=True, capture_output=True, check=False)
-    else:
-        script = root / "scripts" / "legacy_guard.sh"
-        script.write_text(baseline, encoding="utf-8")
-        try:
-            result = subprocess.run(["bash", str(script)], cwd=root, env=env,
-                                    text=True, capture_output=True, check=False)
-        finally:
-            script.unlink()
+    with tempfile.TemporaryDirectory() as directory:
+        temporary = Path(directory)
+        helper_path = temporary / "api_docs_workflow_yaml_common.py"
+        helper_path.write_text(helper, encoding="utf-8")
+        script = temporary / "legacy_guard.sh"
+        root_line = 'ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"'
+        helper_arg = '"$ROOT_DIR/scripts"'
+        if baseline.count(root_line) != 1 or baseline.count(helper_arg) != 3:
+            raise ValueError("frozen baseline script layout changed")
+        script.write_text(
+            baseline.replace(root_line, f"ROOT_DIR={shlex.quote(str(root))}")
+            .replace(helper_arg, shlex.quote(str(temporary))),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            ["bash", str(script)], cwd=root, env=env,
+            text=True, capture_output=True, check=False,
+        )
+    if result.returncode and "api-docs-local-only: FAIL:" not in result.stderr:
+        detail = (result.stderr or result.stdout).strip() or f"exit status {result.returncode}"
+        return "EXECUTION_ERROR", _redact_root(detail, root)
     return ("REJECT" if result.returncode else "ALLOW", _diagnostic(result, root))
 
 
@@ -137,7 +156,9 @@ def _classify(expected: str, old: str, new: str, current: str, diagnostic: str) 
         findings.append("current_guard_regression")
     if new != expected:
         findings.append("structured_false_positive" if expected == "ALLOW" else "structured_missed_bypass")
-    if old != expected:
+    if old == "EXECUTION_ERROR":
+        findings.append("baseline_execution_error")
+    elif old != expected:
         findings.append("legacy_false_positive" if expected == "ALLOW" else "legacy_missed_bypass")
     if new == "REJECT" and "parse:" in diagnostic and expected == "ALLOW":
         findings.append("parser_error")
@@ -164,10 +185,7 @@ def _edge_stage_matches(stage: str, diagnostic: str) -> bool:
 
 def run_edges(output: Path) -> tuple[int, Counter[str]]:
     revision, _, _ = load_oracle()
-    baseline = subprocess.run(
-        ["git", "show", f"{revision}:scripts/check_api_docs_local_only.sh"],
-        cwd=ROOT, text=True, capture_output=True, check=True,
-    ).stdout
+    baseline, helper = _baseline_files(revision)
     sys.path.insert(0, str(ROOT / "tests"))
     from test_api_docs_local_only_guard import run_guard, write_fixture
 
@@ -183,7 +201,7 @@ def run_edges(output: Path) -> tuple[int, Counter[str]]:
                 encoding="utf-8",
             )
             current = run_guard(root)
-            old_verdict, old_detail = _run_legacy(root, baseline)
+            old_verdict, old_detail = _run_legacy(root, baseline, helper)
             new_verdict, new_detail = _run_structured(root)
             current_verdict = "REJECT" if current.returncode else "ALLOW"
             location = LOCATION.search(new_detail) or LOCATION.search(old_detail)
@@ -219,10 +237,7 @@ def run(output: Path, selected: frozenset[str]) -> tuple[int, Counter[str]]:
     revision, oracle, registered = load_oracle()
     if selected - oracle.keys():
         raise ValueError(f"unknown frozen fixture(s): {', '.join(sorted(selected - oracle.keys()))}")
-    baseline = subprocess.run(
-        ["git", "show", f"{revision}:scripts/check_api_docs_local_only.sh"],
-        cwd=ROOT, text=True, capture_output=True, check=True,
-    ).stdout
+    baseline, helper = _baseline_files(revision)
     sys.path.insert(0, str(ROOT / "tests"))
     import test_api_docs_local_only_guard as suite
 
@@ -241,7 +256,7 @@ def run(output: Path, selected: frozenset[str]) -> tuple[int, Counter[str]]:
         expected_detail = (MIXED_DIAGNOSTICS[current_name][variant - 1]
                            if expected_class == "MIXED" else oracle[current_name]["required_diagnostic"])
         current = original_run_guard(root)
-        old_verdict, old_detail = _run_legacy(root, baseline)
+        old_verdict, old_detail = _run_legacy(root, baseline, helper)
         if current_name in NON_WORKFLOW:
             new_verdict, new_detail = "NOT_APPLICABLE", "non-workflow contract"
         else:

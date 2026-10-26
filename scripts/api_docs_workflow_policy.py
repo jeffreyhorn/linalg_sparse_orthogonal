@@ -30,6 +30,7 @@ else:
 _ACTION = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./-]+)?@[^\s@]+\Z")
 _PUBLISHER = re.compile(r"publish|deploy|release|pages|artifact|upload|gh-pages", re.I)
 _SAFE_ACTIONS = frozenset(("actions/checkout",))
+_EXPLICIT_SOURCE_ACTIONS = frozenset(("actions/upload-artifact", "actions/upload-pages-artifact"))
 _REFERENCE_WORD = re.compile(r"[^\s,;|&()<>]+")
 
 
@@ -130,6 +131,9 @@ def check_direct_policy(inputs: tuple[PolicyInput, ...]) -> None:
                     raise PolicyViolation(item, run.location, "dynamic publication path in run command")
                 if _path_is_broad(canonical):
                     raise PolicyViolation(item, run.location, "publishes docs or repository roots via run command")
+        if action is not None and action.value.split("@", 1)[0].casefold() in _EXPLICIT_SOURCE_ACTIONS:
+            if not any(path.name.casefold() == "path" for path in item.path_inputs):
+                raise PolicyViolation(item, action.location, "publisher action requires explicit source path")
         if kind == "unrelated":
             continue
         for path in item.path_inputs:

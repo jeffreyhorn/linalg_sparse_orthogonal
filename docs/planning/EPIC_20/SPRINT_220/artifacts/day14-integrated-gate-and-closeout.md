@@ -46,9 +46,11 @@ verdict was changed for this diagnostic correction.
   Apple-Clang workflow validation install the pinned dependency and call the
   reader, adapter, policy, differential, frozen, mutation, and direct guard
   checks. Those changed hosted jobs have not run on this unpushed branch.
-- The historical baseline still has 43 false-positive verdicts against the
-  frozen oracle. Current and structured verdicts agree on all workflow rows;
-  the historical count is not a current acceptance of publication.
+- PR #244 review corrected the differential harness to load the historical
+  helper alongside the historical guard. The regenerated frozen report has
+  no legacy discrepancies; the previously reported 43 false positives were
+  import failures misclassified as policy rejections. Current and structured
+  verdicts agree on all workflow rows.
 
 ## Residual Limits And Owners
 

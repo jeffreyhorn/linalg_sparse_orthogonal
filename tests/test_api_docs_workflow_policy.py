@@ -133,6 +133,17 @@ class DirectPolicyTests(unittest.TestCase):
             with self.subTest(step=step):
                 self.assertIsNone(self.check_text(self.workflow(step)))
 
+    def test_upload_actions_require_explicit_source_paths(self):
+        for action in ("actions/upload-pages-artifact@v3", "actions/upload-artifact@v4"):
+            with self.subTest(action=action):
+                step = "      - run: cp -R docs _site/\n" + f"      - uses: {action}\n"
+                self.assertIn("requires explicit source path", self.check_text(self.workflow(step)))
+                explicit = (
+                    f"      - uses: {action}\n"
+                    "        with:\n          path: build/site\n"
+                )
+                self.assertIsNone(self.check_text(self.workflow(explicit)))
+
     def test_guard_rejects_former_dynamic_action_bypass(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -179,6 +190,96 @@ class DirectPolicyTests(unittest.TestCase):
             "        with:\n          path: artifact/\n"
         )
         self.assertIn("stages docs", self.check_text(self.workflow(step, runner="windows-latest")))
+
+    def test_working_directory_resolves_staging_paths(self):
+        cases = (
+            "defaults:\n  run:\n    working-directory: docs\n"
+            "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n"
+            "      - run: cp -R . ../artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n",
+            "jobs:\n  build:\n    runs-on: ubuntu-latest\n"
+            "    defaults:\n      run:\n        working-directory: docs\n"
+            "    steps:\n      - run: cp -R . ../artifact/\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n",
+            self.workflow(
+                "      - run: cp -R . ../artifact/\n"
+                "        working-directory: docs\n"
+                "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+            ),
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertIn("stages docs", self.check_text(case))
+        benign = self.workflow(
+            "      - run: cp -R output ../artifact/\n"
+            "        working-directory: build\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        )
+        self.assertIsNone(self.check_text(benign))
+        unresolved = self.workflow(
+            "      - run: cp -R output artifact/\n"
+            "        working-directory: $" "{{ inputs.directory }}\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        )
+        self.assertIn("dynamic staging paths", self.check_text(unresolved))
+
+    def test_posix_operators_keep_quoted_punctuation_distinct(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        rejecting = self.workflow(
+            "      - run: |\n          echo ready;\n          cp -R docs artifact/\n" + upload
+        )
+        self.assertIn("stages docs", self.check_text(rejecting))
+        benign = self.workflow("      - run: echo ';' cp -R docs artifact/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_powershell_path_arrays_are_scanned_per_source(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.zip\n"
+        rejecting = self.workflow(
+            "      - shell: pwsh\n"
+            "        run: Compress-Archive -Path build,docs -DestinationPath artifact.zip\n"
+            + upload, runner="windows-latest",
+        )
+        self.assertIn("archives docs", self.check_text(rejecting))
+        benign = self.workflow(
+            "      - shell: pwsh\n"
+            "        run: Compress-Archive -Path 'build,docs' -DestinationPath artifact.zip\n"
+            + upload, runner="windows-latest",
+        )
+        self.assertIsNone(self.check_text(benign))
+
+    def test_all_shell_publisher_sources_are_checked(self):
+        archive = "      - run: tar -czf artifact.tgz docs/\n"
+        publishers = (
+            "gh release upload v1 build/safe.txt artifact.tgz",
+            "gsutil cp build/safe.txt artifact.tgz gs://example/release",
+            "scp build/safe.txt artifact.tgz user@example:/release",
+            "rsync build/safe.txt artifact.tgz user@example:/release",
+        )
+        for command in publishers:
+            with self.subTest(command=command):
+                self.assertIn(
+                    "archives docs",
+                    self.check_text(self.workflow(archive + f"      - run: {command}\n")),
+                )
+                safe = command.replace(" artifact.tgz", " build/other.txt")
+                self.assertIsNone(self.check_text(self.workflow(f"      - run: {safe}\n")))
+
+    def test_nested_staging_destination_and_parent_copy(self):
+        cases = (
+            "      - run: cp -R docs artifact/site\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n",
+            "      - run: cp -R docs artifact/site\n"
+            "      - run: cp -R artifact/ bundle/\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: bundle/\n",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertIn("stages docs", self.check_text(self.workflow(case)))
+        benign = self.workflow(
+            "      - run: cp -R docs artifact/site\n"
+            "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact_other/\n"
+        )
+        self.assertIsNone(self.check_text(benign))
 
     def test_staging_chain_and_shell_publication(self):
         cases = (

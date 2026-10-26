@@ -100,7 +100,7 @@ def _action_kind(item: PolicyInput) -> str:
 
 
 def _path_is_broad(canonical: str) -> bool:
-    if canonical in (".", "..", "/", "*", "**"):
+    if canonical in (".", "..", "/", "*", "**") or canonical.startswith("../"):
         return True
     parts = canonical.split("/")
     if "docs" in parts:

@@ -39,6 +39,34 @@ def _without_comments(value: str, powershell: bool) -> str:
     return "\n".join(lines)
 
 
+def _substitution_end(value: str, start: int) -> int:
+    depth = 1
+    quote = ""
+    index = start
+    while index < len(value):
+        char = value[index]
+        if char == "\\" and quote != "'":
+            index += 2
+            continue
+        if quote:
+            if char == quote:
+                quote = ""
+            elif quote == '"' and char == "$" and value[index + 1:index + 2] == "(":
+                depth += 1
+                index += 2
+                continue
+        elif char in "'\"":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return len(value) - 1
+
+
 def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
     active = _without_comments(value, False).replace("\\\n", "")
     commands: list[tuple[str, ...]] = []
@@ -87,6 +115,10 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
             if active[index] != "\n":
                 word.append(active[index])
                 started = True
+        elif char == "$" and active[index + 1:index + 2] == "(":
+            word.append("${unresolved_substitution}")
+            started = True
+            index = _substitution_end(active, index + 2)
         elif char in _SEPARATORS:
             end_command()
         elif char.isspace():
@@ -162,9 +194,19 @@ def _resolve_path(item: PolicyInput, value: str) -> str:
     return posixpath.normpath(posixpath.join(directory.value.replace("\\", "/"), path))
 
 
-def _source_is_docs(value: str) -> bool:
+def _recognizable_docs_source(value: str) -> bool:
     path = _path(value)
     return "docs" in path.split("/") or path in (".", "*")
+
+
+def _source_is_docs(value: str) -> bool:
+    if _recognizable_docs_source(value):
+        return True
+    path = _path(value)
+    return any(
+        fnmatch.fnmatchcase(protected, path)
+        for protected in ("docs", "docs/api", "docs/api/html", "docs/api/html/index.html")
+    )
 
 
 def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
@@ -172,7 +214,28 @@ def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
         return ()
     executable = posixpath.basename(command[0]).casefold()
     if executable in _COPY:
-        args = [arg for arg in command[1:] if not arg.startswith("-")]
+        args: list[str] = []
+        target = None
+        index = 1
+        after_options = False
+        while index < len(command):
+            arg = command[index]
+            if arg == "--":
+                after_options = True
+            elif not after_options and executable in ("cp", "mv") and arg in ("-t", "--target-directory"):
+                if index + 1 >= len(command):
+                    return ()
+                index += 1
+                target = command[index]
+            elif not after_options and executable in ("cp", "mv") and arg.startswith("--target-directory="):
+                target = arg.split("=", 1)[1]
+            elif not after_options and executable in ("cp", "mv") and arg.startswith("-t") and len(arg) > 2:
+                target = arg[2:]
+            elif after_options or not arg.startswith("-"):
+                args.append(arg)
+            index += 1
+        if target is not None:
+            return tuple(StagedCommand(source, target, "stages") for source in args)
         if len(args) >= 2:
             return tuple(StagedCommand(source, args[-1], "stages") for source in args[:-1])
     if executable == "tar":
@@ -220,10 +283,13 @@ def _powershell_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
         index += 1
     sources = named.get("-path", named.get("-literalpath"))
     destinations = named.get("-destination", named.get("-destinationpath"))
-    if destinations is None and len(positional) >= 2:
+    if destinations is None and positional:
         destinations = (positional[-1],)
+        positional.pop()
     if sources is None:
-        sources = tuple(positional[:-1])
+        sources = tuple(positional)
+    else:
+        sources += tuple(positional)
     if not sources or not destinations:
         return ()
     destination = destinations[0] if len(destinations) == 1 else "${unsupported_destination_array}"
@@ -265,7 +331,7 @@ def _operands(words: tuple[str, ...], value_options: frozenset[str] = frozenset(
         if word == "--":
             after_options = True
         elif not after_options and word.startswith("-"):
-            if word.casefold() in value_options:
+            if word in value_options:
                 index += 1
         else:
             result.append(word)
@@ -308,7 +374,7 @@ def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
                 if word == "--file" and offset + 1 < len(command):
                     sources = [command[offset + 1]]
         elif len(words) >= 3 and words[0] in ("scp", "rsync"):
-            value_options = (frozenset(("-p", "-i", "-f", "-o", "-j", "-s", "-c", "-l"))
+            value_options = (frozenset(("-P", "-i", "-F", "-o", "-J", "-S", "-c", "-l"))
                              if words[0] == "scp" else
                              frozenset(("-e", "--rsh", "--exclude", "--include", "--files-from")))
             operands = _operands(command[1:], value_options)
@@ -342,4 +408,8 @@ def stage_has_docs_source(stage: StagedCommand) -> bool:
 
 
 def stage_is_dynamic(stage: StagedCommand) -> bool:
-    return bool(_DYNAMIC.search(stage.source) or _DYNAMIC.search(stage.destination))
+    return bool(
+        _DYNAMIC.search(stage.source) or _DYNAMIC.search(stage.destination)
+        or (any(char in stage.source for char in "*?[")
+            and _source_is_docs(stage.source) and not _recognizable_docs_source(stage.source))
+    )

@@ -61,7 +61,10 @@ class DirectPolicyTests(unittest.TestCase):
         self.assertIn("generated API output path in API_PATH", error)
 
     def test_broad_publication_paths_are_rejected(self):
-        for path in ("docs/", "./DoCs/**", ".\\DoCs\\*", "**", ".", "../docs/api-reference.md"):
+        for path in (
+            "docs/", "./DoCs/**", ".\\DoCs\\*", "**", ".",
+            "../docs/api-reference.md", "../**", "build/../../**",
+        ):
             with self.subTest(path=path):
                 step = (
                     "      - uses: actions/upload-artifact@v4\n"
@@ -232,6 +235,35 @@ class DirectPolicyTests(unittest.TestCase):
         benign = self.workflow("      - run: echo ';' cp -R docs artifact/\n" + upload)
         self.assertIsNone(self.check_text(benign))
 
+    def test_unquoted_substitution_in_staging_source_fails_closed(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        rejecting = self.workflow("      - run: cp -R $(printf docs) artifact/\n" + upload)
+        self.assertIn("dynamic staging paths", self.check_text(rejecting))
+        benign = self.workflow("      - run: echo $(printf docs)\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_source_glob_staging_fails_closed(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for source in ("do*", "doc?", "./do[cs]*"):
+            with self.subTest(source=source):
+                step = f"      - run: cp -R {source} artifact/\n" + upload
+                self.assertIn("dynamic staging paths", self.check_text(self.workflow(step)))
+        for source in ("build/", "build/*"):
+            with self.subTest(source=source):
+                benign = self.workflow(f"      - run: cp -R {source} artifact/\n" + upload)
+                self.assertIsNone(self.check_text(benign))
+
+    def test_copy_target_directory_forms(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for command in (
+            "cp -R -t artifact docs", "cp -R --target-directory artifact docs",
+            "cp -R --target-directory=artifact docs", "cp -R -tartifact docs",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("stages docs", self.check_text(self.workflow(f"      - run: {command}\n" + upload)))
+        benign = self.workflow("      - run: cp -R -t artifact build\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
     def test_powershell_path_arrays_are_scanned_per_source(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.zip\n"
         rejecting = self.workflow(
@@ -244,6 +276,21 @@ class DirectPolicyTests(unittest.TestCase):
             "      - shell: pwsh\n"
             "        run: Compress-Archive -Path 'build,docs' -DestinationPath artifact.zip\n"
             + upload, runner="windows-latest",
+        )
+        self.assertIsNone(self.check_text(benign))
+
+    def test_powershell_mixed_named_and_positional_copy_arguments(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for command in (
+            "Copy-Item -Recurse docs -Destination artifact/",
+            "Copy-Item -Recurse -Path docs artifact/",
+        ):
+            with self.subTest(command=command):
+                step = f"      - shell: pwsh\n        run: {command}\n" + upload
+                self.assertIn("stages docs", self.check_text(self.workflow(step, runner="windows-latest")))
+        benign = self.workflow(
+            "      - shell: pwsh\n        run: Copy-Item -Recurse -Path build artifact/\n" + upload,
+            runner="windows-latest",
         )
         self.assertIsNone(self.check_text(benign))
 
@@ -263,6 +310,15 @@ class DirectPolicyTests(unittest.TestCase):
                 )
                 safe = command.replace(" artifact.tgz", " build/other.txt")
                 self.assertIsNone(self.check_text(self.workflow(f"      - run: {safe}\n")))
+
+    def test_scp_switches_and_value_options_keep_asset_source(self):
+        archive = "      - run: tar -czf artifact.tgz docs/\n"
+        for options in ("-p", "-C", "-P 2222", "-c aes256-ctr", "-P 2222 -p"):
+            with self.subTest(options=options):
+                command = f"scp {options} artifact.tgz user@example:/release"
+                self.assertIn("archives docs", self.check_text(self.workflow(archive + f"      - run: {command}\n")))
+        benign = self.workflow("      - run: scp -p build/safe.txt user@example:/release\n")
+        self.assertIsNone(self.check_text(benign))
 
     def test_nested_staging_destination_and_parent_copy(self):
         cases = (

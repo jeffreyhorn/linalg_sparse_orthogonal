@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 import tempfile
 import unittest
@@ -103,6 +104,19 @@ CASES = (
 
 
 class WorkflowMutationTests(unittest.TestCase):
+    def test_absent_generated_tree_still_requires_ignore_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root)
+            shutil.rmtree(root / "docs/api")
+            result = run_guard(root)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+            (root / ".gitignore").write_text("", encoding="utf-8")
+            result = run_guard(root)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("docs/api/ is not ignored", result.stderr)
+
     def test_mutations_have_unique_names_and_expected_classes(self):
         names = [name for name, _, _, _ in CASES]
         self.assertEqual(len(names), len(set(names)))

@@ -77,7 +77,7 @@ require_doxyfile_setting() {
 }
 
 check_ignore_rules() {
-    require_ignored "docs/api"
+    require_ignored "docs/api/"
     require_ignored "docs/api/html"
     require_ignored "docs/api/html/index.html"
 }

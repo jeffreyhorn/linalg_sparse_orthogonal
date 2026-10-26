@@ -1,3 +1,9 @@
+/* Expose the POSIX fileno declaration before any system header is included. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "sparse_cholesky.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"

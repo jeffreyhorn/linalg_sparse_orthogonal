@@ -48,6 +48,39 @@ else
     cat "$LOG"
 fi
 
+echo "--- CMake index-width selector rejection ---"
+for invalid_width in 0 16 128 text ""; do
+    width_label="${invalid_width:-empty}"
+    width_log="$TMPDIR/invalid_width_${width_label}.log"
+    if cmake -S "$ROOT_DIR" -B "$TMPDIR/invalid_width_${width_label}" \
+        "-DSPARSE_IDX_BITS=$invalid_width" >"$width_log" 2>&1; then
+        fail "CMake index width $width_label" "configure unexpectedly succeeded"
+    elif grep -Fq 'SPARSE_IDX_BITS must be 32 or 64' "$width_log"; then
+        pass "CMake rejects index width $width_label at configure"
+    else
+        fail "CMake index width $width_label" "missing selector diagnostic"
+        tail -20 "$width_log"
+    fi
+done
+
+width_conflict_labels=(plain quoted separated)
+width_conflict_flags=("-DSPARSE_IDX_BITS=64" "-D'SPARSE_IDX_BITS=64'" "-D SPARSE_IDX_BITS=64")
+for i in "${!width_conflict_labels[@]}"; do
+    conflict_label="${width_conflict_labels[$i]}"
+    width_conflict_log="$TMPDIR/width_conflict_${conflict_label}.log"
+    if cmake -S "$ROOT_DIR" -B "$TMPDIR/width_conflict_${conflict_label}" \
+        -DSPARSE_IDX_BITS=32 "-DCMAKE_C_FLAGS=${width_conflict_flags[$i]}" \
+        >"$width_conflict_log" 2>&1; then
+        fail "CMake conflicting index width $conflict_label" "configure unexpectedly succeeded"
+    elif grep -Fq 'do not define it in' "$width_conflict_log" && \
+        grep -Fq 'CMAKE_C_FLAGS' "$width_conflict_log"; then
+        pass "CMake rejects $conflict_label ambient index-width override"
+    else
+        fail "CMake conflicting index width $conflict_label" "missing ambient-override diagnostic"
+        tail -20 "$width_conflict_log"
+    fi
+done
+
 if cmake --build "$BUILD" >>"$LOG" 2>&1; then
     pass "cmake build"
 else

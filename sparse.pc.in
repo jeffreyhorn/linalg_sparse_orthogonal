@@ -6,5 +6,5 @@ includedir=${prefix}/include
 Name: sparse
 Description: Static archive package metadata for sparse linear algebra
 Version: @VERSION@
-Cflags: -I${includedir}
+Cflags: -I${includedir} -DSPARSE_PACKAGE_IDX_BITS=@SPARSE_PACKAGE_IDX_BITS@
 Libs: -L${libdir} -lsparse_lu_ortho -lm @SPARSE_PC_LIBS_EXTRA@

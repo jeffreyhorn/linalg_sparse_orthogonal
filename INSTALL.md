@@ -15,7 +15,8 @@ Choose the smallest install/setup path that matches what you actually need.
    [examples/README.md#start-here](examples/README.md#start-here).
 2. **Install the maintained static package:** on Unix-like systems, use
    [Quick Start (Makefile)](#quick-start-makefile). With CMake, use
-   [CMake Build](#cmake-build).
+   [CMake Build](#cmake-build). For 64-bit indices, follow
+   [Index Width Contract](#index-width-contract) before installing.
 3. **Consume from another project:** use
    [Unix Make/pkg-config consumer](#unix-makepkg-config-consumer) for
    Makefile-style consumers or
@@ -186,6 +187,8 @@ you only need commands.
   selector under the current self-contained static link contract
 - version metadata comes from the repo `VERSION` file and is propagated through
   `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
+- index width is selected at library build time; installed headers, CMake
+  target definitions, and `sparse.pc` carry the selected 32- or 64-bit width
 - the exported CMake package version file is exact-version only
 - CMake rejects `BUILD_SHARED_LIBS=ON` at configure time so a shared-library
   request is not silently treated as supported
@@ -225,6 +228,92 @@ Use the split below when deciding how much package detail you need:
     maintained static-first package surface, including metadata-only
     `sparse.pc` inspection, but remains narrower than the Unix Makefile and
     `pkg-config` script surface
+
+## Index Width Contract
+
+The default index width is 32 bits. Select 32 or 64 when building the
+**library**, not by changing a downstream typedef or adding a consumer-only
+`-DSPARSE_IDX_BITS` flag. A width belongs to one clean build tree and one
+clean installed prefix. Do not reuse either for the opposite width. The
+generated `sparse_version.h` records `SPARSE_BUILT_IDX_BITS`; `idx_t`,
+`IDX_MAX`, `SPARSE_PRIDX`, and `SPARSE_SCNIDX` follow that width. The installed
+CMake target exports `SPARSE_PACKAGE_IDX_BITS=<width>`; `sparse.pc` includes
+the same definition in `Cflags`. A conflicting explicit consumer width or
+foreign header fails at compile time. Static linking alone does not detect a
+foreign archive, so the consumer must check `sparse_idx_bits()` before its
+first index-bearing call.
+
+From the repository root, choose **one** of these fresh Unix-like source
+install routes. The prefixes below are absolute because they include `$PWD`:
+
+```sh
+# Make, 32-bit (default, stated explicitly)
+make BUILDDIR=build/idx-make-32 SPARSE_IDX_BITS=32 \
+  PREFIX="$PWD/_install/make-32" install
+
+# Make, 64-bit
+make BUILDDIR=build/idx-make-64 SPARSE_IDX_BITS=64 \
+  PREFIX="$PWD/_install/make-64" install
+
+# CMake, 32-bit
+cmake -S . -B build/idx-cmake-32 -DSPARSE_IDX_BITS=32 \
+  -DCMAKE_INSTALL_PREFIX="$PWD/_install/cmake-32" -DCMAKE_INSTALL_LIBDIR=lib
+cmake --build build/idx-cmake-32 --target sparse_lu_ortho
+cmake --install build/idx-cmake-32
+
+# CMake, 64-bit
+cmake -S . -B build/idx-cmake-64 -DSPARSE_IDX_BITS=64 \
+  -DCMAKE_INSTALL_PREFIX="$PWD/_install/cmake-64" -DCMAKE_INSTALL_LIBDIR=lib
+cmake --build build/idx-cmake-64 --target sparse_lu_ortho
+cmake --install build/idx-cmake-64
+```
+
+For an isolated Unix `pkg-config` consumer, select the same prefix used by
+one install route, then compile against **both** its flags and its archive:
+
+```sh
+prefix="$PWD/_install/make-64"  # or make-32, cmake-32, cmake-64
+export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
+export PKG_CONFIG_PATH=
+pkg-config --variable=prefix sparse  # must print the selected prefix
+pkg-config --cflags sparse           # -I<prefix>/include -DSPARSE_PACKAGE_IDX_BITS=64
+cc -std=c11 $(pkg-config --cflags sparse) \
+  examples/cmake_example/main.c $(pkg-config --libs sparse) -o sparse_width_smoke
+./sparse_width_smoke                 # prints Sparse index width 64 before the solve
+```
+
+The maintained example calls the executable width check before any matrix
+operation. In your own consumer, compare `sizeof(idx_t) * CHAR_BIT`,
+`SPARSE_BUILT_IDX_BITS`, and `sparse_idx_bits()` and stop on disagreement.
+[`examples/cmake_example/installed_width_check.h`](examples/cmake_example/installed_width_check.h)
+is the tested, reusable check. For a CMake install, use a **fresh downstream
+build tree** with `find_package(Sparse REQUIRED)` and link
+`Sparse::sparse_lu_ortho`; set `CMAKE_PREFIX_PATH` to the selected absolute
+prefix, as in [CMake consumer](#cmake-consumer). Do not manually override the
+target's width definition. An exact-version request is available, but it does
+not promise cross-version ABI compatibility.
+
+The source-tree static validator checks installed header, package metadata,
+and the real archive width together. Run it with the route used for the
+selected prefix, for example:
+
+```sh
+version=$(tr -d '[:space:]' < VERSION)
+python3 scripts/check_static_install_contract.py "$prefix" \
+  --mode make --platform unix --version "$version"
+# Use --mode cmake for a CMake-installed prefix.
+```
+
+| Claim | Evidence and boundary |
+| --- | --- |
+| Separate 32/64 builds agree with their generated headers and archives | [Day 5 parity](docs/planning/EPIC_20/SPRINT_219/artifacts/day5-build-system-parity.md); one width per build tree. |
+| Unix static installs and consumers reject mismatched header, metadata, or archive | [Day 9 CMake matrix](docs/planning/EPIC_20/SPRINT_219/artifacts/day9-cmake-consumer-matrix.md) and [Day 10 pkg-config matrix](docs/planning/EPIC_20/SPRINT_219/artifacts/day10-pkgconfig-mixed-prefix-matrix.md); maintained consumers perform the pre-use check. |
+| 64-bit algorithms | [Day 11 selected lane](docs/planning/EPIC_20/SPRINT_219/artifacts/day11-selected-64-bit-lane.md) passed locally for selected cases only. [Day 12 hosted jobs](docs/planning/EPIC_20/SPRINT_219/artifacts/day12-hosted-64-bit-registration.md) are registered but not yet green on this branch. No universal 64-bit coverage claim. |
+| Windows package | Reviewed CMake install route at the default 32-bit width only; no Windows `pkg-config` execution or selected 64-bit hosted claim. |
+
+This is a static-only package. Mixing widths, cross-version ABI compatibility,
+shared-library packaging, dynamic ABI, and runtime-loader support are not
+claimed.
 
 ## Supported platforms
 
@@ -285,12 +374,22 @@ pkg-config --exists sparse
 Create `main.c` in the downstream project:
 
 ```c
+#include <limits.h>
 #include <stdio.h>
 
 #include <sparse/sparse_matrix.h>
 #include <sparse/sparse_types.h>
 
 int main(void) {
+    size_t header_bits = sizeof(idx_t) * CHAR_BIT;
+    size_t archive_bits = sparse_idx_bits();
+    if (header_bits != SPARSE_BUILT_IDX_BITS ||
+        archive_bits != SPARSE_BUILT_IDX_BITS) {
+        fprintf(stderr, "index width mismatch: header=%zu built=%d archive=%zu\n",
+                header_bits, SPARSE_BUILT_IDX_BITS, archive_bits);
+        return 1;
+    }
+    printf("index width: %zu\n", archive_bits);
     printf("sparse version: %s\n", SPARSE_VERSION_STRING);
     printf("version int:    %d\n", SPARSE_VERSION);
 
@@ -301,7 +400,7 @@ int main(void) {
     }
 
     sparse_insert(A, 0, 0, 1.0);
-    printf("nnz: %d\n", (int)sparse_nnz(A));
+    printf("nnz: %" SPARSE_PRIDX "\n", sparse_nnz(A));
     sparse_free(A);
     printf("OK\n");
     return 0;
@@ -317,12 +416,14 @@ cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse) -o 
 
 Expected output includes:
 
+- `index width: 32` or `index width: 64`, matching the selected prefix
 - `sparse version:`
 - `version int:`
 - `nnz: 1`
 - `OK`
 
-`pkg-config --cflags sparse` should resolve one installed include directory.
+`pkg-config --cflags sparse` should resolve one installed include directory
+and `-DSPARSE_PACKAGE_IDX_BITS=<width>`.
 `pkg-config --libs sparse` should resolve the installed library directory,
 `-lsparse_lu_ortho`, and `-lm`.
 
@@ -371,6 +472,7 @@ cmake --install .    # install
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `SPARSE_IDX_BITS` | 32 | Library index width: `32` or `64`; use a separate build tree and prefix per width. |
 | `SPARSE_OPENMP` | OFF | Enable OpenMP parallel SpMV |
 | `SPARSE_MUTEX` | OFF | Enable per-matrix mutex for thread safety |
 | `SANITIZE` | (empty) | Sanitizer: `asan`, `ubsan`, `all` |
@@ -408,16 +510,21 @@ add_executable(sparse_cmake_smoke main.c)
 target_link_libraries(sparse_cmake_smoke PRIVATE Sparse::sparse_lu_ortho)
 ```
 
-Use the same installed-header form shown above, such as
+Use the width-checking `main.c` and installed-header form shown above, such as
 `#include <sparse/sparse_types.h>` and
 `#include <sparse/sparse_matrix.h>`. Configure, build, and run from the
-downstream project with:
+downstream project with the **same absolute prefix** used at install time:
 
 ```sh
-cmake -S . -B build -DCMAKE_PREFIX_PATH="$PWD/_install"
-cmake --build build
-./build/sparse_cmake_smoke
+prefix=/absolute/path/to/_install/cmake-64  # select one installed prefix
+cmake -S . -B build/sparse-consumer-64 -DCMAKE_PREFIX_PATH="$prefix"
+cmake --build build/sparse-consumer-64
+./build/sparse-consumer-64/sparse_cmake_smoke
 ```
+
+For 32 bits, select the corresponding `cmake-32` prefix and a different
+consumer build tree. The imported target propagates the installed width to
+the compiler; the program checks the linked archive before matrix use.
 
 For exact version checks, use the current project version from `VERSION`:
 

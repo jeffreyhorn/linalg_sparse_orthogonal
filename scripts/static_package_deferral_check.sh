@@ -262,9 +262,9 @@ check_static_install_metadata() {
         "$ROOT_DIR/sparse.pc.in" \
         "pkg-config description no longer states the static archive package contract"
     require_grep \
-        '^Cflags: -I\$\{includedir\}$' \
+        '^Cflags: -I\$\{includedir\} -DSPARSE_PACKAGE_IDX_BITS=@SPARSE_PACKAGE_IDX_BITS@$' \
         "$ROOT_DIR/sparse.pc.in" \
-        "pkg-config cflags no longer use the installed include directory"
+        "pkg-config cflags lost the installed include directory or width metadata"
     require_grep \
         '^Libs: -L\$\{libdir\} -lsparse_lu_ortho -lm @SPARSE_PC_LIBS_EXTRA@$' \
         "$ROOT_DIR/sparse.pc.in" \

@@ -35,7 +35,7 @@ jobs:
     # image that actually carries the reviewed MSVC/CMake surface.
     runs-on: windows-2022
     env:
-      EXPECTED_WINDOWS_CTEST_COUNT: "60"
+      EXPECTED_WINDOWS_CTEST_COUNT: "62"
     steps:
       - uses: actions/checkout@v4
 
@@ -236,6 +236,10 @@ jobs:
           if (-not (Test-Path $versionHeader -PathType Leaf)) {
             throw "Expected installed version header at $versionHeader."
           }
+          $versionHeaderText = Get-Content -Path $versionHeader -Raw
+          if ($versionHeaderText -notmatch '(?m)^#define SPARSE_BUILT_IDX_BITS 32\r?$') {
+            throw "Installed version header does not report the default 32-bit index width."
+          }
 
           foreach ($packageFile in @(
             "lib/cmake/Sparse/SparseConfig.cmake",
@@ -262,6 +266,9 @@ jobs:
           }
           if (-not $targetsText.Contains('INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"')) {
             throw "Installed CMake package target does not use install-prefix include metadata."
+          }
+          if (-not $targetsText.Contains('INTERFACE_COMPILE_DEFINITIONS "SPARSE_PACKAGE_IDX_BITS=32"')) {
+            throw "Installed CMake package target does not propagate the default 32-bit index width."
           }
           if (-not $targetsReleaseText.Contains('IMPORTED_LOCATION_RELEASE') -or
               -not $targetsReleaseText.Contains('${_IMPORT_PREFIX}/lib/sparse_lu_ortho.lib')) {
@@ -297,8 +304,8 @@ jobs:
           if ($pcText -notmatch "(?m)^Version: $([regex]::Escape($version))\r?$") {
             throw "Installed sparse.pc does not report version $version."
           }
-          if ($pcText -notmatch '(?m)^Cflags: -I\$\{includedir\}\r?$') {
-            throw "Installed sparse.pc does not use includedir-based Cflags metadata."
+          if ($pcText -notmatch '(?m)^Cflags: -I\$\{includedir\} -DSPARSE_PACKAGE_IDX_BITS=32\r?$') {
+            throw "Installed sparse.pc does not report the default 32-bit package width."
           }
           if ($pcText -notmatch '(?m)^Libs: -L\$\{libdir\} -lsparse_lu_ortho -lm\s*$') {
             throw "Installed sparse.pc does not describe the static archive link flags."
@@ -319,9 +326,14 @@ jobs:
           Set-Content -Path (Join-Path $basicConsumerSrc "main.c") -Encoding utf8 -Value @(
             '#include <sparse/sparse_types.h>',
             '#include <sparse/sparse_matrix.h>',
+            '#include <limits.h>',
             '#include <stdio.h>',
             "",
             'int main(void) {',
+            '    size_t archive_bits = sparse_idx_bits();',
+            '    if (sizeof(idx_t) * CHAR_BIT != SPARSE_BUILT_IDX_BITS ||',
+            '        archive_bits != SPARSE_BUILT_IDX_BITS) return 3;',
+            '    printf("index width: %zu\n", archive_bits);',
             '    printf("sparse version: %s\n", SPARSE_VERSION_STRING);',
             '    SparseMatrix *A = sparse_create(3, 3);',
             '    if (!A) return 1;',
@@ -349,7 +361,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Basic generated consumer exited with $LASTEXITCODE`: $basicConsumerText"
           }
-          if ($basicConsumerText -notmatch "sparse version:" -or
+          if ($basicConsumerText -notmatch "index width: 32" -or
+              $basicConsumerText -notmatch "sparse version:" -or
               $basicConsumerText -notmatch "nnz: 1" -or
               $basicConsumerText -notmatch "OK") {
             throw "Basic generated consumer output was unexpected: $basicConsumerText"
@@ -369,7 +382,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Installed CMake example exited with $LASTEXITCODE`: $outputText"
           }
-          if ($outputText -notmatch "Sparse library version" -or
+          if ($outputText -notmatch "Sparse index width 32" -or
+              $outputText -notmatch "Sparse library version" -or
               $outputText -notmatch "Solution:" -or
               $outputText -notmatch "OK") {
             throw "Installed CMake example output was unexpected: $outputText"

@@ -42,11 +42,36 @@ foreach(_sparse_cache_variable IN LISTS _sparse_cache_variables)
     endif()
 endforeach()
 
+# Keep the build-tree index type under one validated selector. Installed
+# consumers receive their package-width contract separately in Sprint 219.
+set(SPARSE_IDX_BITS "32" CACHE STRING "Sparse index width (32 or 64 bits)")
+set_property(CACHE SPARSE_IDX_BITS PROPERTY STRINGS 32 64)
+if(NOT "${SPARSE_IDX_BITS}" MATCHES "^(32|64)$")
+    message(FATAL_ERROR "SPARSE_IDX_BITS must be 32 or 64 (got '${SPARSE_IDX_BITS}')")
+endif()
+
+# Ambient compiler definitions can disagree with the cache selector and
+# silently change the width of individual objects or generated packages.
+get_cmake_property(_sparse_all_variables VARIABLES)
+foreach(_sparse_variable IN LISTS _sparse_all_variables)
+    if(_sparse_variable MATCHES "^CMAKE_C_FLAGS($|_)")
+        separate_arguments(_sparse_c_flag_tokens NATIVE_COMMAND "${${_sparse_variable}}")
+        list(JOIN _sparse_c_flag_tokens " " _sparse_c_flags_normalized)
+        if(_sparse_c_flags_normalized MATCHES "(^| )[-/]D[ ]*SPARSE_IDX_BITS(=| |$)")
+            message(FATAL_ERROR
+                "Set SPARSE_IDX_BITS with -DSPARSE_IDX_BITS=32 or 64; "
+                "do not define it in ${_sparse_variable}"
+            )
+        endif()
+    endif()
+endforeach()
+
 # Generate sparse_version.h from template and VERSION file
 set(SPARSE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(SPARSE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(SPARSE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 set(SPARSE_VERSION_STRING ${PROJECT_VERSION})
+set(SPARSE_BUILT_IDX_BITS ${SPARSE_IDX_BITS})
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/sparse_version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/include/sparse_version.h
@@ -164,6 +189,10 @@ set_target_properties(sparse_lu_ortho PROPERTIES
     EXPORT_NAME sparse_lu_ortho
     OUTPUT_NAME sparse_lu_ortho
 )
+target_compile_definitions(sparse_lu_ortho PUBLIC
+    $<BUILD_INTERFACE:SPARSE_IDX_BITS=${SPARSE_IDX_BITS}>
+    $<INSTALL_INTERFACE:SPARSE_PACKAGE_IDX_BITS=${SPARSE_IDX_BITS}>
+)
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
 option(SPARSE_OPENMP "Enable OpenMP parallelization for SpMV" OFF)
@@ -213,6 +242,8 @@ endfunction()
 
 # Test executables
 add_sparse_test(test_sparse_matrix)
+add_sparse_test(test_idx_width)
+add_sparse_test(test_idx_width_functional)
 add_sparse_test(test_sparse_lu)
 add_sparse_test(test_sparse_io)
 add_sparse_test(test_known_matrices)
@@ -469,6 +500,7 @@ install(FILES
 # Keep generated flags aligned with sparse.pc.in and semantic install tests.
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(VERSION ${PROJECT_VERSION})
+set(SPARSE_PACKAGE_IDX_BITS ${SPARSE_IDX_BITS})
 set(SPARSE_PC_LIBS_EXTRA "")
 if(SPARSE_MUTEX)
     string(APPEND SPARSE_PC_LIBS_EXTRA " -pthread")

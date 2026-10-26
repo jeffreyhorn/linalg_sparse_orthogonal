@@ -12,6 +12,9 @@
 #define SPARSE_VERSION_MINOR @SPARSE_VERSION_MINOR@
 #define SPARSE_VERSION_PATCH @SPARSE_VERSION_PATCH@
 
+/** @brief Index width used to build the linked static library. */
+#define SPARSE_BUILT_IDX_BITS @SPARSE_BUILT_IDX_BITS@
+
 /** @brief Encode version components into a single comparable integer. */
 #define SPARSE_VERSION_ENCODE(maj, min, pat) (((maj) * 10000) + ((min) * 100) + (pat))
 

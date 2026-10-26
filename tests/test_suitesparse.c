@@ -28,7 +28,8 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot, double tol,
 
     idx_t n = sparse_rows(A);
     if (n != sparse_cols(A)) {
-        printf("    non-square (%d x %d), skipping solve\n", n, sparse_cols(A));
+        printf("    non-square (%" SPARSE_PRIDX " x %" SPARSE_PRIDX "), skipping solve\n", n,
+               sparse_cols(A));
         sparse_free(A);
         return 0;
     }
@@ -110,8 +111,8 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot, double tol,
 
     double rel_res = (b_norm > 0.0) ? res_norm / b_norm : res_norm;
 
-    printf("    n=%d nnz=%d pivot=%s rel_res=%.3e %s\n", n, sparse_nnz(A_orig),
-           pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete", rel_res,
+    printf("    n=%" SPARSE_PRIDX " nnz=%" SPARSE_PRIDX " pivot=%s rel_res=%.3e %s\n", n,
+           sparse_nnz(A_orig), pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete", rel_res,
            rel_res < res_threshold ? "OK" : "HIGH");
 
     int result = (rel_res < res_threshold) ? 1 : 0;

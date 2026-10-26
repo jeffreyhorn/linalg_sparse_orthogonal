@@ -1005,11 +1005,13 @@ The library is safe for concurrent use under the following contract:
 
 ## Known Limitations
 
-- **Default reviewed width remains 32-bit.** The shipped reviewed build uses
-  `SPARSE_IDX_BITS=32`, so `idx_t` still limits matrix dimensions and nonzero
-  counts to ~2.1 billion. Wider indices are now a bounded compile-time seam
-  through `SPARSE_IDX_BITS=64`; downstream callers must rebuild against that
-  same width contract.
+- **Default reviewed width remains 32-bit.** The default build uses
+  `SPARSE_IDX_BITS=32`, limiting `idx_t` values to `INT32_MAX`. A separate
+  `SPARSE_IDX_BITS=64` build has selected functional and installed-consumer
+  coverage, not universal algorithm coverage. Downstream callers must use
+  matching headers, metadata, and archive and check the linked archive width
+  before index-bearing calls. See [Index Width Contract](INSTALL.md#index-width-contract)
+  for build, install, and consumer commands.
 - **In-place factorization.** `sparse_lu_factor` and `sparse_cholesky_factor` overwrite the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
 - **Factored-state validation.** Solve functions check an internal `factored` flag and return `SPARSE_ERR_BADARG` if the matrix has not been factored. Modifying a factored matrix (insert/remove) clears the flag. For externally-constructed factors (e.g., imported from CSR), call `sparse_mark_factored()` before solving.
 - **Scalar support is still real-only.** The current dense-scalar public seam

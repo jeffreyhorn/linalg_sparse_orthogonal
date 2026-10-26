@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import shlex
+import subprocess
+import tempfile
 from pathlib import Path
 
 
 PC_FIELDS = {
     "Name": "sparse",
     "Description": "Static archive package metadata for sparse linear algebra",
-    "Cflags": "-I${includedir}",
     "Libs": "-L${libdir} -lsparse_lu_ortho -lm",
 }
 PC_VARIABLES = {"prefix", "exec_prefix", "libdir", "includedir"}
@@ -51,7 +54,7 @@ def read_text(path: Path, errors: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def check_pc(path: Path, prefix: Path, version: str, errors: list[str]) -> None:
+def check_pc(path: Path, prefix: Path, version: str, errors: list[str]) -> int | None:
     fields: dict[str, str] = {}
     variables: dict[str, str] = {}
     for line in read_text(path, errors).splitlines():
@@ -87,13 +90,22 @@ def check_pc(path: Path, prefix: Path, version: str, errors: list[str]) -> None:
     }.items():
         if key in variables and variables[key] != expected_value:
             errors.append(f"pkg-config {key} differs from {expected_value}")
-    expected = {**PC_FIELDS, "Version": version}
+    cflags = fields.get("Cflags", "")
+    width_match = re.fullmatch(
+        r"-I\$\{includedir\} -DSPARSE_PACKAGE_IDX_BITS=(32|64)", cflags
+    )
+    if not width_match:
+        errors.append(
+            f"pkg-config Cflags must contain exactly one supported package width: {cflags}"
+        )
+    expected = {**PC_FIELDS, "Version": version, "Cflags": cflags}
     if fields != expected:
         errors.append(f"pkg-config fields differ from static contract: {fields}")
+    return int(width_match.group(1)) if width_match else None
 
 
 def check_cmake(package_dir: Path, archive_name: str, version: str,
-                errors: list[str]) -> None:
+                errors: list[str]) -> int | None:
     required = {
         "SparseConfig.cmake",
         "SparseConfigVersion.cmake",
@@ -149,6 +161,83 @@ def check_cmake(package_dir: Path, archive_name: str, version: str,
     generated_arch_mismatch_version = '${PACKAGE_VERSION} (${installedBits}bit)'
     if versions not in ([version], [version, generated_arch_mismatch_version]):
         errors.append(f"CMake package version does not match {version}")
+    target_values = re.findall(
+        r'(?m)^[ \t]*INTERFACE_COMPILE_DEFINITIONS\s+"([^"]*)"',
+        contents.get("SparseTargets.cmake", ""),
+    )
+    definitions = [definition for value in target_values
+                   for definition in value.split(";") if definition]
+    other_widths = [name for name, content in contents.items()
+                    if name != "SparseTargets.cmake" and "SPARSE_PACKAGE_IDX_BITS" in content]
+    if definitions not in (["SPARSE_PACKAGE_IDX_BITS=32"],
+                           ["SPARSE_PACKAGE_IDX_BITS=64"]) or other_widths:
+        errors.append("CMake imported target must declare one supported package width: "
+                      f"{definitions}; other files: {other_widths}")
+        return None
+    return int(definitions[0].split("=", 1)[1])
+
+
+def check_version_header(path: Path, errors: list[str]) -> int | None:
+    definitions = re.findall(r"(?m)^\s*#define\s+SPARSE_BUILT_IDX_BITS\s+(\S+)",
+                             read_text(path, errors))
+    if len(definitions) != 1 or definitions[0] not in ("32", "64"):
+        errors.append(f"installed version header must declare one supported width: "
+                      f"{definitions}")
+        return None
+    return int(definitions[0])
+
+
+def query_archive_bits(archive: Path, platform: str, errors: list[str]) -> int | None:
+    source = (
+        "#include <stddef.h>\n#include <stdio.h>\n"
+        "size_t sparse_idx_bits(void);\n"
+        'int main(void) { printf("%zu\\n", sparse_idx_bits()); return 0; }\n'
+    )
+    try:
+        with tempfile.TemporaryDirectory(prefix="sparse-width-probe-") as temp_dir:
+            temp = Path(temp_dir)
+            probe_source = temp / "width_probe.c"
+            probe_source.write_text(source, encoding="utf-8")
+            if platform == "windows":
+                (temp / "CMakeLists.txt").write_text(
+                    "cmake_minimum_required(VERSION 3.16)\n"
+                    "project(sparse_width_probe C)\n"
+                    "add_executable(width_probe width_probe.c)\n"
+                    'target_link_libraries(width_probe PRIVATE "${SPARSE_ARCHIVE}")\n',
+                    encoding="utf-8",
+                )
+                build = temp / "build"
+                commands = [
+                    ["cmake", "-S", str(temp), "-B", str(build),
+                     f"-DSPARSE_ARCHIVE={archive.resolve().as_posix()}"],
+                    ["cmake", "--build", str(build), "--config", "Release"],
+                ]
+            else:
+                executable = temp / "width_probe"
+                commands = [
+                    [*shlex.split(os.environ.get("CC", "cc")), "-std=c11",
+                     str(probe_source), str(archive.resolve()), "-lm", "-o",
+                     str(executable)]
+                ]
+            for command in commands:
+                subprocess.run(command, check=True, capture_output=True, text=True,
+                               timeout=120)
+            if platform == "windows":
+                executables = sorted(build.rglob("width_probe.exe"))
+                if len(executables) != 1:
+                    raise FileNotFoundError("CMake width probe executable was not produced")
+                executable = executables[0]
+            result = subprocess.run([str(executable)], check=True, capture_output=True,
+                                    text=True, timeout=30)
+            bits = result.stdout.strip()
+            if bits not in ("32", "64"):
+                errors.append(f"archive reports unsupported index width: {bits!r}")
+                return None
+            return int(bits)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        errors.append(f"cannot query installed archive index width: {detail}")
+        return None
 
 
 def validate(prefix: Path, mode: str, platform: str, version: str) -> list[str]:
@@ -180,11 +269,22 @@ def validate(prefix: Path, mode: str, platform: str, version: str) -> list[str]:
         ):
             errors.append(f"unexpected shared/import artifact: {path}")
 
-    check_pc(library_dir / "pkgconfig" / "sparse.pc", prefix, version, errors)
+    pc_bits = check_pc(library_dir / "pkgconfig" / "sparse.pc", prefix, version, errors)
+    header_bits = check_version_header(prefix / "include" / "sparse" /
+                                       "sparse_version.h", errors)
+    target_bits = None
     if mode == "cmake":
-        check_cmake(package_dir, archive_name, version, errors)
+        target_bits = check_cmake(package_dir, archive_name, version, errors)
     elif package_dir.exists():
         errors.append("Make install unexpectedly contains CMake package metadata")
+    widths = {"pkg-config": pc_bits, "header": header_bits}
+    if mode == "cmake":
+        widths["CMake target"] = target_bits
+    if not errors:
+        widths["archive"] = query_archive_bits(library_dir / archive_name,
+                                                platform, errors)
+    if not errors and len(set(widths.values())) != 1:
+        errors.append(f"installed index widths disagree: {widths}")
     return errors
 
 

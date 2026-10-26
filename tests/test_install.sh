@@ -126,12 +126,13 @@ PC_CFLAGS_INCLUDE=""
 if [ "$#" -gt 0 ]; then
     PC_CFLAGS_INCLUDE="${1#-I}"
 fi
-if [ "$#" -eq 1 ] && \
+if [ "$#" -eq 2 ] && \
     [ "${1#-I}" != "$1" ] && \
-    same_dir "$PC_CFLAGS_INCLUDE" "$PREFIX/include"; then
-    pass "pkg-config --cflags returns installed include path"
+    same_dir "$PC_CFLAGS_INCLUDE" "$PREFIX/include" && \
+    [ "$2" = "-DSPARSE_PACKAGE_IDX_BITS=32" ]; then
+    pass "pkg-config --cflags returns installed include path and width"
 else
-    fail "pkg-config --cflags expected installed include path, got '$PC_CFLAGS'"
+    fail "pkg-config --cflags expected installed include path and width, got '$PC_CFLAGS'"
 fi
 
 PC_LIBS="$(pkg-config --libs sparse 2>/dev/null || true)"
@@ -194,11 +195,15 @@ fi
 # ── 4. Compile and link downstream consumers against installed library ─────
 echo "--- Compiling downstream consumers against installed library ---"
 cat > "$TMPDIR/test_link.c" << 'CEOF'
+#include "installed_width_check.h"
 #include <sparse/sparse_types.h>
 #include <sparse/sparse_matrix.h>
 #include <stdio.h>
 
 int main(void) {
+    size_t archive_bits = 0;
+    if (!sparse_installed_width_check(&archive_bits)) return 1;
+    printf("Sparse index width %zu\n", archive_bits);
     printf("sparse version: %s\n", SPARSE_VERSION_STRING);
     printf("version int:    %d\n", SPARSE_VERSION);
     SparseMatrix *A = sparse_create(3, 3);
@@ -220,7 +225,8 @@ if ! command -v pkg-config >/dev/null 2>&1; then
     fail "pkg-config not found; cannot validate downstream consumer checks"
 elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
      LIBS_PC="$(pkg-config --libs sparse 2>>"$PKG_CONFIG_LOG")"; then
-    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
+    if $CC -std=c11 -Wall -I"$ROOT_DIR/examples/cmake_example" $CFLAGS_PC \
+        "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
         pass "basic pkg-config consumer compiles and links"
     else
         fail "basic pkg-config consumer failed to compile/link"
@@ -232,7 +238,8 @@ elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
 
     if [ -x "$TMPDIR/test_link" ]; then
         OUTPUT="$("$TMPDIR/test_link" 2>&1)"
-        if echo "$OUTPUT" | grep -q "sparse version:" && \
+        if echo "$OUTPUT" | grep -q "Sparse index width 32" && \
+            echo "$OUTPUT" | grep -q "sparse version:" && \
             echo "$OUTPUT" | grep -q "version int:" && \
             echo "$OUTPUT" | grep -q "nnz: 1" && \
             echo "$OUTPUT" | grep -q "OK"; then
@@ -296,7 +303,8 @@ if [ -f "$ARCHIVE" ] && [ -n "${CFLAGS_PC:-}" ] && [ -n "${LIBS_PC:-}" ]; then
     fi
     # The explicit path tests the linker's missing-file diagnostic only. The
     # validator above rejects this prefix before another pkg-config link.
-    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" "$ARCHIVE" \
+    if $CC -std=c11 -Wall -I"$ROOT_DIR/examples/cmake_example" $CFLAGS_PC \
+        "$TMPDIR/test_link.c" "$ARCHIVE" \
         -lm \
         -o "$TMPDIR/test_link_missing_archive" >"$MISSING_ARCHIVE_LOG" 2>&1; then
         fail "consumer unexpectedly linked without installed static archive"

@@ -60,6 +60,29 @@ class DirectPolicyTests(unittest.TestCase):
         error = self.check_text(self.workflow("      - run: echo ready\n", env="env: {API_PATH: docs/api/html}\n"))
         self.assertIn("generated API output path in API_PATH", error)
 
+    def test_effective_working_directory_generated_reference_is_rejected(self):
+        cases = (
+            self.workflow("      - run: ls .\n        working-directory: docs/api/html\n"),
+            (
+                "name: policy fixture\non: [push]\njobs:\n  build:\n"
+                "    runs-on: ubuntu-latest\n    defaults:\n      run:\n"
+                "        working-directory: docs/api/html\n    steps:\n      - run: ls .\n"
+            ),
+            (
+                "name: policy fixture\non: [push]\ndefaults:\n  run:\n"
+                "    working-directory: docs/api/html\njobs:\n  build:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n      - run: ls .\n"
+            ),
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                error = self.check_text(case)
+                self.assertIsNotNone(error)
+                self.assertIn("case.yml:", error)
+                self.assertIn("jobs.build.steps[0]", error)
+                self.assertIn("generated API output path in working-directory", error)
+        self.assertIsNone(self.check_text(self.workflow("      - run: ls .\n        working-directory: build\n")))
+
     def test_broad_publication_paths_are_rejected(self):
         for path in (
             "docs/", "./DoCs/**", ".\\DoCs\\*", "**", ".",

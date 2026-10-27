@@ -122,6 +122,9 @@ def check_direct_policy(inputs: tuple[PolicyInput, ...]) -> None:
         for name, value in values:
             if _contains_generated_path(value.value):
                 raise PolicyViolation(item, value.location, f"generated API output path in {name}")
+        directory = item.working_directory
+        if directory is not None and _contains_generated_path(directory.value):
+            raise PolicyViolation(item, directory.location, "generated API output path in working-directory")
         run = item.rendered_command
         if run is not None and _contains_generated_path(_active_command(run.value, item.shell_family)):
             raise PolicyViolation(item, run.location, "generated API output path in run command")

@@ -392,14 +392,30 @@ class DirectPolicyTests(unittest.TestCase):
 
     def test_source_glob_staging_fails_closed(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
-        for source in ("do*", "doc?", "./do[cs]*"):
+        for source in ("do*", "doc?", "./do[cs]*", "*/*/*/*_8h.html"):
             with self.subTest(source=source):
                 step = f"      - run: cp -R {source} artifact/\n" + upload
                 self.assertIn("dynamic staging paths", self.check_text(self.workflow(step)))
-        for source in ("build/", "build/*"):
+        for source in ("build/", "build/*", "build/*/*/*_8h.html"):
             with self.subTest(source=source):
                 benign = self.workflow(f"      - run: cp -R {source} artifact/\n" + upload)
                 self.assertIsNone(self.check_text(benign))
+
+    def test_absolute_staging_sources_fail_closed(self):
+        checkout = "/home/runner/work/linalg_sparse_orthogonal/linalg_sparse_orthogonal"
+        for command, upload_path in (
+            (f"tar -cf artifact.tar {checkout}", "artifact.tar"),
+            (f"cp -R {checkout} artifact/", "artifact/"),
+        ):
+            with self.subTest(command=command):
+                upload = (
+                    "      - uses: actions/upload-artifact@v4\n"
+                    f"        with:\n          path: {upload_path}\n"
+                )
+                step = f"      - run: {command}\n" + upload
+                self.assertIn("unbounded staging source", self.check_text(self.workflow(step)))
+                benign = f"      - run: {command.replace(checkout, 'build/')}\n" + upload
+                self.assertIsNone(self.check_text(self.workflow(benign)))
 
     def test_copy_target_directory_forms(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"

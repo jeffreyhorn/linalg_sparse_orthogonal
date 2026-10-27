@@ -13,7 +13,7 @@ if __package__:
     from .api_docs_workflow_reader import ScalarValue, SourceLocation, WorkflowReadError
     from .api_docs_workflow_staging import (
         StagedCommand, glob_matches_path, path_reaches_upload, published_paths, stage_has_docs_source,
-        stage_is_dynamic, staged_commands,
+        stage_is_dynamic, stage_is_unbounded, staged_commands,
     )
     from .api_docs_workflow_yaml_common import strip_shell_comment_stateful
 else:
@@ -21,7 +21,7 @@ else:
     from api_docs_workflow_reader import ScalarValue, SourceLocation, WorkflowReadError
     from api_docs_workflow_staging import (
         StagedCommand, glob_matches_path, path_reaches_upload, published_paths, stage_has_docs_source,
-        stage_is_dynamic, staged_commands,
+        stage_is_dynamic, stage_is_unbounded, staged_commands,
     )
     from api_docs_workflow_yaml_common import strip_shell_comment_stateful
 
@@ -153,7 +153,8 @@ def check_staging_policy(inputs: tuple[PolicyInput, ...]) -> None:
     scope: tuple[Path, str] | None = None
 
     def reject(origin: PolicyInput, stage: StagedCommand) -> None:
-        detail = ("uses dynamic staging paths" if stage_is_dynamic(stage) else
+        detail = ("uses unbounded staging source" if stage_is_unbounded(stage) else
+                  "uses dynamic staging paths" if stage_is_dynamic(stage) else
                   f"{stage.kind} docs for publication or artifact upload")
         assert origin.rendered_command is not None
         raise PolicyViolation(origin, origin.rendered_command.location, detail)

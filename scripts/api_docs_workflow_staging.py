@@ -273,14 +273,21 @@ def _recognizable_docs_source(value: str) -> bool:
     return "docs" in parts or path in (".", "*") or all(part == ".." for part in parts)
 
 
+def _unbounded_source(value: str) -> bool:
+    path = _path(value)
+    return path.startswith("/") or bool(re.match(r"^[a-z]:/", path))
+
+
 def _source_is_docs(value: str) -> bool:
     if _recognizable_docs_source(value):
         return True
+    if _unbounded_source(value):
+        return True
     path = _path(value)
-    return any(
-        fnmatch.fnmatchcase(protected, path)
-        for protected in ("docs", "docs/api", "docs/api/html", "docs/api/html/index.html")
-    )
+    if any(char in path for char in "*?["):
+        first = path.split("/", 1)[0]
+        return first == ".." or any(char in first for char in "*?[")
+    return False
 
 
 def glob_matches_path(pattern: str, path: str) -> bool:
@@ -661,6 +668,10 @@ def path_reaches_upload(destination_path: str, upload_path: str) -> bool:
 
 def stage_has_docs_source(stage: StagedCommand) -> bool:
     return _source_is_docs(stage.source) or bool(_DYNAMIC.search(stage.source))
+
+
+def stage_is_unbounded(stage: StagedCommand) -> bool:
+    return _unbounded_source(stage.source)
 
 
 def stage_is_dynamic(stage: StagedCommand) -> bool:

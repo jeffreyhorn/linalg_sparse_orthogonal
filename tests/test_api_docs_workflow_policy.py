@@ -235,6 +235,19 @@ class DirectPolicyTests(unittest.TestCase):
         benign = self.workflow("      - run: echo ';' cp -R docs artifact/\n" + upload)
         self.assertIsNone(self.check_text(benign))
 
+    def test_posix_assignment_prefixes_preserve_command_identity(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for prefix in ("LC_ALL=C", "LC_ALL='C'"):
+            with self.subTest(prefix=prefix):
+                step = f"      - run: {prefix} cp -R docs artifact/\n" + upload
+                self.assertIn("stages docs", self.check_text(self.workflow(step)))
+        publisher = "      - run: LC_ALL=C aws s3 cp docs s3://example/site\n"
+        self.assertIn("publishes docs or repository roots", self.check_text(self.workflow(publisher)))
+        benign = self.workflow("      - run: LC_ALL=C cp -R build/ artifact/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+        quoted = self.workflow("      - run: |\n          \"LC_ALL=C\" cp -R docs artifact/\n" + upload)
+        self.assertIsNone(self.check_text(quoted))
+
     def test_redirection_does_not_replace_copy_destination(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
         for redirect in (">/dev/null", "> /dev/null", "2>/dev/null"):
@@ -294,6 +307,46 @@ class DirectPolicyTests(unittest.TestCase):
         self.assertIn("dynamic staging paths", self.check_text(rejecting))
         benign = self.workflow("      - run: tar -czf - build/ > artifact.tgz\n" + upload)
         self.assertIsNone(self.check_text(benign))
+
+    def test_zip_value_options_and_stdout_archive(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.zip\n"
+        for command, message in (
+            ("zip -r -b build artifact.zip docs/", "archives docs"),
+            ("zip -r - docs/ > artifact.zip", "dynamic staging paths"),
+        ):
+            with self.subTest(command=command):
+                self.assertIn(message, self.check_text(self.workflow(f"      - run: {command}\n" + upload)))
+                benign = command.replace("docs/", "build/")
+                self.assertIsNone(self.check_text(self.workflow(f"      - run: {benign}\n" + upload)))
+
+    def test_powershell_trailing_value_options(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for command in (
+            "Copy-Item -Recurse docs artifact -ErrorAction Stop",
+            "Copy-Item -Path docs -Destination artifact -ErrorAction Stop",
+        ):
+            with self.subTest(command=command):
+                step = f"      - shell: pwsh\n        run: {command}\n" + upload
+                self.assertIn("stages docs", self.check_text(self.workflow(step, runner="windows-latest")))
+                benign = step.replace(" docs ", " build ")
+                self.assertIsNone(self.check_text(self.workflow(benign, runner="windows-latest")))
+        unsupported = self.workflow(
+            "      - shell: pwsh\n"
+            "        run: Copy-Item -Recurse docs artifact -Unsupported value\n" + upload,
+            runner="windows-latest",
+        )
+        self.assertIn("dynamic staging paths", self.check_text(unsupported))
+
+    def test_cd_changes_staging_directory_within_run(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        rejecting = self.workflow("      - run: cd docs; cp -R . ../artifact/\n" + upload)
+        self.assertIn("stages docs", self.check_text(rejecting))
+        benign = self.workflow("      - run: cd build; cp -R output ../artifact/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+        unresolved = self.workflow("      - run: cd $WORKDIR; cp -R output ../artifact/\n" + upload)
+        self.assertIn("dynamic staging paths", self.check_text(unresolved))
+        publisher = self.workflow("      - run: cd docs; aws s3 sync . s3://example/site\n")
+        self.assertIn("publishes docs or repository roots", self.check_text(publisher))
 
     def test_source_glob_staging_fails_closed(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"

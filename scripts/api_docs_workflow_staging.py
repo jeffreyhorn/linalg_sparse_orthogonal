@@ -6,6 +6,7 @@ import fnmatch
 import posixpath
 import re
 from dataclasses import dataclass, replace
+from typing import Iterator
 
 if __package__:
     from .api_docs_workflow_policy_inputs import PolicyInput
@@ -83,23 +84,34 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
     active = _without_comments(value, False).replace("\\\n", "")
     commands: list[tuple[str, ...]] = []
     current: list[str] = []
+    assignments: list[bool] = []
     word: list[str] = []
     started = False
     quote = ""
+    assignment_name_valid = True
+    assignment_seen_equal = False
     index = 0
 
     def end_word() -> None:
-        nonlocal started
+        nonlocal started, assignment_name_valid, assignment_seen_equal
         if started:
             current.append("".join(word))
+            assignments.append(assignment_name_valid and assignment_seen_equal)
             word.clear()
             started = False
+            assignment_name_valid = True
+            assignment_seen_equal = False
 
     def end_command() -> None:
         end_word()
         if current:
-            commands.append(tuple(current))
+            prefix = 0
+            while prefix < len(current) and assignments[prefix]:
+                prefix += 1
+            if prefix < len(current):
+                commands.append(tuple(current[prefix:]))
             current.clear()
+            assignments.clear()
 
     while index < len(active):
         char = active[index]
@@ -123,6 +135,8 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
         elif char in "'\"":
             quote = char
             started = True
+            if not assignment_seen_equal:
+                assignment_name_valid = False
         elif char == "\\":
             if index + 1 >= len(active):
                 return ()
@@ -130,18 +144,26 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
             if active[index] != "\n":
                 word.append(active[index])
                 started = True
+                if not assignment_seen_equal:
+                    assignment_name_valid = False
         elif char == "$" and active[index + 1:index + 2] == "(":
             word.append("${unresolved_substitution}")
             started = True
+            if not assignment_seen_equal:
+                assignment_name_valid = False
             index = _substitution_end(active, index + 2)
         elif char == "`":
             word.append("${unresolved_substitution}")
             started = True
+            if not assignment_seen_equal:
+                assignment_name_valid = False
             index = _backtick_end(active, index + 1)
         elif char in "<>":
             if started and "".join(word).isdigit():
                 word.clear()
                 started = False
+                assignment_name_valid = True
+                assignment_seen_equal = False
             else:
                 end_word()
             if active[index + 1:index + 2] in ("<", ">", "&", "|"):
@@ -169,6 +191,8 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
         elif char.isspace():
             end_word()
         else:
+            if char == "=" and not assignment_seen_equal:
+                assignment_seen_equal = bool(re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", "".join(word)))
             word.append(char)
             started = True
         index += 1
@@ -229,14 +253,15 @@ def _path(value: str) -> str:
     return posixpath.normpath(value.replace("\\", "/")).casefold()
 
 
-def _resolve_path(item: PolicyInput, value: str) -> str:
-    directory = item.working_directory
+def _resolve_path(directory: str | None, value: str) -> str:
     if directory is None or value.startswith("~"):
         return value
     path = value.replace("\\", "/")
     if path.startswith("/") or re.match(r"^[A-Za-z]:/", path):
         return path
-    return posixpath.normpath(posixpath.join(directory.value.replace("\\", "/"), path))
+    if _DYNAMIC.search(directory):
+        return directory.rstrip("/") + "/" + path
+    return posixpath.normpath(posixpath.join(directory.replace("\\", "/"), path))
 
 
 def _recognizable_docs_source(value: str) -> bool:
@@ -315,6 +340,31 @@ def _tar_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
     return tuple(StagedCommand(source, archive, "archives") for source in sources)
 
 
+def _zip_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
+    operands: list[str] = []
+    args = command[1:]
+    index = 0
+    after_options = False
+    while index < len(args):
+        arg = args[index]
+        if arg == "--":
+            after_options = True
+        elif not after_options and arg == "-b":
+            if index + 1 >= len(args):
+                return ()
+            index += 1
+        elif not after_options and arg.startswith("-") and arg != "-":
+            if not re.fullmatch(r"-[rjq0-9]+", arg):
+                return (StagedCommand("${unsupported_zip_options}", "${unsupported_zip_options}", "archives"),)
+        else:
+            operands.append(arg)
+        index += 1
+    if len(operands) < 2:
+        return ()
+    destination = "${stdout_archive}" if operands[0] == "-" else operands[0]
+    return tuple(StagedCommand(source, destination, "archives") for source in operands[1:])
+
+
 def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
     if len(command) < 3:
         return ()
@@ -346,7 +396,9 @@ def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
             return tuple(StagedCommand(source, args[-1], "stages") for source in args[:-1])
     if executable == "tar":
         return _tar_stage(command)
-    if executable in _ARCHIVE - {"tar"}:
+    if executable == "zip":
+        return _zip_stage(command)
+    if executable in _ARCHIVE - {"tar", "zip"}:
         args = [arg for arg in command[1:] if not arg.startswith("-")]
         if executable.startswith("7z") and args and args[0].casefold() == "a":
             args = args[1:]
@@ -363,6 +415,15 @@ def _powershell_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
         return ()
     named: dict[str, tuple[str, ...]] = {}
     positional: list[str] = []
+    value_options = frozenset((
+        "-erroraction", "-warningaction", "-informationaction", "-progressaction",
+        "-errorvariable", "-warningvariable", "-informationvariable", "-outvariable",
+        "-pipelinevariable", "-compressionlevel", "-exclude", "-include", "-filter",
+        "-credential", "-tosession", "-fromsession",
+    ))
+    switch_options = frozenset((
+        "-recurse", "-force", "-passthru", "-container", "-whatif", "-confirm", "-update",
+    ))
     index = 1
     while index < len(command):
         arg = command[index]
@@ -377,6 +438,16 @@ def _powershell_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
                         index += 2
                     named[name] = tuple(values)
                     continue
+            if name in value_options:
+                if index + 1 >= len(command):
+                    return ()
+                index += 2
+                continue
+            if name in switch_options or (":" in name and name.split(":", 1)[0] in value_options):
+                index += 1
+                continue
+            return (StagedCommand("${unsupported_powershell_option}", "${unsupported_powershell_option}",
+                                  "archives" if executable == "compress-archive" else "stages"),)
         elif arg != ",":
             positional.append(arg)
         index += 1
@@ -409,14 +480,29 @@ def _commands(item: PolicyInput) -> tuple[tuple[str, ...], ...]:
     return ()
 
 
+def _commands_with_directories(item: PolicyInput) -> Iterator[tuple[int, tuple[str, ...], str | None]]:
+    directory = item.working_directory.value if item.working_directory is not None else None
+    for index, command in enumerate(_commands(item)):
+        yield index, command, directory
+        if item.shell_family == "posix" and command[0] == "cd":
+            args = command[1:]
+            if args[:1] == ("--",):
+                args = args[1:]
+            if (len(args) != 1 or args[0].startswith(("-", "~", "/"))
+                    or _DYNAMIC.search(args[0])):
+                directory = "${unresolved_working_directory}"
+            else:
+                directory = _resolve_path(directory or ".", args[0])
+
+
 def staged_commands(item: PolicyInput) -> tuple[StagedCommand, ...]:
     parser = _powershell_stage if item.shell_family == "powershell" else _posix_stage
     return tuple(
         replace(
-            stage, source=_resolve_path(item, stage.source),
-            destination=_resolve_path(item, stage.destination), command_index=index,
+            stage, source=_resolve_path(directory, stage.source),
+            destination=_resolve_path(directory, stage.destination), command_index=index,
         )
-        for index, command in enumerate(_commands(item))
+        for index, command, directory in _commands_with_directories(item)
         for stage in parser(command)
     )
 
@@ -467,7 +553,7 @@ def _publication_operands(
 def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
     """Return explicit local inputs to shell publication commands."""
     paths: list[tuple[int, str]] = []
-    for index, command in enumerate(_commands(item)):
+    for index, command, directory in _commands_with_directories(item):
         words = tuple(word.casefold() for word in command)
         sources: list[str] = []
         if words[:3] in (("aws", "s3", "cp"), ("aws", "s3", "sync")):
@@ -524,7 +610,7 @@ def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
                 sources = [source for source in operands[:-1] if ":" not in source]
         elif len(words) >= 3 and words[0] == "surge":
             sources = [command[1]]
-        paths.extend((index, _resolve_path(item, source)) for source in sources)
+        paths.extend((index, _resolve_path(directory, source)) for source in sources)
     return tuple(paths)
 
 

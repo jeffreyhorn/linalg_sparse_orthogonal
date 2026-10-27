@@ -241,7 +241,8 @@ def _resolve_path(item: PolicyInput, value: str) -> str:
 
 def _recognizable_docs_source(value: str) -> bool:
     path = _path(value)
-    return "docs" in path.split("/") or path in (".", "*")
+    parts = path.split("/")
+    return "docs" in parts or path in (".", "*") or all(part == ".." for part in parts)
 
 
 def _source_is_docs(value: str) -> bool:
@@ -295,7 +296,10 @@ def _tar_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
             directory = arg[2:]
         elif arg.startswith("--file="):
             archive = arg.split("=", 1)[1]
-        elif arg in ("-f", "--file") or re.fullmatch(r"-?[A-Za-z]*f[A-Za-z]*", arg):
+        elif arg in ("-f", "--file") or (
+            (index == 0 or arg.startswith("-"))
+            and re.fullmatch(r"-?[A-Za-z]*f[A-Za-z]*", arg)
+        ):
             if index + 1 >= len(args):
                 return ()
             archive = args[index + 1]
@@ -306,6 +310,8 @@ def _tar_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
         index += 1
     if archive is None:
         return ()
+    if archive == "-":
+        archive = "${stdout_archive}"
     return tuple(StagedCommand(source, archive, "archives") for source in sources)
 
 

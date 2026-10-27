@@ -270,6 +270,31 @@ class DirectPolicyTests(unittest.TestCase):
         benign = self.workflow("      - run: tar -C build -czf artifact.tgz api\n" + upload)
         self.assertIsNone(self.check_text(benign))
 
+    def test_tar_ancestor_members_include_docs(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.tar\n"
+        for source in ("..", "../.."):
+            with self.subTest(source=source):
+                step = f"      - run: tar -cf artifact.tar {source}\n" + upload
+                self.assertIn("archives docs", self.check_text(self.workflow(step)))
+        benign = self.workflow("      - run: tar -cf artifact.tar build/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_tar_member_names_are_not_legacy_option_bundles(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.tar\n"
+        for member in ("files", "Doxyfile"):
+            with self.subTest(member=member):
+                step = f"      - run: tar -cf artifact.tar docs/ {member}\n" + upload
+                self.assertIn("archives docs", self.check_text(self.workflow(step)))
+        benign = self.workflow("      - run: tar -cf artifact.tar build/ files\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_tar_stdout_archive_fails_closed_on_upload(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.tgz\n"
+        rejecting = self.workflow("      - run: tar -czf - docs/ > artifact.tgz\n" + upload)
+        self.assertIn("dynamic staging paths", self.check_text(rejecting))
+        benign = self.workflow("      - run: tar -czf - build/ > artifact.tgz\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
     def test_source_glob_staging_fails_closed(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
         for source in ("do*", "doc?", "./do[cs]*"):

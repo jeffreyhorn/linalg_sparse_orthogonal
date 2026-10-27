@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import posixpath
 import re
 from pathlib import Path
@@ -13,7 +12,7 @@ if __package__:
     from .api_docs_workflow_policy_inputs import PolicyInput, read_policy_inputs
     from .api_docs_workflow_reader import ScalarValue, SourceLocation, WorkflowReadError
     from .api_docs_workflow_staging import (
-        StagedCommand, path_reaches_upload, published_paths, stage_has_docs_source,
+        StagedCommand, glob_matches_path, path_reaches_upload, published_paths, stage_has_docs_source,
         stage_is_dynamic, staged_commands,
     )
     from .api_docs_workflow_yaml_common import strip_shell_comment_stateful
@@ -21,7 +20,7 @@ else:
     from api_docs_workflow_policy_inputs import PolicyInput, read_policy_inputs
     from api_docs_workflow_reader import ScalarValue, SourceLocation, WorkflowReadError
     from api_docs_workflow_staging import (
-        StagedCommand, path_reaches_upload, published_paths, stage_has_docs_source,
+        StagedCommand, glob_matches_path, path_reaches_upload, published_paths, stage_has_docs_source,
         stage_is_dynamic, staged_commands,
     )
     from api_docs_workflow_yaml_common import strip_shell_comment_stateful
@@ -100,14 +99,14 @@ def _action_kind(item: PolicyInput) -> str:
 
 
 def _path_is_broad(canonical: str) -> bool:
-    if canonical in (".", "..", "/", "*", "**") or canonical.startswith("../"):
+    if canonical in (".", "..", "/", "*", "**") or canonical.startswith(("../", "~")):
         return True
     parts = canonical.split("/")
     if "docs" in parts:
         return True
     return any(
-        fnmatch.fnmatchcase(candidate, canonical)
-        for candidate in ("docs/api", "docs/api/html", "docs/readme.md")
+        glob_matches_path(canonical, candidate)
+        for candidate in ("docs/api", "docs/api/html", "docs/api/html/index.html", "docs/readme.md")
     )
 
 

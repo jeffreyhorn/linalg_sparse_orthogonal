@@ -67,6 +67,18 @@ def _substitution_end(value: str, start: int) -> int:
     return len(value) - 1
 
 
+def _backtick_end(value: str, start: int) -> int:
+    index = start
+    while index < len(value):
+        if value[index] == "\\":
+            index += 2
+            continue
+        if value[index] == "`":
+            return index
+        index += 1
+    return len(value) - 1
+
+
 def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
     active = _without_comments(value, False).replace("\\\n", "")
     commands: list[tuple[str, ...]] = []
@@ -99,6 +111,9 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
         elif quote == '"':
             if char == '"':
                 quote = ""
+            elif char == "`":
+                word.append("${unresolved_substitution}")
+                index = _backtick_end(active, index + 1)
             elif char == "\\" and index + 1 < len(active) and active[index + 1] in '$`"\\\n':
                 index += 1
                 if active[index] != "\n":
@@ -119,6 +134,36 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
             word.append("${unresolved_substitution}")
             started = True
             index = _substitution_end(active, index + 2)
+        elif char == "`":
+            word.append("${unresolved_substitution}")
+            started = True
+            index = _backtick_end(active, index + 1)
+        elif char in "<>":
+            if started and "".join(word).isdigit():
+                word.clear()
+                started = False
+            else:
+                end_word()
+            if active[index + 1:index + 2] in ("<", ">", "&", "|"):
+                index += 1
+            index += 1
+            while index < len(active) and active[index] in " \t":
+                index += 1
+            target_quote = ""
+            while index < len(active):
+                target_char = active[index]
+                if target_char == "\\" and target_quote != "'":
+                    index += 2
+                    continue
+                if target_quote:
+                    if target_char == target_quote:
+                        target_quote = ""
+                elif target_char in "'\"":
+                    target_quote = target_char
+                elif target_char.isspace() or target_char in _SEPARATORS:
+                    break
+                index += 1
+            continue
         elif char in _SEPARATORS:
             end_command()
         elif char.isspace():
@@ -186,7 +231,7 @@ def _path(value: str) -> str:
 
 def _resolve_path(item: PolicyInput, value: str) -> str:
     directory = item.working_directory
-    if directory is None:
+    if directory is None or value.startswith("~"):
         return value
     path = value.replace("\\", "/")
     if path.startswith("/") or re.match(r"^[A-Za-z]:/", path):
@@ -207,6 +252,61 @@ def _source_is_docs(value: str) -> bool:
         fnmatch.fnmatchcase(protected, path)
         for protected in ("docs", "docs/api", "docs/api/html", "docs/api/html/index.html")
     )
+
+
+def glob_matches_path(pattern: str, path: str) -> bool:
+    """Match path segments, allowing ** to consume zero or more directories."""
+    pattern_parts = pattern.split("/")
+    path_parts = path.split("/")
+
+    def matches(pattern_index: int, path_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        if pattern_parts[pattern_index] == "**":
+            return matches(pattern_index + 1, path_index) or (
+                path_index < len(path_parts) and matches(pattern_index, path_index + 1)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatch.fnmatchcase(path_parts[path_index], pattern_parts[pattern_index])
+            and matches(pattern_index + 1, path_index + 1)
+        )
+
+    return matches(0, 0)
+
+
+def _tar_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
+    directory = "."
+    archive: str | None = None
+    sources: list[str] = []
+    args = command[1:]
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("-C", "--directory"):
+            if index + 1 >= len(args):
+                return ()
+            directory = args[index + 1]
+            index += 2
+            continue
+        if arg.startswith("--directory="):
+            directory = arg.split("=", 1)[1]
+        elif arg.startswith("-C") and len(arg) > 2:
+            directory = arg[2:]
+        elif arg.startswith("--file="):
+            archive = arg.split("=", 1)[1]
+        elif arg in ("-f", "--file") or re.fullmatch(r"-?[A-Za-z]*f[A-Za-z]*", arg):
+            if index + 1 >= len(args):
+                return ()
+            archive = args[index + 1]
+            index += 2
+            continue
+        elif not arg.startswith("-") and archive is not None:
+            sources.append(posixpath.normpath(posixpath.join(directory, arg)))
+        index += 1
+    if archive is None:
+        return ()
+    return tuple(StagedCommand(source, archive, "archives") for source in sources)
 
 
 def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
@@ -239,14 +339,7 @@ def _posix_stage(command: tuple[str, ...]) -> tuple[StagedCommand, ...]:
         if len(args) >= 2:
             return tuple(StagedCommand(source, args[-1], "stages") for source in args[:-1])
     if executable == "tar":
-        args = command[1:]
-        for index, arg in enumerate(args):
-            if arg in ("-f", "--file") and index + 2 < len(args):
-                return tuple(StagedCommand(source, args[index + 1], "archives") for source in args[index + 2:])
-            if arg.startswith("--file="):
-                return tuple(StagedCommand(source, arg.split("=", 1)[1], "archives") for source in args[index + 1:])
-            if re.fullmatch(r"-?[A-Za-z]*f[A-Za-z]*", arg) and index + 2 < len(args):
-                return tuple(StagedCommand(source, args[index + 1], "archives") for source in args[index + 2:])
+        return _tar_stage(command)
     if executable in _ARCHIVE - {"tar"}:
         args = [arg for arg in command[1:] if not arg.startswith("-")]
         if executable.startswith("7z") and args and args[0].casefold() == "a":
@@ -339,18 +432,53 @@ def _operands(words: tuple[str, ...], value_options: frozenset[str] = frozenset(
     return result
 
 
+def _publication_operands(
+    words: tuple[str, ...], value_options: frozenset[str], switch_options: frozenset[str]
+) -> list[str] | None:
+    operands: list[str] = []
+    index = 0
+    after_options = False
+    while index < len(words):
+        word = words[index]
+        if word == "--":
+            after_options = True
+        elif not after_options and word in value_options:
+            if index + 1 >= len(words):
+                return None
+            index += 1
+        elif not after_options and any(word.startswith(option + "=") for option in value_options):
+            pass
+        elif not after_options and word in switch_options:
+            pass
+        elif not after_options and word.startswith("-"):
+            return None
+        else:
+            operands.append(word)
+        index += 1
+    return operands
+
+
 def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
     """Return explicit local inputs to shell publication commands."""
     paths: list[tuple[int, str]] = []
     for index, command in enumerate(_commands(item)):
         words = tuple(word.casefold() for word in command)
         sources: list[str] = []
-        if len(words) >= 5 and words[:3] == ("aws", "s3", "cp"):
-            sources = [command[3]]
-        elif len(words) >= 5 and words[:3] == ("aws", "s3", "sync"):
-            sources = [command[3]]
-        elif len(words) >= 4 and words[:2] in (("rclone", "copy"), ("rclone", "sync"), ("rclone", "move")):
-            sources = [command[2]]
+        if words[:3] in (("aws", "s3", "cp"), ("aws", "s3", "sync")):
+            operands = _publication_operands(
+                command[3:],
+                frozenset(("--profile", "--region", "--endpoint-url", "--exclude", "--include", "--acl")),
+                frozenset(("--recursive", "--delete", "--dryrun", "--quiet", "--no-progress",
+                           "--only-show-errors", "--follow-symlinks", "--no-follow-symlinks")),
+            )
+            sources = [operands[0]] if operands and len(operands) >= 2 else ["${unresolved_publication_source}"]
+        elif words[:2] in (("rclone", "copy"), ("rclone", "sync"), ("rclone", "move")):
+            operands = _publication_operands(
+                command[2:],
+                frozenset(("--config", "--exclude", "--include", "--transfers")),
+                frozenset(("--progress", "-P", "-v", "-vv", "--dry-run", "--fast-list")),
+            )
+            sources = [operands[0]] if operands and len(operands) >= 2 else ["${unresolved_publication_source}"]
         elif len(words) >= 3 and words[0] == "gsutil":
             operands = _operands(command[1:], frozenset(("-h", "-o", "-u")))
             if len(operands) >= 3 and operands[0].casefold() == "cp":
@@ -358,17 +486,25 @@ def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
             elif len(operands) >= 3 and operands[0].casefold() == "rsync":
                 sources = [operands[-2]]
         elif len(words) >= 5 and words[:3] == ("gh", "release", "upload"):
-            sources = _operands(command[4:], frozenset(("--repo", "-r")))
-        elif len(words) >= 4 and words[:3] == ("wrangler", "pages", "deploy"):
-            sources = [command[3]]
+            sources = [source.split("#", 1)[0] for source in _operands(command[4:], frozenset(("--repo", "-r")))]
+        elif words[:3] == ("wrangler", "pages", "deploy"):
+            operands = _publication_operands(
+                command[3:], frozenset(("--project-name", "--branch", "--commit-hash")),
+                frozenset(("--commit-dirty",)),
+            )
+            sources = [operands[0]] if operands else ["${unresolved_publication_source}"]
         elif len(words) >= 3 and words[:2] == ("netlify", "deploy"):
             for offset, word in enumerate(words[2:], 2):
                 if word.startswith("--dir="):
                     sources = [command[offset].split("=", 1)[1]]
                 elif word == "--dir" and offset + 1 < len(command):
                     sources = [command[offset + 1]]
-        elif len(words) >= 3 and words[:2] == ("vercel", "deploy"):
-            sources = [command[2]]
+        elif words[:2] == ("vercel", "deploy"):
+            operands = _publication_operands(
+                command[2:], frozenset(("--scope", "--token", "--name")),
+                frozenset(("--prod", "--yes", "--force", "--prebuilt")),
+            )
+            sources = [operands[0]] if operands else ["${unresolved_publication_source}"]
         elif len(words) >= 4 and words[:4] == ("az", "storage", "blob", "upload"):
             for offset, word in enumerate(words[4:], 4):
                 if word == "--file" and offset + 1 < len(command):
@@ -399,7 +535,7 @@ def path_reaches_upload(destination_path: str, upload_path: str) -> bool:
             or destination.startswith(uploaded.rstrip("/") + "/")):
         return True
     if any(char in uploaded for char in "*?["):
-        return fnmatch.fnmatchcase(destination, uploaded) or fnmatch.fnmatchcase(destination + "/index.html", uploaded)
+        return glob_matches_path(uploaded, destination) or glob_matches_path(uploaded, destination + "/index.html")
     return False
 
 

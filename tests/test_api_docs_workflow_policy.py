@@ -63,7 +63,7 @@ class DirectPolicyTests(unittest.TestCase):
     def test_broad_publication_paths_are_rejected(self):
         for path in (
             "docs/", "./DoCs/**", ".\\DoCs\\*", "**", ".",
-            "../docs/api-reference.md", "../**", "build/../../**",
+            "../docs/api-reference.md", "../**", "build/../../**", "**/*.html",
         ):
             with self.subTest(path=path):
                 step = (
@@ -235,11 +235,39 @@ class DirectPolicyTests(unittest.TestCase):
         benign = self.workflow("      - run: echo ';' cp -R docs artifact/\n" + upload)
         self.assertIsNone(self.check_text(benign))
 
+    def test_redirection_does_not_replace_copy_destination(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for redirect in (">/dev/null", "> /dev/null", "2>/dev/null"):
+            with self.subTest(redirect=redirect):
+                step = f"      - run: cp -R docs artifact/ {redirect}\n" + upload
+                self.assertIn("stages docs", self.check_text(self.workflow(step)))
+        benign = self.workflow("      - run: echo 'cp -R docs artifact/ > /dev/null'\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
     def test_unquoted_substitution_in_staging_source_fails_closed(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
         rejecting = self.workflow("      - run: cp -R $(printf docs) artifact/\n" + upload)
         self.assertIn("dynamic staging paths", self.check_text(rejecting))
         benign = self.workflow("      - run: echo $(printf docs)\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_backtick_substitution_in_staging_source_fails_closed(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        rejecting = self.workflow("      - run: cp -R `printf docs` artifact/\n" + upload)
+        self.assertIn("dynamic staging paths", self.check_text(rejecting))
+        benign = self.workflow("      - run: cp -R '`printf docs`' artifact/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+
+    def test_tar_directory_context_applies_to_members_only(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact.tgz\n"
+        for command in (
+            "tar -C docs -czf artifact.tgz api",
+            "tar -czf artifact.tgz -C docs api",
+            "tar --directory=docs --file=artifact.tgz api",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("archives docs", self.check_text(self.workflow(f"      - run: {command}\n" + upload)))
+        benign = self.workflow("      - run: tar -C build -czf artifact.tgz api\n" + upload)
         self.assertIsNone(self.check_text(benign))
 
     def test_source_glob_staging_fails_closed(self):
@@ -310,6 +338,46 @@ class DirectPolicyTests(unittest.TestCase):
                 )
                 safe = command.replace(" artifact.tgz", " build/other.txt")
                 self.assertIsNone(self.check_text(self.workflow(f"      - run: {safe}\n")))
+
+    def test_leading_publisher_options_keep_source_operands(self):
+        stage = "      - run: cp -R docs artifact/\n"
+        commands = (
+            "aws s3 cp --recursive artifact/ s3://example/site",
+            "aws s3 sync --delete artifact/ s3://example/site",
+            "rclone copy --progress artifact/ remote:site",
+            "wrangler pages deploy --project-name site artifact/",
+            "vercel deploy --prod artifact/",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertIn("stages docs", self.check_text(self.workflow(stage + f"      - run: {command}\n")))
+                safe = command.replace("artifact/", "build/")
+                self.assertIsNone(self.check_text(self.workflow(f"      - run: {safe}\n")))
+
+    def test_home_publication_source_fails_closed_with_working_directory(self):
+        for working_directory in ("", "        working-directory: build\n"):
+            with self.subTest(working_directory=working_directory):
+                step = (
+                    "      - run: aws s3 sync ~ s3://example/release\n"
+                    + working_directory
+                )
+                self.assertIn("publishes docs or repository roots", self.check_text(self.workflow(step)))
+        safe = self.workflow("      - run: aws s3 sync build/ s3://example/release\n")
+        self.assertIsNone(self.check_text(safe))
+
+    def test_labeled_release_asset_preserves_local_source(self):
+        archive = "      - run: tar -czf artifact.tgz docs/\n"
+        rejecting = self.workflow(archive + "      - run: gh release upload v1 artifact.tgz#API\n")
+        self.assertIn("archives docs", self.check_text(rejecting))
+        benign = self.workflow("      - run: gh release upload v1 build/safe.tgz#API\n")
+        self.assertIsNone(self.check_text(benign))
+
+    def test_root_archive_matches_double_star_upload_glob(self):
+        archive = "      - run: tar -czf artifact.tgz docs/\n"
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: '**/*.tgz'\n"
+        self.assertIn("archives docs", self.check_text(self.workflow(archive + upload)))
+        benign = self.workflow("      - run: tar -czf artifact.tgz build/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
 
     def test_scp_switches_and_value_options_keep_asset_source(self):
         archive = "      - run: tar -czf artifact.tgz docs/\n"

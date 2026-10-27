@@ -16,7 +16,7 @@ else:
     from api_docs_workflow_yaml_common import strip_shell_comment_stateful
 
 
-_DYNAMIC = re.compile(r"\$\{|\$\(|\$[A-Za-z_]|%[A-Za-z_][A-Za-z_0-9]*%|^~")
+_DYNAMIC = re.compile(r"\$\{|\$\(|\$[A-Za-z_0-9@*?#$!-]|%[A-Za-z_][A-Za-z_0-9]*%|^~")
 _SEPARATORS = frozenset(";|&()\n")
 _COPY = frozenset(("cp", "mv", "rsync", "copy", "move", "xcopy", "robocopy"))
 _ARCHIVE = frozenset(("tar", "zip", "7z", "7za", "7zr"))
@@ -186,6 +186,9 @@ def _posix_commands(value: str) -> tuple[tuple[str, ...], ...]:
                     break
                 index += 1
             continue
+        elif char in "()":
+            end_command()
+            commands.append((char,))
         elif char in _SEPARATORS:
             end_command()
         elif char.isspace():
@@ -482,7 +485,16 @@ def _commands(item: PolicyInput) -> tuple[tuple[str, ...], ...]:
 
 def _commands_with_directories(item: PolicyInput) -> Iterator[tuple[int, tuple[str, ...], str | None]]:
     directory = item.working_directory.value if item.working_directory is not None else None
+    subshell_directories: list[str | None] = []
+    powershell_directories: list[str | None] = []
     for index, command in enumerate(_commands(item)):
+        if item.shell_family == "posix" and command == ("(",):
+            subshell_directories.append(directory)
+            continue
+        if item.shell_family == "posix" and command == (")",):
+            directory = (subshell_directories.pop() if subshell_directories
+                         else "${unresolved_working_directory}")
+            continue
         yield index, command, directory
         if item.shell_family == "posix" and command[0] == "cd":
             args = command[1:]
@@ -493,6 +505,22 @@ def _commands_with_directories(item: PolicyInput) -> Iterator[tuple[int, tuple[s
                 directory = "${unresolved_working_directory}"
             else:
                 directory = _resolve_path(directory or ".", args[0])
+        elif item.shell_family == "powershell":
+            executable = command[0].casefold()
+            if executable in ("cd", "sl", "set-location", "pushd", "push-location"):
+                if executable in ("pushd", "push-location"):
+                    powershell_directories.append(directory)
+                args = command[1:]
+                if args[:1] and args[0].casefold() in ("-path", "-literalpath"):
+                    args = args[1:]
+                if (len(args) != 1 or args[0].startswith(("-", "~", "/"))
+                        or _DYNAMIC.search(args[0]) or re.match(r"^[A-Za-z]:[/\\]", args[0])):
+                    directory = "${unresolved_working_directory}"
+                else:
+                    directory = _resolve_path(directory or ".", args[0])
+            elif executable in ("popd", "pop-location"):
+                directory = (powershell_directories.pop() if powershell_directories
+                             else "${unresolved_working_directory}")
 
 
 def staged_commands(item: PolicyInput) -> tuple[StagedCommand, ...]:

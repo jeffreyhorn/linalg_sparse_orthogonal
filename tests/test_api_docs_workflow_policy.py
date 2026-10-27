@@ -74,6 +74,19 @@ class DirectPolicyTests(unittest.TestCase):
                 self.assertIsNotNone(error)
                 self.assertIn("publishes docs or repository roots", error)
 
+    def test_absolute_publication_paths_fail_closed(self):
+        for path in (
+            "/home/runner/work/linalg_sparse_orthogonal/linalg_sparse_orthogonal/**",
+            "C:\\work\\linalg_sparse_orthogonal\\**",
+        ):
+            with self.subTest(path=path):
+                upload = "      - uses: actions/upload-artifact@v4\n" + f"        with:\n          path: '{path}'\n"
+                self.assertIn("publishes docs or repository roots", self.check_text(self.workflow(upload)))
+        shell = self.workflow("      - run: aws s3 sync /home/runner/work/checkout s3://example/site\n")
+        self.assertIn("publishes docs or repository roots", self.check_text(shell))
+        benign = self.workflow("      - uses: actions/upload-artifact@v4\n        with:\n          path: build/output\n")
+        self.assertIsNone(self.check_text(benign))
+
     def test_multiline_path_checks_every_entry(self):
         step = (
             "      - uses: actions/upload-artifact@v4\n"
@@ -348,6 +361,35 @@ class DirectPolicyTests(unittest.TestCase):
         publisher = self.workflow("      - run: cd docs; aws s3 sync . s3://example/site\n")
         self.assertIn("publishes docs or repository roots", self.check_text(publisher))
 
+    def test_subshell_directory_does_not_leak_into_following_commands(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        rejecting = self.workflow("      - run: (cd build); cp -R docs artifact/\n" + upload)
+        self.assertIn("stages docs", self.check_text(rejecting))
+        benign = self.workflow("      - run: (cd docs); cp -R build artifact/\n" + upload)
+        self.assertIsNone(self.check_text(benign))
+        nested = self.workflow("      - run: (cd build; (cd docs)); cp -R docs artifact/\n" + upload)
+        self.assertIn("stages docs", self.check_text(nested))
+
+    def test_powershell_location_changes_affect_staging_paths(self):
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
+        for change in ("Set-Location docs", "cd docs", "Set-Location -Path docs"):
+            with self.subTest(change=change):
+                step = (
+                    "      - shell: pwsh\n"
+                    f"        run: {change}; Copy-Item -Recurse * -Destination ../artifact/\n" + upload
+                )
+                self.assertIn("stages docs", self.check_text(self.workflow(step, runner="windows-latest")))
+        benign = (
+            "      - shell: pwsh\n"
+            "        run: Set-Location build; Copy-Item -Recurse * -Destination ../artifact/\n" + upload
+        )
+        self.assertIsNone(self.check_text(self.workflow(benign, runner="windows-latest")))
+        unresolved = (
+            "      - shell: pwsh\n"
+            "        run: Set-Location $env:DIR; Copy-Item -Recurse * -Destination ../artifact/\n" + upload
+        )
+        self.assertIn("dynamic staging paths", self.check_text(self.workflow(unresolved, runner="windows-latest")))
+
     def test_source_glob_staging_fails_closed(self):
         upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: artifact/\n"
         for source in ("do*", "doc?", "./do[cs]*"):
@@ -442,6 +484,16 @@ class DirectPolicyTests(unittest.TestCase):
                 self.assertIn("publishes docs or repository roots", self.check_text(self.workflow(step)))
         safe = self.workflow("      - run: aws s3 sync build/ s3://example/release\n")
         self.assertIsNone(self.check_text(safe))
+
+    def test_posix_positional_and_special_publication_parameters_are_dynamic(self):
+        for source in ('"$1"', '"$@"', '"$*"'):
+            with self.subTest(source=source):
+                step = f"      - run: set -- docs; aws s3 sync {source} s3://example/site\n"
+                self.assertIn("dynamic publication path", self.check_text(self.workflow(step)))
+        action = self.workflow("      - uses: actions/upload-artifact@v4\n        with:\n          path: '$1'\n")
+        self.assertIn("dynamic or unresolved publication path", self.check_text(action))
+        benign = self.workflow("      - run: aws s3 sync build/ s3://example/site\n")
+        self.assertIsNone(self.check_text(benign))
 
     def test_labeled_release_asset_preserves_local_source(self):
         archive = "      - run: tar -czf artifact.tgz docs/\n"

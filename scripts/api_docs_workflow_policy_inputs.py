@@ -22,7 +22,7 @@ else:
 PATH_INPUT_NAMES = frozenset(
     ("path", "publish_dir", "publish-dir", "directory", "folder", "files", "asset_path")
 )
-_DYNAMIC_PATH = re.compile(r"\$\{|\$\(|\$[A-Za-z_]|%[A-Za-z_][A-Za-z_0-9]*%|^~")
+_DYNAMIC_PATH = re.compile(r"\$\{|\$\(|\$[A-Za-z_0-9@*?#$!-]|%[A-Za-z_][A-Za-z_0-9]*%|^~")
 
 
 @dataclass(frozen=True)

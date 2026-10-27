@@ -31,6 +31,7 @@ _PUBLISHER = re.compile(r"publish|deploy|release|pages|artifact|upload|gh-pages"
 _SAFE_ACTIONS = frozenset(("actions/checkout",))
 _EXPLICIT_SOURCE_ACTIONS = frozenset(("actions/upload-artifact", "actions/upload-pages-artifact"))
 _REFERENCE_WORD = re.compile(r"[^\s,;|&()<>]+")
+_DYNAMIC_SOURCE = re.compile(r"\$\{|\$\(|\$[A-Za-z_0-9@*?#$!-]|%[A-Za-z_][A-Za-z_0-9]*%")
 
 
 class PolicyViolation(ValueError):
@@ -99,7 +100,8 @@ def _action_kind(item: PolicyInput) -> str:
 
 
 def _path_is_broad(canonical: str) -> bool:
-    if canonical in (".", "..", "/", "*", "**") or canonical.startswith(("../", "~")):
+    if (canonical in (".", "..", "/", "*", "**") or canonical.startswith(("../", "~", "/"))
+            or re.match(r"^[A-Za-z]:/", canonical)):
         return True
     parts = canonical.split("/")
     if "docs" in parts:
@@ -126,7 +128,7 @@ def check_direct_policy(inputs: tuple[PolicyInput, ...]) -> None:
         if run is not None:
             for _, source in published_paths(item):
                 canonical = posixpath.normpath(source.replace("\\", "/")).casefold()
-                if re.search(r"\$\{|\$\(|\$[A-Za-z_]|%[A-Za-z_][A-Za-z_0-9]*%", source):
+                if _DYNAMIC_SOURCE.search(source):
                     raise PolicyViolation(item, run.location, "dynamic publication path in run command")
                 if _path_is_broad(canonical):
                     raise PolicyViolation(item, run.location, "publishes docs or repository roots via run command")

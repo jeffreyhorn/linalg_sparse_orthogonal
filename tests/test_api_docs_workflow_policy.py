@@ -613,6 +613,14 @@ class DirectPolicyTests(unittest.TestCase):
         matching_release = cases[3].replace("artifact.zip", "artifact/")
         self.assertIn("stages docs", self.check_text(self.workflow(matching_release)))
 
+    def test_repeated_copy_propagation_keeps_taint_bounded(self):
+        commands = ["tar -cf artifact.tar docs/"]
+        commands.extend(("cp artifact.tar backup.tar", "cp backup.tar artifact.tar") * 32)
+        stage = "      - run: |\n" + "".join(f"          {command}\n" for command in commands)
+        self.assertIsNone(self.check_text(self.workflow(stage)))
+        upload = "      - uses: actions/upload-artifact@v4\n        with:\n          path: backup.tar\n"
+        self.assertIn("archives docs", self.check_text(self.workflow(stage + upload)))
+
     def test_staging_keeps_command_and_job_boundaries(self):
         cases = (
             "      - run: cp -R docs artifact/\n"

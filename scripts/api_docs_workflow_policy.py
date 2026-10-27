@@ -153,7 +153,14 @@ def check_direct_policy(inputs: tuple[PolicyInput, ...]) -> None:
 
 def check_staging_policy(inputs: tuple[PolicyInput, ...]) -> None:
     tainted: list[tuple[PolicyInput, StagedCommand, str]] = []
+    seen_taint: set[tuple[PolicyInput, StagedCommand, str]] = set()
     scope: tuple[Path, str] | None = None
+
+    def add_taint(origin: PolicyInput, first_stage: StagedCommand, destination: str) -> None:
+        relation = (origin, first_stage, destination)
+        if relation not in seen_taint:
+            seen_taint.add(relation)
+            tainted.append(relation)
 
     def reject(origin: PolicyInput, stage: StagedCommand) -> None:
         detail = ("uses unbounded staging source" if stage_is_unbounded(stage) else
@@ -167,6 +174,7 @@ def check_staging_policy(inputs: tuple[PolicyInput, ...]) -> None:
         if item_scope != scope:
             scope = item_scope
             tainted.clear()
+            seen_taint.clear()
         events: list[tuple[int, str, StagedCommand | str]] = []
         events.extend((stage.command_index, "stage", stage) for stage in staged_commands(item))
         events.extend((index, "publish", path) for index, path in published_paths(item))
@@ -176,11 +184,11 @@ def check_staging_policy(inputs: tuple[PolicyInput, ...]) -> None:
                 stage = value
                 assert isinstance(stage, StagedCommand)
                 if stage_has_docs_source(stage):
-                    tainted.append((item, stage, stage.destination))
+                    add_taint(item, stage, stage.destination)
                 else:
                     for origin, first_stage, destination in tuple(tainted):
                         if path_reaches_upload(destination, stage.source):
-                            tainted.append((origin, first_stage, stage.destination))
+                            add_taint(origin, first_stage, stage.destination)
             else:
                 assert isinstance(value, str)
                 for origin, stage, destination in tainted:

@@ -513,6 +513,23 @@ class DirectPolicyTests(unittest.TestCase):
                 safe = command.replace("artifact/", "build/")
                 self.assertIsNone(self.check_text(self.workflow(f"      - run: {safe}\n")))
 
+    def test_cloud_downloads_are_not_local_publications(self):
+        stage = "      - run: cp -R docs artifact/\n"
+        cases = (
+            ("aws s3 cp s3://example/docs build/input --recursive", "aws s3 cp docs s3://example/site --recursive"),
+            ("aws s3 sync s3://example/docs build/input", "aws s3 sync docs s3://example/site"),
+            ("gsutil cp gs://example/docs build/input", "gsutil cp docs gs://example/site"),
+            ("gsutil rsync gs://example/docs build/input", "gsutil rsync docs gs://example/site"),
+        )
+        for download, upload in cases:
+            with self.subTest(download=download):
+                self.assertIsNone(self.check_text(self.workflow(f"      - run: {download}\n")))
+                self.assertIsNone(self.check_text(self.workflow(stage + f"      - run: {download}\n")))
+                self.assertIn("publishes docs", self.check_text(self.workflow(f"      - run: {upload}\n")))
+        for upload in ("aws s3 cp artifact/ s3://example/site --recursive", "gsutil cp artifact/ gs://example/site"):
+            with self.subTest(upload=upload):
+                self.assertIn("stages docs", self.check_text(self.workflow(stage + f"      - run: {upload}\n")))
+
     def test_home_publication_source_fails_closed_with_working_directory(self):
         for working_directory in ("", "        working-directory: build\n"):
             with self.subTest(working_directory=working_directory):

@@ -598,7 +598,11 @@ def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
                 frozenset(("--recursive", "--delete", "--dryrun", "--quiet", "--no-progress",
                            "--only-show-errors", "--follow-symlinks", "--no-follow-symlinks")),
             )
-            sources = [operands[0]] if operands and len(operands) >= 2 else ["${unresolved_publication_source}"]
+            if operands and len(operands) >= 2:
+                if not operands[0].casefold().startswith("s3://"):
+                    sources = [operands[0]]
+            else:
+                sources = ["${unresolved_publication_source}"]
         elif words[:2] in (("rclone", "copy"), ("rclone", "sync"), ("rclone", "move")):
             operands = _publication_operands(
                 command[2:],
@@ -609,9 +613,9 @@ def published_paths(item: PolicyInput) -> tuple[tuple[int, str], ...]:
         elif len(words) >= 3 and words[0] == "gsutil":
             operands = _operands(command[1:], frozenset(("-h", "-o", "-u")))
             if len(operands) >= 3 and operands[0].casefold() == "cp":
-                sources = operands[1:-1]
+                sources = [source for source in operands[1:-1] if not source.casefold().startswith("gs://")]
             elif len(operands) >= 3 and operands[0].casefold() == "rsync":
-                sources = [operands[-2]]
+                sources = [operands[-2]] if not operands[-2].casefold().startswith("gs://") else []
         elif len(words) >= 5 and words[:3] == ("gh", "release", "upload"):
             sources = [source.split("#", 1)[0] for source in _operands(command[4:], frozenset(("--repo", "-r")))]
         elif words[:3] == ("wrangler", "pages", "deploy"):

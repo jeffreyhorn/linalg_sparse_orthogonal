@@ -106,9 +106,34 @@ def _path_is_broad(canonical: str) -> bool:
     parts = canonical.split("/")
     if "docs" in parts:
         return True
+    if glob_matches_path(canonical, "docs/readme.md"):
+        return True
+    generated_root = ("docs", "api", "html")
+    reachable = {0}
+    for part in parts[:-1]:
+        if part == "**":
+            reachable = {next_index for index in reachable
+                         for next_index in range(index, len(generated_root) + 1)}
+        else:
+            reachable = {
+                index + 1 for index in reachable
+                if index < len(generated_root) and glob_matches_path(part, generated_root[index])
+            } | ({len(generated_root)} if len(generated_root) in reachable and part else set())
+        if not reachable:
+            return False
+    final = parts[-1]
+    if final == "**":
+        return True
+    if "." in final:
+        extension = final.rsplit(".", 1)[-1]
+        generated_file = any(glob_matches_path(extension, suffix) for suffix in
+                             ("html", "css", "js", "png", "svg", "gif", "map", "md5"))
+    else:
+        generated_file = final.endswith("*")
     return any(
-        glob_matches_path(canonical, candidate)
-        for candidate in ("docs/api", "docs/api/html", "docs/api/html/index.html", "docs/readme.md")
+        (index < len(generated_root) and glob_matches_path(final, generated_root[index]))
+        or (index == len(generated_root) and generated_file)
+        for index in reachable
     )
 
 

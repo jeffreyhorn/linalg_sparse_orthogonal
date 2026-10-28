@@ -87,6 +87,7 @@ class DirectPolicyTests(unittest.TestCase):
         for path in (
             "docs/", "./DoCs/**", ".\\DoCs\\*", "**", ".",
             "../docs/api-reference.md", "../**", "build/../../**", "**/*.html",
+            "**/*_8h.html", "**/*.css", "do*/api", "*/api/html/*.html", "d*/re*dme.md",
         ):
             with self.subTest(path=path):
                 step = (
@@ -96,6 +97,12 @@ class DirectPolicyTests(unittest.TestCase):
                 error = self.check_text(self.workflow(step, runner="windows-latest"))
                 self.assertIsNotNone(error)
                 self.assertIn("publishes docs or repository roots", error)
+        for path in ("build/**/*_8h.html", "build/**/*.css", "*/*_8h.html", "**/*.tgz"):
+            with self.subTest(path=path):
+                step = "      - uses: actions/upload-artifact@v4\n" + f"        with:\n          path: '{path}'\n"
+                self.assertIsNone(self.check_text(self.workflow(step)))
+        shell_upload = self.workflow("      - run: aws s3 cp '**/*_8h.html' s3://example/site --recursive\n")
+        self.assertIn("publishes docs or repository roots", self.check_text(shell_upload))
 
     def test_absolute_publication_paths_fail_closed(self):
         for path in (

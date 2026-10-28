@@ -4,6 +4,11 @@
  * Exercises sparse_load_mm() with malformed inputs and verifies
  * factorization properties on random matrices.
  */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "test_framework.h"
 
 #include "sparse_analysis.h"
@@ -63,10 +68,10 @@ static void fuzz_init_tmp(void) {
     if (!tmpdir || !tmpdir[0])
         tmpdir = "/tmp";
     fuzz_tmp_path[0] = '\0';
-    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "%s/fuzz_test_XXXXXX.mtx", tmpdir);
-    int fd = mkstemps(fuzz_tmp_path, 4); /* 4 = strlen(".mtx") */
+    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "%s/fuzz_test_XXXXXX", tmpdir);
+    int fd = mkstemp(fuzz_tmp_path);
     if (fd < 0) {
-        fprintf(stderr, "fuzz_init_tmp: mkstemps failed\n");
+        fprintf(stderr, "fuzz_init_tmp: mkstemp failed\n");
         fuzz_tmp_path[0] = '\0';
     } else {
         close(fd);

@@ -55,6 +55,21 @@ jobs:
             run_direct_make_test: "true"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # The differential guard reads its frozen baseline commit.
+
+      - name: Validate structured API docs workflow reader (Apple Clang leg)
+        if: matrix.compiler == 'apple-clang'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/api-docs-reader-venv"
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" -m pip install --disable-pip-version-check -r requirements-api-docs.txt
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_reader.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_policy_inputs.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_policy.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_differential.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_local_only_guard.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_mutations.py
+          API_DOCS_PYTHON="$RUNNER_TEMP/api-docs-reader-venv/bin/python" bash scripts/check_api_docs_local_only.sh
 
       # Apple Clang ships with the macos-latest image; no install
       # step needed.  Homebrew GCC needs an explicit `brew install`.

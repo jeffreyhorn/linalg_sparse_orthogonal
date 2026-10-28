@@ -1,0 +1,11 @@
+name: duplicate upload path
+on: [push]
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: docs/api/html
+          path: build/output

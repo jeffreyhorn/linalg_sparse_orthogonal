@@ -1,0 +1,11 @@
+name: safe anchored path
+on: [push]
+env:
+  SAFE_PATH: &safe_path build/output
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          path: *safe_path

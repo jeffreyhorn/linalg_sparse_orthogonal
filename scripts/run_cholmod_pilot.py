@@ -165,6 +165,25 @@ def run(bundle: Path) -> dict:
         if sha256(FIXTURE) != FIXTURE_SHA256:
             raise PilotError("fixture_hash_mismatch", "selected fixture bytes changed")
         record["inputs"]["matrix"] = {"path": str(FIXTURE.relative_to(ROOT)), "sha256": FIXTURE_SHA256}
+        if not EVIDENCE_SCHEMA.is_file() or not EVIDENCE_VALIDATOR.is_file():
+            record["schema_validation"] = {"status": "failed", "reason": "v1_schema_or_validator_missing"}
+            raise PilotError("schema_validation_unavailable", "v1 schema and validator are required before solving")
+        try:
+            with EVIDENCE_SCHEMA.open("rb") as schema_stream:
+                schema_stream.read(1)
+            with EVIDENCE_VALIDATOR.open("rb") as validator_stream:
+                validator_stream.read(1)
+        except OSError as exc:
+            record["schema_validation"] = {"status": "failed", "reason": "v1_schema_or_validator_unreadable"}
+            raise PilotError("schema_validation_unavailable", "v1 schema or validator is unreadable") from exc
+        try:
+            checked_probe(bundle, attempts, "schema_preflight", [
+                sys.executable, str(EVIDENCE_VALIDATOR), "--schema", str(EVIDENCE_SCHEMA), "--self-test",
+            ])
+        except PilotError as exc:
+            record["schema_validation"] = {"status": "failed", "reason": "validator_self_test_failed"}
+            raise PilotError("schema_validation_failed", str(exc)) from exc
+        record["schema_validation"] = {"status": "preflight_pass", "reason": "negative_fixtures_checked"}
         version = checked_probe(bundle, attempts, "cholmod_version", ["pkg-config", "--modversion", "cholmod"])
         prefix = checked_probe(bundle, attempts, "cholmod_prefix", ["pkg-config", "--variable=prefix", "cholmod"])
         cflags = checked_probe(bundle, attempts, "cholmod_cflags", ["pkg-config", "--cflags", "cholmod"])
@@ -181,17 +200,6 @@ def run(bundle: Path) -> dict:
         record["inputs"]["git_status"] = checked_probe(bundle, attempts, "git_status", ["git", "status", "--porcelain"])
         record["inputs"]["compiler"] = checked_probe(bundle, attempts, "compiler_version", ["cc", "--version"])
         checked_probe(bundle, attempts, "library_linkage", ["otool", "-L", str(library)])
-        if not EVIDENCE_SCHEMA.is_file() or not EVIDENCE_VALIDATOR.is_file():
-            record["schema_validation"]["reason"] = "v1_schema_or_validator_missing"
-            raise PilotError("schema_validation_unavailable", "v1 schema and validator are required before solving")
-        try:
-            checked_probe(bundle, attempts, "schema_preflight", [
-                sys.executable, str(EVIDENCE_VALIDATOR), "--schema", str(EVIDENCE_SCHEMA), "--self-test",
-            ])
-        except PilotError as exc:
-            record["schema_validation"] = {"status": "failed", "reason": "validator_self_test_failed"}
-            raise PilotError("schema_validation_failed", str(exc)) from exc
-        record["schema_validation"] = {"status": "preflight_pass", "reason": "negative_fixtures_checked"}
         checked_probe(bundle, attempts, "project_library_build", ["make", "build/libsparse_lu_ortho.a"])
         project_archive = ROOT / "build/libsparse_lu_ortho.a"
         record["inputs"]["project_archive"] = {"path": str(project_archive), "sha256": sha256(project_archive)}
@@ -248,7 +256,10 @@ def main() -> int:
     output = args.output.resolve()
     if not output.is_relative_to(ROOT / "build/external-baseline" / SELECTION_ID):
         parser.error("output must be under the selected build/external-baseline directory")
-    output.mkdir(parents=True, exist_ok=False)
+    try:
+        output.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        parser.error("attempt output already exists; choose a new directory")
     record = run(output)
     (output / "attempt.json").write_text(json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n",
                                          encoding="utf-8")

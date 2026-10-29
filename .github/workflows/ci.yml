@@ -46,6 +46,12 @@ jobs:
       - name: Run selected comparison workflow guard
         run: python3 tests/test_selected_comparison_workflow.py
 
+      - name: Validate optional external baseline evidence preflight
+        run: |
+          python3 scripts/validate_external_baseline_evidence.py --schema tests/corpus/schemas/external_baseline_evidence_v1.json --self-test
+          python3 tests/test_validate_external_baseline_evidence.py
+          python3 tests/test_run_cholmod_pilot.py
+
       - name: Run Windows PowerShell ownership guard
         run: make windows-powershell-guard
 

@@ -2,6 +2,8 @@
 """Synthetic parser and failure-path checks; does not run the external solver."""
 
 import importlib.util
+import io
+import json
 import subprocess
 import tempfile
 import unittest
@@ -114,13 +116,10 @@ class PilotParserTests(unittest.TestCase):
                                  pilot.sha256(bundle / entry["files"][stream]["path"]))
 
     def test_schema_gate_blocks_before_build_or_solver(self) -> None:
-        for scenario in ("missing_schema", "missing_validator", "failing_self_test"):
+        for scenario in ("missing_schema", "missing_validator", "unreadable_schema",
+                         "unreadable_validator", "failing_self_test"):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
-                prefix = root / "suite-sparse" / "7.12.2"
-                library = prefix / "lib/libcholmod.5.3.4.dylib"
-                library.parent.mkdir(parents=True)
-                library.touch()
                 schema = root / "external_baseline_evidence_v1.json"
                 validator = root / "validate_external_baseline_evidence.py"
                 if scenario != "missing_schema":
@@ -128,40 +127,26 @@ class PilotParserTests(unittest.TestCase):
                 if scenario != "missing_validator":
                     validator.touch()
                 commands = []
-                original_sha256 = pilot.sha256
-                def selected_hash(path):
-                    return pilot.LIB_SHA256 if path == library else original_sha256(path)
 
                 def completed_command(argv, **_kwargs):
                     commands.append(argv)
-                    if argv[:2] == ["pkg-config", "--modversion"]:
-                        stdout = b"5.3.4\n"
-                    elif argv[:2] == ["pkg-config", "--variable=prefix"]:
-                        stdout = str(prefix).encode("utf-8") + b"\n"
-                    elif argv[:2] in (["pkg-config", "--cflags"], ["pkg-config", "--libs"]):
-                        stdout = b""
-                    elif argv[:2] == ["git", "rev-parse"]:
-                        stdout = b"a" * 40 + b"\n"
-                    elif argv[:2] == ["git", "status"]:
-                        stdout = b""
-                    elif argv[:2] == ["cc", "--version"]:
-                        stdout = b"test compiler\n"
-                    elif argv[0] == "otool":
-                        stdout = b"test linkage\n"
-                    elif "--self-test" in argv:
-                        return subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b"negative fixture failed\n")
-                    else:
-                        self.fail(f"unexpected build or solver command: {argv}")
-                    return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr=b"")
+                    self.assertIn("--self-test", argv)
+                    return subprocess.CompletedProcess(argv, 1, stdout=b"failed\r\n\xff",
+                                                       stderr=b"negative fixture failed\r\n\xfe")
+
+                original_open = Path.open
+                def selective_open(path, *args, **kwargs):
+                    if (scenario == "unreadable_schema" and path == schema) or \
+                       (scenario == "unreadable_validator" and path == validator):
+                        raise PermissionError("synthetic unreadable input")
+                    return original_open(path, *args, **kwargs)
 
                 with mock.patch.object(pilot, "EVIDENCE_SCHEMA", schema), \
                      mock.patch.object(pilot, "EVIDENCE_VALIDATOR", validator), \
-                     mock.patch.object(pilot, "sha256", side_effect=selected_hash), \
+                     mock.patch.object(Path, "open", selective_open), \
                      mock.patch.object(pilot.subprocess, "run", side_effect=completed_command):
                     record = pilot.run(root)
-                self.assertFalse(any(argv[0] == "make" for argv in commands))
-                self.assertFalse(any(argv[0] == "cc" and "--version" not in argv for argv in commands))
-                self.assertFalse(any("cholmod_pilot" in argv[0] for argv in commands))
+                self.assertEqual(len(commands), 1 if scenario == "failing_self_test" else 0)
                 self.assertNotIn("project_library_build", record["commands"])
                 self.assertNotIn("compile_helper", record["commands"])
                 self.assertNotIn("project", record["commands"])
@@ -174,19 +159,153 @@ class PilotParserTests(unittest.TestCase):
                     self.assertEqual(record["schema_validation"],
                                      {"status": "failed", "reason": "validator_self_test_failed"})
                     self.assertEqual(record["commands"]["schema_preflight"]["returncode"], 1)
+                    preflight = record["commands"]["schema_preflight"]
+                    for stream, expected in (("stdout", b"failed\r\n\xff"),
+                                             ("stderr", b"negative fixture failed\r\n\xfe")):
+                        path = root / preflight["files"][stream]["path"]
+                        self.assertEqual(path.read_bytes(), expected)
+                        self.assertEqual(preflight["files"][stream]["sha256"], pilot.sha256(path))
                 else:
                     self.assertEqual(record["status_reason"], "schema_validation_unavailable")
-                    self.assertEqual(record["schema_validation"]["reason"], "v1_schema_or_validator_missing")
+                    reason = ("v1_schema_or_validator_unreadable" if scenario.startswith("unreadable") else
+                              "v1_schema_or_validator_missing")
+                    self.assertEqual(record["schema_validation"], {"status": "failed", "reason": reason})
                     self.assertNotIn("schema_preflight", record["commands"])
+
+    def test_invalid_schema_preflight_stops_before_dependency_discovery(self) -> None:
+        schema_data = json.loads(pilot.EVIDENCE_SCHEMA.read_text(encoding="utf-8"))
+        relaxed = json.loads(json.dumps(schema_data))
+        relaxed["additionalProperties"] = True
+        for label, content, expected in (("malformed", b"{", "invalid_json"),
+                                         ("relaxed", json.dumps(relaxed).encode("utf-8"),
+                                          "implementation_pending /self_test/unknown_field")):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                schema = root / "schema.json"
+                schema.write_bytes(content)
+                with mock.patch.object(pilot, "EVIDENCE_SCHEMA", schema):
+                    record = pilot.run(root)
+                self.assertEqual(record["provisional_status"], "blocked")
+                self.assertEqual(record["status_reason"], "schema_validation_failed")
+                self.assertEqual(record["schema_validation"],
+                                 {"status": "failed", "reason": "validator_self_test_failed"})
+                self.assertEqual(set(record["commands"]), {"schema_preflight"})
+                self.assertEqual(record["sides"], {})
+                self.assertEqual(record["timing"], "not_run")
+                entry = record["commands"]["schema_preflight"]
+                self.assertNotEqual(entry["returncode"], 0)
+                for stream in ("stdout", "stderr"):
+                    path = root / entry["files"][stream]["path"]
+                    self.assertEqual(entry["files"][stream]["sha256"], pilot.sha256(path))
+                self.assertIn(expected, (root / entry["files"]["stderr"]["path"]).read_text(encoding="utf-8"))
+
+    def test_passing_real_self_test_reaches_only_mocked_downstream_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            fixture = root / "tests/data/symmetric_4.mtx"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_bytes(pilot.FIXTURE.read_bytes())
+            prefix = root / "suite-sparse/7.12.2"
+            library = prefix / "lib/libcholmod.5.3.4.dylib"
+            library.parent.mkdir(parents=True)
+            library.write_bytes(b"synthetic CHOLMOD library\n")
+            archive = root / "build/libsparse_lu_ortho.a"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"synthetic project archive\n")
+            bundle = root / "attempt"
+            bundle.mkdir()
+            helper = bundle / "cholmod_pilot"
+            seen = []
+            real_run = subprocess.run
+
+            def completed_command(argv, **kwargs):
+                seen.append(argv)
+                if "--self-test" in argv:
+                    return real_run(argv, **kwargs)
+                if argv[:2] == ["pkg-config", "--modversion"]:
+                    stdout = b"5.3.4\n"
+                elif argv[:2] == ["pkg-config", "--variable=prefix"]:
+                    stdout = str(prefix).encode("utf-8") + b"\n"
+                elif argv[:2] in (["pkg-config", "--cflags"], ["pkg-config", "--libs"]):
+                    stdout = b""
+                elif argv[:2] == ["git", "rev-parse"]:
+                    stdout = b"a" * 40 + b"\n"
+                elif argv[:2] == ["git", "status"]:
+                    stdout = b""
+                elif argv[:2] == ["cc", "--version"]:
+                    stdout = b"synthetic compiler\n"
+                elif argv[0] == "otool":
+                    stdout = b"synthetic linkage\n"
+                elif argv[0] == "make":
+                    stdout = b"synthetic build\n"
+                elif argv[0] == "cc" and "-o" in argv:
+                    helper.write_bytes(b"synthetic helper\n")
+                    stdout = b"synthetic compile\n"
+                elif argv[0] == str(helper) and argv[1] in ("project", "baseline"):
+                    stdout = output(argv[1]).replace("/usr/local/lib/libcholmod.dylib",
+                                                      str(library)).encode("utf-8")
+                else:
+                    self.fail(f"unexpected pilot command: {argv}")
+                return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr=b"")
+
+            with mock.patch.object(pilot, "ROOT", root), \
+                 mock.patch.object(pilot, "FIXTURE", fixture), \
+                 mock.patch.object(pilot, "FIXTURE_SHA256", pilot.sha256(fixture)), \
+                 mock.patch.object(pilot, "LIB_SHA256", pilot.sha256(library)), \
+                 mock.patch.object(pilot.subprocess, "run", side_effect=completed_command):
+                record = pilot.run(bundle)
+            self.assertEqual(record["schema_validation"],
+                             {"status": "preflight_pass", "reason": "negative_fixtures_checked"})
+            self.assertEqual(record["provisional_status"], "two_sided_correctness_candidate")
+            self.assertEqual(record["timing"], "not_run")
+            self.assertEqual(record["publication_review"], "pending")
+            self.assertEqual(set(record["sides"]), {"project", "baseline"})
+            self.assertTrue(all(side["metrics"]["pass"] for side in record["sides"].values()))
+            self.assertEqual(list(record["commands"]), [
+                "schema_preflight", "cholmod_version", "cholmod_prefix", "cholmod_cflags",
+                "cholmod_libs", "git_commit", "git_status", "compiler_version",
+                "library_linkage", "project_library_build", "compile_helper", "project", "baseline",
+            ])
+            self.assertIn("--self-test", seen[0])
+            self.assertEqual([argv[1] for argv in seen[-2:]], ["project", "baseline"])
 
     def test_missing_optional_dependency_yields_blocked_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
-            with mock.patch.object(pilot, "checked_probe", side_effect=pilot.PilotError("missing_dependency", "no cholmod")):
+            labels = []
+            def probe(_bundle, _attempts, label, _argv):
+                labels.append(label)
+                if label == "schema_preflight":
+                    return "self-test PASS"
+                raise pilot.PilotError("missing_dependency", "no cholmod")
+            with mock.patch.object(pilot, "checked_probe", side_effect=probe):
                 record = pilot.run(Path(temp))
         self.assertEqual(record["provisional_status"], "blocked")
         self.assertEqual(record["status_reason"], "missing_dependency")
         self.assertEqual(record["sides"], {})
         self.assertEqual(record["timing"], "not_run")
+        self.assertEqual(record["schema_validation"],
+                         {"status": "preflight_pass", "reason": "negative_fixtures_checked"})
+        self.assertEqual(labels, ["schema_preflight", "cholmod_version"])
+
+    def test_existing_attempt_directory_is_never_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            output_dir = root / "build/external-baseline" / pilot.SELECTION_ID / "attempt-1"
+            output_dir.mkdir(parents=True)
+            marker = output_dir / "attempt.json"
+            marker.write_bytes(b"prior attempt\n")
+            argv = ["pilot", "--fixture", str(pilot.FIXTURE), "--output", str(output_dir),
+                    "--correctness-only", "--execute"]
+            with mock.patch.object(pilot, "ROOT", root), \
+                 mock.patch.object(pilot.sys, "argv", argv), \
+                 mock.patch.object(pilot.sys, "stderr", io.StringIO()) as error_stream, \
+                 mock.patch.object(pilot, "run") as run_attempt:
+                with self.assertRaises(SystemExit) as caught:
+                    pilot.main()
+            self.assertEqual(caught.exception.code, 2)
+            self.assertIn("attempt output already exists", error_stream.getvalue())
+            run_attempt.assert_not_called()
+            self.assertEqual(marker.read_bytes(), b"prior attempt\n")
 
     def test_changed_fixture_does_not_reach_dependency_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -199,6 +318,7 @@ class PilotParserTests(unittest.TestCase):
 
     def test_changed_baseline_version_blocks_before_solver(self) -> None:
         responses = {
+            "schema_preflight": "self-test PASS",
             "cholmod_version": "5.3.3",
             "cholmod_prefix": "/usr/local/Cellar/suite-sparse/7.12.2",
             "cholmod_cflags": "",
@@ -211,7 +331,7 @@ class PilotParserTests(unittest.TestCase):
         self.assertEqual(record["status_reason"], "baseline_version_mismatch")
         self.assertEqual(record["sides"], {})
         self.assertEqual(record["timing"], "not_run")
-        self.assertEqual(probe.call_count, 4)
+        self.assertEqual(probe.call_count, 5)
 
 
 if __name__ == "__main__":

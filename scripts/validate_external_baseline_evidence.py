@@ -38,6 +38,15 @@ MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
 RHS = (13.0, 14.0, 17.0, 16.0)
 MAX_STRUCTURED_RAW_BYTES = 4 * 1024 * 1024
 RAW_SIDE_KEYS = frozenset(("phase_statuses", "factor_diagnostics", "solution"))
+SUCCESS_STATUSES = {
+    "project": {"load_status": 0, "factor_status": 0, "solve_status": 0},
+    "baseline": {"load_status": 0, "analyze_status": 0, "factor_status": 1,
+                 "solve_status": 1, "cholmod_status": 0, "cholmod_solve_status": 0},
+}
+SUCCESS_DIAGNOSTICS = {
+    "project": {"used_csc_path": 0},
+    "baseline": {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0},
+}
 METHOD_PATHS = {
     "identity": "docs/planning/EPIC_19/SPRINT_215/artifacts/day3-methodology-inputs.md",
     "correctness": "docs/planning/EPIC_19/SPRINT_215/artifacts/day4-correctness-and-tolerance-contract.md",
@@ -385,12 +394,8 @@ def _check_side(side: dict, name: str, artifacts: set[str]) -> None:
              "observed side needs a listed raw artifact")
     _require(side.get("phase_statuses") is not None, "missing_provenance",
              f"{pointer}/phase_statuses", "observed side needs phase statuses")
-    expected_status = ({"load_status": 0, "factor_status": 0, "solve_status": 0}
-                       if name == "project" else
-                       {"load_status": 0, "analyze_status": 0, "factor_status": 1,
-                        "solve_status": 1, "cholmod_status": 0})
-    expected_diagnostics = ({"used_csc_path": 0} if name == "project" else
-                            {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0})
+    expected_status = SUCCESS_STATUSES[name]
+    expected_diagnostics = SUCCESS_DIAGNOSTICS[name]
     if state == "fail":
         _require(side.get("availability_reason") is not None, "status_contradiction",
                  f"{pointer}/availability_reason", "failure needs a reason")
@@ -502,6 +507,28 @@ def _check_provenance(record: dict) -> None:
              "/methodology/hash_reason", "complete methodology cannot carry unavailable reason")
 
 
+def _check_incomplete_reasons(record: dict) -> None:
+    cell = record["cell"]
+    groups = (
+        (cell["project"], ("git_commit", "worktree_state", "patch_sha256", "compiler",
+                            "compile_flags", "build_mode", "binary_sha256"),
+         "runtime_reason", "/cell/project/runtime_reason"),
+        (cell["baseline"], ("loaded_library_path", "loaded_library_sha256", "build_options",
+                             "module_composition", "dependencies"),
+         "runtime_reason", "/cell/baseline/runtime_reason"),
+        (cell["problem"], ("baseline_index_abi",), "index_abi_reason",
+         "/cell/problem/index_abi_reason"),
+        (record["methodology"], (), "hash_reason", "/methodology/hash_reason"),
+        (record, ("environment",), "environment_reason", "/environment_reason"),
+    )
+    for obj, keys, reason, pointer in groups:
+        incomplete = (any(obj[key] is None for key in keys) if keys else
+                      any(record["methodology"][name]["sha256"] is None
+                          for name in METHOD_PATHS))
+        _require(not incomplete or obj[reason] is not None, "missing_provenance", pointer,
+                 "incomplete provenance needs an unavailable reason")
+
+
 def _summary(values: list[int]) -> dict:
     ordered = sorted(values)
     median = statistics.median(ordered)
@@ -510,6 +537,28 @@ def _summary(values: list[int]) -> dict:
     return {"sample_count": 50, "minimum_ns": ordered[0], "maximum_ns": ordered[-1],
             "median_ns": median, "q1_ns": q1, "q3_ns": q3, "iqr_ns": q3 - q1,
             "mad_ns": statistics.median(abs(value - median) for value in values)}
+
+
+def _check_trial_observation(observation: object, side: str, pointer: str) -> None:
+    _require(type(observation) is dict and observation.keys() == RAW_SIDE_KEYS,
+             "unit_or_sample_contract", pointer, "trial needs raw statuses, diagnostics and solution")
+    for field, expected in (("phase_statuses", SUCCESS_STATUSES[side]),
+                            ("factor_diagnostics", SUCCESS_DIAGNOSTICS[side])):
+        actual = observation[field]
+        _require(type(actual) is dict and actual.keys() == expected.keys() and
+                 all(type(actual[key]) is int and actual[key] == value
+                     for key, value in expected.items()),
+                 "status_contradiction", f"{pointer}/{field}",
+                 "trial solver status or effective control failed")
+    solution = observation["solution"]
+    _require(type(solution) is list and len(solution) == 4 and
+             all((type(value) is int and abs(value) <= sys.float_info.max) or
+                 (type(value) is float and math.isfinite(value)) for value in solution),
+             "status_contradiction", f"{pointer}/solution", "trial needs a finite four-value solution")
+    metrics = _solution_metrics(solution)
+    _require(metrics["residual_inf"] <= metrics["residual_limit"] and
+             metrics["oracle_error_inf"] <= metrics["oracle_limit"],
+             "status_contradiction", f"{pointer}/solution", "trial fails Day 4 numerical gates")
 
 
 def _check_timing(record: dict, raw_samples: dict | None) -> None:
@@ -576,6 +625,9 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                              for side in ("project", "baseline")),
                          "unit_or_sample_contract", f"{pointer}/{phase}/{pair_index}",
                          "pair order, status or duration invalid")
+                for side in ("project", "baseline"):
+                    _check_trial_observation(pair.get(f"{side}_observation"), side,
+                                             f"{pointer}/{phase}/{pair_index}/{side}_observation")
         for side in ("project", "baseline"):
             summary = _summary([pair[f"{side}_ns"] for pair in raw["timed"]])
             for key, expected in summary.items():
@@ -624,6 +676,10 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
     artifacts = {artifact["path"] for artifact in record["artifacts"]}
     for name in ("project", "baseline"):
         _check_side(sides[name], name, artifacts)
+    complete_observation = status in ("correctness_failed", "correctness_observed", "timing_invalid",
+                                      "measured") or side_states == ("pass", "pass")
+    if not complete_observation:
+        _check_incomplete_reasons(record)
     if status in ("planned", "not_run"):
         _require(side_states == ("not_run", "not_run") and timing["state"] == "not_run" and
                  record["cell_id"] is None and not record["artifacts"],
@@ -679,8 +735,6 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
         _require(sides.get("cross_solver_difference_inf") is None and
                  sides.get("cross_solver_consistency_limit") is None,
                  "status_contradiction", "/correctness", "unpaired record carries paired metrics")
-    complete_observation = status in ("correctness_failed", "correctness_observed", "timing_invalid",
-                                      "measured") or side_states == ("pass", "pass")
     if complete_observation:
         _check_provenance(record)
     if record["cell_id"] is None:
@@ -721,9 +775,9 @@ def _read_hashed_file(root: Path, relative: str, expected: str | None,
              re.match(r"^[A-Za-z]:", relative) is None and
              all(part not in ("", ".", "..") for part in parts),
              "artifact_path_or_hash", pointer, "path must be a normalized relative POSIX path")
-    _require(hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"),
+    _require(all(hasattr(os, name) for name in ("O_NOFOLLOW", "O_DIRECTORY", "O_NONBLOCK")),
              "artifact_path_or_hash", pointer, "safe artifact access is unavailable on this platform")
-    flags = os.O_RDONLY | os.O_NOFOLLOW
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
     fd = -1
     try:
         physical_root = root.resolve(strict=True)
@@ -799,6 +853,24 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
                                     (record["timing"]["state"] == "measured" and path == raw_path))
         if content is not None:
             captured[path] = content
+    if record["cell"]["project"]["worktree_state"] == "dirty":
+        proof = {}
+        for role, media_type in (("project_patch", "text/x-diff"),
+                                 ("project_worktree_status", "text/plain")):
+            matches = [item for item in record["artifacts"] if item["role"] == role]
+            _require(len(matches) == 1 and matches[0]["media_type"] == media_type,
+                     "missing_provenance", "/cell/project/patch_sha256",
+                     "dirty worktree needs one patch and one status artifact")
+            proof[role] = matches[0]
+        _require(proof["project_patch"]["sha256"] == record["cell"]["project"]["patch_sha256"],
+                 "missing_provenance", "/cell/project/patch_sha256",
+                 "dirty patch digest must match the listed patch artifact")
+        status_path = proof["project_worktree_status"]["path"]
+        status_bytes = _read_hashed_file(physical_bundle, status_path,
+                                         proof["project_worktree_status"]["sha256"],
+                                         "/cell/project/worktree_state", capture=True)
+        _require(bool(status_bytes), "missing_provenance", "/cell/project/worktree_state",
+                 "dirty worktree status artifact must not be empty")
     for name, path in raw_sides.items():
         if path not in listed:
             continue
@@ -837,6 +909,9 @@ def validate_record(record: dict, schema: dict, repo_root: Path,
 
 def run_self_test(schema: dict, repo_root: Path) -> None:
     """Prove the frozen planning input is valid and selected corruptions fail."""
+    authority = read_json(repo_root / "tests/corpus/schemas/external_baseline_evidence_v1.json")
+    _require(_strict_equal(schema, authority), "selection_mismatch", "/schema",
+             "supplied schema differs from checked-in v1 authority")
     fixture = repo_root / "tests/corpus/fixtures/external_baseline_planned_v1.json"
     planning = read_json(fixture)
     validate_record(planning, schema, repo_root)

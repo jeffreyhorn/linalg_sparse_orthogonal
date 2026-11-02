@@ -88,6 +88,8 @@ referenced bytes only**. A rejection exits nonzero and prints
 human detail text. The schema's `x-v1-policy.rule_codes` is the rule-code
 namespace. `implementation_pending` is a fail-closed self-test failure,
 never a successful evidence status.
+The supplied schema must be structurally identical to the checked-in v1
+authority; relaxing a nested field fails before input validation.
 
 | Code group | Meaning |
 | --- | --- |
@@ -102,8 +104,18 @@ actual SHA-256 bytes. Generated artifacts require `--bundle-root`; paths
 must be normalized relative POSIX paths under that root. The validator
 rejects traversal, symlink traversal, missing/nonregular files and digest
 mismatches. Observed raw solver JSON is parsed after hashing and bound to
-reported statuses, diagnostics and solutions. Measured raw pairs are
-rehashed and used to recompute counts and summaries. A matching hash alone
+reported statuses, diagnostics and solutions. Baseline success includes
+`cholmod_solve_status=0` as well as the CHOLMOD factor and solve statuses.
+A dirty project worktree additionally requires one hashed `project_patch`
+artifact (`text/x-diff`) whose digest equals `patch_sha256`, and one nonempty
+`project_worktree_status` artifact (`text/plain`); retain the raw patch and
+status bytes. Partial records require a non-null reason for each incomplete
+project runtime, baseline runtime, index ABI, methodology-hash and environment
+group. Measured raw pairs must include each side's `phase_statuses`,
+`factor_diagnostics` and `solution` in a `<side>_observation` object; every
+trial must meet the Day 4 status, factor-control and numerical gates before
+its duration contributes to a summary. Raw pairs are rehashed and used to
+recompute counts and summaries. A matching hash alone
 does not prove that the producer or solver was genuine.
 
 ## Retention And Reproducible Checks

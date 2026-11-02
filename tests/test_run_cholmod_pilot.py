@@ -178,7 +178,7 @@ class PilotParserTests(unittest.TestCase):
         relaxed["additionalProperties"] = True
         for label, content, expected in (("malformed", b"{", "invalid_json"),
                                          ("relaxed", json.dumps(relaxed).encode("utf-8"),
-                                          "implementation_pending /self_test/unknown_field")):
+                                          "selection_mismatch /schema")):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 schema = root / "schema.json"

@@ -96,7 +96,7 @@ def synthetic_observed() -> dict:
         side.update(state="pass", phase_statuses={"load_status": 0, "factor_status": 0,
                                                   "solve_status": 0} if name == "project" else
                     {"load_status": 0, "analyze_status": 0, "factor_status": 1,
-                     "solve_status": 1, "cholmod_status": 0},
+                     "solve_status": 1, "cholmod_status": 0, "cholmod_solve_status": 0},
                     factor_diagnostics={"used_csc_path": 0} if name == "project" else
                     {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0},
                     solution=[1.0, 1.0, 1.0, 1.0], raw_artifact=f"{name}.json",
@@ -121,7 +121,10 @@ def synthetic_measured() -> tuple[dict, dict]:
     def pairs(count: int, offset: int) -> list[dict]:
         return [{"order": "AB" if i % 2 == 0 else "BA", "project_status": "pass",
                  "baseline_status": "pass", "project_ns": offset + 1000 + i,
-                 "baseline_ns": offset + 1200 + i} for i in range(count)]
+                 "baseline_ns": offset + 1200 + i,
+                 **{f"{side}_observation": {key: copy.deepcopy(record["correctness"][side][key])
+                                              for key in validator.RAW_SIDE_KEYS}
+                    for side in ("project", "baseline")}} for i in range(count)]
     raw = {}
     windows = []
     for index, phase in enumerate(("factor_plus_first_solve", "factor_ready", "one_solve")):
@@ -182,10 +185,17 @@ def stage_synthetic_bundle(record: dict, bundle: Path, raw_samples: dict | None 
             side = artifact["role"].removesuffix("_raw")
             content = json.dumps({key: record["correctness"][side][key]
                                   for key in validator.RAW_SIDE_KEYS}, sort_keys=True).encode("utf-8")
+        elif artifact["role"] == "project_patch":
+            content = b"synthetic git diff --binary HEAD\n"
+        elif artifact["role"] == "project_worktree_status":
+            content = b" M tests/synthetic.c\n"
         else:
             content = b"synthetic-attempt-only\n"
         path.write_bytes(content)
         artifact["sha256"] = hashlib.sha256(content).hexdigest()
+        if artifact["role"] == "project_patch":
+            record["cell"]["project"]["patch_sha256"] = artifact["sha256"]
+            record["cell_id"] = validator.canonical_cell_id(validator.identity_from_record(record))[1]
 
 
 def synthetic_not_run() -> dict:
@@ -279,14 +289,29 @@ class InterfaceTests(unittest.TestCase):
         with self.assertRaises(validator.EvidenceError) as caught:
             validator.run_self_test(schema, ROOT)
         self.assertEqual((caught.exception.code, caught.exception.pointer),
-                         ("implementation_pending", "/self_test/unknown_field"))
+                         ("selection_mismatch", "/schema"))
         with tempfile.TemporaryDirectory() as temp:
             relaxed = Path(temp) / "relaxed-schema.json"
             relaxed.write_text(json.dumps(schema), encoding="utf-8")
             run = subprocess.run([sys.executable, str(SCRIPT), "--schema", str(relaxed),
                                   "--input", str(BLUEPRINT)], capture_output=True, text=True, check=False)
         self.assertEqual(run.returncode, 1)
-        self.assertIn("implementation_pending /self_test/unknown_field", run.stderr)
+        self.assertIn("selection_mismatch /schema", run.stderr)
+
+    def test_relaxed_nested_schema_cannot_be_used_as_authority(self) -> None:
+        for mutate in (
+            lambda schema: schema["$defs"]["project"]["properties"]["backend"].update(const="other"),
+            lambda schema: schema["$defs"]["correctness_side"].update(additionalProperties=True),
+        ):
+            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as temp:
+                schema = validator.read_json(SCHEMA)
+                mutate(schema)
+                path = Path(temp) / "relaxed.json"
+                path.write_text(json.dumps(schema), encoding="utf-8")
+                run = subprocess.run([sys.executable, str(SCRIPT), "--schema", str(path),
+                                      "--input", str(BLUEPRINT)], capture_output=True, text=True)
+                self.assertEqual(run.returncode, 1)
+                self.assertIn("selection_mismatch /schema", run.stderr)
 
     def test_duplicate_key_is_rejected_even_before_semantic_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -460,6 +485,35 @@ class SemanticTests(unittest.TestCase):
                 mutate(record)
                 self.check_failure(record, code, pointer)
 
+    def test_cholmod_solve_status_is_required_and_must_succeed(self) -> None:
+        for mutate in (
+            lambda status: status.pop("cholmod_solve_status"),
+            lambda status: status.__setitem__("cholmod_solve_status", 1),
+        ):
+            with self.subTest(mutate=mutate):
+                record = synthetic_observed()
+                mutate(record["correctness"]["baseline"]["phase_statuses"])
+                self.check_failure(record, "status_contradiction",
+                                   "/correctness/baseline/phase_statuses/cholmod_solve_status")
+
+    def test_incomplete_groups_require_individual_reasons(self) -> None:
+        cases = (
+            (lambda r: r["cell"]["project"].__setitem__("runtime_reason", None),
+             "/cell/project/runtime_reason"),
+            (lambda r: r["cell"]["baseline"].__setitem__("runtime_reason", None),
+             "/cell/baseline/runtime_reason"),
+            (lambda r: r["cell"]["problem"].__setitem__("index_abi_reason", None),
+             "/cell/problem/index_abi_reason"),
+            (lambda r: r["methodology"].__setitem__("hash_reason", None),
+             "/methodology/hash_reason"),
+            (lambda r: r.__setitem__("environment_reason", None), "/environment_reason"),
+        )
+        for mutate, pointer in cases:
+            with self.subTest(pointer=pointer):
+                record = validator.read_json(PLANNED)
+                mutate(record)
+                self.check_failure(record, "missing_provenance", pointer)
+
     def test_status_and_claim_mutations(self) -> None:
         record = synthetic_observed()
         record["evidence_status"] = "measured"
@@ -488,6 +542,21 @@ class SemanticTests(unittest.TestCase):
         wrong_order = copy.deepcopy(raw)
         wrong_order["factor_plus_first_solve"]["timed"][1]["order"] = "AB"
         self.check_failure(record, "unit_or_sample_contract", "/timing/windows/0/timed/1", wrong_order)
+
+    def test_timed_trials_require_real_solver_observations(self) -> None:
+        record, raw = synthetic_measured()
+        trial = raw["factor_plus_first_solve"]["timed"][0]
+        trial["baseline_observation"]["solution"] = [0.0] * 4
+        self.check_failure(record, "status_contradiction",
+                           "/timing/windows/0/timed/0/baseline_observation/solution", raw)
+        record, raw = synthetic_measured()
+        raw["factor_plus_first_solve"]["timed"][0].pop("baseline_observation")
+        self.check_failure(record, "unit_or_sample_contract",
+                           "/timing/windows/0/timed/0/baseline_observation", raw)
+        record, raw = synthetic_measured()
+        raw["factor_plus_first_solve"]["timed"][0]["baseline_observation"]["solution"][0] = 10 ** 1000
+        self.check_failure(record, "status_contradiction",
+                           "/timing/windows/0/timed/0/baseline_observation/solution", raw)
 
     def test_failure_label_requires_observed_failure(self) -> None:
         record = synthetic_observed()
@@ -723,6 +792,47 @@ class ArtifactTests(unittest.TestCase):
             self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/0/path")
             (bundle / "project.json").write_bytes(b"changed\n")
             self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/0/path")
+
+    def test_dirty_worktree_requires_matching_patch_and_status_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            record = synthetic_observed()
+            record["cell"]["project"]["worktree_state"] = "dirty"
+            record["artifacts"].extend((
+                {"path": "project.patch", "role": "project_patch", "media_type": "text/x-diff",
+                 "sha256": "a" * 64},
+                {"path": "worktree.status", "role": "project_worktree_status",
+                 "media_type": "text/plain", "sha256": "a" * 64},
+            ))
+            stage_synthetic_bundle(record, bundle)
+            validator.validate_record(record, self.schema, ROOT, bundle)
+            mismatched = copy.deepcopy(record)
+            mismatched["cell"]["project"]["patch_sha256"] = "0" * 64
+            mismatched["cell_id"] = validator.canonical_cell_id(
+                validator.identity_from_record(mismatched))[1]
+            self.check_failure(mismatched, bundle, "missing_provenance", "/cell/project/patch_sha256")
+            for role in ("project_patch", "project_worktree_status"):
+                missing = copy.deepcopy(record)
+                missing["artifacts"] = [item for item in missing["artifacts"] if item["role"] != role]
+                self.check_failure(missing, bundle, "missing_provenance", "/cell/project/patch_sha256")
+            (bundle / "worktree.status").write_bytes(b"")
+            record["artifacts"][-1]["sha256"] = hashlib.sha256(b"").hexdigest()
+            self.check_failure(record, bundle, "missing_provenance", "/cell/project/worktree_state")
+
+    @unittest.skipUnless(hasattr(os, "mkfifo") and hasattr(os, "O_NONBLOCK"), "POSIX FIFO test")
+    def test_fifo_artifact_fails_without_waiting_for_writer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            record = synthetic_observed()
+            stage_synthetic_bundle(record, bundle)
+            (bundle / "project.json").unlink()
+            os.mkfifo(bundle / "project.json")
+            (bundle / "record.json").write_text(json.dumps(record), encoding="utf-8")
+            run = subprocess.run([sys.executable, str(SCRIPT), "--schema", str(SCHEMA),
+                                  "--input", str(bundle / "record.json"), "--bundle-root", str(bundle)],
+                                 capture_output=True, text=True, timeout=5)
+            self.assertEqual(run.returncode, 1)
+            self.assertIn("artifact_path_or_hash /artifacts/0/path", run.stderr)
 
     def test_symlink_escape_and_unsafe_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

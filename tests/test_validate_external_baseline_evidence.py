@@ -112,6 +112,7 @@ def synthetic_observed() -> dict:
 
 def synthetic_measured() -> tuple[dict, dict]:
     record = synthetic_observed()
+    record["correctness"]["baseline"]["factor_diagnostics"]["is_ll"] = 1
     record["evidence_status"] = "measured"
     record["status_reason"] = "synthetic_timing_fixture"
     record["claim_scope"] = "one_cell_local_descriptive_latency_only"
@@ -545,6 +546,9 @@ class SemanticTests(unittest.TestCase):
 
     def test_timed_trials_require_real_solver_observations(self) -> None:
         record, raw = synthetic_measured()
+        self.assertEqual(raw["factor_plus_first_solve"]["timed"][0]
+                         ["baseline_observation"]["factor_diagnostics"]["is_ll"], 1)
+        validator.validate_semantics(record, self.schema, raw)
         trial = raw["factor_plus_first_solve"]["timed"][0]
         trial["baseline_observation"]["solution"] = [0.0] * 4
         self.check_failure(record, "status_contradiction",
@@ -557,6 +561,10 @@ class SemanticTests(unittest.TestCase):
         raw["factor_plus_first_solve"]["timed"][0]["baseline_observation"]["solution"][0] = 10 ** 1000
         self.check_failure(record, "status_contradiction",
                            "/timing/windows/0/timed/0/baseline_observation/solution", raw)
+        record, raw = synthetic_measured()
+        raw["factor_plus_first_solve"]["timed"][0]["baseline_observation"]["factor_diagnostics"]["is_ll"] = []
+        self.check_failure(record, "status_contradiction",
+                           "/timing/windows/0/timed/0/baseline_observation/factor_diagnostics", raw)
 
     def test_failure_label_requires_observed_failure(self) -> None:
         record = synthetic_observed()

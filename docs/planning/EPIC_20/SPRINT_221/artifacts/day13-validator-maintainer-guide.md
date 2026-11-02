@@ -114,9 +114,11 @@ project runtime, baseline runtime, index ABI, methodology-hash and environment
 group. Measured raw pairs must include each side's `phase_statuses`,
 `factor_diagnostics` and `solution` in a `<side>_observation` object; every
 trial must meet the Day 4 status, factor-control and numerical gates before
-its duration contributes to a summary. Raw pairs are rehashed and used to
-recompute counts and summaries. A matching hash alone
-does not prove that the producer or solver was genuine.
+its duration contributes to a summary. Additional factor diagnostics such as
+CHOLMOD `is_ll` are retained when their values are strings, integers or
+booleans; `is_ll` is not constrained to a particular storage format. Raw
+pairs are rehashed and used to recompute counts and summaries. A matching
+hash alone does not prove that the producer or solver was genuine.
 
 ## Retention And Reproducible Checks
 

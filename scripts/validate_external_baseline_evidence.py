@@ -542,14 +542,21 @@ def _summary(values: list[int]) -> dict:
 def _check_trial_observation(observation: object, side: str, pointer: str) -> None:
     _require(type(observation) is dict and observation.keys() == RAW_SIDE_KEYS,
              "unit_or_sample_contract", pointer, "trial needs raw statuses, diagnostics and solution")
-    for field, expected in (("phase_statuses", SUCCESS_STATUSES[side]),
-                            ("factor_diagnostics", SUCCESS_DIAGNOSTICS[side])):
-        actual = observation[field]
-        _require(type(actual) is dict and actual.keys() == expected.keys() and
-                 all(type(actual[key]) is int and actual[key] == value
-                     for key, value in expected.items()),
-                 "status_contradiction", f"{pointer}/{field}",
-                 "trial solver status or effective control failed")
+    statuses = observation["phase_statuses"]
+    expected_statuses = SUCCESS_STATUSES[side]
+    _require(type(statuses) is dict and statuses.keys() == expected_statuses.keys() and
+             all(type(statuses[key]) is int and statuses[key] == value
+                 for key, value in expected_statuses.items()),
+             "status_contradiction", f"{pointer}/phase_statuses",
+             "trial solver status failed")
+    diagnostics = observation["factor_diagnostics"]
+    expected_diagnostics = SUCCESS_DIAGNOSTICS[side]
+    _require(type(diagnostics) is dict and expected_diagnostics.keys() <= diagnostics.keys() and
+             all(type(diagnostics[key]) is int and diagnostics[key] == value
+                 for key, value in expected_diagnostics.items()) and
+             all(type(value) in (str, int, bool) for value in diagnostics.values()),
+             "status_contradiction", f"{pointer}/factor_diagnostics",
+             "trial factor diagnostics or effective control failed")
     solution = observation["solution"]
     _require(type(solution) is list and len(solution) == 4 and
              all((type(value) is int and abs(value) <= sys.float_info.max) or

@@ -114,7 +114,10 @@ project runtime, baseline runtime, index ABI, methodology-hash and environment
 group. Measured raw pairs must include each side's `phase_statuses`,
 `factor_diagnostics` and `solution` in a `<side>_observation` object; every
 trial must meet the Day 4 status, factor-control and numerical gates before
-its duration contributes to a summary. Additional factor diagnostics such as
+its duration contributes to a summary. Each side's warmup and timed trial
+must finish within 30 seconds; a longer sample invalidates measurement.
+Numeric solution and metric values must fit the finite float64 range, even
+when JSON encodes them as integers. Additional factor diagnostics such as
 CHOLMOD `is_ll` are retained when their values are strings, integers or
 booleans; `is_ll` is not constrained to a particular storage format. Raw
 pairs are rehashed and used to recompute counts and summaries. A matching

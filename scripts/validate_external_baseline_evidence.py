@@ -37,6 +37,7 @@ MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
           (2.0, 1.0, 14.0, 0.0), (0.0, 0.0, 0.0, 16.0))
 RHS = (13.0, 14.0, 17.0, 16.0)
 MAX_STRUCTURED_RAW_BYTES = 4 * 1024 * 1024
+MAX_TRIAL_NS = 30_000_000_000
 RAW_SIDE_KEYS = frozenset(("phase_statuses", "factor_diagnostics", "solution"))
 SUCCESS_STATUSES = {
     "project": {"load_status": 0, "factor_status": 0, "solve_status": 0},
@@ -319,6 +320,9 @@ def _check_shape(value: object, node: dict, root: dict, pointer: str) -> None:
             raise EvidenceError(code, pointer or "/", "string does not match v1 syntax")
     if type(value) is float and not math.isfinite(value):
         raise EvidenceError("nonfinite_or_missing_value_abuse", pointer or "/", "nonfinite number")
+    if type(value) is int and expected is not None and "number" in kinds and abs(value) > sys.float_info.max:
+        raise EvidenceError("nonfinite_or_missing_value_abuse", pointer or "/",
+                            "integer is outside the finite float64 range")
     if type(value) in (int, float) and "minimum" in node and value < node["minimum"]:
         raise EvidenceError("exact_type", pointer or "/", "value below minimum")
     if type(value) is dict:
@@ -628,10 +632,11 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                 expected_order = first_order if pair_index % 2 == 0 else ("BA" if first_order == "AB" else "AB")
                 _require(type(pair) is dict and pair.get("order") == expected_order and
                          all(pair.get(f"{side}_status") == "pass" and
-                             type(pair.get(f"{side}_ns")) is int and pair[f"{side}_ns"] > 0
+                             type(pair.get(f"{side}_ns")) is int and
+                             0 < pair[f"{side}_ns"] <= MAX_TRIAL_NS
                              for side in ("project", "baseline")),
                          "unit_or_sample_contract", f"{pointer}/{phase}/{pair_index}",
-                         "pair order, status or duration invalid")
+                         "pair order, status or duration invalid or over 30-second limit")
                 for side in ("project", "baseline"):
                     _check_trial_observation(pair.get(f"{side}_observation"), side,
                                              f"{pointer}/{phase}/{pair_index}/{side}_observation")

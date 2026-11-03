@@ -1105,6 +1105,7 @@ class CliMutationTests(unittest.TestCase):
         run = self.run_cli(path, bundle)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{code} {pointer} record_id=", run.stderr)
+        self.assertNotIn("Traceback", run.stderr)
         self.assertNotIn("external-baseline-evidence-v1: valid", run.stdout)
 
     def assert_semantic_mutation(self, fixture: dict | tuple[dict, dict], mutate,
@@ -1202,6 +1203,42 @@ class CliMutationTests(unittest.TestCase):
         for label, fixture, mutate, code, pointer, restage in cases:
             with self.subTest(label=label):
                 self.assert_semantic_mutation(fixture(), mutate, code, pointer, restage)
+
+    def test_oversized_float64_fields_fail_with_cli_diagnostics(self) -> None:
+        cases = (
+            (lambda record: record["correctness"]["project"]["solution"].__setitem__(0, 10 ** 1000),
+             "/correctness/project/solution/0"),
+            (lambda record: record["correctness"]["project"].__setitem__("residual_inf", 10 ** 1000),
+             "/correctness/project/residual_inf"),
+        )
+        for mutate, pointer in cases:
+            with self.subTest(pointer=pointer):
+                self.assert_semantic_mutation(
+                    synthetic_observed(), lambda record, _bundle: mutate(record),
+                    "nonfinite_or_missing_value_abuse", pointer)
+
+    def test_rehashed_over_timeout_trials_are_rejected(self) -> None:
+        for phase in ("warmup", "timed"):
+            for side in ("project", "baseline"):
+                with self.subTest(phase=phase, side=side):
+                    def over_timeout(record: dict, bundle: Path) -> None:
+                        artifact = next(item for item in record["artifacts"] if item["role"] == "timing_raw")
+                        path = bundle / artifact["path"]
+                        raw = json.loads(path.read_text(encoding="utf-8"))
+                        window = raw["factor_plus_first_solve"]
+                        window[phase][0][f"{side}_ns"] = 60_000_000_000
+                        content = json.dumps(raw, sort_keys=True).encode("utf-8")
+                        path.write_bytes(content)
+                        artifact["sha256"] = hashlib.sha256(content).hexdigest()
+                        if phase == "timed":
+                            summary = validator._summary(
+                                [pair[f"{side}_ns"] for pair in window["timed"]])
+                            record["timing"]["windows"][0][side] = summary
+                            record["timing"]["median_ns"][side] = summary["median_ns"]
+
+                    self.assert_semantic_mutation(
+                        synthetic_measured(), over_timeout, "unit_or_sample_contract",
+                        f"/timing/windows/0/{phase}/0")
 
     def test_mutation_closure_cross_field_rules(self) -> None:
         def change_hashed_raw_output(record: dict, bundle: Path) -> None:

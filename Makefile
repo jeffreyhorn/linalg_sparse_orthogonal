@@ -144,6 +144,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_cholesky.c \
             $(TESTDIR)/test_csr.c \
             $(TESTDIR)/test_matmul.c \
+            $(TESTDIR)/test_cholmod_pilot_csc.c \
             $(TESTDIR)/test_threads.c \
             $(TESTDIR)/test_sprint4_integration.c \
             $(TESTDIR)/test_iterative.c \

@@ -10,6 +10,7 @@ import platform
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -25,6 +26,7 @@ MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
 RHS = (13.0, 14.0, 17.0, 16.0)
 THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
                "DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH", "SPARSE_IDX_BITS", "CFLAGS")
+RUN_CAP_SECONDS = 15 * 60
 
 
 class PilotError(Exception):
@@ -105,20 +107,27 @@ def check_correctness(solution: tuple[float, ...]) -> dict:
 
 
 def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
-            env: dict | None = None) -> dict:
+            env: dict | None = None, deadline: float | None = None) -> dict:
+    remaining = None if deadline is None else deadline - time.monotonic()
+    if remaining is not None and remaining <= 0:
+        raise PilotError("run_timeout", "15-minute pilot run cap reached")
     failure_kind = None
     try:
         result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True,
-                                timeout=120, check=False)
+                                timeout=min(120, remaining) if remaining is not None else 120,
+                                check=False)
         stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or b""
         stderr = exc.stderr or b""
         returncode = 124
-        failure_kind = "timeout"
+        failure_kind = "run_timeout" if deadline is not None and time.monotonic() >= deadline else "timeout"
     except OSError as exc:
         stdout, stderr, returncode = "", str(exc), 127
         failure_kind = "launch_error"
+    if deadline is not None and time.monotonic() >= deadline:
+        returncode = 124
+        failure_kind = "run_timeout"
     files = {}
     for suffix, value in (("stdout", stdout), ("stderr", stderr)):
         path = bundle / f"{label}.{suffix}.txt"
@@ -136,15 +145,19 @@ def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
     return entry
 
 
-def checked_probe(bundle: Path, attempts: dict, label: str, argv: list[str]) -> str:
-    entry = command(bundle, label, argv)
+def checked_probe(bundle: Path, attempts: dict, label: str, argv: list[str],
+                  *, deadline: float | None = None) -> str:
+    entry = command(bundle, label, argv, deadline=deadline)
     attempts[label] = entry
+    if entry.get("failure_kind") == "run_timeout":
+        raise PilotError("run_timeout", f"15-minute pilot run cap reached during {label}")
     if entry["returncode"] != 0:
         raise PilotError("missing_dependency", f"{label} failed with {entry['returncode']}")
     return entry["stdout"]
 
 
 def run(bundle: Path) -> dict:
+    deadline = time.monotonic() + RUN_CAP_SECONDS
     record = {
         "selection_id": SELECTION_ID,
         "record_kind": "unvalidated_attempt",
@@ -179,15 +192,17 @@ def run(bundle: Path) -> dict:
         try:
             checked_probe(bundle, attempts, "schema_preflight", [
                 sys.executable, str(EVIDENCE_VALIDATOR), "--schema", str(EVIDENCE_SCHEMA), "--self-test",
-            ])
+            ], deadline=deadline)
         except PilotError as exc:
+            if exc.code == "run_timeout":
+                raise
             record["schema_validation"] = {"status": "failed", "reason": "validator_self_test_failed"}
             raise PilotError("schema_validation_failed", str(exc)) from exc
         record["schema_validation"] = {"status": "preflight_pass", "reason": "negative_fixtures_checked"}
-        version = checked_probe(bundle, attempts, "cholmod_version", ["pkg-config", "--modversion", "cholmod"])
-        prefix = checked_probe(bundle, attempts, "cholmod_prefix", ["pkg-config", "--variable=prefix", "cholmod"])
-        cflags = checked_probe(bundle, attempts, "cholmod_cflags", ["pkg-config", "--cflags", "cholmod"])
-        libs = checked_probe(bundle, attempts, "cholmod_libs", ["pkg-config", "--libs", "cholmod"])
+        version = checked_probe(bundle, attempts, "cholmod_version", ["pkg-config", "--modversion", "cholmod"], deadline=deadline)
+        prefix = checked_probe(bundle, attempts, "cholmod_prefix", ["pkg-config", "--variable=prefix", "cholmod"], deadline=deadline)
+        cflags = checked_probe(bundle, attempts, "cholmod_cflags", ["pkg-config", "--cflags", "cholmod"], deadline=deadline)
+        libs = checked_probe(bundle, attempts, "cholmod_libs", ["pkg-config", "--libs", "cholmod"], deadline=deadline)
         if version != "5.3.4" or Path(prefix).name != "7.12.2":
             raise PilotError("baseline_version_mismatch", f"CHOLMOD {version}, prefix {prefix}")
         library = Path(prefix) / "lib/libcholmod.5.3.4.dylib"
@@ -196,11 +211,11 @@ def run(bundle: Path) -> dict:
         record["inputs"]["candidate_library"] = {"path": str(library), "sha256": LIB_SHA256}
         record["inputs"]["package"] = {"cholmod_version": version, "prefix": prefix,
                                           "cflags": cflags, "libs": libs}
-        record["inputs"]["git_commit"] = checked_probe(bundle, attempts, "git_commit", ["git", "rev-parse", "HEAD"])
-        record["inputs"]["git_status"] = checked_probe(bundle, attempts, "git_status", ["git", "status", "--porcelain"])
-        record["inputs"]["compiler"] = checked_probe(bundle, attempts, "compiler_version", ["cc", "--version"])
-        checked_probe(bundle, attempts, "library_linkage", ["otool", "-L", str(library)])
-        checked_probe(bundle, attempts, "project_library_build", ["make", "build/libsparse_lu_ortho.a"])
+        record["inputs"]["git_commit"] = checked_probe(bundle, attempts, "git_commit", ["git", "rev-parse", "HEAD"], deadline=deadline)
+        record["inputs"]["git_status"] = checked_probe(bundle, attempts, "git_status", ["git", "status", "--porcelain"], deadline=deadline)
+        record["inputs"]["compiler"] = checked_probe(bundle, attempts, "compiler_version", ["cc", "--version"], deadline=deadline)
+        checked_probe(bundle, attempts, "library_linkage", ["otool", "-L", str(library)], deadline=deadline)
+        checked_probe(bundle, attempts, "project_library_build", ["make", "build/libsparse_lu_ortho.a"], deadline=deadline)
         project_archive = ROOT / "build/libsparse_lu_ortho.a"
         record["inputs"]["project_archive"] = {"path": str(project_archive), "sha256": sha256(project_archive)}
         binary = bundle / "cholmod_pilot"
@@ -209,11 +224,13 @@ def run(bundle: Path) -> dict:
             "-Iinclude", "-Ibuild/include", *shlex.split(cflags), "scripts/cholmod_pilot.c",
             "-Lbuild", "-lsparse_lu_ortho", *shlex.split(libs), "-lm", "-o", str(binary),
         ]
-        checked_probe(bundle, attempts, "compile_helper", compile_argv)
+        checked_probe(bundle, attempts, "compile_helper", compile_argv, deadline=deadline)
         record["inputs"]["helper_binary"] = {"path": str(binary), "sha256": sha256(binary)}
         for side in ("project", "baseline"):
-            entry = command(bundle, side, [str(binary), side, str(FIXTURE)])
+            entry = command(bundle, side, [str(binary), side, str(FIXTURE)], deadline=deadline)
             attempts[side] = entry
+            if entry.get("failure_kind") == "run_timeout":
+                raise PilotError("run_timeout", f"15-minute pilot run cap reached during {side}")
             if entry["returncode"] != 0:
                 raise PilotError("solver_execution_failure", f"{side} exited {entry['returncode']}")
             parsed = parse_side_output(entry["stdout"], side)
@@ -227,6 +244,8 @@ def run(bundle: Path) -> dict:
             }
             if not metrics["pass"]:
                 raise PilotError("correctness_failure", f"{side} failed Day 4 limits")
+        if time.monotonic() >= deadline:
+            raise PilotError("run_timeout", "15-minute pilot run cap reached")
         record["provisional_status"] = "two_sided_correctness_candidate"
         record["status_reason"] = "raw_outputs_require_v1_validation_and_full_provenance"
     except PilotError as exc:

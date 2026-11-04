@@ -115,6 +115,37 @@ class PilotParserTests(unittest.TestCase):
                 self.assertEqual(entry["files"][stream]["sha256"],
                                  pilot.sha256(bundle / entry["files"][stream]["path"]))
 
+    def test_run_deadline_limits_each_command_and_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            with mock.patch.object(pilot.time, "monotonic", return_value=100.0), \
+                 mock.patch.object(pilot.subprocess, "run") as run_command:
+                with self.assertRaises(pilot.PilotError) as caught:
+                    pilot.command(bundle, "expired", ["probe"], deadline=100.0)
+                self.assertEqual(caught.exception.code, "run_timeout")
+                run_command.assert_not_called()
+
+            completed = subprocess.CompletedProcess(["probe"], 0, stdout=b"ready", stderr=b"")
+            with mock.patch.object(pilot.time, "monotonic", return_value=100.0), \
+                 mock.patch.object(pilot.subprocess, "run", return_value=completed) as run_command:
+                entry = pilot.command(bundle, "bounded", ["probe"], deadline=110.0)
+                self.assertEqual(run_command.call_args.kwargs["timeout"], 10.0)
+                self.assertEqual(entry["returncode"], 0)
+
+            with mock.patch.object(pilot.time, "monotonic", side_effect=[100.0, 110.0]), \
+                 mock.patch.object(pilot.subprocess, "run", return_value=completed):
+                entry = pilot.command(bundle, "late", ["probe"], deadline=110.0)
+                self.assertEqual(entry["returncode"], 124)
+                self.assertEqual(entry["failure_kind"], "run_timeout")
+                self.assertEqual((bundle / "late.stdout.txt").read_bytes(), b"ready")
+
+            with mock.patch.object(pilot, "RUN_CAP_SECONDS", 0), \
+                 mock.patch.object(pilot.subprocess, "run") as run_command:
+                record = pilot.run(bundle)
+                self.assertEqual(record["status_reason"], "run_timeout")
+                self.assertEqual(record["provisional_status"], "failed")
+                run_command.assert_not_called()
+
     def test_schema_gate_blocks_before_build_or_solver(self) -> None:
         for scenario in ("missing_schema", "missing_validator", "unreadable_schema",
                          "unreadable_validator", "failing_self_test"):
@@ -272,7 +303,7 @@ class PilotParserTests(unittest.TestCase):
     def test_missing_optional_dependency_yields_blocked_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             labels = []
-            def probe(_bundle, _attempts, label, _argv):
+            def probe(_bundle, _attempts, label, _argv, **_kwargs):
                 labels.append(label)
                 if label == "schema_preflight":
                     return "self-test PASS"
@@ -325,7 +356,7 @@ class PilotParserTests(unittest.TestCase):
             "cholmod_libs": "",
         }
         with tempfile.TemporaryDirectory() as temp:
-            with mock.patch.object(pilot, "checked_probe", side_effect=lambda _, __, label, ___: responses[label]) as probe:
+            with mock.patch.object(pilot, "checked_probe", side_effect=lambda _, __, label, ___, **_kwargs: responses[label]) as probe:
                 record = pilot.run(Path(temp))
         self.assertEqual(record["provisional_status"], "blocked")
         self.assertEqual(record["status_reason"], "baseline_version_mismatch")

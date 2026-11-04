@@ -38,6 +38,7 @@ MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
 RHS = (13.0, 14.0, 17.0, 16.0)
 MAX_STRUCTURED_RAW_BYTES = 4 * 1024 * 1024
 MAX_TRIAL_NS = 30_000_000_000
+MAX_RUN_NS = 15 * 60 * 1_000_000_000
 RAW_SIDE_KEYS = frozenset(("phase_statuses", "factor_diagnostics", "solution"))
 SUCCESS_STATUSES = {
     "project": {"load_status": 0, "factor_status": 0, "solve_status": 0},
@@ -227,11 +228,13 @@ def _parse_json_bytes(data: bytes, pointer: str = "") -> dict:
     try:
         parsed = json.loads(data.decode("utf-8"), object_pairs_hook=_Pairs,
                             parse_constant=_nonfinite, parse_float=_finite_float)
+        result = _build_json(parsed, pointer)
     except EvidenceError:
         raise
+    except RecursionError as exc:
+        raise EvidenceError("invalid_json", pointer or "/", "JSON nesting exceeds parser limit") from exc
     except (UnicodeError, ValueError) as exc:
         raise EvidenceError("invalid_json", pointer or "/", str(exc)) from exc
-    result = _build_json(parsed, pointer)
     if type(result) is not dict:
         raise EvidenceError("exact_type", pointer or "/", "JSON root must be an object")
     return result
@@ -613,6 +616,7 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
              "unit_or_sample_contract", "/environment/threads_observed",
              "selected timing requires verified single-thread controls")
     for index, window in enumerate(windows):
+        window_trial_ns = 0
         pointer = f"/timing/windows/{index}"
         _require(window["raw_samples_artifact"] == timing["raw_samples_artifact"],
                  "unit_or_sample_contract", f"{pointer}/raw_samples_artifact",
@@ -637,6 +641,10 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                              for side in ("project", "baseline")),
                          "unit_or_sample_contract", f"{pointer}/{phase}/{pair_index}",
                          "pair order, status or duration invalid or over 30-second limit")
+                window_trial_ns += pair["project_ns"] + pair["baseline_ns"]
+                _require(window_trial_ns <= MAX_RUN_NS, "unit_or_sample_contract",
+                         f"{pointer}/{phase}/{pair_index}",
+                         "recorded trials exceed the 15-minute run cap")
                 for side in ("project", "baseline"):
                     _check_trial_observation(pair.get(f"{side}_observation"), side,
                                              f"{pointer}/{phase}/{pair_index}/{side}_observation")

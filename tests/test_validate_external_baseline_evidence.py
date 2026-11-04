@@ -1240,6 +1240,64 @@ class CliMutationTests(unittest.TestCase):
                         synthetic_measured(), over_timeout, "unit_or_sample_contract",
                         f"/timing/windows/0/{phase}/0")
 
+    def test_rehashed_trials_exceeding_run_cap_are_rejected(self) -> None:
+        fixture = synthetic_measured()
+        raw = fixture[1]
+
+        def exceed_run_cap(record: dict, _bundle: Path) -> None:
+            window = record["timing"]["windows"][0]
+            phase = raw[window["phase"]]
+            for pairs in phase.values():
+                for pair in pairs:
+                    pair["project_ns"] = 9_000_000_000
+                    pair["baseline_ns"] = 9_000_000_000
+            for side in ("project", "baseline"):
+                window[side] = validator._summary([pair[f"{side}_ns"] for pair in phase["timed"]])
+            record["timing"]["median_ns"] = {
+                side: window[side]["median_ns"]
+                for side in ("project", "baseline")
+            }
+
+        self.assert_semantic_mutation(fixture, exceed_run_cap, "unit_or_sample_contract",
+                                      "/timing/windows/0/timed/45", restage=True)
+
+    def test_distinct_windows_do_not_share_a_run_cap(self) -> None:
+        record, raw = synthetic_measured()
+        for window in record["timing"]["windows"]:
+            phase = raw[window["phase"]]
+            for pairs in phase.values():
+                for pair in pairs:
+                    pair["project_ns"] = 4_000_000_000
+                    pair["baseline_ns"] = 4_000_000_000
+            for side in ("project", "baseline"):
+                window[side] = validator._summary([pair[f"{side}_ns"] for pair in phase["timed"]])
+        record["timing"]["median_ns"] = {
+            side: record["timing"]["windows"][0][side]["median_ns"]
+            for side in ("project", "baseline")
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stage_synthetic_bundle(record, root, raw)
+            path = root / "record.json"
+            path.write_text(json.dumps(record), encoding="utf-8")
+            self.assert_accepts(path, root)
+
+    def test_deep_json_reports_diagnostic_for_input_and_hashed_raw(self) -> None:
+        nested = b'{"nested":' + b'[' * 1500 + b'0' + b']' * 1500 + b'}'
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "record.json"
+            path.write_bytes(nested)
+            self.assert_rejects(path, "invalid_json", "/")
+
+            record, raw = synthetic_measured()
+            stage_synthetic_bundle(record, root, raw)
+            artifact = next(item for item in record["artifacts"] if item["role"] == "timing_raw")
+            (root / artifact["path"]).write_bytes(nested)
+            artifact["sha256"] = hashlib.sha256(nested).hexdigest()
+            path.write_text(json.dumps(record), encoding="utf-8")
+            self.assert_rejects(path, "invalid_json", "/timing/raw_samples_artifact", root)
+
     def test_mutation_closure_cross_field_rules(self) -> None:
         def change_hashed_raw_output(record: dict, bundle: Path) -> None:
             artifact = next(item for item in record["artifacts"] if item["role"] == "project_raw")

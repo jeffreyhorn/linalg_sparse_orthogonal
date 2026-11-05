@@ -103,9 +103,12 @@ jobs have not yet run and are not counted as passing evidence.
 The earned claim is a **locally validated v1 evidence format and pilot
 preflight** for one selected cell. It is not an independent CHOLMOD solve,
 validated external correctness, performance comparison, broad parity,
-publication approval or state-of-the-art claim. No `.c` or `.h` files
-changed; the conditional C `make format`, `make lint` and `make test` gates
-were not applicable.
+publication approval or state-of-the-art claim. At the original closeout, no
+`.c` or `.h` files had changed, so the conditional C gates were not applicable.
+Post-review fixes to the CHOLMOD C pilot and new CSC header/test made those
+gates applicable. On 2026-11-04, `make format`, `make lint` and `make test` all
+passed before commit `29b31b6cbbd4676b0a74996e0f75afb0758b6bb8`.
+The expanded Python validator and pilot suites passed 56 and 17 tests.
 
 ## Daily Evidence
 

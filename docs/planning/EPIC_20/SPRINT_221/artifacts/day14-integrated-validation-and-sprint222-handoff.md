@@ -25,11 +25,31 @@ preflight validation, not an external solver run.
 | `git diff --check` | PASS. |
 
 The optional Python CI step added this sprint runs the same validator
-`--self-test`, validator suite and pilot suite shown above. No `.c` or `.h`
-file changed during Sprint 221, so the conditional `make format && make lint
-&& make test` gate was not applicable. No required Day 14 check failed or
-was skipped. The Doxygen and API-doc routing commands generated only ignored
-local output.
+`--self-test`, validator suite and pilot suite shown above. At the original
+Day 14 closeout, no `.c` or `.h` file had changed, so the conditional C gate
+was not applicable then. No required Day 14 check failed or was skipped. The
+Doxygen and API-doc routing commands generated only ignored local output.
+
+### Post-Review Validation (2026-11-04)
+
+PR #245 review fixes subsequently modified `scripts/cholmod_pilot.c`, added
+`scripts/cholmod_pilot_csc.h` and `tests/test_cholmod_pilot_csc.c`, and
+registered the new test in `Makefile` and `CMakeLists.txt`. The conditional C
+gate therefore became applicable. All commands below passed on branch
+`sprint-221` before commit `29b31b6cbbd4676b0a74996e0f75afb0758b6bb8`:
+
+| Command | Outcome |
+| --- | --- |
+| `make format` | PASS. |
+| `make lint` | PASS; strict compiler, clang-tidy and cppcheck completed. |
+| `make test` | PASS; all Make test binaries completed. |
+| `python3 tests/test_validate_external_baseline_evidence.py` | PASS, 56 tests. |
+| `python3 tests/test_run_cholmod_pilot.py` | PASS, 17 tests. |
+| `git diff --check` | PASS. |
+
+The CSC checker was also built and exercised through its focused CMake test.
+These are post-review outcomes, not claims that the original Day 14 run
+contained the later C changes or expanded Python suites.
 
 ## Source And Publication Audit
 

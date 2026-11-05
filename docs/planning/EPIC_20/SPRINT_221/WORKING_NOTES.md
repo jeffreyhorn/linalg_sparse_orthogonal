@@ -244,7 +244,19 @@ publication route or external-baseline attempt output was added. The
 [validation ledger and Sprint 222 handoff](artifacts/day14-integrated-validation-and-sprint222-handoff.md)
 reconcile items 221.1-221.6 as complete while keeping real CHOLMOD execution,
 loaded dependency provenance, repeat validation and independent rights review
-open for Sprint 222. No `.c` or `.h` file changed this sprint, so the
-conditional C format/lint/test gate did not apply. The optional pilot may
+open for Sprint 222. At the original Day 14 closeout, no `.c` or `.h` file
+had changed, so the conditional C format/lint/test gate did not apply then.
+The optional pilot may
 proceed only after the v1 self-test passes; neither that preflight nor a
 synthetic validator success establishes solver parity or performance.
+
+## Post-Review Validation (2026-11-04)
+
+PR #245 review fixes added CSC conversion validation in
+`scripts/cholmod_pilot.c` and `scripts/cholmod_pilot_csc.h`, a focused C test,
+and Make/CMake test registration. The C gate became applicable and passed:
+`make format`, `make lint` and `make test`. The expanded validator and pilot
+Python suites also passed (56 and 17 tests, respectively), as did
+`git diff --check`. These checks preceded review-fix commit
+`29b31b6cbbd4676b0a74996e0f75afb0758b6bb8`; the original Day 14 counts
+and exemption above describe only the earlier closeout state.

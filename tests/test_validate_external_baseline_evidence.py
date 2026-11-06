@@ -1217,6 +1217,15 @@ class CliMutationTests(unittest.TestCase):
                     synthetic_observed(), lambda record, _bundle: mutate(record),
                     "nonfinite_or_missing_value_abuse", pointer)
 
+    def test_reason_tokens_cannot_smuggle_forbidden_claims(self) -> None:
+        for key, value in (("status_reason", "speedup:2"),
+                           ("environment_reason", "winner:project")):
+            with self.subTest(key=key):
+                self.assert_semantic_mutation(
+                    synthetic_not_run(),
+                    lambda record, _bundle: record.__setitem__(key, value),
+                    "unearned_claim", f"/{key}")
+
     def test_rehashed_over_timeout_trials_are_rejected(self) -> None:
         for phase in ("warmup", "timed"):
             for side in ("project", "baseline"):

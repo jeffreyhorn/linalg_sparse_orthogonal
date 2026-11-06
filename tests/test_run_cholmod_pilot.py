@@ -4,8 +4,10 @@
 import importlib.util
 import io
 import json
+import sys
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -82,7 +84,7 @@ class PilotParserTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             bundle = Path(temp)
             timeout = subprocess.TimeoutExpired(["probe"], 120, output=b"partial\xff", stderr=b"warning\n")
-            with mock.patch.object(pilot.subprocess, "run", side_effect=timeout):
+            with mock.patch.object(pilot, "_run_command_group", side_effect=timeout):
                 timed_out = pilot.command(bundle, "timed_out", ["probe"])
             self.assertEqual(timed_out["returncode"], 124)
             self.assertEqual(timed_out["failure_kind"], "timeout")
@@ -92,7 +94,7 @@ class PilotParserTests(unittest.TestCase):
             for stream in ("stdout", "stderr"):
                 self.assertEqual(timed_out["files"][stream]["sha256"],
                                  pilot.sha256(bundle / timed_out["files"][stream]["path"]))
-            with mock.patch.object(pilot.subprocess, "run", side_effect=OSError("cannot launch")):
+            with mock.patch.object(pilot, "_run_command_group", side_effect=OSError("cannot launch")):
                 launch_error = pilot.command(bundle, "launch_error", ["probe"])
             self.assertEqual(launch_error["returncode"], 127)
             self.assertEqual(launch_error["failure_kind"], "launch_error")
@@ -104,7 +106,7 @@ class PilotParserTests(unittest.TestCase):
             stdout = b"ready\r\nvalue=\xff\r\n"
             stderr = b"warning\r\nbyte=\xfe\r\n"
             completed = subprocess.CompletedProcess(["probe"], 0, stdout=stdout, stderr=stderr)
-            with mock.patch.object(pilot.subprocess, "run", return_value=completed) as run_command:
+            with mock.patch.object(pilot, "_run_command_group", return_value=completed) as run_command:
                 entry = pilot.command(bundle, "completed", ["probe"])
             self.assertNotIn("text", run_command.call_args.kwargs)
             self.assertEqual(entry["returncode"], 0)
@@ -119,32 +121,49 @@ class PilotParserTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             bundle = Path(temp)
             with mock.patch.object(pilot.time, "monotonic", return_value=100.0), \
-                 mock.patch.object(pilot.subprocess, "run") as run_command:
+                 mock.patch.object(pilot, "_run_command_group") as run_command:
                 with self.assertRaises(pilot.PilotError) as caught:
                     pilot.command(bundle, "expired", ["probe"], deadline=100.0)
                 self.assertEqual(caught.exception.code, "run_timeout")
                 run_command.assert_not_called()
 
+
             completed = subprocess.CompletedProcess(["probe"], 0, stdout=b"ready", stderr=b"")
             with mock.patch.object(pilot.time, "monotonic", return_value=100.0), \
-                 mock.patch.object(pilot.subprocess, "run", return_value=completed) as run_command:
+                 mock.patch.object(pilot, "_run_command_group", return_value=completed) as run_command:
                 entry = pilot.command(bundle, "bounded", ["probe"], deadline=110.0)
                 self.assertEqual(run_command.call_args.kwargs["timeout"], 10.0)
                 self.assertEqual(entry["returncode"], 0)
 
             with mock.patch.object(pilot.time, "monotonic", side_effect=[100.0, 110.0]), \
-                 mock.patch.object(pilot.subprocess, "run", return_value=completed):
+                 mock.patch.object(pilot, "_run_command_group", return_value=completed):
                 entry = pilot.command(bundle, "late", ["probe"], deadline=110.0)
                 self.assertEqual(entry["returncode"], 124)
                 self.assertEqual(entry["failure_kind"], "run_timeout")
                 self.assertEqual((bundle / "late.stdout.txt").read_bytes(), b"ready")
 
             with mock.patch.object(pilot, "RUN_CAP_SECONDS", 0), \
-                 mock.patch.object(pilot.subprocess, "run") as run_command:
+                 mock.patch.object(pilot, "_run_command_group") as run_command:
                 record = pilot.run(bundle)
                 self.assertEqual(record["status_reason"], "run_timeout")
                 self.assertEqual(record["provisional_status"], "failed")
                 run_command.assert_not_called()
+
+    def test_timeout_kills_descendant_processes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            marker = bundle / "descendant-survived"
+            descendant = ("import pathlib,time; time.sleep(0.8); "
+                          f"pathlib.Path({str(marker)!r}).write_text('survived')")
+            parent = ("import subprocess,sys,time; "
+                      f"subprocess.Popen([sys.executable,'-c',{descendant!r}]); "
+                      "print('launched', flush=True); time.sleep(10)")
+            entry = pilot.command(bundle, "tree_timeout", [sys.executable, "-c", parent],
+                                  deadline=time.monotonic() + 0.3)
+            self.assertEqual(entry["failure_kind"], "run_timeout")
+            self.assertEqual((bundle / "tree_timeout.stdout.txt").read_bytes(), b"launched\n")
+            time.sleep(1.0)
+            self.assertFalse(marker.exists())
 
     def test_schema_gate_blocks_before_build_or_solver(self) -> None:
         for scenario in ("missing_schema", "missing_validator", "unreadable_schema",
@@ -175,7 +194,7 @@ class PilotParserTests(unittest.TestCase):
                 with mock.patch.object(pilot, "EVIDENCE_SCHEMA", schema), \
                      mock.patch.object(pilot, "EVIDENCE_VALIDATOR", validator), \
                      mock.patch.object(Path, "open", selective_open), \
-                     mock.patch.object(pilot.subprocess, "run", side_effect=completed_command):
+                     mock.patch.object(pilot, "_run_command_group", side_effect=completed_command):
                     record = pilot.run(root)
                 self.assertEqual(len(commands), 1 if scenario == "failing_self_test" else 0)
                 self.assertNotIn("project_library_build", record["commands"])
@@ -247,7 +266,7 @@ class PilotParserTests(unittest.TestCase):
             bundle.mkdir()
             helper = bundle / "cholmod_pilot"
             seen = []
-            real_run = subprocess.run
+            real_run = pilot._run_command_group
 
             def completed_command(argv, **kwargs):
                 seen.append(argv)
@@ -283,7 +302,7 @@ class PilotParserTests(unittest.TestCase):
                  mock.patch.object(pilot, "FIXTURE", fixture), \
                  mock.patch.object(pilot, "FIXTURE_SHA256", pilot.sha256(fixture)), \
                  mock.patch.object(pilot, "LIB_SHA256", pilot.sha256(library)), \
-                 mock.patch.object(pilot.subprocess, "run", side_effect=completed_command):
+                 mock.patch.object(pilot, "_run_command_group", side_effect=completed_command):
                 record = pilot.run(bundle)
             self.assertEqual(record["schema_validation"],
                              {"status": "preflight_pass", "reason": "negative_fixtures_checked"})

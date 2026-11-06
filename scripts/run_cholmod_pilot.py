@@ -8,6 +8,7 @@ import math
 import os
 import platform
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -106,6 +107,22 @@ def check_correctness(solution: tuple[float, ...]) -> dict:
     }
 
 
+def _run_command_group(argv: list[str], *, cwd: Path, env: dict | None,
+                       timeout: float) -> subprocess.CompletedProcess:
+    with subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, start_new_session=True) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = process.communicate()
+            raise subprocess.TimeoutExpired(argv, timeout, output=stdout, stderr=stderr) from exc
+        return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+
 def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
             env: dict | None = None, deadline: float | None = None) -> dict:
     remaining = None if deadline is None else deadline - time.monotonic()
@@ -113,9 +130,8 @@ def command(bundle: Path, label: str, argv: list[str], *, cwd: Path = ROOT,
         raise PilotError("run_timeout", "15-minute pilot run cap reached")
     failure_kind = None
     try:
-        result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True,
-                                timeout=min(120, remaining) if remaining is not None else 120,
-                                check=False)
+        result = _run_command_group(argv, cwd=cwd, env=env,
+                                    timeout=min(120, remaining) if remaining is not None else 120)
         stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or b""

@@ -33,6 +33,9 @@ COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
 REQUIRED_NON_CLAIMS = frozenset(("no_portable_speed", "no_hosted_threshold",
                                  "no_cross_platform_timing_parity", "no_state_of_the_art_claim"))
 OPTIONAL_NON_CLAIMS = frozenset(("no_external_solver_result", "no_timing_result"))
+FORBIDDEN_REASON_CLAIM = re.compile(
+    r"(?:speedup|faster|fastest|winner|outperform|state.of.the.art|portable.speed|"
+    r"hosted.threshold|cross.platform.timing.parity)", re.IGNORECASE)
 MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
           (2.0, 1.0, 14.0, 0.0), (0.0, 0.0, 0.0, 16.0))
 RHS = (13.0, 14.0, 17.0, 16.0)
@@ -664,6 +667,19 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
 def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = None) -> None:
     """Validate v1 relationships against already verified raw samples."""
     validate_shape(record, schema)
+    def check_reasons(value: object, pointer: str = "") -> None:
+        if type(value) is dict:
+            for key, child in value.items():
+                path = f"{pointer}/{key}"
+                if (key == "status_reason" or key.endswith("_reason")) and type(child) is str:
+                    _require(FORBIDDEN_REASON_CLAIM.search(child) is None, "unearned_claim", path,
+                             "reason token contains a forbidden performance claim")
+                else:
+                    check_reasons(child, path)
+        elif type(value) is list:
+            for index, child in enumerate(value):
+                check_reasons(child, f"{pointer}/{index}")
+    check_reasons(record)
     status = record["evidence_status"]
     for name, expected_path in METHOD_PATHS.items():
         _require(record["methodology"][name]["path"] == expected_path, "selection_mismatch",

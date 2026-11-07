@@ -35,7 +35,8 @@ REQUIRED_NON_CLAIMS = frozenset(("no_portable_speed", "no_hosted_threshold",
 OPTIONAL_NON_CLAIMS = frozenset(("no_external_solver_result", "no_timing_result"))
 FORBIDDEN_REASON_CLAIM = re.compile(
     r"(?:speedup|faster|fastest|winner|outperform|state.of.the.art|portable.speed|"
-    r"hosted.threshold|cross.platform.timing.parity)", re.IGNORECASE)
+    r"hosted.threshold|cross.platform.timing.parity|performance.verdict|threshold.pass)",
+    re.IGNORECASE)
 MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
           (2.0, 1.0, 14.0, 0.0), (0.0, 0.0, 0.0, 16.0))
 RHS = (13.0, 14.0, 17.0, 16.0)
@@ -493,6 +494,13 @@ def _check_provenance(record: dict) -> None:
                          "placeholder is not observed provenance")
         _require(obj["runtime_reason"] is None, "status_contradiction", f"/cell/{name}/runtime_reason",
                  "complete runtime cannot carry unavailable reason")
+    for role, digest, pointer in (("project_binary", project["binary_sha256"],
+                                  "/cell/project/binary_sha256"),
+                                 ("baseline_library", baseline["loaded_library_sha256"],
+                                  "/cell/baseline/loaded_library_sha256")):
+        matches = [item for item in record["artifacts"] if item["role"] == role]
+        _require(len(matches) == 1 and matches[0]["sha256"] == digest,
+                 "missing_provenance", pointer, "observed binary needs one matching retained artifact")
     _require(baseline["dependencies"], "missing_provenance", "/cell/baseline/dependencies",
              "loaded dependency inventory cannot be empty")
     for pointer, path in (("/cell/baseline/loaded_library_path", baseline["loaded_library_path"]),
@@ -667,6 +675,20 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
 def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = None) -> None:
     """Validate v1 relationships against already verified raw samples."""
     validate_shape(record, schema)
+    forbidden_keys = set(schema["x-v1-policy"]["forbidden_claim_keys"])
+    def check_claim_keys(value: object, pointer: str = "") -> None:
+        if type(value) is dict:
+            for key, child in value.items():
+                path = f"{pointer}/{key}"
+                _require(key not in forbidden_keys, "unearned_claim", path,
+                         "forbidden performance claim key")
+                check_claim_keys(child, path)
+        elif type(value) is list:
+            for index, child in enumerate(value):
+                check_claim_keys(child, f"{pointer}/{index}")
+    check_claim_keys(record)
+    if raw_samples is not None:
+        check_claim_keys(raw_samples, "/timing/raw_samples_artifact")
     def check_reasons(value: object, pointer: str = "") -> None:
         if type(value) is dict:
             for key, child in value.items():

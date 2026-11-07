@@ -72,9 +72,11 @@ def synthetic_observed() -> dict:
     cell["project"].update(git_commit="a" * 40, worktree_state="clean",
                            patch_sha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                            compiler="synthetic clang", compile_flags="-O2", build_mode="Release",
-                           binary_sha256="b" * 64, runtime_reason=None)
+                           binary_sha256=hashlib.sha256(b"synthetic project binary\n").hexdigest(),
+                           runtime_reason=None)
     cell["baseline"].update(loaded_library_path="/opt/libcholmod.dylib",
-                            loaded_library_sha256="c" * 64, build_options="synthetic options",
+                            loaded_library_sha256=hashlib.sha256(b"synthetic baseline library\n").hexdigest(),
+                            build_options="synthetic options",
                             module_composition=["cholmod", "amd"],
                             dependencies=[{"role": "blas", "loaded_path": "/opt/blas.dylib",
                                            "sha256": "d" * 64}], runtime_reason=None)
@@ -103,6 +105,10 @@ def synthetic_observed() -> dict:
                     availability_reason=None, **metrics)
         record["artifacts"].append({"path": f"{name}.json", "role": f"{name}_raw",
                                     "media_type": "application/json", "sha256": "a" * 64})
+    for role, path, digest in (("project_binary", "project.bin", cell["project"]["binary_sha256"]),
+                               ("baseline_library", "baseline.bin", cell["baseline"]["loaded_library_sha256"])):
+        record["artifacts"].append({"path": path, "role": role,
+                                    "media_type": "application/octet-stream", "sha256": digest})
     record["correctness"]["cross_solver_difference_inf"] = 0.0
     record["correctness"]["cross_solver_consistency_limit"] = 2 * metrics["oracle_limit"]
     record["timing"]["availability_reason"] = "correctness_only"
@@ -188,6 +194,10 @@ def stage_synthetic_bundle(record: dict, bundle: Path, raw_samples: dict | None 
                                   for key in validator.RAW_SIDE_KEYS}, sort_keys=True).encode("utf-8")
         elif artifact["role"] == "project_patch":
             content = b"synthetic git diff --binary HEAD\n"
+        elif artifact["role"] == "project_binary":
+            content = b"synthetic project binary\n"
+        elif artifact["role"] == "baseline_library":
+            content = b"synthetic baseline library\n"
         elif artifact["role"] == "project_worktree_status":
             content = b" M tests/synthetic.c\n"
         else:
@@ -684,7 +694,7 @@ class ArtifactTests(unittest.TestCase):
             invalid = synthetic_timing_invalid()
             stage_synthetic_bundle(invalid, bundle)
             (bundle / "attempt.json").unlink()
-            self.check_failure(invalid, bundle, "artifact_path_or_hash", "/artifacts/2/path")
+            self.check_failure(invalid, bundle, "artifact_path_or_hash", "/artifacts/4/path")
             stage_synthetic_bundle(invalid, bundle)
             invalid["evidence_status"] = "measured"
             self.check_failure(invalid, bundle, "status_contradiction", "/timing/state")
@@ -734,7 +744,7 @@ class ArtifactTests(unittest.TestCase):
                     self.assertEqual(window[side], validator._summary(
                         [pair[f"{side}_ns"] for pair in raw[phase]["timed"]]))
             self.assertEqual(hashlib.sha256((bundle / "samples.json").read_bytes()).hexdigest(),
-                             measured["artifacts"][2]["sha256"])
+                             measured["artifacts"][4]["sha256"])
             for artifact in measured["artifacts"]:
                 self.assertEqual(artifact["sha256"],
                                  hashlib.sha256((bundle / artifact["path"]).read_bytes()).hexdigest())
@@ -872,7 +882,7 @@ class ArtifactTests(unittest.TestCase):
             record = synthetic_observed()
             stage_synthetic_bundle(record, bundle)
             record["artifacts"].append(copy.deepcopy(record["artifacts"][0]))
-            self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/2/path")
+            self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/4/path")
             record["artifacts"].pop()
             record["publication_review_artifact"] = "unlisted-review.txt"
             self.check_failure(record, bundle, "missing_provenance", "/publication_review_artifact")
@@ -884,8 +894,8 @@ class ArtifactTests(unittest.TestCase):
             stage_synthetic_bundle(record, bundle, raw)
             sample = bundle / "samples.json"
             sample.write_bytes(b'{"a":1,"a":2}')
-            self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/2/path")
-            record["artifacts"][2]["sha256"] = hashlib.sha256(sample.read_bytes()).hexdigest()
+            self.check_failure(record, bundle, "artifact_path_or_hash", "/artifacts/4/path")
+            record["artifacts"][4]["sha256"] = hashlib.sha256(sample.read_bytes()).hexdigest()
             self.check_failure(record, bundle, "duplicate_or_unknown_field",
                                "/timing/raw_samples_artifact/a")
 
@@ -1219,12 +1229,43 @@ class CliMutationTests(unittest.TestCase):
 
     def test_reason_tokens_cannot_smuggle_forbidden_claims(self) -> None:
         for key, value in (("status_reason", "speedup:2"),
+                           ("status_reason", "threshold_pass:yes"),
                            ("environment_reason", "winner:project")):
             with self.subTest(key=key):
                 self.assert_semantic_mutation(
                     synthetic_not_run(),
                     lambda record, _bundle: record.__setitem__(key, value),
                     "unearned_claim", f"/{key}")
+
+    def test_observed_binary_provenance_and_nested_claim_keys(self) -> None:
+        self.assert_semantic_mutation(
+            synthetic_observed(),
+            lambda record, _bundle: record["artifacts"].__setitem__(
+                next(i for i, item in enumerate(record["artifacts"])
+                     if item["role"] == "project_binary"),
+                {**next(item for item in record["artifacts"] if item["role"] == "project_binary"),
+                 "role": "unrelated"}),
+            "missing_provenance", "/cell/project/binary_sha256")
+        self.assert_semantic_mutation(
+            synthetic_observed(),
+            lambda record, _bundle: record["cell"]["baseline"].__setitem__(
+                "loaded_library_sha256", "f" * 64),
+            "missing_provenance", "/cell/baseline/loaded_library_sha256")
+        self.assert_semantic_mutation(
+            synthetic_observed(),
+            lambda record, _bundle: record["correctness"]["project"]["factor_diagnostics"].__setitem__(
+                "speedup", 2),
+            "unearned_claim", "/correctness/project/factor_diagnostics/speedup",
+            restage=True)
+
+        fixture = synthetic_measured()
+        def raw_claim(_record: dict, _bundle: Path) -> None:
+            fixture[1]["factor_plus_first_solve"]["warmup"][0]["project_observation"][
+                "factor_diagnostics"]["performance_verdict"] = "winner"
+        self.assert_semantic_mutation(
+            fixture, raw_claim, "unearned_claim",
+            "/timing/raw_samples_artifact/factor_plus_first_solve/warmup/0/"
+            "project_observation/factor_diagnostics/performance_verdict", restage=True)
 
     def test_rehashed_over_timeout_trials_are_rejected(self) -> None:
         for phase in ("warmup", "timed"):

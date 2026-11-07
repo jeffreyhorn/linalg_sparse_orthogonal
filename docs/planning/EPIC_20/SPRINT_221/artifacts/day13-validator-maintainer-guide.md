@@ -106,6 +106,12 @@ rejects traversal, symlink traversal, missing/nonregular files and digest
 mismatches. Observed raw solver JSON is parsed after hashing and bound to
 reported statuses, diagnostics and solutions. Baseline success includes
 `cholmod_solve_status=0` as well as the CHOLMOD factor and solve statuses.
+An observed cell also needs exactly one retained `project_binary` artifact
+and one `baseline_library` artifact; their verified byte digests must match
+`binary_sha256` and `loaded_library_sha256` in the cell identity. Forbidden
+performance claim keys are rejected even inside permitted diagnostic objects
+and raw timing observations. These checks establish bundle consistency, not
+independent authentication of the process that produced the bytes.
 A dirty project worktree additionally requires one hashed `project_patch`
 artifact (`text/x-diff`) whose digest equals `patch_sha256`, and one nonempty
 `project_worktree_status` artifact (`text/plain`); retain the raw patch and

@@ -45,6 +45,8 @@ MAX_STRUCTURED_RAW_BYTES = 4 * 1024 * 1024
 MAX_TRIAL_NS = 30_000_000_000
 MAX_RUN_NS = 15 * 60 * 1_000_000_000
 RAW_SIDE_KEYS = frozenset(("phase_statuses", "factor_diagnostics", "solution"))
+RAW_PAIR_KEYS = frozenset(("order", "project_status", "baseline_status", "project_ns",
+                          "baseline_ns", "project_observation", "baseline_observation"))
 SUCCESS_STATUSES = {
     "project": {"load_status": 0, "factor_status": 0, "solve_status": 0},
     "baseline": {"load_status": 0, "analyze_status": 0, "factor_status": 1,
@@ -655,7 +657,8 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                      f"{pointer}/{phase}/0", "invalid initial pair order")
             for pair_index, pair in enumerate(pairs):
                 expected_order = first_order if pair_index % 2 == 0 else ("BA" if first_order == "AB" else "AB")
-                _require(type(pair) is dict and pair.get("order") == expected_order and
+                _require(type(pair) is dict and pair.keys() <= RAW_PAIR_KEYS and
+                         pair.get("order") == expected_order and
                          all(pair.get(f"{side}_status") == "pass" and
                              type(pair.get(f"{side}_ns")) is int and
                              0 < pair[f"{side}_ns"] <= MAX_TRIAL_NS
@@ -690,7 +693,8 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
         if type(value) is dict:
             for key, child in value.items():
                 path = f"{pointer}/{key}"
-                _require(key not in forbidden_keys, "unearned_claim", path,
+                _require(key not in forbidden_keys and FORBIDDEN_REASON_CLAIM.search(key) is None,
+                         "unearned_claim", path,
                          "forbidden performance claim key")
                 if pointer.endswith("/factor_diagnostics") and type(child) is str:
                     _require(FORBIDDEN_REASON_CLAIM.search(child) is None,
@@ -960,6 +964,12 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
     if review_path is not None:
         _require(review_path in seen, "missing_provenance", "/publication_review_artifact",
                  "publication review must cite a listed bundle artifact")
+        review = listed[review_path]
+        _require(review["role"] == "publication_review" and
+                 review["media_type"] == "text/plain" and
+                 review_path not in raw_sides.values() and review_path != raw_path,
+                 "missing_provenance", "/publication_review_artifact",
+                 "review evidence must be a separate text artifact")
     if record["timing"]["state"] == "measured":
         _require(raw_path in captured, "measured_requires_two_passes_and_raw_samples",
                  "/timing/raw_samples_artifact", "measured record needs hashed raw samples")

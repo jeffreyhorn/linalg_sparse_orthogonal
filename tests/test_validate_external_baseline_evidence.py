@@ -1295,6 +1295,56 @@ class CliMutationTests(unittest.TestCase):
             "/timing/windows/0/timed/0/baseline_observation/factor_diagnostics",
             restage=True)
 
+    def test_review_separation_exact_timing_pairs_and_ranking_keys(self) -> None:
+        def alias_review(record: dict, _bundle: Path) -> None:
+            record["publication_review"] = "approved"
+            record["publication_review_artifact"] = "project.json"
+            record["cell"]["matrix"]["attribution_review"] = "approved"
+        self.assert_semantic_mutation(
+            synthetic_observed(), alias_review, "missing_provenance",
+            "/publication_review_artifact")
+
+        def wrong_review_role(record: dict, _bundle: Path) -> None:
+            record["publication_review"] = "approved"
+            record["publication_review_artifact"] = "review.txt"
+            record["cell"]["matrix"]["attribution_review"] = "approved"
+            record["artifacts"].append({"path": "review.txt", "role": "log",
+                                        "media_type": "text/plain", "sha256": "a" * 64})
+        self.assert_semantic_mutation(
+            synthetic_observed(), wrong_review_role, "missing_provenance",
+            "/publication_review_artifact", restage=True)
+        approved = synthetic_observed()
+        approved["publication_review"] = "approved"
+        approved["publication_review_artifact"] = "review.txt"
+        approved["cell"]["matrix"]["attribution_review"] = "approved"
+        approved["artifacts"].append({"path": "review.txt", "role": "publication_review",
+                                      "media_type": "text/plain", "sha256": "a" * 64})
+        approved["cell_id"] = validator.canonical_cell_id(validator.identity_from_record(approved))[1]
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            stage_synthetic_bundle(approved, bundle)
+            validator.validate_record(approved, validator.read_json(SCHEMA), ROOT, bundle)
+        self.assert_semantic_mutation(
+            synthetic_observed(),
+            lambda record, _bundle: record["correctness"]["baseline"][
+                "factor_diagnostics"].__setitem__("ranking", 1),
+            "unearned_claim", "/correctness/baseline/factor_diagnostics/ranking",
+            restage=True)
+
+        fixture = synthetic_measured()
+        def extra_pair_field(_record: dict, _bundle: Path) -> None:
+            fixture[1]["factor_plus_first_solve"]["timed"][0]["ranking"] = "project_first"
+        self.assert_semantic_mutation(
+            fixture, extra_pair_field, "unearned_claim",
+            "/timing/raw_samples_artifact/factor_plus_first_solve/timed/0/ranking",
+            restage=True)
+        fixture = synthetic_measured()
+        def unrelated_pair_field(_record: dict, _bundle: Path) -> None:
+            fixture[1]["factor_plus_first_solve"]["timed"][0]["extra"] = 1
+        self.assert_semantic_mutation(
+            fixture, unrelated_pair_field, "unit_or_sample_contract",
+            "/timing/windows/0/timed/0", restage=True)
+
     def test_rehashed_over_timeout_trials_are_rejected(self) -> None:
         for phase in ("warmup", "timed"):
             for side in ("project", "baseline"):

@@ -40,8 +40,9 @@ record, descriptive local latency. No v1 status supports a winner, speedup,
 hosted threshold, portable speed, cross-platform parity or state-of-the-art
 claim. `publication_review` is independent of numerical validation:
 `approved` requires an identified, hashed review artifact and approved
-matrix attribution. A validator pass does not perform or replace that human
-review.
+matrix attribution. That artifact must have the `publication_review` role,
+`text/plain` media type and a path separate from solver and timing outputs.
+A validator pass does not perform or replace that human review.
 
 ## Canonical Cell Identity
 
@@ -117,7 +118,8 @@ artifact (`text/x-diff`) whose digest equals `patch_sha256`, and one nonempty
 `project_worktree_status` artifact (`text/plain`); retain the raw patch and
 status bytes. Partial records require a non-null reason for each incomplete
 project runtime, baseline runtime, index ABI, methodology-hash and environment
-group. Measured raw pairs must include each side's `phase_statuses`,
+group. Measured raw pairs allow only order, per-side status, duration and
+observation fields. They must include each side's `phase_statuses`,
 `factor_diagnostics` and `solution` in a `<side>_observation` object; every
 trial must meet the Day 4 status, factor-control and numerical gates before
 its duration contributes to a summary. Each side's warmup and timed trial
@@ -129,7 +131,7 @@ booleans; baseline `is_ll` must be recorded as 0 or 1 but is not fixed to
 one storage format. Baseline
 success does require `csc_nnz=7`, `csc_stype=-1`, `csc_sorted=1` and
 `csc_packed=1` in both observed and per-trial diagnostics. Ranking claims
-in reason tokens or diagnostic text are not permitted. Raw pairs are rehashed
+in keys, reason tokens or diagnostic text are not permitted. Raw pairs are rehashed
 and used to recompute counts and summaries. A matching
 hash alone does not prove that the producer or solver was genuine.
 

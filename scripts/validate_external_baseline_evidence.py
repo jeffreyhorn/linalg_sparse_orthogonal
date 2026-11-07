@@ -35,7 +35,8 @@ REQUIRED_NON_CLAIMS = frozenset(("no_portable_speed", "no_hosted_threshold",
 OPTIONAL_NON_CLAIMS = frozenset(("no_external_solver_result", "no_timing_result"))
 FORBIDDEN_REASON_CLAIM = re.compile(
     r"(?:speedup|faster|fastest|winner|outperform|state.of.the.art|portable.speed|"
-    r"hosted.threshold|cross.platform.timing.parity|performance.verdict|threshold.pass)",
+    r"hosted.threshold|cross.platform.timing.parity|performance.verdict|threshold.pass|"
+    r"rank(?:ed|ing)?|best|first.place|top.rank)",
     re.IGNORECASE)
 MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
           (2.0, 1.0, 14.0, 0.0), (0.0, 0.0, 0.0, 16.0))
@@ -51,7 +52,8 @@ SUCCESS_STATUSES = {
 }
 SUCCESS_DIAGNOSTICS = {
     "project": {"used_csc_path": 0},
-    "baseline": {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0},
+    "baseline": {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0,
+                 "csc_nnz": 7, "csc_stype": -1, "csc_sorted": 1, "csc_packed": 1},
 }
 METHOD_PATHS = {
     "identity": "docs/planning/EPIC_19/SPRINT_215/artifacts/day3-methodology-inputs.md",
@@ -446,6 +448,10 @@ def _check_side(side: dict, name: str, artifacts: set[str]) -> None:
         value = diagnostics.get(key)
         _require(type(value) is int and value == expected, "status_contradiction",
                  f"{pointer}/factor_diagnostics/{key}", "effective solver control differs")
+    if name == "baseline":
+        _require(type(diagnostics.get("is_ll")) is int and diagnostics["is_ll"] in (0, 1),
+                 "status_contradiction", f"{pointer}/factor_diagnostics/is_ll",
+                 "baseline storage flag must be recorded as 0 or 1")
     solution = side.get("solution")
     _require(type(solution) is list and len(solution) == 4, "missing_provenance",
              f"{pointer}/solution", "passing side needs a four-value solution")
@@ -575,6 +581,10 @@ def _check_trial_observation(observation: object, side: str, pointer: str) -> No
              all(type(value) in (str, int, bool) for value in diagnostics.values()),
              "status_contradiction", f"{pointer}/factor_diagnostics",
              "trial factor diagnostics or effective control failed")
+    if side == "baseline":
+        _require(type(diagnostics.get("is_ll")) is int and diagnostics["is_ll"] in (0, 1),
+                 "status_contradiction", f"{pointer}/factor_diagnostics/is_ll",
+                 "trial baseline storage flag must be 0 or 1")
     solution = observation["solution"]
     _require(type(solution) is list and len(solution) == 4 and
              all((type(value) is int and abs(value) <= sys.float_info.max) or
@@ -682,6 +692,9 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
                 path = f"{pointer}/{key}"
                 _require(key not in forbidden_keys, "unearned_claim", path,
                          "forbidden performance claim key")
+                if pointer.endswith("/factor_diagnostics") and type(child) is str:
+                    _require(FORBIDDEN_REASON_CLAIM.search(child) is None,
+                             "unearned_claim", path, "diagnostic contains a forbidden ranking claim")
                 check_claim_keys(child, path)
         elif type(value) is list:
             for index, child in enumerate(value):

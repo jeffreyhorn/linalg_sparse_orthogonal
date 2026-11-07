@@ -125,8 +125,12 @@ must finish within 30 seconds; a longer sample invalidates measurement.
 Numeric solution and metric values must fit the finite float64 range, even
 when JSON encodes them as integers. Additional factor diagnostics such as
 CHOLMOD `is_ll` are retained when their values are strings, integers or
-booleans; `is_ll` is not constrained to a particular storage format. Raw
-pairs are rehashed and used to recompute counts and summaries. A matching
+booleans; baseline `is_ll` must be recorded as 0 or 1 but is not fixed to
+one storage format. Baseline
+success does require `csc_nnz=7`, `csc_stype=-1`, `csc_sorted=1` and
+`csc_packed=1` in both observed and per-trial diagnostics. Ranking claims
+in reason tokens or diagnostic text are not permitted. Raw pairs are rehashed
+and used to recompute counts and summaries. A matching
 hash alone does not prove that the producer or solver was genuine.
 
 ## Retention And Reproducible Checks

@@ -100,7 +100,9 @@ def synthetic_observed() -> dict:
                     {"load_status": 0, "analyze_status": 0, "factor_status": 1,
                      "solve_status": 1, "cholmod_status": 0, "cholmod_solve_status": 0},
                     factor_diagnostics={"used_csc_path": 0} if name == "project" else
-                    {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0},
+                    {"factor_minor": 4, "ordering": 0, "is_super": 0, "csc_itype": 0,
+                     "csc_nnz": 7, "csc_stype": -1, "csc_sorted": 1, "csc_packed": 1,
+                     "is_ll": 1},
                     solution=[1.0, 1.0, 1.0, 1.0], raw_artifact=f"{name}.json",
                     availability_reason=None, **metrics)
         record["artifacts"].append({"path": f"{name}.json", "role": f"{name}_raw",
@@ -1230,6 +1232,7 @@ class CliMutationTests(unittest.TestCase):
     def test_reason_tokens_cannot_smuggle_forbidden_claims(self) -> None:
         for key, value in (("status_reason", "speedup:2"),
                            ("status_reason", "threshold_pass:yes"),
+                           ("status_reason", "ranked_first"),
                            ("environment_reason", "winner:project")):
             with self.subTest(key=key):
                 self.assert_semantic_mutation(
@@ -1257,6 +1260,22 @@ class CliMutationTests(unittest.TestCase):
                 "speedup", 2),
             "unearned_claim", "/correctness/project/factor_diagnostics/speedup",
             restage=True)
+        self.assert_semantic_mutation(
+            synthetic_observed(),
+            lambda record, _bundle: record["correctness"]["baseline"]["factor_diagnostics"].__setitem__(
+                "note", "ranked_first"),
+            "unearned_claim", "/correctness/baseline/factor_diagnostics/note",
+            restage=True)
+
+        for key, bad in (("csc_nnz", 8), ("csc_stype", 1),
+                         ("csc_sorted", 0), ("csc_packed", 0), ("is_ll", 2)):
+            with self.subTest(key=key):
+                self.assert_semantic_mutation(
+                    synthetic_observed(),
+                    lambda record, _bundle: record["correctness"]["baseline"][
+                        "factor_diagnostics"].__setitem__(key, bad),
+                    "status_contradiction", f"/correctness/baseline/factor_diagnostics/{key}",
+                    restage=True)
 
         fixture = synthetic_measured()
         def raw_claim(_record: dict, _bundle: Path) -> None:
@@ -1266,6 +1285,15 @@ class CliMutationTests(unittest.TestCase):
             fixture, raw_claim, "unearned_claim",
             "/timing/raw_samples_artifact/factor_plus_first_solve/warmup/0/"
             "project_observation/factor_diagnostics/performance_verdict", restage=True)
+
+        timing_fixture = synthetic_measured()
+        def contradictory_storage(_record: dict, _bundle: Path) -> None:
+            timing_fixture[1]["factor_plus_first_solve"]["timed"][0]["baseline_observation"][
+                "factor_diagnostics"]["csc_stype"] = 1
+        self.assert_semantic_mutation(
+            timing_fixture, contradictory_storage, "status_contradiction",
+            "/timing/windows/0/timed/0/baseline_observation/factor_diagnostics",
+            restage=True)
 
     def test_rehashed_over_timeout_trials_are_rejected(self) -> None:
         for phase in ("warmup", "timed"):

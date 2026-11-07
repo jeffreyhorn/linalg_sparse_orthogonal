@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "external_baseline_evidence_v1",
+  "title": "External baseline evidence v1",
+  "description": "One selected CHOLMOD cell blueprint or one append-only local attempt. Shape alone never establishes an observed result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "record_id", "selection_id", "cell_id", "cell_id_reason",
+    "run_id", "record_kind", "evidence_origin", "evidence_status", "status_reason",
+    "claim_scope", "non_claims", "publication_review", "cell", "methodology",
+    "environment", "environment_reason", "correctness", "timing", "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "external_baseline_evidence_v1"},
+    "record_id": {"$ref": "#/$defs/token"},
+    "selection_id": {"const": "s215-cholmod-v7_12_2-symmetric4-spdsolve-v1"},
+    "cell_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}]},
+    "cell_id_reason": {"$ref": "#/$defs/nullable_reason"},
+    "run_id": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/token"}]},
+    "record_kind": {"enum": ["blueprint", "run"]},
+    "evidence_origin": {"enum": ["planning", "generated_local", "generated_ci"]},
+    "evidence_status": {"enum": ["planned", "not_run", "blocked", "non_comparable", "correctness_failed", "correctness_observed", "timing_invalid", "measured"]},
+    "status_reason": {"$ref": "#/$defs/token"},
+    "block_gate": {"enum": ["execution", "publication"]},
+    "mismatch_field": {"$ref": "#/$defs/token"},
+    "claim_scope": {"enum": ["planned_one_cell_local_correctness_methodology_only", "one_cell_local_correctness_only", "one_cell_local_descriptive_latency_only", "no_result"]},
+    "non_claims": {"type": "string", "minLength": 1},
+    "publication_review": {"enum": ["pending", "approved", "denied"]},
+    "publication_review_artifact": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/relative_path"}]},
+    "cell": {"$ref": "#/$defs/cell"},
+    "methodology": {"$ref": "#/$defs/methodology"},
+    "environment": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/environment"}]},
+    "environment_reason": {"$ref": "#/$defs/nullable_reason"},
+    "correctness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["project", "baseline"],
+      "properties": {
+        "project": {"$ref": "#/$defs/correctness_side"},
+        "baseline": {"$ref": "#/$defs/correctness_side"},
+        "cross_solver_difference_inf": {"$ref": "#/$defs/nullable_finite_number"},
+        "cross_solver_consistency_limit": {"$ref": "#/$defs/nullable_finite_number"}
+      }
+    },
+    "timing": {"$ref": "#/$defs/timing"},
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}}
+  },
+  "$defs": {
+    "token": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "text": {"type": "string", "minLength": 1},
+    "nullable_text": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/text"}]},
+    "nullable_reason": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/token"}]},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nullable_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "nullable_git_commit": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/git_commit"}]},
+    "nonnegative_integer": {"type": "integer", "minimum": 0},
+    "nullable_nonnegative_integer": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/nonnegative_integer"}]},
+    "finite_number": {"type": "number"},
+    "nullable_finite_number": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/finite_number"}]},
+    "relative_path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+    "nullable_relative_path": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/relative_path"}]},
+    "string_list": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}},
+    "matrix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "format", "field", "symmetry", "rows", "cols", "stored_nnz", "expanded_nnz", "source_commit", "attribution_review"],
+      "properties": {
+        "path": {"const": "tests/data/symmetric_4.mtx"},
+        "sha256": {"const": "ead030a6d92a4c3197409aba1f4addb9d1e78f3696d52e072686d762705a7335"},
+        "format": {"const": "matrix_market_coordinate"},
+        "field": {"const": "real"},
+        "symmetry": {"const": "symmetric"},
+        "rows": {"const": 4}, "cols": {"const": 4},
+        "stored_nnz": {"const": 7}, "expanded_nnz": {"const": 10},
+        "source_commit": {"enum": ["aa1c04ea", "aa1c04eab3536031b9a92ee92587260520ce1913"]},
+        "attribution_review": {"enum": ["pending", "approved", "denied"]}
+      }
+    },
+    "problem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["class", "operation", "precision", "project_index_abi", "baseline_index_abi", "index_abi_reason", "rhs_count"],
+      "properties": {
+        "class": {"const": "spd_linear_solve"},
+        "operation": {"const": "A*x=b"},
+        "precision": {"const": "float64"},
+        "project_index_abi": {"const": "int32"},
+        "baseline_index_abi": {"enum": [null, "int32"]},
+        "index_abi_reason": {"$ref": "#/$defs/nullable_reason"},
+        "rhs_count": {"const": 1}
+      }
+    },
+    "rhs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["values", "oracle"],
+      "properties": {
+        "values": {"const": [13, 14, 17, 16]},
+        "oracle": {"const": [1, 1, 1, 1]}
+      }
+    },
+    "project": {
+      "type": "object", "additionalProperties": false,
+      "required": ["solver_api", "ordering", "backend", "git_commit", "worktree_state", "patch_sha256", "compiler", "compile_flags", "build_mode", "binary_sha256", "runtime_reason"],
+      "properties": {
+        "solver_api": {"const": ["sparse_cholesky_factor_opts", "sparse_cholesky_solve"]},
+        "ordering": {"const": "none"}, "backend": {"const": "linked_list"},
+        "git_commit": {"$ref": "#/$defs/nullable_git_commit"},
+        "worktree_state": {"enum": [null, "clean", "dirty"]},
+        "patch_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "compiler": {"$ref": "#/$defs/nullable_text"},
+        "compile_flags": {"$ref": "#/$defs/nullable_text"},
+        "build_mode": {"$ref": "#/$defs/nullable_text"},
+        "binary_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "runtime_reason": {"$ref": "#/$defs/nullable_reason"}
+      }
+    },
+    "dependency": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "loaded_path", "sha256"],
+      "properties": {
+        "role": {"$ref": "#/$defs/token"},
+        "loaded_path": {"type": "string", "pattern": "^/"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["project", "suite_sparse_version", "cholmod_version", "source_commit", "source_url", "acquisition", "solver_api", "ordering", "backend", "postorder", "candidate_binary_sha256", "loaded_library_path", "loaded_library_sha256", "build_options", "module_composition", "dependencies", "runtime_reason"],
+      "properties": {
+        "project": {"const": "SuiteSparse CHOLMOD"},
+        "suite_sparse_version": {"const": "v7.12.2"},
+        "cholmod_version": {"const": "5.3.4"},
+        "source_commit": {"const": "42151688813c45846a597edcb601435a0e38f3dd"},
+        "source_url": {"const": "https://github.com/DrTimothyAldenDavis/SuiteSparse/releases/tag/v7.12.2"},
+        "acquisition": {"$ref": "#/$defs/token"},
+        "solver_api": {"const": ["cholmod_analyze", "cholmod_factorize", "cholmod_solve(CHOLMOD_A)"]},
+        "ordering": {"const": "natural"}, "backend": {"const": "simplicial"},
+        "postorder": {"const": false},
+        "candidate_binary_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "loaded_library_path": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^/"}]},
+        "loaded_library_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "build_options": {"$ref": "#/$defs/nullable_text"},
+        "module_composition": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/string_list"}]},
+        "dependencies": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/dependency"}}]},
+        "runtime_reason": {"$ref": "#/$defs/nullable_reason"}
+      }
+    },
+    "cell": {
+      "type": "object", "additionalProperties": false,
+      "required": ["matrix", "problem", "rhs", "project", "baseline"],
+      "properties": {
+        "matrix": {"$ref": "#/$defs/matrix"},
+        "problem": {"$ref": "#/$defs/problem"},
+        "rhs": {"$ref": "#/$defs/rhs"},
+        "project": {"$ref": "#/$defs/project"},
+        "baseline": {"$ref": "#/$defs/baseline"}
+      }
+    },
+    "methodology_ref": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {"path": {"$ref": "#/$defs/relative_path"}, "sha256": {"$ref": "#/$defs/nullable_sha256"}}
+    },
+    "correctness_units": {
+      "type": "object", "additionalProperties": false,
+      "required": ["residual_inf", "oracle_error_inf", "backward_error"],
+      "properties": {
+        "residual_inf": {"const": "rhs_units"},
+        "oracle_error_inf": {"const": "solution_units"},
+        "backward_error": {"const": "dimensionless"}
+      }
+    },
+    "methodology": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "correctness", "measurement", "hash_reason", "timing_policy", "correctness_units", "timing_unit", "planned_warmup_pairs", "planned_timed_pairs", "planned_clock", "planned_phases"],
+      "properties": {
+        "identity": {"$ref": "#/$defs/methodology_ref"},
+        "correctness": {"$ref": "#/$defs/methodology_ref"},
+        "measurement": {"$ref": "#/$defs/methodology_ref"},
+        "hash_reason": {"$ref": "#/$defs/nullable_reason"},
+        "timing_policy": {"enum": ["not_run", "eligible"]},
+        "correctness_units": {"$ref": "#/$defs/correctness_units"},
+        "timing_unit": {"const": "ns"},
+        "planned_warmup_pairs": {"const": 5},
+        "planned_timed_pairs": {"const": 50},
+        "planned_clock": {"const": "clock_gettime(CLOCK_MONOTONIC)"},
+        "planned_phases": {"const": ["factor_ready", "one_solve", "factor_plus_first_solve"]}
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["os", "os_build", "architecture", "cpu", "compiler_runtime", "blas_identity", "openmp_identity", "threads_requested", "threads_observed", "command", "cwd", "timestamp_utc", "host_fingerprint"],
+      "properties": {
+        "os": {"$ref": "#/$defs/text"},
+        "os_build": {"$ref": "#/$defs/text"},
+        "architecture": {"$ref": "#/$defs/text"},
+        "cpu": {"$ref": "#/$defs/text"},
+        "compiler_runtime": {"$ref": "#/$defs/text"},
+        "blas_identity": {"$ref": "#/$defs/text"},
+        "openmp_identity": {"$ref": "#/$defs/text"},
+        "threads_requested": {"$ref": "#/$defs/threads"},
+        "threads_observed": {"$ref": "#/$defs/threads"},
+        "command": {"$ref": "#/$defs/string_list"},
+        "cwd": {"$ref": "#/$defs/text"},
+        "timestamp_utc": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"},
+        "host_fingerprint": {"$ref": "#/$defs/sha256"},
+        "clock_identity": {"$ref": "#/$defs/nullable_text"},
+        "clock_resolution_ns": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+        "workflow_id": {"$ref": "#/$defs/nullable_text"},
+        "workflow_run_id": {"$ref": "#/$defs/nullable_text"},
+        "workflow_artifact_id": {"$ref": "#/$defs/nullable_text"}
+      }
+    },
+    "threads": {
+      "type": "object", "additionalProperties": false,
+      "required": ["blas", "openmp"],
+      "properties": {
+        "blas": {"type": "integer", "minimum": 1},
+        "openmp": {"type": "integer", "minimum": 1}
+      }
+    },
+    "correctness_side": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "phase_statuses", "solution", "residual_inf", "oracle_error_inf", "raw_artifact", "availability_reason"],
+      "properties": {
+        "state": {"enum": ["not_run", "blocked", "fail", "pass"]},
+        "phase_statuses": {"oneOf": [{"type": "null"}, {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer"}}]},
+        "factor_diagnostics": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": {"type": ["string", "integer", "boolean"]}}]},
+        "solution": {"oneOf": [{"type": "null"}, {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/finite_number"}}]},
+        "residual_inf": {"$ref": "#/$defs/nullable_finite_number"},
+        "backward_error": {"$ref": "#/$defs/nullable_finite_number"},
+        "oracle_error_inf": {"$ref": "#/$defs/nullable_finite_number"},
+        "residual_limit": {"$ref": "#/$defs/nullable_finite_number"},
+        "oracle_limit": {"$ref": "#/$defs/nullable_finite_number"},
+        "raw_artifact": {"$ref": "#/$defs/nullable_relative_path"},
+        "availability_reason": {"$ref": "#/$defs/nullable_reason"}
+      }
+    },
+    "timing_window": {
+      "type": "object", "additionalProperties": false,
+      "required": ["phase", "warmup_pairs_observed", "timed_pairs_observed", "raw_samples_artifact", "quartile_convention", "project", "baseline"],
+      "properties": {
+        "phase": {"enum": ["factor_ready", "one_solve", "factor_plus_first_solve"]},
+        "warmup_pairs_observed": {"const": 5},
+        "timed_pairs_observed": {"const": 50},
+        "raw_samples_artifact": {"$ref": "#/$defs/relative_path"},
+        "quartile_convention": {"$ref": "#/$defs/token"},
+        "project": {"$ref": "#/$defs/timing_summary"},
+        "baseline": {"$ref": "#/$defs/timing_summary"}
+      }
+    },
+    "timing_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sample_count", "minimum_ns", "maximum_ns", "median_ns", "q1_ns", "q3_ns", "iqr_ns", "mad_ns"],
+      "properties": {
+        "sample_count": {"const": 50},
+        "minimum_ns": {"$ref": "#/$defs/finite_number"},
+        "maximum_ns": {"$ref": "#/$defs/finite_number"},
+        "median_ns": {"$ref": "#/$defs/finite_number"},
+        "q1_ns": {"$ref": "#/$defs/finite_number"},
+        "q3_ns": {"$ref": "#/$defs/finite_number"},
+        "iqr_ns": {"$ref": "#/$defs/finite_number"},
+        "mad_ns": {"$ref": "#/$defs/finite_number"}
+      }
+    },
+    "timing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "unit", "warmup_pairs_observed", "timed_pairs_observed", "raw_samples_artifact", "median_ns", "availability_reason"],
+      "properties": {
+        "state": {"enum": ["not_run", "invalid", "measured"]},
+        "unit": {"const": "ns"},
+        "warmup_pairs_observed": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+        "timed_pairs_observed": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+        "raw_samples_artifact": {"$ref": "#/$defs/nullable_relative_path"},
+        "median_ns": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["project", "baseline"], "properties": {"project": {"$ref": "#/$defs/finite_number"}, "baseline": {"$ref": "#/$defs/finite_number"}}}]},
+        "availability_reason": {"$ref": "#/$defs/nullable_reason"},
+        "windows": {"type": "array", "items": {"$ref": "#/$defs/timing_window"}}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "role", "media_type", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relative_path"},
+        "role": {"$ref": "#/$defs/token"},
+        "media_type": {"$ref": "#/$defs/text"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  },
+  "x-v1-policy": {
+    "unknown_fields": "reject",
+    "duplicate_keys": "reject",
+    "nonfinite_numbers": "reject",
+    "exact_types": true,
+    "generated_run_git_commit_length": 40,
+    "artifact_roots": ["bundle", "repository"],
+    "forbidden_claim_keys": ["speedup", "faster_solver", "performance_verdict", "threshold_pass"],
+    "required_non_claim_tokens": ["no_portable_speed", "no_hosted_threshold", "no_cross_platform_timing_parity", "no_state_of_the_art_claim"],
+    "rule_codes": ["invalid_json", "duplicate_or_unknown_field", "missing_required_field", "exact_type", "unsupported_enum", "selection_mismatch", "missing_provenance", "cell_id_mismatch", "status_contradiction", "unit_or_sample_contract", "measured_requires_two_passes_and_raw_samples", "blocked_cannot_claim_performance", "nonfinite_or_missing_value_abuse", "artifact_path_or_hash", "unearned_claim", "implementation_pending"]
+  }
+}

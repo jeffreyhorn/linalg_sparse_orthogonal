@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "cholmod_pilot_csc.h"
 #include "sparse_cholesky.h"
 #include <cholmod.h>
 #include <dlfcn.h>
@@ -85,7 +86,10 @@ static int run_baseline(const SparseMatrix *a) {
     cholmod_factor *factor = NULL;
     cholmod_dense *solution = NULL;
     int result = 2;
-    if (!matrix || !b || matrix->itype != CHOLMOD_INT || matrix->dtype != CHOLMOD_DOUBLE) {
+    if (!matrix || !b || matrix->nrow != 4 || matrix->ncol != 4 || matrix->nzmax < 7 ||
+        matrix->stype != -1 || !matrix->sorted || !matrix->packed || matrix->itype != CHOLMOD_INT ||
+        matrix->dtype != CHOLMOD_DOUBLE || matrix->xtype != CHOLMOD_REAL || !matrix->p ||
+        !matrix->i || !matrix->x) {
         fprintf(stderr, "CHOLMOD allocation or ABI mismatch: status=%d\n", common.status);
         goto done;
     }
@@ -106,8 +110,8 @@ static int run_baseline(const SparseMatrix *a) {
         }
     }
     p[4] = cursor;
-    if (cursor != 7) {
-        fprintf(stderr, "CHOLMOD CSC conversion has %d entries, expected 7\n", (int)cursor);
+    if (cursor != 7 || !cholmod_pilot_csc_matches_input(a, p, i, values)) {
+        fprintf(stderr, "CHOLMOD CSC conversion does not match the loaded matrix\n");
         goto done;
     }
     memcpy(b->x, rhs, sizeof(rhs));

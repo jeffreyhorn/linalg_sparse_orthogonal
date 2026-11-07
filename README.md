@@ -259,6 +259,10 @@ separate this blueprint and blocked attempt from internal selected freshness.
 They do not establish CHOLMOD parity, portable speed, cross-platform
 performance, or state-of-the-art standing.
 
+Sprint 221 adds the [v1 validator maintainer guide](docs/planning/EPIC_20/SPRINT_221/artifacts/day13-validator-maintainer-guide.md)
+and a passing format/consistency preflight. The historical blocked attempt
+remains blocked; no real two-sided CHOLMOD result has been accepted.
+
 Generated report artifacts remain under ignored `build/` paths. Regenerate
 them before interpreting rows, and treat them as navigation or local evidence
 within their recorded fixture, command, branch, build, and machine context.

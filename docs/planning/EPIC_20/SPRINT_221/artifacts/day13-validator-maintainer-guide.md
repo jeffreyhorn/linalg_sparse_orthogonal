@@ -33,6 +33,10 @@ allows the optional pilot to proceed to later gates.
 | `timing_invalid` | Two passing sides and retained failed timing-attempt evidence; no valid summary. |
 | `measured` | Two passes plus complete verified raw paired samples, host/clock/thread controls and recomputed statistics. |
 
+`block_gate` is valid only for `blocked` records, and `mismatch_field` only
+for `non_comparable` records. Clear both fields when promoting an attempt to
+an observed correctness or timing status.
+
 The selected pilot is correctness-only. The timing statuses define v1 shape
 for future use; they do not authorize timing the selected pilot. Allowed
 claims remain one local cell of correctness or, for a separately eligible

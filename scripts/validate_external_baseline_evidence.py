@@ -735,6 +735,11 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
              (kind == "run" and origin in ("generated_local", "generated_ci") and
               status != "planned" and record["run_id"] is not None),
              "status_contradiction", "/record_kind", "kind, origin, run ID and status disagree")
+    _require(status == "blocked" or record.get("block_gate") is None,
+             "status_contradiction", "/block_gate", "only blocked records may retain a block gate")
+    _require(status == "non_comparable" or record.get("mismatch_field") is None,
+             "status_contradiction", "/mismatch_field",
+             "only non-comparable records may retain a mismatch field")
     non_claims = record["non_claims"].split(";")
     _require(len(non_claims) == len(set(non_claims)) and
              REQUIRED_NON_CLAIMS.issubset(non_claims) and

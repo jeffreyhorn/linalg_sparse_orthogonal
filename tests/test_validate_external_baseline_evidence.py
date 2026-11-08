@@ -441,6 +441,22 @@ class SemanticTests(unittest.TestCase):
             validator.validate_semantics(record, self.schema, raw)
         self.assertEqual((caught.exception.code, caught.exception.pointer), (code, pointer))
 
+    def test_status_promotion_rejects_stale_gate_and_mismatch_metadata(self) -> None:
+        for build in (synthetic_not_run, synthetic_observed,
+                      lambda: synthetic_measured()[0]):
+            for key, value in (("block_gate", "execution"),
+                               ("mismatch_field", "baseline_index_abi")):
+                record = build()
+                with self.subTest(status=record["evidence_status"], key=key):
+                    record[key] = value
+                    self.check_failure(record, "status_contradiction", f"/{key}")
+        blocked = synthetic_execution_blocked()
+        blocked["mismatch_field"] = "baseline_index_abi"
+        self.check_failure(blocked, "status_contradiction", "/mismatch_field")
+        non_comparable = synthetic_non_comparable()
+        non_comparable["block_gate"] = "execution"
+        self.check_failure(non_comparable, "status_contradiction", "/block_gate")
+
     def test_planning_blocked_noncomparable_and_observed_shapes(self) -> None:
         validator.validate_semantics(validator.read_json(BLUEPRINT), self.schema)
         not_run = validator.read_json(BLUEPRINT)

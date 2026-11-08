@@ -49,7 +49,7 @@ A validator pass does not perform or replace that human review.
 For complete records, `identity_from_record()` extracts exactly the matrix
 SHA-256; problem class/operation/RHS/precision and both index ABIs; project
 commit/worktree/patch/binary/compiler/build/solver controls; baseline
-commit/loaded-library/dependency/build/solver controls; requested and
+commit/loaded-library path and hash/dependency/build/solver controls; requested and
 observed thread counts; and host OS/build/architecture/CPU. Dependency
 entries have unique roles and normalized absolute loaded paths and are
 sorted by `(role, loaded_path)` before serialization. No field in the
@@ -109,7 +109,9 @@ reported statuses, diagnostics and solutions. Baseline success includes
 `cholmod_solve_status=0` as well as the CHOLMOD factor and solve statuses.
 An observed cell also needs exactly one retained `project_binary` artifact
 and one `baseline_library` artifact; their verified byte digests must match
-`binary_sha256` and `loaded_library_sha256` in the cell identity. Forbidden
+`binary_sha256` and `loaded_library_sha256` in the cell identity. The loaded
+library path is also part of that identity: changing it changes the cell ID.
+Forbidden
 performance claim keys are rejected even inside permitted diagnostic objects
 and raw timing observations. These checks establish bundle consistency, not
 independent authentication of the process that produced the bytes.
@@ -118,7 +120,9 @@ artifact (`text/x-diff`) whose digest equals `patch_sha256`, and one nonempty
 `project_worktree_status` artifact (`text/plain`); retain the raw patch and
 status bytes. Partial records require a non-null reason for each incomplete
 project runtime, baseline runtime, index ABI, methodology-hash and environment
-group. Measured raw pairs allow only order, per-side status, duration and
+group. Invalid timing requires a hashed JSON attempt with the matching reason,
+failed phase, side and elapsed duration; its artifact must carry the
+`timing_attempt` role. Measured raw pairs allow only order, per-side status, duration and
 observation fields. They must include each side's `phase_statuses`,
 `factor_diagnostics` and `solution` in a `<side>_observation` object; every
 trial must meet the Day 4 status, factor-control and numerical gates before

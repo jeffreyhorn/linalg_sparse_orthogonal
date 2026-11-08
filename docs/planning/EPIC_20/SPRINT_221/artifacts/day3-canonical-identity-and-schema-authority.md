@@ -63,7 +63,7 @@ with otherwise complete local observations may retain its computed ID.
 | Root | `matrix_sha256`, `problem`, `project`, `baseline`, `threads`, `host` |
 | `problem` | `class`, `operation`, `rhs`, `precision`, `project_index_abi`, `baseline_index_abi` |
 | `project` | `git_commit`, `worktree_state`, `patch_sha256`, `binary_sha256`, `compiler`, `compile_flags`, `build_mode`, `solver_api`, `backend`, `ordering` |
-| `baseline` | `source_commit`, `loaded_library_sha256`, `dependencies`, `build_options`, `module_composition`, `solver_api`, `backend`, `ordering`, `postorder` |
+| `baseline` | `source_commit`, `loaded_library_path`, `loaded_library_sha256`, `dependencies`, `build_options`, `module_composition`, `solver_api`, `backend`, `ordering`, `postorder` |
 | `baseline.dependencies[]` | `role`, `loaded_path`, `sha256`; each role and loaded path is unique |
 | `threads` | `requested`, `observed`, each containing positive integer `blas`, `openmp` counts |
 | `host` | `os`, `os_build`, `architecture`, `cpu` |
@@ -80,7 +80,7 @@ and methodology hashes, which still must match for a comparable run.
 The synthetic canonical byte vector is the single line in
 `tests/corpus/fixtures/external_baseline_identity_v1.canonical.json`, without
 its final newline. Its expected ID is
-`sha256:5ff34c9c3d5661942d98b94a4c5dabf62b10920bec03f364f69201126d54481d`.
+`sha256:3e097817965073867b7cbcdab872f22812f826cc678bd790b80236fea12fd1b5`.
 The `a`/`b`/`c`/`d`/`e` digests, `clang 1` and `test-\u00b5CPU` in that
 fixture are synthetic serialization inputs, **not** binary or host
 observations. The test proves ASCII escaping, dependency ordering and exact

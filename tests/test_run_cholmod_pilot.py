@@ -165,6 +165,20 @@ class PilotParserTests(unittest.TestCase):
             time.sleep(1.0)
             self.assertFalse(marker.exists())
 
+    def test_timeout_does_not_wait_for_detached_pipe_holder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            child = "import time; time.sleep(3)"
+            parent = ("import subprocess,sys,time; "
+                      f"subprocess.Popen([sys.executable,'-c',{child!r}], start_new_session=True); "
+                      "print('launched', flush=True); time.sleep(10)")
+            started = time.monotonic()
+            entry = pilot.command(bundle, "detached_timeout", [sys.executable, "-c", parent],
+                                  deadline=started + 0.2)
+            self.assertLess(time.monotonic() - started, 2.5)
+            self.assertEqual(entry["failure_kind"], "run_timeout")
+            self.assertEqual((bundle / "detached_timeout.stdout.txt").read_bytes(), b"launched\n")
+
     def test_schema_gate_blocks_before_build_or_solver(self) -> None:
         for scenario in ("missing_schema", "missing_validator", "unreadable_schema",
                          "unreadable_validator", "failing_self_test"):

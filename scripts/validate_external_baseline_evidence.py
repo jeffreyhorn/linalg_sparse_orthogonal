@@ -21,7 +21,7 @@ PROBLEM_KEYS = frozenset(("class", "operation", "rhs", "precision", "project_ind
                           "baseline_index_abi"))
 PROJECT_KEYS = frozenset(("git_commit", "worktree_state", "patch_sha256", "binary_sha256",
                           "compiler", "compile_flags", "build_mode", "solver_api", "backend", "ordering"))
-BASELINE_KEYS = frozenset(("source_commit", "loaded_library_sha256", "dependencies",
+BASELINE_KEYS = frozenset(("source_commit", "loaded_library_path", "loaded_library_sha256", "dependencies",
                            "build_options", "module_composition", "solver_api", "backend",
                            "ordering", "postorder"))
 HOST_KEYS = frozenset(("os", "os_build", "architecture", "cpu"))
@@ -110,6 +110,11 @@ def canonical_cell_id(identity: dict) -> tuple[bytes, str]:
                             ("/identity/baseline/loaded_library_sha256", baseline["loaded_library_sha256"])):
         if type(digest) is not str or not SHA256_RE.fullmatch(digest):
             raise EvidenceError("missing_provenance", pointer, "expected lowercase SHA-256")
+    loaded_path = baseline["loaded_library_path"]
+    if (type(loaded_path) is not str or not Path(loaded_path).is_absolute() or
+            ".." in Path(loaded_path).parts or str(Path(loaded_path)) != loaded_path):
+        raise EvidenceError("missing_provenance", "/identity/baseline/loaded_library_path",
+                            "loaded library path must be absolute and normalized")
     for pointer, commit in (("/identity/project/git_commit", project["git_commit"]),
                             ("/identity/baseline/source_commit", baseline["source_commit"])):
         if type(commit) is not str or not COMMIT_RE.fullmatch(commit):
@@ -907,6 +912,7 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
         raise EvidenceError("artifact_path_or_hash", "/bundle_root",
                             "generated artifacts require a declared bundle root")
     raw_path = record["timing"]["raw_samples_artifact"]
+    timing_state = record["timing"]["state"]
     raw_sides = {name: record["correctness"][name]["raw_artifact"]
                  for name in ("project", "baseline")
                  if record["correctness"][name]["state"] in ("pass", "fail") and
@@ -925,7 +931,7 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
         seen.add(path)
         content = _read_hashed_file(physical_bundle, path, artifact["sha256"], pointer,
                                     capture=path in raw_sides.values() or
-                                    (record["timing"]["state"] == "measured" and path == raw_path))
+                                    (timing_state in ("measured", "invalid") and path == raw_path))
         if content is not None:
             captured[path] = content
     if record["cell"]["project"]["worktree_state"] == "dirty":
@@ -970,7 +976,21 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
                  review_path not in raw_sides.values() and review_path != raw_path,
                  "missing_provenance", "/publication_review_artifact",
                  "review evidence must be a separate text artifact")
-    if record["timing"]["state"] == "measured":
+    if timing_state == "invalid":
+        _require(raw_path in captured and listed[raw_path]["role"] == "timing_attempt" and
+                 listed[raw_path]["media_type"] == "application/json", "missing_provenance",
+                 "/timing/raw_samples_artifact", "invalid timing needs a hashed JSON attempt")
+        attempt = _parse_json_bytes(captured[raw_path], "/timing/raw_samples_artifact")
+        _require(type(attempt) is dict and set(attempt) ==
+                 {"state", "reason", "phase", "side", "duration_ns"} and
+                 attempt["state"] == "invalid" and
+                 attempt["reason"] == record["timing"]["availability_reason"] and
+                 attempt["phase"] in ("factor_ready", "one_solve", "factor_plus_first_solve") and
+                 attempt["side"] in ("project", "baseline") and
+                 type(attempt["duration_ns"]) is int and attempt["duration_ns"] >= 0,
+                 "unit_or_sample_contract", "/timing/raw_samples_artifact",
+                 "timing attempt must identify the failed phase, side and duration")
+    if timing_state == "measured":
         _require(raw_path in captured, "measured_requires_two_passes_and_raw_samples",
                  "/timing/raw_samples_artifact", "measured record needs hashed raw samples")
         _require(listed[raw_path]["role"] == "timing_raw" and

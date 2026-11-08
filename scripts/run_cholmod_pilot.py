@@ -118,7 +118,18 @@ def _run_command_group(argv: list[str], *, cwd: Path, env: dict | None,
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            stdout, stderr = process.communicate()
+            try:
+                stdout, stderr = process.communicate(timeout=1)
+            except subprocess.TimeoutExpired as cleanup_exc:
+                # A detached descendant may still hold a pipe open after the
+                # process group dies. Preserve captured bytes and stop waiting.
+                stdout = cleanup_exc.stdout or exc.stdout or b""
+                stderr = cleanup_exc.stderr or exc.stderr or b""
+                if process.stdout is not None:
+                    process.stdout.close()
+                if process.stderr is not None:
+                    process.stderr.close()
+                process.wait(timeout=1)
             raise subprocess.TimeoutExpired(argv, timeout, output=stdout, stderr=stderr) from exc
         return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
 

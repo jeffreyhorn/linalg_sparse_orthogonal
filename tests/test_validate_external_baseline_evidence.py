@@ -43,6 +43,7 @@ def complete_identity() -> dict:
         },
         "baseline": {
             "source_commit": "42151688813c45846a597edcb601435a0e38f3dd",
+            "loaded_library_path": "/opt/libcholmod.dylib",
             "loaded_library_sha256": "c" * 64,
             "dependencies": [
                 {"role": "openmp", "loaded_path": "/opt/libomp.dylib", "sha256": "d" * 64},
@@ -202,6 +203,10 @@ def stage_synthetic_bundle(record: dict, bundle: Path, raw_samples: dict | None 
             content = b"synthetic baseline library\n"
         elif artifact["role"] == "project_worktree_status":
             content = b" M tests/synthetic.c\n"
+        elif artifact["role"] == "timing_attempt":
+            content = json.dumps({"state": "invalid", "reason": record["timing"]["availability_reason"],
+                                  "phase": "factor_plus_first_solve", "side": "project",
+                                  "duration_ns": 1000}, sort_keys=True).encode("utf-8")
         else:
             content = b"synthetic-attempt-only\n"
         path.write_bytes(content)
@@ -244,7 +249,7 @@ class IdentityTests(unittest.TestCase):
         identity = complete_identity()
         payload, cell_id = validator.canonical_cell_id(identity)
         self.assertEqual(payload, CANONICAL.read_bytes().removesuffix(b"\n"))
-        self.assertEqual(cell_id, "sha256:5ff34c9c3d5661942d98b94a4c5dabf62b10920bec03f364f69201126d54481d")
+        self.assertEqual(cell_id, "sha256:3e097817965073867b7cbcdab872f22812f826cc678bd790b80236fea12fd1b5")
         self.assertIn(b"test-\\u00b5CPU", payload)
         self.assertLess(payload.index(b"/opt/blas.dylib"), payload.index(b"/opt/libomp.dylib"))
         reversed_identity = copy.deepcopy(identity)
@@ -253,6 +258,10 @@ class IdentityTests(unittest.TestCase):
 
     def test_identity_change_changes_id(self) -> None:
         identity = complete_identity()
+        changed_path = copy.deepcopy(identity)
+        changed_path["baseline"]["loaded_library_path"] = "/other/libcholmod.dylib"
+        self.assertNotEqual(validator.canonical_cell_id(identity)[1],
+                            validator.canonical_cell_id(changed_path)[1])
         original = validator.canonical_cell_id(identity)[1]
         identity["host"]["cpu"] = "different"
         self.assertNotEqual(validator.canonical_cell_id(identity)[1], original)
@@ -704,6 +713,29 @@ class ArtifactTests(unittest.TestCase):
             mismatch["cell_id"] = "sha256:" + "0" * 64
             mismatch["cell_id_reason"] = None
             self.check_failure(mismatch, bundle, "status_contradiction", "/evidence_status")
+
+    def test_invalid_timing_requires_a_matching_structured_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            invalid = synthetic_timing_invalid()
+            stage_synthetic_bundle(invalid, bundle)
+            artifact = next(item for item in invalid["artifacts"] if item["role"] == "timing_attempt")
+            artifact["role"] = "log"
+            self.check_failure(invalid, bundle, "missing_provenance", "/timing/raw_samples_artifact")
+            artifact["role"] = "timing_attempt"
+            content = json.dumps({"state": "invalid", "reason": "unrelated", "phase": "one_solve",
+                                  "side": "baseline", "duration_ns": 1000}).encode("utf-8")
+            (bundle / artifact["path"]).write_bytes(content)
+            artifact["sha256"] = hashlib.sha256(content).hexdigest()
+            self.check_failure(invalid, bundle, "unit_or_sample_contract", "/timing/raw_samples_artifact")
+
+    def test_loaded_library_path_is_bound_to_record_cell_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            record = synthetic_observed()
+            stage_synthetic_bundle(record, bundle)
+            record["cell"]["baseline"]["loaded_library_path"] = "/other/libcholmod.dylib"
+            self.check_failure(record, bundle, "cell_id_mismatch", "/cell_id")
 
     def test_observed_and_measured_synthetic_bundles_use_hashed_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

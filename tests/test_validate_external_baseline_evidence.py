@@ -632,7 +632,7 @@ class SemanticTests(unittest.TestCase):
         record["cell_id_reason"] = None
         validator.validate_semantics(record, self.schema)
 
-    def test_partial_noncomparable_run_does_not_need_complete_identity(self) -> None:
+    def test_partial_noncomparable_run_cannot_claim_an_unverified_pass(self) -> None:
         record = synthetic_observed()
         record.update(evidence_status="non_comparable", mismatch_field="baseline_index_abi",
                       cell_id=None, cell_id_reason="baseline_mismatch", claim_scope="no_result")
@@ -645,7 +645,43 @@ class SemanticTests(unittest.TestCase):
         record["correctness"]["cross_solver_difference_inf"] = None
         record["correctness"]["cross_solver_consistency_limit"] = None
         record["non_claims"] = "no_external_solver_result;" + record["non_claims"]
-        validator.validate_semantics(record, self.schema)
+        self.check_failure(record, "missing_provenance", "/cell_id")
+
+    def test_baseline_only_pass_requires_complete_provenance(self) -> None:
+        partial = synthetic_non_comparable()
+        observed = synthetic_observed()
+        partial["correctness"]["baseline"] = copy.deepcopy(observed["correctness"]["baseline"])
+        partial["artifacts"] = [copy.deepcopy(item) for item in observed["artifacts"]
+                                if item["role"] == "baseline_raw"]
+        self.check_failure(partial, "missing_provenance", "/environment")
+
+        # A publication block may retain an unpaired pass, but only with the
+        # same full provenance as a two-sided observation.
+        complete = synthetic_observed()
+        complete.update(evidence_status="blocked", block_gate="publication", claim_scope="no_result")
+        project = complete["correctness"]["project"]
+        project.update(state="blocked", phase_statuses=None, factor_diagnostics=None,
+                       solution=None, residual_inf=None, backward_error=None,
+                       oracle_error_inf=None, residual_limit=None, oracle_limit=None,
+                       raw_artifact=None, availability_reason="publication_block")
+        complete["correctness"].update(cross_solver_difference_inf=None,
+                                       cross_solver_consistency_limit=None)
+        complete["non_claims"] = "no_external_solver_result;" + complete["non_claims"]
+        validator.validate_semantics(complete, self.schema)
+        for mutate, pointer in (
+            (lambda r: r.__setitem__("environment", None), "/environment"),
+            (lambda r: r["cell"]["baseline"].__setitem__("loaded_library_path", None),
+             "/cell/baseline/loaded_library_path"),
+            (lambda r: r["cell"]["problem"].__setitem__("baseline_index_abi", None),
+             "/cell/problem/baseline_index_abi"),
+            (lambda r: r["artifacts"].__setitem__(slice(None),
+                [item for item in r["artifacts"] if item["role"] != "baseline_library"]),
+             "/cell/baseline/loaded_library_sha256"),
+        ):
+            with self.subTest(pointer=pointer):
+                candidate = copy.deepcopy(complete)
+                mutate(candidate)
+                self.check_failure(candidate, "missing_provenance", pointer)
 
     def test_measured_method_and_raw_reference_contract(self) -> None:
         record, raw = synthetic_measured()

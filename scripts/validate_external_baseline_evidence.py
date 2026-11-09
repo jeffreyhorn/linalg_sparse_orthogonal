@@ -762,7 +762,7 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
     for name in ("project", "baseline"):
         _check_side(sides[name], name, artifacts)
     complete_observation = status in ("correctness_failed", "correctness_observed", "timing_invalid",
-                                      "measured") or side_states == ("pass", "pass")
+                                      "measured") or "pass" in side_states
     if not complete_observation:
         _check_incomplete_reasons(record)
     if status in ("planned", "not_run"):

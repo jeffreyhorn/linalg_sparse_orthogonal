@@ -36,6 +36,9 @@ allows the optional pilot to proceed to later gates.
 `block_gate` is valid only for `blocked` records, and `mismatch_field` only
 for `non_comparable` records. Clear both fields when promoting an attempt to
 an observed correctness or timing status.
+Any side marked `pass`, including an unpaired side, requires complete runtime,
+binary, index-ABI, environment and methodology provenance plus a computed
+cell ID. An incomplete comparison must keep its result status unobserved.
 
 The selected pilot is correctness-only. The timing statuses define v1 shape
 for future use; they do not authorize timing the selected pilot. Allowed

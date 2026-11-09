@@ -5,6 +5,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -706,6 +707,30 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaises(validator.EvidenceError) as caught:
             validator.validate_record(record, self.schema, ROOT, bundle)
         self.assertEqual((caught.exception.code, caught.exception.pointer), (code, pointer))
+
+    def test_near_zero_reported_residual_allows_rounding_but_not_material_error(self) -> None:
+        record = synthetic_observed()
+        solution = [1.0 + 2 ** -50, 1.0, 1.0, 1.0]
+        metrics = validator._solution_metrics(solution)
+        reported_residual = metrics["residual_inf"] + math.ulp(17.0)
+        denominator = 17.0 * max(abs(value) for value in solution) + 17.0
+        for side in ("project", "baseline"):
+            record["correctness"][side].update(solution=solution[:], **metrics)
+            record["correctness"][side]["residual_inf"] = reported_residual
+            record["correctness"][side]["backward_error"] = reported_residual / denominator
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp)
+            stage_synthetic_bundle(record, bundle)
+            validator.validate_record(record, self.schema, ROOT, bundle)
+
+            record["correctness"]["project"]["residual_inf"] += 1e-10
+            stage_synthetic_bundle(record, bundle)
+            self.check_failure(record, bundle, "status_contradiction",
+                               "/correctness/project/residual_inf")
+            record["correctness"]["project"]["residual_inf"] = -math.ulp(17.0)
+            stage_synthetic_bundle(record, bundle)
+            self.check_failure(record, bundle, "status_contradiction",
+                               "/correctness/project/residual_inf")
 
     def test_planning_blueprint_has_no_observation_or_generated_artifacts(self) -> None:
         record = validator.read_json(BLUEPRINT)

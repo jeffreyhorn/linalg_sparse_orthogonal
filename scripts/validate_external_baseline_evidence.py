@@ -376,11 +376,22 @@ def _require(condition: bool, code: str, pointer: str, detail: str) -> None:
         raise EvidenceError(code, pointer, detail)
 
 
-def _metric_matches(actual: object, expected: float, pointer: str) -> None:
+def _metric_matches(actual: object, expected: float, pointer: str, *, abs_tol: float = 0.0) -> None:
     _require(type(actual) in (int, float) and math.isfinite(actual),
              "nonfinite_or_missing_value_abuse", pointer, "finite metric required")
-    _require(math.isclose(actual, expected, rel_tol=1e-12, abs_tol=0.0),
+    _require(actual >= 0, "status_contradiction", pointer, "reported norm or limit must be nonnegative")
+    _require(math.isclose(actual, expected, rel_tol=1e-12, abs_tol=abs_tol),
              "status_contradiction", pointer, "reported metric disagrees with raw solution")
+
+
+def _residual_metric_tolerances(solution: list) -> dict[str, float]:
+    denominator = 17.0 * max(abs(value) for value in solution) + 17.0
+    # Four products and their accumulation can differ by a few roundings
+    # across solver and validator implementations. Keep this below the fixed
+    # Day 4 acceptance threshold and apply it only to derived residuals.
+    residual_roundoff = 8.0 * sys.float_info.epsilon * denominator
+    return {"residual_inf": residual_roundoff,
+            "backward_error": residual_roundoff / denominator}
 
 
 def _solution_metrics(solution: list) -> dict:
@@ -430,8 +441,10 @@ def _check_side(side: dict, name: str, artifacts: set[str]) -> None:
         failed_numerics = False
         if side.get("solution") is not None:
             metrics = _solution_metrics(side["solution"])
+            metric_tolerances = _residual_metric_tolerances(side["solution"])
             for key, expected in metrics.items():
-                _metric_matches(side.get(key), expected, f"{pointer}/{key}")
+                _metric_matches(side.get(key), expected, f"{pointer}/{key}",
+                                abs_tol=metric_tolerances.get(key, 0.0))
             failed_numerics = (metrics["residual_inf"] > metrics["residual_limit"] or
                                metrics["oracle_error_inf"] > metrics["oracle_limit"])
         else:
@@ -463,8 +476,10 @@ def _check_side(side: dict, name: str, artifacts: set[str]) -> None:
     _require(type(solution) is list and len(solution) == 4, "missing_provenance",
              f"{pointer}/solution", "passing side needs a four-value solution")
     metrics = _solution_metrics(solution)
+    metric_tolerances = _residual_metric_tolerances(solution)
     for key, expected in metrics.items():
-        _metric_matches(side.get(key), expected, f"{pointer}/{key}")
+        _metric_matches(side.get(key), expected, f"{pointer}/{key}",
+                        abs_tol=metric_tolerances.get(key, 0.0))
     _require(metrics["residual_inf"] <= metrics["residual_limit"] and
              metrics["oracle_error_inf"] <= metrics["oracle_limit"],
              "status_contradiction", pointer, "passing side fails Day 4 numerical gates")

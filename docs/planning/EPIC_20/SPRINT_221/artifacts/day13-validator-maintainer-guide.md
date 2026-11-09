@@ -114,6 +114,10 @@ rejects traversal, symlink traversal, missing/nonregular files and digest
 mismatches. Observed raw solver JSON is parsed after hashing and bound to
 reported statuses, diagnostics and solutions. Baseline success includes
 `cholmod_solve_status=0` as well as the CHOLMOD factor and solve statuses.
+Reported residual and backward-error metrics may differ by a bounded float64
+row-accumulation rounding allowance when they are near zero. The validator
+still recomputes the Day 4 pass gates from each raw solution using the fixed
+thresholds; oracle errors and those thresholds retain their strict checks.
 An observed cell also needs exactly one retained `project_binary` artifact
 and one `baseline_library` artifact; their verified byte digests must match
 `binary_sha256` and `loaded_library_sha256` in the cell identity. The loaded

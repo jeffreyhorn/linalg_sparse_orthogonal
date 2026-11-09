@@ -38,6 +38,8 @@ FORBIDDEN_REASON_CLAIM = re.compile(
     r"hosted.threshold|cross.platform.timing.parity|performance.verdict|threshold.pass|"
     r"rank(?:ed|ing)?|best|first.place|top.rank)",
     re.IGNORECASE)
+NUMERICAL_RANK_TERMS = re.compile(r"(?<![A-Za-z0-9])(?:numerical_rank|rank_deficient)(?![A-Za-z0-9])",
+                                  re.IGNORECASE)
 MATRIX = ((10.0, 1.0, 2.0, 0.0), (1.0, 12.0, 1.0, 0.0),
           (2.0, 1.0, 14.0, 0.0), (0.0, 0.0, 0.0, 16.0))
 RHS = (13.0, 14.0, 17.0, 16.0)
@@ -89,8 +91,8 @@ def _complete(value: object, pointer: str) -> None:
         for index, child in enumerate(value):
             _complete(child, f"{pointer}/{index}")
     elif type(value) is str:
-        if not value:
-            raise EvidenceError("missing_provenance", pointer, "empty identity string")
+        if not value.strip():
+            raise EvidenceError("missing_provenance", pointer, "blank identity string")
     elif type(value) is int:
         pass
     elif type(value) is not bool:
@@ -142,7 +144,7 @@ def canonical_cell_id(identity: dict) -> tuple[bytes, str]:
             raise EvidenceError("missing_provenance", f"/identity/baseline/dependencies/{index}/loaded_path",
                                 "dependency loaded path must be absolute and normalized")
         role = item["role"]
-        if type(role) is not str or not role:
+        if type(role) is not str or not role.strip():
             raise EvidenceError("missing_provenance", f"/identity/baseline/dependencies/{index}/role",
                                 "dependency role must be a nonempty string")
         if type(item["sha256"]) is not str or not SHA256_RE.fullmatch(item["sha256"]):
@@ -376,6 +378,10 @@ def _require(condition: bool, code: str, pointer: str, detail: str) -> None:
         raise EvidenceError(code, pointer, detail)
 
 
+def _has_forbidden_claim(value: str) -> bool:
+    return FORBIDDEN_REASON_CLAIM.search(NUMERICAL_RANK_TERMS.sub("", value)) is not None
+
+
 def _metric_matches(actual: object, expected: float, pointer: str, *, abs_tol: float = 0.0) -> None:
     _require(type(actual) in (int, float) and math.isfinite(actual),
              "nonfinite_or_missing_value_abuse", pointer, "finite metric required")
@@ -497,7 +503,7 @@ def _check_provenance(record: dict) -> None:
                             "invalid UTC calendar timestamp") from exc
     if record["evidence_origin"] == "generated_ci":
         for key in ("workflow_id", "workflow_run_id", "workflow_artifact_id"):
-            _require(environment.get(key) is not None, "missing_provenance",
+            _require(type(environment.get(key)) is str and environment[key].strip(), "missing_provenance",
                      f"/environment/{key}", "hosted run needs workflow provenance")
     _require(cell["matrix"]["source_commit"] == "aa1c04eab3536031b9a92ee92587260520ce1913",
              "missing_provenance", "/cell/matrix/source_commit", "generated run needs full matrix-origin commit")
@@ -506,8 +512,10 @@ def _check_provenance(record: dict) -> None:
     for pointer, value in ((f"/environment/{key}", environment[key]) for key in
                            ("os", "os_build", "architecture", "cpu", "compiler_runtime",
                             "blas_identity", "openmp_identity")):
-        _require(value.strip().lower() not in ("unknown", "unverified", "n/a"),
+        _require(bool(value.strip()) and value.strip().lower() not in ("unknown", "unverified", "n/a"),
                  "missing_provenance", pointer, "placeholder is not observed provenance")
+    _require(all(type(part) is str and part.strip() for part in environment["command"]),
+             "missing_provenance", "/environment/command", "observed command cannot be blank")
     for name, obj, keys in (("project", project, ("git_commit", "worktree_state", "patch_sha256",
                                                  "compiler", "compile_flags", "build_mode", "binary_sha256")),
                             ("baseline", baseline, ("loaded_library_path", "loaded_library_sha256",
@@ -517,7 +525,8 @@ def _check_provenance(record: dict) -> None:
                      "observed run needs runtime provenance")
             value = obj[key]
             if type(value) is str:
-                _require(value.strip().lower() not in ("unknown", "unverified", "n/a"),
+                _require(bool(value.strip()) and value.strip().lower() not in
+                         ("unknown", "unverified", "n/a"),
                          "missing_provenance", f"/cell/{name}/{key}",
                          "placeholder is not observed provenance")
         _require(obj["runtime_reason"] is None, "status_contradiction", f"/cell/{name}/runtime_reason",
@@ -536,7 +545,7 @@ def _check_provenance(record: dict) -> None:
         _require(Path(path).is_absolute() and ".." not in Path(path).parts and
                  str(Path(path)) == path, "missing_provenance", pointer,
                  "observed path must be absolute and normalized")
-    _require(all(value.strip().lower() not in ("unknown", "unverified", "n/a")
+    _require(all(value.strip() and value.strip().lower() not in ("unknown", "unverified", "n/a")
                  for value in baseline["module_composition"]), "missing_provenance",
              "/cell/baseline/module_composition", "placeholder module is not provenance")
     if project["worktree_state"] == "clean":
@@ -671,12 +680,15 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                  type(raw["warmup"]) is list and len(raw["warmup"]) == 5 and
                  type(raw["timed"]) is list and len(raw["timed"]) == 50,
                  "unit_or_sample_contract", pointer, "raw pair counts differ")
+        first_pair = raw["warmup"][0]
+        first_order = first_pair.get("order") if type(first_pair) is dict else None
+        _require(first_order in ("AB", "BA"), "unit_or_sample_contract",
+                 f"{pointer}/warmup/0", "invalid initial pair order")
+        pair_offset = 0
         for phase, pairs in (("warmup", raw["warmup"]), ("timed", raw["timed"])):
-            first_order = pairs[0].get("order") if type(pairs[0]) is dict else None
-            _require(first_order in ("AB", "BA"), "unit_or_sample_contract",
-                     f"{pointer}/{phase}/0", "invalid initial pair order")
             for pair_index, pair in enumerate(pairs):
-                expected_order = first_order if pair_index % 2 == 0 else ("BA" if first_order == "AB" else "AB")
+                expected_order = first_order if (pair_offset + pair_index) % 2 == 0 else (
+                    "BA" if first_order == "AB" else "AB")
                 _require(type(pair) is dict and pair.keys() <= RAW_PAIR_KEYS and
                          pair.get("order") == expected_order and
                          all(pair.get(f"{side}_status") == "pass" and
@@ -692,6 +704,7 @@ def _check_timing(record: dict, raw_samples: dict | None) -> None:
                 for side in ("project", "baseline"):
                     _check_trial_observation(pair.get(f"{side}_observation"), side,
                                              f"{pointer}/{phase}/{pair_index}/{side}_observation")
+            pair_offset += len(pairs)
         for side in ("project", "baseline"):
             summary = _summary([pair[f"{side}_ns"] for pair in raw["timed"]])
             for key, expected in summary.items():
@@ -713,11 +726,11 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
         if type(value) is dict:
             for key, child in value.items():
                 path = f"{pointer}/{key}"
-                _require(key not in forbidden_keys and FORBIDDEN_REASON_CLAIM.search(key) is None,
+                _require(key not in forbidden_keys and not _has_forbidden_claim(key),
                          "unearned_claim", path,
                          "forbidden performance claim key")
                 if pointer.endswith("/factor_diagnostics") and type(child) is str:
-                    _require(FORBIDDEN_REASON_CLAIM.search(child) is None,
+                    _require(not _has_forbidden_claim(child),
                              "unearned_claim", path, "diagnostic contains a forbidden ranking claim")
                 check_claim_keys(child, path)
         elif type(value) is list:
@@ -731,7 +744,7 @@ def validate_semantics(record: dict, schema: dict, raw_samples: dict | None = No
             for key, child in value.items():
                 path = f"{pointer}/{key}"
                 if (key == "status_reason" or key.endswith("_reason")) and type(child) is str:
-                    _require(FORBIDDEN_REASON_CLAIM.search(child) is None, "unearned_claim", path,
+                    _require(not _has_forbidden_claim(child), "unearned_claim", path,
                              "reason token contains a forbidden performance claim")
                 else:
                     check_reasons(child, path)
@@ -970,7 +983,7 @@ def verify_artifacts(record: dict, repo_root: Path, bundle_root: Path | None) ->
         status_bytes = _read_hashed_file(physical_bundle, status_path,
                                          proof["project_worktree_status"]["sha256"],
                                          "/cell/project/worktree_state", capture=True)
-        _require(bool(status_bytes), "missing_provenance", "/cell/project/worktree_state",
+        _require(bool(status_bytes.strip()), "missing_provenance", "/cell/project/worktree_state",
                  "dirty worktree status artifact must not be empty")
     for name, path in raw_sides.items():
         if path not in listed:

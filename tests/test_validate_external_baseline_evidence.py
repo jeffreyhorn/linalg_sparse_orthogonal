@@ -129,8 +129,8 @@ def synthetic_measured() -> tuple[dict, dict]:
     record["non_claims"] = record["non_claims"].replace("no_timing_result;", "")
     record["methodology"]["timing_policy"] = "eligible"
     record["environment"]["clock_identity"] = record["methodology"]["planned_clock"]
-    def pairs(count: int, offset: int) -> list[dict]:
-        return [{"order": "AB" if i % 2 == 0 else "BA", "project_status": "pass",
+    def pairs(count: int, offset: int, start_index: int = 0) -> list[dict]:
+        return [{"order": "AB" if (start_index + i) % 2 == 0 else "BA", "project_status": "pass",
                  "baseline_status": "pass", "project_ns": offset + 1000 + i,
                  "baseline_ns": offset + 1200 + i,
                  **{f"{side}_observation": {key: copy.deepcopy(record["correctness"][side][key])
@@ -139,7 +139,7 @@ def synthetic_measured() -> tuple[dict, dict]:
     raw = {}
     windows = []
     for index, phase in enumerate(("factor_plus_first_solve", "factor_ready", "one_solve")):
-        raw[phase] = {"warmup": pairs(5, index * 100), "timed": pairs(50, index * 100)}
+        raw[phase] = {"warmup": pairs(5, index * 100), "timed": pairs(50, index * 100, 5)}
         window = {"phase": phase, "warmup_pairs_observed": 5, "timed_pairs_observed": 50,
                   "raw_samples_artifact": "samples.json", "quartile_convention": "median_of_halves"}
         for side in ("project", "baseline"):
@@ -266,6 +266,14 @@ class IdentityTests(unittest.TestCase):
         original = validator.canonical_cell_id(identity)[1]
         identity["host"]["cpu"] = "different"
         self.assertNotEqual(validator.canonical_cell_id(identity)[1], original)
+
+    def test_blank_identity_provenance_is_rejected(self) -> None:
+        identity = complete_identity()
+        identity["host"]["cpu"] = "   "
+        with self.assertRaises(validator.EvidenceError) as caught:
+            validator.canonical_cell_id(identity)
+        self.assertEqual((caught.exception.code, caught.exception.pointer),
+                         ("missing_provenance", "/identity/host/cpu"))
 
     def test_partial_or_ambiguous_identity_is_rejected(self) -> None:
         for mutator in (
@@ -458,6 +466,39 @@ class SemanticTests(unittest.TestCase):
         non_comparable["block_gate"] = "execution"
         self.check_failure(non_comparable, "status_contradiction", "/block_gate")
 
+    def test_blank_observed_provenance_is_rejected(self) -> None:
+        cases = (
+            (lambda r: r["cell"]["project"].__setitem__("compiler", "   "),
+             "/cell/project/compiler"),
+            (lambda r: r["cell"]["baseline"].__setitem__("build_options", "\t"),
+             "/cell/baseline/build_options"),
+            (lambda r: r["cell"]["baseline"]["module_composition"].__setitem__(0, "   "),
+             "/cell/baseline/module_composition"),
+            (lambda r: r["environment"].__setitem__("cpu", "   "), "/environment/cpu"),
+            (lambda r: r["environment"].__setitem__("command", ["   "]),
+             "/environment/command"),
+        )
+        for mutate, pointer in cases:
+            with self.subTest(pointer=pointer):
+                record = synthetic_observed()
+                mutate(record)
+                self.check_failure(record, "missing_provenance", pointer)
+        hosted = synthetic_observed()
+        hosted["evidence_origin"] = "generated_ci"
+        hosted["environment"].update(workflow_id=" ", workflow_run_id="123",
+                                     workflow_artifact_id="456")
+        self.check_failure(hosted, "missing_provenance", "/environment/workflow_id")
+
+    def test_numerical_rank_diagnostics_are_not_performance_rankings(self) -> None:
+        record = synthetic_observed()
+        diagnostics = record["correctness"]["baseline"]["factor_diagnostics"]
+        diagnostics.update(numerical_rank=4, rank_deficient=False,
+                           note="numerical_rank=4")
+        validator.validate_semantics(record, self.schema)
+        diagnostics["note"] = "numerical_rank=4; ranked_first"
+        self.check_failure(record, "unearned_claim",
+                           "/correctness/baseline/factor_diagnostics/note")
+
     def test_planning_blocked_noncomparable_and_observed_shapes(self) -> None:
         validator.validate_semantics(validator.read_json(BLUEPRINT), self.schema)
         not_run = validator.read_json(BLUEPRINT)
@@ -579,8 +620,13 @@ class SemanticTests(unittest.TestCase):
         wrong_summary["timing"]["windows"][0]["project"]["median_ns"] = 1
         self.check_failure(wrong_summary, "unit_or_sample_contract", "/timing/windows/0/project/median_ns", raw)
         wrong_order = copy.deepcopy(raw)
-        wrong_order["factor_plus_first_solve"]["timed"][1]["order"] = "AB"
+        wrong_order["factor_plus_first_solve"]["timed"][1]["order"] = "BA"
         self.check_failure(record, "unit_or_sample_contract", "/timing/windows/0/timed/1", wrong_order)
+        restarted_order = copy.deepcopy(raw)
+        for pair in restarted_order["factor_plus_first_solve"]["timed"]:
+            pair["order"] = "BA" if pair["order"] == "AB" else "AB"
+        self.check_failure(record, "unit_or_sample_contract", "/timing/windows/0/timed/0",
+                           restarted_order)
 
     def test_timed_trials_require_real_solver_observations(self) -> None:
         record, raw = synthetic_measured()

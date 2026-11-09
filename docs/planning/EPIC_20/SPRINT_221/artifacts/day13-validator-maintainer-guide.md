@@ -122,7 +122,7 @@ An observed cell also needs exactly one retained `project_binary` artifact
 and one `baseline_library` artifact; their verified byte digests must match
 `binary_sha256` and `loaded_library_sha256` in the cell identity. The loaded
 library path is also part of that identity: changing it changes the cell ID.
-Forbidden
+Observed provenance strings must contain non-whitespace text. Forbidden
 performance claim keys are rejected even inside permitted diagnostic objects
 and raw timing observations. These checks establish bundle consistency, not
 independent authentication of the process that produced the bytes.
@@ -145,10 +145,15 @@ CHOLMOD `is_ll` are retained when their values are strings, integers or
 booleans; baseline `is_ll` must be recorded as 0 or 1 but is not fixed to
 one storage format. Baseline
 success does require `csc_nnz=7`, `csc_stype=-1`, `csc_sorted=1` and
-`csc_packed=1` in both observed and per-trial diagnostics. Ranking claims
-in keys, reason tokens or diagnostic text are not permitted. Raw pairs are rehashed
+`csc_packed=1` in both observed and per-trial diagnostics. Numerical-rank
+diagnostics such as `numerical_rank` and `rank_deficient` are allowed;
+performance ranking claims in keys, reason tokens or diagnostic text are not.
+Raw pairs are rehashed
 and used to recompute counts and summaries. A matching
 hash alone does not prove that the producer or solver was genuine.
+Within each timing window, pair order alternates continuously from the five
+warmups into the 50 timed pairs; the first timed pair has the opposite order
+from the fifth warmup pair.
 
 ## Retention And Reproducible Checks
 

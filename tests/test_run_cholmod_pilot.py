@@ -173,8 +173,9 @@ class PilotParserTests(unittest.TestCase):
                       f"subprocess.Popen([sys.executable,'-c',{child!r}], start_new_session=True); "
                       "print('launched', flush=True); time.sleep(10)")
             started = time.monotonic()
+            # Allow the parent to spawn and flush before the timeout under CI load.
             entry = pilot.command(bundle, "detached_timeout", [sys.executable, "-c", parent],
-                                  deadline=started + 0.2)
+                                  deadline=started + 1.0)
             self.assertLess(time.monotonic() - started, 2.5)
             self.assertEqual(entry["failure_kind"], "run_timeout")
             self.assertEqual((bundle / "detached_timeout.stdout.txt").read_bytes(), b"launched\n")

@@ -1,0 +1,44 @@
+# Sprint 222 Day 8: Two-Sided Numerical Reconciliation
+
+## Disposition
+
+**The two retained solves pass the frozen numerical and control checks for this selected problem. The v1 observed cell remains blocked.** Day 8 re-read the Day 6 project and Day 7 CHOLMOD raw stdout bytes, independently reconstructed the untouched full matrix and RHS, recomputed both solution metrics, and applied the predeclared Sprint 215 Day 4 limits. The project residual and oracle gates passed before the cross-solver gate was evaluated; the baseline residual and oracle gates also passed independently. The cross-solver difference is `2.220446049250313e-16`, below the sum of the two fixed oracle limits, `2.760966058953532e-13`. This is a **local numerical consistency result for one 4 × 4 SPD problem**, not a schema-valid observed v1 cell, timing result, broad accuracy claim or publication approval.
+
+The final read-only reconciliation bundle is ignored and local: `build/external-baseline/s215-cholmod-v7_12_2-symmetric4-spdsolve-v1/day8-reconcile-txhtaln5/`. Its `manifest.json` SHA-256 is `7e20fb0e8fc4c91cd29834569624ce141456455d96d147246b8cf3165598df88`; `reconciliation.json` SHA-256 is `d814185fbcc753101ebc76076fb2bec9c2d11d0861c0b1ca39682759c8b852af`. The exact checker source is retained as `reconcile.py`, SHA-256 `946af8786012a7b0a920524e7f8ccdb3f23b7523ab5892ec0334e39fc724a977`. All 148 final checks passed, and the three local reconciliation files matched their manifest hashes.
+
+## Evidence and identity ledger
+
+| Assertion | Raw or retained evidence | Day 8 result |
+| --- | --- | --- |
+| Frozen problem | Original `tests/data/symmetric_4.mtx` and both attempt copies, SHA-256 `ead030a6d92a4c3197409aba1f4addb9d1e78f3696d52e072686d762705a7335`; Day 1 inventory and frozen Sprint 215 Day 3/4 method. | Exact byte match; independently parsed symmetric real 4 × 4 matrix with seven stored, ten expanded entries, finite unique lower coordinates, `b=[13,14,17,16]` and oracle `[1,1,1,1]`. `||A||∞=17`; strict-diagonal-dominance margin `7`. |
+| Separate execution and state | Day 6 attempt `day6-project-rmbv856q` and Day 7 attempt `day7-baseline-rin7rs32`, with different cwd, new process, copied input, raw streams and command manifests. | Distinct process commands and working directories. The baseline command did not read a project factor or solution. |
+| Project build, ABI and controls | Day 3 build manifest, helper source, Day 6 raw stdout and command, Day 6 manifest SHA-256 `6e4c6f28601c9acb696192add7f700723b22ad469f3001b2f7ed752940da7781`. | Same helper executable SHA-256 `ed02d301d781e61c9fdb8077abcf8d427517c387ccdb61c40306287e8492474f`; 32-bit project index build; `SPARSE_REORDER_NONE`, linked-list backend, `used_csc_path=0`, `load_status=0`, `factor_status=0`, `solve_status=0`, exit `0`. |
+| Baseline ABI and effective path | Day 7 raw stdout, independent CSC record, command and manifest SHA-256 `a140595d6b5c7150f686749af0133d6e9fd3950cd3ef04305926c6f494fe6dee`. | `csc_itype=0` (`CHOLMOD_INT`), lower/sorted/packed CSC with seven entries; `analyze_status=0`, `factor_status=1`, `cholmod_status=0`, `factor_minor=4`, natural `ordering=0`, simplicial `is_super=0`, observed LDL storage `is_ll=0`, `solve_status=1`, `cholmod_solve_status=0`, exit `0`. Frozen helper source calls `cholmod_solve(CHOLMOD_A, ...)` with real double data. |
+| Runtime library identity | Raw `DYLD_PRINT_LIBRARIES=1` stderr for both processes; Day 4 loaded-dependency inventory and each attempt's saved pre-run checks. | Both helpers report the same loaded CHOLMOD 5.3.4 path. Both traces list all ten named non-system paths; each saved pre-run file digest matches Day 4. Apple shared-cache BLAS/LAPACK paths appear but have no per-image file digest. |
+| Source identity | Both attempt snapshots and Day 3 tracked-build-input inventory. Day 6 and Day 7 source-status/patch SHA-256 values are in `reconciliation.json`. | Same HEAD `dab7943c218e997cda6898c9cdd8d3572a6029c9`; no tracked patch; all 93 tracked build inputs matched at each run. The untracked planning-document patches differ because Day 6 documentation was added between the attempts. The executable bytes were unchanged. |
+| Requested threading and host | Both raw command manifests and Day 5 host record; Day 7 post-run fingerprint recheck. | Both commands requested four one-thread environment values. Day 7 recheck matches Day 5's privacy-safe host fingerprint. **Day 6 had no execution-time host fingerprint**, so exact historical host identity for that process is supported by common local runtime and paths but not independently proven. Effective BLAS threads were not observed. |
+
+The raw project stdout SHA-256 is `c1aa1fc97c5e7f60dc12d8b0f11fbfd66ab889d7476dd85d7bed17ac8c02d703`; raw baseline stdout SHA-256 is `ed545ce746977365bd59e064fb9336642a4d30af6455498227570552bf093346`. Their raw stderr SHA-256 values are `cb67d98e5fa277c10423a1c867468a0696a4a5f7e1248df5b0e21f5a6f232988` and `3a1971045bad41938018114c3df9d8e07ad828c8eca3783a4dd727a76b120567`. Day 8 verified all four files against each command manifest and each attempt's complete file manifest before parsing the fields. These are links to preserved bytes, not copied or retyped solver evidence.
+
+## Frozen numerical gates
+
+The checker reparsed the original Matrix Market file, expanded the full symmetric `A`, checked finite coefficients and RHS, and parsed the two raw float64 solution strings without using either attempt's saved metric values as inputs. It checked finite solution components, individual matrix-vector products, row sums, residuals, denominators, norms and metric values before applying `T=32·4·2^-52` and `K=17/7`. It also matched every recomputed metric to each attempt's earlier independent metrics file. The fixed residual rule is `R ≤ T·max(1,||b||∞)+T·(||A||∞·||x||∞+||b||∞)`; the oracle rule is `E ≤ 2·T·K` for this `||x_ref||∞=1` cell.
+
+| Metric | Project | CHOLMOD | Fixed gate |
+| --- | ---: | ---: | --- |
+| Raw solution | `[0.99999999999999989,1,1.0000000000000002,1]` | `[1,1,1,1]` | Four finite components each. |
+| Residual vector `A·x-b` | `[-1.7763568394002505e-15,0,3.552713678800501e-15,0]` | `[0,0,0,0]` | All intermediates and residuals finite. |
+| Residual infinity norm `R` | `3.552713678800501e-15` | `0` | Each `≤ 1.4495071809506044e-12`: **pass**. |
+| Backward error `R/D` | `1.0449157878825003e-16` | `0` | Recorded with `D=34` for each; no fitted cutoff. |
+| Oracle infinity error `E` | `2.220446049250313e-16` | `0` | Each `≤ 1.380483029476766e-13`: **pass**. |
+| Cross-solver `||x_project-x_cholmod||∞` | `2.220446049250313e-16` | Same paired value | `≤ 2.760966058953532e-13`: **pass after both independent passes**. |
+
+The observed difference is on the order of float64 rounding for this cell. It does not imply bitwise equality, equivalent factor storage, equal internal phase boundaries or a ranking. No process elapsed time was used as a solver measurement.
+
+## Mismatches, blocked gates and audit trail
+
+No mismatch was found in fixture bytes, RHS, float64 operation, project index width, baseline CSC integer type, frozen solver options, recorded effective paths, helper binary, named non-system library hashes or requested thread controls. The differing untracked source patches contain added planning documents; no tracked build input or executable byte changed. The project result uses linked-list Cholesky, while CHOLMOD reported simplicial LDL storage (`is_ll=0`); the frozen contract records this storage distinction and does not require identical factor layout.
+
+**Promotion blockers remain:** Day 6's execution-time host fingerprint was not captured; exact CHOLMOD bottle build flags and complete module configuration remain unavailable; loaded Apple shared-cache BLAS/LAPACK lacks a file digest or formally accepted equivalent; effective BLAS thread count was not observed; no v1 observed record or exact cell ID has been built and validated; and fixture/package rights and attribution review is pending. These are evidence gaps, **not passing checks**. The paired result is therefore a local numerical pass with `evidence_status=blocked` and `cell_id=null`. Day 9 must carry these named gaps into any v1 validation attempt and must not promote the cell by assertion.
+
+Two earlier, separate Day 8 reconciliation directories were retained. `day8-reconcile-agm7gs37/` passed an initial numerical-only scan but did not check the full saved build/dependency ledger. `day8-reconcile-t9ha55rr/` added those checks but its script used shorthand expected strings (`linked_list`, `none`) where the Day 3 manifest stores the symbolic C constants; those two matcher failures were a ledger error, not a solver failure. The final `day8-reconcile-txhtaln5/` uses the manifest's exact values and passed all 148 checks. Neither raw solver attempt was changed or rerun during this correction. All three reconciliation directories remain local for audit.

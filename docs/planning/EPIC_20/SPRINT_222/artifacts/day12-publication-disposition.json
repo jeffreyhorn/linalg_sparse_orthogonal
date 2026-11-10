@@ -1,0 +1,39 @@
+{
+  "decision_date": "2026-11-10",
+  "decision_kind": "no_publication_pending_independent_review",
+  "decision_scope": {
+    "selection_id": "s215-cholmod-v7_12_2-symmetric4-spdsolve-v1",
+    "source_artifact_index_sha256": "392c6c4336718e94b2ca6a60f9a8c5f0d2a62cf105a1a37457cce949853d82bd",
+    "review_manifest_sha256": "c40d01d46839b2660c95f836de1044e50a6fafda8947d81807f6b92d314b6205",
+    "first_blocked_record_sha256": "515e4264d0d542a2a5d33337bbd5599a799ef64fe4d15410fb590c94152f0236",
+    "repeat_blocked_record_sha256": "270fd30358237993073f975e1db643b53ab02250e21784a941b3ec09904773c6",
+    "fixture_sha256": "ead030a6d92a4c3197409aba1f4addb9d1e78f3696d52e072686d762705a7335"
+  },
+  "evidence_steward": "Codex; prepared the disposition, not an independent rights or attribution reviewer",
+  "independent_attribution_reviewer": null,
+  "independent_rights_reviewer": null,
+  "reviewer_signed_decision_artifact": null,
+  "reviewer_approval_recorded": false,
+  "attribution_review": "pending",
+  "publication_review": "pending",
+  "claim_eligibility": "blocked",
+  "no_publication": true,
+  "approved_artifact_paths": [],
+  "approved_external_claim": null,
+  "current_disposition_wording": "Sprint 222 retained local numerical and validation evidence for a single candidate 4x4 project/CHOLMOD comparison. Required v1 execution provenance and publication review are incomplete; the records remain blocked, with no approved external correctness or performance result.",
+  "reasons": [
+    "Both observed v1 candidates were rejected for missing environment provenance; accepted records are blocked with null cell IDs.",
+    "First and repeat source-patch identities differ, and the first project run lacks an execution-time host fingerprint.",
+    "CHOLMOD bottle build/module settings, Apple BLAS/LAPACK identity and effective BLAS thread observation are incomplete.",
+    "Fixture authorship and exact attribution wording have not been independently confirmed.",
+    "Exact binary/module/transitive dependency rights, notice obligations and raw-trace privacy have not been independently reviewed."
+  ],
+  "retention": "Keep original raw attempts, binaries and traces in ignored local build/external-baseline only; no upload, PR attachment, selected-report entry or generated-API publication is approved.",
+  "conditional_wording_source": "docs/planning/EPIC_20/SPRINT_222/artifacts/day11-rights-and-wording-review-packet.md",
+  "next_decision_requirements": [
+    "Identify the maintainer attribution reviewer and designated rights reviewer by name and date.",
+    "Verify a complete observed v1 record and canonical cell ID for one exact local cell.",
+    "Record a separate signed or attributable decision for the exact hashed artifact allowlist and exact claim sentence.",
+    "If redaction is required, create a separately hashed derivative and review that exact derivative."
+  ]
+}

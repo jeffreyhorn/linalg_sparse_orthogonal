@@ -144,6 +144,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_cholesky.c \
             $(TESTDIR)/test_csr.c \
             $(TESTDIR)/test_matmul.c \
+            $(TESTDIR)/test_cholmod_pilot_csc.c \
             $(TESTDIR)/test_threads.c \
             $(TESTDIR)/test_sprint4_integration.c \
             $(TESTDIR)/test_iterative.c \
@@ -289,6 +290,8 @@ $(BUILDDIR)/test_svd: $(TESTDIR)/test_svd.c $(TESTDIR)/test_svd_helpers.h $(TEST
 
 $(BUILDDIR)/test_ldlt_csc: $(TESTDIR)/test_ldlt_csc.c $(TESTDIR)/test_ldlt_csc_fixtures.h $(TESTDIR)/test_ldlt_csc_native_parity_helpers.h $(TESTDIR)/test_ldlt_csc_oracle_helpers.h $(TESTDIR)/test_ldlt_csc_supernode_helpers.h $(LIB) | $(BUILDDIR)
 	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+$(BUILDDIR)/test_cholmod_pilot_csc: scripts/cholmod_pilot_csc.h
 
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)

@@ -40,7 +40,15 @@ class PolicyInputTests(unittest.TestCase):
 
     def test_real_workflow_inventory(self):
         inputs = read_policy_inputs(REPO_ROOT)
-        self.assertEqual(len(inputs), 110)
+        self.assertEqual(len(inputs), 111)
+        preflight_steps = [
+            item for item in inputs
+            if item.workflow_path.name == "ci.yml"
+            and item.job_key == "build-and-test"
+            and item.rendered_command is not None
+            and "validate_external_baseline_evidence.py --schema" in item.rendered_command.value
+        ]
+        self.assertEqual(len(preflight_steps), 1)
         self.assertEqual(
             {(item.workflow_path.name, item.job_key) for item in inputs if item.step_index is None},
             set(),

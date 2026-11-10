@@ -35,7 +35,7 @@ jobs:
     # image that actually carries the reviewed MSVC/CMake surface.
     runs-on: windows-2022
     env:
-      EXPECTED_WINDOWS_CTEST_COUNT: "62"
+      EXPECTED_WINDOWS_CTEST_COUNT: "63"
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +64,7 @@ jobs:
           if ($count -ne [int]$env:EXPECTED_WINDOWS_CTEST_COUNT) {
             throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
           }
-          Write-Host "Windows reviewed CMake CTest surface includes promoted portable tests: test_threads, test_sprint4_integration, test_fuzz."
+          Write-Host "Windows reviewed CMake CTest surface includes promoted portable tests: test_threads, test_sprint4_integration, test_fuzz, test_cholmod_pilot_csc."
           Write-Host "Windows promoted-test proof remains CMake-first: ctest -N count plus full ctest on the hosted MSVC lane."
           Write-Host "Windows reviewed install validation remains CMake install/downstream scoped: sparse.pc is metadata-only inspection; no reviewed Makefile parity and no pkg-config execution parity."
         shell: pwsh

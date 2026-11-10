@@ -1,0 +1,192 @@
+# External Baseline Evidence V1: Maintainer Guide
+
+## Scope And Authority
+
+V1 describes one selected, local, correctness-only comparison of project
+Cholesky and SuiteSparse v7.12.2 / CHOLMOD 5.3.4 on
+`tests/data/symmetric_4.mtx`. The authoritative shape and frozen selection
+are `tests/corpus/schemas/external_baseline_evidence_v1.json` with
+`$id=external_baseline_evidence_v1`; the stdlib implementation is
+`scripts/validate_external_baseline_evidence.py`. The schema's `x-v1-policy`
+lists cross-field rules that JSON Schema alone cannot decide. Changing the
+matrix, RHS, solver, baseline version or index ABI requires a new selection
+and schema version, not a silent edit to a v1 record. Unknown fields and
+unknown statuses fail closed. Preserve old schemas when adding a version so
+old attempt records remain interpretable.
+
+A record is either a planning blueprint or one generated attempt. `record_id`
+identifies that record; generated attempts also require `run_id`. The pilot's
+`attempt.json` is an unvalidated attempt envelope, **not** a v1 evidence
+record or an accepted external result. A passing preflight self-test only
+allows the optional pilot to proceed to later gates.
+
+## Status And Claim Contract
+
+| Status | Required interpretation |
+| --- | --- |
+| `planned` | Planning blueprint; no run ID, cell ID, observations or generated artifacts. |
+| `not_run` | Generated attempt with a reason; no solver or timing result. |
+| `blocked` | Named execution or publication gate; an execution block has no solver result and neither gate can claim measured performance. |
+| `non_comparable` | Named eligibility/identity mismatch; no reused complete cell ID or paired verdict. |
+| `correctness_failed` | Complete provenance and at least one raw, independently evidenced failed side. |
+| `correctness_observed` | Complete cell and two independently passing, hashed solver outputs; timing remains `not_run`. |
+| `timing_invalid` | Two passing sides and retained failed timing-attempt evidence; no valid summary. |
+| `measured` | Two passes plus complete verified raw paired samples, host/clock/thread controls and recomputed statistics. |
+
+`block_gate` is valid only for `blocked` records, and `mismatch_field` only
+for `non_comparable` records. Clear both fields when promoting an attempt to
+an observed correctness or timing status.
+Any side marked `pass`, including an unpaired side, requires complete runtime,
+binary, index-ABI, environment and methodology provenance plus a computed
+cell ID. An incomplete comparison must keep its result status unobserved.
+
+The selected pilot is correctness-only. The timing statuses define v1 shape
+for future use; they do not authorize timing the selected pilot. Allowed
+claims remain one local cell of correctness or, for a separately eligible
+record, descriptive local latency. No v1 status supports a winner, speedup,
+hosted threshold, portable speed, cross-platform parity or state-of-the-art
+claim. `publication_review` is independent of numerical validation:
+`approved` requires an identified, hashed review artifact and approved
+matrix attribution. That artifact must have the `publication_review` role,
+`text/plain` media type and a path separate from solver and timing outputs.
+A validator pass does not perform or replace that human review.
+
+## Canonical Cell Identity
+
+For complete records, `identity_from_record()` extracts exactly the matrix
+SHA-256; problem class/operation/RHS/precision and both index ABIs; project
+commit/worktree/patch/binary/compiler/build/solver controls; baseline
+commit/loaded-library path and hash/dependency/build/solver controls; requested and
+observed thread counts; and host OS/build/architecture/CPU. Dependency
+entries have unique roles and normalized absolute loaded paths and are
+sorted by `(role, loaded_path)` before serialization. No field in the
+complete identity may be null.
+
+The canonical bytes are `json.dumps(identity, sort_keys=True,
+separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("utf-8")`.
+`cell_id` is `sha256:` plus the lowercase SHA-256 of those exact bytes. The
+synthetic byte vector is
+`tests/corpus/fixtures/external_baseline_identity_v1.canonical.json` **without
+its final newline**. Its digest is a test vector, not a production cell ID.
+Planning, incomplete and execution-blocked records use `cell_id=null` with
+`cell_id_reason`; complete observed records require a matching ID and null
+reason. Methodology hashes, raw results and publication review are run
+provenance, not cell-ID inputs, but still require verification.
+
+## CLI And Diagnostics
+
+Run from the repository root:
+
+```sh
+python3 scripts/validate_external_baseline_evidence.py \
+  --schema tests/corpus/schemas/external_baseline_evidence_v1.json --self-test
+python3 scripts/validate_external_baseline_evidence.py \
+  --schema tests/corpus/schemas/external_baseline_evidence_v1.json \
+  --input tests/corpus/fixtures/external_baseline_planned_v1.json
+python3 scripts/validate_external_baseline_evidence.py \
+  --schema tests/corpus/schemas/external_baseline_evidence_v1.json \
+  --input /path/to/record.json --bundle-root /path/to/attempt-bundle
+```
+
+Use exactly one of `--self-test` or `--input`; `--bundle-root` applies only
+to `--input`. The validator always runs the negative self-test first. A
+successful `--input` exit proves **format and internal consistency against
+referenced bytes only**. A rejection exits nonzero and prints
+`<rule_code> <JSON_pointer> record_id=<id>: <detail>`; do not scrape the
+human detail text. The schema's `x-v1-policy.rule_codes` is the rule-code
+namespace. `implementation_pending` is a fail-closed self-test failure,
+never a successful evidence status.
+The supplied schema must be structurally identical to the checked-in v1
+authority; relaxing a nested field fails before input validation.
+
+| Code group | Meaning |
+| --- | --- |
+| `invalid_json`, `duplicate_or_unknown_field`, `missing_required_field`, `exact_type`, `unsupported_enum`, `nonfinite_or_missing_value_abuse` | Strict parse or declarative shape failed. |
+| `selection_mismatch`, `cell_id_mismatch` | Frozen cell controls or canonical identity differ. |
+| `missing_provenance`, `artifact_path_or_hash` | Required runtime/review source or referenced bytes are absent, unsafe or inconsistent. |
+| `status_contradiction`, `blocked_cannot_claim_performance`, `measured_requires_two_passes_and_raw_samples` | A status asserts more than its independent side/timing evidence supports. |
+| `unit_or_sample_contract`, `unearned_claim` | Timing units/counts/statistics or claim scope violate v1. |
+
+Repository matrix and methodology references are checked against their
+actual SHA-256 bytes. Generated artifacts require `--bundle-root`; paths
+must be normalized relative POSIX paths under that root. The validator
+rejects traversal, symlink traversal, missing/nonregular files and digest
+mismatches. Observed raw solver JSON is parsed after hashing and bound to
+reported statuses, diagnostics and solutions. Baseline success includes
+`cholmod_solve_status=0` as well as the CHOLMOD factor and solve statuses.
+Reported residual and backward-error metrics may differ by a bounded float64
+row-accumulation rounding allowance when they are near zero. The validator
+still recomputes the Day 4 pass gates from each raw solution using the fixed
+thresholds; oracle errors and those thresholds retain their strict checks.
+An observed cell also needs exactly one retained `project_binary` artifact
+and one `baseline_library` artifact; their verified byte digests must match
+`binary_sha256` and `loaded_library_sha256` in the cell identity. The loaded
+library path is also part of that identity: changing it changes the cell ID.
+Observed provenance strings must contain non-whitespace text. Forbidden
+performance claim keys are rejected even inside permitted diagnostic objects
+and raw timing observations. These checks establish bundle consistency, not
+independent authentication of the process that produced the bytes.
+A dirty project worktree additionally requires one hashed `project_patch`
+artifact (`text/x-diff`) whose digest equals `patch_sha256`, and one nonempty
+`project_worktree_status` artifact (`text/plain`); retain the raw patch and
+status bytes. Partial records require a non-null reason for each incomplete
+project runtime, baseline runtime, index ABI, methodology-hash and environment
+group. Invalid timing requires a hashed JSON attempt with the matching reason,
+failed phase, side and elapsed duration; its artifact must carry the
+`timing_attempt` role. Measured raw pairs allow only order, per-side status, duration and
+observation fields. They must include each side's `phase_statuses`,
+`factor_diagnostics` and `solution` in a `<side>_observation` object; every
+trial must meet the Day 4 status, factor-control and numerical gates before
+its duration contributes to a summary. Each side's warmup and timed trial
+must finish within 30 seconds; a longer sample invalidates measurement.
+Numeric solution and metric values must fit the finite float64 range, even
+when JSON encodes them as integers. Additional factor diagnostics such as
+CHOLMOD `is_ll` are retained when their values are strings, integers or
+booleans; baseline `is_ll` must be recorded as 0 or 1 but is not fixed to
+one storage format. Baseline
+success does require `csc_nnz=7`, `csc_stype=-1`, `csc_sorted=1` and
+`csc_packed=1` in both observed and per-trial diagnostics. Numerical-rank
+diagnostics such as `numerical_rank` and `rank_deficient` are allowed;
+performance ranking claims in keys, reason tokens or diagnostic text are not.
+Raw pairs are rehashed
+and used to recompute counts and summaries. A matching
+hash alone does not prove that the producer or solver was genuine.
+Within each timing window, pair order alternates continuously from the five
+warmups into the 50 timed pairs; the first timed pair has the opposite order
+from the fifth warmup pair.
+
+## Retention And Reproducible Checks
+
+Retain the original input record, schema version, methodology files, all
+raw stdout/stderr bytes, solver outputs, sample files, commands, environment,
+loaded binary/dependency identities and each SHA-256. Do not normalize raw
+streams before hashing. Pilot output goes under
+`build/external-baseline/s215-cholmod-v7_12_2-symmetric4-spdsolve-v1/` in a
+new attempt directory; the pilot refuses an existing directory. Treat each
+attempt as append-only and never overwrite a previous result. Generated
+local evidence stays local and out of selected canonical reports; publication
+requires a separate review and artifact.
+
+The following checks need no CHOLMOD installation:
+
+```sh
+python3 -m unittest tests.test_validate_external_baseline_evidence.NonExecutionFixtureTests
+python3 -m unittest tests.test_validate_external_baseline_evidence.ArtifactTests
+python3 -m unittest tests.test_validate_external_baseline_evidence.CliMutationTests
+python3 tests/test_run_cholmod_pilot.py
+```
+
+The planning CLI command above checks the frozen blueprint. The
+`NonExecutionFixtureTests` command checks synthetic `not_run`/blocked cases;
+`ArtifactTests` checks synthetic observed/measured temporary bundles; and
+`CliMutationTests` checks strict parser and semantic negatives with exact
+diagnostic codes/pointers and restored positives. These synthetic tests are
+not observations. Sprint 222 must supply the first real, independently
+provenanced, two-sided CHOLMOD correctness cell before any external parity
+claim can be considered.
+
+Unsupported v1 shapes include multiple cells, a different selection or
+baseline version, unverified baseline ABI, a one-sided correctness claim,
+measured timing without all raw pairs, a performance conclusion inferred
+from correctness, and publication approval without review evidence. Reject
+or version these shapes; do not coerce them into a selected v1 cell.

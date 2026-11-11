@@ -702,7 +702,11 @@ def test_selected_cholesky_hosted_context_is_exact() -> None:
         "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
         "GITHUB_WORKFLOW": "Windows CI",
         "GITHUB_JOB": "selected-comparison-freshness",
-        "GITHUB_SHA": runner.current_commit(REPO_ROOT),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_SHA": "synthetic-merge-sha",
+        "GITHUB_HEAD_REF": "sprint-223",
+        "SPARSE_SELECTED_SOURCE_SHA": runner.current_commit(REPO_ROOT),
+        "SPARSE_SELECTED_SOURCE_BRANCH": "sprint-223",
         "RUNNER_OS": "Windows",
     }
     with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(
@@ -718,13 +722,39 @@ def test_selected_cholesky_hosted_context_is_exact() -> None:
         else:
             raise AssertionError("dirty hosted source tree was accepted")
         state.return_value = "clean"
-        os.environ["GITHUB_SHA"] = "wrong-sha"
+        os.environ["SPARSE_SELECTED_SOURCE_SHA"] = "wrong-sha"
         try:
             runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
         except runner.ComparisonError as exc:
             assert exc.failure_class == "hosted_context_mismatch"
         else:
             raise AssertionError("wrong hosted source commit was accepted")
+        os.environ["SPARSE_SELECTED_SOURCE_SHA"] = runner.current_commit(REPO_ROOT)
+        os.environ["SPARSE_SELECTED_SOURCE_BRANCH"] = "wrong-branch"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong hosted source branch was accepted")
+    push_context = {
+        **context,
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_SHA": runner.current_commit(REPO_ROOT),
+        "GITHUB_REF_NAME": "master",
+        "SPARSE_SELECTED_SOURCE_BRANCH": "master",
+    }
+    with mock.patch.dict(os.environ, push_context, clear=True), mock.patch.object(
+        runner.platform, "system", return_value="Windows"
+    ), mock.patch.object(runner, "worktree_state", return_value="clean"):
+        assert runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        os.environ["GITHUB_SHA"] = "wrong-sha"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong push source commit was accepted")
     with mock.patch.dict(os.environ, {"GITHUB_JOB": "selected-comparison-freshness"}, clear=True):
         try:
             runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")

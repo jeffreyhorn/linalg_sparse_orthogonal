@@ -2311,6 +2311,7 @@ def test_cholesky_hosted_metadata_positive_and_mutations() -> None:
     mutations = (
         ("row", "platform", "linux-amd64", "field=platform"),
         ("row", "compiler", "cmake-probe:default:Release", "field=compiler"),
+        ("row", "source_branch", "unknown", "field=source_branch"),
         ("row", "support_tier", "local_only", "field=support_tier"),
         ("row", "configuration", "stage=sprint183_day8_comparison_logic;baseline_status=integrated_and_compared;support_tier=local_only", "field=configuration"),
         ("row", "claim_scope", "broad Windows Cholesky parity", "field=claim_scope"),

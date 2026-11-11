@@ -768,6 +768,7 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             "claim_scope": row.get("claim_scope") == expected_claim,
             "non_claims": row.get("non_claims") == expected_non_claims,
             "worktree_state": row.get("worktree_state") == "clean",
+            "source_branch": row.get("source_branch") not in {"", "unknown"},
         }
         for field, valid in checks.items():
             if not valid:

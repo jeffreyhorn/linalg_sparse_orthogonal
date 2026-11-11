@@ -799,6 +799,9 @@ def validate_windows_selected_cholesky_lane(text: str) -> str:
             f"{WINDOWS_SELECTED_CHOLESKY_JOB} must declare timeout-minutes: 20"
         )
     for needle in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
         WINDOWS_SELECTED_CHOLESKY_GENERATOR,
         WINDOWS_SELECTED_CHOLESKY_FRESHNESS,
         "actions/upload-artifact@v4",

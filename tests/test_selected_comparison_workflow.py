@@ -317,6 +317,12 @@ def assert_no_report_freshness_lane(text: str, *, label: str) -> None:
 
 def assert_windows_selected_cholesky_lane(text: str) -> None:
     job = job_block(text, "selected-comparison-freshness", label="windows")
+    for required in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        assert_contains(job, required, label="windows selected cholesky")
     assert_contains(job, "timeout-minutes: 20", label="windows selected cholesky")
     assert_contains(job, "python scripts/run_external_comparison.py", label="windows selected cholesky")
     assert_contains(job, "--target cholesky-spd-tridiag-5", label="windows selected cholesky")
@@ -648,6 +654,20 @@ def test_windows_selected_cholesky_missing_timeout_fails_clearly() -> None:
         lambda: assert_windows_selected_cholesky_lane(drifted),
         "windows selected cholesky missing 'timeout-minutes: 20'",
     )
+
+
+def test_windows_selected_cholesky_wrong_source_checkout_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    for required in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        drifted = text.replace(required, required.replace("github.event.pull_request.head.sha", "github.sha").replace("github.head_ref", "github.ref_name"), 1)
+        assert_raises_with(
+            lambda: assert_windows_selected_cholesky_lane(drifted),
+            f"windows selected cholesky missing {required!r}",
+        )
 
 
 def test_windows_selected_cholesky_wrong_target_fails_clearly() -> None:
@@ -1241,6 +1261,7 @@ def main() -> int:
     test_windows_drift_selected_command_fails_clearly()
     test_windows_drift_selected_artifact_fails_clearly()
     test_windows_selected_cholesky_missing_timeout_fails_clearly()
+    test_windows_selected_cholesky_wrong_source_checkout_fails_clearly()
     test_windows_selected_cholesky_wrong_target_fails_clearly()
     test_windows_selected_cholesky_missing_freshness_target_fails_clearly()
     test_windows_selected_cholesky_wrong_artifact_fails_clearly()

@@ -1110,10 +1110,25 @@ def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
             "hosted_context_mismatch",
             "selected Cholesky job lacks the expected Windows CI context",
         )
-    if platform.system() != "Windows" or os.environ.get("GITHUB_SHA") != current_commit(root):
+    event = os.environ.get("GITHUB_EVENT_NAME")
+    expected_sha = os.environ.get("SPARSE_SELECTED_SOURCE_SHA")
+    expected_branch = os.environ.get("SPARSE_SELECTED_SOURCE_BRANCH")
+    github_branch = (
+        os.environ.get("GITHUB_HEAD_REF") if event == "pull_request"
+        else os.environ.get("GITHUB_REF_NAME")
+    )
+    if (
+        platform.system() != "Windows"
+        or event not in {"pull_request", "push"}
+        or not expected_sha
+        or expected_sha != current_commit(root)
+        or (event == "push" and expected_sha != os.environ.get("GITHUB_SHA"))
+        or not expected_branch
+        or expected_branch != github_branch
+    ):
         raise ComparisonError(
             "hosted_context_mismatch",
-            "selected Cholesky job platform or source commit differs from the hosted context",
+            "selected Cholesky job platform, source commit, or branch differs from hosted context",
         )
     if worktree_state(root) != "clean":
         raise ComparisonError(
@@ -2260,7 +2275,10 @@ def run(args: argparse.Namespace) -> int:
         "fixture_key": str(target["fixture_key"]),
         "generated_at_utc": generated_at,
         "source_commit": current_commit(root),
-        "source_branch": current_branch(root),
+        "source_branch": (
+            os.environ["SPARSE_SELECTED_SOURCE_BRANCH"]
+            if hosted_cholesky else current_branch(root)
+        ),
         "worktree_state": worktree_state(root),
         "project_version": project_version(root),
         "platform": f"{platform.system().lower()}-{platform.machine().lower()}",

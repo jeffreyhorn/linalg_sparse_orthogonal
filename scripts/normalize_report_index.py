@@ -315,10 +315,12 @@ def selected_comparison_required_file_diagnostics(
             continue
         artifact_dir = Path(artifact_pattern.removeprefix("build/")).parent
         study_path = build_root / Path(artifact_pattern.removeprefix("build/"))
-        if not study_path.is_file():
+        is_cholesky = contract["target_key"] == "cholesky-spd-tridiag-5"
+        if not study_path.is_file() and not (is_cholesky and target_keys):
             continue
         missing: list[str] = []
-        for filename in split_manifest_values(contract["required_files"]):
+        required_files = split_manifest_values(contract["required_files"])
+        for filename in required_files:
             logical_path = f"build/{artifact_dir.as_posix()}/{filename}"
             physical_path = build_root / artifact_dir / filename
             if not physical_path.is_file():
@@ -333,6 +335,21 @@ def selected_comparison_required_file_diagnostics(
                 f"{selected_comparison_artifact_diagnostic(selected_targets, target_keys)}; "
                 f"{selected_comparison_remediation(target_keys)}"
             )
+        physical_dir = build_root / artifact_dir
+        if is_cholesky and physical_dir.is_dir():
+            unexpected = sorted(
+                child.name for child in physical_dir.iterdir()
+                if child.name not in required_files
+            )
+            if unexpected:
+                has_error = True
+                diagnostics.append(
+                    "freshness: error: comparison_required_files: unexpected_artifact_file: "
+                    f"target_id={contract['target_id']}; target_key={contract['target_key']}; "
+                    f"unexpected={','.join(unexpected)}; "
+                    f"artifact={contract['artifact_pattern']}; "
+                    f"{selected_comparison_remediation(target_keys)}"
+                )
     return diagnostics, has_error
 
 
@@ -697,6 +714,123 @@ def oracle_generated_rows(
     return rows
 
 
+def comparison_artifact_path_matches(recorded: str, expected: str) -> bool:
+    normalized = recorded.replace("\\", "/")
+    return normalized == expected or normalized.endswith(f"/{expected}")
+
+
+def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) -> None:
+    """Reject contradictory selected Windows proof before normalizing study rows."""
+    hosted = any(
+        row.get("support_tier") == "hosted_selected"
+        or "support_tier=hosted_selected" in row.get("configuration", "")
+        or "selected Windows hosted lane" in row.get("claim_scope", "")
+        or "no broad Windows report freshness" in row.get("non_claims", "")
+        for row in rows
+    )
+    if not hosted:
+        return
+
+    expected_claim = (
+        "fixture-local Cholesky SPD tridiagonal solve comparison "
+        "on the selected Windows hosted lane only"
+    )
+    expected_non_claims = ";".join(
+        (
+            "no broad Cholesky correctness", "no broad SPD coverage",
+            "no broad reordering coverage", "no CSC-vs-linked-list parity",
+            "no factor-layout identity", "no fill superiority", "no NumPy parity",
+            "no SciPy parity", "no LAPACK parity", "no SuiteSparse parity",
+            "no Eigen parity", "no external-library ecosystem parity",
+            "no release proof", "no platform portability proof",
+            "no broad Windows report freshness", "no package-manager proof",
+            "no shared-library ABI proof", "no performance superiority",
+            "no state-of-the-art claim",
+        )
+    )
+    expected_configuration = (
+        "stage=sprint183_day8_comparison_logic;"
+        "baseline_status=integrated_and_compared;support_tier=hosted_selected"
+    )
+    expected_compiler = "cmake-probe:Visual Studio 17 2022:Release"
+    for row in rows:
+        row_id = row.get("comparison_row_id", "unknown")
+        if row.get("support_tier") == "hosted_selected" and row.get("worktree_state") != "clean":
+            raise ReportIndexError(
+                f"{path}: comparison_dirty_worktree: row_id={row_id}; "
+                f"worktree_state={row.get('worktree_state', '')}"
+            )
+        checks = {
+            "support_tier": row.get("support_tier") == "hosted_selected",
+            "platform": row.get("platform") == "windows-amd64",
+            "compiler": row.get("compiler") == expected_compiler,
+            "configuration": row.get("configuration") == expected_configuration,
+            "claim_scope": row.get("claim_scope") == expected_claim,
+            "non_claims": row.get("non_claims") == expected_non_claims,
+            "worktree_state": row.get("worktree_state") == "clean",
+        }
+        for field, valid in checks.items():
+            if not valid:
+                raise ReportIndexError(
+                    f"{path}: comparison_hosted_metadata_mismatch: "
+                    f"row_id={row_id}; field={field}; value={row.get(field, '')}"
+                )
+
+    manifest_path = path.with_name("manifest.tsv")
+    if not manifest_path.is_file():
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: field=manifest_missing"
+        )
+    manifest_rows = read_tsv(manifest_path)
+    if any(set(row) != {"key", "value"} for row in manifest_rows):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: invalid manifest fields"
+        )
+    manifest = {row["key"]: row["value"] for row in manifest_rows}
+    if len(manifest) != len(manifest_rows):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: duplicate manifest key"
+        )
+    expected_manifest = {
+        "target": "cholesky-spd-tridiag-5",
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "platform": "windows-amd64",
+        "compiler": expected_compiler,
+        "configuration": expected_configuration,
+    }
+    first = rows[0]
+    for field in ("source_commit", "source_branch", "worktree_state", "generated_at_utc"):
+        expected_manifest[field] = first.get(field, "")
+    for field, expected in expected_manifest.items():
+        if not expected or manifest.get(field) != expected or any(
+            row.get(field) != expected for row in rows if field in row
+        ):
+            raise ReportIndexError(
+                f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
+            )
+
+    summary_path = path.with_name("summary.md")
+    if not summary_path.is_file():
+        raise ReportIndexError(
+            f"{summary_path}: comparison_hosted_metadata_mismatch: field=summary_missing"
+        )
+    summary = summary_path.read_text(encoding="utf-8")
+    expected_scope = (
+        "This selected Windows hosted study compares one fixture-local Cholesky "
+        "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
+    )
+    summary_lines = summary.splitlines()
+    if (
+        summary_lines.count(expected_scope) != 1
+        or [line for line in summary_lines if line.startswith("Non-claims:")]
+        != ["Non-claims: " + first["non_claims"]]
+    ):
+        raise ReportIndexError(
+            f"{summary_path}: comparison_hosted_metadata_mismatch: "
+            "field=summary_scope_or_non_claims"
+        )
+
+
 def comparison_generated_rows(
     contract: dict[str, str],
     build_root: Path,
@@ -707,7 +841,32 @@ def comparison_generated_rows(
     rows: list[dict[str, str]] = []
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
-        for comparison in read_tsv(path):
+        comparisons = read_tsv(path)
+        if contract["subfamily"] == "cholesky_spd_tridiag_5":
+            validate_cholesky_hosted_metadata(path, comparisons)
+        for comparison in comparisons:
+            if (
+                contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and comparison.get("support_tier") == "hosted_selected"
+                and comparison.get("worktree_state") != "clean"
+            ):
+                raise ReportIndexError(
+                    f"{path}: comparison_dirty_worktree: "
+                    f"row_id={comparison.get('comparison_row_id', 'unknown')}; "
+                    f"worktree_state={comparison.get('worktree_state', '')}"
+                )
+            if (
+                contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and not comparison_artifact_path_matches(
+                    comparison.get("artifact_path", ""), contract["artifact_pattern"]
+                )
+            ):
+                raise ReportIndexError(
+                    f"{path}: comparison_artifact_path_mismatch: "
+                    f"row_id={comparison.get('comparison_row_id', 'unknown')}; "
+                    f"recorded={comparison.get('artifact_path', '')}; "
+                    f"expected={contract['artifact_pattern']}"
+                )
             rows.append(
                 row_with_overrides(
                     contract,
@@ -1464,22 +1623,10 @@ def selected_comparison_policy_enabled(
 def selected_comparison_generated_rows(
     rows: list[dict[str, str]], selected_artifacts: set[str] | None = None
 ) -> list[dict[str, str]]:
-    def normalize_artifact_path(path: str) -> str:
-        return path.replace("\\", "/")
-
-    normalized_artifacts = (
-        None
-        if selected_artifacts is None
-        else {normalize_artifact_path(artifact) for artifact in selected_artifacts}
-    )
-
     def matches_selected_artifact(artifact_path: str) -> bool:
-        if normalized_artifacts is None:
-            return True
-        normalized_path = normalize_artifact_path(artifact_path)
-        return any(
-            normalized_path == artifact or normalized_path.endswith(f"/{artifact}")
-            for artifact in normalized_artifacts
+        return selected_artifacts is None or any(
+            comparison_artifact_path_matches(artifact_path, artifact)
+            for artifact in selected_artifacts
         )
 
     return [

@@ -1075,7 +1075,7 @@ def baseline_version(target: dict[str, object]) -> str:
     return "qr_external_dense_reference.py"
 
 
-def comparison_configuration(target: dict[str, object]) -> str:
+def comparison_configuration(target: dict[str, object], support_tier: str = "local_only") -> str:
     if target.get("comparison_kind") == "partial_svd":
         stage = "sprint161_day5_comparison_logic"
     elif target.get("comparison_kind") == "lu":
@@ -1086,7 +1086,66 @@ def comparison_configuration(target: dict[str, object]) -> str:
         stage = "sprint191_day8_comparison_logic"
     else:
         stage = "sprint160_day5_comparison_logic"
-    return f"stage={stage};baseline_status=integrated_and_compared;support_tier=local_only"
+    return f"stage={stage};baseline_status=integrated_and_compared;support_tier={support_tier}"
+
+
+def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
+    """Mark only the verified Windows CI job as a hosted candidate.
+
+    The run/artifact still needs the independent hosted audit before publication.
+    """
+    if (
+        target_name != "cholesky-spd-tridiag-5"
+        or os.environ.get("GITHUB_JOB") != "selected-comparison-freshness"
+    ):
+        return False
+    required = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+        "GITHUB_WORKFLOW": "Windows CI",
+        "RUNNER_OS": "Windows",
+    }
+    if any(os.environ.get(key) != value for key, value in required.items()):
+        raise ComparisonError(
+            "hosted_context_mismatch",
+            "selected Cholesky job lacks the expected Windows CI context",
+        )
+    if platform.system() != "Windows" or os.environ.get("GITHUB_SHA") != current_commit(root):
+        raise ComparisonError(
+            "hosted_context_mismatch",
+            "selected Cholesky job platform or source commit differs from the hosted context",
+        )
+    if worktree_state(root) != "clean":
+        raise ComparisonError(
+            "hosted_context_mismatch",
+            "selected Cholesky job source worktree must be clean",
+        )
+    return True
+
+
+def selected_cholesky_report_metadata(target: dict[str, object]) -> dict[str, object]:
+    """Return the narrow hosted wording for the selected Cholesky target."""
+    result = dict(target)
+    non_claims = str(result["non_claims"])
+    hosted_denial = "no hosted CI proof;no release proof;"
+    windows_denial = "no Windows report freshness;"
+    if hosted_denial not in non_claims or windows_denial not in non_claims:
+        raise ComparisonError(
+            "hosted_claim_mismatch",
+            "selected Cholesky non-claims no longer match the reviewed local contract",
+        )
+    result["claim_scope"] = (
+        "fixture-local Cholesky SPD tridiagonal solve comparison "
+        "on the selected Windows hosted lane only"
+    )
+    result["summary_scope"] = (
+        "This selected Windows hosted study compares one fixture-local Cholesky "
+        "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
+    )
+    result["non_claims"] = non_claims.replace(
+        hosted_denial, "no release proof;"
+    ).replace(windows_denial, "no broad Windows report freshness;")
+    return result
 
 
 def parse_vector(text: str) -> list[float]:
@@ -1628,6 +1687,7 @@ def build_study_context(
     manifest: dict[str, str],
     observations: dict[str, str],
     target: dict[str, object],
+    support_tier: str = "local_only",
 ) -> dict[str, str]:
     return {
         "report_family": "comparison",
@@ -1651,7 +1711,7 @@ def build_study_context(
         "configuration": manifest["configuration"],
         "artifact_path": artifact_path,
         "generated_at_utc": generated_at,
-        "support_tier": "local_only",
+        "support_tier": support_tier,
         "claim_scope": str(target["claim_scope"]),
         "non_claims": str(target.get("non_claims", NON_CLAIMS)),
     }
@@ -1673,6 +1733,7 @@ def comparison_study_rows(
     manifest: dict[str, str],
     observations: dict[str, str],
     target: dict[str, object],
+    support_tier: str = "local_only",
 ) -> list[dict[str, str]]:
     if target.get("comparison_kind") == "partial_svd":
         return partial_svd_comparison_study_rows(
@@ -1692,6 +1753,7 @@ def comparison_study_rows(
         manifest=manifest,
         observations=observations,
         target=target,
+        support_tier=support_tier,
     )
     fixture_key = str(target["fixture_key"])
     expected_solution_values = list(target["expected_solution"])  # type: ignore[arg-type]
@@ -2163,6 +2225,10 @@ def run(args: argparse.Namespace) -> int:
 
     target = TARGETS[args.target]
     root = args.root.resolve()
+    hosted_cholesky = selected_cholesky_hosted_tier(root, args.target)
+    support_tier = "hosted_selected" if hosted_cholesky else "local_only"
+    if hosted_cholesky:
+        target = selected_cholesky_report_metadata(target)
     output_dir = args.output_dir.resolve() if args.output_dir else Path(target["output_dir"]).resolve()
     library = args.library.resolve()
     reset_output_dir(output_dir)
@@ -2199,7 +2265,7 @@ def run(args: argparse.Namespace) -> int:
         "project_version": project_version(root),
         "platform": f"{platform.system().lower()}-{platform.machine().lower()}",
         "compiler": compiler,
-        "configuration": comparison_configuration(target),
+        "configuration": comparison_configuration(target, support_tier),
         "baseline_name": baseline_name(target),
         "baseline_type": "external-process-source-controlled-helper",
         "baseline_version": baseline_version(target),
@@ -2233,6 +2299,7 @@ def run(args: argparse.Namespace) -> int:
         manifest=manifest,
         observations=observations,
         target=target,
+        support_tier=support_tier,
     )
     validate_selected_study_rows(study_rows, target)
 

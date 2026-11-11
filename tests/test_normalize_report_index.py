@@ -19,6 +19,7 @@ REPORT_FAMILIES = CORPUS_ROOT / "manifests" / "report_families.tsv"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import normalize_report_index as normalize_index  # noqa: E402
+import run_external_comparison as comparison_generator  # noqa: E402
 
 SPRINT151_PARTIAL_SVD_ROW_COUNTS = {
     "partial_svd_rankdef_diag6x4_k2_range_projector_v1": 7,
@@ -202,6 +203,26 @@ def run_command(args: list[str], *, expect_success: bool = True) -> subprocess.C
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as handle:
         return list(csv.DictReader(handle, delimiter="\t"))
+
+
+def rewrite_comparison_study(path: Path, rows: list[dict[str, str]]) -> None:
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def run_cholesky_selected_freshness(
+    build_root: Path, *, expect_success: bool = True
+) -> subprocess.CompletedProcess[str]:
+    return run_command(
+        [
+            "python3", str(SCRIPT), "--build-root", str(build_root),
+            "--family", "comparison", "--require-generated", "comparison",
+            "--check-freshness", "--selected-target", "cholesky-spd-tridiag-5",
+        ],
+        expect_success=expect_success,
+    )
 
 
 def assert_sorted(rows: list[dict[str, str]]) -> None:
@@ -2147,6 +2168,201 @@ def test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
         assert SELECTED_CHOLESKY_ARTIFACT_DIAGNOSTIC in result.stdout
 
 
+def test_cholesky_selected_six_file_contract_rejects_missing_renamed_extra() -> None:
+    for mutation, diagnostic, filename in (
+        ("missing_study", "missing_artifact_file", "study.tsv"),
+        ("missing_manifest", "missing_artifact_file", "manifest.tsv"),
+        ("renamed_summary", "missing_artifact_file", "summary.md"),
+        ("extra_file", "unexpected_artifact_file", "debug.log"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root = Path(tmp) / "build"
+            write_selected_comparison_rows(
+                build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+            )
+            directory = build_root / "comparison" / "cholesky_spd_tridiag_5"
+            assert "freshness ok" in run_cholesky_selected_freshness(build_root).stdout
+            if mutation == "missing_study":
+                (directory / "study.tsv").unlink()
+            elif mutation == "missing_manifest":
+                (directory / "manifest.tsv").unlink()
+            elif mutation == "renamed_summary":
+                (directory / "summary.md").rename(directory / "renamed-summary.md")
+            else:
+                (directory / "debug.log").write_text("unexpected\n", encoding="utf-8")
+            result = run_cholesky_selected_freshness(build_root, expect_success=False)
+            assert diagnostic in result.stdout, (mutation, result.stdout, result.stderr)
+            assert filename in result.stdout
+
+
+def test_cholesky_selected_study_artifact_path_is_checked_before_normalizing() -> None:
+    expected = "build/comparison/cholesky_spd_tridiag_5/study.tsv"
+    valid_paths = (
+        expected,
+        r"build\comparison\cholesky_spd_tridiag_5\study.tsv",
+        r"build/comparison\cholesky_spd_tridiag_5/study.tsv",
+        r"D:\a\repo\build\comparison\cholesky_spd_tridiag_5\study.tsv",
+    )
+    invalid_paths = (
+        "build/comparison/cholesky_spd_tridiag_50/study.tsv",
+        "build/comparison/cholesky_spd_tridiag_5/study.tsv.bak",
+        "build/comparison/qr_incompatible_ls/study.tsv",
+    )
+    for path_value in valid_paths + invalid_paths:
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root = Path(tmp) / "build"
+            write_selected_comparison_rows(
+                build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+            )
+            study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+            rows = read_tsv(study)
+            rows[0]["artifact_path"] = path_value
+            rewrite_comparison_study(study, rows)
+            result = run_cholesky_selected_freshness(
+                build_root, expect_success=path_value in valid_paths
+            )
+            if path_value in valid_paths:
+                assert "freshness ok" in result.stdout
+            else:
+                assert "comparison_artifact_path_mismatch" in result.stderr
+                assert f"recorded={path_value}" in result.stderr
+                assert f"expected={expected}" in result.stderr
+
+
+def test_cholesky_selected_missing_and_wrong_target_rows_reject() -> None:
+    for mutation in ("missing", "wrong_target"):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root = Path(tmp) / "build"
+            write_selected_comparison_rows(
+                build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+            )
+            study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+            rows = read_tsv(study)
+            missing_id = rows[0]["comparison_row_id"]
+            if mutation == "missing":
+                rows.pop(0)
+            else:
+                rows[0]["comparison_row_id"] = "comparison_qr_incompatible_ls_project_status_v1"
+            rewrite_comparison_study(study, rows)
+            result = run_cholesky_selected_freshness(build_root, expect_success=False)
+            assert "row_set_mismatch" in result.stdout
+            assert f"missing={missing_id}" in result.stdout
+            if mutation == "wrong_target":
+                assert "unexpected=comparison_qr_incompatible_ls_project_status_v1" in result.stdout
+
+
+def test_cholesky_hosted_dirty_worktree_row_rejects() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(
+            build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+        )
+        study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+        rows = read_tsv(study)
+        rows[0]["support_tier"] = "hosted_selected"
+        rows[0]["worktree_state"] = "dirty"
+        rewrite_comparison_study(study, rows)
+        result = run_cholesky_selected_freshness(build_root, expect_success=False)
+        assert "comparison_dirty_worktree" in result.stderr
+        assert "worktree_state=dirty" in result.stderr
+
+
+def write_hosted_cholesky_fixture(build_root: Path) -> Path:
+    write_selected_comparison_rows(build_root, only_subfamilies={"cholesky_spd_tridiag_5"})
+    study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+    rows = read_tsv(study)
+    target = comparison_generator.selected_cholesky_report_metadata(
+        comparison_generator.TARGETS["cholesky-spd-tridiag-5"]
+    )
+    configuration = comparison_generator.comparison_configuration(target, "hosted_selected")
+    for row in rows:
+        row.update(
+            support_tier="hosted_selected",
+            platform="windows-amd64",
+            compiler="cmake-probe:Visual Studio 17 2022:Release",
+            configuration=configuration,
+            claim_scope=str(target["claim_scope"]),
+            non_claims=str(target["non_claims"]),
+        )
+    rewrite_comparison_study(study, rows)
+    manifest = {
+        "target": "cholesky-spd-tridiag-5",
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "platform": rows[0]["platform"],
+        "compiler": rows[0]["compiler"],
+        "configuration": configuration,
+        "source_commit": rows[0]["source_commit"],
+        "source_branch": rows[0]["source_branch"],
+        "worktree_state": rows[0]["worktree_state"],
+        "generated_at_utc": rows[0]["generated_at_utc"],
+    }
+    with study.with_name("manifest.tsv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["key", "value"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows({"key": key, "value": value} for key, value in manifest.items())
+    study.with_name("summary.md").write_text(
+        str(target["summary_scope"]) + "\nNon-claims: " + str(target["non_claims"]) + "\n",
+        encoding="utf-8",
+    )
+    return study
+
+
+def test_cholesky_hosted_metadata_positive_and_mutations() -> None:
+    mutations = (
+        ("row", "platform", "linux-amd64", "field=platform"),
+        ("row", "compiler", "cmake-probe:default:Release", "field=compiler"),
+        ("row", "support_tier", "local_only", "field=support_tier"),
+        ("row", "configuration", "stage=sprint183_day8_comparison_logic;baseline_status=integrated_and_compared;support_tier=local_only", "field=configuration"),
+        ("row", "claim_scope", "broad Windows Cholesky parity", "field=claim_scope"),
+        ("row", "non_claims", "no release proof", "field=non_claims"),
+        ("manifest", "target", "qr-incompatible-ls", "field=target"),
+        ("manifest", "platform", "linux-amd64", "field=platform"),
+        ("manifest", "compiler", "cmake-probe:default:Release", "field=compiler"),
+        ("manifest", "source_commit", "stale", "field=source_commit"),
+        ("summary", "scope", "broad Windows parity", "field=summary_scope_or_non_claims"),
+        ("summary_non_claim", "non_claims", "no broad Windows report freshness;no package-manager proof", "field=summary_scope_or_non_claims"),
+        ("missing", "manifest.tsv", "", "field=manifest_missing"),
+        ("missing", "summary.md", "", "field=summary_missing"),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        assert "freshness ok" in run_cholesky_selected_freshness(study.parents[2]).stdout
+    for location, field, value, expected in mutations:
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+            if location == "row":
+                rows = read_tsv(study)
+                rows[0][field] = value
+                rewrite_comparison_study(study, rows)
+            elif location == "manifest":
+                manifest_path = study.with_name("manifest.tsv")
+                manifest_rows = read_tsv(manifest_path)
+                for row in manifest_rows:
+                    if row["key"] == field:
+                        row["value"] = value
+                with manifest_path.open("w", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=["key", "value"], delimiter="\t")
+                    writer.writeheader()
+                    writer.writerows(manifest_rows)
+            else:
+                if location == "missing":
+                    study.with_name(field).unlink()
+                elif location == "summary_non_claim":
+                    summary_path = study.with_name("summary.md")
+                    summary_path.write_text(
+                        summary_path.read_text(encoding="utf-8").replace(
+                            "no broad Windows report freshness;no package-manager proof",
+                            "no Windows report freshness;no package-manager proof",
+                        ),
+                        encoding="utf-8",
+                    )
+                else:
+                    study.with_name("summary.md").write_text(value, encoding="utf-8")
+            result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+            assert "comparison_hosted_metadata_mismatch" in result.stderr, result.stderr
+            assert expected in result.stderr, result.stderr
+
+
 def test_selected_comparison_target_freshness_rejects_wrong_target_rows() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         build_root = Path(tmp) / "build"
@@ -2723,6 +2939,11 @@ def main() -> int:
     test_selected_comparison_target_freshness_rejects_windows_path_stale_rows()
     test_qr_incompatible_selected_freshness_rejects_windows_path_stale_rows()
     test_selected_comparison_target_freshness_rejects_cholesky_stale_or_failed()
+    test_cholesky_selected_six_file_contract_rejects_missing_renamed_extra()
+    test_cholesky_selected_study_artifact_path_is_checked_before_normalizing()
+    test_cholesky_selected_missing_and_wrong_target_rows_reject()
+    test_cholesky_hosted_dirty_worktree_row_rejects()
+    test_cholesky_hosted_metadata_positive_and_mutations()
     test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()

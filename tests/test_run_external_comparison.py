@@ -697,6 +697,24 @@ def test_ensure_library_wraps_missing_make_as_comparison_error() -> None:
 
 
 def test_selected_cholesky_hosted_context_is_exact() -> None:
+    for runner_os, system, workflow in (
+        ("Linux", "Linux", "CI"),
+        ("macOS", "Darwin", "macOS CI"),
+    ):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "GITHUB_JOB": "selected-comparison-freshness",
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+                "GITHUB_WORKFLOW": workflow,
+                "RUNNER_OS": runner_os,
+            },
+            clear=True,
+        ), mock.patch.object(runner.platform, "system", return_value=system):
+            assert not runner.selected_cholesky_hosted_tier(
+                REPO_ROOT, "cholesky-spd-tridiag-5"
+            )
     context = {
         "GITHUB_ACTIONS": "true",
         "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
@@ -755,7 +773,11 @@ def test_selected_cholesky_hosted_context_is_exact() -> None:
             assert exc.failure_class == "hosted_context_mismatch"
         else:
             raise AssertionError("wrong push source commit was accepted")
-    with mock.patch.dict(os.environ, {"GITHUB_JOB": "selected-comparison-freshness"}, clear=True):
+    with mock.patch.dict(
+        os.environ,
+        {"GITHUB_JOB": "selected-comparison-freshness", "RUNNER_OS": "Windows"},
+        clear=True,
+    ):
         try:
             runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
         except runner.ComparisonError as exc:

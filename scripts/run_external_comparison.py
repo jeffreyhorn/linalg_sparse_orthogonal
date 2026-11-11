@@ -1099,6 +1099,12 @@ def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
         or os.environ.get("GITHUB_JOB") != "selected-comparison-freshness"
     ):
         return False
+    if (
+        platform.system() != "Windows"
+        and os.environ.get("RUNNER_OS") != "Windows"
+        and os.environ.get("GITHUB_WORKFLOW") != "Windows CI"
+    ):
+        return False
     required = {
         "GITHUB_ACTIONS": "true",
         "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",

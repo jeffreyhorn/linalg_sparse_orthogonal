@@ -133,3 +133,11 @@
 **Checks:** Normalizer, selected manifest, selected comparison workflow, Windows PowerShell structural, comparison generator, corpus schema and API docs workflow policy suites passed; Python compile and `git diff --check` passed. The API docs test used a temporary venv with pinned PyYAML 6.0.3. No C or header file changed. Hosted MSVC run and final-commit artifact audit remain for Days 11–12.
 
 **Failure log:** A first normalizer run exposed legacy contracts without `target_key`. The new guard now uses the established Cholesky subfamily; the full normalizer suite passes.
+
+## Day 11: First hosted candidate recheck (2026-11-10/11 UTC)
+
+**State:** [Day 11 hosted candidate evidence](artifacts/day11-hosted-candidate-recheck.md) preserves the first PR run, whose numeric job passed but whose artifact recorded the pull-request merge SHA and an unknown branch. I fixed the selected job's checkout and generator provenance, pushed candidate `66251f7f65457aae5037c32edcdbef878679e4f3`, and audited successful Windows run `42935352366`, selected job `130243952963`, and downloadable six-file artifact `13816889534`. The ZIP digest, per-file hashes, six passing rows, source SHA/branch, Windows platform, VS 2022 Release generator, bounded claims, and offline selected-target normalization all agree.
+
+**Checks:** Generator, normalizer, selected workflow, selected manifest and Windows PowerShell structural suites passed locally; the hosted selected job and full Windows workflow completed successfully. No C or header file changed. Draft PR #247 supplies the hosted trigger.
+
+**Handoff:** Day 11 proves its candidate commit. This evidence ledger itself changes the branch after that commit, so Day 12 must freeze and rerun the final proposed commit; no old or merge-checkout artifact counts as that proof.

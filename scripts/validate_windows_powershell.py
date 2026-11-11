@@ -225,14 +225,14 @@ CLAIM_BOUNDARY_MARKERS = {
         "Windows Makefile parity",
         "Windows `pkg-config` parity",
         "Sprint 190 adds one guarded Windows hosted",
-        "Acceptance still requires an exact-final-commit hosted",
+        "PR #247 records the exact-head hosted job and audited",
         "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
         "the QR incompatible least-squares target remains\noutside Windows selected freshness",
         "outside the one Sprint 190 Cholesky",
     ),
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation",
-        "candidate: selected metadata and generated wording are aligned",
+        "hosted selected, exact-head evidence recorded in PR #247",
         "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
         "The QR incompatible least-squares target remains outside Windows selected freshness",
         "broad report freshness, selected oracle or benchmark freshness",
@@ -875,7 +875,7 @@ def validate_claim_boundaries(overrides: dict[Path, str] | None = None) -> None:
             WINDOWS_SELECTED_CHOLESKY_CLAIM_SCOPE not in " ".join(text.split())
         ):
             raise ValidationError(
-                f"{rel(path)} missing selected Cholesky candidate claim"
+                f"{rel(path)} missing selected Cholesky claim"
             )
         for marker in markers:
             if marker not in text:

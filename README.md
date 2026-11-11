@@ -383,14 +383,13 @@ diagnostic aid. It does not replace the underlying validation commands or turn
 local benchmark, coverage, dead-code, comparison, or package metadata rows into
 release proof.
 Reviewed Linux and macOS hosted lanes are selected-target evidence only. Sprint
-223 aligns the selected manifest and generator for one bounded Windows Cholesky
-candidate, `cholesky-spd-tridiag-5`. Its proposed claim is: “Selected Cholesky
+223 adds one bounded Windows Cholesky selected-freshness target,
+`cholesky-spd-tridiag-5`. The accepted claim is: “Selected Cholesky
 SPD tridiagonal solve comparison rows are fresh for the named fixture on
 reviewed Linux, macOS, and Windows hosted lanes against the selected
-source-controlled dense Cholesky reference helper.” This remains a candidate
-until the final Sprint 223 commit has a successful selected Windows job and an
-audited six-file artifact with matching provenance; the earlier Sprint 208
-hosted evidence cannot establish freshness for the new commit. Sprint 209
+source-controlled dense Cholesky reference helper.” The exact-head Windows
+run, job, and audited six-file artifact are recorded in Sprint 223's PR #247
+evidence ledger. Any later commit requires a fresh exact-head audit. Sprint 209
 adds one bounded Windows QR incompatible evidence-collection lane for
 `qr-incompatible-ls`, but the selected target manifest remains Linux/macOS-only
 and `local_only` until a hosted Windows run and exact QR artifact inspection
@@ -838,14 +837,14 @@ workflow path for `cholesky-spd-tridiag-5` using the target-specific freshness
 command `python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target cholesky-spd-tridiag-5` and artifact
 `sprint190-windows-selected-comparison-cholesky`. Sprint 208 reviewed the
 latest hosted evidence for that exact path and added Cholesky-specific manifest,
-workflow/PowerShell, and normalizer guards. Sprint 223 now aligns the selected
-manifest, generated support tier and non-claim wording as a candidate for that
-one target. The candidate claim is: “Selected Cholesky SPD tridiagonal solve
+workflow/PowerShell, and normalizer guards. Sprint 223 aligns the selected
+manifest, generated support tier and non-claim wording for that one target.
+The accepted claim is: “Selected Cholesky SPD tridiagonal solve
 comparison rows are fresh for the named fixture on reviewed Linux, macOS, and
 Windows hosted lanes against the selected source-controlled dense Cholesky
-reference helper.” Acceptance still requires an exact-final-commit hosted
-selected job and audited six-file artifact; the older hosted run is intake
-evidence only.
+reference helper.” PR #247 records the exact-head hosted job and audited
+six-file artifact; a new commit requires a new audit. The older Sprint 208
+run remains intake evidence only.
 Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane
 for `qr-incompatible-ls`, but the QR incompatible least-squares target remains
 outside Windows selected freshness until hosted MSVC probe evidence, selected

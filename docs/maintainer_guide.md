@@ -101,7 +101,7 @@ deciding which focused gate applies to a change.
 | Evidence family | Current owner surfaces | Primary gates or proof commands | Residual interpretation |
 | --- | --- | --- | --- |
 | Package/Homebrew proof | `INSTALL.md`, `packaging/homebrew/README.md`, `scripts/homebrew_local_formula_proof.sh`, package guard scripts, Sprint 188 artifacts, Sprint 198 artifacts, Sprint 207 artifacts | `HOMEBREW_DEVELOPER=1 SPARSE_HOMEBREW_LICENSE=MIT bash scripts/homebrew_local_formula_proof.sh`, `bash scripts/package_manager_deferral_check.sh`, `bash scripts/static_package_deferral_check.sh`, `bash tests/test_install.sh`, `bash tests/test_cmake_install.sh` | Sprint 198 completed the selected developer-mode local Homebrew static source formula proof on macOS Intel x86_64 Tier 3 Homebrew. Sprint 207 keeps package-provider promotion deferred with stronger guards. Treat the Homebrew result as local proof only; broad package-manager support, Homebrew/core readiness, bottles, Linuxbrew, public tap maintenance, binary package distribution, release packages, and package-manager release readiness remain unclaimed. |
-| Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190, 199, 208-209, and 223 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 223 aligns one selected Cholesky Windows candidate, pending an exact-final-commit selected job and six-file artifact audit. The bounded QR lane remains evidence collection; its selected freshness is re-deferred. |
+| Windows/PowerShell ownership | `.github/workflows/windows-ci.yml`, `scripts/validate_windows_powershell.py`, selected target manifest, README/INSTALL claim markers, Sprint 189-190, 199, 208-209, and 223 artifacts | `make windows-powershell-guard`, `make windows-powershell-validate`, hosted Windows `--require-pwsh` job | Local missing `pwsh` is environment residual evidence; it is not a pass. Sprint 223's one selected Cholesky Windows target has exact-head job and six-file artifact evidence recorded in PR #247; any later commit requires a new audit. The bounded QR lane remains evidence collection; its selected freshness is re-deferred. |
 | Selected comparison freshness | `tests/corpus/manifests/selected_report_targets.tsv`, `tests/corpus/README.md`, `scripts/run_external_comparison.py`, `scripts/normalize_report_index.py`, comparison tests, Sprint 191 artifacts, Sprint 203 artifacts, Sprint 209 artifacts | `make report-index-comparison-freshness`, `python3 tests/test_selected_report_targets_manifest.py`, `python3 tests/test_run_external_comparison.py`, `python3 tests/test_normalize_report_index.py` | Claims stay selected-target and fixture scoped; optional package baselines remain deferred. Sprint 203 closed local QR incompatible proof and guards while re-deferring hosted Windows/MSVC QR promotion. Sprint 209 keeps the QR manifest Linux/macOS-only and `local_only` while adding guarded Windows workflow and artifact-inspection coverage for future evidence collection. |
 | Selected performance evidence | `benchmarks/README.md`, selected target manifest, `scripts/check_bench_canonical_freshness.py`, benchmark workflows, Sprint 192 artifacts, Sprint 202 artifacts | `make bench-canonical-report-freshness`, `python3 tests/test_selected_performance_docs.py`, `python3 tests/test_bench_canonical_freshness.py` | The Linux/macOS hosted selected lanes are threshold-free methodology evidence for one row, not portable speed, timing-threshold, platform-parity, release, or state-of-the-art evidence. |
 | Review-surface reduction | `tests/test_qr.c`, `tests/test_qr_external_ref_helpers.h`, `scripts/check_qr_external_ref_helper_guard.sh`, Sprint 193 artifacts; `tests/test_svd.c`, `tests/test_svd_helpers.h`, `tests/test_svd_selected_helpers.h`, `scripts/check_svd_helper_guard.sh`, `tests/test_svd_helper_guard.py`, Sprint 201 artifacts | `make qr-external-ref-helper-guard`, `python3 tests/test_qr_external_ref_helper_guard.py`, `make svd-helper-guard`, `python3 tests/test_svd_helper_guard.py`, focused proof-owner binaries, full C gate after header/test changes | One selected QR external-reference cluster and one selected SVD rank/pseudoinverse/dense-low-rank cluster were moved. The SVD selected bodies live in a proof-owner-only selected helper, while shared fixtures stay in the shared SVD helper. Other large surfaces and broad review-surface cleanup remain future work. |
@@ -749,12 +749,12 @@ path for `cholesky-spd-tridiag-5` with the target-specific freshness command
 artifact `sprint190-windows-selected-comparison-cholesky`. Sprint 208 reviewed
 current hosted evidence for that exact path and strengthened selected Cholesky
 manifest, workflow/PowerShell, and normalizer guards. Sprint 223 aligns the
-selected manifest and generator as a candidate. The proposed claim is:
+selected manifest and generator. The accepted claim is:
 “Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the
 named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
-selected source-controlled dense Cholesky reference helper.” Treat it as
-unaccepted until the final Sprint 223 commit has a successful selected Windows
-job and an audited six-file artifact. Sprint 209
+selected source-controlled dense Cholesky reference helper.” PR #247 records
+the exact-head selected Windows job and audited six-file artifact; a later
+commit requires a new audit. Sprint 209
 adds one bounded Windows QR incompatible evidence-collection lane for
 `qr-incompatible-ls`; keep it in the same category until hosted run evidence,
 exact QR artifact inspection, selected-target manifest metadata, generated
@@ -2277,8 +2277,8 @@ selected comparison gate and their uploaded selected artifacts. Sprint 190 adds
 one bounded Windows hosted workflow path for `cholesky-spd-tridiag-5`; Sprint
 208 reviewed current hosted evidence for that exact path and strengthened
 manifest, workflow/PowerShell, and normalizer guards. Sprint 223 aligns the
-selected Cholesky manifest and generator as a candidate; its exact-final-commit
-selected job and six-file artifact audit remain required before acceptance.
+selected Cholesky manifest and generator; PR #247 records the exact-head
+selected job and six-file artifact audit. Any later commit requires a new audit.
 Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane
 for `qr-incompatible-ls`, but the selected target manifest still omits Windows
 metadata and retains `local_only` support. It does not

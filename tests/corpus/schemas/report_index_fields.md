@@ -72,12 +72,12 @@ reference the manifest instead of copying a second authoritative target list.
 The selected-target manifest records positive selected workflow platforms. It
 does not use fake selected rows to represent deferrals. Sprint 223 adds
 `windows` only to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`, with aligned workflow,
-job and artifact entries and `hosted_selected` support. The proposed claim is:
+job and artifact entries and `hosted_selected` support. The accepted claim is:
 “Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the
 named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
-selected source-controlled dense Cholesky reference helper.” This remains a
-candidate until the final-commit selected Windows job and six-file artifact
-are audited. The Sprint 182 deferral remains active for all other
+selected source-controlled dense Cholesky reference helper.” PR #247 records
+the exact-head selected Windows job and six-file artifact audit; any later
+commit requires a new audit. The Sprint 182 deferral remains active for all other
 Windows report freshness. Sprint 209 adds one bounded Windows QR incompatible
 evidence-collection lane for `qr-incompatible-ls`, but the QR incompatible row
 remains Linux/macOS-only and `local_only` until hosted run evidence, exact
@@ -172,7 +172,7 @@ The generated rows are local fixture evidence by default. The reviewed Linux
 hosted report-freshness lane promotes only this selected comparison gate and
 its uploaded selected artifacts after hosted CI passes. The reviewed macOS
 hosted lane mirrors the selected comparison gate for the manifest-selected
-comparison families. Sprint 223's one-target Windows Cholesky candidate uses
+comparison families. Sprint 223's one-target Windows Cholesky selection uses
 the Sprint 190 bounded workflow path; it is not broad Windows report freshness. These
 lanes are not broad QR, broad least-squares, LU, nonsymmetric solve, Cholesky,
 SPD, SVD, or partial-SVD correctness; LU CSR parity; Cholesky reordering

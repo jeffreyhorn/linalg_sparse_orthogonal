@@ -404,7 +404,7 @@ def test_candidate_claim_drift_fails_clearly() -> None:
     )
     assert_raises_with(
         lambda: validator.validate_claim_boundaries({path: text}),
-        "README.md missing selected Cholesky candidate claim",
+        "README.md missing selected Cholesky claim",
     )
 
 

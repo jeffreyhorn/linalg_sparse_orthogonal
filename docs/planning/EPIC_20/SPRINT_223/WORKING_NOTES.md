@@ -153,3 +153,11 @@
 **State:** The [Day 13 gate ledger](artifacts/day13-hosted-closeout-and-local-gates.md) confirms Day 12 artifact accessibility and six per-file hashes, records the complete affected local check transcript, and drafts the exact bounded sign-off sentence with non-claims. It does not approve the claim. Publishing these notes changes the branch head, so a fresh hosted audit must follow.
 
 **Checks:** Selected manifest, comparison workflow, normalizer, generator, Windows PowerShell structural and corpus schema suites passed. `make report-index-comparison-freshness` passed with 46 fresh rows, `make docs-check` passed with 18 public header pages, and `git diff --check` was clean. Local Cholesky output remained `local_only`. No C or header file changed.
+
+## Day 14: Exact-scope sign-off gate (2026-11-11 UTC)
+
+**State:** The [Day 14 decision ledger](artifacts/day14-exact-scope-decision.md) reapplies all thirteen promotion criteria, records the planned 140-hour scope, failure corrections, residual queue and Sprint 224 handoff. The exact Cholesky sentence is the only approvable claim. The final decision is conditional on a new successful exact-head hosted run and audited six-file artifact after this ledger is committed; the reviewer-visible PR #247 description will carry that final run identity. Any later commit stales the proof.
+
+**Failure log:** A macOS selected comparison job on the Day 13 head failed because it shared the Windows selected job key. The generator now treats genuine Linux/macOS contexts as local-only while keeping Windows context strict; targeted local tests and the subsequent macOS selected job passed. The older failed run remains historical, not pass evidence.
+
+**Checks:** Selected manifest, workflow, generator, normalizer, Windows structural and corpus schema suites passed. `make report-index-comparison-freshness`, `make docs-check`, Python compile and `git diff --check` passed. No C or header file changed. Public wording now uses the exact narrow selected-manifest sentence with explicit broad exclusions.

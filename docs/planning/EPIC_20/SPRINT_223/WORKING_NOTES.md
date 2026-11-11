@@ -141,3 +141,15 @@
 **Checks:** Generator, normalizer, selected workflow, selected manifest and Windows PowerShell structural suites passed locally; the hosted selected job and full Windows workflow completed successfully. No C or header file changed. Draft PR #247 supplies the hosted trigger.
 
 **Handoff:** Day 11 proves its candidate commit. This evidence ledger itself changes the branch after that commit, so Day 12 must freeze and rerun the final proposed commit; no old or merge-checkout artifact counts as that proof.
+
+## Day 12: Final proposed commit recheck (2026-11-11 UTC)
+
+**State:** The reviewer-visible [PR #247 Day 12 evidence ledger](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/247) records successful Windows run `42935926249`, selected job `130245874636`, artifact `13819095161`, and ZIP digest `sha256:88cb511e8f15a6c2030b178750d0002b477f4a97c69ac212d33615873770ed95` for clean head `a312443def9fbb0bea864f3276b8ac0e6940b6bf`. The six-file, six-row, platform, compiler, claim, observation and offline normalizer audit passed. Day 12 left the branch unchanged to keep proof exact.
+
+**Handoff:** Any subsequent commit makes that artifact historical. Recheck the new head before final sign-off.
+
+## Day 13: Hosted closeout and local gates (2026-11-11 UTC)
+
+**State:** The [Day 13 gate ledger](artifacts/day13-hosted-closeout-and-local-gates.md) confirms Day 12 artifact accessibility and six per-file hashes, records the complete affected local check transcript, and drafts the exact bounded sign-off sentence with non-claims. It does not approve the claim. Publishing these notes changes the branch head, so a fresh hosted audit must follow.
+
+**Checks:** Selected manifest, comparison workflow, normalizer, generator, Windows PowerShell structural and corpus schema suites passed. `make report-index-comparison-freshness` passed with 46 fresh rows, `make docs-check` passed with 18 public header pages, and `git diff --check` was clean. Local Cholesky output remained `local_only`. No C or header file changed.

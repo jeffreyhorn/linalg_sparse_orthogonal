@@ -776,6 +776,9 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             )
         checks = {
             "support_tier": row.get("support_tier") == "hosted_selected",
+            "source_commit": bool(
+                re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", row.get("source_commit", ""))
+            ),
             "platform": row.get("platform") == "windows-amd64",
             "compiler": row.get("compiler") == expected_compiler,
             "configuration": row.get("configuration") == expected_configuration,
@@ -811,13 +814,16 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
         "platform": "windows-amd64",
         "compiler": expected_compiler,
         "configuration": expected_configuration,
+        "baseline_command": rows[0].get("baseline_command", ""),
+        "project_probe_command": rows[0].get("project_command", ""),
     }
     first = rows[0]
     for field in ("source_commit", "source_branch", "worktree_state", "generated_at_utc"):
         expected_manifest[field] = first.get(field, "")
     for field, expected in expected_manifest.items():
+        row_field = "project_command" if field == "project_probe_command" else field
         if not expected or manifest.get(field) != expected or any(
-            row.get(field) != expected for row in rows if field in row
+            row.get(row_field) != expected for row in rows if field != "target"
         ):
             raise ReportIndexError(
                 f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
@@ -842,6 +848,25 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             f"{summary_path}: comparison_hosted_metadata_mismatch: "
             "field=summary_scope_or_non_claims"
         )
+    summary_provenance = {
+        "Target": manifest["target"],
+        "Fixture": manifest["fixture_key"],
+        "Source commit": manifest["source_commit"],
+        "Source branch": manifest["source_branch"],
+        "Worktree state": manifest["worktree_state"],
+        "Platform": manifest["platform"],
+        "Compiler": manifest["compiler"],
+        "Baseline command": manifest["baseline_command"],
+        "Project command": manifest["project_probe_command"],
+    }
+    for label, expected in summary_provenance.items():
+        if [line for line in summary_lines if line.startswith(f"- {label}:")] != [
+            f"- {label}: `{expected}`"
+        ]:
+            raise ReportIndexError(
+                f"{summary_path}: comparison_hosted_metadata_mismatch: "
+                f"field=summary_{label.lower().replace(' ', '_')}"
+            )
 
 
 def comparison_generated_rows(

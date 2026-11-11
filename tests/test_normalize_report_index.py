@@ -2340,6 +2340,8 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
         "platform": rows[0]["platform"],
         "compiler": rows[0]["compiler"],
         "configuration": configuration,
+        "baseline_command": rows[0]["baseline_command"],
+        "project_probe_command": rows[0]["project_command"],
         "source_commit": rows[0]["source_commit"],
         "source_branch": rows[0]["source_branch"],
         "worktree_state": rows[0]["worktree_state"],
@@ -2350,7 +2352,23 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
         writer.writeheader()
         writer.writerows({"key": key, "value": value} for key, value in manifest.items())
     study.with_name("summary.md").write_text(
-        str(target["summary_scope"]) + "\nNon-claims: " + str(target["non_claims"]) + "\n",
+        "\n".join(
+            [
+                str(target["summary_scope"]),
+                "Non-claims: " + str(target["non_claims"]),
+                "## Provenance",
+                f"- Target: `{manifest['target']}`",
+                f"- Fixture: `{manifest['fixture_key']}`",
+                f"- Source commit: `{manifest['source_commit']}`",
+                f"- Source branch: `{manifest['source_branch']}`",
+                f"- Worktree state: `{manifest['worktree_state']}`",
+                f"- Platform: `{manifest['platform']}`",
+                f"- Compiler: `{manifest['compiler']}`",
+                f"- Baseline command: `{manifest['baseline_command']}`",
+                f"- Project command: `{manifest['project_probe_command']}`",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     return study
@@ -2447,6 +2465,61 @@ def test_cholesky_hosted_bundle_rejects_header_only_study() -> None:
         assert "comparison_hosted_metadata_mismatch" in result.stderr
         assert "field=study_rows_missing" in result.stderr
         assert "IndexError" not in result.stderr
+
+
+def test_cholesky_hosted_bundle_rejects_sentinel_source_commit() -> None:
+    for sentinel in ("unknown", "not_applicable"):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+            rows = read_tsv(study)
+            original_commit = rows[0]["source_commit"]
+            for row in rows:
+                row["source_commit"] = sentinel
+            rewrite_comparison_study(study, rows)
+            manifest = study.with_name("manifest.tsv")
+            manifest.write_text(
+                manifest.read_text(encoding="utf-8").replace(original_commit, sentinel),
+                encoding="utf-8",
+            )
+            summary = study.with_name("summary.md")
+            summary.write_text(
+                summary.read_text(encoding="utf-8").replace(original_commit, sentinel),
+                encoding="utf-8",
+            )
+            result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+            assert "comparison_hosted_metadata_mismatch" in result.stderr
+            assert "field=source_commit" in result.stderr
+
+
+def test_cholesky_hosted_bundle_rejects_missing_shared_column() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        rows = read_tsv(study)
+        columns = [column for column in COMPARISON_STUDY_FIELDS if column != "fixture_key"]
+        with study.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
+            writer.writeheader()
+            writer.writerows({column: row[column] for column in columns} for row in rows)
+        result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+        assert "comparison_hosted_metadata_mismatch" in result.stderr
+        assert "field=fixture_key" in result.stderr
+
+
+def test_cholesky_hosted_bundle_rejects_stale_summary_provenance() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        source_commit = read_tsv(study)[0]["source_commit"]
+        summary = study.with_name("summary.md")
+        summary.write_text(
+            summary.read_text(encoding="utf-8").replace(
+                f"- Source commit: `{source_commit}`",
+                f"- Source commit: `{'0' * 40}`",
+            ),
+            encoding="utf-8",
+        )
+        result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+        assert "comparison_hosted_metadata_mismatch" in result.stderr
+        assert "field=summary_source_commit" in result.stderr
 
 
 def test_selected_comparison_target_freshness_rejects_wrong_target_rows() -> None:
@@ -3049,6 +3122,9 @@ def main() -> int:
     test_cholesky_hosted_metadata_positive_and_mutations()
     test_cholesky_hosted_bundle_rejects_all_rows_downgraded()
     test_cholesky_hosted_bundle_rejects_header_only_study()
+    test_cholesky_hosted_bundle_rejects_sentinel_source_commit()
+    test_cholesky_hosted_bundle_rejects_missing_shared_column()
+    test_cholesky_hosted_bundle_rejects_stale_summary_provenance()
     test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()

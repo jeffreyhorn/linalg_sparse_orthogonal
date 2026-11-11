@@ -740,6 +740,10 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
     ) or "support_tier=hosted_selected" in manifest_text or "selected Windows hosted study" in summary_text
     if not hosted:
         return
+    if not rows:
+        raise ReportIndexError(
+            f"{path}: comparison_hosted_metadata_mismatch: field=study_rows_missing"
+        )
 
     expected_claim = (
         "fixture-local Cholesky SPD tridiagonal solve comparison "
@@ -872,6 +876,7 @@ def comparison_generated_rows(
                 and not comparison_artifact_path_matches(
                     comparison.get("artifact_path", ""), contract["artifact_pattern"], path
                 )
+                and comparison.get("artifact_path", "").replace("\\", "/") != artifact
             ):
                 raise ReportIndexError(
                     f"{path}: comparison_artifact_path_mismatch: "

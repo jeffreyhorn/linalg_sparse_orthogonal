@@ -2253,6 +2253,31 @@ def test_cholesky_custom_output_path_matches_discovered_file() -> None:
         assert "comparison_artifact_path_mismatch" in result.stderr
 
 
+def test_cholesky_in_tree_custom_output_path_matches_discovered_file() -> None:
+    with tempfile.TemporaryDirectory(dir=REPO_ROOT) as tmp:
+        build_root = Path(tmp) / "reports"
+        write_selected_comparison_rows(
+            build_root, only_subfamilies={"cholesky_spd_tridiag_5"}
+        )
+        study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+        recorded = study.resolve().relative_to(REPO_ROOT).as_posix()
+        rows = read_tsv(study)
+        for row in rows:
+            row["artifact_path"] = recorded
+        rewrite_comparison_study(study, rows)
+        result = run_command(
+            ["python3", str(SCRIPT), "--build-root", str(build_root),
+             "--family", "comparison", "--check"]
+        )
+        assert result.returncode == 0
+        assert "freshness ok" in run_cholesky_selected_freshness(build_root).stdout
+
+        rows[0]["artifact_path"] = recorded + ".bak"
+        rewrite_comparison_study(study, rows)
+        result = run_cholesky_selected_freshness(build_root, expect_success=False)
+        assert "comparison_artifact_path_mismatch" in result.stderr
+
+
 def test_cholesky_selected_missing_and_wrong_target_rows_reject() -> None:
     for mutation in ("missing", "wrong_target"):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2412,6 +2437,16 @@ def test_cholesky_hosted_bundle_rejects_all_rows_downgraded() -> None:
             result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
             assert "comparison_hosted_metadata_mismatch" in result.stderr
             assert "field=support_tier" in result.stderr
+
+
+def test_cholesky_hosted_bundle_rejects_header_only_study() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        rewrite_comparison_study(study, [])
+        result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+        assert "comparison_hosted_metadata_mismatch" in result.stderr
+        assert "field=study_rows_missing" in result.stderr
+        assert "IndexError" not in result.stderr
 
 
 def test_selected_comparison_target_freshness_rejects_wrong_target_rows() -> None:
@@ -3008,10 +3043,12 @@ def main() -> int:
     test_cholesky_selected_six_file_contract_rejects_missing_renamed_extra()
     test_cholesky_selected_study_artifact_path_is_checked_before_normalizing()
     test_cholesky_custom_output_path_matches_discovered_file()
+    test_cholesky_in_tree_custom_output_path_matches_discovered_file()
     test_cholesky_selected_missing_and_wrong_target_rows_reject()
     test_cholesky_hosted_dirty_worktree_row_rejects()
     test_cholesky_hosted_metadata_positive_and_mutations()
     test_cholesky_hosted_bundle_rejects_all_rows_downgraded()
+    test_cholesky_hosted_bundle_rejects_header_only_study()
     test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()
     test_qr_incompatible_selected_freshness_rejects_duplicate_windows_path_rows()

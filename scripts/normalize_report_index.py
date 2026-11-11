@@ -714,20 +714,30 @@ def oracle_generated_rows(
     return rows
 
 
-def comparison_artifact_path_matches(recorded: str, expected: str) -> bool:
+def comparison_artifact_path_matches(
+    recorded: str, expected: str, physical_path: Path | None = None
+) -> bool:
     normalized = recorded.replace("\\", "/")
-    return normalized == expected or normalized.endswith(f"/{expected}")
+    return (
+        normalized == expected
+        or normalized.endswith(f"/{expected}")
+        or (physical_path is not None and normalized == physical_path.resolve().as_posix())
+    )
 
 
 def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) -> None:
     """Reject contradictory selected Windows proof before normalizing study rows."""
+    manifest_path = path.with_name("manifest.tsv")
+    summary_path = path.with_name("summary.md")
+    manifest_text = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else ""
+    summary_text = summary_path.read_text(encoding="utf-8") if summary_path.is_file() else ""
     hosted = any(
         row.get("support_tier") == "hosted_selected"
         or "support_tier=hosted_selected" in row.get("configuration", "")
         or "selected Windows hosted lane" in row.get("claim_scope", "")
         or "no broad Windows report freshness" in row.get("non_claims", "")
         for row in rows
-    )
+    ) or "support_tier=hosted_selected" in manifest_text or "selected Windows hosted study" in summary_text
     if not hosted:
         return
 
@@ -777,7 +787,6 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
                     f"row_id={row_id}; field={field}; value={row.get(field, '')}"
                 )
 
-    manifest_path = path.with_name("manifest.tsv")
     if not manifest_path.is_file():
         raise ReportIndexError(
             f"{manifest_path}: comparison_hosted_metadata_mismatch: field=manifest_missing"
@@ -810,7 +819,6 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
                 f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
             )
 
-    summary_path = path.with_name("summary.md")
     if not summary_path.is_file():
         raise ReportIndexError(
             f"{summary_path}: comparison_hosted_metadata_mismatch: field=summary_missing"
@@ -838,16 +846,18 @@ def comparison_generated_rows(
     repo_root: Path,
     commit: str,
     branch: str,
+    validate_cholesky: bool = True,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
         comparisons = read_tsv(path)
-        if contract["subfamily"] == "cholesky_spd_tridiag_5":
+        if contract["subfamily"] == "cholesky_spd_tridiag_5" and validate_cholesky:
             validate_cholesky_hosted_metadata(path, comparisons)
         for comparison in comparisons:
             if (
                 contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and validate_cholesky
                 and comparison.get("support_tier") == "hosted_selected"
                 and comparison.get("worktree_state") != "clean"
             ):
@@ -858,8 +868,9 @@ def comparison_generated_rows(
                 )
             if (
                 contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and validate_cholesky
                 and not comparison_artifact_path_matches(
-                    comparison.get("artifact_path", ""), contract["artifact_pattern"]
+                    comparison.get("artifact_path", ""), contract["artifact_pattern"], path
                 )
             ):
                 raise ReportIndexError(
@@ -1352,6 +1363,7 @@ def emit_rows(
     include_generated: bool,
     commit: str,
     branch: str,
+    selected_comparison_subfamilies_filter: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for contract in contracts:
@@ -1383,7 +1395,11 @@ def emit_rows(
                 rows.append(not_generated_row(contract, commit, branch))
             else:
                 comparison_rows = comparison_generated_rows(
-                    contract, build_root, repo_root, commit, branch
+                    contract, build_root, repo_root, commit, branch,
+                    validate_cholesky=(
+                        selected_comparison_subfamilies_filter is None
+                        or contract["subfamily"] in selected_comparison_subfamilies_filter
+                    ),
                 )
                 if comparison_rows:
                     rows.extend(comparison_rows)
@@ -1655,7 +1671,16 @@ def selected_comparison_policy_diagnostics(
     selected_artifacts = set(
         selected_comparison_artifacts(selected_targets, selected_target_keys)
     )
-    comparison_rows = selected_comparison_generated_rows(rows, selected_artifacts)
+    if selected_target_keys:
+        selected_subfamilies = selected_comparison_subfamilies(
+            selected_targets, selected_target_keys
+        )
+        comparison_rows = [
+            row for row in selected_comparison_generated_rows(rows)
+            if row["subfamily"] in selected_subfamilies
+        ]
+    else:
+        comparison_rows = selected_comparison_generated_rows(rows, selected_artifacts)
     diagnostics: list[str] = []
     has_error = False
     expected_row_ids = selected_comparison_row_ids(selected_targets, selected_target_keys)
@@ -1970,6 +1995,19 @@ def main() -> int:
 
     commit = source_commit()
     branch = source_branch()
+    selected_target_keys = set(args.selected_target)
+    required_families = set(args.require_generated)
+    selected_policy_families = {"oracle", "comparison"}
+    requested_families = set(args.family)
+    needs_selected_targets = args.check_freshness and (
+        args.strict_generated
+        or bool(required_families & selected_policy_families)
+        or bool(requested_families & selected_policy_families)
+        or bool(selected_target_keys)
+    )
+    selected_targets = (
+        selected_report_targets(args.corpus_root) if needs_selected_targets else []
+    )
     rows = emit_rows(
         contracts,
         corpus_root=args.corpus_root,
@@ -1978,23 +2016,14 @@ def main() -> int:
         include_generated=args.include_generated,
         commit=commit,
         branch=branch,
+        selected_comparison_subfamilies_filter=(
+            selected_comparison_subfamilies(selected_targets, selected_target_keys)
+            if selected_target_keys else None
+        ),
     )
     validate_unique_row_ids(rows)
 
-    required_families = set(args.require_generated)
     if args.check_freshness:
-        selected_target_keys = set(args.selected_target)
-        selected_policy_families = {"oracle", "comparison"}
-        requested_families = set(args.family)
-        needs_selected_targets = (
-            args.strict_generated
-            or bool(required_families & selected_policy_families)
-            or bool(requested_families & selected_policy_families)
-            or bool(selected_target_keys)
-        )
-        selected_targets = (
-            selected_report_targets(args.corpus_root) if needs_selected_targets else []
-        )
         diagnostics, has_error = freshness_diagnostics(
             rows,
             build_root=args.build_root,

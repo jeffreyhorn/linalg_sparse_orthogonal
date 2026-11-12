@@ -2327,6 +2327,9 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
     for row in rows:
         row.update(
             support_tier="hosted_selected",
+            baseline_name="source-controlled-dense-cholesky-reference",
+            baseline_type="external-process-source-controlled-helper",
+            baseline_version="chol_external_dense_reference.py",
             platform="windows-amd64",
             compiler="cmake-probe:Visual Studio 17 2022:Release",
             configuration=configuration,
@@ -2340,7 +2343,14 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
         "platform": rows[0]["platform"],
         "compiler": rows[0]["compiler"],
         "configuration": configuration,
+        "baseline_name": rows[0]["baseline_name"],
+        "baseline_type": rows[0]["baseline_type"],
+        "baseline_version": rows[0]["baseline_version"],
+        "baseline_helper_path": "tests/chol_external_dense_reference.py",
+        "baseline_python_executable": rows[0]["baseline_python_executable"],
+        "baseline_python_version": rows[0]["baseline_python_version"],
         "baseline_command": rows[0]["baseline_command"],
+        "project_version": rows[0]["project_version"],
         "project_probe_command": rows[0]["project_command"],
         "source_commit": rows[0]["source_commit"],
         "source_branch": rows[0]["source_branch"],
@@ -2383,10 +2393,15 @@ def test_cholesky_hosted_metadata_positive_and_mutations() -> None:
         ("row", "configuration", "stage=sprint183_day8_comparison_logic;baseline_status=integrated_and_compared;support_tier=local_only", "field=configuration"),
         ("row", "claim_scope", "broad Windows Cholesky parity", "field=claim_scope"),
         ("row", "non_claims", "no release proof", "field=non_claims"),
+        ("row", "baseline_type", "other-baseline", "field=baseline_type"),
+        ("row", "baseline_python_version", "other-python", "field=baseline_python_version"),
         ("manifest", "target", "qr-incompatible-ls", "field=target"),
         ("manifest", "platform", "linux-amd64", "field=platform"),
         ("manifest", "compiler", "cmake-probe:default:Release", "field=compiler"),
         ("manifest", "source_commit", "stale", "field=source_commit"),
+        ("manifest", "baseline_name", "other-baseline", "field=baseline_name"),
+        ("manifest", "baseline_python_executable", "other-python", "field=baseline_python_executable"),
+        ("manifest", "baseline_helper_path", "other-helper.py", "field=baseline_helper_path"),
         ("summary", "scope", "broad Windows parity", "field=summary_scope_or_non_claims"),
         ("summary_non_claim", "non_claims", "no broad Windows report freshness;no package-manager proof", "field=summary_scope_or_non_claims"),
         ("missing", "manifest.tsv", "", "field=manifest_missing"),
@@ -2503,6 +2518,47 @@ def test_cholesky_hosted_bundle_rejects_missing_shared_column() -> None:
         result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
         assert "comparison_hosted_metadata_mismatch" in result.stderr
         assert "field=fixture_key" in result.stderr
+
+
+def test_cholesky_hosted_bundle_rejects_missing_baseline_provenance() -> None:
+    for field in ("baseline_name", "baseline_version", "baseline_python_executable"):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+            rows = read_tsv(study)
+            columns = [column for column in COMPARISON_STUDY_FIELDS if column != field]
+            with study.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
+                writer.writeheader()
+                writer.writerows({column: row[column] for column in columns} for row in rows)
+            result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+            assert f"field={field}" in result.stderr
+
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+            manifest = study.with_name("manifest.tsv")
+            manifest_rows = [row for row in read_tsv(manifest) if row["key"] != field]
+            with manifest.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["key", "value"], delimiter="\t")
+                writer.writeheader()
+                writer.writerows(manifest_rows)
+            result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+            assert f"field={field}" in result.stderr
+
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        rows = read_tsv(study)
+        for row in rows:
+            row["baseline_name"] = "other-baseline"
+        rewrite_comparison_study(study, rows)
+        manifest = study.with_name("manifest.tsv")
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace(
+                "source-controlled-dense-cholesky-reference", "other-baseline"
+            ),
+            encoding="utf-8",
+        )
+        result = run_cholesky_selected_freshness(study.parents[2], expect_success=False)
+        assert "field=baseline_name" in result.stderr
 
 
 def test_cholesky_hosted_bundle_rejects_stale_summary_provenance() -> None:
@@ -3124,6 +3180,7 @@ def main() -> int:
     test_cholesky_hosted_bundle_rejects_header_only_study()
     test_cholesky_hosted_bundle_rejects_sentinel_source_commit()
     test_cholesky_hosted_bundle_rejects_missing_shared_column()
+    test_cholesky_hosted_bundle_rejects_missing_baseline_provenance()
     test_cholesky_hosted_bundle_rejects_stale_summary_provenance()
     test_selected_comparison_target_freshness_rejects_wrong_target_rows()
     test_qr_incompatible_selected_freshness_rejects_dependency_only_rows()

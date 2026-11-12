@@ -814,7 +814,13 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
         "platform": "windows-amd64",
         "compiler": expected_compiler,
         "configuration": expected_configuration,
+        "baseline_name": "source-controlled-dense-cholesky-reference",
+        "baseline_type": "external-process-source-controlled-helper",
+        "baseline_version": "chol_external_dense_reference.py",
+        "baseline_python_executable": rows[0].get("baseline_python_executable", ""),
+        "baseline_python_version": rows[0].get("baseline_python_version", ""),
         "baseline_command": rows[0].get("baseline_command", ""),
+        "project_version": rows[0].get("project_version", ""),
         "project_probe_command": rows[0].get("project_command", ""),
     }
     first = rows[0]
@@ -822,12 +828,19 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
         expected_manifest[field] = first.get(field, "")
     for field, expected in expected_manifest.items():
         row_field = "project_command" if field == "project_probe_command" else field
-        if not expected or manifest.get(field) != expected or any(
+        if expected in {"", "unknown", "not_applicable"} or manifest.get(field) != expected or any(
             row.get(row_field) != expected for row in rows if field != "target"
         ):
             raise ReportIndexError(
                 f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
             )
+    if manifest.get("baseline_helper_path", "").replace("\\", "/") != (
+        "tests/chol_external_dense_reference.py"
+    ):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: "
+            "field=baseline_helper_path"
+        )
 
     if not summary_path.is_file():
         raise ReportIndexError(

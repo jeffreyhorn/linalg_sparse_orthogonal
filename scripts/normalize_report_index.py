@@ -158,7 +158,7 @@ class ReportIndexError(RuntimeError):
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="") as handle:
+    with path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle, delimiter="\t"))
     if not rows:
         raise ReportIndexError(f"{path}: empty TSV")

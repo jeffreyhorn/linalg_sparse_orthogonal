@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import shutil
 import subprocess
 import sys
@@ -2446,6 +2447,35 @@ def test_cholesky_hosted_metadata_positive_and_mutations() -> None:
             assert expected in result.stderr, result.stderr
 
 
+def test_cholesky_hosted_non_ascii_branch_uses_utf8_tsv() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_cholesky_fixture(Path(tmp) / "build")
+        rows = read_tsv(study)
+        original_branch = rows[0]["source_branch"]
+        branch = "feature/épreuve"
+        for row in rows:
+            row["source_branch"] = branch
+        rewrite_comparison_study(study, rows)
+        for name in ("manifest.tsv", "summary.md"):
+            path = study.with_name(name)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(original_branch, branch),
+                encoding="utf-8",
+            )
+        env = os.environ.copy()
+        env.update(LC_ALL="C", PYTHONUTF8="0", PYTHONCOERCECLOCALE="0")
+        result = subprocess.run(
+            [
+                sys.executable, str(SCRIPT), "--build-root", str(study.parents[2]),
+                "--family", "comparison", "--require-generated", "comparison",
+                "--check-freshness", "--selected-target", "cholesky-spd-tridiag-5",
+            ],
+            cwd=REPO_ROOT, env=env, text=True, capture_output=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "freshness ok" in result.stdout
+
+
 def test_cholesky_hosted_bundle_rejects_all_rows_downgraded() -> None:
     for downgrade_manifest in (False, True):
         with tempfile.TemporaryDirectory() as tmp:
@@ -3176,6 +3206,7 @@ def main() -> int:
     test_cholesky_selected_missing_and_wrong_target_rows_reject()
     test_cholesky_hosted_dirty_worktree_row_rejects()
     test_cholesky_hosted_metadata_positive_and_mutations()
+    test_cholesky_hosted_non_ascii_branch_uses_utf8_tsv()
     test_cholesky_hosted_bundle_rejects_all_rows_downgraded()
     test_cholesky_hosted_bundle_rejects_header_only_study()
     test_cholesky_hosted_bundle_rejects_sentinel_source_commit()

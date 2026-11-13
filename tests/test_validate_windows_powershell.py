@@ -204,6 +204,19 @@ def test_selected_cholesky_lane_missing_required_upload_fails_clearly() -> None:
     )
 
 
+def test_selected_cholesky_lane_extra_upload_fails_clearly() -> None:
+    anchor = "            build/comparison/cholesky_spd_tridiag_5/manifest.tsv\n"
+    drifted = read_workflow().replace(
+        anchor,
+        anchor + "            build/comparison/cholesky_spd_tridiag_5/debug.log\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "upload paths must match the exact selected Cholesky six-file contract",
+    )
+
+
 def test_selected_qr_lane_missing_target_fails_clearly() -> None:
     drifted = read_workflow().replace("--selected-target qr-incompatible-ls", "", 1)
     assert_raises_with(
@@ -381,6 +394,18 @@ def test_manifest_derived_artifact_name_is_forbidden_on_windows() -> None:
 
 def test_claim_boundaries_validate_current_docs() -> None:
     validator.validate_claim_boundaries()
+
+
+def test_candidate_claim_drift_fails_clearly() -> None:
+    path = validator.REPO_ROOT / "README.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "Windows hosted lanes against",
+        "Windows runner against",
+    )
+    assert_raises_with(
+        lambda: validator.validate_claim_boundaries({path: text}),
+        "README.md missing selected Cholesky claim",
+    )
 
 
 def test_claim_boundary_missing_marker_fails_clearly() -> None:
@@ -650,7 +675,7 @@ def test_manifest_windows_deferral_rejects_cholesky_windows_platform() -> None:
     )
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "selected_report_targets.tsv must not list windows while Windows report freshness is deferred",
+        "must retain selected Windows manifest workflow_file metadata",
     )
 
 
@@ -668,7 +693,7 @@ def test_manifest_windows_deferral_rejects_cholesky_artifact_drift() -> None:
     )
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "must retain deferred Windows manifest workflow_artifact metadata",
+        "must retain selected Windows manifest workflow_artifact metadata",
     )
 
 
@@ -682,7 +707,7 @@ def test_manifest_windows_deferral_rejects_cholesky_identity_drift() -> None:
     cholesky["target_key"] = "cholesky-spd-tridiag-5-windows"
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "must retain deferred Windows manifest target_key metadata",
+        "must retain selected Windows manifest target_key metadata",
     )
 
 
@@ -700,7 +725,7 @@ def test_manifest_windows_deferral_rejects_cholesky_row_contract_drift() -> None
     )
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "must retain deferred Windows manifest expected_row_ids metadata",
+        "must retain selected Windows manifest expected_row_ids metadata",
     )
 
 
@@ -774,7 +799,7 @@ def test_manifest_windows_deferral_rejects_qr_windows_platform() -> None:
     qr["workflow_platforms"] = f"{qr['workflow_platforms']};windows"
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "selected_report_targets.tsv must not list windows while Windows report freshness is deferred",
+        "only selected Cholesky may list windows",
     )
 
 
@@ -847,7 +872,7 @@ def test_manifest_windows_deferral_rejects_claim_scope_drift() -> None:
     )
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "must retain deferred Windows manifest claim_scope metadata",
+        "must retain selected Windows manifest claim_scope metadata",
     )
 
 
@@ -859,11 +884,11 @@ def test_manifest_windows_deferral_rejects_removed_windows_non_claim() -> None:
         if row["target_id"] == validator.WINDOWS_SELECTED_CHOLESKY_TARGET_ID
     )
     cholesky["non_claims"] = cholesky["non_claims"].replace(
-        ";no Windows report freshness", "", 1
+        ";no broad Windows report freshness", "", 1
     )
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
-        "must retain deferred Windows manifest non_claims metadata",
+        "must retain selected Windows manifest non_claims metadata",
     )
 
 
@@ -960,6 +985,7 @@ if __name__ == "__main__":
     test_selected_cholesky_lane_missing_timeout_fails_clearly()
     test_selected_cholesky_lane_broad_upload_fails_clearly()
     test_selected_cholesky_lane_missing_required_upload_fails_clearly()
+    test_selected_cholesky_lane_extra_upload_fails_clearly()
     test_selected_qr_lane_missing_target_fails_clearly()
     test_selected_qr_lane_generator_target_drift_fails_clearly()
     test_selected_qr_lane_artifact_name_drift_fails_clearly()
@@ -973,6 +999,7 @@ if __name__ == "__main__":
     test_selected_qr_lane_upload_paths_must_belong_to_named_artifact()
     test_manifest_derived_artifact_name_is_forbidden_on_windows()
     test_claim_boundaries_validate_current_docs()
+    test_candidate_claim_drift_fails_clearly()
     test_claim_boundary_missing_marker_fails_clearly()
     test_claim_boundary_missing_public_qr_marker_fails_clearly()
     test_report_index_claim_boundary_missing_qr_marker_fails_clearly()

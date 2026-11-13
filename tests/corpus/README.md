@@ -125,12 +125,15 @@ limited to Linux and macOS for this same selected row and does not make the two
 hosted timing values comparable performance claims.
 The manifest is positive selected-target authority, not a general deferral
 registry. Sprint 190 wires one bounded Windows selected Cholesky comparison
-freshness workflow for `cholesky-spd-tridiag-5`, but the source manifest does
-not list `windows`. Sprint 208 reviewed current hosted evidence for that exact
-path, strengthened manifest, workflow/PowerShell, and normalizer guards, and
-re-deferred selected Windows freshness promotion because the selected manifest,
-generated support tier, and generated non-claim wording still do not promote
-Windows. Sprint 209 adds one bounded Windows QR incompatible
+freshness workflow for `cholesky-spd-tridiag-5`; Sprint 223 now lists its exact
+Windows workflow, job, six-file artifact and platform with `hosted_selected`
+support. The accepted claim is: “Selected Cholesky SPD
+tridiagonal solve comparison rows are fresh for the named fixture on reviewed
+Linux, macOS, and Windows hosted lanes against the selected source-controlled
+dense Cholesky reference helper.” The exact-head selected Windows job and
+audited artifact are recorded in PR #247; any later commit requires a new
+audit. Sprint 208's older hosted run is intake evidence only.
+Sprint 209 adds one bounded Windows QR incompatible
 evidence-collection lane for `qr-incompatible-ls`, but the QR selected target
 row remains Linux/macOS-only and `local_only` until hosted run evidence, exact
 artifact inspection, selected manifest metadata, generated support tier, and
@@ -194,11 +197,13 @@ comparison freshness gate. The reviewed macOS hosted lane mirrors only the
 selected QR, partial-SVD, LU, and Cholesky comparison freshness gate. Those
 hosted lanes cover only their selected generated rows and split artifacts.
 Sprint 190 adds one bounded Windows hosted workflow path for
-`cholesky-spd-tridiag-5` with target-specific freshness checking. Treat that
-path as guarded workflow evidence: Sprint 208 reviewed current hosted evidence
-for the exact path, strengthened manifest/workflow/normalizer guards, and
-re-deferred Windows selected freshness promotion until selected target metadata,
-generated support tier, and generated non-claim wording are promoted together.
+`cholesky-spd-tridiag-5` with target-specific freshness checking. Sprint 223
+aligns the selected manifest and generator for this one selected target. Its
+accepted claim is: “Selected Cholesky SPD tridiagonal solve
+comparison rows are fresh for the named fixture on reviewed Linux, macOS, and
+Windows hosted lanes against the selected source-controlled dense Cholesky
+reference helper.” PR #247 records the exact-head selected job and six-file
+artifact audit; a later commit requires a fresh audit.
 These lanes do not prove broad report-index freshness, selected oracle
 freshness on macOS, selected oracle freshness on Windows, selected benchmark
 freshness on Windows, broad Windows report freshness, or all local-only

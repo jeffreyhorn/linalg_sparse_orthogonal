@@ -65,31 +65,42 @@ WINDOWS_SELECTED_CHOLESKY_ARTIFACT_PATTERN = "build/comparison/cholesky_spd_trid
 WINDOWS_SELECTED_CHOLESKY_GENERATOR_COMMAND = (
     "python3 scripts/run_external_comparison.py --target cholesky-spd-tridiag-5"
 )
-WINDOWS_SELECTED_CHOLESKY_SUPPORT_TIER = "local_only"
+WINDOWS_SELECTED_CHOLESKY_SUPPORT_TIER = "hosted_selected"
 WINDOWS_SELECTED_CHOLESKY_CLAIM_SCOPE = (
     "Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the "
-    "named fixture against the selected source-controlled dense Cholesky reference helper."
+    "named fixture on reviewed Linux, macOS, and Windows hosted lanes against the "
+    "selected source-controlled dense Cholesky reference helper."
+)
+WINDOWS_SELECTED_CHOLESKY_CANDIDATE_DOCUMENTS = (
+    REPO_ROOT / "README.md",
+    REPO_ROOT / "INSTALL.md",
+    REPO_ROOT / "docs" / "maintainer_guide.md",
+    REPO_ROOT / "tests" / "corpus" / "README.md",
+    REPO_ROOT / "tests" / "corpus" / "schemas" / "report_index_fields.md",
 )
 WINDOWS_SELECTED_CHOLESKY_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/macos-ci.yml",
+    ".github/workflows/windows-ci.yml",
 )
 WINDOWS_SELECTED_CHOLESKY_WORKFLOW_JOBS = (
     "generated-report-freshness",
+    "selected-comparison-freshness",
     "selected-comparison-freshness",
 )
 WINDOWS_SELECTED_CHOLESKY_WORKFLOW_ARTIFACTS = (
     "sprint175-linux-selected-comparison-freshness",
     "sprint175-macos-selected-comparison-freshness",
+    WINDOWS_SELECTED_CHOLESKY_ARTIFACT,
 )
-WINDOWS_SELECTED_CHOLESKY_WORKFLOW_PLATFORMS = ("linux", "macos")
+WINDOWS_SELECTED_CHOLESKY_WORKFLOW_PLATFORMS = ("linux", "macos", "windows")
 WINDOWS_SELECTED_CHOLESKY_NON_CLAIMS = (
     "no broad Cholesky correctness",
     "no broad SPD coverage",
     "no broad reordering coverage",
     "no CSC-vs-linked-list parity",
     "no fill superiority",
-    "no Windows report freshness",
+    "no broad Windows report freshness",
     "no package-manager proof",
     "no shared-library ABI proof",
     "no performance superiority",
@@ -214,18 +225,18 @@ CLAIM_BOUNDARY_MARKERS = {
         "Windows Makefile parity",
         "Windows `pkg-config` parity",
         "Sprint 190 adds one guarded Windows hosted",
-        "evidence for that exact path and re-deferred selected Windows freshness",
+        "PR #247 records the exact-head hosted job and audited",
         "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
         "the QR incompatible least-squares target remains\noutside Windows selected freshness",
         "outside the one Sprint 190 Cholesky",
     ),
     REPO_ROOT / "INSTALL.md": (
-        "hosted PowerShell validation ownership for selected Windows workflow snippets",
-        "bounded selected Cholesky comparison freshness workflow",
+        "hosted PowerShell validation",
+        "hosted selected, exact-head evidence recorded in PR #247",
         "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
         "The QR incompatible least-squares target remains outside Windows selected freshness",
-        "broad report freshness, selected oracle freshness, selected benchmark freshness",
-        "does not imply Windows Makefile parity",
+        "broad report freshness, selected oracle or benchmark freshness",
+        "This does not imply Windows Makefile",
         "runtime-loader behavior, or broad Windows parity",
     ),
     REPO_ROOT / "docs" / "maintainer_guide.md": (
@@ -249,7 +260,7 @@ CLAIM_BOUNDARY_MARKERS = {
         "reinterpret those states as pass evidence",
     ),
     REPO_ROOT / "tests" / "corpus" / "schemas" / "report_index_fields.md": (
-        "Sprint 190 adds one bounded Windows hosted workflow path\nfor `cholesky-spd-tridiag-5`",
+        "Sprint 223 adds\n`windows` only to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`",
         "Sprint 209 adds one bounded Windows QR incompatible\n"
         "evidence-collection lane",
         "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
@@ -608,10 +619,10 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
         workflow_jobs = split_manifest_values(row["workflow_job"])
         workflow_artifacts = split_manifest_values(row["workflow_artifact"])
         platforms = split_manifest_values(row["workflow_platforms"])
-        if "windows" in platforms:
+        if "windows" in platforms and target_id != WINDOWS_SELECTED_CHOLESKY_TARGET_ID:
             raise ValidationError(
-                "selected_report_targets.tsv must not list windows while "
-                f"Windows report freshness is deferred: {target_id}"
+                "only selected Cholesky may list windows: "
+                f"{target_id}"
             )
         if target_id not in (
             WINDOWS_SELECTED_CHOLESKY_TARGET_ID,
@@ -665,7 +676,7 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
     for field, expected in exact_fields.items():
         if cholesky[field] != expected:
             raise ValidationError(
-                f"{WINDOWS_SELECTED_CHOLESKY_TARGET_ID} must retain deferred "
+                f"{WINDOWS_SELECTED_CHOLESKY_TARGET_ID} must retain selected "
                 f"Windows manifest {field} metadata"
             )
 
@@ -718,7 +729,7 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
                 f"{WINDOWS_SELECTED_QR_TARGET_ID} must retain re-deferred "
                 f"Windows QR manifest {field} metadata"
             )
-    pass_msg(f"selected manifest has no windows workflow platforms ({len(rows)} rows)")
+    pass_msg(f"selected manifest restricts Windows to Cholesky ({len(rows)} rows)")
 
 
 def validate_deferral_record() -> None:
@@ -788,6 +799,9 @@ def validate_windows_selected_cholesky_lane(text: str) -> str:
             f"{WINDOWS_SELECTED_CHOLESKY_JOB} must declare timeout-minutes: 20"
         )
     for needle in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
         WINDOWS_SELECTED_CHOLESKY_GENERATOR,
         WINDOWS_SELECTED_CHOLESKY_FRESHNESS,
         "actions/upload-artifact@v4",
@@ -807,6 +821,12 @@ def validate_windows_selected_cholesky_lane(text: str) -> str:
             raise ValidationError(
                 f"{WINDOWS_SELECTED_CHOLESKY_JOB} missing upload path {required_file!r}"
             )
+    actual_paths = upload_path_entries(block, WINDOWS_SELECTED_CHOLESKY_ARTIFACT)
+    if actual_paths != WINDOWS_SELECTED_CHOLESKY_REQUIRED_FILES:
+        raise ValidationError(
+            f"{WINDOWS_SELECTED_CHOLESKY_JOB} upload paths must match the exact "
+            "selected Cholesky six-file contract"
+        )
     return block
 
 
@@ -851,6 +871,12 @@ def validate_windows_selected_qr_lane(text: str) -> str:
 def validate_claim_boundaries(overrides: dict[Path, str] | None = None) -> None:
     for path, markers in CLAIM_BOUNDARY_MARKERS.items():
         text = overrides[path] if overrides and path in overrides else read_text(path)
+        if path in WINDOWS_SELECTED_CHOLESKY_CANDIDATE_DOCUMENTS and (
+            WINDOWS_SELECTED_CHOLESKY_CLAIM_SCOPE not in " ".join(text.split())
+        ):
+            raise ValidationError(
+                f"{rel(path)} missing selected Cholesky claim"
+            )
         for marker in markers:
             if marker not in text:
                 raise ValidationError(

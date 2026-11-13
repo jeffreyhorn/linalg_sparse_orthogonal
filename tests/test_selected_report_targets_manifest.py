@@ -388,14 +388,17 @@ def with_windows_cholesky_metadata(
 ) -> list[dict[str, str]]:
     rows = copy.deepcopy(rows)
     row = cholesky_row(rows)
-    row["workflow_file"] += f";{WINDOWS_CHOLESKY_WORKFLOW_FILE}"
-    row["workflow_job"] += f";{WINDOWS_CHOLESKY_WORKFLOW_JOB}"
-    row["workflow_artifact"] += f";{WINDOWS_CHOLESKY_ARTIFACT}"
-    row["workflow_platforms"] += ";windows"
+    if "windows" not in split_manifest_values(row["workflow_platforms"]):
+        row["workflow_file"] += f";{WINDOWS_CHOLESKY_WORKFLOW_FILE}"
+        row["workflow_job"] += f";{WINDOWS_CHOLESKY_WORKFLOW_JOB}"
+        row["workflow_artifact"] += f";{WINDOWS_CHOLESKY_ARTIFACT}"
+        row["workflow_platforms"] += ";windows"
     if promote_claims:
         row["support_tier"] = WINDOWS_CHOLESKY_PROMOTED_SUPPORT_TIER
         row["claim_scope"] = WINDOWS_CHOLESKY_PROMOTED_CLAIM_SCOPE
         row["non_claims"] = ";".join(WINDOWS_CHOLESKY_PROMOTED_NON_CLAIMS)
+    else:
+        row["support_tier"] = WINDOWS_CHOLESKY_CURRENT_SUPPORT_TIER
     return rows
 
 
@@ -548,6 +551,8 @@ def assert_no_windows_selected_platform(
         )
     for row in rows:
         platforms = split_manifest_values(row["workflow_platforms"])
+        if row["target_id"] == WINDOWS_CHOLESKY_TARGET_ID:
+            continue
         if "windows" in platforms:
             raise AssertionError(
                 "selected_report_targets.tsv must not list windows while "
@@ -797,25 +802,45 @@ def test_unpromoted_report_families_remain_unselected() -> None:
     }
 
 
-def test_windows_report_freshness_deferral_keeps_manifest_unselected() -> None:
+def test_windows_manifest_selects_cholesky_only() -> None:
+    assert_windows_cholesky_manifest_allowlist(manifest_rows())
     assert_no_windows_selected_platform(manifest_rows())
 
 
-def test_cholesky_manifest_remains_redeferred_for_windows() -> None:
-    assert_current_windows_cholesky_redeferral_contract(manifest_rows())
+def test_cholesky_manifest_has_selected_windows_metadata() -> None:
+    assert_windows_cholesky_manifest_allowlist(manifest_rows())
 
 
-def test_cholesky_manifest_redeferral_contract_rejects_windows_metadata() -> None:
+def test_cholesky_manifest_rejects_extra_windows_artifact() -> None:
     rows = manifest_rows()
     row = cholesky_row(rows)
-    row["workflow_artifact"] = f"{row['workflow_artifact']};{WINDOWS_CHOLESKY_ARTIFACT}"
+    row["workflow_artifact"] += ";wrong-artifact"
     try:
-        assert_current_windows_cholesky_redeferral_contract(rows)
+        assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
-        if "workflow_artifact metadata must remain" not in str(exc):
+        if "workflow_artifact must be the exact" not in str(exc):
             raise
         return
-    raise AssertionError("expected current Cholesky Windows artifact metadata to fail")
+    raise AssertionError("expected selected Cholesky Windows artifact metadata to fail")
+
+
+def test_cholesky_manifest_rejects_wrong_windows_workflow_and_job() -> None:
+    for field, wrong in (
+        ("workflow_file", ".github/workflows/other.yml"),
+        ("workflow_job", "other-comparison-job"),
+        ("workflow_artifact", "other-comparison-artifact"),
+    ):
+        rows = manifest_rows()
+        row = cholesky_row(rows)
+        values = row[field].split(";")
+        values[-1] = wrong
+        row[field] = ";".join(values)
+        try:
+            assert_windows_cholesky_manifest_allowlist(rows)
+        except AssertionError as exc:
+            assert f"{field} must be the exact" in str(exc), (field, str(exc))
+        else:
+            raise AssertionError(f"wrong Windows Cholesky {field} was accepted")
 
 
 def assert_current_qr_incompatible_redeferral_contract(
@@ -1028,7 +1053,7 @@ def test_future_windows_metadata_rejects_unselected_target() -> None:
     try:
         assert_windows_cholesky_manifest_allowlist(rows)
     except AssertionError as exc:
-        if "only selected Cholesky may list windows" not in str(exc):
+        if "expected exactly one Windows selected target" not in str(exc):
             raise
         return
     raise AssertionError("expected unselected Windows manifest target to fail")
@@ -1262,9 +1287,10 @@ def main() -> int:
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
-    test_windows_report_freshness_deferral_keeps_manifest_unselected()
-    test_cholesky_manifest_remains_redeferred_for_windows()
-    test_cholesky_manifest_redeferral_contract_rejects_windows_metadata()
+    test_windows_manifest_selects_cholesky_only()
+    test_cholesky_manifest_has_selected_windows_metadata()
+    test_cholesky_manifest_rejects_extra_windows_artifact()
+    test_cholesky_manifest_rejects_wrong_windows_workflow_and_job()
     test_qr_incompatible_manifest_remains_redeferred_for_windows()
     test_qr_incompatible_manifest_redeferral_rejects_sprint209_workflow()
     test_qr_incompatible_manifest_redeferral_rejects_sprint209_job()

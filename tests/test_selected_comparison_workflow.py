@@ -317,6 +317,12 @@ def assert_no_report_freshness_lane(text: str, *, label: str) -> None:
 
 def assert_windows_selected_cholesky_lane(text: str) -> None:
     job = job_block(text, "selected-comparison-freshness", label="windows")
+    for required in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        assert_contains(job, required, label="windows selected cholesky")
     assert_contains(job, "timeout-minutes: 20", label="windows selected cholesky")
     assert_contains(job, "python scripts/run_external_comparison.py", label="windows selected cholesky")
     assert_contains(job, "--target cholesky-spd-tridiag-5", label="windows selected cholesky")
@@ -341,6 +347,11 @@ def assert_windows_selected_cholesky_lane(text: str) -> None:
         raise AssertionError("windows selected cholesky upload must not use broad paths")
     for path in WINDOWS_SELECTED_CHOLESKY_FILES:
         assert_contains(block, path, label="windows selected cholesky upload")
+    paths = upload_path_entries(block, label="windows selected cholesky upload")
+    if paths != list(WINDOWS_SELECTED_CHOLESKY_FILES):
+        raise AssertionError(
+            "windows selected cholesky upload paths must match exact six-file contract"
+        )
 
 
 def assert_windows_selected_qr_incompatible_lane(text: str) -> str:
@@ -421,13 +432,17 @@ def assert_windows_workflow_contract(text: str) -> None:
     )
 
 
-def assert_no_windows_selected_manifest_platform() -> None:
+def assert_only_cholesky_selected_manifest_platform() -> None:
     for row in selected_report_targets(SELECTED_TARGET_MANIFEST):
         platforms = split_manifest_values(row["workflow_platforms"])
         if "windows" in platforms:
+            if row["target_id"] == "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5":
+                assert row["support_tier"] == "hosted_selected"
+                assert row["workflow_artifact"].split(";")[-1] == "sprint190-windows-selected-comparison-cholesky"
+                continue
             raise AssertionError(
-                "selected_report_targets.tsv must not list windows for selected "
-                f"report freshness while Sprint 182 deferral is active: {row['target_id']}"
+                "selected_report_targets.tsv may list windows only for selected "
+                f"Cholesky report freshness: {row['target_id']}"
             )
 
 
@@ -606,7 +621,7 @@ def test_windows_report_freshness_keeps_bounded_cholesky_only() -> None:
     assert_windows_selected_qr_incompatible_lane(text)
     assert_windows_qr_incompatible_has_no_unowned_surface(text)
     assert_no_report_freshness_lane(text, label="windows")
-    assert_no_windows_selected_manifest_platform()
+    assert_only_cholesky_selected_manifest_platform()
     assert_windows_deferral_record()
     assert_contains(text, "Windows does not claim Makefile parity", label="windows")
     assert_contains(text, "package-manager support", label="windows")
@@ -639,6 +654,20 @@ def test_windows_selected_cholesky_missing_timeout_fails_clearly() -> None:
         lambda: assert_windows_selected_cholesky_lane(drifted),
         "windows selected cholesky missing 'timeout-minutes: 20'",
     )
+
+
+def test_windows_selected_cholesky_wrong_source_checkout_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    for required in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        drifted = text.replace(required, required.replace("github.event.pull_request.head.sha", "github.sha").replace("github.head_ref", "github.ref_name"), 1)
+        assert_raises_with(
+            lambda: assert_windows_selected_cholesky_lane(drifted),
+            f"windows selected cholesky missing {required!r}",
+        )
 
 
 def test_windows_selected_cholesky_wrong_target_fails_clearly() -> None:
@@ -697,6 +726,30 @@ def test_windows_selected_cholesky_missing_required_file_fails_clearly() -> None
         lambda: assert_windows_selected_cholesky_lane(drifted),
         "windows selected cholesky upload missing "
         "'build/comparison/cholesky_spd_tridiag_5/manifest.tsv'",
+    )
+
+
+def test_windows_selected_cholesky_extra_upload_file_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    anchor = "            build/comparison/cholesky_spd_tridiag_5/manifest.tsv\n"
+    drifted = text.replace(
+        anchor,
+        anchor + "            build/comparison/cholesky_spd_tridiag_5/debug.log\n",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky upload paths must match exact six-file contract",
+    )
+
+
+def test_windows_selected_cholesky_duplicate_upload_file_fails_clearly() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    anchor = "            build/comparison/cholesky_spd_tridiag_5/manifest.tsv\n"
+    drifted = text.replace(anchor, anchor + anchor, 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_cholesky_lane(drifted),
+        "windows selected cholesky upload paths must match exact six-file contract",
     )
 
 
@@ -1208,11 +1261,14 @@ def main() -> int:
     test_windows_drift_selected_command_fails_clearly()
     test_windows_drift_selected_artifact_fails_clearly()
     test_windows_selected_cholesky_missing_timeout_fails_clearly()
+    test_windows_selected_cholesky_wrong_source_checkout_fails_clearly()
     test_windows_selected_cholesky_wrong_target_fails_clearly()
     test_windows_selected_cholesky_missing_freshness_target_fails_clearly()
     test_windows_selected_cholesky_wrong_artifact_fails_clearly()
     test_windows_selected_cholesky_broad_upload_fails_clearly()
     test_windows_selected_cholesky_missing_required_file_fails_clearly()
+    test_windows_selected_cholesky_extra_upload_file_fails_clearly()
+    test_windows_selected_cholesky_duplicate_upload_file_fails_clearly()
     test_windows_qr_incompatible_target_drift_fails_clearly()
     test_windows_qr_incompatible_freshness_target_drift_fails_clearly()
     test_windows_qr_incompatible_equals_target_drift_fails_clearly()

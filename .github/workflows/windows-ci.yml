@@ -91,8 +91,13 @@ jobs:
     name: Windows selected Cholesky comparison freshness (MSVC)
     runs-on: windows-2022
     timeout-minutes: 20
+    env:
+      SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Configure selected Cholesky comparison library
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64

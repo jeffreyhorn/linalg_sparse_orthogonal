@@ -207,7 +207,7 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
 
 
 def rewrite_comparison_study(path: Path, rows: list[dict[str, str]]) -> None:
-    with path.open("w", newline="") as handle:
+    with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=COMPARISON_STUDY_FIELDS, delimiter="\t")
         writer.writeheader()
         writer.writerows(rows)
@@ -2456,6 +2456,7 @@ def test_cholesky_hosted_non_ascii_branch_uses_utf8_tsv() -> None:
         for row in rows:
             row["source_branch"] = branch
         rewrite_comparison_study(study, rows)
+        assert branch.encode("utf-8") in study.read_bytes()
         for name in ("manifest.tsv", "summary.md"):
             path = study.with_name(name)
             path.write_text(

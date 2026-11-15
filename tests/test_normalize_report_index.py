@@ -213,16 +213,32 @@ def rewrite_comparison_study(path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def run_cholesky_selected_freshness(
-    build_root: Path, *, expect_success: bool = True
+def run_selected_comparison_freshness(
+    build_root: Path, target_key: str, *, expect_success: bool = True
 ) -> subprocess.CompletedProcess[str]:
     return run_command(
         [
             "python3", str(SCRIPT), "--build-root", str(build_root),
             "--family", "comparison", "--require-generated", "comparison",
-            "--check-freshness", "--selected-target", "cholesky-spd-tridiag-5",
+            "--check-freshness", "--selected-target", target_key,
         ],
         expect_success=expect_success,
+    )
+
+
+def run_cholesky_selected_freshness(
+    build_root: Path, *, expect_success: bool = True
+) -> subprocess.CompletedProcess[str]:
+    return run_selected_comparison_freshness(
+        build_root, "cholesky-spd-tridiag-5", expect_success=expect_success
+    )
+
+
+def run_qr_selected_freshness(
+    build_root: Path, *, expect_success: bool = True
+) -> subprocess.CompletedProcess[str]:
+    return run_selected_comparison_freshness(
+        build_root, "qr-incompatible-ls", expect_success=expect_success
     )
 
 
@@ -2317,20 +2333,35 @@ def test_cholesky_hosted_dirty_worktree_row_rejects() -> None:
         assert "worktree_state=dirty" in result.stderr
 
 
-def write_hosted_cholesky_fixture(build_root: Path) -> Path:
-    write_selected_comparison_rows(build_root, only_subfamilies={"cholesky_spd_tridiag_5"})
-    study = build_root / "comparison" / "cholesky_spd_tridiag_5" / "study.tsv"
+def write_hosted_comparison_fixture(build_root: Path, target_key: str) -> Path:
+    if target_key == "cholesky-spd-tridiag-5":
+        subfamily = "cholesky_spd_tridiag_5"
+        fixture_key = subfamily
+        target = comparison_generator.selected_cholesky_report_metadata(
+            comparison_generator.TARGETS[target_key]
+        )
+        baseline_name = "source-controlled-dense-cholesky-reference"
+        baseline_version = "chol_external_dense_reference.py"
+    elif target_key == "qr-incompatible-ls":
+        subfamily = "qr_incompatible_ls"
+        fixture_key = "qr_overdetermined_incompatible_4x2"
+        target = comparison_generator.selected_qr_incompatible_report_metadata(
+            comparison_generator.TARGETS[target_key]
+        )
+        baseline_name = "source-controlled-dense-qr-reference"
+        baseline_version = "qr_external_dense_reference.py"
+    else:
+        raise AssertionError(f"unsupported selected hosted fixture: {target_key}")
+    write_selected_comparison_rows(build_root, only_subfamilies={subfamily})
+    study = build_root / "comparison" / subfamily / "study.tsv"
     rows = read_tsv(study)
-    target = comparison_generator.selected_cholesky_report_metadata(
-        comparison_generator.TARGETS["cholesky-spd-tridiag-5"]
-    )
     configuration = comparison_generator.comparison_configuration(target, "hosted_selected")
     for row in rows:
         row.update(
             support_tier="hosted_selected",
-            baseline_name="source-controlled-dense-cholesky-reference",
+            baseline_name=baseline_name,
             baseline_type="external-process-source-controlled-helper",
-            baseline_version="chol_external_dense_reference.py",
+            baseline_version=baseline_version,
             platform="windows-amd64",
             compiler="cmake-probe:Visual Studio 17 2022:Release",
             configuration=configuration,
@@ -2339,15 +2370,15 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
         )
     rewrite_comparison_study(study, rows)
     manifest = {
-        "target": "cholesky-spd-tridiag-5",
-        "fixture_key": "cholesky_spd_tridiag_5",
+        "target": target_key,
+        "fixture_key": fixture_key,
         "platform": rows[0]["platform"],
         "compiler": rows[0]["compiler"],
         "configuration": configuration,
         "baseline_name": rows[0]["baseline_name"],
         "baseline_type": rows[0]["baseline_type"],
         "baseline_version": rows[0]["baseline_version"],
-        "baseline_helper_path": "tests/chol_external_dense_reference.py",
+        "baseline_helper_path": f"tests/{baseline_version}",
         "baseline_python_executable": rows[0]["baseline_python_executable"],
         "baseline_python_version": rows[0]["baseline_python_version"],
         "baseline_command": rows[0]["baseline_command"],
@@ -2383,6 +2414,238 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
         encoding="utf-8",
     )
     return study
+
+
+def write_hosted_cholesky_fixture(build_root: Path) -> Path:
+    return write_hosted_comparison_fixture(build_root, "cholesky-spd-tridiag-5")
+
+
+def test_qr_incompatible_hosted_candidate_and_metadata_rejections() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+        result = run_command([
+            "python3", str(SCRIPT), "--build-root", str(study.parents[2]),
+            "--family", "comparison", "--require-generated", "comparison",
+            "--check-freshness", "--selected-target", "qr-incompatible-ls",
+        ])
+        assert "freshness ok" in result.stdout
+    for field, value, diagnostic in (
+        ("support_tier", "local_only", "field=support_tier"),
+        ("platform", "linux-amd64", "field=platform"),
+        ("compiler", "other-compiler", "field=compiler"),
+        ("baseline_name", "other-baseline", "field=baseline_name"),
+        ("claim_scope", "broad QR parity", "field=claim_scope"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            rows = read_tsv(study)
+            rows[0][field] = value
+            rewrite_comparison_study(study, rows)
+            result = run_command([
+                "python3", str(SCRIPT), "--build-root", str(study.parents[2]),
+                "--family", "comparison", "--require-generated", "comparison",
+                "--check-freshness", "--selected-target", "qr-incompatible-ls",
+            ], expect_success=False)
+            assert "comparison_hosted_metadata_mismatch" in result.stderr
+            assert diagnostic in result.stderr
+
+
+def test_qr_hosted_six_file_membership_rejects_missing_renamed_extra() -> None:
+    for mutation, filename, expected in (
+        ("missing", "study.tsv", "missing_artifact_file"),
+        ("missing", "project_observations.tsv", "missing_artifact_file"),
+        ("missing", "baseline_observations.tsv", "missing_artifact_file"),
+        ("missing", "dependency_status.tsv", "missing_artifact_file"),
+        ("missing", "manifest.tsv", "field=manifest_missing"),
+        ("missing", "summary.md", "field=summary_missing"),
+        ("renamed", "summary.md", "field=summary_missing"),
+        ("extra", "debug.log", "unexpected_artifact_file"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            assert "freshness ok" in run_qr_selected_freshness(study.parents[2]).stdout
+            path = study.with_name(filename)
+            if mutation == "missing":
+                path.unlink()
+            elif mutation == "renamed":
+                path.rename(study.with_name("renamed-summary.md"))
+            else:
+                path.write_text("unexpected\n", encoding="utf-8")
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert expected in result.stdout + result.stderr, (mutation, filename, result)
+
+
+def test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order() -> None:
+    for mutation, expected in (
+        ("missing", "row_set_mismatch"),
+        ("duplicate", "duplicate normalized row_id"),
+        ("extra", "row_set_mismatch"),
+        ("wrong_target", "row_set_mismatch"),
+        ("out_of_order", "comparison_hosted_row_order_mismatch"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            rows = read_tsv(study)
+            if mutation == "missing":
+                rows.pop()
+            elif mutation == "duplicate":
+                rows.append(dict(rows[0]))
+            elif mutation == "extra":
+                extra = dict(rows[0])
+                extra["comparison_row_id"] = "comparison_qr_overdetermined_incompatible_4x2_extra_v1"
+                rows.append(extra)
+            elif mutation == "wrong_target":
+                rows[0]["comparison_row_id"] = "comparison_cholesky_spd_tridiag_5_project_status_v1"
+            else:
+                rows[0], rows[1] = rows[1], rows[0]
+            rewrite_comparison_study(study, rows)
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert expected in result.stdout + result.stderr, (mutation, result)
+
+
+def test_qr_hosted_stale_commit_and_dirty_worktree_reject() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+        original = read_tsv(study)[0]["source_commit"]
+        stale = "0" * 40 if original != "0" * 40 else "1" * 40
+        rows = read_tsv(study)
+        for row in rows:
+            row["source_commit"] = stale
+        rewrite_comparison_study(study, rows)
+        for name in ("manifest.tsv", "summary.md"):
+            path = study.with_name(name)
+            path.write_text(path.read_text(encoding="utf-8").replace(original, stale), encoding="utf-8")
+        result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+        assert "source_commit does not match current HEAD" in result.stdout
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+        rows = read_tsv(study)
+        rows[0]["worktree_state"] = "dirty"
+        rewrite_comparison_study(study, rows)
+        result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+        assert "comparison_dirty_worktree" in result.stderr
+
+
+def test_qr_hosted_windows_paths_accept_expected_forms_and_reject_near_matches() -> None:
+    for recorded in (
+        "build/comparison/qr_incompatible_ls/study.tsv",
+        r"build\comparison\qr_incompatible_ls\study.tsv",
+        r"build/comparison\qr_incompatible_ls/study.tsv",
+        r"D:\a\repo\build\comparison\qr_incompatible_ls\study.tsv",
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            rows = read_tsv(study)
+            for row in rows:
+                row["artifact_path"] = recorded
+            rewrite_comparison_study(study, rows)
+            result = run_qr_selected_freshness(study.parents[2])
+            assert "freshness ok" in result.stdout, recorded
+    for recorded in (
+        r"D:\a\repo\build\comparison\qr_incompatible_ls_extra\study.tsv",
+        r"build\comparison\qr_incompatible_ls\study.tsv.bak",
+        "build/comparison/cholesky_spd_tridiag_5/study.tsv",
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            rows = read_tsv(study)
+            rows[0]["artifact_path"] = recorded
+            rewrite_comparison_study(study, rows)
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert "comparison_artifact_path_mismatch" in result.stderr, recorded
+
+
+def test_qr_hosted_row_provenance_and_claim_mutations_reject() -> None:
+    for field, replacement, diagnostic in (
+        ("platform", "linux-amd64", "field=platform"),
+        ("compiler", "cmake-probe:other:Release", "field=compiler"),
+        ("configuration", "stage=wrong;baseline_status=integrated_and_compared;support_tier=hosted_selected", "field=configuration"),
+        ("support_tier", "local_only", "field=support_tier"),
+        ("baseline_name", "other-baseline", "field=baseline_name"),
+        ("baseline_type", "other-type", "field=baseline_type"),
+        ("baseline_version", "other-helper.py", "field=baseline_version"),
+        ("baseline_python_executable", "other-python", "field=baseline_python_executable"),
+        ("baseline_python_version", "other-version", "field=baseline_python_version"),
+        ("baseline_command", "other-command", "field=baseline_command"),
+        ("project_command", "other-command", "field=project_probe_command"),
+        ("source_branch", "other-branch", "field=source_branch"),
+        ("generated_at_utc", "2020-01-01T00:00:00+00:00", "field=generated_at_utc"),
+        ("claim_scope", "broad Windows QR solves", "field=claim_scope"),
+        ("non_claims", "no hosted CI proof;no Windows report freshness", "field=non_claims"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            rows = read_tsv(study)
+            rows[0][field] = replacement
+            rewrite_comparison_study(study, rows)
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert "comparison_hosted_metadata_mismatch" in result.stderr, (field, result)
+            assert diagnostic in result.stderr, (field, result)
+
+
+def test_qr_hosted_manifest_and_summary_mutations_reject() -> None:
+    for field, replacement, diagnostic in (
+        ("target", "cholesky-spd-tridiag-5", "field=target"),
+        ("fixture_key", "cholesky_spd_tridiag_5", "field=fixture_key"),
+        ("platform", "linux-amd64", "field=platform"),
+        ("compiler", "cmake-probe:other:Release", "field=compiler"),
+        ("baseline_name", "other-baseline", "field=baseline_name"),
+        ("baseline_version", "other-helper.py", "field=baseline_version"),
+        ("baseline_helper_path", "tests/other-helper.py", "field=baseline_helper_path"),
+        ("baseline_python_executable", "other-python", "field=baseline_python_executable"),
+        ("baseline_python_version", "other-version", "field=baseline_python_version"),
+        ("baseline_command", "other-command", "field=baseline_command"),
+        ("source_branch", "other-branch", "field=source_branch"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            manifest = study.with_name("manifest.tsv")
+            entries = read_tsv(manifest)
+            next(entry for entry in entries if entry["key"] == field)["value"] = replacement
+            with manifest.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["key", "value"], delimiter="\t")
+                writer.writeheader()
+                writer.writerows(entries)
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert diagnostic in result.stderr, (field, result)
+    for old, replacement, diagnostic in (
+        ("This selected Windows hosted study compares", "All Windows QR solves compare", "field=summary_scope_or_non_claims"),
+        ("Source branch: `", "Source branch: `other-", "field=summary_source_branch"),
+        ("Baseline command: `", "Baseline command: `other-", "field=summary_baseline_command"),
+        ("Non-claims: no broad QR parity", "Non-claims: broad QR parity", "field=summary_scope_or_non_claims"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            summary = study.with_name("summary.md")
+            original = summary.read_text(encoding="utf-8")
+            assert old in original
+            summary.write_text(original.replace(old, replacement, 1), encoding="utf-8")
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert diagnostic in result.stderr, (old, result)
+    for denial in (
+        "no hosted CI proof", "no Windows report freshness",
+        "All Windows QR solves are supported", "Broad QR parity is proven",
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+            summary = study.with_name("summary.md")
+            summary.write_text(summary.read_text(encoding="utf-8") + denial + "\n", encoding="utf-8")
+            result = run_qr_selected_freshness(study.parents[2], expect_success=False)
+            assert "field=summary_scope_or_non_claims" in result.stderr, (denial, result)
+
+
+def test_qr_hosted_cholesky_substitution_rejects_without_cholesky_regression() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        qr_root = Path(tmp) / "qr-build"
+        chol_root = Path(tmp) / "chol-build"
+        qr_study = write_hosted_comparison_fixture(qr_root, "qr-incompatible-ls")
+        chol_study = write_hosted_comparison_fixture(chol_root, "cholesky-spd-tridiag-5")
+        assert "freshness ok" in run_qr_selected_freshness(qr_root).stdout
+        assert "freshness ok" in run_cholesky_selected_freshness(chol_root).stdout
+        qr_study.write_bytes(chol_study.read_bytes())
+        result = run_qr_selected_freshness(qr_root, expect_success=False)
+        assert "comparison_hosted_metadata_mismatch" in result.stderr, result
+        assert "freshness ok" in run_cholesky_selected_freshness(chol_root).stdout
 
 
 def test_cholesky_hosted_metadata_positive_and_mutations() -> None:
@@ -3207,6 +3470,14 @@ def main() -> int:
     test_cholesky_selected_missing_and_wrong_target_rows_reject()
     test_cholesky_hosted_dirty_worktree_row_rejects()
     test_cholesky_hosted_metadata_positive_and_mutations()
+    test_qr_incompatible_hosted_candidate_and_metadata_rejections()
+    test_qr_hosted_six_file_membership_rejects_missing_renamed_extra()
+    test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order()
+    test_qr_hosted_stale_commit_and_dirty_worktree_reject()
+    test_qr_hosted_windows_paths_accept_expected_forms_and_reject_near_matches()
+    test_qr_hosted_row_provenance_and_claim_mutations_reject()
+    test_qr_hosted_manifest_and_summary_mutations_reject()
+    test_qr_hosted_cholesky_substitution_rejects_without_cholesky_regression()
     test_cholesky_hosted_non_ascii_branch_uses_utf8_tsv()
     test_cholesky_hosted_bundle_rejects_all_rows_downgraded()
     test_cholesky_hosted_bundle_rejects_header_only_study()

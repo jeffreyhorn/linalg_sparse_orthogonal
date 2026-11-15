@@ -91,16 +91,19 @@ WINDOWS_QR_INCOMPATIBLE_EXPECTED_ROWS = "6"
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/macos-ci.yml",
+    ".github/workflows/windows-ci.yml",
 )
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS = (
     "generated-report-freshness",
     "selected-comparison-freshness",
+    "selected-qr-incompatible-comparison-freshness",
 )
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS = (
     "sprint175-linux-selected-comparison-freshness",
     "sprint175-macos-selected-comparison-freshness",
+    "sprint209-windows-selected-comparison-qr-incompatible",
 )
-WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS = ("linux", "macos")
+WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS = ("linux", "macos", "windows")
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILE = ".github/workflows/windows-ci.yml"
 WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOB = "selected-qr-incompatible-comparison-freshness"
 WINDOWS_QR_INCOMPATIBLE_ARTIFACT = "sprint209-windows-selected-comparison-qr-incompatible"
@@ -203,7 +206,8 @@ WINDOWS_QR_INCOMPATIBLE_GENERATOR_COMMAND = (
 )
 WINDOWS_QR_INCOMPATIBLE_CLAIM_SCOPE = (
     "Selected QR incompatible least-squares comparison rows are fresh for the "
-    "named fixture against the selected source-controlled dense reference helper."
+    "named fixture on reviewed Linux, macOS, and Windows hosted lanes against "
+    "the selected source-controlled dense reference helper."
 )
 WINDOWS_QR_INCOMPATIBLE_REQUIRED_FILES = (
     "project_observations.tsv",
@@ -233,7 +237,7 @@ WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS = (
     "no LAPACK parity",
     "no SuiteSparse parity",
     "no Eigen parity",
-    "no Windows report freshness",
+    "no broad Windows report freshness",
     "no package-manager proof",
     "no shared-library ABI proof",
     "no performance superiority",
@@ -466,6 +470,7 @@ def assert_windows_cholesky_manifest_allowlist(rows: list[dict[str, str]]) -> No
         row
         for row in rows
         if "windows" in split_manifest_values(row["workflow_platforms"])
+        and row["target_id"] != WINDOWS_QR_INCOMPATIBLE_TARGET_ID
     ]
     if len(windows_rows) != 1:
         raise AssertionError(
@@ -551,7 +556,7 @@ def assert_no_windows_selected_platform(
         )
     for row in rows:
         platforms = split_manifest_values(row["workflow_platforms"])
-        if row["target_id"] == WINDOWS_CHOLESKY_TARGET_ID:
+        if row["target_id"] in {WINDOWS_CHOLESKY_TARGET_ID, WINDOWS_QR_INCOMPATIBLE_TARGET_ID}:
             continue
         if "windows" in platforms:
             raise AssertionError(
@@ -802,7 +807,7 @@ def test_unpromoted_report_families_remain_unselected() -> None:
     }
 
 
-def test_windows_manifest_selects_cholesky_only() -> None:
+def test_windows_manifest_selects_only_owned_comparison_targets() -> None:
     assert_windows_cholesky_manifest_allowlist(manifest_rows())
     assert_no_windows_selected_platform(manifest_rows())
 
@@ -843,7 +848,7 @@ def test_cholesky_manifest_rejects_wrong_windows_workflow_and_job() -> None:
             raise AssertionError(f"wrong Windows Cholesky {field} was accepted")
 
 
-def assert_current_qr_incompatible_redeferral_contract(
+def assert_current_qr_incompatible_candidate_contract(
     rows: list[dict[str, str]]
 ) -> None:
     row = qr_incompatible_row(rows)
@@ -876,57 +881,33 @@ def assert_current_qr_incompatible_redeferral_contract(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} expected_row_ids drifted"
         )
     workflow_files = tuple(split_manifest_values(row["workflow_file"]))
-    if WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILE in workflow_files:
-        raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list the Sprint 209 "
-            "Windows QR workflow while re-deferred"
-        )
     if workflow_files != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILES:
         raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_file metadata must remain "
-            "the current Linux/macOS selected freshness pair while re-deferred"
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_file must match the selected tuple"
         )
     workflow_jobs = tuple(split_manifest_values(row["workflow_job"]))
-    if WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOB in workflow_jobs:
-        raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list the Sprint 209 "
-            "Windows QR workflow job while re-deferred"
-        )
     if workflow_jobs != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOBS:
         raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_job metadata must remain "
-            "the current Linux/macOS selected freshness pair while re-deferred"
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_job must match the selected tuple"
         )
     workflow_artifacts = tuple(split_manifest_values(row["workflow_artifact"]))
-    if WINDOWS_QR_INCOMPATIBLE_ARTIFACT in workflow_artifacts:
-        raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list the Sprint 209 "
-            "Windows QR artifact while re-deferred"
-        )
     if workflow_artifacts != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_ARTIFACTS:
         raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_artifact metadata must "
-            "remain the current Linux/macOS selected freshness pair while re-deferred"
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_artifact must match the selected tuple"
         )
     workflow_platforms = tuple(split_manifest_values(row["workflow_platforms"]))
-    if "windows" in workflow_platforms:
-        raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not list windows "
-            "without hosted MSVC proof"
-        )
     if workflow_platforms != WINDOWS_QR_INCOMPATIBLE_WORKFLOW_PLATFORMS:
         raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_platforms metadata must "
-            "remain linux/macos while re-deferred"
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} workflow_platforms must match the selected tuple"
         )
     if WINDOWS_CHOLESKY_ARTIFACT in workflow_artifacts:
         raise AssertionError(
             f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} must not reuse the Cholesky "
             "Windows artifact"
         )
-    if row["support_tier"] != "local_only":
+    if row["support_tier"] != "hosted_selected":
         raise AssertionError(
-            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} support_tier must remain local_only"
+            f"{WINDOWS_QR_INCOMPATIBLE_TARGET_ID} support_tier must be hosted_selected"
         )
     non_claims = split_manifest_values(row["non_claims"])
     if tuple(non_claims) != WINDOWS_QR_INCOMPATIBLE_REQUIRED_NON_CLAIMS:
@@ -936,57 +917,57 @@ def assert_current_qr_incompatible_redeferral_contract(
         )
 
 
-def test_qr_incompatible_manifest_remains_redeferred_for_windows() -> None:
-    assert_current_qr_incompatible_redeferral_contract(manifest_rows())
+def test_qr_incompatible_manifest_candidate_is_exact() -> None:
+    assert_current_qr_incompatible_candidate_contract(manifest_rows())
 
 
-def test_qr_incompatible_manifest_redeferral_rejects_sprint209_workflow() -> None:
+def test_qr_incompatible_manifest_rejects_wrong_workflow() -> None:
     rows = manifest_rows()
     row = qr_incompatible_row(rows)
-    row["workflow_file"] = f"{row['workflow_file']};{WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILE}"
+    row["workflow_file"] = row["workflow_file"].replace(WINDOWS_QR_INCOMPATIBLE_WORKFLOW_FILE, "other.yml")
     try:
-        assert_current_qr_incompatible_redeferral_contract(rows)
+        assert_current_qr_incompatible_candidate_contract(rows)
     except AssertionError as exc:
-        if "must not list the Sprint 209 Windows QR workflow" not in str(exc):
+        if "workflow_file must match" not in str(exc):
             raise
         return
     raise AssertionError("expected Sprint 209 QR workflow metadata to fail")
 
 
-def test_qr_incompatible_manifest_redeferral_rejects_sprint209_job() -> None:
+def test_qr_incompatible_manifest_rejects_wrong_job() -> None:
     rows = manifest_rows()
     row = qr_incompatible_row(rows)
-    row["workflow_job"] = f"{row['workflow_job']};{WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOB}"
+    row["workflow_job"] = row["workflow_job"].replace(WINDOWS_QR_INCOMPATIBLE_WORKFLOW_JOB, "other-job")
     try:
-        assert_current_qr_incompatible_redeferral_contract(rows)
+        assert_current_qr_incompatible_candidate_contract(rows)
     except AssertionError as exc:
-        if "must not list the Sprint 209 Windows QR workflow job" not in str(exc):
+        if "workflow_job must match" not in str(exc):
             raise
         return
     raise AssertionError("expected Sprint 209 QR workflow job metadata to fail")
 
 
-def test_qr_incompatible_manifest_redeferral_rejects_sprint209_artifact() -> None:
+def test_qr_incompatible_manifest_rejects_wrong_artifact() -> None:
     rows = manifest_rows()
     row = qr_incompatible_row(rows)
-    row["workflow_artifact"] = f"{row['workflow_artifact']};{WINDOWS_QR_INCOMPATIBLE_ARTIFACT}"
+    row["workflow_artifact"] = row["workflow_artifact"].replace(WINDOWS_QR_INCOMPATIBLE_ARTIFACT, "other-artifact")
     try:
-        assert_current_qr_incompatible_redeferral_contract(rows)
+        assert_current_qr_incompatible_candidate_contract(rows)
     except AssertionError as exc:
-        if "must not list the Sprint 209 Windows QR artifact" not in str(exc):
+        if "workflow_artifact must match" not in str(exc):
             raise
         return
     raise AssertionError("expected Sprint 209 QR artifact metadata to fail")
 
 
-def test_qr_incompatible_manifest_redeferral_rejects_windows_platform() -> None:
+def test_qr_incompatible_manifest_rejects_missing_windows_platform() -> None:
     rows = manifest_rows()
     row = qr_incompatible_row(rows)
-    row["workflow_platforms"] = f"{row['workflow_platforms']};windows"
+    row["workflow_platforms"] = row["workflow_platforms"].replace(";windows", "")
     try:
-        assert_current_qr_incompatible_redeferral_contract(rows)
+        assert_current_qr_incompatible_candidate_contract(rows)
     except AssertionError as exc:
-        if "must not list windows without hosted MSVC proof" not in str(exc):
+        if "workflow_platforms must match" not in str(exc):
             raise
         return
     raise AssertionError("expected Sprint 209 QR Windows platform metadata to fail")
@@ -1287,15 +1268,15 @@ def main() -> int:
     test_missing_report_family_mapping_fails_clearly()
     test_artifact_expected_count_collision_fails_clearly()
     test_unpromoted_report_families_remain_unselected()
-    test_windows_manifest_selects_cholesky_only()
+    test_windows_manifest_selects_only_owned_comparison_targets()
     test_cholesky_manifest_has_selected_windows_metadata()
     test_cholesky_manifest_rejects_extra_windows_artifact()
     test_cholesky_manifest_rejects_wrong_windows_workflow_and_job()
-    test_qr_incompatible_manifest_remains_redeferred_for_windows()
-    test_qr_incompatible_manifest_redeferral_rejects_sprint209_workflow()
-    test_qr_incompatible_manifest_redeferral_rejects_sprint209_job()
-    test_qr_incompatible_manifest_redeferral_rejects_sprint209_artifact()
-    test_qr_incompatible_manifest_redeferral_rejects_windows_platform()
+    test_qr_incompatible_manifest_candidate_is_exact()
+    test_qr_incompatible_manifest_rejects_wrong_workflow()
+    test_qr_incompatible_manifest_rejects_wrong_job()
+    test_qr_incompatible_manifest_rejects_wrong_artifact()
+    test_qr_incompatible_manifest_rejects_missing_windows_platform()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_deferral_record_missing_marker_fails_clearly()
     test_windows_platform_drift_fails_clearly()

@@ -158,7 +158,7 @@ class ReportIndexError(RuntimeError):
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="") as handle:
+    with path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle, delimiter="\t"))
     if not rows:
         raise ReportIndexError(f"{path}: empty TSV")
@@ -315,10 +315,12 @@ def selected_comparison_required_file_diagnostics(
             continue
         artifact_dir = Path(artifact_pattern.removeprefix("build/")).parent
         study_path = build_root / Path(artifact_pattern.removeprefix("build/"))
-        if not study_path.is_file():
+        is_cholesky = contract["target_key"] == "cholesky-spd-tridiag-5"
+        if not study_path.is_file() and not (is_cholesky and target_keys):
             continue
         missing: list[str] = []
-        for filename in split_manifest_values(contract["required_files"]):
+        required_files = split_manifest_values(contract["required_files"])
+        for filename in required_files:
             logical_path = f"build/{artifact_dir.as_posix()}/{filename}"
             physical_path = build_root / artifact_dir / filename
             if not physical_path.is_file():
@@ -333,6 +335,21 @@ def selected_comparison_required_file_diagnostics(
                 f"{selected_comparison_artifact_diagnostic(selected_targets, target_keys)}; "
                 f"{selected_comparison_remediation(target_keys)}"
             )
+        physical_dir = build_root / artifact_dir
+        if is_cholesky and physical_dir.is_dir():
+            unexpected = sorted(
+                child.name for child in physical_dir.iterdir()
+                if child.name not in required_files
+            )
+            if unexpected:
+                has_error = True
+                diagnostics.append(
+                    "freshness: error: comparison_required_files: unexpected_artifact_file: "
+                    f"target_id={contract['target_id']}; target_key={contract['target_key']}; "
+                    f"unexpected={','.join(unexpected)}; "
+                    f"artifact={contract['artifact_pattern']}; "
+                    f"{selected_comparison_remediation(target_keys)}"
+                )
     return diagnostics, has_error
 
 
@@ -697,17 +714,214 @@ def oracle_generated_rows(
     return rows
 
 
+def comparison_artifact_path_matches(
+    recorded: str, expected: str, physical_path: Path | None = None
+) -> bool:
+    normalized = recorded.replace("\\", "/")
+    return (
+        normalized == expected
+        or normalized.endswith(f"/{expected}")
+        or (physical_path is not None and normalized == physical_path.resolve().as_posix())
+    )
+
+
+def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) -> None:
+    """Reject contradictory selected Windows proof before normalizing study rows."""
+    manifest_path = path.with_name("manifest.tsv")
+    summary_path = path.with_name("summary.md")
+    manifest_text = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else ""
+    summary_text = summary_path.read_text(encoding="utf-8") if summary_path.is_file() else ""
+    hosted = any(
+        row.get("support_tier") == "hosted_selected"
+        or "support_tier=hosted_selected" in row.get("configuration", "")
+        or "selected Windows hosted lane" in row.get("claim_scope", "")
+        or "no broad Windows report freshness" in row.get("non_claims", "")
+        for row in rows
+    ) or "support_tier=hosted_selected" in manifest_text or "selected Windows hosted study" in summary_text
+    if not hosted:
+        return
+    if not rows:
+        raise ReportIndexError(
+            f"{path}: comparison_hosted_metadata_mismatch: field=study_rows_missing"
+        )
+
+    expected_claim = (
+        "fixture-local Cholesky SPD tridiagonal solve comparison "
+        "on the selected Windows hosted lane only"
+    )
+    expected_non_claims = ";".join(
+        (
+            "no broad Cholesky correctness", "no broad SPD coverage",
+            "no broad reordering coverage", "no CSC-vs-linked-list parity",
+            "no factor-layout identity", "no fill superiority", "no NumPy parity",
+            "no SciPy parity", "no LAPACK parity", "no SuiteSparse parity",
+            "no Eigen parity", "no external-library ecosystem parity",
+            "no release proof", "no platform portability proof",
+            "no broad Windows report freshness", "no package-manager proof",
+            "no shared-library ABI proof", "no performance superiority",
+            "no state-of-the-art claim",
+        )
+    )
+    expected_configuration = (
+        "stage=sprint183_day8_comparison_logic;"
+        "baseline_status=integrated_and_compared;support_tier=hosted_selected"
+    )
+    expected_compiler = "cmake-probe:Visual Studio 17 2022:Release"
+    for row in rows:
+        row_id = row.get("comparison_row_id", "unknown")
+        if row.get("support_tier") == "hosted_selected" and row.get("worktree_state") != "clean":
+            raise ReportIndexError(
+                f"{path}: comparison_dirty_worktree: row_id={row_id}; "
+                f"worktree_state={row.get('worktree_state', '')}"
+            )
+        checks = {
+            "support_tier": row.get("support_tier") == "hosted_selected",
+            "source_commit": bool(
+                re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", row.get("source_commit", ""))
+            ),
+            "platform": row.get("platform") == "windows-amd64",
+            "compiler": row.get("compiler") == expected_compiler,
+            "configuration": row.get("configuration") == expected_configuration,
+            "claim_scope": row.get("claim_scope") == expected_claim,
+            "non_claims": row.get("non_claims") == expected_non_claims,
+            "worktree_state": row.get("worktree_state") == "clean",
+            "source_branch": row.get("source_branch") not in {"", "unknown"},
+        }
+        for field, valid in checks.items():
+            if not valid:
+                raise ReportIndexError(
+                    f"{path}: comparison_hosted_metadata_mismatch: "
+                    f"row_id={row_id}; field={field}; value={row.get(field, '')}"
+                )
+
+    if not manifest_path.is_file():
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: field=manifest_missing"
+        )
+    manifest_rows = read_tsv(manifest_path)
+    if any(set(row) != {"key", "value"} for row in manifest_rows):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: invalid manifest fields"
+        )
+    manifest = {row["key"]: row["value"] for row in manifest_rows}
+    if len(manifest) != len(manifest_rows):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: duplicate manifest key"
+        )
+    expected_manifest = {
+        "target": "cholesky-spd-tridiag-5",
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "platform": "windows-amd64",
+        "compiler": expected_compiler,
+        "configuration": expected_configuration,
+        "baseline_name": "source-controlled-dense-cholesky-reference",
+        "baseline_type": "external-process-source-controlled-helper",
+        "baseline_version": "chol_external_dense_reference.py",
+        "baseline_python_executable": rows[0].get("baseline_python_executable", ""),
+        "baseline_python_version": rows[0].get("baseline_python_version", ""),
+        "baseline_command": rows[0].get("baseline_command", ""),
+        "project_version": rows[0].get("project_version", ""),
+        "project_probe_command": rows[0].get("project_command", ""),
+    }
+    first = rows[0]
+    for field in ("source_commit", "source_branch", "worktree_state", "generated_at_utc"):
+        expected_manifest[field] = first.get(field, "")
+    for field, expected in expected_manifest.items():
+        row_field = "project_command" if field == "project_probe_command" else field
+        if expected in {"", "unknown", "not_applicable"} or manifest.get(field) != expected or any(
+            row.get(row_field) != expected for row in rows if field != "target"
+        ):
+            raise ReportIndexError(
+                f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
+            )
+    if manifest.get("baseline_helper_path", "").replace("\\", "/") != (
+        "tests/chol_external_dense_reference.py"
+    ):
+        raise ReportIndexError(
+            f"{manifest_path}: comparison_hosted_metadata_mismatch: "
+            "field=baseline_helper_path"
+        )
+
+    if not summary_path.is_file():
+        raise ReportIndexError(
+            f"{summary_path}: comparison_hosted_metadata_mismatch: field=summary_missing"
+        )
+    summary = summary_path.read_text(encoding="utf-8")
+    expected_scope = (
+        "This selected Windows hosted study compares one fixture-local Cholesky "
+        "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
+    )
+    summary_lines = summary.splitlines()
+    if (
+        summary_lines.count(expected_scope) != 1
+        or [line for line in summary_lines if line.startswith("Non-claims:")]
+        != ["Non-claims: " + first["non_claims"]]
+    ):
+        raise ReportIndexError(
+            f"{summary_path}: comparison_hosted_metadata_mismatch: "
+            "field=summary_scope_or_non_claims"
+        )
+    summary_provenance = {
+        "Target": manifest["target"],
+        "Fixture": manifest["fixture_key"],
+        "Source commit": manifest["source_commit"],
+        "Source branch": manifest["source_branch"],
+        "Worktree state": manifest["worktree_state"],
+        "Platform": manifest["platform"],
+        "Compiler": manifest["compiler"],
+        "Baseline command": manifest["baseline_command"],
+        "Project command": manifest["project_probe_command"],
+    }
+    for label, expected in summary_provenance.items():
+        if [line for line in summary_lines if line.startswith(f"- {label}:")] != [
+            f"- {label}: `{expected}`"
+        ]:
+            raise ReportIndexError(
+                f"{summary_path}: comparison_hosted_metadata_mismatch: "
+                f"field=summary_{label.lower().replace(' ', '_')}"
+            )
+
+
 def comparison_generated_rows(
     contract: dict[str, str],
     build_root: Path,
     repo_root: Path,
     commit: str,
     branch: str,
+    validate_cholesky: bool = True,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
-        for comparison in read_tsv(path):
+        comparisons = read_tsv(path)
+        if contract["subfamily"] == "cholesky_spd_tridiag_5" and validate_cholesky:
+            validate_cholesky_hosted_metadata(path, comparisons)
+        for comparison in comparisons:
+            if (
+                contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and validate_cholesky
+                and comparison.get("support_tier") == "hosted_selected"
+                and comparison.get("worktree_state") != "clean"
+            ):
+                raise ReportIndexError(
+                    f"{path}: comparison_dirty_worktree: "
+                    f"row_id={comparison.get('comparison_row_id', 'unknown')}; "
+                    f"worktree_state={comparison.get('worktree_state', '')}"
+                )
+            if (
+                contract["subfamily"] == "cholesky_spd_tridiag_5"
+                and validate_cholesky
+                and not comparison_artifact_path_matches(
+                    comparison.get("artifact_path", ""), contract["artifact_pattern"], path
+                )
+                and comparison.get("artifact_path", "").replace("\\", "/") != artifact
+            ):
+                raise ReportIndexError(
+                    f"{path}: comparison_artifact_path_mismatch: "
+                    f"row_id={comparison.get('comparison_row_id', 'unknown')}; "
+                    f"recorded={comparison.get('artifact_path', '')}; "
+                    f"expected={contract['artifact_pattern']}"
+                )
             rows.append(
                 row_with_overrides(
                     contract,
@@ -1192,6 +1406,7 @@ def emit_rows(
     include_generated: bool,
     commit: str,
     branch: str,
+    selected_comparison_subfamilies_filter: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for contract in contracts:
@@ -1223,7 +1438,11 @@ def emit_rows(
                 rows.append(not_generated_row(contract, commit, branch))
             else:
                 comparison_rows = comparison_generated_rows(
-                    contract, build_root, repo_root, commit, branch
+                    contract, build_root, repo_root, commit, branch,
+                    validate_cholesky=(
+                        selected_comparison_subfamilies_filter is None
+                        or contract["subfamily"] in selected_comparison_subfamilies_filter
+                    ),
                 )
                 if comparison_rows:
                     rows.extend(comparison_rows)
@@ -1464,22 +1683,10 @@ def selected_comparison_policy_enabled(
 def selected_comparison_generated_rows(
     rows: list[dict[str, str]], selected_artifacts: set[str] | None = None
 ) -> list[dict[str, str]]:
-    def normalize_artifact_path(path: str) -> str:
-        return path.replace("\\", "/")
-
-    normalized_artifacts = (
-        None
-        if selected_artifacts is None
-        else {normalize_artifact_path(artifact) for artifact in selected_artifacts}
-    )
-
     def matches_selected_artifact(artifact_path: str) -> bool:
-        if normalized_artifacts is None:
-            return True
-        normalized_path = normalize_artifact_path(artifact_path)
-        return any(
-            normalized_path == artifact or normalized_path.endswith(f"/{artifact}")
-            for artifact in normalized_artifacts
+        return selected_artifacts is None or any(
+            comparison_artifact_path_matches(artifact_path, artifact)
+            for artifact in selected_artifacts
         )
 
     return [
@@ -1507,7 +1714,16 @@ def selected_comparison_policy_diagnostics(
     selected_artifacts = set(
         selected_comparison_artifacts(selected_targets, selected_target_keys)
     )
-    comparison_rows = selected_comparison_generated_rows(rows, selected_artifacts)
+    if selected_target_keys:
+        selected_subfamilies = selected_comparison_subfamilies(
+            selected_targets, selected_target_keys
+        )
+        comparison_rows = [
+            row for row in selected_comparison_generated_rows(rows)
+            if row["subfamily"] in selected_subfamilies
+        ]
+    else:
+        comparison_rows = selected_comparison_generated_rows(rows, selected_artifacts)
     diagnostics: list[str] = []
     has_error = False
     expected_row_ids = selected_comparison_row_ids(selected_targets, selected_target_keys)
@@ -1822,6 +2038,19 @@ def main() -> int:
 
     commit = source_commit()
     branch = source_branch()
+    selected_target_keys = set(args.selected_target)
+    required_families = set(args.require_generated)
+    selected_policy_families = {"oracle", "comparison"}
+    requested_families = set(args.family)
+    needs_selected_targets = args.check_freshness and (
+        args.strict_generated
+        or bool(required_families & selected_policy_families)
+        or bool(requested_families & selected_policy_families)
+        or bool(selected_target_keys)
+    )
+    selected_targets = (
+        selected_report_targets(args.corpus_root) if needs_selected_targets else []
+    )
     rows = emit_rows(
         contracts,
         corpus_root=args.corpus_root,
@@ -1830,23 +2059,14 @@ def main() -> int:
         include_generated=args.include_generated,
         commit=commit,
         branch=branch,
+        selected_comparison_subfamilies_filter=(
+            selected_comparison_subfamilies(selected_targets, selected_target_keys)
+            if selected_target_keys else None
+        ),
     )
     validate_unique_row_ids(rows)
 
-    required_families = set(args.require_generated)
     if args.check_freshness:
-        selected_target_keys = set(args.selected_target)
-        selected_policy_families = {"oracle", "comparison"}
-        requested_families = set(args.family)
-        needs_selected_targets = (
-            args.strict_generated
-            or bool(required_families & selected_policy_families)
-            or bool(requested_families & selected_policy_families)
-            or bool(selected_target_keys)
-        )
-        selected_targets = (
-            selected_report_targets(args.corpus_root) if needs_selected_targets else []
-        )
         diagnostics, has_error = freshness_diagnostics(
             rows,
             build_root=args.build_root,

@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import csv
+import os
 import subprocess
 import tempfile
 import sys
 from pathlib import Path, PureWindowsPath
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -694,7 +696,192 @@ def test_ensure_library_wraps_missing_make_as_comparison_error() -> None:
             runner.subprocess.run = original_subprocess_run
 
 
+def test_selected_cholesky_hosted_context_is_exact() -> None:
+    for runner_os, system, workflow in (
+        ("Linux", "Linux", "CI"),
+        ("macOS", "Darwin", "macOS CI"),
+    ):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "GITHUB_JOB": "selected-comparison-freshness",
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+                "GITHUB_WORKFLOW": workflow,
+                "RUNNER_OS": runner_os,
+            },
+            clear=True,
+        ), mock.patch.object(runner.platform, "system", return_value=system):
+            assert not runner.selected_cholesky_hosted_tier(
+                REPO_ROOT, "cholesky-spd-tridiag-5"
+            )
+    context = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+        "GITHUB_WORKFLOW": "Windows CI",
+        "GITHUB_JOB": "selected-comparison-freshness",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_SHA": "synthetic-merge-sha",
+        "GITHUB_HEAD_REF": "sprint-223",
+        "SPARSE_SELECTED_SOURCE_SHA": runner.current_commit(REPO_ROOT),
+        "SPARSE_SELECTED_SOURCE_BRANCH": "sprint-223",
+        "RUNNER_OS": "Windows",
+    }
+    with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(
+        runner.platform, "system", return_value="Windows"
+    ), mock.patch.object(runner, "worktree_state", return_value="clean") as state:
+        assert runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        assert not runner.selected_cholesky_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+        state.return_value = "dirty"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert "source worktree must be clean" in str(exc)
+        else:
+            raise AssertionError("dirty hosted source tree was accepted")
+        state.return_value = "clean"
+        os.environ["SPARSE_SELECTED_SOURCE_SHA"] = "wrong-sha"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong hosted source commit was accepted")
+        os.environ["SPARSE_SELECTED_SOURCE_SHA"] = runner.current_commit(REPO_ROOT)
+        os.environ["SPARSE_SELECTED_SOURCE_BRANCH"] = "wrong-branch"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong hosted source branch was accepted")
+    push_context = {
+        **context,
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_SHA": runner.current_commit(REPO_ROOT),
+        "GITHUB_REF_NAME": "master",
+        "SPARSE_SELECTED_SOURCE_BRANCH": "master",
+    }
+    with mock.patch.dict(os.environ, push_context, clear=True), mock.patch.object(
+        runner.platform, "system", return_value="Windows"
+    ), mock.patch.object(runner, "worktree_state", return_value="clean"):
+        assert runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        os.environ["GITHUB_SHA"] = "wrong-sha"
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong push source commit was accepted")
+    with mock.patch.dict(
+        os.environ,
+        {"GITHUB_JOB": "selected-comparison-freshness", "RUNNER_OS": "Windows"},
+        clear=True,
+    ):
+        try:
+            runner.selected_cholesky_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("partial hosted context was accepted")
+
+
+def test_selected_cholesky_hosted_wording_is_narrow() -> None:
+    source = runner.TARGETS["cholesky-spd-tridiag-5"]
+    selected = runner.selected_cholesky_report_metadata(source)
+    assert selected is not source
+    assert "no hosted CI proof" not in str(selected["non_claims"])
+    assert "no Windows report freshness" not in str(selected["non_claims"])
+    assert "no broad Windows report freshness" in str(selected["non_claims"])
+    assert "no external-library ecosystem parity" in str(selected["non_claims"])
+    assert "no performance superiority" in str(selected["non_claims"])
+    assert "no state-of-the-art claim" in str(selected["non_claims"])
+    assert "selected Windows hosted lane only" in str(selected["claim_scope"])
+    assert "no hosted CI proof" in str(source["non_claims"])
+    assert runner.comparison_configuration(source).endswith("support_tier=local_only")
+    assert runner.comparison_configuration(selected, "hosted_selected").endswith(
+        "support_tier=hosted_selected"
+    )
+
+
+def test_selected_cholesky_candidate_matches_manifest_and_summary() -> None:
+    manifest_path = REPO_ROOT / "tests/corpus/manifests/selected_report_targets.tsv"
+    with manifest_path.open(encoding="utf-8", newline="") as handle:
+        contract = next(
+            row
+            for row in csv.DictReader(handle, delimiter="\t")
+            if row["target_id"] == "SRT-COMP-CHOLESKY-SPD-TRIDIAG-5"
+        )
+    assert contract["support_tier"] == "hosted_selected"
+    assert contract["workflow_platforms"].split(";") == ["linux", "macos", "windows"]
+    assert contract["required_files"].split(";") == [
+        "project_observations.tsv",
+        "baseline_observations.tsv",
+        "dependency_status.tsv",
+        "study.tsv",
+        "summary.md",
+        "manifest.tsv",
+    ]
+
+    target = runner.selected_cholesky_report_metadata(runner.TARGETS["cholesky-spd-tridiag-5"])
+    generated_non_claims = set(str(target["non_claims"]).split(";"))
+    assert set(contract["non_claims"].split(";")).issubset(generated_non_claims)
+    assert "selected Windows hosted lane only" in str(target["claim_scope"])
+    assert "no hosted CI proof" not in generated_non_claims
+
+    generated_manifest = {
+        "target": "cholesky-spd-tridiag-5",
+        "fixture_key": "cholesky_spd_tridiag_5",
+        "source_commit": runner.current_commit(REPO_ROOT),
+        "source_branch": "sprint-223",
+        "worktree_state": "clean",
+        "platform": "windows-amd64",
+        "compiler": "cmake-probe:Visual Studio 17 2022:Release",
+        "configuration": runner.comparison_configuration(target, "hosted_selected"),
+        "baseline_name": "source-controlled-dense-cholesky-reference",
+        "baseline_type": "external-process-source-controlled-helper",
+        "baseline_version": "chol_external_dense_reference.py",
+        "project_version": "2.2.0",
+        "baseline_command": "python tests/chol_external_dense_reference.py",
+        "project_probe_command": "cmake-probe",
+    }
+    context = runner.build_study_context(
+        artifact_path="build/comparison/cholesky_spd_tridiag_5/study.tsv",
+        baseline_observations={
+            "baseline_command": generated_manifest["baseline_command"],
+            "baseline_python_executable": "python",
+            "baseline_python_version": "3",
+        },
+        compiler=generated_manifest["compiler"],
+        generated_at="2026-11-10T00:00:00Z",
+        manifest=generated_manifest,
+        observations={"project_probe_command": "cmake-probe"},
+        target=target,
+        support_tier="hosted_selected",
+    )
+    assert context["support_tier"] == "hosted_selected"
+    assert context["configuration"].endswith("support_tier=hosted_selected")
+    assert context["claim_scope"] == target["claim_scope"]
+    assert context["non_claims"] == target["non_claims"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        summary = Path(tmp) / "summary.md"
+        runner.write_summary(
+            summary,
+            [runner.study_row(context, metric="project_status", status="pass")],
+            generated_manifest,
+            target,
+        )
+        text = summary.read_text(encoding="utf-8")
+        assert str(target["summary_scope"]) in text
+        assert "Non-claims: " + context["non_claims"] in text
+        assert "This local generated study" not in text
+
+
 def main() -> int:
+    test_selected_cholesky_hosted_context_is_exact()
+    test_selected_cholesky_hosted_wording_is_narrow()
+    test_selected_cholesky_candidate_matches_manifest_and_summary()
     test_cmake_path_literal_uses_forward_slashes_for_windows_paths()
     test_ensure_library_fails_structurally_for_default_library_on_windows()
     test_ensure_library_wraps_missing_make_as_comparison_error()

@@ -77,12 +77,13 @@ job and artifact entries and `hosted_selected` support. The accepted claim is:
 named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
 selected source-controlled dense Cholesky reference helper.” PR #247 records
 the exact-head selected Windows job and six-file artifact audit; any later
-commit requires a new audit. Sprint 224 aligns `SRT-COMP-QR-INCOMPATIBLE-LS`
-as a second, QR-only selected Windows candidate. Its conditional claim is:
+commit requires a new audit. Sprint 224 accepts `SRT-COMP-QR-INCOMPATIBLE-LS`
+as a second, QR-only selected Windows target. Its bounded claim is:
 “Selected QR incompatible least-squares comparison rows are fresh for the
 named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
-selected source-controlled dense reference helper.” Accept it only after
-strict hosted QR guards and a final changed-head six-file artifact audit. The
+selected source-controlled dense reference helper.” PR #248 records the strict
+hosted QR guards and final changed-head six-file artifact audit; any later
+commit requires a new audit. The
 Sprint 182 deferral remains active for all other Windows report freshness.
 
 Sprint 186 closeout preserves this split. Selected target rows are positive

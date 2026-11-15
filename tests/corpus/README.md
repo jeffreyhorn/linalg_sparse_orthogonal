@@ -134,11 +134,12 @@ dense Cholesky reference helper.” The exact-head selected Windows job and
 audited artifact are recorded in PR #247; any later commit requires a new
 audit. Sprint 208's older hosted run is intake evidence only.
 Sprint 209 added one bounded Windows QR incompatible evidence-collection lane
-for `qr-incompatible-ls`. Sprint 224 aligns its selected Windows candidate;
-the conditional claim is: “Selected QR incompatible least-squares comparison
+for `qr-incompatible-ls`. Sprint 224 accepts its selected Windows target;
+the bounded claim is: “Selected QR incompatible least-squares comparison
 rows are fresh for the named fixture on reviewed Linux, macOS, and Windows
 hosted lanes against the selected source-controlled dense reference helper.”
-A final changed-head six-file artifact audit is required before accepting it.
+PR #248 records the final changed-head six-file artifact audit; a later commit
+requires a new audit.
 The Sprint 182 deferral remains active for all other Windows report freshness.
 A broader Windows promotion must add exact workflow file, job, artifact,
 platform, support-tier, claim-scope, and
@@ -259,9 +260,9 @@ external-library parity; broad Windows report freshness; Windows selected
 oracle or benchmark freshness; broad platform support; package/ABI support;
 performance; release readiness; or state-of-the-art status. Optional
 NumPy/SciPy dependency rows are deferred context only and never pass evidence.
-The QR incompatible least-squares selected candidate does not establish
-accepted Windows freshness until strict hosted QR guards and a final changed-head
-MSVC six-file artifact audit pass.
+The QR incompatible least-squares selected target has fixture-local Windows
+freshness only with strict hosted QR guards and the exact-head MSVC six-file
+artifact audit recorded in PR #248. A later commit requires a new audit.
 
 ## Sprint 139/Sprint 150 QR Lane
 

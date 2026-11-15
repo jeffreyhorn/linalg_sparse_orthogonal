@@ -390,12 +390,13 @@ reviewed Linux, macOS, and Windows hosted lanes against the selected
 source-controlled dense Cholesky reference helper.” The exact-head Windows
 run, job, and audited six-file artifact are recorded in Sprint 223's PR #247
 evidence ledger. Any later commit requires a fresh exact-head audit. Sprint 224
-adds a guarded Windows candidate for `qr-incompatible-ls` to the selected
-manifest. Its conditional claim is: “Selected QR incompatible least-squares
+adds one guarded Windows selected target, `qr-incompatible-ls`, to the
+manifest. Its accepted claim, subject to the exact-head evidence recorded in
+[PR #248](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/248), is: “Selected QR incompatible least-squares
 comparison rows are fresh for the named fixture on reviewed Linux, macOS, and
 Windows hosted lanes against the selected source-controlled dense reference
-helper.” The final changed-head Windows job and six-file artifact must be
-audited before accepting that claim. Keep the
+helper.” The final changed-head Windows job and six-file artifact are audited
+in the PR evidence record; any later commit requires a new audit. Keep the
 selected target list, workflow upload names, claim scopes, and non-claims in
 `tests/corpus/manifests/selected_report_targets.tsv`; do not copy target lists
 through docs. Use [benchmarks/README.md](benchmarks/README.md), the
@@ -849,8 +850,9 @@ six-file artifact; a new commit requires a new audit. The older Sprint 208
 run remains intake evidence only.
 Sprint 209 added a bounded Windows QR incompatible collection lane for
 `qr-incompatible-ls`. Sprint 224's QR-only selected manifest and generator
-candidate awaits a final changed-head MSVC job and six-file artifact audit;
-its Windows freshness sentence remains conditional. These gates do not
+support one named Windows freshness sentence after the exact-head MSVC job
+and six-file artifact audit recorded in PR #248. A later commit needs a new
+audit. These gates do not
 prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
 broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list

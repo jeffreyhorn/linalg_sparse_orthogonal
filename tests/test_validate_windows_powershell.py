@@ -439,8 +439,8 @@ def test_claim_boundary_missing_marker_fails_clearly() -> None:
 def test_claim_boundary_missing_public_qr_marker_fails_clearly() -> None:
     path = validator.REPO_ROOT / "INSTALL.md"
     text = path.read_text(encoding="utf-8").replace(
-        "selected candidate; final changed-head audit pending",
-        "selected candidate without provenance gate",
+        "hosted selected; exact-head evidence recorded in PR #248",
+        "hosted selected without provenance gate",
         1,
     )
     assert_raises_with(
@@ -471,8 +471,8 @@ def test_report_index_claim_boundary_missing_qr_marker_fails_clearly() -> None:
 def test_maintainer_claim_boundary_missing_sprint224_marker_fails_clearly() -> None:
     path = validator.REPO_ROOT / "docs" / "maintainer_guide.md"
     text = path.read_text(encoding="utf-8").replace(
-        "Sprint 224 prepares the named QR incompatible\nWindows selected candidate",
-        "Sprint 224 prepares Windows QR freshness",
+        "Sprint 224 accepts the named QR incompatible\nWindows selected target",
+        "Sprint 224 accepts Windows QR freshness",
     )
     assert_raises_with(
         lambda: validator.validate_claim_boundaries({path: text}),
@@ -483,7 +483,7 @@ def test_maintainer_claim_boundary_missing_sprint224_marker_fails_clearly() -> N
 def test_corpus_claim_boundary_missing_sprint224_marker_fails_clearly() -> None:
     path = validator.REPO_ROOT / "tests" / "corpus" / "README.md"
     text = path.read_text(encoding="utf-8").replace(
-        "Sprint 224 aligns its selected Windows candidate",
+        "Sprint 224 accepts its selected Windows target",
         "Sprint 224 adds Windows QR freshness",
         1,
     )
@@ -502,7 +502,7 @@ def test_report_index_claim_boundary_missing_sprint224_marker_fails_clearly() ->
         / "report_index_fields.md"
     )
     text = path.read_text(encoding="utf-8").replace(
-        "Sprint 224 aligns `SRT-COMP-QR-INCOMPATIBLE-LS`",
+        "Sprint 224 accepts `SRT-COMP-QR-INCOMPATIBLE-LS`",
         "Sprint 224 adds QR freshness metadata",
         1,
     )

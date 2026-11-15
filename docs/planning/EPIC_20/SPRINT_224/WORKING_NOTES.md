@@ -119,3 +119,11 @@
 **Checks:** The full normalizer, comparison generator, selected manifest, comparison workflow and Windows PowerShell structural Python suites passed. `make support-docs-guard`, `make docs-check` and `git diff --check` passed. No `.c` or `.h` file changed.
 
 **Handoff:** Day 11 must run or locate a new exact-head hosted QR job, inspect the six-file artifact and compare its provenance with the candidate source revision. Local regression fixtures and the earlier intake ZIP do not establish final Windows QR freshness.
+
+## Day 11: Run and audit the hosted QR candidate (2026-11-15)
+
+**State:** [Day 11 hosted QR candidate audit](artifacts/day11-hosted-qr-candidate-audit.md) passes for candidate commit `eb2e3b7b4cc9a5dc5528c49e732fcc5f5aec7a38`. Draft [PR #248](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/248) triggered [Windows run 43768694528](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/43768694528). The [selected QR job 132979511893](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/43768694528/job/132979511893) and the overall run succeeded; the job explicitly checked out the PR-head SHA, built with VS 2022/MSVC, generated the QR report, passed selected freshness and uploaded [artifact 14183083856](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/43768694528/artifacts/14183083856).
+
+**Evidence:** The artifact API, upload log and independently downloaded ZIP agree on digest `sha256:e47d2d06f09686ef8fecfc28f0d648732a96855289049913c3139ffb5faf0675`. Exactly six flat files passed CRC and byte-for-byte extraction checks. Six ordered passing `hosted_selected` rows, four project and four baseline observations, required/optional dependency statuses, manifest, summary, Windows paths, source/branch/clean-tree fields and numerical tolerances agree. The downloaded bundle passed the local selected normalizer at candidate HEAD: `freshness ok (17 rows)`. File sizes, hashes, IDs and numerical worksheet are in the Day 11 ledger.
+
+**Failure log and next gate:** No selected-job or artifact failure remains. The Day 11 evidence ledger is a post-run branch change, so Day 12 must freeze the final proposed commit and rerun the selected hosted QR job for that new SHA. The Day 11 ZIP proves only `eb2e3b7b…`; it cannot be promoted as final-head evidence after source drift.

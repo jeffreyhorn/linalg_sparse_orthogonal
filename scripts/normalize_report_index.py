@@ -2129,6 +2129,15 @@ def main() -> int:
         not args.check_freshness or len(args.selected_target) != 1 or not args.include_generated
     ):
         parser.error("--require-hosted-selected requires one --selected-target and generated freshness")
+    if args.require_hosted_selected and (
+        "comparison" not in args.require_generated and not args.strict_generated
+    ):
+        parser.error(
+            "--require-hosted-selected requires --require-generated comparison "
+            "or --strict-generated"
+        )
+    if args.require_hosted_selected and args.family and "comparison" not in args.family:
+        parser.error("--require-hosted-selected requires the comparison report family")
 
     manifest_path = args.corpus_root / REPORT_FAMILY_MANIFEST
     contracts = selected_contracts(read_tsv(manifest_path), set(args.family))

@@ -2484,6 +2484,25 @@ def test_local_qr_reports_index_without_hosted_profile() -> None:
             assert "field=support_tier" in result.stderr, (study, result)
 
 
+def test_hosted_qr_requirement_rejects_absent_bundle_and_missing_policy() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "empty-build"
+        bare_command = [
+            "python3", str(SCRIPT), "--build-root", str(build_root),
+            "--family", "comparison", "--check-freshness",
+            "--selected-target", "qr-incompatible-ls", "--require-hosted-selected",
+        ]
+        result = run_command(bare_command, expect_success=False)
+        assert "requires --require-generated comparison or --strict-generated" in result.stderr
+        result = run_command(
+            bare_command + ["--require-generated", "comparison"], expect_success=False
+        )
+        assert "missing_artifact_file" in result.stdout, result
+        assert "freshness ok" not in result.stdout
+        result = run_command(bare_command + ["--strict-generated"], expect_success=False)
+        assert "missing_artifact_file" in result.stdout, result
+
+
 def test_qr_incompatible_hosted_candidate_and_metadata_rejections() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
@@ -3535,6 +3554,7 @@ def main() -> int:
     test_cholesky_hosted_dirty_worktree_row_rejects()
     test_cholesky_hosted_metadata_positive_and_mutations()
     test_local_qr_reports_index_without_hosted_profile()
+    test_hosted_qr_requirement_rejects_absent_bundle_and_missing_policy()
     test_qr_incompatible_hosted_candidate_and_metadata_rejections()
     test_qr_hosted_six_file_membership_rejects_missing_renamed_extra()
     test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order()

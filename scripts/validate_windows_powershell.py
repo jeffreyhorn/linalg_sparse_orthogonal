@@ -214,7 +214,7 @@ WINDOWS_SELECTED_QR_GENERATOR = (
 )
 WINDOWS_SELECTED_QR_FRESHNESS = (
     "python scripts/normalize_report_index.py --family comparison --require-generated "
-    "comparison --check-freshness --selected-target qr-incompatible-ls"
+    "comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected"
 )
 WINDOWS_SELECTED_QR_REQUIRED_FILES = (
     "build/comparison/qr_incompatible_ls/project_observations.tsv",

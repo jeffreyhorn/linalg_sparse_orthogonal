@@ -225,6 +225,14 @@ def test_selected_qr_lane_missing_target_fails_clearly() -> None:
     )
 
 
+def test_selected_qr_lane_missing_hosted_requirement_fails_clearly() -> None:
+    drifted = read_workflow().replace(" --require-hosted-selected\n", "\n", 1)
+    assert_raises_with(
+        lambda: validator.validate_workflow_structure(drifted),
+        "missing selected QR token",
+    )
+
+
 def test_selected_qr_lane_source_provenance_drift_fails() -> None:
     workflow = read_workflow()
     job = validator.find_job_block(workflow, validator.WINDOWS_SELECTED_QR_JOB)
@@ -998,6 +1006,7 @@ if __name__ == "__main__":
     test_selected_cholesky_lane_missing_required_upload_fails_clearly()
     test_selected_cholesky_lane_extra_upload_fails_clearly()
     test_selected_qr_lane_missing_target_fails_clearly()
+    test_selected_qr_lane_missing_hosted_requirement_fails_clearly()
     test_selected_qr_lane_source_provenance_drift_fails()
     test_selected_qr_lane_generator_target_drift_fails_clearly()
     test_selected_qr_lane_artifact_name_drift_fails_clearly()

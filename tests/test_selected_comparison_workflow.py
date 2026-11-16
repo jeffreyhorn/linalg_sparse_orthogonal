@@ -72,7 +72,7 @@ WINDOWS_QR_INCOMPATIBLE_GENERATOR = (
 )
 WINDOWS_QR_INCOMPATIBLE_FRESHNESS = (
     "python scripts/normalize_report_index.py --family comparison --require-generated "
-    "comparison --check-freshness --selected-target qr-incompatible-ls"
+    "comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected"
 )
 WINDOWS_QR_INCOMPATIBLE_FILES = [
     "build/comparison/qr_incompatible_ls/project_observations.tsv",
@@ -797,6 +797,15 @@ def test_windows_qr_incompatible_freshness_target_drift_fails_clearly() -> None:
     )
 
 
+def test_windows_qr_incompatible_hosted_requirement_cannot_be_removed() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(" --require-hosted-selected\n", "\n", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "windows selected qr incompatible missing",
+    )
+
+
 def test_windows_qr_incompatible_equals_target_drift_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     drifted = (
@@ -1350,6 +1359,7 @@ def main() -> int:
     test_windows_selected_cholesky_duplicate_upload_file_fails_clearly()
     test_windows_qr_incompatible_target_drift_fails_clearly()
     test_windows_qr_incompatible_freshness_target_drift_fails_clearly()
+    test_windows_qr_incompatible_hosted_requirement_cannot_be_removed()
     test_windows_qr_incompatible_equals_target_drift_fails_clearly()
     test_windows_qr_incompatible_subfamily_drift_fails_clearly()
     test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()

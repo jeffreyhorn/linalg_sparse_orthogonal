@@ -154,7 +154,7 @@ jobs:
         shell: cmd
 
       - name: Check selected QR incompatible comparison freshness
-        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target qr-incompatible-ls
+        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected
         shell: cmd
 
       - name: Upload selected QR incompatible comparison freshness artifact

@@ -728,23 +728,27 @@ def comparison_artifact_path_matches(
 
 
 def validate_selected_hosted_metadata(
-    path: Path, rows: list[dict[str, str]], target_key: str
+    path: Path, rows: list[dict[str, str]], target_key: str,
+    require_hosted: bool = False,
 ) -> None:
     """Reject contradictory selected Windows proof before normalizing study rows."""
     manifest_path = path.with_name("manifest.tsv")
     summary_path = path.with_name("summary.md")
-    manifest_text = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else ""
+    manifest_values = (
+        {entry.get("key", ""): entry.get("value", "") for entry in read_tsv(manifest_path)}
+        if manifest_path.is_file() else {}
+    )
     summary_text = summary_path.read_text(encoding="utf-8") if summary_path.is_file() else ""
-    hosted = any(
+    hosted = require_hosted or any(
         row.get("support_tier") == "hosted_selected"
-        or "support_tier=hosted_selected" in row.get("configuration", "")
+        or configuration_value(row.get("configuration", ""), "support_tier") == "hosted_selected"
         or "selected Windows hosted lane" in row.get("claim_scope", "")
         or "no broad Windows report freshness" in row.get("non_claims", "")
-        or (target_key == "qr-incompatible-ls" and row.get("platform", "").startswith("windows-"))
         for row in rows
-    ) or "support_tier=hosted_selected" in manifest_text or "selected Windows hosted study" in summary_text
-    if target_key == "qr-incompatible-ls" and "windows-" in manifest_text:
-        hosted = True
+    ) or (
+        configuration_value(manifest_values.get("configuration", ""), "support_tier")
+        == "hosted_selected"
+    ) or "selected Windows hosted study" in summary_text
     if not hosted:
         return
     if not rows:
@@ -964,6 +968,7 @@ def comparison_generated_rows(
     commit: str,
     branch: str,
     validate_selected_hosted: bool = True,
+    require_hosted_selected_targets: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
@@ -974,7 +979,12 @@ def comparison_generated_rows(
             "qr_incompatible_ls": "qr-incompatible-ls",
         }.get(contract["subfamily"])
         if selected_hosted_target and validate_selected_hosted:
-            validate_selected_hosted_metadata(path, comparisons, selected_hosted_target)
+            validate_selected_hosted_metadata(
+                path, comparisons, selected_hosted_target,
+                require_hosted=(
+                    selected_hosted_target in (require_hosted_selected_targets or set())
+                ),
+            )
         for comparison in comparisons:
             if (
                 selected_hosted_target is not None
@@ -1486,6 +1496,7 @@ def emit_rows(
     commit: str,
     branch: str,
     selected_comparison_subfamilies_filter: set[str] | None = None,
+    require_hosted_selected_targets: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for contract in contracts:
@@ -1522,6 +1533,7 @@ def emit_rows(
                         selected_comparison_subfamilies_filter is None
                         or contract["subfamily"] in selected_comparison_subfamilies_filter
                     ),
+                    require_hosted_selected_targets=require_hosted_selected_targets,
                 )
                 if comparison_rows:
                     rows.extend(comparison_rows)
@@ -2102,6 +2114,10 @@ def main() -> int:
         default=[],
         help="limit selected comparison freshness checks to the named target_key",
     )
+    parser.add_argument(
+        "--require-hosted-selected", action="store_true",
+        help="require the named selected comparison bundle to have hosted metadata",
+    )
     parser.add_argument("--strict-generated", action="store_true")
     parser.add_argument("--advisory-ok", action="store_true")
     parser.add_argument("--format", choices=["tsv"], default="tsv")
@@ -2109,6 +2125,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.selected_target and not args.check_freshness:
         parser.error("--selected-target requires --check-freshness")
+    if args.require_hosted_selected and (
+        not args.check_freshness or len(args.selected_target) != 1 or not args.include_generated
+    ):
+        parser.error("--require-hosted-selected requires one --selected-target and generated freshness")
 
     manifest_path = args.corpus_root / REPORT_FAMILY_MANIFEST
     contracts = selected_contracts(read_tsv(manifest_path), set(args.family))
@@ -2141,6 +2161,9 @@ def main() -> int:
         selected_comparison_subfamilies_filter=(
             selected_comparison_subfamilies(selected_targets, selected_target_keys)
             if selected_target_keys else None
+        ),
+        require_hosted_selected_targets=(
+            selected_target_keys if args.require_hosted_selected else None
         ),
     )
     validate_unique_row_ids(rows)

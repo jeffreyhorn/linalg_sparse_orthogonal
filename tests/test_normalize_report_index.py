@@ -214,16 +214,17 @@ def rewrite_comparison_study(path: Path, rows: list[dict[str, str]]) -> None:
 
 
 def run_selected_comparison_freshness(
-    build_root: Path, target_key: str, *, expect_success: bool = True
+    build_root: Path, target_key: str, *, expect_success: bool = True,
+    require_hosted: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    return run_command(
-        [
-            "python3", str(SCRIPT), "--build-root", str(build_root),
-            "--family", "comparison", "--require-generated", "comparison",
-            "--check-freshness", "--selected-target", target_key,
-        ],
-        expect_success=expect_success,
-    )
+    command = [
+        "python3", str(SCRIPT), "--build-root", str(build_root),
+        "--family", "comparison", "--require-generated", "comparison",
+        "--check-freshness", "--selected-target", target_key,
+    ]
+    if require_hosted:
+        command.append("--require-hosted-selected")
+    return run_command(command, expect_success=expect_success)
 
 
 def run_cholesky_selected_freshness(
@@ -238,7 +239,8 @@ def run_qr_selected_freshness(
     build_root: Path, *, expect_success: bool = True
 ) -> subprocess.CompletedProcess[str]:
     return run_selected_comparison_freshness(
-        build_root, "qr-incompatible-ls", expect_success=expect_success
+        build_root, "qr-incompatible-ls", expect_success=expect_success,
+        require_hosted=True,
     )
 
 
@@ -2420,6 +2422,68 @@ def write_hosted_cholesky_fixture(build_root: Path) -> Path:
     return write_hosted_comparison_fixture(build_root, "cholesky-spd-tridiag-5")
 
 
+def write_local_qr_fixture(build_root: Path, platform: str, branch: str) -> Path:
+    study = write_hosted_comparison_fixture(build_root, "qr-incompatible-ls")
+    target = comparison_generator.TARGETS["qr-incompatible-ls"]
+    rows = read_tsv(study)
+    local_configuration = comparison_generator.comparison_configuration(target, "local_only")
+    for row in rows:
+        row.update(
+            support_tier="local_only", configuration=local_configuration,
+            claim_scope=str(target["claim_scope"]), non_claims=str(target["non_claims"]),
+            platform=platform, source_branch=branch,
+        )
+    rewrite_comparison_study(study, rows)
+    manifest_path = study.with_name("manifest.tsv")
+    manifest_rows = read_tsv(manifest_path)
+    for entry in manifest_rows:
+        if entry["key"] == "configuration":
+            entry["value"] = local_configuration
+        elif entry["key"] == "platform":
+            entry["value"] = platform
+        elif entry["key"] == "source_branch":
+            entry["value"] = branch
+    with manifest_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["key", "value"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows(manifest_rows)
+    summary_path = study.with_name("summary.md")
+    summary = summary_path.read_text(encoding="utf-8")
+    hosted_target = comparison_generator.selected_qr_incompatible_report_metadata(target)
+    summary = summary.replace(str(hosted_target["summary_scope"]), str(target["summary_scope"]))
+    summary = summary.replace(str(hosted_target["non_claims"]), str(target["non_claims"]))
+    summary = summary.replace("- Platform: `windows-amd64`", f"- Platform: `{platform}`")
+    summary = summary.replace("- Source branch: `sprint-159`", f"- Source branch: `{branch}`")
+    summary_path.write_text(summary, encoding="utf-8")
+    return study
+
+
+def test_local_qr_reports_index_without_hosted_profile() -> None:
+    for platform, branch in (
+        ("windows-amd64", "local-windows"),
+        ("linux-amd64", "windows-qr-fix"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root = Path(tmp) / "build"
+            study = write_local_qr_fixture(build_root, platform, branch)
+            index_path = Path(tmp) / "index.tsv"
+            result = run_command([
+                "python3", str(SCRIPT), "--build-root", str(build_root),
+                "--family", "comparison", "--output", str(index_path),
+            ])
+            assert "comparison_hosted_metadata_mismatch" not in result.stderr
+            indexed = [
+                row for row in read_tsv(index_path)
+                if row["native_row_id"] in SELECTED_QR_INCOMPATIBLE_COMPARISON_ROW_IDS
+            ]
+            assert len(indexed) == 6
+            assert all(row["support_tier"] == "local_only" for row in indexed)
+            result = run_selected_comparison_freshness(build_root, "qr-incompatible-ls")
+            assert "freshness ok" in result.stdout
+            result = run_qr_selected_freshness(build_root, expect_success=False)
+            assert "field=support_tier" in result.stderr, (study, result)
+
+
 def test_qr_incompatible_hosted_candidate_and_metadata_rejections() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
@@ -3470,6 +3534,7 @@ def main() -> int:
     test_cholesky_selected_missing_and_wrong_target_rows_reject()
     test_cholesky_hosted_dirty_worktree_row_rejects()
     test_cholesky_hosted_metadata_positive_and_mutations()
+    test_local_qr_reports_index_without_hosted_profile()
     test_qr_incompatible_hosted_candidate_and_metadata_rejections()
     test_qr_hosted_six_file_membership_rejects_missing_renamed_extra()
     test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order()

@@ -2503,6 +2503,19 @@ def test_hosted_qr_requirement_rejects_absent_bundle_and_missing_policy() -> Non
         assert "missing_artifact_file" in result.stdout, result
 
 
+def test_hosted_requirement_rejects_target_without_profile() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        build_root = Path(tmp) / "build"
+        write_selected_comparison_rows(build_root, only_subfamilies={"qr_minnorm"})
+        result = run_selected_comparison_freshness(build_root, "qr-minnorm")
+        assert "freshness ok" in result.stdout, result
+        result = run_selected_comparison_freshness(
+            build_root, "qr-minnorm", expect_success=False, require_hosted=True
+        )
+        assert "no hosted validation profile for target qr-minnorm" in result.stderr, result
+        assert "freshness ok" not in result.stdout, result
+
+
 def test_qr_incompatible_hosted_candidate_and_metadata_rejections() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
@@ -3555,6 +3568,7 @@ def main() -> int:
     test_cholesky_hosted_metadata_positive_and_mutations()
     test_local_qr_reports_index_without_hosted_profile()
     test_hosted_qr_requirement_rejects_absent_bundle_and_missing_policy()
+    test_hosted_requirement_rejects_target_without_profile()
     test_qr_incompatible_hosted_candidate_and_metadata_rejections()
     test_qr_hosted_six_file_membership_rejects_missing_renamed_extra()
     test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order()

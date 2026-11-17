@@ -45,6 +45,10 @@ GENERATED_STATUS_MAP = {
 }
 STRICT_FRESHNESS_POLICIES = {"generated_compare_inputs"}
 ADVISORY_FRESHNESS_POLICIES = {"generated_local_advisory", "hosted_ci_external"}
+HOSTED_SELECTED_COMPARISON_TARGETS = {
+    "cholesky_spd_tridiag_5": "cholesky-spd-tridiag-5",
+    "qr_incompatible_ls": "qr-incompatible-ls",
+}
 ERROR_SEVERITIES = {"error"}
 CANONICAL_ORACLE_TARGET = "make report-index-oracle-freshness"
 CANONICAL_ORACLE_COMMAND = (
@@ -974,10 +978,7 @@ def comparison_generated_rows(
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
         comparisons = read_tsv(path)
-        selected_hosted_target = {
-            "cholesky_spd_tridiag_5": "cholesky-spd-tridiag-5",
-            "qr_incompatible_ls": "qr-incompatible-ls",
-        }.get(contract["subfamily"])
+        selected_hosted_target = HOSTED_SELECTED_COMPARISON_TARGETS.get(contract["subfamily"])
         if selected_hosted_target and validate_selected_hosted:
             validate_selected_hosted_metadata(
                 path, comparisons, selected_hosted_target,
@@ -2138,6 +2139,14 @@ def main() -> int:
         )
     if args.require_hosted_selected and args.family and "comparison" not in args.family:
         parser.error("--require-hosted-selected requires the comparison report family")
+    if (
+        args.require_hosted_selected
+        and args.selected_target[0] not in HOSTED_SELECTED_COMPARISON_TARGETS.values()
+    ):
+        parser.error(
+            "--require-hosted-selected has no hosted validation profile for target "
+            f"{args.selected_target[0]}"
+        )
 
     manifest_path = args.corpus_root / REPORT_FAMILY_MANIFEST
     contracts = selected_contracts(read_tsv(manifest_path), set(args.family))

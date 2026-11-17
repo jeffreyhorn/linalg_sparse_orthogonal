@@ -688,7 +688,8 @@ def test_manifest_windows_deferral_rejects_cholesky_windows_platform() -> None:
     )
     cholesky["workflow_platforms"] = f"{cholesky['workflow_platforms']};windows"
     cholesky["workflow_file"] = (
-        f"{cholesky['workflow_file']};{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)}"
+        f"{cholesky['workflow_file']};"
+        f"{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT).as_posix()}"
     )
     cholesky["workflow_artifact"] = (
         f"{cholesky['workflow_artifact']};{validator.WINDOWS_SELECTED_CHOLESKY_ARTIFACT}"
@@ -758,7 +759,7 @@ def test_manifest_windows_deferral_rejects_non_cholesky_windows_metadata() -> No
     )
     non_cholesky["workflow_file"] = (
         f"{non_cholesky['workflow_file']};"
-        f"{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)}"
+        f"{validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT).as_posix()}"
     )
     non_cholesky["workflow_artifact"] = (
         f"{non_cholesky['workflow_artifact']};"
@@ -775,9 +776,11 @@ def test_manifest_windows_deferral_rejects_qr_windows_workflow_metadata() -> Non
     qr = next(
         row for row in rows if row["target_id"] == validator.WINDOWS_SELECTED_QR_TARGET_ID
     )
-    qr["workflow_file"] = qr["workflow_file"].replace(
-        str(validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT)), "other.yml"
-    )
+    original = qr["workflow_file"]
+    workflow_file = validator.WINDOWS_WORKFLOW.relative_to(validator.REPO_ROOT).as_posix()
+    assert workflow_file in original
+    qr["workflow_file"] = original.replace(workflow_file, "other.yml", 1)
+    assert qr["workflow_file"] != original
     assert_raises_with(
         lambda: validator.validate_manifest_windows_deferral(rows),
         "must retain selected Windows QR manifest workflow_file metadata",

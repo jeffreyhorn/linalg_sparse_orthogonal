@@ -633,7 +633,7 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
             WINDOWS_SELECTED_QR_TARGET_ID,
         ):
             if (
-                str(WINDOWS_WORKFLOW.relative_to(REPO_ROOT)) in workflow_files
+                WINDOWS_WORKFLOW.relative_to(REPO_ROOT).as_posix() in workflow_files
                 or WINDOWS_SELECTED_CHOLESKY_ARTIFACT in workflow_artifacts
             ):
                 raise ValidationError(

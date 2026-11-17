@@ -2599,6 +2599,24 @@ def test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order() -> None
             assert expected in result.stdout + result.stderr, (mutation, result)
 
 
+def test_qr_hosted_rows_reject_all_unselected_ids() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
+        rows = read_tsv(study)
+        for row in rows:
+            row["comparison_row_id"] = row["comparison_row_id"].replace(
+                "comparison_", "unselected_", 1
+            )
+        rewrite_comparison_study(study, rows)
+        result = run_selected_comparison_freshness(
+            study.parents[2], "qr-incompatible-ls", expect_success=False,
+            require_hosted=True,
+        )
+        assert "comparison_selected_rows: row_set_mismatch" in result.stdout, result
+        assert "observed=0" in result.stdout, result
+        assert "freshness ok" not in result.stdout, result
+
+
 def test_qr_hosted_stale_commit_and_dirty_worktree_reject() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         study = write_hosted_comparison_fixture(Path(tmp) / "build", "qr-incompatible-ls")
@@ -3572,6 +3590,7 @@ def main() -> int:
     test_qr_incompatible_hosted_candidate_and_metadata_rejections()
     test_qr_hosted_six_file_membership_rejects_missing_renamed_extra()
     test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order()
+    test_qr_hosted_rows_reject_all_unselected_ids()
     test_qr_hosted_stale_commit_and_dirty_worktree_reject()
     test_qr_hosted_windows_paths_accept_expected_forms_and_reject_near_matches()
     test_qr_hosted_row_provenance_and_claim_mutations_reject()

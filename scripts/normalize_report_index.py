@@ -1802,6 +1802,8 @@ def selected_comparison_policy_diagnostics(
 ) -> tuple[list[str], bool]:
     if not selected_comparison_policy_enabled(required_families, strict_generated):
         return [], False
+    if not any(row["report_family"] == "comparison" for row in rows):
+        return [], False
 
     selected_artifacts = set(
         selected_comparison_artifacts(selected_targets, selected_target_keys)
@@ -1837,17 +1839,15 @@ def selected_comparison_policy_diagnostics(
         for row in selected_comparison_contracts(selected_targets, selected_target_keys)
     )
     if not comparison_rows:
-        generated_comparison_rows = selected_comparison_generated_rows(rows)
-        if generated_comparison_rows:
-            has_error = True
-            diagnostics.append(
-                "freshness: error: comparison_selected_rows: row_set_mismatch: "
-                f"target_ids={target_ids}; expected={expected_rows}; observed=0; "
-                f"missing={','.join(sorted(expected_row_ids)) or 'none'}; "
-                "duplicates=none; unexpected=none; "
-                f"{artifact_diagnostic}; "
-                f"{selected_comparison_remediation(selected_target_keys)}"
-            )
+        has_error = True
+        diagnostics.append(
+            "freshness: error: comparison_selected_rows: row_set_mismatch: "
+            f"target_ids={target_ids}; expected={expected_rows}; observed=0; "
+            f"missing={','.join(sorted(expected_row_ids)) or 'none'}; "
+            "duplicates=none; unexpected=none; "
+            f"{artifact_diagnostic}; "
+            f"{selected_comparison_remediation(selected_target_keys)}"
+        )
         return diagnostics, has_error
 
     row_ids = [row["row_id"] for row in comparison_rows]

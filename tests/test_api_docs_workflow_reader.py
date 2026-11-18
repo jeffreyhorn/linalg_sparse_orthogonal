@@ -43,7 +43,10 @@ class WorkflowReaderTests(unittest.TestCase):
         records = read_workflows(REPO_ROOT)
         self.assertEqual(
             {record.path.name for record in records},
-            {"ci.yml", "macos-ci.yml", "windows-ci.yml", "sprint225-baseline.yml"},
+            {
+                "ci.yml", "macos-ci.yml", "windows-ci.yml",
+                "sprint225-baseline.yml", "sprint225-timing.yml",
+            },
         )
         self.assertGreater(sum(len(job.steps) for record in records for job in record.jobs), 0)
         upload_steps = [
@@ -54,7 +57,7 @@ class WorkflowReaderTests(unittest.TestCase):
             if step.action_identity is not None
             and step.action_identity.value == "actions/upload-artifact@v4"
         ]
-        self.assertEqual(len(upload_steps), 10)
+        self.assertEqual(len(upload_steps), 11)
         self.assertTrue(all("path" in dict(step.with_inputs) for step in upload_steps))
         self.assertTrue(
             any(

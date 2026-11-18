@@ -16,11 +16,13 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_refactor_csc_timing as gate  # noqa: E402
+import collect_refactor_csc_timing as collector  # noqa: E402
 
 
 def encoded(value: object) -> bytes:
@@ -40,7 +42,7 @@ def trial_stdout(value: str) -> bytes:
 
 def bundle(path: Path, role: str, attempt: int, values: list[str], *, cpu: str = "Apple M1 (Virtual)",
            source: str = "a" * 40, file_hashes: dict[str, str] | None = None) -> dict:
-    now = datetime.now(timezone.utc) - timedelta(hours=2)
+    now = datetime.now(timezone.utc) - timedelta(hours=3 if role == "baseline" else 1)
     stamp = now.isoformat()
     run = {
         "schema_version": 2, "policy_version": gate.POLICY, "role": role,
@@ -52,9 +54,18 @@ def bundle(path: Path, role: str, attempt: int, values: list[str], *, cpu: str =
                    "compiler_path": "/usr/bin/cc", "compiler_version": "Apple clang 21",
                    "runner_label": f"ephemeral-{attempt}"},
         "build_recipe": "make build/bench_refactor_csc SPARSE_IDX_BITS=32",
+        "effective_build": {
+            "cc": "cc", "sysroot": "/SyntheticSDK",
+            "cflags": "-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /SyntheticSDK",
+            "ldflags": "-lm",
+            "sparse_cflags": "-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /SyntheticSDK -DSPARSE_IDX_BITS=32",
+        },
         "build_mode": "serial", "index_width_bits": 32,
         "thread_environment": {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"},
-        "backend_environment": {"SPARSE_LDLT_DENSE_BACKEND": "unset"},
+        "backend_environment": {
+            "SPARSE_LDLT_DENSE_BACKEND": "unset", "SPARSE_CHOL_DENSE_BACKEND": "unset",
+            "SPARSE_SUPERNODAL_POSTORDER": "unset", "SPARSE_ND_SUPERNODAL_POSTORDER": "unset",
+        },
         "executable_sha256": "1" * 64, "library_sha256": "2" * 64,
         "benchmark_source_sha256": "3" * 64, "makefile_sha256": "4" * 64,
         "fixture_sha256": gate.FIXTURE_SHA256, "argv": gate.ARGV,
@@ -117,7 +128,7 @@ def accepted_baseline(root: Path, file_hashes: dict[str, str] | None = None) -> 
                 "status": "accepted", "target_id": gate.TARGET,
                 "baseline_id": baseline_id, "approved_by": "synthetic-test-reviewer",
                 "source_commit": "a" * 40,
-                "accepted_at_utc": (now - timedelta(hours=1)).isoformat(),
+                "accepted_at_utc": (now - timedelta(hours=2)).isoformat(),
                 "expires_at_utc": (now + timedelta(days=29)).isoformat(),
                 "fingerprint": gate.fingerprint(first), "jobs": jobs,
                 "between_job_spread": "0", "reference_median_ms": "0.100"}
@@ -230,7 +241,9 @@ class TimingDecisionTests(unittest.TestCase):
             report, code = gate.decision(root, candidate, "b" * 40)
             self.assertEqual((report["primary_rule"], report["status"], code),
                              ("S225_TIMING_PASS", "pass", 0))
-            self.assertEqual((report, code), gate.decision(root, candidate, "b" * 40))
+            self.assertEqual((report, code), gate.decision(
+                root, candidate, "b" * 40,
+                evaluation_time=datetime.fromisoformat(report["evaluated_at_utc"])))
             self.assertEqual(report["candidate_median_ms"], "0.110")
             self.assertEqual(Decimal(report["allowed_ceiling_ms"]), Decimal("0.12500"))
             self.assertEqual(report["warmup_count"], 5)
@@ -547,6 +560,94 @@ class TimingDecisionTests(unittest.TestCase):
             self.assertEqual(subprocess.run(command, capture_output=True, check=False).returncode, 0)
             command[command.index(str(candidate))] = str(root / "missing-candidate.zip")
             self.assertEqual(subprocess.run(command, capture_output=True, check=False).returncode, 2)
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    def test_build_step_receipt_is_parsed_without_dropping_sdk_or_flags(self):
+        values = {
+            "cc": "cc", "sysroot": "/SyntheticSDK",
+            "cflags": "-std=c11 -O2 -isysroot /SyntheticSDK",
+            "ldflags": "-lm", "sparse_cflags": "-std=c11 -O2 -isysroot /SyntheticSDK -DSPARSE_IDX_BITS=32",
+        }
+        receipt = "".join(f"{key}\t{value}\n" for key, value in values.items())
+        self.assertEqual(collector.parse_build_config(receipt), values)
+        with self.assertRaises(ValueError):
+            collector.parse_build_config(receipt + "cc\tother\n")
+
+    def test_inherited_build_and_symbolic_overrides_are_rejected(self):
+        for name in ("SPARSE_MUTEX", "CFLAGS", "SDKROOT", "MAKEFLAGS",
+                     "SPARSE_SUPERNODAL_POSTORDER", "SPARSE_ND_SUPERNODAL_POSTORDER"):
+            with self.subTest(name=name), mock.patch.dict(collector.os.environ, {name: ""}, clear=True):
+                with self.assertRaisesRegex(ValueError, name):
+                    collector.check_policy_environment(False)
+
+    def test_effective_build_settings_are_captured_and_locked(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            accepted_baseline(root)
+            for name, change in (
+                ("mutex-flags", lambda build: build.__setitem__("cflags", build["cflags"] + " -DSPARSE_MUTEX")),
+                ("sdk", lambda build: build.update({
+                    "sysroot": "/OtherSDK",
+                    "cflags": build["cflags"].replace("/SyntheticSDK", "/OtherSDK"),
+                    "sparse_cflags": build["sparse_cflags"].replace("/SyntheticSDK", "/OtherSDK"),
+                })),
+            ):
+                with self.subTest(name=name):
+                    candidate = mutate_candidate(root, lambda run: change(run["effective_build"]))
+                    report, code = gate.decision(root, candidate)
+                    self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+                    (root / "candidate-dir").rename(root / f"checked-{name}")
+
+    def test_candidate_collection_must_fit_baseline_window_and_clock(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory, manifest = accepted_baseline(root)
+            candidate = candidate_directory(root)
+            original = json.loads((candidate / "run.json").read_text())
+            for name, instant in (
+                ("after-expiry", datetime.fromisoformat(manifest["expires_at_utc"]) + timedelta(seconds=1)),
+                ("before-acceptance", datetime.fromisoformat(manifest["accepted_at_utc"]) - timedelta(seconds=1)),
+                ("future", datetime.now(timezone.utc) + timedelta(hours=1)),
+            ):
+                with self.subTest(name=name):
+                    run = copy.deepcopy(original)
+                    run["started_at_utc"] = run["ended_at_utc"] = instant.isoformat()
+                    (candidate / "run.json").write_bytes(encoded(run))
+                    rows = list(csv.DictReader(io.StringIO((candidate / "trials.tsv").read_text()), delimiter="\t"))
+                    for row in rows:
+                        row["started_at_utc"] = row["ended_at_utc"] = instant.isoformat()
+                    write_trial_rows(candidate, rows)
+                    rehash_directory(candidate)
+                    report, code = gate.decision(root, candidate)
+                    self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+
+    def test_historical_report_recomputes_after_expiry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory, manifest = accepted_baseline(root)
+            manifest["expires_at_utc"] = (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat()
+            payload = encoded(manifest)
+            (directory / "baseline.json").write_bytes(payload)
+            pointer = json.loads((root / "active.json").read_text())
+            pointer["baseline_manifest_sha256"] = gate.digest(payload)
+            (root / "active.json").write_bytes(encoded(pointer))
+            candidate = root / "candidate.zip"
+            bundle(candidate, "candidate", 1, ["0.100"] * 20)
+            report, code = gate.decision(root, candidate)
+            self.assertEqual((report["primary_rule"], code), ("S225_TIMING_PASS", 0))
+            real_datetime = datetime
+
+            class LaterDatetime(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return real_datetime.now(tz) + timedelta(minutes=2)
+
+            with mock.patch.object(gate, "datetime", LaterDatetime):
+                self.assertEqual(gate.verify_report_against_evidence(report, root, candidate), 0)
+                preflight, preflight_code = gate.decision(root, None)
+                self.assertEqual((preflight["primary_rule"], preflight_code),
+                                 ("S225_BASELINE_INVALID", 2))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 # Makefile for linalg_sparse_orthogonal
 # Simple alternative to CMake for quick builds
+.DEFAULT_GOAL := all
 
 CC      = cc
 SYSROOT = $(shell /usr/bin/xcrun --show-sdk-path 2>/dev/null)
@@ -22,6 +23,12 @@ ifneq ($(findstring SPARSE_IDX_BITS,$(CC)),)
 $(error Set SPARSE_IDX_BITS=32 or 64; do not define it in CC)
 endif
 override SPARSE_CFLAGS = $(CFLAGS) -DSPARSE_IDX_BITS=$(SPARSE_IDX_BITS)
+
+# The Sprint 225 collector records the Make-expanded build settings used by
+# the pinned serial benchmark. Keep this target free of generated artifacts.
+.PHONY: sprint225-build-config
+sprint225-build-config:
+	@printf 'cc\t%s\nsysroot\t%s\ncflags\t%s\nldflags\t%s\nsparse_cflags\t%s\n' '$(CC)' '$(SYSROOT)' '$(CFLAGS)' '$(LDFLAGS)' '$(SPARSE_CFLAGS)'
 
 DLOPEN_PROBE_FREE_GOALS = clean docs format format-check uninstall
 

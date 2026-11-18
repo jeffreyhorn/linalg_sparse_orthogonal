@@ -17,10 +17,12 @@ jobs:
       - name: Build pinned canonical benchmark
         run: |
           make clean
+          mkdir -p build
+          make -s sprint225-build-config SPARSE_IDX_BITS=32 > build/sprint225-build-config.tsv
           make build/bench_refactor_csc SPARSE_IDX_BITS=32
 
       - name: Collect raw baseline trial bundle
-        run: python3 scripts/collect_refactor_csc_timing.py --output-dir build/sprint225-baseline
+        run: python3 scripts/collect_refactor_csc_timing.py --output-dir build/sprint225-baseline --build-config build/sprint225-build-config.tsv
 
       - name: Upload raw baseline trial bundle
         if: always()

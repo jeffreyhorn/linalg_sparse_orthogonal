@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Clean candidate build tree before receipts
+        run: make clean
+
       - name: Record hosted timing runner context
         run: |
           python3 scripts/record_refactor_csc_timing_host.py \
@@ -37,8 +40,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          make clean
           mkdir -p build
+          make -s sprint225-build-config SPARSE_IDX_BITS=32 > build/sprint225-build-config.tsv
           make build/bench_refactor_csc SPARSE_IDX_BITS=32 2>&1 | tee build/sprint225-build.log
 
       - name: Collect raw candidate trial bundle
@@ -46,6 +49,7 @@ jobs:
         run: |
           python3 scripts/collect_refactor_csc_timing.py \
             --role candidate \
+            --build-config build/sprint225-build-config.tsv \
             --output-dir build/sprint225-candidate
 
       - name: Decide canonical candidate timing

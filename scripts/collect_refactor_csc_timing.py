@@ -25,6 +25,13 @@ FIXTURE_SHA256 = "6450e9e3d921764802075128a053b0c13debf4462152bf4fdaa059c29e7e3a
 POLICY_VERSION = "s225-v1"
 COMMAND = ["tests/data/suitesparse/nos4.mtx", "--repeat", "1"]
 TIMEOUT_SECONDS = 30
+FORBIDDEN_OVERRIDES = (
+    "CC", "CFLAGS", "CPPFLAGS", "LDFLAGS", "SPARSE_MUTEX", "SPARSE_OPENMP",
+    "SPARSE_IDX_BITS", "SYSROOT", "SDKROOT", "MAKEFLAGS", "MFLAGS",
+    "GNUMAKEFLAGS", "MAKEOVERRIDES", "SPARSE_LDLT_DENSE_BACKEND",
+    "SPARSE_CHOL_DENSE_BACKEND", "SPARSE_SUPERNODAL_POSTORDER",
+    "SPARSE_ND_SUPERNODAL_POSTORDER",
+)
 
 
 def sha256(data: bytes) -> str:
@@ -105,7 +112,41 @@ def write_json(path: Path, value: dict[str, object]) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def collect(output: Path, dry_run: bool, role: str = "baseline") -> int:
+def parse_build_config(output: str) -> dict[str, str]:
+    fields = {}
+    for line in output.splitlines():
+        if "\t" not in line:
+            raise ValueError(f"unexpected Make build setting: {line}")
+        key, value = line.split("\t", 1)
+        if key in fields:
+            raise ValueError(f"duplicate Make build setting: {key}")
+        fields[key] = value
+    if set(fields) != {"cc", "sysroot", "cflags", "ldflags", "sparse_cflags"}:
+        raise ValueError("incomplete effective Make build settings")
+    return fields
+
+
+def effective_build_config() -> dict[str, str]:
+    output = subprocess.check_output(
+        ["make", "--no-print-directory", "-s", "sprint225-build-config", "SPARSE_IDX_BITS=32"],
+        cwd=ROOT, text=True,
+    )
+    return parse_build_config(output)
+
+
+def check_policy_environment(dry_run: bool) -> None:
+    overrides = [name for name in FORBIDDEN_OVERRIDES if name in os.environ]
+    if overrides and not dry_run:
+        raise ValueError(f"build or workload overrides outside locked policy: {', '.join(overrides)}")
+    if any(os.environ.get(name) for name in (
+        "SPARSE_LDLT_DENSE_BACKEND", "SPARSE_CHOL_DENSE_BACKEND", "SPARSE_OPENMP",
+        "SPARSE_SUPERNODAL_POSTORDER", "SPARSE_ND_SUPERNODAL_POSTORDER",
+    )):
+        raise ValueError("backend or symbolic workload override is outside locked policy")
+
+
+def collect(output: Path, dry_run: bool, role: str = "baseline",
+            build_config_path: Path | None = None) -> int:
     if output.exists():
         raise ValueError(f"output directory already exists: {output}")
     fixture = ROOT / FIXTURE
@@ -115,6 +156,16 @@ def collect(output: Path, dry_run: bool, role: str = "baseline") -> int:
     library = ROOT / "build/libsparse_lu_ortho.a"
     if not binary.is_file() or not library.is_file():
         raise ValueError("build benchmark and library before collecting trials")
+    check_policy_environment(dry_run)
+    current_build = effective_build_config()
+    if build_config_path is None:
+        if not dry_run:
+            raise ValueError("official collection requires a build-step configuration receipt")
+        build_config = current_build
+    else:
+        build_config = parse_build_config(build_config_path.read_text(encoding="utf-8"))
+        if build_config != current_build:
+            raise ValueError("build-step and collection Make settings differ")
     host = host_metadata()
     dirty = bool(git_value("status", "--porcelain", "--untracked-files=all"))
     if not dry_run:
@@ -126,8 +177,6 @@ def collect(output: Path, dry_run: bool, role: str = "baseline") -> int:
             raise ValueError("official collection requires complete runner/compiler identity")
         if not os.environ.get("GITHUB_RUN_ID") or not os.environ.get("GITHUB_RUN_ATTEMPT"):
             raise ValueError("official collection requires hosted run identity")
-    if os.environ.get("SPARSE_LDLT_DENSE_BACKEND") or os.environ.get("SPARSE_OPENMP"):
-        raise ValueError("backend or OpenMP override is outside locked policy")
 
     warmups, measured = (1, 1) if dry_run else (5, 20)
     output.mkdir(parents=True)
@@ -143,9 +192,14 @@ def collect(output: Path, dry_run: bool, role: str = "baseline") -> int:
         "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
         "workflow_job_key": os.environ.get("GITHUB_JOB", ""),
         "runner": host, "build_recipe": "make build/bench_refactor_csc SPARSE_IDX_BITS=32",
+        "effective_build": build_config,
         "build_mode": "serial", "index_width_bits": 32,
         "thread_environment": {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"},
-        "backend_environment": {"SPARSE_LDLT_DENSE_BACKEND": "unset"},
+        "backend_environment": {
+            "SPARSE_LDLT_DENSE_BACKEND": "unset", "SPARSE_CHOL_DENSE_BACKEND": "unset",
+            "SPARSE_SUPERNODAL_POSTORDER": "unset",
+            "SPARSE_ND_SUPERNODAL_POSTORDER": "unset",
+        },
         "executable_sha256": sha256(binary.read_bytes()),
         "library_sha256": sha256(library.read_bytes()),
         "benchmark_source_sha256": sha256((ROOT / "benchmarks/bench_refactor_csc.c").read_bytes()),
@@ -219,9 +273,11 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true", help="one warmup and one measured trial; never baseline evidence")
     parser.add_argument("--role", choices=("baseline", "candidate"), default="baseline")
+    parser.add_argument("--build-config", type=Path,
+                        help="Make-expanded settings captured before the pinned benchmark build")
     args = parser.parse_args()
     try:
-        return collect(args.output_dir, args.dry_run, args.role)
+        return collect(args.output_dir, args.dry_run, args.role, args.build_config)
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         print(f"refactor-csc-collector: {exc}", file=sys.stderr)
         return 2

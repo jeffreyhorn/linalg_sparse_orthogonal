@@ -34,7 +34,7 @@ RUNNER_FIELDS = (
 )
 IDENTITY_FIELDS = (
     "policy_version", "fixture_sha256", "benchmark_source_sha256", "makefile_sha256",
-    "build_recipe", "build_mode", "index_width_bits", "thread_environment",
+    "build_recipe", "effective_build", "build_mode", "index_width_bits", "thread_environment",
     "backend_environment", "argv", "timeout_seconds", "warmup_count",
     "measured_count", "metric", "metric_units",
 )
@@ -228,8 +228,26 @@ def check_run(members: dict[str, bytes], role: str, rule: str) -> dict:
         reject(rule, "build mode or index width mismatch")
     if run.get("thread_environment") != {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"}:
         reject(rule, "thread environment mismatch")
-    if run.get("backend_environment") != {"SPARSE_LDLT_DENSE_BACKEND": "unset"}:
+    if run.get("backend_environment") != {
+        "SPARSE_LDLT_DENSE_BACKEND": "unset", "SPARSE_CHOL_DENSE_BACKEND": "unset",
+        "SPARSE_SUPERNODAL_POSTORDER": "unset", "SPARSE_ND_SUPERNODAL_POSTORDER": "unset",
+    }:
         reject(rule, "backend environment mismatch")
+    build = run.get("effective_build")
+    if not isinstance(build, dict) or set(build) != {
+        "cc", "sysroot", "cflags", "ldflags", "sparse_cflags",
+    }:
+        reject(rule, "effective build settings missing")
+    sysroot = build["sysroot"]
+    if not isinstance(sysroot, str) or not sysroot.startswith("/") or "\n" in sysroot:
+        reject(rule, "invalid SDK sysroot")
+    expected_cflags = "-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2"
+    if sysroot:
+        expected_cflags += f" -isysroot {sysroot}"
+    if (build["cc"], build["cflags"], build["ldflags"], build["sparse_cflags"]) != (
+        "cc", expected_cflags, "-lm", expected_cflags + " -DSPARSE_IDX_BITS=32"
+    ):
+        reject(rule, "effective compiler, flags, or feature settings differ from locked build")
     if (run.get("timeout_seconds"), run.get("warmup_count"), run.get("measured_count")) != (30, 5, 20):
         reject(rule, "trial schedule mismatch")
     if run.get("metric") != "refactor_csc_ms" or run.get("metric_units") != "ms":
@@ -298,8 +316,11 @@ def check_trials(members: dict[str, bytes], run: dict, rule: str) -> list[Decima
             reject(rule, f"trial {ordinal}: argv mismatch")
         if row["exit_code"] != "0" or row["timed_out"] != "False" or row["validity"] != "valid":
             reject(rule, f"trial {ordinal}: failed, timed out, or invalid")
-        if parse_time(row["started_at_utc"], rule, f"trial {ordinal} start") > parse_time(row["ended_at_utc"], rule, f"trial {ordinal} end"):
-            reject(rule, f"trial {ordinal}: timestamps reversed")
+        trial_start = parse_time(row["started_at_utc"], rule, f"trial {ordinal} start")
+        trial_end = parse_time(row["ended_at_utc"], rule, f"trial {ordinal} end")
+        if not (parse_time(run["started_at_utc"], rule, "run start") <= trial_start <= trial_end <=
+                parse_time(run["ended_at_utc"], rule, "run end")):
+            reject(rule, f"trial {ordinal}: timestamps outside run interval")
         if not row["outer_elapsed_ns"].isdecimal() or not 0 < int(row["outer_elapsed_ns"]) <= 30_000_000_000:
             reject(rule, f"trial {ordinal}: invalid elapsed time")
         for stream in ("stdout", "stderr"):
@@ -363,7 +384,7 @@ def verify_candidate_checkout(run: dict, checkout_root: Path) -> None:
         reject(rule, "candidate build width stamp is not 32")
 
 
-def load_baseline(root: Path, now: datetime) -> dict:
+def load_baseline(root: Path, now: datetime, require_current: bool = True) -> dict:
     missing = "S225_BASELINE_MISSING"
     invalid = "S225_BASELINE_INVALID"
     pointer_path = root / "active.json"
@@ -390,7 +411,7 @@ def load_baseline(root: Path, now: datetime) -> dict:
     source = sha_field(manifest.get("source_commit"), invalid, "baseline source commit", HEX40)
     accepted = parse_time(manifest.get("accepted_at_utc"), invalid, "accepted_at_utc")
     expires = parse_time(manifest.get("expires_at_utc"), invalid, "expires_at_utc")
-    if accepted > now or expires <= now:
+    if accepted > now or (require_current and expires <= now):
         reject(invalid, "baseline not yet accepted or expired")
     jobs = manifest.get("jobs")
     if not isinstance(jobs, list) or len(jobs) != 3:
@@ -459,7 +480,9 @@ def load_baseline(root: Path, now: datetime) -> dict:
 
 def decision(baseline_root: Path, candidate_path: Path | None,
              expected_commit: str | None = None,
-             checkout_root: Path | None = None) -> tuple[dict, int]:
+             checkout_root: Path | None = None,
+             evaluation_time: datetime | None = None) -> tuple[dict, int]:
+    evaluated = evaluation_time or datetime.now(timezone.utc)
     report = {
         "schema_version": 2, "policy_version": POLICY, "target_id": TARGET,
         "claim_scope": CLAIM_SCOPE, "non_claims": NON_CLAIMS.copy(),
@@ -477,9 +500,12 @@ def decision(baseline_root: Path, candidate_path: Path | None,
         "allowed_ceiling_ms": None, "baseline_accepted_at_utc": None,
         "baseline_expires_at_utc": None, "candidate_started_at_utc": None,
         "candidate_ended_at_utc": None,
+        "evaluated_at_utc": evaluated.isoformat(),
     }
     try:
-        baseline = load_baseline(baseline_root, datetime.now(timezone.utc))
+        if evaluated.tzinfo is None or evaluated.utcoffset() != timedelta(0) or evaluated > datetime.now(timezone.utc):
+            reject("S225_CANDIDATE_IDENTITY", "evaluation time is not a past UTC instant")
+        baseline = load_baseline(baseline_root, evaluated, require_current=candidate_path is None)
         report.update({"baseline_id": baseline["id"],
                        "baseline_manifest_sha256": baseline["manifest_sha256"],
                        "baseline_bundle_sha256": baseline["bundle_hashes"],
@@ -496,6 +522,12 @@ def decision(baseline_root: Path, candidate_path: Path | None,
         report["candidate_bundle_sha256"] = candidate_hash
         report["candidate_hashes_sha256"] = digest(members["hashes.sha256"])
         run = check_run(members, "candidate", "S225_CANDIDATE_IDENTITY")
+        started = parse_time(run["started_at_utc"], "S225_CANDIDATE_IDENTITY", "candidate start")
+        ended = parse_time(run["ended_at_utc"], "S225_CANDIDATE_IDENTITY", "candidate end")
+        accepted = parse_time(baseline["accepted_at_utc"], "S225_BASELINE_INVALID", "accepted_at_utc")
+        expires = parse_time(baseline["expires_at_utc"], "S225_BASELINE_INVALID", "expires_at_utc")
+        if not accepted <= started <= ended < expires or ended > evaluated:
+            reject("S225_CANDIDATE_IDENTITY", "candidate collection outside baseline validity or evaluation time")
         report.update({"candidate_source_commit": run["source_commit"],
                        "candidate_run_id": run["workflow_run_id"],
                        "candidate_attempt": run["workflow_run_attempt"],
@@ -546,7 +578,14 @@ def verify_report_against_evidence(report: dict, baseline_root: Path,
                                    expected_commit: str | None = None,
                                    checkout_root: Path | None = None) -> int:
     """Reject a decision or claim that cannot be reproduced from raw evidence."""
-    expected, code = decision(baseline_root, candidate_path, expected_commit, checkout_root)
+    try:
+        evaluated = parse_time(report.get("evaluated_at_utc"), "S225_REPORT_INVALID", "evaluated_at_utc")
+    except (AttributeError, TypeError):
+        reject("S225_REPORT_INVALID", "report is not an object")
+    if evaluated > datetime.now(timezone.utc):
+        reject("S225_REPORT_INVALID", "report evaluation time is in the future")
+    expected, code = decision(baseline_root, candidate_path, expected_commit, checkout_root,
+                              evaluation_time=evaluated)
     if report != expected:
         reject("S225_REPORT_INVALID", "report differs from recomputed raw-evidence decision")
     return code

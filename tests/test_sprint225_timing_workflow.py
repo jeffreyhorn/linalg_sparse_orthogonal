@@ -29,6 +29,7 @@ def problems(workflow: dict) -> list[str]:
     if any(step.get("continue-on-error") == "true" for step in steps):
         issues.append("timing failure must fail the job")
     named = {step.get("name"): step for step in steps}
+    clean = named.get("Clean candidate build tree before receipts", {})
     host = named.get("Record hosted timing runner context", {})
     baseline = named.get("Verify accepted baseline before candidate collection", {})
     build = named.get("Build pinned canonical benchmark from clean tree", {})
@@ -37,13 +38,16 @@ def problems(workflow: dict) -> list[str]:
     upload = named.get("Upload candidate raw trials and timing decision", {})
     if "record_refactor_csc_timing_host.py" not in host.get("run", ""):
         issues.append("diagnostic runner context required before baseline preflight")
+    if "make clean" not in clean.get("run", "") or (clean and host and steps.index(clean) > steps.index(host)):
+        issues.append("clean build tree before writing attempt receipts")
     if host and baseline and steps.index(host) > steps.index(baseline):
         issues.append("runner context must precede baseline preflight")
     if baseline.get("id") != "baseline" or "--preflight" not in baseline.get("run", ""):
         issues.append("accepted-baseline preflight required")
-    if "make clean" not in build.get("run", "") or "SPARSE_IDX_BITS=32" not in build.get("run", ""):
+    if ("make clean" in build.get("run", "") or "SPARSE_IDX_BITS=32" not in build.get("run", "")
+            or "sprint225-build-config" not in build.get("run", "")):
         issues.append("clean pinned build required")
-    if "--role candidate" not in collect.get("run", ""):
+    if "--role candidate" not in collect.get("run", "") or "--build-config" not in collect.get("run", ""):
         issues.append("candidate raw collection required")
     if not all(token in decide.get("run", "") for token in (
         "check_refactor_csc_timing.py", "--candidate", "--verify-checkout",
@@ -83,6 +87,14 @@ class TimingWorkflowTests(unittest.TestCase):
         def mutate_missing_raw(workflow):
             workflow["jobs"]["canonical-refactor-csc-timing"]["steps"][-1]["with"]["path"] = "build/sprint225-timing-decision.json"
 
+        def mutate_disposable_receipts(workflow):
+            steps = workflow["jobs"]["canonical-refactor-csc-timing"]["steps"]
+            steps[4]["run"] = "make clean\n" + steps[4]["run"]
+
+        def mutate_no_build_receipt(workflow):
+            steps = workflow["jobs"]["canonical-refactor-csc-timing"]["steps"]
+            steps[4]["run"] = steps[4]["run"].replace("sprint225-build-config", "missing-config")
+
         def mutate_freshness_substitution(workflow):
             workflow["jobs"]["canonical-refactor-csc-timing"]["steps"][-2]["run"] = "python3 scripts/check_bench_canonical_freshness.py"
 
@@ -96,6 +108,8 @@ class TimingWorkflowTests(unittest.TestCase):
             ("no-upload", mutate_no_upload),
             ("success-only-upload", mutate_success_only_upload),
             ("missing-raw", mutate_missing_raw),
+            ("disposable-receipts", mutate_disposable_receipts),
+            ("no-build-receipt", mutate_no_build_receipt),
             ("freshness-substitution", mutate_freshness_substitution),
             ("swallowed-failure", mutate_swallowed_failure),
             ("no-master", mutate_no_master),

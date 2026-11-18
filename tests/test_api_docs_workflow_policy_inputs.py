@@ -40,7 +40,7 @@ class PolicyInputTests(unittest.TestCase):
 
     def test_real_workflow_inventory(self):
         inputs = read_policy_inputs(REPO_ROOT)
-        self.assertEqual(len(inputs), 122)
+        self.assertEqual(len(inputs), 123)
         preflight_steps = [
             item for item in inputs
             if item.workflow_path.name == "ci.yml"

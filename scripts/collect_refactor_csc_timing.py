@@ -105,7 +105,7 @@ def write_json(path: Path, value: dict[str, object]) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def collect(output: Path, dry_run: bool) -> int:
+def collect(output: Path, dry_run: bool, role: str = "baseline") -> int:
     if output.exists():
         raise ValueError(f"output directory already exists: {output}")
     fixture = ROOT / FIXTURE
@@ -136,8 +136,8 @@ def collect(output: Path, dry_run: bool) -> int:
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "1"
     run: dict[str, object] = {
-        "schema_version": 1, "policy_version": POLICY_VERSION,
-        "role": "baseline", "dry_run": dry_run,
+        "schema_version": 2, "policy_version": POLICY_VERSION,
+        "role": role, "dry_run": dry_run,
         "source_commit": git_value("rev-parse", "HEAD"), "source_dirty": dirty,
         "workflow_run_id": os.environ.get("GITHUB_RUN_ID", ""),
         "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
@@ -148,6 +148,8 @@ def collect(output: Path, dry_run: bool) -> int:
         "backend_environment": {"SPARSE_LDLT_DENSE_BACKEND": "unset"},
         "executable_sha256": sha256(binary.read_bytes()),
         "library_sha256": sha256(library.read_bytes()),
+        "benchmark_source_sha256": sha256((ROOT / "benchmarks/bench_refactor_csc.c").read_bytes()),
+        "makefile_sha256": sha256((ROOT / "Makefile").read_bytes()),
         "fixture_sha256": FIXTURE_SHA256,
         "argv": ["build/bench_refactor_csc", *COMMAND],
         "timeout_seconds": TIMEOUT_SECONDS,
@@ -195,8 +197,10 @@ def collect(output: Path, dry_run: bool) -> int:
     write_json(output / "run.json", run)
     valid = all(row["validity"] == "valid" for row in records)
     write_json(output / "decision.json", {
-        "policy_version": POLICY_VERSION, "role": "baseline", "dry_run": dry_run,
-        "status": "dry_run_only" if dry_run else "pending_baseline_review",
+        "policy_version": POLICY_VERSION, "role": role, "dry_run": dry_run,
+        "status": "dry_run_only" if dry_run else (
+            "pending_baseline_review" if role == "baseline" else "pending_timing_review"
+        ),
         "trial_count": len(records), "all_trials_valid": valid,
         "freshness_result": "separate", "baseline_accepted": False,
     })
@@ -214,9 +218,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true", help="one warmup and one measured trial; never baseline evidence")
+    parser.add_argument("--role", choices=("baseline", "candidate"), default="baseline")
     args = parser.parse_args()
     try:
-        return collect(args.output_dir, args.dry_run)
+        return collect(args.output_dir, args.dry_run, args.role)
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         print(f"refactor-csc-collector: {exc}", file=sys.stderr)
         return 2

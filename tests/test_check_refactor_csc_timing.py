@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import copy
 import hashlib
 import io
 import json
@@ -38,7 +39,7 @@ def trial_stdout(value: str) -> bytes:
 
 
 def bundle(path: Path, role: str, attempt: int, values: list[str], *, cpu: str = "Apple M1 (Virtual)",
-           source: str = "a" * 40) -> dict:
+           source: str = "a" * 40, file_hashes: dict[str, str] | None = None) -> dict:
     now = datetime.now(timezone.utc) - timedelta(hours=2)
     stamp = now.isoformat()
     run = {
@@ -61,6 +62,8 @@ def bundle(path: Path, role: str, attempt: int, values: list[str], *, cpu: str =
         "metric": "refactor_csc_ms", "metric_units": "ms",
         "started_at_utc": stamp, "ended_at_utc": stamp,
     }
+    if file_hashes is not None:
+        run.update(file_hashes)
     receipt = {"policy_version": gate.POLICY, "role": role, "dry_run": False,
                "status": "pending_baseline_review" if role == "baseline" else "pending_timing_review",
                "trial_count": 25, "all_trials_valid": True, "baseline_accepted": False,
@@ -92,7 +95,7 @@ def bundle(path: Path, role: str, attempt: int, values: list[str], *, cpu: str =
     return run
 
 
-def accepted_baseline(root: Path) -> tuple[Path, dict]:
+def accepted_baseline(root: Path, file_hashes: dict[str, str] | None = None) -> tuple[Path, dict]:
     baseline_id = "synthetic-reviewed"
     directory = root / gate.POLICY / baseline_id
     directory.mkdir(parents=True)
@@ -100,7 +103,8 @@ def accepted_baseline(root: Path) -> tuple[Path, dict]:
     first = None
     for attempt in range(1, 4):
         filename = f"job-{attempt}.zip"
-        run = bundle(directory / filename, "baseline", attempt, ["0.100"] * 20)
+        run = bundle(directory / filename, "baseline", attempt, ["0.100"] * 20,
+                     file_hashes=file_hashes)
         if first is None:
             first = run
         jobs.append({"bundle_file": filename,
@@ -133,6 +137,56 @@ def rehash_directory(directory: Path) -> None:
         f"{gate.digest(path.read_bytes())}  {path.relative_to(directory).as_posix()}\n"
         for path in members
     ), encoding="ascii")
+
+
+def mutate_candidate(root: Path, change) -> Path:
+    zip_path = root / "candidate.zip"
+    bundle(zip_path, "candidate", 1, ["0.100"] * 20, source="b" * 40)
+    directory = root / "candidate-dir"
+    with zipfile.ZipFile(zip_path) as archive:
+        archive.extractall(directory)
+    run = json.loads((directory / "run.json").read_text())
+    change(run)
+    (directory / "run.json").write_bytes(encoded(run))
+    rehash_directory(directory)
+    return directory
+
+
+def synthetic_checkout(root: Path) -> dict[str, str]:
+    files = {
+        "fixture_sha256": ("tests/data/suitesparse/nos4.mtx",
+                           (ROOT / "tests/data/suitesparse/nos4.mtx").read_bytes()),
+        "benchmark_source_sha256": ("benchmarks/bench_refactor_csc.c", b"synthetic benchmark source"),
+        "makefile_sha256": ("Makefile", b"synthetic pinned build recipe"),
+        "executable_sha256": ("build/bench_refactor_csc", b"synthetic candidate executable"),
+        "library_sha256": ("build/libsparse_lu_ortho.a", b"synthetic candidate archive"),
+    }
+    result = {}
+    for field, (name, data) in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        result[field] = gate.digest(data)
+    (root / "build/.sparse-idx-bits").write_text("32\n")
+    return result
+
+
+def candidate_directory(root: Path) -> Path:
+    zip_path = root / "candidate.zip"
+    bundle(zip_path, "candidate", 1, ["0.100"] * 20, source="b" * 40)
+    directory = root / "candidate-dir"
+    with zipfile.ZipFile(zip_path) as archive:
+        archive.extractall(directory)
+    return directory
+
+
+def write_trial_rows(directory: Path, rows: list[dict[str, str]]) -> None:
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=gate.TRIAL_FIELDS,
+                            delimiter="\t", lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    (directory / "trials.tsv").write_text(output.getvalue())
 
 
 class TimingDecisionTests(unittest.TestCase):
@@ -302,6 +356,197 @@ class TimingDecisionTests(unittest.TestCase):
             (root / "active.json").write_bytes(encoded(pointer))
             report, code = gate.decision(root, root / "missing-candidate.zip")
             self.assertEqual((report["primary_rule"], code), ("S225_BASELINE_INVALID", 2))
+
+    def test_candidate_workload_and_host_mutations_have_identity_diagnostics(self):
+        changes = (
+            ("fixture-digest", lambda run: run.__setitem__("fixture_sha256", "f" * 64), "fixture digest mismatch"),
+            ("benchmark-source", lambda run: run.__setitem__("benchmark_source_sha256", "f" * 64), "fingerprint"),
+            ("build-recipe", lambda run: run.__setitem__("makefile_sha256", "f" * 64), "fingerprint"),
+            ("command", lambda run: run.__setitem__("argv", ["other-benchmark", *gate.ARGV[1:]]), "command"),
+            ("repeat-count", lambda run: run["argv"].__setitem__(3, "2"), "command"),
+            ("backend", lambda run: run["backend_environment"].__setitem__("SPARSE_LDLT_DENSE_BACKEND", "dense"), "backend"),
+            ("build-mode", lambda run: run.__setitem__("build_mode", "parallel"), "build mode"),
+            ("runner-cpu", lambda run: run["runner"].__setitem__("cpu_model", "other CPU"), "fingerprint"),
+            ("compiler", lambda run: run["runner"].__setitem__("compiler_version", "other compiler"), "fingerprint"),
+            ("unknown-host", lambda run: run["runner"].__setitem__("runner_image", "unknown"), "sentinel"),
+        )
+        for name, change, detail in changes:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                accepted_baseline(root)
+                candidate = mutate_candidate(root, change)
+                report, code = gate.decision(root, candidate, "b" * 40)
+                self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+                self.assertIn(detail, report["detail"])
+
+    def test_candidate_checkout_bytes_and_source_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            checkout = root / "checkout"
+            hashes = synthetic_checkout(checkout)
+            baseline = root / "baselines"
+            accepted_baseline(baseline, hashes)
+            candidate = root / "candidate.zip"
+            bundle(candidate, "candidate", 1, ["0.100"] * 20,
+                   source="b" * 40, file_hashes=hashes)
+            report, code = gate.decision(baseline, candidate, "b" * 40, checkout)
+            self.assertEqual((report["primary_rule"], code), ("S225_TIMING_PASS", 0))
+            for name in ("tests/data/suitesparse/nos4.mtx", "build/bench_refactor_csc",
+                         "build/libsparse_lu_ortho.a",
+                         "benchmarks/bench_refactor_csc.c", "Makefile"):
+                with self.subTest(file=name):
+                    path = checkout / name
+                    original = path.read_bytes()
+                    path.write_bytes(original + b"changed")
+                    report, code = gate.decision(baseline, candidate, "b" * 40, checkout)
+                    self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+                    self.assertIn(name, report["detail"])
+                    path.write_bytes(original)
+            report, code = gate.decision(baseline, candidate, "c" * 40, checkout)
+            self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+            self.assertIn("commit", report["detail"])
+            (checkout / "build/.sparse-idx-bits").write_text("64\n")
+            report, code = gate.decision(baseline, candidate, "b" * 40, checkout)
+            self.assertEqual((report["primary_rule"], code), ("S225_CANDIDATE_IDENTITY", 2))
+            self.assertIn("width stamp", report["detail"])
+
+    def test_missing_expired_superseded_and_mismatched_baselines(self):
+        cases = ("missing-pointer", "missing-manifest", "missing-bundle",
+                 "expired", "superseded", "malformed-schema", "version-mismatch",
+                 "pointer-digest-mismatch", "source-mismatch")
+        for name in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                directory, manifest = accepted_baseline(root)
+                pointer_path = root / "active.json"
+                pointer = json.loads(pointer_path.read_text())
+                if name == "missing-pointer":
+                    pointer_path.unlink()
+                elif name == "missing-manifest":
+                    (directory / "baseline.json").unlink()
+                elif name == "missing-bundle":
+                    (directory / "job-1.zip").unlink()
+                else:
+                    if name == "expired":
+                        manifest["expires_at_utc"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+                    elif name == "superseded":
+                        manifest["status"] = "superseded"
+                    elif name == "malformed-schema":
+                        manifest["schema_version"] = 99
+                    elif name == "version-mismatch":
+                        manifest["policy_version"] = "s225-v2"
+                    elif name == "source-mismatch":
+                        manifest["source_commit"] = "c" * 40
+                    payload = encoded(manifest)
+                    (directory / "baseline.json").write_bytes(payload)
+                    pointer["baseline_manifest_sha256"] = (
+                        "0" * 64 if name == "pointer-digest-mismatch" else gate.digest(payload)
+                    )
+                    pointer_path.write_bytes(encoded(pointer))
+                report, code = gate.decision(root, None)
+                expected = "S225_BASELINE_MISSING" if name.startswith("missing-") else "S225_BASELINE_INVALID"
+                self.assertEqual((report["primary_rule"], code), (expected, 2))
+
+    def test_weak_sample_mutations_keep_available_raw_streams(self):
+        cases = (
+            "single-sample", "incomplete-measured", "missing-warmup",
+            "timeout", "malformed-time", "altered-hash",
+        )
+        for name in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                accepted_baseline(root)
+                candidate = candidate_directory(root)
+                rows = list(csv.DictReader(io.StringIO((candidate / "trials.tsv").read_text()), delimiter="\t"))
+                if name == "single-sample":
+                    write_trial_rows(candidate, rows[:6])
+                    receipt = json.loads((candidate / "decision.json").read_text())
+                    receipt["trial_count"] = 6
+                    (candidate / "decision.json").write_bytes(encoded(receipt))
+                    rehash_directory(candidate)
+                elif name == "incomplete-measured":
+                    write_trial_rows(candidate, rows[:-1])
+                    rehash_directory(candidate)
+                elif name == "missing-warmup":
+                    (candidate / "trials/0001.stdout").unlink()
+                elif name == "timeout":
+                    rows[0]["timed_out"] = "True"
+                    rows[0]["validity"] = "timeout"
+                    write_trial_rows(candidate, rows)
+                    receipt = json.loads((candidate / "decision.json").read_text())
+                    receipt["all_trials_valid"] = False
+                    (candidate / "decision.json").write_bytes(encoded(receipt))
+                    rehash_directory(candidate)
+                elif name == "malformed-time":
+                    rows[0]["started_at_utc"] = "not-a-time"
+                    write_trial_rows(candidate, rows)
+                    rehash_directory(candidate)
+                else:
+                    (candidate / "trials/0006.stdout").write_bytes(b"altered raw output")
+                raw_before = {path.relative_to(candidate).as_posix(): gate.digest(path.read_bytes())
+                              for path in candidate.rglob("*") if path.is_file()}
+                report, code = gate.decision(root, candidate, "b" * 40)
+                expected = "S225_CANDIDATE_MISSING" if name == "missing-warmup" else "S225_CANDIDATE_INVALID"
+                self.assertEqual((report["primary_rule"], code), (expected, 2))
+                raw_after = {path.relative_to(candidate).as_posix(): gate.digest(path.read_bytes())
+                             for path in candidate.rglob("*") if path.is_file()}
+                self.assertEqual(raw_before, raw_after)
+                if name != "missing-warmup":
+                    self.assertEqual(len([p for p in raw_after if p.endswith(".stdout")]), 25)
+
+    def test_exact_threshold_boundary_and_noisy_candidate_keep_raw_bundle(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            accepted_baseline(root)
+            for name, samples, rule, code in (
+                ("boundary", ["0.125"] * 20, "S225_TIMING_PASS", 0),
+                ("over", ["0.126"] * 20, "S225_TIMING_REGRESSION", 1),
+                ("noisy", ["0.100"] * 10 + ["0.200"] * 10, "S225_CANDIDATE_DISPERSION", 1),
+            ):
+                with self.subTest(name=name):
+                    candidate = root / f"{name}.zip"
+                    bundle(candidate, "candidate", 1, samples, source="b" * 40)
+                    before = gate.digest(candidate.read_bytes())
+                    report, actual_code = gate.decision(root, candidate, "b" * 40)
+                    self.assertEqual((report["primary_rule"], actual_code), (rule, code))
+                    self.assertEqual(gate.digest(candidate.read_bytes()), before)
+                    self.assertEqual(report["measured_count"], 20)
+
+    def test_report_mutations_cannot_infer_portable_or_freshness_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            accepted_baseline(root)
+            candidate = root / "candidate.zip"
+            bundle(candidate, "candidate", 1, ["0.100"] * 20, source="b" * 40)
+            report, code = gate.decision(root, candidate, "b" * 40)
+            self.assertEqual(code, 0)
+            self.assertEqual(gate.verify_report_against_evidence(report, root, candidate, "b" * 40), 0)
+            self.assertEqual(report["claim_scope"], gate.CLAIM_SCOPE)
+            self.assertEqual(report["non_claims"], gate.NON_CLAIMS)
+            for name, changes in (
+                ("freshness", {"freshness_result": "pass"}),
+                ("portable-speed", {"claim_scope": "portable_speed_superiority"}),
+                ("parity", {"non_claims": []}),
+                ("missing-raw-hash", {"candidate_hashes_sha256": None}),
+                ("missing-hosted-run", {"candidate_run_id": None}),
+            ):
+                with self.subTest(name=name):
+                    altered = copy.deepcopy(report)
+                    altered.update(changes)
+                    with self.assertRaises(gate.EvidenceError) as captured:
+                        gate.verify_report_against_evidence(altered, root, candidate, "b" * 40)
+                    self.assertEqual(captured.exception.rule, "S225_REPORT_INVALID")
+            with self.assertRaises(gate.EvidenceError) as captured:
+                gate.verify_report_against_evidence(report, root, root / "missing-candidate.zip", "b" * 40)
+            self.assertEqual(captured.exception.rule, "S225_REPORT_INVALID")
+            report_path = root / "timing-decision.json"
+            report_path.write_bytes(encoded(report))
+            command = [sys.executable, str(ROOT / "scripts/verify_refactor_csc_timing_report.py"),
+                       "--baseline-root", str(root), "--candidate", str(candidate),
+                       "--report", str(report_path), "--expected-candidate-commit", "b" * 40]
+            self.assertEqual(subprocess.run(command, capture_output=True, check=False).returncode, 0)
+            command[command.index(str(candidate))] = str(root / "missing-candidate.zip")
+            self.assertEqual(subprocess.run(command, capture_output=True, check=False).returncode, 2)
 
 
 if __name__ == "__main__":

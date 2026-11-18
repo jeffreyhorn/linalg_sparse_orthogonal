@@ -20,6 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Record hosted timing runner context
+        run: |
+          python3 scripts/record_refactor_csc_timing_host.py \
+            --output build/sprint225-host-provenance.json
+
       - name: Verify accepted baseline before candidate collection
         id: baseline
         run: |
@@ -48,6 +53,7 @@ jobs:
         run: |
           python3 scripts/check_refactor_csc_timing.py \
             --candidate build/sprint225-candidate \
+            --verify-checkout \
             --expected-candidate-commit "$(git rev-parse HEAD)" \
             --output build/sprint225-timing-decision.json
 
@@ -61,4 +67,5 @@ jobs:
           path: |
             build/sprint225-candidate/
             build/sprint225-timing-decision.json
+            build/sprint225-host-provenance.json
             build/sprint225-build.log

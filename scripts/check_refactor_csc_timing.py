@@ -21,6 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "benchmarks/baselines/refactor-csc-nos4"
 POLICY = "s225-v1"
 TARGET = "SRT-BENCH-REFACTOR-CSC-NOS4"
+CLAIM_SCOPE = "one_canonical_refactor_csc_nos4_cell_on_matched_macos_runner"
+NON_CLAIMS = [
+    "no_portable_speed", "no_cross_platform_timing_parity",
+    "no_external_library_ranking", "no_state_of_the_art_claim",
+]
 FIXTURE_SHA256 = "6450e9e3d921764802075128a053b0c13debf4462152bf4fdaa059c29e7e3a80"
 ARGV = ["build/bench_refactor_csc", "tests/data/suitesparse/nos4.mtx", "--repeat", "1"]
 RUNNER_FIELDS = (
@@ -235,11 +240,14 @@ def check_run(members: dict[str, bytes], role: str, rule: str) -> dict:
         reject(rule, "run timestamps reversed or 20-minute cap exceeded")
     expected_status = "pending_baseline_review" if role == "baseline" else "pending_timing_review"
     if (receipt.get("policy_version"), receipt.get("role"), receipt.get("status"),
-        receipt.get("dry_run"), receipt.get("trial_count"),
+        receipt.get("dry_run"),
         receipt.get("baseline_accepted"), receipt.get("freshness_result")) != (
-        POLICY, role, expected_status, False, 25, False, "separate"
+        POLICY, role, expected_status, False, False, "separate"
     ):
         reject(rule, "collector receipt mismatch")
+    if receipt.get("trial_count") != 25:
+        reject("S225_CANDIDATE_INVALID" if role == "candidate" else rule,
+               "collector receipt does not contain 25 trials")
     if type(receipt.get("all_trials_valid")) is not bool or (role == "baseline" and not receipt["all_trials_valid"]):
         reject(rule, "collector validity receipt mismatch")
     return run
@@ -324,6 +332,35 @@ def fingerprint(run: dict) -> dict:
 def compare_stat(actual: Decimal, recorded: object, rule: str, label: str) -> None:
     if actual != decimal_value(recorded, rule, label, positive=False):
         reject(rule, f"{label}: recorded statistic disagrees with raw data")
+
+
+def verify_candidate_checkout(run: dict, checkout_root: Path) -> None:
+    """Bind a candidate receipt to the files available to the hosted decider."""
+    rule = "S225_CANDIDATE_IDENTITY"
+    files = {
+        "fixture_sha256": "tests/data/suitesparse/nos4.mtx",
+        "benchmark_source_sha256": "benchmarks/bench_refactor_csc.c",
+        "makefile_sha256": "Makefile",
+        "executable_sha256": "build/bench_refactor_csc",
+        "library_sha256": "build/libsparse_lu_ortho.a",
+    }
+    for field, name in files.items():
+        path = checkout_root / name
+        try:
+            actual = digest(path.read_bytes())
+        except OSError as exc:
+            reject(rule, f"candidate checkout {name}: {exc}")
+        if actual != run[field]:
+            reject(rule, f"candidate checkout {name}: digest differs from raw collection")
+    if run["fixture_sha256"] != FIXTURE_SHA256:
+        reject(rule, "candidate fixture differs from locked policy")
+    stamp = checkout_root / "build/.sparse-idx-bits"
+    try:
+        width = stamp.read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError) as exc:
+        reject(rule, f"candidate width stamp: {exc}")
+    if width != "32":
+        reject(rule, "candidate build width stamp is not 32")
 
 
 def load_baseline(root: Path, now: datetime) -> dict:
@@ -421,9 +458,11 @@ def load_baseline(root: Path, now: datetime) -> dict:
 
 
 def decision(baseline_root: Path, candidate_path: Path | None,
-             expected_commit: str | None = None) -> tuple[dict, int]:
+             expected_commit: str | None = None,
+             checkout_root: Path | None = None) -> tuple[dict, int]:
     report = {
-        "schema_version": 1, "policy_version": POLICY, "target_id": TARGET,
+        "schema_version": 2, "policy_version": POLICY, "target_id": TARGET,
+        "claim_scope": CLAIM_SCOPE, "non_claims": NON_CLAIMS.copy(),
         "status": "blocked", "primary_rule": None, "secondary_rules": [], "detail": None,
         "freshness_result": "separate", "baseline_id": None,
         "baseline_manifest_sha256": None, "baseline_bundle_sha256": None,
@@ -467,6 +506,8 @@ def decision(baseline_root: Path, candidate_path: Path | None,
                        "warmup_count": 5, "measured_count": 20})
         if expected_commit is not None and run["source_commit"] != expected_commit:
             reject("S225_CANDIDATE_IDENTITY", "candidate commit differs from checkout")
+        if checkout_root is not None:
+            verify_candidate_checkout(run, checkout_root)
         if fingerprint(run) != baseline["fingerprint"]:
             reject("S225_CANDIDATE_IDENTITY", "candidate runner/workload/build fingerprint differs from baseline")
         values = check_trials(members, run, "S225_CANDIDATE_INVALID")
@@ -500,6 +541,17 @@ def decision(baseline_root: Path, candidate_path: Path | None,
         return report, 1 if exc.rule in ("S225_CANDIDATE_DISPERSION", "S225_TIMING_REGRESSION") else 2
 
 
+def verify_report_against_evidence(report: dict, baseline_root: Path,
+                                   candidate_path: Path | None,
+                                   expected_commit: str | None = None,
+                                   checkout_root: Path | None = None) -> int:
+    """Reject a decision or claim that cannot be reproduced from raw evidence."""
+    expected, code = decision(baseline_root, candidate_path, expected_commit, checkout_root)
+    if report != expected:
+        reject("S225_REPORT_INVALID", "report differs from recomputed raw-evidence decision")
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-root", type=Path, default=DEFAULT_BASELINE)
@@ -507,12 +559,17 @@ def main() -> int:
     parser.add_argument("--preflight", action="store_true", help="verify baseline only; never issue a timing pass")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--expected-candidate-commit")
+    parser.add_argument("--verify-checkout", action="store_true",
+                        help="compare candidate receipt hashes with this checkout and build")
     args = parser.parse_args()
     if args.preflight == (args.candidate is not None):
         parser.error("select exactly one of --preflight or --candidate")
     if args.expected_candidate_commit and not HEX40.fullmatch(args.expected_candidate_commit):
         parser.error("--expected-candidate-commit requires a full lowercase SHA-1")
-    report, exit_code = decision(args.baseline_root, args.candidate, args.expected_candidate_commit)
+    if args.verify_checkout and (args.preflight or not args.expected_candidate_commit):
+        parser.error("--verify-checkout requires --candidate and --expected-candidate-commit")
+    report, exit_code = decision(args.baseline_root, args.candidate, args.expected_candidate_commit,
+                                 ROOT if args.verify_checkout else None)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"refactor-csc-timing: {report['primary_rule']}: {report['detail']}")

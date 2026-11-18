@@ -19,6 +19,8 @@
 | 6 | Close the `s225-v1` attempted baseline as rejected and specify a fail-closed, independent candidate timing-gate contract. | [Day 6 gate design](artifacts/day6-timing-gate-design.md); Day 5 worksheet and raw ZIPs; existing collector and freshness checker. | Implement the validator and candidate collection path; establish a compatible accepted baseline before any timing pass. |
 | 7 | Implement a separate raw-evidence timing decision and candidate collector role; prove missing baseline blocks the actual branch. Synthetic accepted evidence exercises threshold and dispersion decisions only. | [Day 7 implementation and verification](artifacts/day7-timing-decision-implementation.md); `scripts/check_refactor_csc_timing.py`; `tests/test_check_refactor_csc_timing.py`. | Wire a separate hosted candidate job and artifact route; prove the build invocation and obtain three independently accepted, compatible baseline ZIPs before any gate passes. |
 | 8 | Add a separate macOS candidate timing job with accepted-baseline preflight, clean serial build, raw candidate collection, independent decision, and always-uploaded failure receipt. Hosted run `44400684440` failed as expected with `S225_BASELINE_MISSING` and uploaded its report. | [Day 8 workflow, hosted result, and operator notes](artifacts/day8-hosted-timing-gate.md); `.github/workflows/sprint225-timing.yml`; artifact `14471524335` with verified ZIP digest. | Recollect and approve a compatible three-job baseline; verify actual build and archive provenance before a timing pass can be claimed. |
+| 9 | Reject candidate workload, file, host/compiler, source/build, and baseline-version drift with intended rule codes; keep one synthetic canonical positive fixture. | [Day 9 expected/observed drift ledger](artifacts/day9-workload-baseline-drift.md); checkout-bound validator, hosted `--verify-checkout`, 14 timing test methods. | Finish weak-sample and claim-boundary negative cases on Day 10; a reviewed baseline is still required for any real timing pass. |
+| 10 | Reject short, missing, timed-out, malformed, noisy and over-threshold candidate evidence; guard report claims and the always-uploaded artifact route with mutations. | [Day 10 expected/observed failure ledger](artifacts/day10-weak-evidence-claim-boundary.md); 17 timing tests, separate report verifier, workflow mutation tests. | Cross-check the six rejection classes on Day 11, then collect/inspect a hosted candidate only after an accepted baseline exists. |
 
 ## Evidence index
 
@@ -33,12 +35,14 @@
 | Retained raw trial output and durable artifact route | Three hosted raw ZIPs were rehashed and retained in the sprint artifact worktree. Earlier GitHub artifacts disappeared on rerun; accepted source-controlled baseline storage and candidate retention remain unproven. |
 | Hosted timing decision | Separate workflow added on Day 8. Run `44400684440` failed at preflight and uploaded a digest-verified blocked decision. No candidate trials or passing evidence exist. |
 | Day 7 timing validator | Implemented and tested against synthetic accepted evidence. Real branch exits 2 with `S225_BASELINE_MISSING`; no accepted reference exists. |
+| Day 9 drift guards | Candidate receipt now binds the fixture, benchmark source, Makefile, executable, library and width stamp to the checkout at decision time. Synthetic mutation matrix passes; hosted execution remains blocked at baseline preflight. |
+| Day 10 weak-evidence and claim guards | Synthetic single-sample, missing-warmup, incomplete, timeout, malformed-time, hash, dispersion, regression, report-claim and workflow-upload mutations fail with distinct diagnostics. Raw files remain available; real timing gate is still blocked. |
 | First hosted baseline intake | Run `44395634285`, job `135124640857`, source `7e49ef3a96e00dcc815da3ba83b006934815c242`; 5 warmups + 20 measured, all valid, 54 ZIP files/53 verified member hashes. **Rejected as part of the incompatible Day 5 group.** |
 | Repeated hosted baseline audit | Attempts 1, 3, and 4 each had 5 warmups + 20 valid measured trials and 53 valid member hashes. Their image/CPU fingerprints disagreed; attempt 3 MAD/median was `0.1111`, and cross-job spread was `0.12698` (both above `0.10`). **Rejected.** Attempt 2 has no retained ZIP and was excluded. |
 
 ## Planned effort ledger
 
-The [plan](PLAN.md) allocates 10 engineering hours per day and 140 hours for the sprint; estimates are not actual tracked time. Days 1-2 address 20 hours of item 225.1. Day 3 allocates its final 4 hours to 225.1 (complete as a policy lock) and 6 hours to 225.2. Days 4-5 allocate 20 hours to 225.2; Day 6 allocates its final 2 hours to the documented rejection disposition, accounting for all 28 planned hours of 225.2. The **baseline deliverable remains blocked**, so the item is not marked achieved. Day 6 allocates 8 hours to item 225.3's gate design; Day 7 allocates 10 hours to the validator; Day 8 allocates its final 10 hours to separate CI wiring, accounting for all 28 planned hours. A hosted decision and accepted baseline are still required for a passing timing outcome.
+The [plan](PLAN.md) allocates 10 engineering hours per day and 140 hours for the sprint; estimates are not actual tracked time. Days 1-2 address 20 hours of item 225.1. Day 3 allocates its final 4 hours to 225.1 (complete as a policy lock) and 6 hours to 225.2. Days 4-5 allocate 20 hours to 225.2; Day 6 allocates its final 2 hours to the documented rejection disposition, accounting for all 28 planned hours of 225.2. The **baseline deliverable remains blocked**, so the item is not marked achieved. Day 6 allocates 8 hours to item 225.3's gate design; Day 7 allocates 10 hours to the validator; Day 8 allocates its final 10 hours to separate CI wiring, accounting for all 28 planned hours. Days 9-10 allocate 20 of item 225.4's 22 hours to drift, weak-sample and claim regressions; Day 11 has its remaining 2 hours. A hosted decision and accepted baseline are still required for a passing timing outcome.
 
 ## Day 1 verification
 
@@ -89,3 +93,16 @@ The [plan](PLAN.md) allocates 10 engineering hours per day and 140 hours for the
 - Python compilation and 11 validator tests passed. The structured workflow inventory and API-docs policy checks passed with 121 records and 11 uploads; no freshness report was changed.
 - Hosted run `44400684440` failed with exit 2 and `S225_BASELINE_MISSING`; upload passed. Downloaded artifact `14471524335`, verified its SHA-256 against the GitHub digest, and inspected the single blocked decision JSON.
 - No `.c` or `.h` edits. Actual candidate/build timing remains untested until an accepted baseline exists.
+
+## Day 9 verification
+
+- Rehashed synthetic candidate and baseline mutations reject changed fixture, command/repeat, backend, build mode, runner/compiler, source/build identity, and missing/expired/superseded/mismatched baseline states with the expected rule code.
+- The positive synthetic candidate passes with a matching checkout; changing checkout fixture, executable, library archive, benchmark source, Makefile, candidate commit, or width stamp rejects it before numerical comparison.
+- Python compilation and all 14 timing-validator tests passed. No `.c` or `.h` edits; timing remains blocked on the real branch until an accepted baseline exists.
+
+## Day 10 verification
+
+- Six weak-sample mutations fail with the intended `S225_CANDIDATE_MISSING` or `S225_CANDIDATE_INVALID` rule; the validator leaves available raw streams unchanged.
+- Exact-ceiling, above-ceiling and noisy synthetic bundles yield pass, regression and dispersion rules respectively, without deleting the bundle.
+- Recomputed report verification rejects freshness-derived or overbroad claims and absent candidate evidence. Workflow mutations reject missing or success-only artifact upload and decision suppression.
+- Python compilation, 17 timing tests, two workflow mutation tests, structured-workflow inventory/policy checks, API-docs local-only guard, and whitespace checks passed. No `.c` or `.h` edits; the actual hosted timing status remains blocked without an accepted baseline.

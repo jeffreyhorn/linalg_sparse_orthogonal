@@ -817,11 +817,15 @@ def validate_selected_hosted_metadata(
             )
         )
         observed_row_ids = tuple(row.get("comparison_row_id", "") for row in rows)
-        if (
-            len(observed_row_ids) == len(expected_row_ids)
-            and set(observed_row_ids) == set(expected_row_ids)
-            and observed_row_ids != expected_row_ids
+        if len(observed_row_ids) != len(expected_row_ids) or set(observed_row_ids) != set(
+            expected_row_ids
         ):
+            raise ReportIndexError(
+                f"{path}: comparison_hosted_row_set_mismatch: "
+                f"expected={','.join(expected_row_ids)}; "
+                f"observed={','.join(observed_row_ids)}"
+            )
+        if observed_row_ids != expected_row_ids:
             raise ReportIndexError(
                 f"{path}: comparison_hosted_row_order_mismatch: "
                 f"expected={','.join(expected_row_ids)}; "

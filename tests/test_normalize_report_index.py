@@ -2574,8 +2574,9 @@ def test_qr_hosted_six_file_membership_rejects_missing_renamed_extra() -> None:
 def test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order() -> None:
     for mutation, expected in (
         ("missing", "row_set_mismatch"),
-        ("duplicate", "duplicate normalized row_id"),
+        ("duplicate", "row_set_mismatch"),
         ("extra", "row_set_mismatch"),
+        ("extra_unselected", "comparison_hosted_row_set_mismatch"),
         ("wrong_target", "row_set_mismatch"),
         ("out_of_order", "comparison_hosted_row_order_mismatch"),
     ):
@@ -2590,6 +2591,10 @@ def test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order() -> None
                 extra = dict(rows[0])
                 extra["comparison_row_id"] = "comparison_qr_overdetermined_incompatible_4x2_extra_v1"
                 rows.append(extra)
+            elif mutation == "extra_unselected":
+                extra = dict(rows[0])
+                extra["comparison_row_id"] = "unselected_extra_v1"
+                rows.append(extra)
             elif mutation == "wrong_target":
                 rows[0]["comparison_row_id"] = "comparison_cholesky_spd_tridiag_5_project_status_v1"
             else:
@@ -2597,6 +2602,7 @@ def test_qr_hosted_rows_reject_missing_duplicate_extra_wrong_and_order() -> None
             rewrite_comparison_study(study, rows)
             result = run_qr_selected_freshness(study.parents[2], expect_success=False)
             assert expected in result.stdout + result.stderr, (mutation, result)
+            assert "freshness ok" not in result.stdout, (mutation, result)
 
 
 def test_qr_hosted_rows_reject_all_unselected_ids() -> None:
@@ -2612,8 +2618,8 @@ def test_qr_hosted_rows_reject_all_unselected_ids() -> None:
             study.parents[2], "qr-incompatible-ls", expect_success=False,
             require_hosted=True,
         )
-        assert "comparison_selected_rows: row_set_mismatch" in result.stdout, result
-        assert "observed=0" in result.stdout, result
+        assert "comparison_hosted_row_set_mismatch" in result.stderr, result
+        assert "observed=unselected_" in result.stderr, result
         assert "freshness ok" not in result.stdout, result
 
 
@@ -2758,7 +2764,7 @@ def test_qr_hosted_cholesky_substitution_rejects_without_cholesky_regression() -
         assert "freshness ok" in run_cholesky_selected_freshness(chol_root).stdout
         qr_study.write_bytes(chol_study.read_bytes())
         result = run_qr_selected_freshness(qr_root, expect_success=False)
-        assert "comparison_hosted_metadata_mismatch" in result.stderr, result
+        assert "comparison_hosted_row_set_mismatch" in result.stderr, result
         assert "freshness ok" in run_cholesky_selected_freshness(chol_root).stdout
 
 

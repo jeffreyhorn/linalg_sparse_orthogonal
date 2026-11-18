@@ -71,18 +71,20 @@ reference the manifest instead of copying a second authoritative target list.
 
 The selected-target manifest records positive selected workflow platforms. It
 does not use fake selected rows to represent deferrals. Sprint 223 adds
-`windows` only to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`, with aligned workflow,
+`windows` to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`, with aligned workflow,
 job and artifact entries and `hosted_selected` support. The accepted claim is:
 “Selected Cholesky SPD tridiagonal solve comparison rows are fresh for the
 named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
 selected source-controlled dense Cholesky reference helper.” PR #247 records
 the exact-head selected Windows job and six-file artifact audit; any later
-commit requires a new audit. The Sprint 182 deferral remains active for all other
-Windows report freshness. Sprint 209 adds one bounded Windows QR incompatible
-evidence-collection lane for `qr-incompatible-ls`, but the QR incompatible row
-remains Linux/macOS-only and `local_only` until hosted run evidence, exact
-artifact inspection, selected manifest metadata, generated support tier, and
-generated non-claim wording are promoted together.
+commit requires a new audit. Sprint 224 accepts `SRT-COMP-QR-INCOMPATIBLE-LS`
+as a second, QR-only selected Windows target. Its bounded claim is:
+“Selected QR incompatible least-squares comparison rows are fresh for the
+named fixture on reviewed Linux, macOS, and Windows hosted lanes against the
+selected source-controlled dense reference helper.” PR #248 records the strict
+hosted QR guards and final changed-head six-file artifact audit; any later
+commit requires a new audit. The
+Sprint 182 deferral remains active for all other Windows report freshness.
 
 Sprint 186 closeout preserves this split. Selected target rows are positive
 manifest authority for named freshness gates; formal deferrals and

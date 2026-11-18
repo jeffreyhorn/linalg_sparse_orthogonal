@@ -72,7 +72,7 @@ WINDOWS_QR_INCOMPATIBLE_GENERATOR = (
 )
 WINDOWS_QR_INCOMPATIBLE_FRESHNESS = (
     "python scripts/normalize_report_index.py --family comparison --require-generated "
-    "comparison --check-freshness --selected-target qr-incompatible-ls"
+    "comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected"
 )
 WINDOWS_QR_INCOMPATIBLE_FILES = [
     "build/comparison/qr_incompatible_ls/project_observations.tsv",
@@ -356,6 +356,12 @@ def assert_windows_selected_cholesky_lane(text: str) -> None:
 
 def assert_windows_selected_qr_incompatible_lane(text: str) -> str:
     job = job_block(text, WINDOWS_QR_INCOMPATIBLE_JOB, label="windows")
+    for required in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        assert_contains(job, required, label="windows selected qr incompatible")
     assert_contains(job, "timeout-minutes: 20", label="windows selected qr incompatible")
     assert_contains(
         job,
@@ -383,6 +389,11 @@ def assert_windows_selected_qr_incompatible_lane(text: str) -> str:
         raise AssertionError("windows selected qr incompatible upload must not use broad paths")
     for path in WINDOWS_QR_INCOMPATIBLE_FILES:
         assert_contains(block, path, label="windows selected qr incompatible upload")
+    paths = upload_path_entries(block, label="windows selected qr incompatible upload")
+    if paths != WINDOWS_QR_INCOMPATIBLE_FILES:
+        raise AssertionError(
+            "windows selected qr incompatible upload paths must match exact six-file contract"
+        )
     return job
 
 
@@ -432,7 +443,7 @@ def assert_windows_workflow_contract(text: str) -> None:
     )
 
 
-def assert_only_cholesky_selected_manifest_platform() -> None:
+def assert_only_owned_selected_manifest_platforms() -> None:
     for row in selected_report_targets(SELECTED_TARGET_MANIFEST):
         platforms = split_manifest_values(row["workflow_platforms"])
         if "windows" in platforms:
@@ -440,9 +451,13 @@ def assert_only_cholesky_selected_manifest_platform() -> None:
                 assert row["support_tier"] == "hosted_selected"
                 assert row["workflow_artifact"].split(";")[-1] == "sprint190-windows-selected-comparison-cholesky"
                 continue
+            if row["target_id"] == "SRT-COMP-QR-INCOMPATIBLE-LS":
+                assert row["support_tier"] == "hosted_selected"
+                assert row["workflow_artifact"].split(";")[-1] == WINDOWS_QR_INCOMPATIBLE_ARTIFACT
+                continue
             raise AssertionError(
-                "selected_report_targets.tsv may list windows only for selected "
-                f"Cholesky report freshness: {row['target_id']}"
+                "selected_report_targets.tsv may list windows only for owned "
+                f"selected comparison freshness: {row['target_id']}"
             )
 
 
@@ -614,14 +629,14 @@ def test_macos_selected_comparison_lane() -> None:
         assert_contains(text, non_claim, label="macos")
 
 
-def test_windows_report_freshness_keeps_bounded_cholesky_only() -> None:
+def test_windows_report_freshness_keeps_bounded_selected_targets() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     assert_windows_workflow_contract(text)
     assert_windows_selected_cholesky_lane(text)
     assert_windows_selected_qr_incompatible_lane(text)
     assert_windows_qr_incompatible_has_no_unowned_surface(text)
     assert_no_report_freshness_lane(text, label="windows")
-    assert_only_cholesky_selected_manifest_platform()
+    assert_only_owned_selected_manifest_platforms()
     assert_windows_deferral_record()
     assert_contains(text, "Windows does not claim Makefile parity", label="windows")
     assert_contains(text, "package-manager support", label="windows")
@@ -782,6 +797,15 @@ def test_windows_qr_incompatible_freshness_target_drift_fails_clearly() -> None:
     )
 
 
+def test_windows_qr_incompatible_hosted_requirement_cannot_be_removed() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(" --require-hosted-selected\n", "\n", 1)
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "windows selected qr incompatible missing",
+    )
+
+
 def test_windows_qr_incompatible_equals_target_drift_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     drifted = (
@@ -830,6 +854,21 @@ def test_windows_qr_incompatible_missing_job_fails_clearly() -> None:
     )
 
 
+def test_windows_qr_incompatible_source_provenance_drift_fails() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    job = job_block(text, WINDOWS_QR_INCOMPATIBLE_JOB, label="windows")
+    for token in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+    ):
+        drifted = text.replace(job, job.replace(token, "wrong-source", 1), 1)
+        assert_raises_with(
+            lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+            "windows selected qr incompatible missing",
+        )
+
+
 def test_windows_qr_incompatible_wrong_artifact_fails_clearly() -> None:
     text = read_text(WINDOWS_WORKFLOW)
     drifted = text.replace(
@@ -868,6 +907,55 @@ def test_windows_qr_incompatible_missing_required_file_fails_clearly() -> None:
         "windows selected qr incompatible upload missing "
         "'build/comparison/qr_incompatible_ls/manifest.tsv'",
     )
+
+
+def test_windows_qr_incompatible_extra_or_duplicate_upload_fails() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    anchor = "            build/comparison/qr_incompatible_ls/manifest.tsv\n"
+    for extra in (
+        "            build/comparison/qr_incompatible_ls/debug.log\n",
+        anchor,
+    ):
+        drifted = text.replace(anchor, anchor + extra, 1)
+        assert_raises_with(
+            lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+            "upload paths must match exact six-file contract",
+        )
+
+
+def test_windows_qr_incompatible_renamed_upload_fails() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    drifted = text.replace(
+        "build/comparison/qr_incompatible_ls/summary.md",
+        "build/comparison/qr_incompatible_ls/renamed-summary.md",
+        1,
+    )
+    assert_raises_with(
+        lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+        "upload missing 'build/comparison/qr_incompatible_ls/summary.md'",
+    )
+
+
+def test_windows_qr_incompatible_noncontract_path_forms_fail() -> None:
+    text = read_text(WINDOWS_WORKFLOW)
+    expected = "build/comparison/qr_incompatible_ls/study.tsv"
+    for replacement in (
+        r"D:\a\repo\build\comparison\qr_incompatible_ls\study.tsv",
+        r"build\comparison\qr_incompatible_ls\study.tsv",
+        r"build/comparison\qr_incompatible_ls/study.tsv",
+        "build/comparison/qr_incompatible_ls_extra/study.tsv",
+        "build/comparison/qr_incompatible_ls/study.tsv.bak",
+    ):
+        drifted = text.replace("            " + expected + "\n", "            " + replacement + "\n", 1)
+        assert drifted != text, expected
+        assert_raises_with(
+            lambda: assert_windows_selected_qr_incompatible_lane(drifted),
+            (
+                "upload paths must match exact six-file contract"
+                if expected in replacement
+                else "upload missing 'build/comparison/qr_incompatible_ls/study.tsv'"
+            ),
+        )
 
 
 def test_windows_deferral_record_missing_blocker_fails_clearly() -> None:
@@ -1257,7 +1345,7 @@ def main() -> int:
     test_linux_selected_performance_lane()
     test_macos_selected_performance_lane()
     test_macos_selected_comparison_lane()
-    test_windows_report_freshness_keeps_bounded_cholesky_only()
+    test_windows_report_freshness_keeps_bounded_selected_targets()
     test_windows_drift_selected_command_fails_clearly()
     test_windows_drift_selected_artifact_fails_clearly()
     test_windows_selected_cholesky_missing_timeout_fails_clearly()
@@ -1271,13 +1359,18 @@ def main() -> int:
     test_windows_selected_cholesky_duplicate_upload_file_fails_clearly()
     test_windows_qr_incompatible_target_drift_fails_clearly()
     test_windows_qr_incompatible_freshness_target_drift_fails_clearly()
+    test_windows_qr_incompatible_hosted_requirement_cannot_be_removed()
     test_windows_qr_incompatible_equals_target_drift_fails_clearly()
     test_windows_qr_incompatible_subfamily_drift_fails_clearly()
     test_windows_qr_incompatible_artifact_upload_drift_fails_clearly()
     test_windows_qr_incompatible_missing_job_fails_clearly()
+    test_windows_qr_incompatible_source_provenance_drift_fails()
     test_windows_qr_incompatible_wrong_artifact_fails_clearly()
     test_windows_qr_incompatible_broad_upload_fails_clearly()
     test_windows_qr_incompatible_missing_required_file_fails_clearly()
+    test_windows_qr_incompatible_extra_or_duplicate_upload_fails()
+    test_windows_qr_incompatible_renamed_upload_fails()
+    test_windows_qr_incompatible_noncontract_path_forms_fail()
     test_windows_deferral_record_missing_blocker_fails_clearly()
     test_windows_deferral_record_missing_file_fails_clearly()
     test_windows_workflow_missing_reviewed_job_fails_clearly()

@@ -45,6 +45,10 @@ GENERATED_STATUS_MAP = {
 }
 STRICT_FRESHNESS_POLICIES = {"generated_compare_inputs"}
 ADVISORY_FRESHNESS_POLICIES = {"generated_local_advisory", "hosted_ci_external"}
+HOSTED_SELECTED_COMPARISON_TARGETS = {
+    "cholesky_spd_tridiag_5": "cholesky-spd-tridiag-5",
+    "qr_incompatible_ls": "qr-incompatible-ls",
+}
 ERROR_SEVERITIES = {"error"}
 CANONICAL_ORACLE_TARGET = "make report-index-oracle-freshness"
 CANONICAL_ORACLE_COMMAND = (
@@ -315,8 +319,10 @@ def selected_comparison_required_file_diagnostics(
             continue
         artifact_dir = Path(artifact_pattern.removeprefix("build/")).parent
         study_path = build_root / Path(artifact_pattern.removeprefix("build/"))
-        is_cholesky = contract["target_key"] == "cholesky-spd-tridiag-5"
-        if not study_path.is_file() and not (is_cholesky and target_keys):
+        strict_selected = contract["target_key"] in {
+            "cholesky-spd-tridiag-5", "qr-incompatible-ls"
+        }
+        if not study_path.is_file() and not (strict_selected and target_keys):
             continue
         missing: list[str] = []
         required_files = split_manifest_values(contract["required_files"])
@@ -336,7 +342,7 @@ def selected_comparison_required_file_diagnostics(
                 f"{selected_comparison_remediation(target_keys)}"
             )
         physical_dir = build_root / artifact_dir
-        if is_cholesky and physical_dir.is_dir():
+        if strict_selected and physical_dir.is_dir():
             unexpected = sorted(
                 child.name for child in physical_dir.iterdir()
                 if child.name not in required_files
@@ -725,19 +731,28 @@ def comparison_artifact_path_matches(
     )
 
 
-def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) -> None:
+def validate_selected_hosted_metadata(
+    path: Path, rows: list[dict[str, str]], target_key: str,
+    require_hosted: bool = False,
+) -> None:
     """Reject contradictory selected Windows proof before normalizing study rows."""
     manifest_path = path.with_name("manifest.tsv")
     summary_path = path.with_name("summary.md")
-    manifest_text = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else ""
+    manifest_values = (
+        {entry.get("key", ""): entry.get("value", "") for entry in read_tsv(manifest_path)}
+        if manifest_path.is_file() else {}
+    )
     summary_text = summary_path.read_text(encoding="utf-8") if summary_path.is_file() else ""
-    hosted = any(
+    hosted = require_hosted or any(
         row.get("support_tier") == "hosted_selected"
-        or "support_tier=hosted_selected" in row.get("configuration", "")
+        or configuration_value(row.get("configuration", ""), "support_tier") == "hosted_selected"
         or "selected Windows hosted lane" in row.get("claim_scope", "")
         or "no broad Windows report freshness" in row.get("non_claims", "")
         for row in rows
-    ) or "support_tier=hosted_selected" in manifest_text or "selected Windows hosted study" in summary_text
+    ) or (
+        configuration_value(manifest_values.get("configuration", ""), "support_tier")
+        == "hosted_selected"
+    ) or "selected Windows hosted study" in summary_text
     if not hosted:
         return
     if not rows:
@@ -745,12 +760,12 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             f"{path}: comparison_hosted_metadata_mismatch: field=study_rows_missing"
         )
 
-    expected_claim = (
-        "fixture-local Cholesky SPD tridiagonal solve comparison "
-        "on the selected Windows hosted lane only"
-    )
-    expected_non_claims = ";".join(
-        (
+    if target_key == "cholesky-spd-tridiag-5":
+        expected_claim = (
+            "fixture-local Cholesky SPD tridiagonal solve comparison "
+            "on the selected Windows hosted lane only"
+        )
+        expected_non_claims = ";".join((
             "no broad Cholesky correctness", "no broad SPD coverage",
             "no broad reordering coverage", "no CSC-vs-linked-list parity",
             "no factor-layout identity", "no fill superiority", "no NumPy parity",
@@ -760,10 +775,66 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             "no broad Windows report freshness", "no package-manager proof",
             "no shared-library ABI proof", "no performance superiority",
             "no state-of-the-art claim",
+        ))
+        expected_stage = "sprint183_day8_comparison_logic"
+        expected_fixture = "cholesky_spd_tridiag_5"
+        expected_baseline_name = "source-controlled-dense-cholesky-reference"
+        expected_baseline_version = "chol_external_dense_reference.py"
+        expected_summary_scope = (
+            "This selected Windows hosted study compares one fixture-local Cholesky "
+            "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
         )
-    )
+    elif target_key == "qr-incompatible-ls":
+        expected_claim = (
+            "fixture-local QR incompatible least-squares comparison "
+            "on the selected Windows hosted lane only"
+        )
+        expected_non_claims = ";".join((
+            "no broad QR parity", "no broad least-squares parity",
+            "no raw QR basis identity", "no Q sign or orientation claim",
+            "no global rank-threshold policy", "no broad rank-deficient solve claim",
+            "no NumPy parity", "no SciPy parity", "no LAPACK parity",
+            "no SuiteSparse parity", "no Eigen parity",
+            "no external-library ecosystem parity", "no release proof",
+            "no broad platform portability proof", "no broad Windows report freshness",
+            "no package-manager proof", "no shared-library ABI proof",
+            "no performance superiority", "no state-of-the-art claim",
+        ))
+        expected_stage = "sprint191_day8_comparison_logic"
+        expected_fixture = "qr_overdetermined_incompatible_4x2"
+        expected_baseline_name = "source-controlled-dense-qr-reference"
+        expected_baseline_version = "qr_external_dense_reference.py"
+        expected_summary_scope = (
+            "This selected Windows hosted study compares one fixture-local QR "
+            "incompatible least-squares solve against the source-controlled dense reference helper."
+        )
+        expected_row_ids = tuple(
+            f"comparison_{expected_fixture}_{metric}_v1"
+            for metric in (
+                "project_status", "baseline_status", "residual_norm",
+                "solution_norm", "solution_values",
+                "project_vs_baseline_max_abs_delta",
+            )
+        )
+        observed_row_ids = tuple(row.get("comparison_row_id", "") for row in rows)
+        if len(observed_row_ids) != len(expected_row_ids) or set(observed_row_ids) != set(
+            expected_row_ids
+        ):
+            raise ReportIndexError(
+                f"{path}: comparison_hosted_row_set_mismatch: "
+                f"expected={','.join(expected_row_ids)}; "
+                f"observed={','.join(observed_row_ids)}"
+            )
+        if observed_row_ids != expected_row_ids:
+            raise ReportIndexError(
+                f"{path}: comparison_hosted_row_order_mismatch: "
+                f"expected={','.join(expected_row_ids)}; "
+                f"observed={','.join(observed_row_ids)}"
+            )
+    else:
+        raise ReportIndexError(f"{path}: unsupported hosted comparison target={target_key}")
     expected_configuration = (
-        "stage=sprint183_day8_comparison_logic;"
+        f"stage={expected_stage};"
         "baseline_status=integrated_and_compared;support_tier=hosted_selected"
     )
     expected_compiler = "cmake-probe:Visual Studio 17 2022:Release"
@@ -809,14 +880,14 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             f"{manifest_path}: comparison_hosted_metadata_mismatch: duplicate manifest key"
         )
     expected_manifest = {
-        "target": "cholesky-spd-tridiag-5",
-        "fixture_key": "cholesky_spd_tridiag_5",
+        "target": target_key,
+        "fixture_key": expected_fixture,
         "platform": "windows-amd64",
         "compiler": expected_compiler,
         "configuration": expected_configuration,
-        "baseline_name": "source-controlled-dense-cholesky-reference",
+        "baseline_name": expected_baseline_name,
         "baseline_type": "external-process-source-controlled-helper",
-        "baseline_version": "chol_external_dense_reference.py",
+        "baseline_version": expected_baseline_version,
         "baseline_python_executable": rows[0].get("baseline_python_executable", ""),
         "baseline_python_version": rows[0].get("baseline_python_version", ""),
         "baseline_command": rows[0].get("baseline_command", ""),
@@ -835,7 +906,7 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
                 f"{manifest_path}: comparison_hosted_metadata_mismatch: field={field}"
             )
     if manifest.get("baseline_helper_path", "").replace("\\", "/") != (
-        "tests/chol_external_dense_reference.py"
+        f"tests/{expected_baseline_version}"
     ):
         raise ReportIndexError(
             f"{manifest_path}: comparison_hosted_metadata_mismatch: "
@@ -847,13 +918,29 @@ def validate_cholesky_hosted_metadata(path: Path, rows: list[dict[str, str]]) ->
             f"{summary_path}: comparison_hosted_metadata_mismatch: field=summary_missing"
         )
     summary = summary_path.read_text(encoding="utf-8")
-    expected_scope = (
-        "This selected Windows hosted study compares one fixture-local Cholesky "
-        "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
-    )
     summary_lines = summary.splitlines()
+    if target_key == "qr-incompatible-ls":
+        contradictory_denial = any(
+            denial in summary.lower()
+            for denial in ("no hosted ci proof", "no windows report freshness")
+        )
+        broad_claim = any(
+            re.search(
+                r"\b(?:all|broad)\s+(?:Windows\s+)?QR\b|"
+                r"\bWindows\s+QR\s+(?:solves?|parity|support)\b",
+                line,
+                re.IGNORECASE,
+            )
+            for line in summary_lines
+            if not line.startswith("Non-claims:")
+        )
+        if contradictory_denial or broad_claim:
+            raise ReportIndexError(
+                f"{summary_path}: comparison_hosted_metadata_mismatch: "
+                "field=summary_scope_or_non_claims"
+            )
     if (
-        summary_lines.count(expected_scope) != 1
+        summary_lines.count(expected_summary_scope) != 1
         or [line for line in summary_lines if line.startswith("Non-claims:")]
         != ["Non-claims: " + first["non_claims"]]
     ):
@@ -888,18 +975,25 @@ def comparison_generated_rows(
     repo_root: Path,
     commit: str,
     branch: str,
-    validate_cholesky: bool = True,
+    validate_selected_hosted: bool = True,
+    require_hosted_selected_targets: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in pattern_to_paths(contract["artifact_pattern"], build_root, repo_root):
         artifact = display_path(path, repo_root)
         comparisons = read_tsv(path)
-        if contract["subfamily"] == "cholesky_spd_tridiag_5" and validate_cholesky:
-            validate_cholesky_hosted_metadata(path, comparisons)
+        selected_hosted_target = HOSTED_SELECTED_COMPARISON_TARGETS.get(contract["subfamily"])
+        if selected_hosted_target and validate_selected_hosted:
+            validate_selected_hosted_metadata(
+                path, comparisons, selected_hosted_target,
+                require_hosted=(
+                    selected_hosted_target in (require_hosted_selected_targets or set())
+                ),
+            )
         for comparison in comparisons:
             if (
-                contract["subfamily"] == "cholesky_spd_tridiag_5"
-                and validate_cholesky
+                selected_hosted_target is not None
+                and validate_selected_hosted
                 and comparison.get("support_tier") == "hosted_selected"
                 and comparison.get("worktree_state") != "clean"
             ):
@@ -909,8 +1003,8 @@ def comparison_generated_rows(
                     f"worktree_state={comparison.get('worktree_state', '')}"
                 )
             if (
-                contract["subfamily"] == "cholesky_spd_tridiag_5"
-                and validate_cholesky
+                selected_hosted_target is not None
+                and validate_selected_hosted
                 and not comparison_artifact_path_matches(
                     comparison.get("artifact_path", ""), contract["artifact_pattern"], path
                 )
@@ -1407,6 +1501,7 @@ def emit_rows(
     commit: str,
     branch: str,
     selected_comparison_subfamilies_filter: set[str] | None = None,
+    require_hosted_selected_targets: set[str] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for contract in contracts:
@@ -1439,10 +1534,11 @@ def emit_rows(
             else:
                 comparison_rows = comparison_generated_rows(
                     contract, build_root, repo_root, commit, branch,
-                    validate_cholesky=(
+                    validate_selected_hosted=(
                         selected_comparison_subfamilies_filter is None
                         or contract["subfamily"] in selected_comparison_subfamilies_filter
                     ),
+                    require_hosted_selected_targets=require_hosted_selected_targets,
                 )
                 if comparison_rows:
                     rows.extend(comparison_rows)
@@ -1710,6 +1806,8 @@ def selected_comparison_policy_diagnostics(
 ) -> tuple[list[str], bool]:
     if not selected_comparison_policy_enabled(required_families, strict_generated):
         return [], False
+    if not any(row["report_family"] == "comparison" for row in rows):
+        return [], False
 
     selected_artifacts = set(
         selected_comparison_artifacts(selected_targets, selected_target_keys)
@@ -1745,17 +1843,15 @@ def selected_comparison_policy_diagnostics(
         for row in selected_comparison_contracts(selected_targets, selected_target_keys)
     )
     if not comparison_rows:
-        generated_comparison_rows = selected_comparison_generated_rows(rows)
-        if generated_comparison_rows:
-            has_error = True
-            diagnostics.append(
-                "freshness: error: comparison_selected_rows: row_set_mismatch: "
-                f"target_ids={target_ids}; expected={expected_rows}; observed=0; "
-                f"missing={','.join(sorted(expected_row_ids)) or 'none'}; "
-                "duplicates=none; unexpected=none; "
-                f"{artifact_diagnostic}; "
-                f"{selected_comparison_remediation(selected_target_keys)}"
-            )
+        has_error = True
+        diagnostics.append(
+            "freshness: error: comparison_selected_rows: row_set_mismatch: "
+            f"target_ids={target_ids}; expected={expected_rows}; observed=0; "
+            f"missing={','.join(sorted(expected_row_ids)) or 'none'}; "
+            "duplicates=none; unexpected=none; "
+            f"{artifact_diagnostic}; "
+            f"{selected_comparison_remediation(selected_target_keys)}"
+        )
         return diagnostics, has_error
 
     row_ids = [row["row_id"] for row in comparison_rows]
@@ -2023,6 +2119,10 @@ def main() -> int:
         default=[],
         help="limit selected comparison freshness checks to the named target_key",
     )
+    parser.add_argument(
+        "--require-hosted-selected", action="store_true",
+        help="require the named selected comparison bundle to have hosted metadata",
+    )
     parser.add_argument("--strict-generated", action="store_true")
     parser.add_argument("--advisory-ok", action="store_true")
     parser.add_argument("--format", choices=["tsv"], default="tsv")
@@ -2030,6 +2130,27 @@ def main() -> int:
     args = parser.parse_args()
     if args.selected_target and not args.check_freshness:
         parser.error("--selected-target requires --check-freshness")
+    if args.require_hosted_selected and (
+        not args.check_freshness or len(args.selected_target) != 1 or not args.include_generated
+    ):
+        parser.error("--require-hosted-selected requires one --selected-target and generated freshness")
+    if args.require_hosted_selected and (
+        "comparison" not in args.require_generated and not args.strict_generated
+    ):
+        parser.error(
+            "--require-hosted-selected requires --require-generated comparison "
+            "or --strict-generated"
+        )
+    if args.require_hosted_selected and args.family and "comparison" not in args.family:
+        parser.error("--require-hosted-selected requires the comparison report family")
+    if (
+        args.require_hosted_selected
+        and args.selected_target[0] not in HOSTED_SELECTED_COMPARISON_TARGETS.values()
+    ):
+        parser.error(
+            "--require-hosted-selected has no hosted validation profile for target "
+            f"{args.selected_target[0]}"
+        )
 
     manifest_path = args.corpus_root / REPORT_FAMILY_MANIFEST
     contracts = selected_contracts(read_tsv(manifest_path), set(args.family))
@@ -2062,6 +2183,9 @@ def main() -> int:
         selected_comparison_subfamilies_filter=(
             selected_comparison_subfamilies(selected_targets, selected_target_keys)
             if selected_target_keys else None
+        ),
+        require_hosted_selected_targets=(
+            selected_target_keys if args.require_hosted_selected else None
         ),
     )
     validate_unique_row_ids(rows)

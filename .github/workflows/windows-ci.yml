@@ -15,10 +15,11 @@ name: Windows CI
 # package-manager support, shared-library support, dynamic ABI support,
 # runtime-loader behavior, broad generated report freshness, or broad Windows
 # parity. Sprint 190 promotes one bounded selected Cholesky comparison
-# freshness lane, and Sprint 209 adds one bounded selected QR incompatible
-# proof lane for hosted evidence collection; all other Windows report
-# freshness remains deferred until a Windows-safe generator path and
-# selected-target manifest promotion are reviewed for each target.
+# freshness lane. Sprint 209 adds one bounded selected QR incompatible proof
+# lane; Sprint 224 prepares its candidate with exact-head checkout and six-file
+# artifact evidence. Final-head
+# audit is required before accepting its freshness claim. All other Windows
+# report freshness remains deferred.
 # See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
@@ -132,8 +133,13 @@ jobs:
     name: Windows selected QR incompatible comparison freshness (MSVC)
     runs-on: windows-2022
     timeout-minutes: 20
+    env:
+      SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Configure selected QR incompatible comparison library
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
@@ -148,7 +154,7 @@ jobs:
         shell: cmd
 
       - name: Check selected QR incompatible comparison freshness
-        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target qr-incompatible-ls
+        run: python scripts/normalize_report_index.py --family comparison --require-generated comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected
         shell: cmd
 
       - name: Upload selected QR incompatible comparison freshness artifact

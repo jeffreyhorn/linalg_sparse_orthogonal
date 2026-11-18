@@ -166,6 +166,7 @@ TARGETS = {
         ),
         "non_claims": (
             "no broad QR parity;no broad least-squares parity;"
+            "no raw QR basis identity;no Q sign or orientation claim;"
             "no global rank-threshold policy;no broad rank-deficient solve claim;"
             "no NumPy parity;no SciPy parity;no LAPACK parity;no SuiteSparse parity;"
             "no Eigen parity;no external-library ecosystem parity;"
@@ -1089,15 +1090,16 @@ def comparison_configuration(target: dict[str, object], support_tier: str = "loc
     return f"stage={stage};baseline_status=integrated_and_compared;support_tier={support_tier}"
 
 
-def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
-    """Mark only the verified Windows CI job as a hosted candidate.
+def selected_windows_hosted_tier(root: Path, target_name: str) -> bool:
+    """Mark only an owned selected Windows CI job as a hosted candidate.
 
     The run/artifact still needs the independent hosted audit before publication.
     """
-    if (
-        target_name != "cholesky-spd-tridiag-5"
-        or os.environ.get("GITHUB_JOB") != "selected-comparison-freshness"
-    ):
+    jobs = {
+        "cholesky-spd-tridiag-5": "selected-comparison-freshness",
+        "qr-incompatible-ls": "selected-qr-incompatible-comparison-freshness",
+    }
+    if target_name not in jobs or os.environ.get("GITHUB_JOB") != jobs[target_name]:
         return False
     if (
         platform.system() != "Windows"
@@ -1114,7 +1116,7 @@ def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
     if any(os.environ.get(key) != value for key, value in required.items()):
         raise ComparisonError(
             "hosted_context_mismatch",
-            "selected Cholesky job lacks the expected Windows CI context",
+            f"selected {target_name} job lacks the expected Windows CI context",
         )
     event = os.environ.get("GITHUB_EVENT_NAME")
     expected_sha = os.environ.get("SPARSE_SELECTED_SOURCE_SHA")
@@ -1134,14 +1136,21 @@ def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
     ):
         raise ComparisonError(
             "hosted_context_mismatch",
-            "selected Cholesky job platform, source commit, or branch differs from hosted context",
+            f"selected {target_name} job platform, source commit, or branch differs from hosted context",
         )
     if worktree_state(root) != "clean":
         raise ComparisonError(
             "hosted_context_mismatch",
-            "selected Cholesky job source worktree must be clean",
+            f"selected {target_name} job source worktree must be clean",
         )
     return True
+
+
+def selected_cholesky_hosted_tier(root: Path, target_name: str) -> bool:
+    """Retain the Cholesky entry point for existing callers."""
+    if target_name != "cholesky-spd-tridiag-5":
+        return False
+    return selected_windows_hosted_tier(root, target_name)
 
 
 def selected_cholesky_report_metadata(target: dict[str, object]) -> dict[str, object]:
@@ -1162,6 +1171,31 @@ def selected_cholesky_report_metadata(target: dict[str, object]) -> dict[str, ob
     result["summary_scope"] = (
         "This selected Windows hosted study compares one fixture-local Cholesky "
         "SPD tridiagonal solve against the source-controlled dense Cholesky reference helper."
+    )
+    result["non_claims"] = non_claims.replace(
+        hosted_denial, "no release proof;"
+    ).replace(windows_denial, "no broad Windows report freshness;")
+    return result
+
+
+def selected_qr_incompatible_report_metadata(target: dict[str, object]) -> dict[str, object]:
+    """Return the bounded Windows wording for one incompatible QR fixture."""
+    result = dict(target)
+    non_claims = str(result["non_claims"])
+    hosted_denial = "no hosted CI proof;no release proof;"
+    windows_denial = "no Windows report freshness;"
+    if hosted_denial not in non_claims or windows_denial not in non_claims:
+        raise ComparisonError(
+            "hosted_claim_mismatch",
+            "selected QR incompatible non-claims no longer match the reviewed local contract",
+        )
+    result["claim_scope"] = (
+        "fixture-local QR incompatible least-squares comparison "
+        "on the selected Windows hosted lane only"
+    )
+    result["summary_scope"] = (
+        "This selected Windows hosted study compares one fixture-local QR "
+        "incompatible least-squares solve against the source-controlled dense reference helper."
     )
     result["non_claims"] = non_claims.replace(
         hosted_denial, "no release proof;"
@@ -2246,10 +2280,12 @@ def run(args: argparse.Namespace) -> int:
 
     target = TARGETS[args.target]
     root = args.root.resolve()
-    hosted_cholesky = selected_cholesky_hosted_tier(root, args.target)
-    support_tier = "hosted_selected" if hosted_cholesky else "local_only"
-    if hosted_cholesky:
+    hosted_selected = selected_windows_hosted_tier(root, args.target)
+    support_tier = "hosted_selected" if hosted_selected else "local_only"
+    if hosted_selected and args.target == "cholesky-spd-tridiag-5":
         target = selected_cholesky_report_metadata(target)
+    elif hosted_selected and args.target == "qr-incompatible-ls":
+        target = selected_qr_incompatible_report_metadata(target)
     output_dir = args.output_dir.resolve() if args.output_dir else Path(target["output_dir"]).resolve()
     library = args.library.resolve()
     reset_output_dir(output_dir)
@@ -2283,7 +2319,7 @@ def run(args: argparse.Namespace) -> int:
         "source_commit": current_commit(root),
         "source_branch": (
             os.environ["SPARSE_SELECTED_SOURCE_BRANCH"]
-            if hosted_cholesky else current_branch(root)
+            if hosted_selected else current_branch(root)
         ),
         "worktree_state": worktree_state(root),
         "project_version": project_version(root),

@@ -804,6 +804,110 @@ def test_selected_cholesky_hosted_wording_is_narrow() -> None:
     )
 
 
+def test_selected_qr_incompatible_hosted_candidate_is_guarded_and_narrow() -> None:
+    source = runner.TARGETS["qr-incompatible-ls"]
+    selected = runner.selected_qr_incompatible_report_metadata(source)
+    with (REPO_ROOT / "tests/corpus/manifests/selected_report_targets.tsv").open(
+        encoding="utf-8", newline=""
+    ) as handle:
+        contract = next(
+            row for row in csv.DictReader(handle, delimiter="\t")
+            if row["target_id"] == "SRT-COMP-QR-INCOMPATIBLE-LS"
+        )
+    assert contract["support_tier"] == "hosted_selected"
+    assert contract["workflow_platforms"].split(";") == ["linux", "macos", "windows"]
+    assert set(contract["non_claims"].split(";")).issubset(
+        set(str(selected["non_claims"]).split(";"))
+    )
+    assert selected is not source
+    assert "selected Windows hosted lane only" in str(selected["claim_scope"])
+    assert "selected Windows hosted study" in str(selected["summary_scope"])
+    assert "no hosted CI proof" not in str(selected["non_claims"])
+    assert "no Windows report freshness" not in str(selected["non_claims"])
+    for exclusion in (
+        "no broad QR parity", "no broad least-squares parity",
+        "no global rank-threshold policy", "no package-manager proof",
+        "no shared-library ABI proof", "no performance superiority",
+        "no state-of-the-art claim", "no broad Windows report freshness",
+    ):
+        assert exclusion in str(selected["non_claims"])
+    assert "no hosted CI proof" in str(source["non_claims"])
+    assert runner.comparison_configuration(source).endswith("support_tier=local_only")
+    assert runner.comparison_configuration(selected, "hosted_selected").endswith(
+        "support_tier=hosted_selected"
+    )
+    context = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+        "GITHUB_WORKFLOW": "Windows CI",
+        "GITHUB_JOB": "selected-qr-incompatible-comparison-freshness",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_HEAD_REF": "sprint-224",
+        "SPARSE_SELECTED_SOURCE_SHA": runner.current_commit(REPO_ROOT),
+        "SPARSE_SELECTED_SOURCE_BRANCH": "sprint-224",
+        "RUNNER_OS": "Windows",
+    }
+    with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(
+        runner.platform, "system", return_value="Windows"
+    ), mock.patch.object(runner, "worktree_state", return_value="clean"):
+        assert runner.selected_windows_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+        assert not runner.selected_windows_hosted_tier(REPO_ROOT, "cholesky-spd-tridiag-5")
+        os.environ["SPARSE_SELECTED_SOURCE_SHA"] = "wrong-sha"
+        try:
+            runner.selected_windows_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("wrong QR hosted commit was accepted")
+
+
+def test_selected_qr_incompatible_hosted_context_mutations_fail_closed() -> None:
+    context = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "jeffreyhorn/linalg_sparse_orthogonal",
+        "GITHUB_WORKFLOW": "Windows CI",
+        "GITHUB_JOB": "selected-qr-incompatible-comparison-freshness",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_HEAD_REF": "sprint-224",
+        "SPARSE_SELECTED_SOURCE_SHA": runner.current_commit(REPO_ROOT),
+        "SPARSE_SELECTED_SOURCE_BRANCH": "sprint-224",
+        "RUNNER_OS": "Windows",
+    }
+    for field, value in (
+        ("GITHUB_REPOSITORY", "other/repository"),
+        ("GITHUB_WORKFLOW", "Other CI"),
+        ("GITHUB_ACTIONS", "false"),
+        ("RUNNER_OS", "Linux"),
+        ("GITHUB_EVENT_NAME", "workflow_dispatch"),
+        ("GITHUB_HEAD_REF", "other-branch"),
+        ("SPARSE_SELECTED_SOURCE_BRANCH", "other-branch"),
+        ("SPARSE_SELECTED_SOURCE_SHA", "0" * 40),
+    ):
+        changed = {**context, field: value}
+        with mock.patch.dict(os.environ, changed, clear=True), mock.patch.object(
+            runner.platform, "system", return_value="Windows"
+        ), mock.patch.object(runner, "worktree_state", return_value="clean"):
+            try:
+                runner.selected_windows_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+            except runner.ComparisonError as exc:
+                assert exc.failure_class == "hosted_context_mismatch", (field, exc)
+            else:
+                raise AssertionError(f"QR hosted context accepted {field}={value}")
+    with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(
+        runner.platform, "system", return_value="Windows"
+    ), mock.patch.object(runner, "worktree_state", return_value="dirty"):
+        try:
+            runner.selected_windows_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+        except runner.ComparisonError as exc:
+            assert exc.failure_class == "hosted_context_mismatch"
+        else:
+            raise AssertionError("dirty QR hosted worktree was accepted")
+    with mock.patch.dict(
+        os.environ, {**context, "GITHUB_JOB": "selected-comparison-freshness"}, clear=True
+    ), mock.patch.object(runner.platform, "system", return_value="Windows"):
+        assert not runner.selected_windows_hosted_tier(REPO_ROOT, "qr-incompatible-ls")
+
+
 def test_selected_cholesky_candidate_matches_manifest_and_summary() -> None:
     manifest_path = REPO_ROOT / "tests/corpus/manifests/selected_report_targets.tsv"
     with manifest_path.open(encoding="utf-8", newline="") as handle:
@@ -879,6 +983,8 @@ def test_selected_cholesky_candidate_matches_manifest_and_summary() -> None:
 
 
 def main() -> int:
+    test_selected_qr_incompatible_hosted_candidate_is_guarded_and_narrow()
+    test_selected_qr_incompatible_hosted_context_mutations_fail_closed()
     test_selected_cholesky_hosted_context_is_exact()
     test_selected_cholesky_hosted_wording_is_narrow()
     test_selected_cholesky_candidate_matches_manifest_and_summary()

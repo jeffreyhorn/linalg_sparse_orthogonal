@@ -150,24 +150,28 @@ WINDOWS_SELECTED_QR_ARTIFACT_PATTERN = "build/comparison/qr_incompatible_ls/stud
 WINDOWS_SELECTED_QR_GENERATOR_COMMAND = (
     "python3 scripts/run_external_comparison.py --target qr-incompatible-ls"
 )
-WINDOWS_SELECTED_QR_SUPPORT_TIER = "local_only"
+WINDOWS_SELECTED_QR_SUPPORT_TIER = "hosted_selected"
 WINDOWS_SELECTED_QR_CLAIM_SCOPE = (
     "Selected QR incompatible least-squares comparison rows are fresh for the "
-    "named fixture against the selected source-controlled dense reference helper."
+    "named fixture on reviewed Linux, macOS, and Windows hosted lanes against "
+    "the selected source-controlled dense reference helper."
 )
 WINDOWS_SELECTED_QR_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/macos-ci.yml",
+    ".github/workflows/windows-ci.yml",
 )
 WINDOWS_SELECTED_QR_WORKFLOW_JOBS = (
     "generated-report-freshness",
     "selected-comparison-freshness",
+    WINDOWS_SELECTED_QR_JOB,
 )
 WINDOWS_SELECTED_QR_WORKFLOW_ARTIFACTS = (
     "sprint175-linux-selected-comparison-freshness",
     "sprint175-macos-selected-comparison-freshness",
+    WINDOWS_SELECTED_QR_ARTIFACT,
 )
-WINDOWS_SELECTED_QR_WORKFLOW_PLATFORMS = ("linux", "macos")
+WINDOWS_SELECTED_QR_WORKFLOW_PLATFORMS = ("linux", "macos", "windows")
 WINDOWS_SELECTED_QR_NON_CLAIMS = (
     "no broad QR parity",
     "no broad least-squares parity",
@@ -180,7 +184,7 @@ WINDOWS_SELECTED_QR_NON_CLAIMS = (
     "no LAPACK parity",
     "no SuiteSparse parity",
     "no Eigen parity",
-    "no Windows report freshness",
+    "no broad Windows report freshness",
     "no package-manager proof",
     "no shared-library ABI proof",
     "no performance superiority",
@@ -210,7 +214,7 @@ WINDOWS_SELECTED_QR_GENERATOR = (
 )
 WINDOWS_SELECTED_QR_FRESHNESS = (
     "python scripts/normalize_report_index.py --family comparison --require-generated "
-    "comparison --check-freshness --selected-target qr-incompatible-ls"
+    "comparison --check-freshness --selected-target qr-incompatible-ls --require-hosted-selected"
 )
 WINDOWS_SELECTED_QR_REQUIRED_FILES = (
     "build/comparison/qr_incompatible_ls/project_observations.tsv",
@@ -226,24 +230,24 @@ CLAIM_BOUNDARY_MARKERS = {
         "Windows `pkg-config` parity",
         "Sprint 190 adds one guarded Windows hosted",
         "PR #247 records the exact-head hosted job and audited",
-        "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
-        "the QR incompatible least-squares target remains\noutside Windows selected freshness",
-        "outside the one Sprint 190 Cholesky",
+        "Sprint 224\nadds one guarded Windows selected target, `qr-incompatible-ls`",
+        "final changed-head Windows job and six-file artifact are audited",
+        "outside the named Cholesky and QR",
     ),
     REPO_ROOT / "INSTALL.md": (
         "hosted PowerShell validation",
         "hosted selected, exact-head evidence recorded in PR #247",
-        "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
-        "The QR incompatible least-squares target remains outside Windows selected freshness",
+        "hosted selected; exact-head evidence recorded in PR #248",
+        "PR #248 records the final changed-head MSVC job and artifact review",
         "broad report freshness, selected oracle or benchmark freshness",
         "This does not imply Windows Makefile",
         "runtime-loader behavior, or broad Windows parity",
     ),
     REPO_ROOT / "docs" / "maintainer_guide.md": (
         "Sprint 190 adds one bounded Windows hosted workflow\npath for `cholesky-spd-tridiag-5`",
-        "Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane",
-        "The Sprint 182 deferral remains active for every Windows report freshness\nsurface outside the one Sprint 190 Cholesky workflow path",
-        "The QR\nincompatible least-squares target remains outside Windows selected freshness",
+        "Sprint 224 accepts the named QR incompatible\nWindows selected target",
+        "The Sprint 182 deferral remains active for every Windows report freshness\nsurface outside the named Cholesky and QR selected workflow paths",
+        "PR #248 records the final\nchanged-head MSVC job and six-file artifact audit",
         "make windows-powershell-validate",
         "python scripts/validate_windows_powershell.py --require-pwsh",
         "If a local PowerShell\ncheck is unavailable, record that as an environment residual",
@@ -251,19 +255,17 @@ CLAIM_BOUNDARY_MARKERS = {
     ),
     REPO_ROOT / "tests" / "corpus" / "README.md": (
         "Sprint 190 wires one bounded Windows selected Cholesky comparison\nfreshness workflow",
-        "Sprint 209 adds one bounded Windows QR incompatible\n"
-        "evidence-collection lane",
-        "The Sprint 182 deferral\nremains active for all other Windows report freshness",
-        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
+        "Sprint 224 accepts its selected Windows target",
+        "The Sprint 182 deferral remains active for all other Windows report freshness",
+        "PR #248 records the final changed-head six-file artifact audit",
         "hosted Windows PowerShell validation lane owns selected workflow snippet\nparsing",
         "unavailable\nlocal PowerShell validation",
         "reinterpret those states as pass evidence",
     ),
     REPO_ROOT / "tests" / "corpus" / "schemas" / "report_index_fields.md": (
-        "Sprint 223 adds\n`windows` only to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`",
-        "Sprint 209 adds one bounded Windows QR incompatible\n"
-        "evidence-collection lane",
-        "The QR incompatible least-squares target remains outside Windows selected\nfreshness",
+        "Sprint 223 adds\n`windows` to `SRT-COMP-CHOLESKY-SPD-TRIDIAG-5`",
+        "Sprint 224 accepts `SRT-COMP-QR-INCOMPATIBLE-LS`",
+        "final changed-head six-file artifact audit",
         "external-library parity; platform proof; package proof; ABI proof; performance\nproof; release proof; or state-of-the-art evidence",
     ),
 }
@@ -619,9 +621,11 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
         workflow_jobs = split_manifest_values(row["workflow_job"])
         workflow_artifacts = split_manifest_values(row["workflow_artifact"])
         platforms = split_manifest_values(row["workflow_platforms"])
-        if "windows" in platforms and target_id != WINDOWS_SELECTED_CHOLESKY_TARGET_ID:
+        if "windows" in platforms and target_id not in (
+            WINDOWS_SELECTED_CHOLESKY_TARGET_ID, WINDOWS_SELECTED_QR_TARGET_ID
+        ):
             raise ValidationError(
-                "only selected Cholesky may list windows: "
+                "only selected Cholesky and QR incompatible may list windows: "
                 f"{target_id}"
             )
         if target_id not in (
@@ -629,7 +633,7 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
             WINDOWS_SELECTED_QR_TARGET_ID,
         ):
             if (
-                str(WINDOWS_WORKFLOW.relative_to(REPO_ROOT)) in workflow_files
+                WINDOWS_WORKFLOW.relative_to(REPO_ROOT).as_posix() in workflow_files
                 or WINDOWS_SELECTED_CHOLESKY_ARTIFACT in workflow_artifacts
             ):
                 raise ValidationError(
@@ -643,8 +647,8 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
                 or WINDOWS_SELECTED_QR_ARTIFACT in workflow_artifacts
             ):
                 raise ValidationError(
-                    "non-QR selected rows must not reference Sprint 209 Windows "
-                    "QR workflow metadata while QR freshness is re-deferred: "
+                    "non-QR selected rows must not reference the selected Windows "
+                    "QR workflow metadata: "
                     f"{target_id}"
                 )
     matches = [
@@ -687,25 +691,6 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
             f"QR incompatible row, got {len(qr_matches)}"
         )
     qr = qr_matches[0]
-    qr_workflow_files = split_manifest_values(qr["workflow_file"])
-    qr_workflow_jobs = split_manifest_values(qr["workflow_job"])
-    qr_workflow_artifacts = split_manifest_values(qr["workflow_artifact"])
-    if str(WINDOWS_WORKFLOW.relative_to(REPO_ROOT)) in qr_workflow_files:
-        raise ValidationError(
-            f"{WINDOWS_SELECTED_QR_TARGET_ID} must not list Sprint 209 Windows "
-            "QR workflow file metadata while re-deferred"
-        )
-    if WINDOWS_SELECTED_QR_JOB in qr_workflow_jobs:
-        raise ValidationError(
-            f"{WINDOWS_SELECTED_QR_TARGET_ID} must not list Sprint 209 Windows "
-            "QR workflow job metadata while re-deferred"
-        )
-    if WINDOWS_SELECTED_QR_ARTIFACT in qr_workflow_artifacts:
-        raise ValidationError(
-            f"{WINDOWS_SELECTED_QR_TARGET_ID} must not list Sprint 209 Windows "
-            "QR workflow artifact metadata while re-deferred"
-        )
-
     qr_exact_fields = {
         "family": WINDOWS_SELECTED_QR_FAMILY,
         "subfamily": WINDOWS_SELECTED_QR_SUBFAMILY,
@@ -726,10 +711,10 @@ def validate_manifest_windows_deferral(rows: list[dict[str, str]]) -> None:
     for field, expected in qr_exact_fields.items():
         if qr[field] != expected:
             raise ValidationError(
-                f"{WINDOWS_SELECTED_QR_TARGET_ID} must retain re-deferred "
+                f"{WINDOWS_SELECTED_QR_TARGET_ID} must retain selected "
                 f"Windows QR manifest {field} metadata"
             )
-    pass_msg(f"selected manifest restricts Windows to Cholesky ({len(rows)} rows)")
+    pass_msg(f"selected manifest restricts Windows to Cholesky and QR ({len(rows)} rows)")
 
 
 def validate_deferral_record() -> None:
@@ -835,6 +820,9 @@ def validate_windows_selected_qr_lane(text: str) -> str:
     if "timeout-minutes: 20" not in block:
         raise ValidationError(f"{WINDOWS_SELECTED_QR_JOB} must declare timeout-minutes: 20")
     for needle in (
+        "SPARSE_SELECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "SPARSE_SELECTED_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}",
+        "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
         WINDOWS_SELECTED_QR_GENERATOR,
         WINDOWS_SELECTED_QR_FRESHNESS,
         "actions/upload-artifact@v4",
@@ -877,6 +865,8 @@ def validate_claim_boundaries(overrides: dict[Path, str] | None = None) -> None:
             raise ValidationError(
                 f"{rel(path)} missing selected Cholesky claim"
             )
+        if WINDOWS_SELECTED_QR_CLAIM_SCOPE not in " ".join(text.split()):
+            raise ValidationError(f"{rel(path)} missing selected QR candidate claim")
         for marker in markers:
             if marker not in text:
                 raise ValidationError(

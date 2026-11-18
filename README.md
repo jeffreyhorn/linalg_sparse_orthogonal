@@ -389,11 +389,14 @@ SPD tridiagonal solve comparison rows are fresh for the named fixture on
 reviewed Linux, macOS, and Windows hosted lanes against the selected
 source-controlled dense Cholesky reference helper.” The exact-head Windows
 run, job, and audited six-file artifact are recorded in Sprint 223's PR #247
-evidence ledger. Any later commit requires a fresh exact-head audit. Sprint 209
-adds one bounded Windows QR incompatible evidence-collection lane for
-`qr-incompatible-ls`, but the selected target manifest remains Linux/macOS-only
-and `local_only` until a hosted Windows run and exact QR artifact inspection
-support promotion. Keep the
+evidence ledger. Any later commit requires a fresh exact-head audit. Sprint 224
+adds one guarded Windows selected target, `qr-incompatible-ls`, to the
+manifest. Its accepted claim, subject to the exact-head evidence recorded in
+[PR #248](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/pull/248), is: “Selected QR incompatible least-squares
+comparison rows are fresh for the named fixture on reviewed Linux, macOS, and
+Windows hosted lanes against the selected source-controlled dense reference
+helper.” The final changed-head Windows job and six-file artifact are audited
+in the PR evidence record; any later commit requires a new audit. Keep the
 selected target list, workflow upload names, claim scopes, and non-claims in
 `tests/corpus/manifests/selected_report_targets.tsv`; do not copy target lists
 through docs. Use [benchmarks/README.md](benchmarks/README.md), the
@@ -845,11 +848,11 @@ Windows hosted lanes against the selected source-controlled dense Cholesky
 reference helper.” PR #247 records the exact-head hosted job and audited
 six-file artifact; a new commit requires a new audit. The older Sprint 208
 run remains intake evidence only.
-Sprint 209 adds one bounded Windows QR incompatible evidence-collection lane
-for `qr-incompatible-ls`, but the QR incompatible least-squares target remains
-outside Windows selected freshness until hosted MSVC probe evidence, selected
-artifact review, selected-target manifest metadata, generated support tier, and
-generated non-claim wording are promoted together. These gates do not
+Sprint 209 added a bounded Windows QR incompatible collection lane for
+`qr-incompatible-ls`. Sprint 224's QR-only selected manifest and generator
+support one named Windows freshness sentence after the exact-head MSVC job
+and six-file artifact audit recorded in PR #248. A later commit needs a new
+audit. These gates do not
 prove raw QR basis parity, raw singular-vector identity, broad QR correctness,
 broad least-squares parity, broad LU or nonsymmetric solve correctness, LU CSR
 parity, broad Cholesky correctness, broad SPD coverage, CSC-vs-linked-list
@@ -858,8 +861,8 @@ minimum-norm behavior, broad SVD or partial-SVD correctness, SuiteSparse,
 LAPACK, NumPy, SciPy, broad Windows report freshness, Windows selected oracle
 or benchmark freshness, broad platform parity, performance, package/ABI,
 release, or state-of-the-art evidence. The Sprint 182 deferral remains active
-for every Windows report freshness surface outside the one Sprint 190 Cholesky
-workflow path.
+for every Windows report freshness surface outside the named Cholesky and QR
+candidate workflow paths.
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors); returns `SPARSE_ERR_NOT_CONVERGED` if the SVD iteration does not converge

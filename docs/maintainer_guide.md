@@ -1928,6 +1928,9 @@ red until a compatible three-job baseline is reviewed and source controlled.
 The later pinned Intel `s225-v1` group matched one fingerprint but failed
 dispersion; its [decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-pinned-intel-baseline-decision.md)
 records the raw ZIPs and the owner-approved `s225-v2` methodology change.
+The first `s225-v2` group likewise failed its approved dispersion limits;
+its [raw-bundle decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v2-baseline-decision.md)
+is rejected, so the timing check remains blocked.
 
 To reproduce the current preflight decision, run
 `python3 scripts/check_refactor_csc_timing.py --preflight --output

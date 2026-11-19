@@ -370,7 +370,10 @@ runner-class differences and excess dispersion. A later pinned Intel group
 also failed the locked dispersion rules; its raw evidence and the reviewed
 `s225-v2` method proposal are in the
 [pinned Intel decision](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-pinned-intel-baseline-decision.md).
-No `s225-v2` baseline or active pointer has been accepted. On exact commit
+The first reviewed-method `s225-v2` group also failed dispersion; its
+[raw bundles and decision](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v2-baseline-decision.md)
+are retained. No `s225-v2` baseline or active pointer has been accepted.
+On exact commit
 `38323f0e584e1a4d2aa8d2c92db5c18830366afc`, hosted run
 [`44403764960`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44403764960)
 had three attempts. All returned `S225_BASELINE_MISSING` before building or

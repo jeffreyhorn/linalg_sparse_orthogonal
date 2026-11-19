@@ -73,4 +73,6 @@ The supported Sprint 226 statement is: **“The maintained static source first-u
 
 ## Residual Handoff
 
+The [Epic 20 retrospective](../EPIC_20_RETROSPECTIVE.md) reconciles the ten sprint outcomes and carries their remaining product and release gaps forward.
+
 The next release owner should follow the [Day 14 ordered gates](artifacts/day14-final-epic20-closeout-and-handoff.md#residual-handoff-with-acceptance-gates): approve version/changelog/static scope and name owners, commit/review intended inputs, select one clean candidate SHA, rebuild and independently verify two archives, install and run downstream consumers from the extracted candidate, complete exact-SHA Linux/macOS/Windows gates, decide the timing and external-evidence boundaries separately, and collect individual signoffs including rollback. A later source or checked-in documentation edit changes the candidate identity and requires affected proof to be repeated. Keep the readiness label **BLOCKED** until every adopted gate and the release maintainer's final approval pass; a passing local first-use route does not remove this stop.

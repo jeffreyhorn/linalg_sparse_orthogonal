@@ -451,7 +451,7 @@ From the source root, use a separate CMake tree and writable staged prefix:
 ```sh
 cmake -S . -B build/install -DCMAKE_INSTALL_PREFIX="$PWD/_install" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_C_STANDARD=11
 cmake --build build/install
-ctest --test-dir build/install --output-on-failure
+(cd build/install && ctest --output-on-failure)
 cmake --install build/install
 ```
 

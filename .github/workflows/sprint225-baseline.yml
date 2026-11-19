@@ -3,7 +3,7 @@ name: Sprint 225 baseline intake
 on:
   workflow_dispatch:
   push:
-    branches: [sprint-225]
+    branches: [sprint-225, sprint-226]
 
 jobs:
   collect-baseline:

@@ -10,7 +10,7 @@ on:
 
 jobs:
   canonical-refactor-csc-timing:
-    name: macOS enforced refactor CSC timing decision (s225-v1)
+    name: macOS enforced refactor CSC timing decision (s225-v2)
     runs-on: macos-15-intel
     timeout-minutes: 20
     permissions:

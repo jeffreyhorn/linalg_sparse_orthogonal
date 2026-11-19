@@ -44,3 +44,11 @@ version, inspect every original ZIP and statistic, record the independent
 acceptance decision, then source-control the accepted manifest and pointer.
 Only then can the exact-candidate timing job run. Until that happens, there
 is no timing pass, release approval, or performance claim.
+
+## Methodology review
+
+On 2026-11-19 the project owner independently reviewed and approved the
+above `s225-v2` proposal for a **fresh** three-job collection. This approval
+covers the protocol change to `--repeat 100`; it does not accept any future
+baseline measurements. The raw jobs and dispersion still need independent
+review before an accepted manifest and pointer can be written.

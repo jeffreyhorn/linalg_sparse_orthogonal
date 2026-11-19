@@ -22,8 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = Path("tests/data/suitesparse/nos4.mtx")
 FIXTURE_SHA256 = "6450e9e3d921764802075128a053b0c13debf4462152bf4fdaa059c29e7e3a80"
-POLICY_VERSION = "s225-v1"
-COMMAND = ["tests/data/suitesparse/nos4.mtx", "--repeat", "1"]
+POLICY_VERSION = "s225-v2"
+COMMAND = ["tests/data/suitesparse/nos4.mtx", "--repeat", "100"]
 TIMEOUT_SECONDS = 30
 FORBIDDEN_OVERRIDES = (
     "CC", "CFLAGS", "CPPFLAGS", "LDFLAGS", "SPARSE_MUTEX", "SPARSE_OPENMP",

@@ -347,14 +347,15 @@ This is intentionally not a pass/fail timing gate:
 ### Sprint 225 one-cell timing decision
 
 The separate `canonical-refactor-csc-timing` macOS job applies policy
-`s225-v1` to `build/bench_refactor_csc tests/data/suitesparse/nos4.mtx
---repeat 1`, measuring only the `refactor_csc_ms` CSV field. It uses a clean
+`s225-v2` to `build/bench_refactor_csc tests/data/suitesparse/nos4.mtx
+--repeat 100`, measuring only the per-refactor `refactor_csc_ms` CSV field. It uses a clean
 serial Make build, 32-bit indices, `/usr/bin/cc` on the observed hosted jobs,
 and `OMP_NUM_THREADS=1`. The comparison class requires the *resolved* macOS
 image and version, OS/architecture, CPU, full compiler path/version, build
-recipe and environment to agree. The `macos-latest` label alone is insufficient.
+recipe and environment to agree. The selected runner label is
+`macos-15-intel`; its label alone is insufficient.
 
-An accepted `s225-v1` baseline would contain three compatible hosted jobs,
+An accepted `s225-v2` baseline would contain three compatible hosted jobs,
 each with five warmup and 20 measured processes. Its reference is the median
 of the three job medians. Each job requires MAD/median at most `0.10` and
 nearest-rank p90/median at most `1.50`; the baseline's between-job median
@@ -364,9 +365,12 @@ The baseline expires after 30 days; each process has a 30-second timeout and
 the separate job has a 20-minute cap. These are locked acceptance rules, not
 observed performance results.
 
-**Current result: blocked.** No `s225-v1` baseline version or active pointer
-has been accepted. The Day 5 baseline group was rejected for runner-class
-differences and excess dispersion. On exact commit
+**Current result: blocked.** The `s225-v1` Day 5 group was rejected for
+runner-class differences and excess dispersion. A later pinned Intel group
+also failed the locked dispersion rules; its raw evidence and the reviewed
+`s225-v2` method proposal are in the
+[pinned Intel decision](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-pinned-intel-baseline-decision.md).
+No `s225-v2` baseline or active pointer has been accepted. On exact commit
 `38323f0e584e1a4d2aa8d2c92db5c18830366afc`, hosted run
 [`44403764960`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44403764960)
 had three attempts. All returned `S225_BASELINE_MISSING` before building or

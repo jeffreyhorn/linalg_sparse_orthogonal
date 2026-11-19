@@ -1912,11 +1912,11 @@ Canonical output ownership:
 Current threshold-free reporting surface:
 
 Sprint 225 adds a separate `canonical-refactor-csc-timing` job for the
-`bench_refactor_csc`/`nos4.mtx --repeat 1` cell. Its reviewed `s225-v1`
+`bench_refactor_csc`/`nos4.mtx --repeat 100` cell. Its reviewed `s225-v2`
 policy, sample counts, dispersion and regression limits, runner identity,
 artifact route, and rerun procedure are in the
 [benchmark guide](../benchmarks/README.md#sprint-225-one-cell-timing-decision).
-The currently observed macOS image class is not stable: hosted run
+The earlier `s225-v1` macOS image class was not stable: hosted run
 [`44403764960`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44403764960)
 on source `38323f0e584e1a4d2aa8d2c92db5c18830366afc` returned
 `S225_BASELINE_MISSING` on all three attempts, and one attempt used a
@@ -1925,6 +1925,9 @@ different image version and CPU. The
 records the verified artifact ZIP hashes. There is no accepted baseline
 version, candidate sample bundle, or timing pass. The named job must remain
 red until a compatible three-job baseline is reviewed and source controlled.
+The later pinned Intel `s225-v1` group matched one fingerprint but failed
+dispersion; its [decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-pinned-intel-baseline-decision.md)
+records the raw ZIPs and the owner-approved `s225-v2` methodology change.
 
 To reproduce the current preflight decision, run
 `python3 scripts/check_refactor_csc_timing.py --preflight --output

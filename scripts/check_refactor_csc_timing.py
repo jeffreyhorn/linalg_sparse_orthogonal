@@ -19,7 +19,7 @@ from statistics import median
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "benchmarks/baselines/refactor-csc-nos4"
-POLICY = "s225-v1"
+POLICY = "s225-v2"
 TARGET = "SRT-BENCH-REFACTOR-CSC-NOS4"
 CLAIM_SCOPE = "one_canonical_refactor_csc_nos4_cell_on_matched_macos_runner"
 NON_CLAIMS = [
@@ -27,7 +27,7 @@ NON_CLAIMS = [
     "no_external_library_ranking", "no_state_of_the_art_claim",
 ]
 FIXTURE_SHA256 = "6450e9e3d921764802075128a053b0c13debf4462152bf4fdaa059c29e7e3a80"
-ARGV = ["build/bench_refactor_csc", "tests/data/suitesparse/nos4.mtx", "--repeat", "1"]
+ARGV = ["build/bench_refactor_csc", "tests/data/suitesparse/nos4.mtx", "--repeat", "100"]
 RUNNER_FIELDS = (
     "runner_image", "runner_image_version", "os", "architecture", "cpu_model",
     "compiler_path", "compiler_version",
@@ -395,7 +395,7 @@ def load_baseline(root: Path, now: datetime, require_current: bool = True) -> di
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", baseline_id):
         reject(invalid, "invalid baseline_id")
     if pointer.get("status") != "accepted" or pointer.get("policy_version") != POLICY:
-        reject(invalid, "active pointer is not accepted s225-v1")
+        reject(invalid, f"active pointer is not accepted {POLICY}")
     manifest_path = root / POLICY / baseline_id / "baseline.json"
     if not manifest_path.is_file():
         reject(missing, f"baseline manifest missing: {manifest_path}")

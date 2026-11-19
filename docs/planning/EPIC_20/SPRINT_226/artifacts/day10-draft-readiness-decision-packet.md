@@ -1,0 +1,52 @@
+# Sprint 226 Day 10: Draft Static Candidate Readiness Packet
+
+**Packet state:** Draft for release, build, platform, documentation, API, product, license and rollback owners. **No release-candidate SHA or owner approval exists.** The technical recommendation from the evidence below is **do not call a candidate release-ready or publish an artifact**. This is a gate assessment, not a release-owner decision or a request to create a tag.
+
+## Intended scope and identity
+
+The [Epic 20 Sprint 226 plan](../../PROJECT_PLAN.md#sprint-226-static-candidate-and-installed-first-use-closeout) seeks one exact static source candidate and an installed first-use route. The [Day 2 proposed scope](day2-static-candidate-definition.md) is Linux GCC Make/`pkg-config` plus CMake, macOS Apple Clang Make/`pkg-config` plus CMake, and the named Windows MSVC CMake installed subset; selected 64-bit lanes are separate. No release owner has adopted that platform matrix. The static archive, public headers, package metadata, and source docs are the proposed surfaces. Shared-library ABI, Windows Make/`pkg-config` parity, provider package, binary package, public generated HTML, portable speed, and broad state-of-the-art status remain outside scope.
+
+| Identity field | Current fact | Gate interpretation |
+| --- | --- | --- |
+| Base source | `c42d6715fad7e895bae4941a006df3563f1afc38`, tree `934a16b09ada33e12f726ec944fc675bd7d244f4` | Historical exploratory basis only. `README.md`, `INSTALL.md` and Sprint 226 artifacts are uncommitted changes after it. |
+| Version | `VERSION=2.2.0`; three local installed prefixes' headers and `sparse.pc` match, both CMake export versions match; exact 2.2.0 succeeds and 2.2.1 rejects. | **Locally coherent**, but version choice is unapproved and no root `CHANGELOG.md` exists. |
+| Source archive | [Day 3 archive](day3-exploratory-source-archive.md) and [Day 4 independent comparison](day4-independent-archive-comparison.md) produced identical same-host base archives, SHA-256 `cdfceff5ef4fdf405f8bf3b15e6a7fe608d5f4566345ea3fd2f8d6ec0e27be8f`. | **Exploratory only**. It lacks the changed first-use docs and the required changelog. No approved candidate archive, tag or release asset exists. |
+| License and source manifest | Base has 4,557 tracked paths; [Day 2 inventory](day2-static-candidate-definition.md) records `LICENSE` SHA-256 `ddc5e5f268b30436950b0bd1b16a510eabafde89b94808f5ee762b7977e90315`. | Manifest must be recomputed and reviewed at the final candidate SHA; license/third-party approval is pending. |
+
+## Evidence chain and gate disposition
+
+| Gate | Available evidence | Current disposition |
+| --- | --- | --- |
+| Candidate freeze, changelog and version decision | [Day 2 freeze record](day2-static-candidate-definition.md); working tree has modified README/INSTALL and untracked Sprint 226 docs; no `CHANGELOG.md`. | **Blocked**; no candidate identifier or clean release input. |
+| Two independent source archives and source-to-install map | [Day 4 byte comparison](day4-independent-archive-comparison.md) passed at the base SHA; [Day 5 25-file installed map](day5-archive-install-map-and-platform-matrix.md) and [TSV manifest](day5-exploratory-installed-manifest.tsv) trace the base archive through a local CMake install. | **Exploratory pass / candidate missing**; rebuild and independently compare after commit/freeze. |
+| Installed static consumers and first use | [Day 6 width/negative proof](day6-local-installed-consumers.md), [Day 9 clean-prefix transcript](day9-clean-prefix-first-use.md), and [Day 10 first-use audit](day10-first-use-audit.md) cover local Make/`pkg-config`, CMake 32/64, installed examples, header inventory, version behavior and corrected docs. | **Local procedural pass / candidate missing**; repeat from the exact final archive on claimed platforms. |
+| Local quality and claim guards | [Day 7 report](day7-quality-and-hosted-intake.md) records exploratory `format-check`, lint, 62 Make tests, 63/63 CMake CTests, source/docs/API guards. Day 10 support, static deferral, provider policy, API routing/local-only, links and whitespace checks passed after text edits. | **Exploratory pass** for completed checks. Day 7 full package-manager deferral aggregate was interrupted during optional Homebrew dependency build and is **not a pass**. Candidate-specific quality/claim gates remain outstanding. |
+| Linux hosted | [Day 8 provenance matrix](day8-platform-provenance-and-first-use-inventory.md) links [base run 44433727330](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44433727330), package/quality logs and hashes. Package and compile subsets passed; CMake parity stopped on runner shutdown at CTest 32/63. | **Candidate result missing**; historical full Linux parity incomplete. |
+| macOS hosted | [Base run 44433727057](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44433727057) completed the named Apple Clang, install, width and 63/63 CTest scopes; job/log hashes are in [Day 8](day8-platform-provenance-and-first-use-inventory.md). | **Historical base pass / candidate result missing**. Hosted jobs used Git checkout, not the exploratory archive; no install-specific hosted ZIP was uploaded. |
+| Windows hosted | [Base run 44433727133](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44433727133) completed the named MSVC CMake/install subset and 63/63 CTests; [Day 8](day8-platform-provenance-and-first-use-inventory.md) records logs/hashes. | **Historical base pass / candidate result missing**; no Windows Make/`pkg-config` claim. |
+| Canonical timing decision | [Day 7 timing receipt](day7-quality-and-hosted-intake.md) and [run 44433727385](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44433727385) record a failed preflight, missing accepted `active.json`, and no measured candidate samples. | **Blocked/unmeasured**, separate from correctness and threshold-free selected freshness. Requires accepted baseline and candidate run, or explicit product/release-owner scope decision retaining the blocker. |
+| Approvals, tag, signing and publication | [Sprint 214 checklist](../../../EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md) defines required checks and reviewers; [Day 2](day2-static-candidate-definition.md) found no named approvers or publication/rollback decision. | **Blocked**; no approval, tag, source asset or public release. |
+
+The [Sprint 214 release checklist](../../../EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md) is the governing review gate. This packet links evidence; it does not replace that checklist or transform exploratory and historical results into an exact-candidate pass. No installed archive/hash from the Day 9 exploratory tree should be presented as the final candidate package.
+
+## Owner assignments needed and next actions
+
+These are **accountable roles for follow-up**, not assertions that a person has accepted the assignment. Each named person and approval remains to be recorded by the release maintainer.
+
+| Missing decision or evidence | Accountable role; named owner | Next action and required receipt |
+| --- | --- | --- |
+| Version/changelog and candidate source | Release maintainer; **unassigned** | Choose approved comparison base and version; review/create version-specific changelog; commit all intended docs/source; select one full SHA and clean tree; record reviewed diff and candidate ID. |
+| License and source rights | License/legal reviewer with release maintainer; **unassigned** | Review final candidate `LICENSE`, third-party source/notice inventory and full archive manifest; sign off exact scope. External CHOLMOD bundle rights remain separate. |
+| Archive reproducibility and package provenance | Build/release owner and independent verifier; **unassigned** | Produce two independent candidate archives; compare compressed bytes/manifest; rebuild/install from one; hash and map every installed static package file. |
+| Linux quality/install and provider guard | Linux CI/platform owner; **unassigned** | Rerun exact-SHA quality and package jobs; complete all 63 CTests; classify and rerun required provider guard, retaining logs and artifact hashes. |
+| macOS quality/install | macOS CI/platform owner; **unassigned** | Rerun exact-SHA Apple Clang Make/CMake/width jobs and retain logs and installed-consumer receipts. |
+| Windows CMake installed subset | Windows CI/platform owner; **unassigned** | Rerun exact-SHA MSVC CMake/CTest and static downstream jobs, retaining the subset's job/log receipts. |
+| Public API/ABI and first-use claims | API/ABI reviewer and documentation owner; **unassigned** | Review changed README/INSTALL, header/export/width scope, current links and no-claim wording against the final candidate archive; repeat first-use test from that archive. |
+| Timing scope and external claims | Product and release owners; **unassigned** | Either approve an accepted Sprint 225 baseline and exact-candidate timing run, or explicitly record a release scope decision that leaves timing blocked; do not promote Sprint 222 local CHOLMOD work without separate provenance/rights approval. |
+| Release go/no-go, tag and rollback | Release maintainer and rollback owner; **unassigned** | Review complete exact-SHA packet, decide tag/signing/retention/destination, record go/no-go and withdrawal/corrective-version procedure. No tag or asset action before approval. |
+
+## Rollback and publication boundary
+
+No release publication or rollback has occurred. A future approved source asset must retain its exact SHA, archive digest, manifest and tag association. If an upload is stopped before publication, record the no-go and leave the candidate unpublished. If a bad asset escapes, the rollback owner must define how to halt uploads, disable links/downloads where possible, notify consumers, preserve original digests and incident record, and issue a corrected new version/tag rather than moving an immutable tag or silently replacing bytes. These are [Sprint 214 checklist](../../../EPIC_19/SPRINT_214/RELEASE_READINESS_CHECKLIST.md#approval-blockers-and-rollback) requirements; the destination, communication channel and named owner are still open. Already downloaded bytes cannot be recalled.
+
+**Day 11 handoff:** apply the checklist to an actual frozen candidate if one becomes available. Until then, keep the draft no-go technical assessment and the role assignments explicit; do not sign off missing evidence by inference.

@@ -23,7 +23,7 @@ def problems(workflow: dict) -> list[str]:
     job = jobs.get("canonical-refactor-csc-timing")
     if not isinstance(job, dict):
         return issues + ["separate timing job missing"]
-    if job.get("runs-on") != "macos-latest" or job.get("timeout-minutes") != "20":
+    if job.get("runs-on") != "macos-15-intel" or job.get("timeout-minutes") != "20":
         issues.append("locked macOS runner and 20-minute cap required")
     steps = job.get("steps", [])
     if any(step.get("continue-on-error") == "true" for step in steps):

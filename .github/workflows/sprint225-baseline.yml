@@ -1,0 +1,34 @@
+name: Sprint 225 baseline intake
+
+on:
+  push:
+    branches: [sprint-225]
+
+jobs:
+  collect-baseline:
+    name: macOS canonical refactor CSC baseline intake
+    runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pinned canonical benchmark
+        run: |
+          make clean
+          mkdir -p build
+          make -s sprint225-build-config SPARSE_IDX_BITS=32 > build/sprint225-build-config.tsv
+          make build/bench_refactor_csc SPARSE_IDX_BITS=32
+
+      - name: Collect raw baseline trial bundle
+        run: python3 scripts/collect_refactor_csc_timing.py --output-dir build/sprint225-baseline --build-config build/sprint225-build-config.tsv
+
+      - name: Upload raw baseline trial bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint225-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          if-no-files-found: error
+          path: build/sprint225-baseline/

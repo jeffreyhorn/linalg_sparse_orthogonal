@@ -1911,6 +1911,33 @@ Canonical output ownership:
 
 Current threshold-free reporting surface:
 
+Sprint 225 adds a separate `canonical-refactor-csc-timing` job for the
+`bench_refactor_csc`/`nos4.mtx --repeat 1` cell. Its reviewed `s225-v1`
+policy, sample counts, dispersion and regression limits, runner identity,
+artifact route, and rerun procedure are in the
+[benchmark guide](../benchmarks/README.md#sprint-225-one-cell-timing-decision).
+The currently observed macOS image class is not stable: hosted run
+[`44403764960`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44403764960)
+on source `38323f0e584e1a4d2aa8d2c92db5c18830366afc` returned
+`S225_BASELINE_MISSING` on all three attempts, and one attempt used a
+different image version and CPU. The
+[Day 12 evidence ledger](planning/EPIC_20/SPRINT_225/artifacts/day12-hosted-repetition-blocked.md)
+records the verified artifact ZIP hashes. There is no accepted baseline
+version, candidate sample bundle, or timing pass. The named job must remain
+red until a compatible three-job baseline is reviewed and source controlled.
+
+To reproduce the current preflight decision, run
+`python3 scripts/check_refactor_csc_timing.py --preflight --output
+build/sprint225-timing-decision.json`; exit 2 and
+`S225_BASELINE_MISSING` are expected until `active.json` exists. For a future
+accepted run, inspect the raw upload and verify its report with
+`python3 scripts/verify_refactor_csc_timing_report.py --report <report.json>
+--candidate <raw-candidate-directory-or-zip>` before interpreting the result.
+The Linux/macOS selected report freshness lanes below remain threshold-free
+and do not establish this timing result. Neither surface supports portable
+speed, cross-platform timing parity, external-library rankings, or broad
+state-of-the-art claims.
+
 - `make bench-canonical-report`
   - writes one CSV per canonical maintained benchmark under:
     - `build/bench-reports/canonical/`

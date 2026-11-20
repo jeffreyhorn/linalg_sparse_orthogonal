@@ -346,26 +346,19 @@ This is intentionally not a pass/fail timing gate:
 
 ### Sprint 225 one-cell timing decision
 
-The separate `canonical-refactor-csc-timing` macOS job applies policy
-`s225-v2` to `build/bench_refactor_csc tests/data/suitesparse/nos4.mtx
---repeat 100`, measuring only the per-refactor `refactor_csc_ms` CSV field. It uses a clean
-serial Make build, 32-bit indices, `/usr/bin/cc` on the observed hosted jobs,
-and `OMP_NUM_THREADS=1`. The comparison class requires the *resolved* macOS
-image and version, OS/architecture, CPU, full compiler path/version, build
-recipe and environment to agree. The selected runner label is
-`macos-15-intel`; its label alone is insufficient.
+The separate `canonical-refactor-csc-timing` workflow now proposes
+[`s225-v3` same-machine pairs](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v3-paired-methodology.md).
+Three independent `macos-15-intel` jobs each build fixed master commit
+`c42d6715fad7e895bae4941a006df3563f1afc38` and the exact candidate
+commit on one runner, then alternate baseline/candidate order for five
+warmup and 20 measured pairs. Each side runs the `nos4.mtx --repeat 1000`
+SPD cell; only the per-refactor `refactor_csc_ms` field is compared.
+Per-pair candidate/baseline ratios must satisfy the documented three-job
+dispersion and 1.25 regression rules. All raw bytes and a separate decision
+are retained. A numerical pass needs independent evidence review before
+acceptance; it supports no broad performance or release claim.
 
-An accepted `s225-v2` baseline would contain three compatible hosted jobs,
-each with five warmup and 20 measured processes. Its reference is the median
-of the three job medians. Each job requires MAD/median at most `0.10` and
-nearest-rank p90/median at most `1.50`; the baseline's between-job median
-spread must be at most `0.10`. A candidate uses the same 5+20 schedule and
-dispersion bounds, with median at most `1.25` times the accepted reference.
-The baseline expires after 30 days; each process has a 30-second timeout and
-the separate job has a 20-minute cap. These are locked acceptance rules, not
-observed performance results.
-
-**Current result: blocked.** The `s225-v1` Day 5 group was rejected for
+**Historical baseline result: blocked.** The `s225-v1` Day 5 group was rejected for
 runner-class differences and excess dispersion. A later pinned Intel group
 also failed the locked dispersion rules; its raw evidence and the reviewed
 `s225-v2` method proposal are in the
@@ -382,14 +375,13 @@ There is no candidate median, dispersion, or threshold verdict. The three
 downloaded, SHA-256-checked ZIP receipts are inventoried in the
 [Day 12 ledger](../docs/planning/EPIC_20/SPRINT_225/artifacts/day12-hosted-repetition-blocked.md).
 
-The job uploads `sprint225-timing-<run_id>-<attempt>` with host context and
-decision even on preflight failure, and targets 90-day artifact retention.
-Once a compatible, independently reviewed baseline and its raw bundles are
-stored under `benchmarks/baselines/refactor-csc-nos4/` with `active.json`,
-rerun the job on one exact candidate commit, download each attempt before
-another rerun, and verify ZIP and member hashes plus the decision report.
-Changing the runner class or numerical policy requires a new version and new
-baseline data. The existing `make bench-canonical-report-freshness` result
+The `s225-v3` workflow uploads three `sprint225-pair-<run>-<attempt>-<replica>`
+raw artifacts and one `sprint225-timing-<run>-<attempt>` decision artifact,
+including a blocked decision when a pair is absent. Each targets 90-day
+retention. Review the exact-head artifacts and recompute the decision from
+all raw members before accepting a result. Changing the source baseline,
+runner class, or numerical policy requires a new version and new evidence.
+The existing `make bench-canonical-report-freshness` result
 remains threshold-free; neither it nor a blocked timing receipt establishes
 portable speed, platform parity, or an external-library ranking.
 

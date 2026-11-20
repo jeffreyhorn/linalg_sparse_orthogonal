@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Independent paired timing decision and adversarial evidence checks."""
+
+from __future__ import annotations
+
+import csv
+import io
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import check_refactor_csc_pair as pair  # noqa: E402
+import check_refactor_csc_timing as common  # noqa: E402
+
+
+def encoded(value: object) -> bytes:
+    return (json.dumps(value, sort_keys=True) + "\n").encode()
+
+
+def metric_csv(value: str) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(common.CSV_FIELDS)
+    row = {name: "0" for name in common.CSV_FIELDS}
+    row.update({"benchmark": "bench_refactor_csc", "category": "proof",
+                "matrix": "nos4.mtx", "scenario": "chol_spd", "n": "100",
+                "nnz": "594", "refactor_csc_ms": value})
+    writer.writerow([row[name] for name in common.CSV_FIELDS])
+    return buffer.getvalue().encode()
+
+
+def rehash(directory: Path) -> None:
+    files = sorted(path for path in directory.rglob("*") if path.is_file() and path.name != "hashes.sha256")
+    (directory / "hashes.sha256").write_text("".join(
+        f"{common.digest(path.read_bytes())}  {path.relative_to(directory).as_posix()}\n"
+        for path in files
+    ), encoding="ascii")
+
+
+def make_bundle(root: Path, replica: int, candidate_commit: str,
+                candidate_values: list[str] | None = None) -> Path:
+    directory = root / f"sprint225-pair-1234-1-{replica}"
+    (directory / "trials").mkdir(parents=True)
+    (directory / "build-baseline.log").write_bytes(b"synthetic baseline build\n")
+    (directory / "build-candidate.log").write_bytes(b"synthetic candidate build\n")
+    stamp = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    config = {"cc": "cc", "sysroot": "/SyntheticSDK", "ldflags": "-lm"}
+    config["cflags"] = "-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /SyntheticSDK"
+    config["sparse_cflags"] = config["cflags"] + " -DSPARSE_IDX_BITS=32"
+
+    def side(commit: str, binary: str) -> dict:
+        return {"source_commit": commit, "source_dirty": False,
+                "effective_build": config, "executable_sha256": binary * 64,
+                "library_sha256": "3" * 64,
+                "benchmark_source_sha256": pair.source_sha(commit, "benchmarks/bench_refactor_csc.c", ROOT),
+                "makefile_sha256": pair.source_sha(commit, "Makefile", ROOT),
+                "fixture_sha256": common.FIXTURE_SHA256}
+
+    run = {"schema_version": 1, "policy_version": pair.POLICY,
+           "baseline_commit": pair.BASELINE_COMMIT, "candidate_commit": candidate_commit,
+           "baseline": side(pair.BASELINE_COMMIT, "1"),
+           "candidate": side(candidate_commit, "2"),
+           "workflow_run_id": "1234", "workflow_run_attempt": "1",
+           "workflow_job_key": "collect-pair", "replica": replica,
+           "runner": {"runner_image": "macos15", "runner_image_version": "20261119.1",
+                      "os": "macOS-15.7.9-x86_64", "architecture": "x86_64",
+                      "cpu_model": "Intel i7", "compiler_path": "/usr/bin/cc",
+                      "compiler_version": "Apple clang 17", "runner_label": f"ephemeral-{replica}"},
+           "argv": pair.EXPECTED_ARGV, "warmup_pairs": 5, "measured_pairs": 20,
+           "timeout_seconds_per_side": 30, "metric": "refactor_csc_ms", "metric_units": "ms",
+           "thread_environment": {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"},
+           "started_at_utc": stamp, "ended_at_utc": stamp}
+    (directory / "run.json").write_bytes(encoded(run))
+    (directory / "decision.json").write_bytes(encoded({
+        "policy_version": pair.POLICY, "status": "pending_pair_review",
+        "all_trials_valid": True, "trial_count": 50,
+        "baseline_accepted": False, "freshness_result": "separate",
+    }))
+    values = candidate_values or ["0.100"] * 20
+    rows = []
+    for number in range(1, 26):
+        order = ("baseline", "candidate") if number % 2 else ("candidate", "baseline")
+        for side_name in order:
+            value = "0.100" if side_name == "baseline" or number <= 5 else values[number - 6]
+            stdout = metric_csv(value)
+            stem = directory / "trials" / f"{number:04d}-{side_name}"
+            stem.with_suffix(".stdout").write_bytes(stdout)
+            stem.with_suffix(".stderr").write_bytes(b"")
+            rows.append({"pair": number, "phase": "warmup" if number <= 5 else "measured",
+                         "side": side_name, "argv": json.dumps(pair.EXPECTED_ARGV),
+                         "started_at_utc": stamp, "ended_at_utc": stamp,
+                         "outer_elapsed_ns": 1000, "exit_code": 0, "timed_out": False,
+                         "refactor_csc_ms": value, "validity": "valid",
+                         "stdout_sha256": common.digest(stdout),
+                         "stderr_sha256": common.digest(b"")})
+    with (directory / "trials.tsv").open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=pair.FIELDS, delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+    rehash(directory)
+    return directory
+
+
+class PairDecisionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        self.directories = [make_bundle(self.root, replica, self.commit) for replica in (1, 2, 3)]
+
+    def decide(self):
+        return pair.decide(self.root, self.commit, ROOT, "1234", "1")
+
+    def test_three_valid_pairs_pass(self):
+        report, code = self.decide()
+        self.assertEqual((report["primary_rule"], code), ("S225_PAIR_PASS", 0))
+        self.assertEqual(report["reference_median_ratio"], "1")
+        self.assertEqual(len(report["jobs"]), 3)
+
+    def test_regression_and_dispersion_are_distinct_failures(self):
+        for name, values, rule in (
+            ("regression", ["0.130"] * 20, "S225_PAIR_REGRESSION"),
+            ("dispersion", ["0.100"] * 10 + ["0.200"] * 10, "S225_PAIR_DISPERSION"),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                for replica in (1, 2, 3):
+                    make_bundle(root, replica, self.commit, values)
+                report, code = pair.decide(root, self.commit, ROOT, "1234", "1")
+                self.assertEqual((report["primary_rule"], code), (rule, 1))
+
+    def test_mutated_raw_evidence_fails_even_with_rehashed_manifest(self):
+        for name, mutate in (
+            ("wrong-source", lambda d: self.change_run(d, "candidate_commit", "f" * 40)),
+            ("wrong-run", lambda d: self.change_run(d, "workflow_run_id", "9999")),
+            ("wrong-order", lambda d: self.change_trial(d, 0, "side", "candidate")),
+            ("wrong-argv", lambda d: self.change_trial(d, 0, "argv", "[]")),
+            ("wrong-metric", lambda d: self.change_trial(d, 0, "refactor_csc_ms", "0.101")),
+            ("extra-member", lambda d: (d / "surprise.txt").write_text("extra")),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                directories = [make_bundle(root, replica, self.commit) for replica in (1, 2, 3)]
+                mutate(directories[0])
+                rehash(directories[0])
+                report, code = pair.decide(root, self.commit, ROOT, "1234", "1")
+                self.assertEqual((report["primary_rule"], code), ("S225_PAIR_INVALID", 2))
+
+    def test_missing_replica_and_runner_mismatch_fail(self):
+        self.assertEqual(self.decide()[1], 0)
+        directory = self.directories[2]
+        shutil.rmtree(directory)
+        self.assertEqual(self.decide()[0]["primary_rule"], "S225_PAIR_MISSING")
+        make_bundle(self.root, 3, self.commit)
+        self.change_run(self.directories[1], "runner_image_version", "different", nested="runner")
+        rehash(self.directories[1])
+        self.assertEqual(self.decide()[0]["primary_rule"], "S225_PAIR_INVALID")
+
+    @staticmethod
+    def change_run(directory: Path, field: str, value: str, nested: str | None = None):
+        path = directory / "run.json"
+        run = json.loads(path.read_bytes())
+        (run[nested] if nested else run)[field] = value
+        path.write_bytes(encoded(run))
+
+    @staticmethod
+    def change_trial(directory: Path, row_index: int, field: str, value: str):
+        path = directory / "trials.tsv"
+        with path.open(newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream, delimiter="\t"))
+        rows[row_index][field] = value
+        with path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=pair.FIELDS, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+
+
+if __name__ == "__main__":
+    unittest.main()

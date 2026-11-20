@@ -1911,10 +1911,11 @@ Canonical output ownership:
 
 Current threshold-free reporting surface:
 
-Sprint 225 adds a separate `canonical-refactor-csc-timing` job for the
-`bench_refactor_csc`/`nos4.mtx --repeat 100` cell. Its reviewed `s225-v2`
-policy, sample counts, dispersion and regression limits, runner identity,
-artifact route, and rerun procedure are in the
+Sprint 225 adds a separate `canonical-refactor-csc-timing` workflow. Its
+current proposed `s225-v3` same-machine paired protocol compares the fixed
+master source against the exact candidate using `nos4.mtx --repeat 1000`.
+Its sample counts, dispersion and regression limits, runner identity, artifact
+route, and claim boundary are in the
 [benchmark guide](../benchmarks/README.md#sprint-225-one-cell-timing-decision).
 The earlier `s225-v1` macOS image class was not stable: hosted run
 [`44403764960`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44403764960)
@@ -1922,23 +1923,22 @@ on source `38323f0e584e1a4d2aa8d2c92db5c18830366afc` returned
 `S225_BASELINE_MISSING` on all three attempts, and one attempt used a
 different image version and CPU. The
 [Day 12 evidence ledger](planning/EPIC_20/SPRINT_225/artifacts/day12-hosted-repetition-blocked.md)
-records the verified artifact ZIP hashes. There is no accepted baseline
-version, candidate sample bundle, or timing pass. The named job must remain
-red until a compatible three-job baseline is reviewed and source controlled.
+records the verified artifact ZIP hashes. There was no accepted baseline
+version, candidate sample bundle, or timing pass under the older methods.
 The later pinned Intel `s225-v1` group matched one fingerprint but failed
 dispersion; its [decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-pinned-intel-baseline-decision.md)
 records the raw ZIPs and the owner-approved `s225-v2` methodology change.
 The first `s225-v2` group likewise failed its approved dispersion limits;
 its [raw-bundle decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v2-baseline-decision.md)
-is rejected, so the timing check remains blocked.
+is rejected. The [proposed `s225-v3` method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v3-paired-methodology.md)
+requires independent method and evidence review before a result is accepted.
 
-To reproduce the current preflight decision, run
-`python3 scripts/check_refactor_csc_timing.py --preflight --output
-build/sprint225-timing-decision.json`; exit 2 and
-`S225_BASELINE_MISSING` are expected until `active.json` exists. For a future
-accepted run, inspect the raw upload and verify its report with
-`python3 scripts/verify_refactor_csc_timing_report.py --report <report.json>
---candidate <raw-candidate-directory-or-zip>` before interpreting the result.
+For `s225-v3`, download all three `sprint225-pair-<run>-<attempt>-<replica>`
+artifacts and recompute the decision with
+`python3 scripts/check_refactor_csc_pair.py --bundle-root <download-root>
+--candidate-commit <full-head-sha> --run-id <run-id>
+--run-attempt <attempt> --output <decision.json>`. Compare the recomputed
+receipt with the hosted decision and independently review every raw bundle.
 The Linux/macOS selected report freshness lanes below remain threshold-free
 and do not establish this timing result. Neither surface supports portable
 speed, cross-platform timing parity, external-library rankings, or broad

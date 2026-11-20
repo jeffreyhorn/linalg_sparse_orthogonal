@@ -47,7 +47,7 @@ def build(root: Path) -> tuple[dict[str, str], bytes]:
                    stderr=subprocess.STDOUT)
     settings = subprocess.check_output(
         ["make", "--no-print-directory", "-s", "sprint225-build-config", "SPARSE_IDX_BITS=32"],
-        cwd=root, text=True,
+        cwd=root, text=True, stderr=subprocess.STDOUT,
     )
     config = parse_build_config(settings)
     result = subprocess.run(["make", "build/bench_refactor_csc", "SPARSE_IDX_BITS=32"],
@@ -122,6 +122,8 @@ def collect(output: Path, replica: int) -> int:
                 raise ValueError("build changed tracked source files")
             if baseline["fixture_sha256"] != candidate["fixture_sha256"]:
                 raise ValueError("baseline and candidate fixture bytes differ")
+            if baseline["benchmark_source_sha256"] != candidate["benchmark_source_sha256"]:
+                raise ValueError("baseline and candidate benchmark source bytes differ")
             output.mkdir(parents=True)
             (output / "trials").mkdir()
             (output / "build-baseline.log").write_bytes(baseline_log)
@@ -199,7 +201,14 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return collect(args.output_dir, args.replica)
-    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+    except subprocess.CalledProcessError as exc:
+        print(f"refactor-csc-pair: {exc}", file=sys.stderr)
+        for stream in (exc.stdout, exc.stderr):
+            if stream:
+                detail = stream.decode("utf-8", errors="replace") if isinstance(stream, bytes) else stream
+                print(detail, file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as exc:
         print(f"refactor-csc-pair: {exc}", file=sys.stderr)
         return 2
 

@@ -178,6 +178,8 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
         reject("paired workload or schedule mismatch")
     baseline = check_build(run.get("baseline"), BASELINE_COMMIT, checkout)
     candidate = check_build(run.get("candidate"), candidate_commit, checkout)
+    if baseline["benchmark_source_sha256"] != candidate["benchmark_source_sha256"]:
+        reject("baseline and candidate benchmark source differ")
     if baseline["effective_build"] != candidate["effective_build"] or baseline["fixture_sha256"] != candidate["fixture_sha256"]:
         reject("baseline and candidate build or fixture differ")
     if receipt != {

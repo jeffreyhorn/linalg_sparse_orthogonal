@@ -53,8 +53,10 @@ nearest-rank p90/median. Require each job's MAD/median `<= 0.10` and
 p90/median `<= 1.50`. Require the spread of the three job median ratios,
 `(max-min)/median`, to be `<= 0.10`. Require **each** job median ratio to
 be `<= 1.25`; equality passes. No job or trial may be discarded to obtain
-a favorable result. The decision script checks the 50 ordered side trials
-per job, raw hashes and CSVs, source commits and committed source hashes,
+a favorable result. The decision script requires identical committed benchmark
+source hashes on both sides so the timed metric has the same implementation.
+It checks the 50 ordered side trials per job, raw hashes and CSVs, source
+commits and committed source hashes,
 the exact run/attempt identity, matched runner/build/executable class, and
 all three recomputed statistics. Exit 0 is a bounded numerical pass, exit 1
 is valid regression or unstable timing, and exit 2 is invalid or missing

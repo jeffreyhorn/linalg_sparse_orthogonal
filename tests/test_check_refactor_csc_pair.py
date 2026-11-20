@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import contextlib
 import io
 import json
 import shutil
@@ -14,12 +15,14 @@ import unittest
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_refactor_csc_pair as pair  # noqa: E402
 import check_refactor_csc_timing as common  # noqa: E402
+import collect_refactor_csc_pair as collector  # noqa: E402
 
 
 def encoded(value: object) -> bytes:
@@ -181,6 +184,28 @@ class PairDecisionTests(unittest.TestCase):
         rehash(self.directories[1])
         self.assertEqual(self.decide()[0]["primary_rule"], "S225_PAIR_INVALID")
 
+    def test_changed_committed_benchmark_harness_is_rejected(self):
+        worktree = self.root / "changed-harness"
+        subprocess.run(["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+                       cwd=ROOT, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            harness = worktree / "benchmarks/bench_refactor_csc.c"
+            with harness.open("a", encoding="utf-8") as stream:
+                stream.write("\n/* Different timing harness for this negative fixture. */\n")
+            subprocess.run(["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                            "commit", "-am", "Change benchmark harness"], cwd=worktree, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            changed_commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                                     cwd=worktree, text=True).strip()
+            bundle_root = self.root / "changed-bundle"
+            directory = make_bundle(bundle_root, 1, changed_commit)
+            with self.assertRaisesRegex(common.EvidenceError,
+                                        "baseline and candidate benchmark source differ"):
+                pair.check_pair(directory, 1, changed_commit, ROOT, "1234", "1")
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", str(worktree)],
+                           cwd=ROOT, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     @staticmethod
     def change_run(directory: Path, field: str, value: str, nested: str | None = None):
         path = directory / "run.json"
@@ -198,6 +223,21 @@ class PairDecisionTests(unittest.TestCase):
             writer = csv.DictWriter(stream, fieldnames=pair.FIELDS, delimiter="\t", lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows)
+
+
+class CollectorDiagnosticsTests(unittest.TestCase):
+    def test_failed_build_prints_captured_diagnostics(self):
+        failure = subprocess.CalledProcessError(
+            2, ["make", "build/bench_refactor_csc"],
+            output=b"compiler: missing symbol\n", stderr=b"linker: failed\n",
+        )
+        output = io.StringIO()
+        with mock.patch.object(collector, "collect", side_effect=failure), \
+             mock.patch.object(sys, "argv", ["collect_refactor_csc_pair.py", "--output-dir", "unused", "--replica", "1"]), \
+             contextlib.redirect_stderr(output):
+            self.assertEqual(collector.main(), 2)
+        self.assertIn("compiler: missing symbol", output.getvalue())
+        self.assertIn("linker: failed", output.getvalue())
 
 
 if __name__ == "__main__":

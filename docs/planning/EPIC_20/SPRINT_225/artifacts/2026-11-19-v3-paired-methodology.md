@@ -26,6 +26,10 @@ number or a claimed accepted baseline.
 ## Collection and decision
 
 Three independent jobs run on `macos-15-intel`, each with a 20-minute cap.
+Feature branches use the pull-request trigger only; `master` uses the push
+trigger. Running both for the same candidate at once would create competing
+measurement groups on the hosted fleet. This scheduling rule does not waive
+any trial or dispersion limit.
 The complete resolved image/version, OS, architecture, CPU model, compiler
 path/version, effective build settings, and both executable hashes must
 match across the three jobs. Within each job, the baseline and candidate

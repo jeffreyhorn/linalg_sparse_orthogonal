@@ -17,8 +17,9 @@ WORKFLOW = ROOT / ".github/workflows/sprint225-timing.yml"
 def problems(workflow: dict) -> list[str]:
     issues: list[str] = []
     triggers = workflow.get("on", {})
-    if "master" not in triggers.get("push", {}).get("branches", []) or "master" not in triggers.get("pull_request", {}).get("branches", []):
-        issues.append("paired timing must run on master pushes and pull requests")
+    if (triggers.get("push", {}).get("branches") != ["master"] or
+            "master" not in triggers.get("pull_request", {}).get("branches", [])):
+        issues.append("one paired collection per candidate: PRs and master pushes only")
     jobs = workflow.get("jobs", {})
     collect = jobs.get("collect-pair", {})
     decide = jobs.get("canonical-refactor-csc-timing", {})
@@ -90,6 +91,7 @@ class TimingWorkflowTests(unittest.TestCase):
         original = yaml.load(WORKFLOW.read_text(), Loader=yaml.BaseLoader)
         for name, change in (
             ("one-job", lambda w: w["jobs"]["collect-pair"]["strategy"]["matrix"].update(replica=["1"])),
+            ("duplicate-feature-push", lambda w: w["on"]["push"].update({"branches": ["sprint-226", "master"]})),
             ("wrong-runner", lambda w: w["jobs"]["collect-pair"].update({"runs-on": "macos-latest"})),
             ("shallow-source", lambda w: w["jobs"]["collect-pair"]["steps"][0]["with"].update({"fetch-depth": "1"})),
             ("no-raw-upload", lambda w: w["jobs"]["collect-pair"]["steps"].pop()),

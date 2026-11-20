@@ -5,7 +5,7 @@ name: Sprint 225 canonical timing gate
 # their raw artifacts; selected performance freshness is separate.
 on:
   push:
-    branches: [sprint-226, master]
+    branches: [master]
   pull_request:
     branches: [master]
 

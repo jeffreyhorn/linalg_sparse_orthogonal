@@ -59,7 +59,6 @@ def read_bundle(path: Path) -> tuple[dict[str, bytes], str]:
                 if not common.safe_name(name) or file.stat().st_size > common.MAX_FILE:
                     reject(f"unsafe member: {name}")
                 members[name] = file.read_bytes()
-        bundle_digest = common.digest(members.get("hashes.sha256", b""))
     elif path.is_file():
         try:
             with zipfile.ZipFile(path) as archive:
@@ -72,13 +71,13 @@ def read_bundle(path: Path) -> tuple[dict[str, bytes], str]:
                     if info.is_dir() or not common.safe_name(info.filename) or info.file_size > common.MAX_FILE:
                         reject(f"unsafe ZIP member: {info.filename}")
                     members[info.filename] = archive.read(info)
-            bundle_digest = common.digest(path.read_bytes())
         except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
             reject(f"cannot read ZIP: {exc}")
     else:
         reject(f"raw pair is not a file or directory: {path}")
     if set(members) != REQUIRED:
         reject(f"pair member set mismatch: missing={sorted(REQUIRED-set(members))}, extra={sorted(set(members)-REQUIRED)}")
+    member_manifest_digest = common.digest(members["hashes.sha256"])
     try:
         lines = members["hashes.sha256"].decode("ascii").splitlines()
     except UnicodeDecodeError:
@@ -96,7 +95,7 @@ def read_bundle(path: Path) -> tuple[dict[str, bytes], str]:
     for name, value in hashes.items():
         if common.digest(members[name]) != value:
             reject(f"hash mismatch: {name}")
-    return members, bundle_digest
+    return members, member_manifest_digest
 
 
 @lru_cache(maxsize=32)
@@ -146,7 +145,7 @@ def stats(values: list[Decimal]) -> dict[str, Decimal]:
 
 def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
                expected_run: str, expected_attempt: str) -> tuple[dict, str]:
-    members, bundle_hash = read_bundle(path)
+    members, member_manifest_hash = read_bundle(path)
     run = common.object_json(members["run.json"], RULE, "run.json")
     receipt = common.object_json(members["decision.json"], RULE, "decision.json")
     if (run.get("schema_version"), run.get("policy_version"), run.get("baseline_commit"),
@@ -246,7 +245,7 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
         "candidate_build": candidate["effective_build"],
         "median_ratio": str(result["median"]), "mad_ratio": str(result["mad_ratio"]),
         "p90_ratio": str(result["p90_ratio"]),
-    }, bundle_hash
+    }, member_manifest_hash
 
 
 def decide(root: Path, candidate_commit: str, checkout: Path,
@@ -269,10 +268,10 @@ def decide(root: Path, candidate_commit: str, checkout: Path,
             reject("candidate checkout differs from claimed commit")
         jobs = []
         for replica in (1, 2, 3):
-            result, bundle_hash = check_pair(root / f"sprint225-pair-{expected_run}-{expected_attempt}-{replica}",
+            result, member_manifest_hash = check_pair(root / f"sprint225-pair-{expected_run}-{expected_attempt}-{replica}",
                                              replica, candidate_commit, checkout,
                                              expected_run, expected_attempt)
-            result["bundle_sha256"] = bundle_hash
+            result["member_manifest_sha256"] = member_manifest_hash
             jobs.append(result)
         first = jobs[0]
         for job in jobs[1:]:

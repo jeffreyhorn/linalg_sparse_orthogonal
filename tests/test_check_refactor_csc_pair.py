@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -125,6 +126,21 @@ class PairDecisionTests(unittest.TestCase):
         self.assertEqual((report["primary_rule"], code), ("S225_PAIR_PASS", 0))
         self.assertEqual(report["reference_median_ratio"], "1")
         self.assertEqual(len(report["jobs"]), 3)
+
+    def test_zip_and_extracted_directory_bind_the_same_raw_members(self):
+        directory = self.directories[0]
+        archive_path = self.root / "pair.zip"
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for file in sorted(directory.rglob("*")):
+                if file.is_file():
+                    archive.write(file, file.relative_to(directory).as_posix())
+        members_dir, digest_dir = pair.read_bundle(directory)
+        members_zip, digest_zip = pair.read_bundle(archive_path)
+        self.assertEqual(members_dir, members_zip)
+        self.assertEqual(digest_dir, digest_zip)
+        result_dir, _ = pair.check_pair(directory, 1, self.commit, ROOT, "1234", "1")
+        result_zip, _ = pair.check_pair(archive_path, 1, self.commit, ROOT, "1234", "1")
+        self.assertEqual(result_dir, result_zip)
 
     def test_regression_and_dispersion_are_distinct_failures(self):
         for name, values, rule in (

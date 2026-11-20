@@ -38,6 +38,9 @@ their SHA-256 hashes, build receipts, source/fixture hashes, job identity,
 and runner identity are retained. The three matrix artifacts and the
 independent decision artifact have run-and-attempt-specific names and target
 90-day retention. An absent or malformed artifact blocks the decision.
+The decision binds each extracted artifact by the SHA-256 of its
+`hashes.sha256` member; the independent reviewer also records and checks
+each original artifact ZIP SHA-256 against GitHub's artifact digest.
 
 For each measured pair, compute `candidate_ms / baseline_ms` from the
 verified raw CSV values using decimal arithmetic. Warmups do not enter

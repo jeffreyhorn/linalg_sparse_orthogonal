@@ -173,11 +173,11 @@ static void test_fuzz_inf_value(void) {
 }
 
 static void test_fuzz_very_large_dimensions(void) {
-    /* Dimensions that would overflow memory allocation */
-    sparse_err_t err = try_load_mm(
-        "%%MatrixMarket matrix coordinate real general\n999999999 999999999 1\n1 1 1.0\n");
-    /* Should fail with ALLOC or BADARG, not crash */
-    (void)err;
+    /* Reject an invalid entry before constructing the enormous matrix. A valid
+     * entry here can trigger multi-gigabyte allocations on overcommitting hosts. */
+    sparse_err_t err = try_load_mm("%%MatrixMarket matrix coordinate real general\n"
+                                   "999999999 999999999 1\n1000000000 1 1.0\n");
+    ASSERT_EQ(err, SPARSE_ERR_PARSE);
 }
 
 static void test_fuzz_binary_garbage(void) {

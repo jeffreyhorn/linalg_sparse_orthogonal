@@ -1,13 +1,14 @@
 name: Sprint 225 baseline intake
 
 on:
+  workflow_dispatch:
   push:
     branches: [sprint-225]
 
 jobs:
   collect-baseline:
     name: macOS canonical refactor CSC baseline intake
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 20
     permissions:
       contents: read

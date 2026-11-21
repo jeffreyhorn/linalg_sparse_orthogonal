@@ -1,75 +1,84 @@
 name: Sprint 225 canonical timing gate
 
-# This is a separate one-cell timing decision. Selected performance freshness
-# remains threshold-free and cannot satisfy this job.
+# The three measurement jobs each build and run the fixed baseline and the
+# candidate on one machine. The decision job recomputes paired ratios from
+# their raw artifacts; selected performance freshness is separate.
 on:
   push:
-    branches: [sprint-225, master]
+    branches: [master]
   pull_request:
     branches: [master]
 
 jobs:
-  canonical-refactor-csc-timing:
-    name: macOS enforced refactor CSC timing decision (s225-v1)
-    runs-on: macos-latest
+  collect-pair:
+    name: macOS paired refactor CSC trial ${{ matrix.replica }} (s225-v3)
+    runs-on: macos-15-intel
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [1, 2, 3]
     env:
       OMP_NUM_THREADS: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Clean candidate build tree before receipts
-        run: make clean
-
-      - name: Record hosted timing runner context
+      - name: Collect same-machine raw baseline and candidate trials
         run: |
-          python3 scripts/record_refactor_csc_timing_host.py \
-            --output build/sprint225-host-provenance.json
+          python3 scripts/collect_refactor_csc_pair.py \
+            --replica ${{ matrix.replica }} \
+            --output-dir build/sprint225-pair
 
-      - name: Verify accepted baseline before candidate collection
-        id: baseline
+      - name: Upload paired raw trial bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint225-pair-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.replica }}
+          retention-days: 90
+          if-no-files-found: error
+          path: build/sprint225-pair/
+
+  canonical-refactor-csc-timing:
+    name: macOS enforced refactor CSC timing decision (s225-v3)
+    needs: collect-pair
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download three paired raw bundles
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: sprint225-pair-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: build/sprint225-paired-raw
+
+      - name: Recompute canonical paired timing decision
+        if: always()
         run: |
-          python3 scripts/check_refactor_csc_timing.py \
-            --preflight \
+          python3 scripts/check_refactor_csc_pair.py \
+            --bundle-root build/sprint225-paired-raw \
+            --candidate-commit "$(git rev-parse HEAD)" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
             --output build/sprint225-timing-decision.json
 
-      - name: Build pinned canonical benchmark from clean tree
-        if: steps.baseline.outcome == 'success'
-        shell: bash
-        run: |
-          set -o pipefail
-          mkdir -p build
-          make -s sprint225-build-config SPARSE_IDX_BITS=32 > build/sprint225-build-config.tsv
-          make build/bench_refactor_csc SPARSE_IDX_BITS=32 2>&1 | tee build/sprint225-build.log
-
-      - name: Collect raw candidate trial bundle
-        if: steps.baseline.outcome == 'success'
-        run: |
-          python3 scripts/collect_refactor_csc_timing.py \
-            --role candidate \
-            --build-config build/sprint225-build-config.tsv \
-            --output-dir build/sprint225-candidate
-
-      - name: Decide canonical candidate timing
-        if: ${{ always() && steps.baseline.outcome == 'success' }}
-        run: |
-          python3 scripts/check_refactor_csc_timing.py \
-            --candidate build/sprint225-candidate \
-            --verify-checkout \
-            --expected-candidate-commit "$(git rev-parse HEAD)" \
-            --output build/sprint225-timing-decision.json
-
-      - name: Upload candidate raw trials and timing decision
+      - name: Upload paired timing decision
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sprint225-timing-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 90
           if-no-files-found: error
-          path: |
-            build/sprint225-candidate/
-            build/sprint225-timing-decision.json
-            build/sprint225-host-provenance.json
-            build/sprint225-build.log
+          path: build/sprint225-timing-decision.json

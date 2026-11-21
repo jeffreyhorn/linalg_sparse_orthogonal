@@ -114,7 +114,7 @@ maintainer interpretation of the same evidence, use
 | Local generated API HTML | local-only | `docs/api_reference.md`, `make api-docs-freshness` | `Doxyfile`, API docs coverage/local-only/routing scripts | No hosted API publication, retained generated-doc artifact, committed generated HTML, or completeness beyond checked-in public headers selected by Doxyfile. |
 | Package-manager distribution | not claimed | Use source install via Make or CMake | Sprint 198 Homebrew proof material, Sprint 207 continued-deferral decision, package-manager deferral guard | No user-facing Homebrew install path, Homebrew/core, bottles, Linuxbrew, tap, vcpkg, Conan, pkgsrc, distro/system package, binary package, release package, package-manager release readiness, or broad provider support. |
 | Shared-library and dynamic ABI support | deferred | Static install only | Static package deferral guard, Sprint 170 package/ABI decision | No `.so`, `.dylib`, `.dll`, import-library, loader, SONAME, install-name/RPATH, selector, or dynamic ABI support. |
-| External baseline comparison | blueprint-only: the Sprint 215 pilot blocked before either solver ran | [Sprint 215 selected pilot outcome](docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md) | [Sprint 215 claim matrix](docs/planning/EPIC_19/SPRINT_215/artifacts/day11-evidence-and-claim-matrix.md), absent v1 evidence schema/validator | No accepted CHOLMOD/project correctness result, timing sample, or external-library parity. |
+| External baseline comparison | local two-sided execution; acceptance and publication blocked | [Sprint 222 retrospective](docs/planning/EPIC_20/SPRINT_222/RETROSPECTIVE.md) | Sprint 221 v1 validator; Sprint 222 selected-fixture numerical checks passed locally, but baseline build/runtime provenance and independent rights/attribution approval remained incomplete. The earlier [Sprint 215 pilot](docs/planning/EPIC_19/SPRINT_215/artifacts/day10-selected-pilot-outcome.md) stopped before solver execution. | No accepted or published CHOLMOD/project correctness result, external-library parity, or timing claim. The local bundle is ignored and requires exact-bundle review before any promotion. |
 | Broad ecosystem or state-of-the-art parity | not claimed | Use selected evidence docs only for scoped proof | Sprint 215 blueprint and blocked pilot, selected target manifest, benchmark/corpus docs | No broad SuiteSparse/PETSc/Trilinos/Eigen/SciPy parity, portable superiority, or unqualified state-of-the-art status. |
 
 The supported/validated install cells describe the maintained static Make and
@@ -138,29 +138,21 @@ Maintainers track future release inputs and stop conditions in the
 Use this path when you want the maintained Unix-side static install surface and
 `pkg-config` downstream story.
 
+From the source root, choose a writable staged prefix:
+
 ```sh
 make
-make tooling-build
-make quality-review-compile
-make test           # run the full test suite
-make quality-review
-make install PREFIX=/usr/local   # install library, headers, pkg-config
+make install PREFIX="$PWD/_install"
 ```
 
-After installation, a downstream Makefile-style consumer can compile with:
-
-```sh
-cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse)
-```
-
-For a complete copy-pasteable installed-consumer walkthrough, use
+For the downstream program and its compile/run commands, use the
 [Installed Consumer Tutorial](#installed-consumer-tutorial).
 
-`make quality-review-compile` is the maintained local compile-quality wrapper
-(`format-check` + `source-list-check` + `lint`). `make quality-review` adds
-`test` and `deadcode-check` on top of that reviewed path. For the fuller
-command map and failure-rerun guidance, use `README.md` as the canonical
-front-door reference.
+For maintainer validation before install, run `make tooling-build`,
+`make quality-review-compile`, `make test`, and `make quality-review` as
+appropriate. `make quality-review-compile` checks format, source lists, and
+lint; `make quality-review` adds tests and dead-code checks. The complete
+installed-consumer commands are below, in one place.
 
 The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 (e.g., packaging):
@@ -180,13 +172,15 @@ you only need commands.
 - Windows/MSVC installs use the corresponding static `.lib`
 - `cmake --install` exports the same static library through
   `Sparse::sparse_lu_ortho`
-- `pkg-config` and `find_package(Sparse)` both describe that installed static
-  archive surface
+- Make install provides `pkg-config` metadata; CMake install provides both
+  `pkg-config` metadata and the `find_package(Sparse)` export for the same
+  static archive surface
 - the installed `sparse.pc` description identifies static archive package
   metadata and intentionally carries no `Libs.private` or static/shared
   selector under the current self-contained static link contract
 - version metadata comes from the repo `VERSION` file and is propagated through
-  `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
+  `sparse_version.h` and `sparse.pc` for both routes, plus
+  `SparseConfigVersion.cmake` for CMake installs
 - index width is selected at library build time; installed headers, CMake
   target definitions, and `sparse.pc` carry the selected 32- or 64-bit width
 - the exported CMake package version file is exact-version only
@@ -210,13 +204,11 @@ The canonical Sprint 170 package and ABI product decision is recorded in
 Use the split below when deciding how much package detail you need:
 
 - installed package shape:
-  - static library
-  - public headers
-  - `pkg-config` metadata
-  - exported CMake package files
+  - both routes: static library, public headers, and `pkg-config` metadata
+  - CMake install only: exported CMake package files
 - downstream consumer story:
-  - `pkg-config` and `find_package(Sparse)` both describe that same installed
-    static archive surface
+  - `pkg-config` works with both install routes; `find_package(Sparse)`
+    requires the CMake install route
 - validation story:
   - local Unix-side install scripts validate the Make and CMake install/export
     paths directly
@@ -336,13 +328,14 @@ Linux CI.
 
 ### Installed files
 
-| Path | Contents |
-|------|----------|
-| `$(PREFIX)/lib/libsparse_lu_ortho.a` | Static library |
-| `$(PREFIX)/include/sparse/*.h` | Public headers |
-| `$(PREFIX)/lib/pkgconfig/sparse.pc` | pkg-config descriptor |
-| `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | Exported CMake package metadata and version file |
-| `$(PREFIX)/lib/cmake/Sparse/SparseTargets.cmake` | Exported CMake target definitions |
+| Path | Install route | Contents |
+|------|---------------|----------|
+| `$(PREFIX)/lib/libsparse_lu_ortho.a` | Make and CMake on Unix | Static library |
+| `$(PREFIX)/lib/sparse_lu_ortho.lib` | CMake on Windows/MSVC | Static library |
+| `$(PREFIX)/include/sparse/*.h` | Make and CMake | Public and generated version headers |
+| `$(PREFIX)/lib/pkgconfig/sparse.pc` | Make and CMake | pkg-config descriptor |
+| `$(PREFIX)/lib/cmake/Sparse/SparseConfig*.cmake` | CMake only | Exported CMake package metadata and version file |
+| `$(PREFIX)/lib/cmake/Sparse/SparseTargets.cmake` | CMake only | Exported CMake target definitions |
 
 ## Installed Consumer Tutorial
 
@@ -441,12 +434,6 @@ bash tests/test_install.sh
 This `pkg-config` path is a Unix-side installed consumer surface. It is not a
 Windows `pkg-config` execution claim.
 
-### pkg-config command summary
-
-```sh
-cc -std=c11 $(pkg-config --cflags sparse) main.c $(pkg-config --libs sparse)
-```
-
 ### Uninstall
 
 ```sh
@@ -459,12 +446,13 @@ Use this path when you want the installed CMake package export, the
 Windows-supported build/install route, or a downstream project that calls
 `find_package(Sparse)`.
 
+From the source root, use a separate CMake tree and writable staged prefix:
+
 ```sh
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build .
-ctest                # run tests
-cmake --install .    # install
+cmake -S . -B build/install -DCMAKE_INSTALL_PREFIX="$PWD/_install" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_C_STANDARD=11
+cmake --build build/install
+(cd build/install && ctest --output-on-failure)
+cmake --install build/install
 ```
 
 ### CMake options
@@ -485,14 +473,8 @@ shared consumer proof, and runtime-loader validation exist.
 
 ### CMake consumer
 
-After installing, downstream projects can use `find_package`. If you have not
-already installed to the staged prefix used above, install with CMake first:
-
-```sh
-cmake -S . -B build/install -DCMAKE_INSTALL_PREFIX="$PWD/_install" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_C_STANDARD=11
-cmake --build build/install
-cmake --install build/install
-```
+After following [CMake Build](#cmake-build), downstream projects can use
+`find_package` against that installed prefix.
 
 For a minimal consumer project, create this `CMakeLists.txt`:
 
@@ -515,14 +497,14 @@ Use the width-checking `main.c` and installed-header form shown above, such as
 downstream project with the **same absolute prefix** used at install time:
 
 ```sh
-prefix=/absolute/path/to/_install/cmake-64  # select one installed prefix
-cmake -S . -B build/sparse-consumer-64 -DCMAKE_PREFIX_PATH="$prefix"
-cmake --build build/sparse-consumer-64
-./build/sparse-consumer-64/sparse_cmake_smoke
+prefix=/absolute/path/to/_install  # replace with the absolute install prefix
+cmake -S . -B build/sparse-consumer -DCMAKE_PREFIX_PATH="$prefix"
+cmake --build build/sparse-consumer
+./build/sparse-consumer/sparse_cmake_smoke
 ```
 
-For 32 bits, select the corresponding `cmake-32` prefix and a different
-consumer build tree. The imported target propagates the installed width to
+For 64 bits, build and install the library with `-DSPARSE_IDX_BITS=64` into a
+different prefix and use a different consumer build tree. The imported target propagates the installed width to
 the compiler; the program checks the linked archive before matrix use.
 
 For exact version checks, use the current project version from `VERSION`:

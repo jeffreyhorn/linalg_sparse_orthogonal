@@ -1914,6 +1914,10 @@ Current threshold-free reporting surface:
 Sprint 225 adds a separate `canonical-refactor-csc-timing` workflow. Its
 current proposed `s225-v3` same-machine paired protocol compares the fixed
 master source against the exact candidate using `nos4.mtx --repeat 1000`.
+Hosted run `44839416899` failed the locked v3 dispersion limit. The
+[proposed v4 dedicated method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
+has a separate offline collector and validator; it has not been collected
+or independently accepted.
 Its sample counts, dispersion and regression limits, runner identity, artifact
 route, and claim boundary are in the
 [benchmark guide](../benchmarks/README.md#sprint-225-one-cell-timing-decision).

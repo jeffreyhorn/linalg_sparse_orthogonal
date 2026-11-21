@@ -348,6 +348,10 @@ This is intentionally not a pass/fail timing gate:
 
 The separate `canonical-refactor-csc-timing` workflow now proposes
 [`s225-v3` same-machine pairs](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v3-paired-methodology.md).
+The exact-candidate v3 run `44839416899` failed the locked dispersion
+limit. A separate [proposed v4 dedicated protocol](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
+defines offline sequential collection on one isolated Intel Mac. No v4
+evidence or independent acceptance exists yet.
 Three independent `macos-15-intel` jobs each build fixed master commit
 `c42d6715fad7e895bae4941a006df3563f1afc38` and the exact candidate
 commit on one runner, then alternate baseline/candidate order for five

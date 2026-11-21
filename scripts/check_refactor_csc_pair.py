@@ -144,35 +144,53 @@ def stats(values: list[Decimal]) -> dict[str, Decimal]:
 
 
 def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
-               expected_run: str, expected_attempt: str) -> tuple[dict, str]:
+               expected_run: str, expected_attempt: str, *,
+               dedicated: bool = False) -> tuple[dict, str]:
     members, member_manifest_hash = read_bundle(path)
     run = common.object_json(members["run.json"], RULE, "run.json")
     receipt = common.object_json(members["decision.json"], RULE, "decision.json")
+    policy = "s225-v4" if dedicated else POLICY
+    expected_argv = (
+        ["build/bench_refactor_csc", "tests/data/suitesparse/nos4.mtx", "--repeat", "10000"]
+        if dedicated else EXPECTED_ARGV
+    )
     if (run.get("schema_version"), run.get("policy_version"), run.get("baseline_commit"),
         run.get("candidate_commit"), run.get("replica")) != (
-        1, POLICY, BASELINE_COMMIT, candidate_commit, replica,
+        1, policy, BASELINE_COMMIT, candidate_commit, replica,
     ):
         reject("run schema, policy, source commit, or replica mismatch")
-    if not isinstance(run.get("workflow_run_id"), str) or not run["workflow_run_id"].isdecimal():
-        reject("missing hosted run ID")
-    if run["workflow_run_id"] != expected_run:
-        reject("run ID differs from hosted decision job")
-    if run.get("workflow_run_attempt") != expected_attempt:
-        reject("run attempt differs from hosted decision job")
-    common.required_str(run.get("workflow_job_key"), RULE, "workflow_job_key")
+    if dedicated:
+        if (run.get("collection_id"), run.get("collection_attempt"),
+            run.get("execution_mode")) != (expected_run, expected_attempt, "dedicated_offline"):
+            reject("dedicated collection identity mismatch")
+        if any(key in run for key in ("workflow_run_id", "workflow_run_attempt", "workflow_job_key")):
+            reject("dedicated evidence cannot claim hosted workflow identity")
+        attestation = run.get("operator_attestation")
+        if not isinstance(attestation, dict) or attestation.get("exclusive_window_acknowledged") is not True:
+            reject("exclusive-window attestation missing")
+        common.required_str(attestation.get("operator"), RULE, "operator_attestation.operator")
+    else:
+        if not isinstance(run.get("workflow_run_id"), str) or not run["workflow_run_id"].isdecimal():
+            reject("missing hosted run ID")
+        if run["workflow_run_id"] != expected_run:
+            reject("run ID differs from hosted decision job")
+        if run.get("workflow_run_attempt") != expected_attempt:
+            reject("run attempt differs from hosted decision job")
+        common.required_str(run.get("workflow_job_key"), RULE, "workflow_job_key")
     runner = run.get("runner")
     if not isinstance(runner, dict):
         reject("missing runner identity")
     for field in RUNNER_CLASS:
         common.required_str(runner.get(field), RULE, f"runner.{field}")
     common.required_str(runner.get("runner_label"), RULE, "runner.runner_label")
-    if not (runner["runner_image"].lower().startswith("macos") and
+    if not ((runner["runner_image"] == "dedicated-macos-intel" if dedicated else
+             runner["runner_image"].lower().startswith("macos")) and
             runner["os"].lower().startswith("macos") and runner["architecture"] == "x86_64"):
         reject("runner is outside the reviewed macOS Intel class")
     if (run.get("argv"), run.get("warmup_pairs"), run.get("measured_pairs"),
         run.get("timeout_seconds_per_side"), run.get("metric"), run.get("metric_units"),
         run.get("thread_environment")) != (
-        EXPECTED_ARGV, WARMUP_PAIRS, MEASURED_PAIRS, TIMEOUT_SECONDS,
+        expected_argv, WARMUP_PAIRS, MEASURED_PAIRS, TIMEOUT_SECONDS,
         "refactor_csc_ms", "ms", {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"},
     ):
         reject("paired workload or schedule mismatch")
@@ -183,7 +201,7 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
     if baseline["effective_build"] != candidate["effective_build"] or baseline["fixture_sha256"] != candidate["fixture_sha256"]:
         reject("baseline and candidate build or fixture differ")
     if receipt != {
-        "policy_version": POLICY, "status": "pending_pair_review", "all_trials_valid": True,
+        "policy_version": policy, "status": "pending_pair_review", "all_trials_valid": True,
         "trial_count": 50, "baseline_accepted": False, "freshness_result": "separate",
     }:
         reject("collector receipt disagrees with raw paired schedule")
@@ -217,7 +235,7 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
                 argv = json.loads(row["argv"])
             except json.JSONDecodeError:
                 reject(f"pair {pair}: invalid argv")
-            if argv != EXPECTED_ARGV:
+            if argv != expected_argv:
                 reject(f"pair {pair}: argv differs from reviewed command")
             trial_start = common.parse_time(row["started_at_utc"], RULE, "trial start")
             trial_end = common.parse_time(row["ended_at_utc"], RULE, "trial end")
@@ -237,9 +255,9 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
         if pair > WARMUP_PAIRS:
             values.append(pair_values["candidate"] / pair_values["baseline"])
     result = stats(values)
-    return {
-        "replica": replica, "run_id": run["workflow_run_id"],
-        "attempt": run["workflow_run_attempt"], "job_key": run["workflow_job_key"],
+    result_row = {
+        "replica": replica, "run_id": expected_run,
+        "attempt": expected_attempt, "job_key": "dedicated_offline" if dedicated else run["workflow_job_key"],
         "runner": {field: runner[field] for field in RUNNER_CLASS},
         "baseline_executable_sha256": baseline["executable_sha256"],
         "candidate_executable_sha256": candidate["executable_sha256"],
@@ -247,7 +265,11 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
         "candidate_build": candidate["effective_build"],
         "median_ratio": str(result["median"]), "mad_ratio": str(result["mad_ratio"]),
         "p90_ratio": str(result["p90_ratio"]),
-    }, member_manifest_hash
+    }
+    if dedicated:
+        result_row["operator"] = attestation["operator"]
+        result_row["host_id"] = runner["runner_label"]
+    return result_row, member_manifest_hash
 
 
 def decide(root: Path, candidate_commit: str, checkout: Path,

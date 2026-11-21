@@ -145,6 +145,32 @@ class PairDecisionTests(unittest.TestCase):
         result_zip, _ = pair.check_pair(archive_path, 1, self.commit, ROOT, "1234", "1")
         self.assertEqual(result_dir, result_zip)
 
+    def test_directory_total_limit_rejects_before_opening_file(self):
+        directory = self.directories[0]
+        for number in range(1, 12):
+            (directory / "trials" / f"{number:04d}-baseline.stdout").write_bytes(
+                b"x" * (common.MAX_FILE - 1)
+            )
+        with mock.patch.object(Path, "open", side_effect=AssertionError("read before size check")):
+            with self.assertRaisesRegex(common.EvidenceError, "oversized raw pair"):
+                pair.read_bundle(directory)
+
+    def test_unexpected_members_reject_before_reading(self):
+        directory = self.directories[0]
+        (directory / "surprise.bin").write_bytes(b"unexpected")
+        with mock.patch.object(Path, "open", side_effect=AssertionError("unexpected file was read")):
+            with self.assertRaisesRegex(common.EvidenceError, "unexpected or unsafe member"):
+                pair.read_bundle(directory)
+        archive_path = self.root / "unexpected.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            for file in sorted(directory.rglob("*")):
+                if file.is_file():
+                    archive.write(file, file.relative_to(directory).as_posix())
+        with mock.patch.object(zipfile.ZipFile, "read",
+                               side_effect=AssertionError("unexpected ZIP was read")):
+            with self.assertRaisesRegex(common.EvidenceError, "unexpected or unsafe ZIP member"):
+                pair.read_bundle(archive_path)
+
     def test_regression_and_dispersion_are_distinct_failures(self):
         for name, values, rule in (
             ("regression", ["0.130"] * 20, "S225_PAIR_REGRESSION"),

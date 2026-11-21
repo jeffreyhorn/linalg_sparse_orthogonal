@@ -51,25 +51,54 @@ def read_bundle(path: Path) -> tuple[dict[str, bytes], str]:
         reject(f"missing raw pair: {path}", "S225_PAIR_MISSING")
     members: dict[str, bytes] = {}
     if path.is_dir():
+        files: dict[str, tuple[Path, int]] = {}
+        total_size = 0
         for file in path.rglob("*"):
             if file.is_symlink() or (not file.is_file() and not file.is_dir()):
                 reject(f"unsafe member: {file}")
-            if file.is_file():
-                name = file.relative_to(path).as_posix()
-                if not common.safe_name(name) or file.stat().st_size > common.MAX_FILE:
-                    reject(f"unsafe member: {name}")
-                members[name] = file.read_bytes()
+            name = file.relative_to(path).as_posix()
+            if file.is_dir():
+                if name != "trials":
+                    reject(f"unexpected directory: {name}")
+                continue
+            if not common.safe_name(name) or name not in REQUIRED:
+                reject(f"unexpected or unsafe member: {name}")
+            size = file.stat().st_size
+            if size > common.MAX_FILE:
+                reject(f"oversized member: {name}")
+            total_size += size
+            if total_size > common.MAX_BUNDLE:
+                reject("oversized raw pair")
+            files[name] = (file, size)
+        if set(files) != REQUIRED:
+            reject(f"pair member set mismatch: missing={sorted(REQUIRED-set(files))}, extra={sorted(set(files)-REQUIRED)}")
+        total_read = 0
+        for name, (file, size) in files.items():
+            with file.open("rb") as stream:
+                data = stream.read(common.MAX_FILE + 1)
+            if len(data) != size:
+                reject(f"member changed or exceeded limit while reading: {name}")
+            total_read += len(data)
+            if total_read > common.MAX_BUNDLE:
+                reject("oversized raw pair")
+            members[name] = data
     elif path.is_file():
         try:
             with zipfile.ZipFile(path) as archive:
                 infos = archive.infolist()
                 if len(infos) != len({info.filename for info in infos}):
                     reject("duplicate ZIP member")
+                for info in infos:
+                    if info.is_dir() or not common.safe_name(info.filename) or info.filename not in REQUIRED:
+                        reject(f"unexpected or unsafe ZIP member: {info.filename}")
+                    if info.file_size > common.MAX_FILE:
+                        reject(f"unsafe ZIP member: {info.filename}")
+                names = {info.filename for info in infos}
+                if names != REQUIRED:
+                    reject(f"pair member set mismatch: missing={sorted(REQUIRED-names)}, extra={sorted(names-REQUIRED)}")
                 if sum(info.file_size for info in infos) > common.MAX_BUNDLE:
                     reject("oversized ZIP")
                 for info in infos:
-                    if info.is_dir() or not common.safe_name(info.filename) or info.file_size > common.MAX_FILE:
-                        reject(f"unsafe ZIP member: {info.filename}")
                     members[info.filename] = archive.read(info)
         except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
             reject(f"cannot read ZIP: {exc}")

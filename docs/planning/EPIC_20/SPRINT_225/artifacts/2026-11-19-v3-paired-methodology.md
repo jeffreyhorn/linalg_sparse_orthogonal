@@ -26,6 +26,10 @@ number or a claimed accepted baseline.
 ## Collection and decision
 
 Three independent jobs run on `macos-15-intel`, each with a 20-minute cap.
+The collector applies a 16-minute monotonic deadline across checkout,
+builds, and trials, reserving the remaining job time for cleanup and the
+`always()` raw-artifact upload. If that deadline is reached, the partial
+evidence and a blocked receipt are uploaded; the pair cannot validate.
 Feature branches use the pull-request trigger only; `master` uses the push
 trigger. Running both for the same candidate at once would create competing
 measurement groups on the hosted fleet. This scheduling rule does not waive

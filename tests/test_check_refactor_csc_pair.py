@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -144,6 +145,30 @@ class PairDecisionTests(unittest.TestCase):
         result_dir, _ = pair.check_pair(directory, 1, self.commit, ROOT, "1234", "1")
         result_zip, _ = pair.check_pair(archive_path, 1, self.commit, ROOT, "1234", "1")
         self.assertEqual(result_dir, result_zip)
+
+    def test_hosted_build_command_stops_before_job_timeout(self):
+        self.assertLess(collector.COLLECTION_LIMIT_SECONDS, 20 * 60)
+        log = self.root / "timed-build.log"
+        start = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, "deadline expired"):
+            collector.run_command(
+                [sys.executable, "-c", "import time; print('build-started', flush=True); time.sleep(10)"],
+                self.root, start + 0.1, log,
+            )
+        self.assertLess(time.monotonic() - start, 3)
+        self.assertIn(b"build-started", log.read_bytes())
+
+    def test_hosted_failure_keeps_blocked_receipt_for_upload(self):
+        output = self.root / "failed-pair"
+        def fail_after_start(path, replica):
+            path.mkdir()
+            (path / "build-baseline.log").write_bytes(b"compiler failed\n")
+            raise TimeoutError("hosted collection deadline expired")
+        with mock.patch.object(collector, "_collect", side_effect=fail_after_start):
+            with self.assertRaisesRegex(TimeoutError, "deadline"):
+                collector.collect(output, 1)
+        self.assertEqual(json.loads((output / "failure.json").read_text())["status"], "blocked")
+        self.assertIn("build-baseline.log", (output / "hashes.sha256").read_text())
 
     def test_directory_total_limit_rejects_before_opening_file(self):
         directory = self.directories[0]

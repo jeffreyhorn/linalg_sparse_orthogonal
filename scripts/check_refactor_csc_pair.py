@@ -298,6 +298,8 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
     if dedicated:
         result_row["operator"] = attestation["operator"]
         result_row["host_id"] = runner["runner_label"]
+        result_row["started_at_utc"] = start.isoformat()
+        result_row["ended_at_utc"] = end.isoformat()
     return result_row, member_manifest_hash
 
 

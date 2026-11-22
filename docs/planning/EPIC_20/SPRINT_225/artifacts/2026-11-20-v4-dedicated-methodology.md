@@ -42,6 +42,10 @@ stderr, exit status, elapsed time, timestamps, trial order, executable
 digests, build receipts, source/fixture digests, and a SHA-256 manifest in
 each raw bundle. Preserve ZIP digests separately. No trial or replica may
 be dropped or replaced.
+The collector enforces one deadline across setup, builds, and trials. A
+failed collection exits nonzero and retains partial raw evidence with a
+blocked decision and archive digests for diagnosis; it cannot be counted
+as a complete replica.
 
 For each measured pair, calculate `candidate_ms / baseline_ms` from the
 raw CSV using decimal arithmetic. Per replica require MAD/median

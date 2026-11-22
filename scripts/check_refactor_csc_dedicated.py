@@ -55,6 +55,11 @@ def decide(root: Path, candidate_commit: str, checkout: Path,
             result["member_manifest_sha256"] = manifest_hash
             jobs.append(result)
         first = jobs[0]
+        for previous, current_job in zip(jobs, jobs[1:]):
+            previous_end = datetime.fromisoformat(previous["ended_at_utc"])
+            current_start = datetime.fromisoformat(current_job["started_at_utc"])
+            if previous_end > current_start:
+                paired.reject("replica run windows overlap or are out of order")
         for job in jobs[1:]:
             if any(job[field] != first[field] for field in (
                 "runner", "host_id", "operator", "baseline_build", "candidate_build",

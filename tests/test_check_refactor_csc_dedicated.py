@@ -9,9 +9,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
+from datetime import datetime, timedelta
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -98,6 +101,18 @@ class DedicatedEvidenceTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("host", report["detail"])
 
+    def test_overlapping_replica_windows_are_rejected(self) -> None:
+        path = self.root / "sprint225-v4-pair-1234-1-1"
+        run_path = path / "run.json"
+        run = json.loads(run_path.read_text())
+        run["ended_at_utc"] = (datetime.fromisoformat(run["ended_at_utc"]) +
+                               timedelta(seconds=1)).isoformat()
+        run_path.write_text(json.dumps(run))
+        rehash(path)
+        report, code = self.decision()
+        self.assertEqual(code, 2)
+        self.assertIn("overlap", report["detail"])
+
     def test_missing_attestation_is_rejected(self) -> None:
         path = self.root / "sprint225-v4-pair-1234-1-1"
         run_path = path / "run.json"
@@ -133,6 +148,39 @@ class DedicatedEvidenceTests(unittest.TestCase):
     def test_host_preflight_requires_exclusive_attestation(self) -> None:
         with self.assertRaisesRegex(ValueError, "attestation"):
             collector.require_dedicated_host("mac", "operator", False)
+
+    def test_build_subprocess_obeys_deadline_and_preserves_log(self) -> None:
+        log = self.root / "build.log"
+        start = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, "deadline expired"):
+            collector.run_process(
+                [sys.executable, "-c", "import time; print('started', flush=True); time.sleep(10)"],
+                self.root, start + 0.1, log,
+            )
+        self.assertLess(time.monotonic() - start, 3)
+        self.assertIn(b"started", log.read_bytes())
+
+    def test_failed_collection_writes_blocked_decision_and_archive(self) -> None:
+        output = self.root / "failed-collection"
+        argv = [
+            "collect_refactor_csc_dedicated.py", "--output-root", str(output),
+            "--host-id", "isolated-intel-mac", "--operator", "operator",
+            "--exclusive-window-attested",
+        ]
+        with (mock.patch.object(sys, "argv", argv),
+              mock.patch.object(collector, "require_dedicated_host", return_value={}),
+              mock.patch.object(collector, "git", return_value=self.commit),
+              mock.patch.object(collector, "_collect_one",
+                                side_effect=TimeoutError("build deadline expired"))):
+            self.assertEqual(collector.main(), 2)
+        decision = json.loads((output / "sprint225-v4-decision.json").read_text())
+        self.assertEqual(decision["status"], "blocked")
+        self.assertIn("deadline", decision["detail"])
+        raw = output / f"sprint225-v4-pair-{decision['collection_id']}-1-1"
+        self.assertTrue((raw / "failure.json").is_file())
+        self.assertTrue((raw / "hashes.sha256").is_file())
+        self.assertTrue(raw.with_suffix(".zip").is_file())
+        self.assertTrue((output / "archive-sha256.txt").is_file())
 
 
 if __name__ == "__main__":

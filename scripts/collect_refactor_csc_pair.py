@@ -56,14 +56,15 @@ def build(root: Path) -> tuple[dict[str, str], bytes]:
     return config, result.stdout
 
 
-def capture(root: Path, command: list[str] | None = None) -> tuple[bytes, bytes, int, bool]:
+def capture(root: Path, command: list[str] | None = None,
+            timeout: float = TIMEOUT_SECONDS) -> tuple[bytes, bytes, int, bool]:
     process = subprocess.Popen(
         [str(root / "build/bench_refactor_csc"), *(COMMAND if command is None else command)], cwd=root,
         env={**os.environ, "OMP_NUM_THREADS": "1"},
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
     )
     try:
-        stdout, stderr = process.communicate(timeout=TIMEOUT_SECONDS)
+        stdout, stderr = process.communicate(timeout=timeout)
         return stdout, stderr, process.returncode, False
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)

@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import platform
+import signal
 import subprocess
 import sys
 import tempfile
@@ -17,11 +18,11 @@ from pathlib import Path
 
 from collect_refactor_csc_pair import (
     BASELINE_COMMIT, FIELDS, MEASURED_PAIRS, TIMEOUT_SECONDS, WARMUP_PAIRS,
-    build, capture, git, now, side_receipt, write_json,
+    capture, git, now, side_receipt, write_json,
 )
 from collect_refactor_csc_timing import (
     FIXTURE, FIXTURE_SHA256, ROOT, check_policy_environment, host_metadata,
-    parse_metric, sha256,
+    parse_build_config, parse_metric, sha256,
 )
 
 
@@ -29,6 +30,49 @@ POLICY = "s225-v4"
 COMMAND = ["tests/data/suitesparse/nos4.mtx", "--repeat", "10000"]
 RUNNER_IMAGE = "dedicated-macos-intel"
 JOB_LIMIT_SECONDS = 20 * 60
+
+
+def remaining(deadline: float) -> float:
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise TimeoutError("replica exceeded the 20-minute deadline")
+    return seconds
+
+
+def run_process(command: list[str], cwd: Path, deadline: float,
+                log_path: Path | None = None) -> bytes:
+    process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, start_new_session=True)
+    timed_out = False
+    try:
+        output, _ = process.communicate(timeout=remaining(deadline))
+    except (subprocess.TimeoutExpired, TimeoutError):
+        timed_out = True
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        output, _ = process.communicate()
+    if log_path is not None:
+        with log_path.open("ab") as stream:
+            stream.write(b"$ " + " ".join(command).encode() + b"\n")
+            stream.write(output)
+    if timed_out:
+        raise TimeoutError(f"replica deadline expired during {' '.join(command)}")
+    if process.returncode != 0:
+        raise ValueError(f"command failed ({process.returncode}): {' '.join(command)}")
+    return output
+
+
+def build_side(root: Path, deadline: float, log_path: Path) -> dict[str, str]:
+    run_process(["make", "clean"], root, deadline, log_path)
+    config = parse_build_config(run_process(
+        ["make", "--no-print-directory", "-s", "sprint225-build-config",
+         "SPARSE_IDX_BITS=32"], root, deadline, log_path,
+    ).decode("utf-8"))
+    run_process(["make", "build/bench_refactor_csc", "SPARSE_IDX_BITS=32"],
+                root, deadline, log_path)
+    return config
 
 
 def require_dedicated_host(host_id: str, operator: str, attested: bool) -> dict[str, str]:
@@ -55,19 +99,24 @@ def require_dedicated_host(host_id: str, operator: str, attested: bool) -> dict[
     return host
 
 
-def collect_one(output: Path, replica: int, collection_id: str, candidate_commit: str,
-                host: dict[str, str], operator: str) -> None:
-    started = time.monotonic()
+def _collect_one(output: Path, replica: int, collection_id: str, candidate_commit: str,
+                 host: dict[str, str], operator: str) -> None:
+    deadline = time.monotonic() + JOB_LIMIT_SECONDS
     started_at = now()
     with tempfile.TemporaryDirectory(prefix="s225-v4-") as temp:
         baseline_root = Path(temp) / "baseline"
         candidate_root = Path(temp) / "candidate"
-        for target, commit in ((baseline_root, BASELINE_COMMIT), (candidate_root, candidate_commit)):
-            subprocess.run(["git", "worktree", "add", "--detach", str(target), commit],
-                           cwd=ROOT, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            baseline_config, baseline_log = build(baseline_root)
-            candidate_config, candidate_log = build(candidate_root)
+            for target, commit in ((baseline_root, BASELINE_COMMIT),
+                                   (candidate_root, candidate_commit)):
+                run_process(["git", "worktree", "add", "--detach", str(target), commit],
+                            ROOT, deadline)
+            baseline_config = build_side(
+                baseline_root, deadline, output / "build-baseline.log",
+            )
+            candidate_config = build_side(
+                candidate_root, deadline, output / "build-candidate.log",
+            )
             if baseline_config != candidate_config:
                 raise ValueError("baseline and candidate effective build settings differ")
             baseline = side_receipt(baseline_root, baseline_config)
@@ -78,10 +127,7 @@ def collect_one(output: Path, replica: int, collection_id: str, candidate_commit
                 raise ValueError("baseline and candidate fixture bytes differ")
             if baseline["benchmark_source_sha256"] != candidate["benchmark_source_sha256"]:
                 raise ValueError("baseline and candidate benchmark source bytes differ")
-            output.mkdir(parents=True)
             (output / "trials").mkdir()
-            (output / "build-baseline.log").write_bytes(baseline_log)
-            (output / "build-candidate.log").write_bytes(candidate_log)
             run: dict[str, object] = {
                 "schema_version": 1, "policy_version": POLICY,
                 "baseline": baseline, "candidate": candidate,
@@ -108,7 +154,8 @@ def collect_one(output: Path, replica: int, collection_id: str, candidate_commit
                         root = baseline_root if side == "baseline" else candidate_root
                         start = now()
                         t0 = time.monotonic_ns()
-                        stdout, stderr, status, timed_out = capture(root, COMMAND)
+                        timeout = min(TIMEOUT_SECONDS, remaining(deadline))
+                        stdout, stderr, status, timed_out = capture(root, COMMAND, timeout)
                         elapsed = time.monotonic_ns() - t0
                         end = now()
                         stem = f"{number:04d}-{side}"
@@ -129,6 +176,9 @@ def collect_one(output: Path, replica: int, collection_id: str, candidate_commit
                         writer.writerow(row)
                         stream.flush()
                         rows.append(row)
+                        if timed_out:
+                            raise TimeoutError(f"replica {replica} trial exceeded its deadline")
+                        remaining(deadline)
             run["ended_at_utc"] = now()
             write_json(output / "run.json", run)
             valid = all(row["validity"] == "valid" for row in rows)
@@ -137,17 +187,39 @@ def collect_one(output: Path, replica: int, collection_id: str, candidate_commit
                 "all_trials_valid": valid, "trial_count": len(rows),
                 "baseline_accepted": False, "freshness_result": "separate",
             })
-            paths = sorted(path for path in output.rglob("*") if path.is_file())
-            (output / "hashes.sha256").write_text("".join(
-                f"{sha256(path.read_bytes())}  {path.relative_to(output).as_posix()}\n"
-                for path in paths
-            ), encoding="ascii")
-            if not valid or time.monotonic() - started > JOB_LIMIT_SECONDS:
-                raise ValueError(f"replica {replica} has invalid trials or exceeded the 20-minute cap")
+            write_manifest(output)
+            remaining(deadline)
+            if not valid:
+                raise ValueError(f"replica {replica} has invalid trials")
         finally:
             for target in (candidate_root, baseline_root):
                 subprocess.run(["git", "worktree", "remove", "--force", str(target)],
-                               cwd=ROOT, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                               cwd=ROOT, check=False, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=30)
+
+
+def write_manifest(output: Path) -> None:
+    paths = sorted(path for path in output.rglob("*")
+                   if path.is_file() and path.name != "hashes.sha256")
+    (output / "hashes.sha256").write_text("".join(
+        f"{sha256(path.read_bytes())}  {path.relative_to(output).as_posix()}\n"
+        for path in paths
+    ), encoding="ascii")
+
+
+def collect_one(output: Path, replica: int, collection_id: str, candidate_commit: str,
+                host: dict[str, str], operator: str) -> None:
+    output.mkdir(parents=True)
+    try:
+        _collect_one(output, replica, collection_id, candidate_commit, host, operator)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            TimeoutError, ValueError) as exc:
+        write_json(output / "failure.json", {
+            "policy_version": POLICY, "replica": replica,
+            "status": "blocked", "reason": str(exc), "ended_at_utc": now(),
+        })
+        write_manifest(output)
+        raise
 
 
 def archive_evidence(root: Path, collection_id: str) -> None:
@@ -155,6 +227,8 @@ def archive_evidence(root: Path, collection_id: str) -> None:
     for replica in (1, 2, 3):
         name = f"sprint225-v4-pair-{collection_id}-1-{replica}"
         directory = root / name
+        if not directory.is_dir():
+            continue
         archive_path = root / f"{name}.zip"
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for file in sorted(directory.rglob("*")):
@@ -195,7 +269,19 @@ def main() -> int:
         archive_evidence(root, collection_id)
         print(f"s225-v4: {report['primary_rule']}: {report['detail']}; evidence={root}")
         return code
-    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            TimeoutError, ValueError) as exc:
+        if "root" in locals() and root.is_dir() and "collection_id" in locals():
+            write_json(root / "sprint225-v4-decision.json", {
+                "schema_version": 1, "policy_version": POLICY,
+                "baseline_commit": BASELINE_COMMIT,
+                "candidate_commit": candidate_commit,
+                "collection_id": collection_id,
+                "status": "blocked", "primary_rule": "S225_V4_COLLECTION_FAILED",
+                "detail": str(exc), "independent_review": "pending",
+                "evaluated_at_utc": now(),
+            })
+            archive_evidence(root, collection_id)
         print(f"s225-v4: {exc}", file=sys.stderr)
         if isinstance(exc, subprocess.CalledProcessError):
             for stream in (exc.stdout, exc.stderr):

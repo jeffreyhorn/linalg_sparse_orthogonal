@@ -30,6 +30,12 @@ The collector applies a 16-minute monotonic deadline across checkout,
 builds, and trials, reserving the remaining job time for cleanup and the
 `always()` raw-artifact upload. If that deadline is reached, the partial
 evidence and a blocked receipt are uploaded; the pair cannot validate.
+Raw collector output is written in the ignored `sprint225-pair-raw/`
+directory at the repository root, outside the candidate `build/` tree
+that `make clean` removes. Hosted run
+[`45058540715`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/45058540715)
+failed before upload because its output was inside that tree; it produced no
+valid pair evidence.
 Feature branches use the pull-request trigger only; `master` uses the push
 trigger. Running both for the same candidate at once would create competing
 measurement groups on the hosted fleet. This scheduling rule does not waive

@@ -127,6 +127,8 @@ def write_json(path: Path, value: dict[str, object]) -> None:
 def _collect(output: Path, replica: int) -> int:
     if output.exists() or replica not in (1, 2, 3):
         raise ValueError("output must be new and replica must be 1, 2, or 3")
+    if output.resolve().is_relative_to((ROOT / "build").resolve()):
+        raise ValueError("output must be outside the candidate build tree; make clean removes build/")
     check_policy_environment(False)
     if sys.platform != "darwin" or git(ROOT, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("paired collection requires a clean hosted macOS checkout")

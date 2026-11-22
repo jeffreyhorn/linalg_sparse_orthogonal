@@ -158,6 +158,14 @@ class PairDecisionTests(unittest.TestCase):
         self.assertLess(time.monotonic() - start, 3)
         self.assertIn(b"build-started", log.read_bytes())
 
+    def test_hosted_output_cannot_be_removed_by_candidate_make_clean(self):
+        with self.assertRaisesRegex(ValueError, "outside the candidate build tree"):
+            collector.collect(ROOT / "build" / "sprint225-pair", 1)
+        self.assertEqual(subprocess.run(
+            ["git", "check-ignore", "-q", "sprint225-pair-raw/trials.tsv"],
+            cwd=ROOT, check=False,
+        ).returncode, 0)
+
     def test_hosted_failure_keeps_blocked_receipt_for_upload(self):
         output = self.root / "failed-pair"
         def fail_after_start(path, replica):

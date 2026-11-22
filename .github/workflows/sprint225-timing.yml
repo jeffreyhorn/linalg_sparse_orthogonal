@@ -32,7 +32,7 @@ jobs:
         run: |
           python3 scripts/collect_refactor_csc_pair.py \
             --replica ${{ matrix.replica }} \
-            --output-dir build/sprint225-pair
+            --output-dir sprint225-pair-raw
 
       - name: Upload paired raw trial bundle
         if: always()
@@ -41,7 +41,7 @@ jobs:
           name: sprint225-pair-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.replica }}
           retention-days: 90
           if-no-files-found: error
-          path: build/sprint225-pair/
+          path: sprint225-pair-raw/
 
   canonical-refactor-csc-timing:
     name: macOS enforced refactor CSC timing decision (s225-v3)

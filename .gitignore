@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+sprint225-pair-raw/
 *.o
 *.a
 *.so

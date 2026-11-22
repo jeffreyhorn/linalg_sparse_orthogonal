@@ -39,7 +39,7 @@ def problems(workflow: dict) -> list[str]:
     raw = named.get("Collect same-machine raw baseline and candidate trials", {})
     upload = named.get("Upload paired raw trial bundle", {})
     if not all(token in raw.get("run", "") for token in (
-        "collect_refactor_csc_pair.py", "--replica", "--output-dir",
+        "collect_refactor_csc_pair.py", "--replica", "--output-dir sprint225-pair-raw",
     )) or raw.get("continue-on-error") == "true":
         issues.append("paired raw collector must fail closed")
     with_fields = upload.get("with", {})
@@ -49,7 +49,7 @@ def problems(workflow: dict) -> list[str]:
             or "${{ github.run_id }}" not in with_fields.get("name", "")
             or "${{ github.run_attempt }}" not in with_fields.get("name", "")
             or "${{ matrix.replica }}" not in with_fields.get("name", "")
-            or with_fields.get("path") != "build/sprint225-pair/"):
+            or with_fields.get("path") != "sprint225-pair-raw/"):
         issues.append("every pair needs its own always-uploaded raw artifact")
     if (decide.get("needs") != "collect-pair" or decide.get("if") != "always()"
             or decide.get("timeout-minutes") != "5"):
@@ -95,6 +95,12 @@ class TimingWorkflowTests(unittest.TestCase):
             ("wrong-runner", lambda w: w["jobs"]["collect-pair"].update({"runs-on": "macos-latest"})),
             ("shallow-source", lambda w: w["jobs"]["collect-pair"]["steps"][0]["with"].update({"fetch-depth": "1"})),
             ("no-raw-upload", lambda w: w["jobs"]["collect-pair"]["steps"].pop()),
+            ("output-in-build-tree", lambda w: w["jobs"]["collect-pair"]["steps"][1].update({
+                "run": "python3 scripts/collect_refactor_csc_pair.py --replica 1 --output-dir build/sprint225-pair"
+            })),
+            ("upload-from-build-tree", lambda w: w["jobs"]["collect-pair"]["steps"][2]["with"].update({
+                "path": "build/sprint225-pair/"
+            })),
             ("success-only-decision", lambda w: w["jobs"]["canonical-refactor-csc-timing"].update({"if": "success()"})),
             ("swallow-decision", lambda w: w["jobs"]["canonical-refactor-csc-timing"]["steps"][-2].update({"continue-on-error": "true"})),
             ("freshness-substitute", lambda w: w["jobs"]["canonical-refactor-csc-timing"]["steps"][-2].update({"run": "python3 scripts/check_bench_canonical_freshness.py"})),

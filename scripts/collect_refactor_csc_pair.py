@@ -24,6 +24,10 @@ from collect_refactor_csc_timing import (
 POLICY = "s225-v3"
 BASELINE_COMMIT = "c42d6715fad7e895bae4941a006df3563f1afc38"
 COMMAND = ["tests/data/suitesparse/nos4.mtx", "--repeat", "1000"]
+HOSTED_COMMANDS = {
+    POLICY: COMMAND,
+    "s225-v5": ["tests/data/suitesparse/nos4.mtx", "--repeat", "10000"],
+}
 WARMUP_PAIRS = 5
 MEASURED_PAIRS = 20
 TIMEOUT_SECONDS = 30
@@ -124,9 +128,11 @@ def write_json(path: Path, value: dict[str, object]) -> None:
     path.write_text(json.dumps(value, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
-def _collect(output: Path, replica: int) -> int:
+def _collect(output: Path, replica: int, policy: str = POLICY) -> int:
     if output.exists() or replica not in (1, 2, 3):
         raise ValueError("output must be new and replica must be 1, 2, or 3")
+    if policy not in HOSTED_COMMANDS:
+        raise ValueError("unsupported hosted timing policy")
     if output.resolve().is_relative_to((ROOT / "build").resolve()):
         raise ValueError("output must be outside the candidate build tree; make clean removes build/")
     check_policy_environment(False)
@@ -166,14 +172,14 @@ def _collect(output: Path, replica: int) -> int:
                 raise ValueError("baseline and candidate benchmark source bytes differ")
             (output / "trials").mkdir()
             run: dict[str, object] = {
-                "schema_version": 1, "policy_version": POLICY,
+                "schema_version": 1, "policy_version": policy,
                 "baseline": baseline, "candidate": candidate,
                 "baseline_commit": BASELINE_COMMIT, "candidate_commit": candidate_commit,
                 "workflow_run_id": os.environ["GITHUB_RUN_ID"],
                 "workflow_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
                 "workflow_job_key": os.environ.get("GITHUB_JOB", ""),
                 "replica": replica, "runner": host,
-                "argv": ["build/bench_refactor_csc", *COMMAND],
+                "argv": ["build/bench_refactor_csc", *HOSTED_COMMANDS[policy]],
                 "warmup_pairs": WARMUP_PAIRS, "measured_pairs": MEASURED_PAIRS,
                 "timeout_seconds_per_side": TIMEOUT_SECONDS,
                 "metric": "refactor_csc_ms", "metric_units": "ms",
@@ -191,7 +197,8 @@ def _collect(output: Path, replica: int) -> int:
                         start = now()
                         t0 = time.monotonic_ns()
                         stdout, stderr, status, timed_out = capture(
-                            root, timeout=min(TIMEOUT_SECONDS, remaining(deadline)),
+                            root, HOSTED_COMMANDS[policy],
+                            timeout=min(TIMEOUT_SECONDS, remaining(deadline)),
                         )
                         elapsed = time.monotonic_ns() - t0
                         end = now()
@@ -220,7 +227,7 @@ def _collect(output: Path, replica: int) -> int:
             write_json(output / "run.json", run)
             valid = all(row["validity"] == "valid" for row in rows)
             write_json(output / "decision.json", {
-                "policy_version": POLICY, "status": "pending_pair_review",
+                "policy_version": policy, "status": "pending_pair_review",
                 "all_trials_valid": valid, "trial_count": len(rows),
                 "baseline_accepted": False, "freshness_result": "separate",
             })
@@ -243,14 +250,14 @@ def write_manifest(output: Path) -> None:
     ), encoding="ascii")
 
 
-def collect(output: Path, replica: int) -> int:
+def collect(output: Path, replica: int, policy: str = POLICY) -> int:
     try:
-        return _collect(output, replica)
+        return _collect(output, replica, policy)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
             TimeoutError, ValueError) as exc:
         if output.is_dir():
             write_json(output / "failure.json", {
-                "policy_version": POLICY, "replica": replica,
+                "policy_version": policy, "replica": replica,
                 "status": "blocked", "reason": str(exc), "ended_at_utc": now(),
             })
             write_manifest(output)
@@ -261,9 +268,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--replica", type=int, required=True)
+    parser.add_argument("--policy", choices=tuple(HOSTED_COMMANDS), default=POLICY)
     args = parser.parse_args()
     try:
-        return collect(args.output_dir, args.replica)
+        return collect(args.output_dir, args.replica, args.policy)
     except subprocess.CalledProcessError as exc:
         print(f"refactor-csc-pair: {exc}", file=sys.stderr)
         for stream in (exc.stdout, exc.stderr):

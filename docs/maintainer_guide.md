@@ -1911,13 +1911,15 @@ Canonical output ownership:
 
 Current threshold-free reporting surface:
 
-Sprint 225 adds a separate `canonical-refactor-csc-timing` workflow. Its
-current proposed `s225-v3` same-machine paired protocol compares the fixed
-master source against the exact candidate using `nos4.mtx --repeat 1000`.
-Hosted run `44839416899` failed the locked v3 dispersion limit. The
-[proposed v4 dedicated method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
-has a separate offline collector and validator; it has not been collected
-or independently accepted.
+Sprint 225 adds a separate `canonical-refactor-csc-timing` workflow. The
+current proposed [s225-v5 hosted method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-22-v5-hosted-methodology.md)
+compares the fixed master source against the exact candidate using
+`nos4.mtx --repeat 10000` under the unchanged numerical limits. Hosted
+v3 runs `44839416899` and `45073302636` failed their locked dispersion
+limit. The [v4 dedicated method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
+has owner-accepted local one-cell evidence for commit
+`d637d4e0e832e49f7409f87fdf7bc9bc4b86582c`; it is separate from
+hosted v5 evidence and does not cover a later PR head.
 Its sample counts, dispersion and regression limits, runner identity, artifact
 route, and claim boundary are in the
 [benchmark guide](../benchmarks/README.md#sprint-225-one-cell-timing-decision).
@@ -1937,9 +1939,9 @@ its [raw-bundle decision](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v2-ba
 is rejected. The [proposed `s225-v3` method](planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v3-paired-methodology.md)
 requires independent method and evidence review before a result is accepted.
 
-For `s225-v3`, download all three `sprint225-pair-<run>-<attempt>-<replica>`
+For `s225-v5`, download all three `sprint225-pair-<run>-<attempt>-<replica>`
 artifacts and recompute the decision with
-`python3 scripts/check_refactor_csc_pair.py --bundle-root <download-root>
+`python3 scripts/check_refactor_csc_pair.py --policy s225-v5 --bundle-root <download-root>
 --candidate-commit <full-head-sha> --run-id <run-id>
 --run-attempt <attempt> --output <decision.json>`. Compare the recomputed
 receipt with the hosted decision and independently review every raw bundle.

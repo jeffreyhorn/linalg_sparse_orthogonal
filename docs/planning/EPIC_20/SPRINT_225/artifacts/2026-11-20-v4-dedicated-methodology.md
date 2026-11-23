@@ -1,6 +1,6 @@
 # Proposed s225-v4 dedicated same-machine timing protocol
 
-**Status: proposed; no v4 collection or independent approval yet.** The
+**Status at publication: proposed; no v4 collection or independent approval yet.** The
 reviewed v3 thresholds remain in force. Exact-candidate hosted run
 [`44839416899`](https://github.com/jeffreyhorn/linalg_sparse_orthogonal/actions/runs/44839416899)
 failed `S225_PAIR_DISPERSION`: replica 1 had MAD/median 0.14985,
@@ -82,3 +82,15 @@ python3 scripts/check_refactor_csc_dedicated.py \
 The existing v3 hosted gate remains separate and fail-closed. A v4
 provisional pass alone does not change the release decision, establish
 portable performance, or authorize a cross-library ranking.
+
+## Subsequent narrow acceptance
+
+On 2026-11-22, the repository owner explicitly accepted the one-cell v4
+evidence collected on the dedicated Intel Mac for exact candidate
+`d637d4e0e832e49f7409f87fdf7bc9bc4b86582c`, collection
+`1795389897142952000`, after reviewing the raw artifacts. The four ZIP
+digests and local review record remain in the ignored
+`build/sprint225-v4-20261122-d637d4e0/` directory on the collection
+machine. This is an acceptance of that exact cell and source commit only;
+it does not alter the failed hosted v3 decisions or establish a result
+for later commits.

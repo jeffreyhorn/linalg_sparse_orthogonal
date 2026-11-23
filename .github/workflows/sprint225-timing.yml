@@ -11,7 +11,7 @@ on:
 
 jobs:
   collect-pair:
-    name: macOS paired refactor CSC trial ${{ matrix.replica }} (s225-v3)
+    name: macOS paired refactor CSC trial ${{ matrix.replica }} (s225-v5)
     runs-on: macos-15-intel
     timeout-minutes: 20
     permissions:
@@ -31,6 +31,7 @@ jobs:
       - name: Collect same-machine raw baseline and candidate trials
         run: |
           python3 scripts/collect_refactor_csc_pair.py \
+            --policy s225-v5 \
             --replica ${{ matrix.replica }} \
             --output-dir sprint225-pair-raw
 
@@ -44,7 +45,7 @@ jobs:
           path: sprint225-pair-raw/
 
   canonical-refactor-csc-timing:
-    name: macOS enforced refactor CSC timing decision (s225-v3)
+    name: macOS enforced refactor CSC timing decision (s225-v5)
     needs: collect-pair
     if: always()
     runs-on: ubuntu-latest
@@ -68,6 +69,7 @@ jobs:
         if: always()
         run: |
           python3 scripts/check_refactor_csc_pair.py \
+            --policy s225-v5 \
             --bundle-root build/sprint225-paired-raw \
             --candidate-commit "$(git rev-parse HEAD)" \
             --run-id "${{ github.run_id }}" \

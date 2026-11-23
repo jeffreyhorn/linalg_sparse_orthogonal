@@ -39,7 +39,8 @@ def problems(workflow: dict) -> list[str]:
     raw = named.get("Collect same-machine raw baseline and candidate trials", {})
     upload = named.get("Upload paired raw trial bundle", {})
     if not all(token in raw.get("run", "") for token in (
-        "collect_refactor_csc_pair.py", "--replica", "--output-dir sprint225-pair-raw",
+        "collect_refactor_csc_pair.py", "--policy s225-v5", "--replica",
+        "--output-dir sprint225-pair-raw",
     )) or raw.get("continue-on-error") == "true":
         issues.append("paired raw collector must fail closed")
     with_fields = upload.get("with", {})
@@ -70,7 +71,7 @@ def problems(workflow: dict) -> list[str]:
     if (gate.get("if") != "always()" or gate.get("continue-on-error") == "true"
             or not all(token in gate.get("run", "") for token in (
                 "check_refactor_csc_pair.py", "--bundle-root", "--candidate-commit",
-                "--run-id", "--run-attempt", "--output",
+                "--run-id", "--run-attempt", "--policy s225-v5", "--output",
             ))):
         issues.append("independent raw decision must fail closed")
     if (decision_upload.get("if") != "always()" or
@@ -96,13 +97,19 @@ class TimingWorkflowTests(unittest.TestCase):
             ("shallow-source", lambda w: w["jobs"]["collect-pair"]["steps"][0]["with"].update({"fetch-depth": "1"})),
             ("no-raw-upload", lambda w: w["jobs"]["collect-pair"]["steps"].pop()),
             ("output-in-build-tree", lambda w: w["jobs"]["collect-pair"]["steps"][1].update({
-                "run": "python3 scripts/collect_refactor_csc_pair.py --replica 1 --output-dir build/sprint225-pair"
+                "run": "python3 scripts/collect_refactor_csc_pair.py --policy s225-v5 --replica 1 --output-dir build/sprint225-pair"
+            })),
+            ("wrong-collection-policy", lambda w: w["jobs"]["collect-pair"]["steps"][1].update({
+                "run": "python3 scripts/collect_refactor_csc_pair.py --policy s225-v3 --replica 1 --output-dir sprint225-pair-raw"
             })),
             ("upload-from-build-tree", lambda w: w["jobs"]["collect-pair"]["steps"][2]["with"].update({
                 "path": "build/sprint225-pair/"
             })),
             ("success-only-decision", lambda w: w["jobs"]["canonical-refactor-csc-timing"].update({"if": "success()"})),
             ("swallow-decision", lambda w: w["jobs"]["canonical-refactor-csc-timing"]["steps"][-2].update({"continue-on-error": "true"})),
+            ("wrong-decision-policy", lambda w: w["jobs"]["canonical-refactor-csc-timing"]["steps"][-2].update({
+                "run": "python3 scripts/check_refactor_csc_pair.py --policy s225-v3 --bundle-root x --candidate-commit x --run-id x --run-attempt x --output x"
+            })),
             ("freshness-substitute", lambda w: w["jobs"]["canonical-refactor-csc-timing"]["steps"][-2].update({"run": "python3 scripts/check_bench_canonical_freshness.py"})),
         ):
             with self.subTest(name=name):

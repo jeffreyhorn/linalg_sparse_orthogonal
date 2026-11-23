@@ -346,16 +346,21 @@ This is intentionally not a pass/fail timing gate:
 
 ### Sprint 225 one-cell timing decision
 
-The separate `canonical-refactor-csc-timing` workflow now proposes
-[`s225-v3` same-machine pairs](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-19-v3-paired-methodology.md).
-The exact-candidate v3 run `44839416899` failed the locked dispersion
-limit. A separate [proposed v4 dedicated protocol](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
-defines offline sequential collection on one isolated Intel Mac. No v4
-evidence or independent acceptance exists yet.
+The enforced `canonical-refactor-csc-timing` workflow now collects the
+separately versioned
+[`s225-v5` paired cell](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-22-v5-hosted-methodology.md)
+with `--repeat 10000` and the same locked numerical limits. Its exact-head
+raw bundles and decision require independent review; v3 results remain
+historical and cannot be pooled into v5.
+The exact-candidate v3 runs `44839416899` and `45073302636` failed
+their locked dispersion limits. A separate [v4 dedicated protocol](../docs/planning/EPIC_20/SPRINT_225/artifacts/2026-11-20-v4-dedicated-methodology.md)
+produced owner-accepted local one-cell evidence for commit
+`d637d4e0e832e49f7409f87fdf7bc9bc4b86582c`; that acceptance does not
+cover a later PR head or replace the hosted gate.
 Three independent `macos-15-intel` jobs each build fixed master commit
 `c42d6715fad7e895bae4941a006df3563f1afc38` and the exact candidate
 commit on one runner, then alternate baseline/candidate order for five
-warmup and 20 measured pairs. Each side runs the `nos4.mtx --repeat 1000`
+warmup and 20 measured pairs. Each side runs the `nos4.mtx --repeat 10000`
 SPD cell; only the per-refactor `refactor_csc_ms` field is compared.
 Per-pair candidate/baseline ratios must satisfy the documented three-job
 dispersion and 1.25 regression rules. All raw bytes and a separate decision
@@ -379,7 +384,7 @@ There is no candidate median, dispersion, or threshold verdict. The three
 downloaded, SHA-256-checked ZIP receipts are inventoried in the
 [Day 12 ledger](../docs/planning/EPIC_20/SPRINT_225/artifacts/day12-hosted-repetition-blocked.md).
 
-The `s225-v3` workflow uploads three `sprint225-pair-<run>-<attempt>-<replica>`
+The `s225-v5` workflow uploads three `sprint225-pair-<run>-<attempt>-<replica>`
 raw artifacts and one `sprint225-timing-<run>-<attempt>` decision artifact,
 including a blocked decision when a pair is absent. Each targets 90-day
 retention. Review the exact-head artifacts and recompute the decision from

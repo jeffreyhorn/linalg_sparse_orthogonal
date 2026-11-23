@@ -19,7 +19,7 @@ from statistics import median
 
 import check_refactor_csc_timing as common
 from collect_refactor_csc_pair import (
-    BASELINE_COMMIT, COMMAND, FIELDS, MEASURED_PAIRS, POLICY,
+    BASELINE_COMMIT, COMMAND, FIELDS, HOSTED_COMMANDS, MEASURED_PAIRS, POLICY,
     TIMEOUT_SECONDS, WARMUP_PAIRS,
 )
 
@@ -174,14 +174,16 @@ def stats(values: list[Decimal]) -> dict[str, Decimal]:
 
 def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
                expected_run: str, expected_attempt: str, *,
-               dedicated: bool = False) -> tuple[dict, str]:
+               dedicated: bool = False, hosted_policy: str = POLICY) -> tuple[dict, str]:
     members, member_manifest_hash = read_bundle(path)
     run = common.object_json(members["run.json"], RULE, "run.json")
     receipt = common.object_json(members["decision.json"], RULE, "decision.json")
-    policy = "s225-v4" if dedicated else POLICY
+    if not dedicated and hosted_policy not in HOSTED_COMMANDS:
+        reject("unsupported hosted timing policy")
+    policy = "s225-v4" if dedicated else hosted_policy
     expected_argv = (
         ["build/bench_refactor_csc", "tests/data/suitesparse/nos4.mtx", "--repeat", "10000"]
-        if dedicated else EXPECTED_ARGV
+        if dedicated else ["build/bench_refactor_csc", *HOSTED_COMMANDS[hosted_policy]]
     )
     if (run.get("schema_version"), run.get("policy_version"), run.get("baseline_commit"),
         run.get("candidate_commit"), run.get("replica")) != (
@@ -304,9 +306,10 @@ def check_pair(path: Path, replica: int, candidate_commit: str, checkout: Path,
 
 
 def decide(root: Path, candidate_commit: str, checkout: Path,
-           expected_run: str, expected_attempt: str) -> tuple[dict, int]:
+           expected_run: str, expected_attempt: str,
+           hosted_policy: str = POLICY) -> tuple[dict, int]:
     report: dict[str, object] = {
-        "schema_version": 1, "policy_version": POLICY,
+        "schema_version": 1, "policy_version": hosted_policy,
         "baseline_commit": BASELINE_COMMIT, "candidate_commit": candidate_commit,
         "status": "blocked", "primary_rule": "S225_PAIR_MISSING",
         "claim_scope": "one_paired_refactor_csc_nos4_cell_on_matched_macos_runner",
@@ -315,6 +318,8 @@ def decide(root: Path, candidate_commit: str, checkout: Path,
         "evaluated_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     try:
+        if hosted_policy not in HOSTED_COMMANDS:
+            reject("unsupported hosted timing policy")
         if not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
             reject("invalid candidate source commit")
         if not expected_run.isdecimal() or not expected_attempt.isdecimal():
@@ -325,7 +330,8 @@ def decide(root: Path, candidate_commit: str, checkout: Path,
         for replica in (1, 2, 3):
             result, member_manifest_hash = check_pair(root / f"sprint225-pair-{expected_run}-{expected_attempt}-{replica}",
                                              replica, candidate_commit, checkout,
-                                             expected_run, expected_attempt)
+                                             expected_run, expected_attempt,
+                                             hosted_policy=hosted_policy)
             result["member_manifest_sha256"] = member_manifest_hash
             jobs.append(result)
         first = jobs[0]
@@ -364,11 +370,12 @@ def main() -> int:
     parser.add_argument("--candidate-commit", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--run-attempt", required=True)
+    parser.add_argument("--policy", choices=tuple(HOSTED_COMMANDS), default=POLICY)
     parser.add_argument("--checkout", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     report, code = decide(args.bundle_root, args.candidate_commit, args.checkout,
-                          args.run_id, args.run_attempt)
+                          args.run_id, args.run_attempt, args.policy)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"refactor-csc-pair: {report['primary_rule']}: {report['detail']}")

@@ -51,7 +51,8 @@ def rehash(directory: Path) -> None:
 
 
 def make_bundle(root: Path, replica: int, candidate_commit: str,
-                candidate_values: list[str] | None = None) -> Path:
+                candidate_values: list[str] | None = None,
+                policy: str = pair.POLICY) -> Path:
     directory = root / f"sprint225-pair-1234-1-{replica}"
     (directory / "trials").mkdir(parents=True)
     (directory / "build-baseline.log").write_bytes(b"synthetic baseline build\n")
@@ -69,7 +70,8 @@ def make_bundle(root: Path, replica: int, candidate_commit: str,
                 "makefile_sha256": pair.source_sha(commit, "Makefile", ROOT),
                 "fixture_sha256": common.FIXTURE_SHA256}
 
-    run = {"schema_version": 1, "policy_version": pair.POLICY,
+    argv = ["build/bench_refactor_csc", *collector.HOSTED_COMMANDS[policy]]
+    run = {"schema_version": 1, "policy_version": policy,
            "baseline_commit": pair.BASELINE_COMMIT, "candidate_commit": candidate_commit,
            "baseline": side(pair.BASELINE_COMMIT, "1"),
            "candidate": side(candidate_commit, "2"),
@@ -79,13 +81,13 @@ def make_bundle(root: Path, replica: int, candidate_commit: str,
                       "os": "macOS-15.7.9-x86_64", "architecture": "x86_64",
                       "cpu_model": "Intel i7", "compiler_path": "/usr/bin/cc",
                       "compiler_version": "Apple clang 17", "runner_label": f"ephemeral-{replica}"},
-           "argv": pair.EXPECTED_ARGV, "warmup_pairs": 5, "measured_pairs": 20,
+           "argv": argv, "warmup_pairs": 5, "measured_pairs": 20,
            "timeout_seconds_per_side": 30, "metric": "refactor_csc_ms", "metric_units": "ms",
            "thread_environment": {"OMP_NUM_THREADS": "1", "SPARSE_OPENMP": "unset"},
            "started_at_utc": stamp, "ended_at_utc": stamp}
     (directory / "run.json").write_bytes(encoded(run))
     (directory / "decision.json").write_bytes(encoded({
-        "policy_version": pair.POLICY, "status": "pending_pair_review",
+        "policy_version": policy, "status": "pending_pair_review",
         "all_trials_valid": True, "trial_count": 50,
         "baseline_accepted": False, "freshness_result": "separate",
     }))
@@ -100,7 +102,7 @@ def make_bundle(root: Path, replica: int, candidate_commit: str,
             stem.with_suffix(".stdout").write_bytes(stdout)
             stem.with_suffix(".stderr").write_bytes(b"")
             rows.append({"pair": number, "phase": "warmup" if number <= 5 else "measured",
-                         "side": side_name, "argv": json.dumps(pair.EXPECTED_ARGV),
+                         "side": side_name, "argv": json.dumps(argv),
                          "started_at_utc": stamp, "ended_at_utc": stamp,
                          "outer_elapsed_ns": 1000, "exit_code": 0, "timed_out": False,
                          "refactor_csc_ms": value, "validity": "valid",
@@ -130,6 +132,20 @@ class PairDecisionTests(unittest.TestCase):
         self.assertEqual((report["primary_rule"], code), ("S225_PAIR_PASS", 0))
         self.assertEqual(report["reference_median_ratio"], "1")
         self.assertEqual(len(report["jobs"]), 3)
+
+    def test_v5_longer_workload_is_separate_from_v3(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directories = [
+                make_bundle(root, replica, self.commit, policy="s225-v5")
+                for replica in (1, 2, 3)
+            ]
+            report, code = pair.decide(root, self.commit, ROOT, "1234", "1", "s225-v5")
+            self.assertEqual((report["policy_version"], code), ("s225-v5", 0))
+            self.assertEqual(pair.decide(root, self.commit, ROOT, "1234", "1")[1], 2)
+            self.change_run(directories[0], "argv", pair.EXPECTED_ARGV)
+            rehash(directories[0])
+            self.assertEqual(pair.decide(root, self.commit, ROOT, "1234", "1", "s225-v5")[1], 2)
 
     def test_zip_and_extracted_directory_bind_the_same_raw_members(self):
         directory = self.directories[0]
@@ -168,7 +184,7 @@ class PairDecisionTests(unittest.TestCase):
 
     def test_hosted_failure_keeps_blocked_receipt_for_upload(self):
         output = self.root / "failed-pair"
-        def fail_after_start(path, replica):
+        def fail_after_start(path, replica, policy):
             path.mkdir()
             (path / "build-baseline.log").write_bytes(b"compiler failed\n")
             raise TimeoutError("hosted collection deadline expired")

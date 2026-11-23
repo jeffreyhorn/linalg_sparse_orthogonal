@@ -201,6 +201,12 @@ def write_trial_rows(directory: Path, rows: list[dict[str, str]]) -> None:
 
 
 class TimingDecisionTests(unittest.TestCase):
+    def test_v2_collector_and_gate_use_the_reviewed_repeat_count(self):
+        self.assertEqual(gate.POLICY, collector.POLICY_VERSION)
+        self.assertEqual(gate.POLICY, "s225-v2")
+        self.assertEqual(gate.ARGV, ["build/bench_refactor_csc", *collector.COMMAND])
+        self.assertEqual(collector.COMMAND[-2:], ["--repeat", "100"])
+
     def test_real_branch_without_accepted_baseline_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -447,7 +453,7 @@ class TimingDecisionTests(unittest.TestCase):
                     elif name == "malformed-schema":
                         manifest["schema_version"] = 99
                     elif name == "version-mismatch":
-                        manifest["policy_version"] = "s225-v2"
+                        manifest["policy_version"] = "s225-v1"
                     elif name == "source-mismatch":
                         manifest["source_commit"] = "c" * 40
                     payload = encoded(manifest)

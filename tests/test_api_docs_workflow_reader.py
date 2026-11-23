@@ -57,7 +57,7 @@ class WorkflowReaderTests(unittest.TestCase):
             if step.action_identity is not None
             and step.action_identity.value == "actions/upload-artifact@v4"
         ]
-        self.assertEqual(len(upload_steps), 11)
+        self.assertEqual(len(upload_steps), 12)
         self.assertTrue(all("path" in dict(step.with_inputs) for step in upload_steps))
         self.assertTrue(
             any(

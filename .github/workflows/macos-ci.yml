@@ -70,6 +70,8 @@ jobs:
           "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_local_only_guard.py
           "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_api_docs_workflow_mutations.py
           "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_sprint225_timing_workflow.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_check_refactor_csc_pair.py
+          "$RUNNER_TEMP/api-docs-reader-venv/bin/python" tests/test_check_refactor_csc_dedicated.py
           API_DOCS_PYTHON="$RUNNER_TEMP/api-docs-reader-venv/bin/python" bash scripts/check_api_docs_local_only.sh
 
       # Apple Clang ships with the macos-latest image; no install

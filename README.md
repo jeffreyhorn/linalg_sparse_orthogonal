@@ -261,7 +261,11 @@ performance, or state-of-the-art standing.
 
 Sprint 221 adds the [v1 validator maintainer guide](docs/planning/EPIC_20/SPRINT_221/artifacts/day13-validator-maintainer-guide.md)
 and a passing format/consistency preflight. The historical blocked attempt
-remains blocked; no real two-sided CHOLMOD result has been accepted.
+remains blocked. [Sprint 222](docs/planning/EPIC_20/SPRINT_222/RETROSPECTIVE.md)
+subsequently ran both solvers on the selected fixture and passed local
+numerical checks. Incomplete baseline build/runtime provenance and pending
+rights review prevented acceptance or publication of that comparison; it is
+not public CHOLMOD parity or timing evidence.
 
 Generated report artifacts remain under ignored `build/` paths. Regenerate
 them before interpreting rows, and treat them as navigation or local evidence
@@ -419,15 +423,12 @@ and non-claim evidence before the user-facing claim boundary changes.
 
 ### With CMake
 
-```bash
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build .
-ctest           # run tests
-cmake --install .   # install (supports find_package(Sparse))
-```
-
-See [INSTALL.md](INSTALL.md) for detailed cross-platform instructions.
+For a staged static install, follow the maintained
+[CMake build and install commands](INSTALL.md#cmake-build), then the
+[installed CMake consumer](INSTALL.md#cmake-consumer). They use separate build
+and consumer trees and an explicit writable prefix. The
+[support/readiness matrix](INSTALL.md#support-readiness-matrix) defines the
+platform scope.
 
 ### Compiler Requirements
 
@@ -1113,24 +1114,18 @@ linalg_sparse_orthogonal/
 
 ## Installation
 
-Use [INSTALL.md#start-here](INSTALL.md#start-here) for platform-specific
-setup, staged installs, downstream consumer workflows, install-surface
-validation, and the active
-[support/readiness matrix](INSTALL.md#support-readiness-matrix). The README
-keeps only the shortest static-first local summary:
+Use [INSTALL.md#start-here](INSTALL.md#start-here) for the staged static
+install, platform-specific setup, downstream consumer commands, validation,
+and the active [support/readiness matrix](INSTALL.md#support-readiness-matrix).
+The [Make quick start](INSTALL.md#quick-start-makefile) and
+[CMake build](INSTALL.md#cmake-build) use a local prefix without system-wide
+write access. Choose one route, then follow the
+[installed consumer tutorial](INSTALL.md#installed-consumer-tutorial) for a
+first solve against the installed package.
 
-```bash
-# Makefile
-make && make test && make install PREFIX=/usr/local
-
-# CMake
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build build
-cmake --install build
-```
-
-After installation, downstream projects can use either `pkg-config` or
-`find_package(Sparse)` against the maintained static package surface:
+Choose the consumer that matches the install route. A Make install supplies
+`pkg-config` metadata; a CMake install supplies both `pkg-config` metadata and
+the `find_package(Sparse)` export:
 
 - `pkg-config --cflags --libs sparse`
 - `find_package(Sparse REQUIRED)` plus

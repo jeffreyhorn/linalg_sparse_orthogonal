@@ -194,6 +194,18 @@ class PairDecisionTests(unittest.TestCase):
         self.assertEqual(json.loads((output / "failure.json").read_text())["status"], "blocked")
         self.assertIn("build-baseline.log", (output / "hashes.sha256").read_text())
 
+    def test_existing_hosted_bundle_is_untouched(self):
+        output = self.directories[0]
+        before = {path.relative_to(output): path.read_bytes()
+                  for path in output.rglob("*") if path.is_file()}
+        with mock.patch.object(collector, "_collect", side_effect=AssertionError("collector ran")):
+            with self.assertRaisesRegex(ValueError, "output must be new"):
+                collector.collect(output, 1)
+        after = {path.relative_to(output): path.read_bytes()
+                 for path in output.rglob("*") if path.is_file()}
+        self.assertEqual(after, before)
+        self.assertNotIn(Path("failure.json"), after)
+
     def test_directory_total_limit_rejects_before_opening_file(self):
         directory = self.directories[0]
         for number in range(1, 12):

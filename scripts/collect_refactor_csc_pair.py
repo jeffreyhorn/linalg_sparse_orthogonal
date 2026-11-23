@@ -251,6 +251,10 @@ def write_manifest(output: Path) -> None:
 
 
 def collect(output: Path, replica: int, policy: str = POLICY) -> int:
+    # An existing bundle belongs to an earlier attempt. Never finalize its failure
+    # receipt or manifest while rejecting a duplicate output path.
+    if output.exists():
+        raise ValueError("output must be new and replica must be 1, 2, or 3")
     try:
         return _collect(output, replica, policy)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,

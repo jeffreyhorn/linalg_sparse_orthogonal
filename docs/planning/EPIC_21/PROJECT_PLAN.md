@@ -77,7 +77,7 @@ Default reconstruction has no `m×n` accumulator; verified output and error beha
 
 **Duration:** 14 days, approximately 140 hours.
 
-**Goal:** Complete one coherent CG status, iteration and residual contract across assembled, matrix-free and block entry points.
+**Goal:** Complete one coherent CG status, iteration and residual contract across assembled one-shot and reusable-handle, matrix-free and block entry points.
 
 ### Prerequisites from Previous Sprints
 
@@ -88,10 +88,10 @@ Default reconstruction has no `m×n` accumulator; verified output and error beha
 
 | Item # | Item Name | Item Description | Estimate (hours) |
 | --- | --- | --- | ---: |
-| 229.1 | Status Specification | Freeze initial/post-update convergence, zero budget, breakdown, callback/history and block aggregation semantics. | 18 |
-| 229.2 | Independent CG Oracle | Build SPD, extreme-scale and invalid-preconditioner corpus with true residual and expected iteration counts. | 26 |
-| 229.3 | Three-Path Repair | Fix assembled, matrix-free and block discrepancies, sharing helpers only where contracts match. | 32 |
-| 229.4 | Failure And Thread Cases | Test allocation cleanup, reentrancy and callback behavior without hidden state leakage. | 26 |
+| 229.1 | Status Specification | Freeze initial/post-update convergence, zero budget, breakdown, callback/history, reusable-handle and block aggregation semantics. | 18 |
+| 229.2 | Independent CG Oracle | Build SPD, extreme-scale and invalid-preconditioner corpus with status-qualified residual/output expectations and expected iteration counts. | 26 |
+| 229.3 | Full-Surface Repair | Fix one-shot, reusable-handle, matrix-free and block discrepancies, sharing helpers only where contracts match. | 32 |
+| 229.4 | Handle, Failure And Thread Cases | Test explicit preparation, underprepared growth, repeated reuse after success and failure, allocation cleanup, reentrancy and callbacks without hidden state leakage. | 26 |
 | 229.5 | Hosted Compiler Matrix | Register focused corpus on GCC, Apple Clang and MSVC and retain exact-head results. | 20 |
 | 229.6 | Quality Closure | Run full C quality, sanitizer, CMake parity and document limits. | 18 |
 
@@ -102,7 +102,7 @@ Default reconstruction has no `m×n` accumulator; verified output and error beha
 
 ### Completion Criteria
 
-All three CG entry points satisfy the same declared initial, completed-step and final-residual rules on the frozen corpus; no claim is made for other Krylov families.
+The one-shot, reusable-handle, matrix-free and block CG entry points satisfy the declared initial, completed-step and final-verification rules on the frozen corpus. Residual and output assertions follow each return status: selected computed numeric failures require `converged=0` and `residual_norm=NaN`, invalid input and other hard errors receive only their documented guarantees, and completed selected solves receive the declared true-residual checks. Prepared, underprepared and grown handles remain reusable after both successful and failed solves; no claim is made for other Krylov families.
 
 ### Total Estimate
 
@@ -112,7 +112,7 @@ All three CG entry points satisfy the same declared initial, completed-step and 
 
 **Duration:** 14 days, approximately 140 hours.
 
-**Goal:** Close MINRES's numerical status and true-residual handling as a separate complete solver-family owner.
+**Goal:** Close MINRES's numerical status and true-residual handling across one-shot, reusable-handle and block entry points as a separate complete solver-family owner.
 
 ### Prerequisites from Previous Sprints
 
@@ -123,10 +123,10 @@ All three CG entry points satisfy the same declared initial, completed-step and 
 
 | Item # | Item Name | Item Description | Estimate (hours) |
 | --- | --- | --- | ---: |
-| 230.1 | Public Contract | Specify initial convergence, zero budget, preconditioner BADARG, Lanczos breakdown, counts and residual fields. | 18 |
-| 230.2 | Symmetric Oracle | Build independent indefinite/semidefinite, exact-breakdown and extreme-scale reference cases. | 28 |
-| 230.3 | Recurrence And Exit Repair | Remove unused products on exit and correct numeric/breakdown and final-verification paths as tests require. | 30 |
-| 230.4 | Lifecycle Tests | Exercise preconditioned/unpreconditioned callbacks, histories, allocation failures and retries. | 24 |
+| 230.1 | Public Contract | Specify initial convergence, zero budget, preconditioner BADARG, Lanczos breakdown, reusable-handle, block aggregation, counts and residual fields. | 18 |
+| 230.2 | Symmetric Oracle | Build independent indefinite/semidefinite, exact-breakdown and extreme-scale reference cases for one-shot, handle and mixed-column block solves. | 28 |
+| 230.3 | Recurrence And Exit Repair | Remove unused products on exit and correct numeric/breakdown and final-verification paths across the public MINRES surface as tests require. | 30 |
+| 230.4 | Handle And Block Lifecycle Tests | Exercise explicit preparation, underprepared growth, reuse after failures, mixed converged/non-converged columns, aggregate count/residual rules, callbacks, histories, allocation failures and retries. | 24 |
 | 230.5 | Portability Proof | Retain focused GCC/Clang/MSVC and CMake/Make output for exact source head. | 22 |
 | 230.6 | Quality Closure | Pass format/lint/test, sanitizer and updated API/solver guidance checks. | 18 |
 
@@ -137,7 +137,7 @@ All three CG entry points satisfy the same declared initial, completed-step and 
 
 ### Completion Criteria
 
-The frozen MINRES corpus passes with consistent public diagnostics; GMRES and BiCGSTAB breadth remains explicitly outside this sprint.
+The one-shot and prepared, underprepared and repeatedly reused handle paths satisfy the same status-qualified contract, including reuse after failures. Block MINRES satisfies per-column convergence plus documented aggregate count and residual rules for mixed outcomes. The frozen corpus passes with consistent public diagnostics; GMRES and BiCGSTAB breadth remains explicitly outside this sprint.
 
 ### Total Estimate
 

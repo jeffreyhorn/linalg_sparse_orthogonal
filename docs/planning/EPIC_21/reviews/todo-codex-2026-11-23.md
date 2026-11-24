@@ -24,23 +24,23 @@ Companion to the [code review](review-codex-2026-11-23.md). Steps are in depende
 
 ## 3. Close CG-family status and extreme-scale conformance (Sprint 229; R21-04)
 
-1. Freeze assembled, matrix-free and block CG status, iteration-count, initial-convergence, zero-budget, callback/history and final true-residual contracts.
-2. Build an independent SPD oracle with representable extreme scales, well/ill-conditioned cases, finite and invalid preconditioner outputs, and post-update overflow traps.
-3. Repair discrepancies in the three entry points through shared helpers only where semantics truly match; preserve completed-step counts and aggregate block behavior.
-4. Exercise allocation-failure and thread/reentrant cases; add focused MSVC/Clang/GCC hosted registration.
+1. Freeze assembled one-shot and reusable-handle, matrix-free and block CG status, iteration-count, initial-convergence, zero-budget, callback/history and final true-residual contracts.
+2. Build an independent SPD oracle with representable extreme scales, well/ill-conditioned cases, finite and invalid preconditioner outputs, and post-update overflow traps. Define residual and output expectations by return status, including required `NaN` diagnostics for selected computed numeric failures and the lack of a residual guarantee on invalid input or other hard errors.
+3. Repair discrepancies across the public CG surface through shared helpers only where semantics truly match; preserve completed-step counts and aggregate block behavior.
+4. Exercise explicit handle preparation, underprepared growth, repeated reuse after successful and failed solves, allocation failures and thread/reentrant cases; add focused MSVC/Clang/GCC hosted registration.
 5. Run full C quality, sanitizers, CMake parity and record exact pass/fail evidence.
 
-**Done when:** every CG entry point returns the specified status, count, finite residual and output on the frozen corpus. This is a complete CG-family contract, not all Krylov solvers.
+**Done when:** every CG entry point returns the specified status and count plus the residual/output state promised for that status on the frozen corpus. Completed selected solves satisfy true-residual expectations; selected computed numeric failures report `converged=0` and `residual_norm=NaN`; invalid input and other hard errors are not assigned guarantees absent from the public contract. Prepared, grown and reused handles remain valid after both successful and failed solves. This is a complete CG-family contract, not all Krylov solvers.
 
 ## 4. Close MINRES breakdown and residual conformance (Sprint 230; R21-04)
 
-1. Freeze MINRES initial residual, zero-budget, Lanczos/preconditioner breakdown, callback/history, final true-residual and numeric-failure semantics in the public header.
-2. Construct an independent symmetric-indefinite/semidefinite oracle and extreme-scale cases, including the PR #241 failure shapes.
-3. Refactor only the recurrence and final-verification seams required by failures; check no unused product is computed after tolerance or budget exit.
-4. Test deterministic results and failure cleanup with/without preconditioner; include CMake, Make and hosted compilers.
+1. Freeze one-shot, reusable-handle and block MINRES initial residual, zero-budget, Lanczos/preconditioner breakdown, callback/history, final true-residual, numeric-failure and aggregate block semantics in the public header.
+2. Construct an independent symmetric-indefinite/semidefinite oracle and extreme-scale cases, including the PR #241 failure shapes and mixed converged/non-converged block columns.
+3. Refactor only the recurrence and final-verification seams required by failures; check no unused product is computed after tolerance or budget exit across the public MINRES surface.
+4. Test explicit handle preparation, underprepared growth, repeated reuse after success and failure, deterministic block count/residual aggregation, and cleanup with/without preconditioner; include CMake, Make and hosted compilers.
 5. Run full C quality and sanitizers; retain numerical diagnostics and bounded limitations.
 
-**Done when:** MINRES's declared status/iteration/residual contract is verified across the frozen corpus. GMRES and BiCGSTAB remain separate future conformance owners.
+**Done when:** one-shot and reusable-handle MINRES satisfy the same declared status/iteration/residual contract, handles remain reusable after failure, and block MINRES satisfies documented per-column and aggregate count/residual behavior across the frozen corpus. GMRES and BiCGSTAB remain separate future conformance owners.
 
 ## 5. Prove one genuinely 64-bit input-to-solve route (Sprint 231; R21-05)
 

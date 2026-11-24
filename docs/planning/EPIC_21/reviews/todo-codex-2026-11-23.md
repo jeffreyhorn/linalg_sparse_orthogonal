@@ -78,9 +78,9 @@ Companion to the [code review](review-codex-2026-11-23.md). Steps are in depende
 2. Independently generate two source archives from that exact tree; compare bytes, content/license manifest and exported package metadata.
 3. Extract the archive twice into clean environments and run Make and CMake static install plus 32/64 width-mismatch/positive consumer probes.
 4. Collect Linux/macOS/Windows exact-candidate hosted proof for the claimed routes, with test counts and failure receipts; reject stale-head evidence.
-5. Obtain named approvals and a rollback plan before calling the package release-ready. No tag or publication is implied by this sprint plan.
+5. Obtain named approvals and a rollback plan before calling the package release-ready. Timing/product owners must also either independently accept the exact-candidate s225-v5 methodology, original bundles and recomputed decision, or sign a narrower static release scope that keeps timing blocked and makes no speed claim. Sprint 235's later kernel comparison is not a substitute for this inherited decision. No tag or publication is implied by this sprint plan.
 
-**Done when:** the exact candidate has reproducible source and installed-first-use evidence plus required signatures. If an owner is unavailable, label release readiness blocked and leave unsigned artifacts as technical evidence only.
+**Done when:** the exact candidate has reproducible source and installed-first-use evidence plus required signatures, including the explicit timing/product-owner acceptance or narrower-scope decision. If an owner is unavailable or neither timing decision is signed, label release readiness blocked and leave unsigned artifacts as technical evidence only.
 
 ## 9. Make one performance comparison meaningful (Sprint 235; R21-09)
 

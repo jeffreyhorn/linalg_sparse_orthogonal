@@ -265,7 +265,7 @@ The cell is closed only with repeated two-sided numerical success, complete veri
 | 234.2 | Independent Archives | Build two source archives from that tree, compare bytes and review source/license manifest. | 24 |
 | 234.3 | Extracted Install | Install Make/CMake static artifacts from archives in clean prefixes and prove 32/64 consumers and mismatch rejection. | 28 |
 | 234.4 | Hosted Candidate Matrix | Collect Linux/macOS/Windows required checks, test counts and failure receipts for the exact candidate. | 28 |
-| 234.5 | Security/Release Review | Obtain required signers, supply-chain/rollback evidence and a go/no-go record; keep unsigned result blocked. | 20 |
+| 234.5 | Security/Release And Timing Review | Obtain required signers, supply-chain/rollback evidence and a go/no-go record. Timing/product owners must independently accept exact-candidate s225-v5 evidence or sign a narrower static scope that keeps timing blocked and makes no speed claim; keep unsigned results blocked. | 20 |
 | 234.6 | Quality Closure | Reconcile archive/installed manifests, docs and final candidate-specific gates. | 20 |
 
 ### Deliverables
@@ -275,7 +275,7 @@ The cell is closed only with repeated two-sided numerical success, complete veri
 
 ### Completion Criteria
 
-One SHA passes archive, install, platform and approval gates before `release-ready` wording. A source CI pass or exploratory archive alone is insufficient.
+One SHA passes archive, install, platform and approval gates before `release-ready` wording. For that exact candidate, timing/product owners also either independently accept the s225-v5 methodology, original bundles and recomputed decision, or sign a narrower static scope that leaves timing blocked and makes no speed claim. Sprint 235's later kernel comparison is separate evidence and cannot substitute for this inherited decision. A source CI pass or exploratory archive alone is insufficient.
 
 ### Total Estimate
 

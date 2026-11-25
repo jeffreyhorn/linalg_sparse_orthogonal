@@ -178,11 +178,11 @@ The named route works with real 64-bit types and rejects unrepresentable metadat
 
 140 hours.
 
-## Sprint 232: Evidence Tool Ownership and CI Inventory
+## Sprint 232: C And Evidence Tool Ownership with CI Inventory
 
 **Duration:** 14 days, approximately 140 hours.
 
-**Goal:** Make one oversized report/policy tool easier to maintain while keeping fail-closed output and complete hosted test registration.
+**Goal:** Close one bounded C implementation/test ownership seam and make one oversized report/policy tool easier to maintain while preserving public compatibility, fail-closed output and complete hosted test registration.
 
 ### Prerequisites from Previous Sprints
 
@@ -193,20 +193,21 @@ The named route works with real 64-bit types and rejects unrepresentable metadat
 
 | Item # | Item Name | Item Description | Estimate (hours) |
 | --- | --- | --- | ---: |
-| 232.1 | Output Freeze | Snapshot CLI/JSON/exit codes, real workflow inputs and mutation verdicts for the selected tool. | 20 |
-| 232.2 | Module Extraction | Separate parser/validator/renderer responsibilities without changing accepted evidence semantics. | 30 |
-| 232.3 | Inventory Contract | Replace manual workflow-count assumptions with a declared checked registry; detect missing test registration. | 26 |
-| 232.4 | Adversarial Corpus | Add stale provenance, renamed workflow, malformed input and diagnostic stability cases. | 24 |
+| 232.1 | Compatibility Freeze | Freeze the selected C seam's public ABI/source behavior and independent invariants plus the selected tool's CLI/JSON/exit codes, real inputs and mutation verdicts. | 20 |
+| 232.2 | C Ownership Extraction | Move one named responsibility from an oversized C implementation and its matching oversized test source into a bounded internal module and focused test owner; preserve public ABI/source compatibility. | 28 |
+| 232.3 | Evidence Module Extraction | Separate the selected tool's parser/validator/renderer responsibilities without changing accepted evidence semantics. | 26 |
+| 232.4 | Inventory And Adversarial Contract | Replace manual workflow-count assumptions with a declared checked registry and add stale provenance, renamed workflow, malformed input and diagnostic stability cases. | 26 |
 | 232.5 | CI Wiring | Register affected Python suites and local-only guard in Linux/macOS lanes with pinned dependencies. | 20 |
-| 232.6 | Quality Closure | Run policy/differential/mutation suites, docs-check and exact-head hosted checks. | 20 |
+| 232.6 | Quality Closure | Run C format/lint/test, Make/CMake parity, focused sanitizer and independent invariant tests plus policy/differential/mutation suites, docs-check and exact-head hosted checks. | 20 |
 
 ### Deliverables
 
+- One bounded C implementation/test owner with independent invariant fixtures.
 - Smaller bounded policy/evidence modules, frozen compatibility fixtures and CI inventory proof.
 
 ### Completion Criteria
 
-The selected tool's accepted/rejected outputs match the frozen contract; every affected test is run by CI and missing inventory items fail closed.
+The selected C responsibility has one named internal module and focused test owner, its invariants are tested independently of implementation details, the original oversized implementation/test pair no longer owns that seam, public ABI/source behavior is unchanged, and parity plus sanitizer gates pass. The selected tool's accepted/rejected outputs match the frozen contract; every affected test is run by CI and missing inventory items fail closed.
 
 ### Total Estimate
 

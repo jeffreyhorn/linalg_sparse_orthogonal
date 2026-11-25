@@ -52,15 +52,15 @@ Companion to the [code review](review-codex-2026-11-23.md). Steps are in depende
 
 **Done when:** one named 64-bit parse/convert/solve/installed-consumer route has passing positive and negative evidence; other algorithms remain unclaimed.
 
-## 6. Consolidate evidence-policy ownership (Sprint 232; R21-06/10)
+## 6. Consolidate C and evidence-policy ownership (Sprint 232; R21-06/10)
 
-1. Freeze JSON/CLI/exit-code and generated-report outputs of `normalize_report_index.py`, API-doc policy inputs and external evidence validation with golden fixtures.
-2. Extract bounded parser, validation and report-rendering modules from one oversized script at a time without changing accepted records or public wording.
-3. Replace brittle manually counted workflow inventory assertions with a declared, machine-checked inventory; register all affected Python tests in Linux/macOS CI.
-4. Add mutation tests for missing/mismatched provenance, stale claims and changed workflow names; retain failure diagnostics.
-5. Run all affected Python suites, API-doc local-only guard, docs-check and the CI lanes that execute them.
+1. Select one responsibility spanning an oversized C implementation and matching oversized test source. Freeze its public ABI/source behavior and create invariant tests that do not depend on the current internal layout.
+2. Extract that responsibility into one bounded internal C module and a focused test owner, remove duplicate ownership from the original large files, and preserve public compatibility.
+3. Freeze JSON/CLI/exit-code and generated-report outputs of `normalize_report_index.py`, API-doc policy inputs and external evidence validation with golden fixtures; extract bounded parser, validation and report-rendering modules from one oversized script without changing accepted records or public wording.
+4. Replace brittle manually counted workflow inventory assertions with a declared, machine-checked inventory; add mutations for missing/mismatched provenance, stale claims and changed workflow names; register all affected Python tests in Linux/macOS CI.
+5. Run C format/lint/test, Make/CMake parity, focused sanitizers and the independent invariant corpus plus all affected Python suites, API-doc local-only guard, docs-check and exact-head CI lanes.
 
-**Done when:** the selected tool's ownership surface is smaller, output contracts are unchanged and CI detects an omitted test or workflow. This does not claim arbitrary YAML/shell parsing is solved.
+**Done when:** the selected C responsibility has one named bounded module and focused test owner, independent invariant coverage, unchanged public ABI/source behavior and passing parity/sanitizer proof; the original oversized implementation/test pair no longer owns that seam. The selected evidence tool's ownership surface is smaller, output contracts are unchanged and CI detects an omitted test or workflow. This does not claim that every large C file or arbitrary YAML/shell parsing is solved.
 
 ## 7. Complete one validator-accepted CHOLMOD correctness cell (Sprint 233; R21-08)
 

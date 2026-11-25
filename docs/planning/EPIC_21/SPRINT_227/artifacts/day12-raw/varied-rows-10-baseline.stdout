@@ -1,0 +1,2 @@
+fixture,workload_id,rows,cols,a_nnz,b_nnz,c_nnz,max_output_row_width,elapsed_ms
+varied-rows,s227-add-varied-r64-c1024-v1,64,1024,4608,4608,9216,256,2.117000

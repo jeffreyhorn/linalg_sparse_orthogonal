@@ -1,6 +1,7 @@
 #include "sparse_matrix.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -365,7 +366,8 @@ SparseMatrix *sparse_transpose(const SparseMatrix *A) {
 
 static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t col);
 
-sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val) {
+static sparse_err_t sparse_insert_impl(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val,
+                                       int injectable) {
     if (!mat)
         return SPARSE_ERR_NULL;
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
@@ -397,7 +399,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scala
     }
 
     /* Create a new node */
-    Node *node = sparse_matrix_make_node(mat, row, col, val);
+    Node *node = sparse_matrix_make_node_impl(mat, row, col, val, injectable);
     if (!node) {
         SPARSE_UNLOCK(mat);
         return SPARSE_ERR_ALLOC;
@@ -427,6 +429,10 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scala
 
     SPARSE_UNLOCK(mat);
     return SPARSE_OK;
+}
+
+sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val) {
+    return sparse_insert_impl(mat, row, col, val, 0);
 }
 
 /* Internal remove (no locking — called from within locked sparse_insert) */
@@ -664,9 +670,108 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha) {
     return SPARSE_OK;
 }
 
-/* NOTE: sparse_add() and sparse_add_inplace() operate in physical index space.
- * Do not use on matrices with non-identity permutations (e.g., after LU
- * factorization) — results would not correspond to logical matrix entries. */
+/* Matrix arithmetic is only defined for original-state physical storage.
+ * Keep this validation after pointer/shape checks and before allocation or
+ * mutation so unsupported factor/permutation state fails atomically.
+ *
+ * The out-of-place builder consumes rows in increasing order and accepts
+ * strictly increasing columns within each row. Its row tail and per-column
+ * tails make each retained-node publication O(1), so sparse_add's merge does
+ * not reintroduce sparse_insert's row/column head scans. finish() transfers
+ * the only output owner; abort() owns every partial-failure cleanup. */
+typedef struct {
+    SparseMatrix *out;
+    Node **col_tails;
+    Node *row_tail;
+    idx_t next_row;
+    idx_t current_row;
+    idx_t last_col;
+    int active;
+} SparseSortedOutputBuilder;
+
+static void sparse_sorted_output_abort(SparseSortedOutputBuilder *builder) {
+    if (!builder)
+        return;
+    free(builder->col_tails);
+    sparse_free(builder->out);
+    memset(builder, 0, sizeof(*builder));
+}
+
+static sparse_err_t sparse_sorted_output_init(SparseSortedOutputBuilder *builder, idx_t rows,
+                                              idx_t cols) {
+    if (!builder)
+        return SPARSE_ERR_NULL;
+    memset(builder, 0, sizeof(*builder));
+    builder->current_row = -1;
+    builder->last_col = -1;
+    builder->out = sparse_create_impl(rows, cols, 1);
+    if (!builder->out)
+        return SPARSE_ERR_ALLOC;
+    builder->active = 1;
+    if (sparse_calloc_idx_array(cols, sizeof(*builder->col_tails), (void **)&builder->col_tails) !=
+        SPARSE_OK) {
+        sparse_sorted_output_abort(builder);
+        return SPARSE_ERR_ALLOC;
+    }
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_sorted_output_begin_row(SparseSortedOutputBuilder *builder, idx_t row) {
+    if (!builder || !builder->active || !builder->out || row != builder->next_row || row < 0 ||
+        row >= builder->out->rows)
+        return SPARSE_ERR_BADARG;
+    builder->current_row = row;
+    builder->next_row++;
+    builder->row_tail = NULL;
+    builder->last_col = -1;
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_sorted_output_append(SparseSortedOutputBuilder *builder, idx_t col,
+                                                sparse_scalar_t value) {
+    if (!builder || !builder->active || !builder->out || !builder->col_tails ||
+        builder->current_row < 0 || col < 0 || col >= builder->out->cols ||
+        col <= builder->last_col)
+        return SPARSE_ERR_BADARG;
+    if (builder->col_tails[col] && builder->col_tails[col]->row >= builder->current_row)
+        return SPARSE_ERR_BADARG;
+    if (builder->out->nnz == IDX_MAX)
+        return SPARSE_ERR_ALLOC;
+
+    Node *node = sparse_matrix_make_node_impl(builder->out, builder->current_row, col, value, 1);
+    if (!node)
+        return SPARSE_ERR_ALLOC;
+
+    if (builder->row_tail)
+        builder->row_tail->right = node;
+    else
+        builder->out->row_headers[builder->current_row] = node;
+    builder->row_tail = node;
+
+    if (builder->col_tails[col])
+        builder->col_tails[col]->down = node;
+    else
+        builder->out->col_headers[col] = node;
+    builder->col_tails[col] = node;
+
+    builder->out->nnz++;
+    builder->last_col = col;
+    return SPARSE_OK;
+}
+
+static sparse_err_t sparse_sorted_output_finish(SparseSortedOutputBuilder *builder,
+                                                SparseMatrix **out) {
+    if (!builder || !builder->active || !builder->out || !out ||
+        builder->next_row != builder->out->rows)
+        return SPARSE_ERR_BADARG;
+    free(builder->col_tails);
+    builder->col_tails = NULL;
+    *out = builder->out;
+    builder->out = NULL;
+    builder->active = 0;
+    return SPARSE_OK;
+}
+
 sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
                         sparse_scalar_t beta, SparseMatrix **C_out) {
     if (!A || !B || !C_out)
@@ -674,13 +779,23 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_sca
     *C_out = NULL;
     if (A->rows != B->rows || A->cols != B->cols)
         return SPARSE_ERR_SHAPE;
+    sparse_err_t state_err = sparse_matrix_require_original_state(A);
+    if (state_err != SPARSE_OK)
+        return state_err;
+    state_err = sparse_matrix_require_original_state(B);
+    if (state_err != SPARSE_OK)
+        return state_err;
 
-    SparseMatrix *C = sparse_create(A->rows, A->cols);
-    if (!C)
-        return SPARSE_ERR_ALLOC;
+    SparseSortedOutputBuilder builder;
+    sparse_err_t err = sparse_sorted_output_init(&builder, A->rows, A->cols);
+    if (err != SPARSE_OK)
+        return err;
 
     /* Row-wise merge of A and B using sorted row lists (two-pointer walk) */
     for (idx_t i = 0; i < A->rows; i++) {
+        err = sparse_sorted_output_begin_row(&builder, i);
+        if (err != SPARSE_OK)
+            goto fail;
         Node *nA = A->row_headers[i];
         Node *nB = B->row_headers[i];
 
@@ -702,39 +817,38 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_sca
                 nB = nB->right;
             }
             if (fabs(val) >= 1e-15) {
-                sparse_err_t err = sparse_insert(C, i, col, val);
-                if (err != SPARSE_OK) {
-                    sparse_free(C);
-                    return err;
-                }
+                err = sparse_sorted_output_append(&builder, col, val);
+                if (err != SPARSE_OK)
+                    goto fail;
             }
         }
         while (nA) {
             sparse_scalar_t val = alpha * nA->value;
             if (fabs(val) >= 1e-15) {
-                sparse_err_t err = sparse_insert(C, i, nA->col, val);
-                if (err != SPARSE_OK) {
-                    sparse_free(C);
-                    return err;
-                }
+                err = sparse_sorted_output_append(&builder, nA->col, val);
+                if (err != SPARSE_OK)
+                    goto fail;
             }
             nA = nA->right;
         }
         while (nB) {
             sparse_scalar_t val = beta * nB->value;
             if (fabs(val) >= 1e-15) {
-                sparse_err_t err = sparse_insert(C, i, nB->col, val);
-                if (err != SPARSE_OK) {
-                    sparse_free(C);
-                    return err;
-                }
+                err = sparse_sorted_output_append(&builder, nB->col, val);
+                if (err != SPARSE_OK)
+                    goto fail;
             }
             nB = nB->right;
         }
     }
 
-    *C_out = C;
-    return SPARSE_OK;
+    err = sparse_sorted_output_finish(&builder, C_out);
+    if (err == SPARSE_OK)
+        return SPARSE_OK;
+
+fail:
+    sparse_sorted_output_abort(&builder);
+    return err;
 }
 
 sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
@@ -743,6 +857,14 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
         return SPARSE_ERR_NULL;
     if (A->rows != B->rows || A->cols != B->cols)
         return SPARSE_ERR_SHAPE;
+    sparse_err_t state_err = sparse_matrix_require_original_state(A);
+    if (state_err != SPARSE_OK)
+        return state_err;
+    state_err = sparse_matrix_require_original_state(B);
+    if (state_err != SPARSE_OK)
+        return state_err;
+    if (A == B)
+        return SPARSE_ERR_BADARG;
 
     /* Invalidate cache early: A will be mutated even on partial failure */
     A->cached_norm = -1.0;
@@ -772,7 +894,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
                 sparse_scalar_t val = na->value + beta * nb->value;
                 if (fabs(val) < 1e-15) {
                     /* Cancellation — remove via insert(0.0) */
-                    sparse_err_t ierr = sparse_insert(A, i, target_col, 0.0);
+                    sparse_err_t ierr = sparse_insert_impl(A, i, target_col, 0.0, 1);
                     if (ierr != SPARSE_OK)
                         return ierr;
                     /* Row structure changed; rescan but skip past target_col */
@@ -789,7 +911,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
                     nb = nb->right;
                     continue;
                 }
-                sparse_err_t err = sparse_insert(A, i, target_col, val);
+                sparse_err_t err = sparse_insert_impl(A, i, target_col, val, 1);
                 if (err != SPARSE_OK)
                     return err;
                 /* Row structure changed; rescan but skip past target_col */
@@ -846,6 +968,12 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseM
         return SPARSE_ERR_NULL;
     if (A->cols != B->rows)
         return SPARSE_ERR_SHAPE;
+    sparse_err_t state_err = sparse_matrix_require_original_state(A);
+    if (state_err != SPARSE_OK)
+        return state_err;
+    state_err = sparse_matrix_require_original_state(B);
+    if (state_err != SPARSE_OK)
+        return state_err;
 
     idx_t m = A->rows;
     idx_t nc = B->cols;

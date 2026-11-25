@@ -1,0 +1,15 @@
+fixture_id	api	shape	permutation_state	pattern_or_seed	scalars	logical_oracle	expected_policy_outcome	purpose
+ADD-ID-RECT	sparse_add	2x4 + 2x4	identity/disjoint	A={(0,0)=1,(1,3)=2}; B={(0,0)=3,(0,2)=4}	alpha=1,beta=1	[[4,0,4,0],[0,0,0,2]]	logical result	identity rectangular baseline
+ADD-ID-CANCEL	sparse_add	3x3 + 3x3	identity/overlap	A=B={(0,0)=5,(0,2)=3,(1,1)=7,(2,0)=-1}	alpha=1,beta=-1	all-zero 3x3; nnz=0	logical result	exact cancellation and zero dropping
+ADD-A-ROW-SWAP	sparse_add	2x2 + 2x2	A row swap; B identity	A_phys=[[1,2],[3,4]]; B=[[10,20],[30,40]]	alpha=1,beta=1	[[13,24],[31,42]]	logical result or pre-mutation rejection	left row permutation
+ADD-B-COL-SWAP	sparse_add	2x2 + 2x2	A identity; B column swap	A=[[1,2],[3,4]]; B_phys=[[10,20],[30,40]]	alpha=2,beta=0.5	[[12,9],[26,23]]	logical result or pre-mutation rejection	right column permutation
+ADD-BOTH-PERM	sparse_add	3x3 + 3x3	A row swap; B column cycle	seed=0x2270001	alpha=-2,beta=3	dense logical alpha*A+beta*B	logical result or pre-mutation rejection	both operands and rectangular map logic
+INP-ID-BASIC	sparse_add_inplace	2x2 + 2x2	identity	A=[[10,0],[0,20]]; B=[[1,0],[0,2]]	alpha=0.5,beta=3	[[8,0],[0,16]]	logical result	identity mutation baseline
+INP-SELF-ALIAS	sparse_add_inplace	2x2; A==B	identity	A=[[1,2],[3,4]]	alpha=2,beta=3	snapshot expression [[5,10],[15,20]]	defined snapshot result or pre-mutation rejection	self-alias contract
+INP-A-ROW-SWAP	sparse_add_inplace	2x2 + 2x2	A row swap; B identity	A_phys=[[1,2],[3,4]]; B=[[10,20],[30,40]]	alpha=1,beta=1	[[13,24],[31,42]]	logical result or unchanged-A rejection	destination permutation and mutation safety
+INP-CANCEL	sparse_add_inplace	2x2 + 2x2	identity	A=B=[[5,0],[0,3]]	alpha=1,beta=-1	all-zero 2x2; nnz=0	logical result	removal and cursor behavior
+MM-ID-RECT	sparse_matmul	2x3 * 3x4	identity	A=[[1,0,2],[0,3,0]]; B=[[4,0,0,5],[0,6,0,0],[7,0,8,0]]	n/a	[[18,0,16,5],[0,18,0,0]]	logical result	identity rectangular baseline
+MM-A-ROW-SWAP	sparse_matmul	2x2 * 2x2	A row swap; B identity	A_phys=[[1,2],[3,4]]; B=[[5,6],[7,8]]	n/a	[[43,50],[19,22]]	logical result or pre-mutation rejection	left row permutation
+MM-B-COL-SWAP	sparse_matmul	2x2 * 2x2	A identity; B column swap	A=[[1,2],[3,4]]; B_phys=[[5,6],[7,8]]	n/a	[[22,19],[50,43]]	logical result or pre-mutation rejection	right column permutation
+MM-EMPTY-STORED	sparse_matmul	3x3 * 3x3	identity	A={(0,0)=1,(1,1)=2}; B has nnz=0	n/a	all-zero 3x3; nnz=0	logical result	empty stored operand
+WIDE-RANDOM-PAIR	sparse_add and sparse_add_inplace	4x4096 + 4x4096	identity then selected row/column swaps	seed=0x2270ADD; density=0.25; forced overlaps/cancellations	alpha=1.25,beta=-0.75	dense logical alpha*A+beta*B	logical result or pre-mutation rejection	wide-row correctness and future scaling fixture

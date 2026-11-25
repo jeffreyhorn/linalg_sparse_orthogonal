@@ -392,6 +392,9 @@ if(NOT WIN32)
 
     add_executable(bench_matmul benchmarks/bench_matmul.c)
     target_link_libraries(bench_matmul PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_add benchmarks/bench_add.c)
+    target_link_libraries(bench_add PRIVATE sparse_lu_ortho)
 endif()
 
 # Example programs (not part of ctest)

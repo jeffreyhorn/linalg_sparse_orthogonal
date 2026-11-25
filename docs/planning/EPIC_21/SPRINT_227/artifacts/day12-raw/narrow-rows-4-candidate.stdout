@@ -1,0 +1,2 @@
+fixture,workload_id,rows,cols,a_nnz,b_nnz,c_nnz,max_output_row_width,elapsed_ms
+narrow-rows,s227-add-narrow-r1024-c64-v1,1024,64,4096,4096,8192,8,0.369000

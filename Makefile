@@ -218,7 +218,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_reorder.c \
              $(BENCHDIR)/bench_amd_qg.c \
              $(BENCHDIR)/bench_iterative_reuse.c \
-             $(BENCHDIR)/bench_matmul.c
+             $(BENCHDIR)/bench_matmul.c \
+             $(BENCHDIR)/bench_add.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources

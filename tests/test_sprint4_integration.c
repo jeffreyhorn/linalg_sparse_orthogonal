@@ -81,18 +81,21 @@ static void test_cholesky_csr_roundtrip_solve(void) {
  * SpMM: L * L^T reconstruction
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static SparseMatrix *build_lower_transpose(const SparseMatrix *L, idx_t n) {
-    SparseMatrix *LT = sparse_create(n, n);
-    if (!LT)
+static SparseMatrix *copy_lower_original_state(const SparseMatrix *factor, idx_t n, int transpose) {
+    SparseMatrix *copy = sparse_create(n, n);
+    if (!copy)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
         for (idx_t j = 0; j <= i; j++) {
-            double val = sparse_get_phys(L, i, j);
-            if (val != 0.0)
-                sparse_insert(LT, j, i, val);
+            double val = sparse_get_phys(factor, i, j);
+            if (val != 0.0 &&
+                sparse_insert(copy, transpose ? j : i, transpose ? i : j, val) != SPARSE_OK) {
+                sparse_free(copy);
+                return NULL;
+            }
         }
     }
-    return LT;
+    return copy;
 }
 
 /* L * L^T should reconstruct A on a SuiteSparse matrix */
@@ -105,11 +108,15 @@ static void test_spmm_cholesky_reconstruct_nos4(void) {
     ASSERT_NOT_NULL(L);
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
 
-    SparseMatrix *LT = build_lower_transpose(L, n);
+    /* Matmul accepts only original-state inputs, so copy physical factor
+     * values into fresh matrices before checking the reconstruction. */
+    SparseMatrix *L_original = copy_lower_original_state(L, n, 0);
+    SparseMatrix *LT = copy_lower_original_state(L, n, 1);
+    ASSERT_NOT_NULL(L_original);
     ASSERT_NOT_NULL(LT);
 
     SparseMatrix *LLT = NULL;
-    ASSERT_ERR(sparse_matmul(L, LT, &LLT), SPARSE_OK);
+    ASSERT_ERR(sparse_matmul(L_original, LT, &LLT), SPARSE_OK);
 
     /* Verify (L*L^T)*x ≈ A*x for x = ones */
     double *ones = malloc((size_t)n * sizeof(double));
@@ -138,6 +145,7 @@ static void test_spmm_cholesky_reconstruct_nos4(void) {
     free(LLTx);
     sparse_free(A);
     sparse_free(L);
+    sparse_free(L_original);
     sparse_free(LT);
     sparse_free(LLT);
 }

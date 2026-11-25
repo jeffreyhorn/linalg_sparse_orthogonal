@@ -1,0 +1,31 @@
+case_id	api	shape	permuted_operands	permutation_state	expected_status	expected_output_or_destination	unchanged_checks	current_baseline
+ADD-L-ROW	sparse_add	2x3 + 2x3	left	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-L-COL	sparse_add	2x3 + 2x3	left	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-L-BOTH	sparse_add	2x3 + 2x3	left	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-R-ROW	sparse_add	2x3 + 2x3	right	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-R-COL	sparse_add	2x3 + 2x3	right	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-R-BOTH	sparse_add	2x3 + 2x3	right	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-LR-ROW	sparse_add	2x3 + 2x3	both	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-LR-COL	sparse_add	2x3 + 2x3	both	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-LR-BOTH	sparse_add	2x3 + 2x3	both	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+INP-L-ROW	sparse_add_inplace	2x3 + 2x3	left	row-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-L-COL	sparse_add_inplace	2x3 + 2x3	left	column-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-L-BOTH	sparse_add_inplace	2x3 + 2x3	left	row+column	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-R-ROW	sparse_add_inplace	2x3 + 2x3	right	row-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-R-COL	sparse_add_inplace	2x3 + 2x3	right	column-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-R-BOTH	sparse_add_inplace	2x3 + 2x3	right	row+column	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-LR-ROW	sparse_add_inplace	2x3 + 2x3	both	row-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-LR-COL	sparse_add_inplace	2x3 + 2x3	both	column-only	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+INP-LR-BOTH	sparse_add_inplace	2x3 + 2x3	both	row+column	SPARSE_ERR_BADARG	A unchanged	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and A mutated
+MM-L-ROW	sparse_matmul	2x3 * 3x2	left	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-L-COL	sparse_matmul	2x3 * 3x2	left	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-L-BOTH	sparse_matmul	2x3 * 3x2	left	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-R-ROW	sparse_matmul	2x3 * 3x2	right	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-R-COL	sparse_matmul	2x3 * 3x2	right	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-R-BOTH	sparse_matmul	2x3 * 3x2	right	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-LR-ROW	sparse_matmul	2x3 * 3x2	both	row-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-LR-COL	sparse_matmul	2x3 * 3x2	both	column-only	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+MM-LR-BOTH	sparse_matmul	2x3 * 3x2	both	row+column	SPARSE_ERR_BADARG	C=NULL	A,B maps, values, nnz, structure, cache/factor metadata	SPARSE_OK and allocated C
+ADD-IDENTITY	sparse_add	2x3 + 2x3	neither	identity	SPARSE_OK	new C matches dense alpha*A+beta*B	identity-state existing regression and independent Day 3 oracle	conforming
+INP-IDENTITY	sparse_add_inplace	2x3 + 2x3	neither	identity	SPARSE_OK	A matches dense alpha*A_before+beta*B	identity-state existing regression and independent Day 3 oracle	conforming
+MM-IDENTITY	sparse_matmul	2x3 * 3x2	neither	identity	SPARSE_OK	new C matches dense A*B	identity-state existing rectangular dense-oracle regression	conforming

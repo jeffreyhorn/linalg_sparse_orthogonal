@@ -1431,19 +1431,23 @@ static void test_matmul_associativity(void) {
  * Cholesky integration: L * L^T should reconstruct A
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Build L^T from L by manually constructing the transpose */
-static SparseMatrix *build_transpose(const SparseMatrix *L, idx_t n) {
-    SparseMatrix *LT = sparse_create(n, n);
-    if (!LT)
+/* Copy a factor's physical lower triangle into a fresh original-state matrix. */
+static SparseMatrix *build_lower_original_state(const SparseMatrix *factor, idx_t n,
+                                                int transpose) {
+    SparseMatrix *copy = sparse_create(n, n);
+    if (!copy)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
         for (idx_t j = 0; j <= i; j++) {
-            double val = sparse_get_phys(L, i, j);
-            if (val != 0.0)
-                sparse_insert(LT, j, i, val);
+            double val = sparse_get_phys(factor, i, j);
+            if (val != 0.0 &&
+                sparse_insert(copy, transpose ? j : i, transpose ? i : j, val) != SPARSE_OK) {
+                sparse_free(copy);
+                return NULL;
+            }
         }
     }
-    return LT;
+    return copy;
 }
 
 static void test_matmul_cholesky_reconstruct(void) {
@@ -1463,13 +1467,16 @@ static void test_matmul_cholesky_reconstruct(void) {
     ASSERT_NOT_NULL(L);
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
 
-    /* Build L^T */
-    SparseMatrix *LT = build_transpose(L, 3);
+    /* Matmul rejects factor-state operands. Copy the physical factor values
+     * into fresh original-state matrices for this reconstruction check. */
+    SparseMatrix *L_original = build_lower_original_state(L, 3, 0);
+    SparseMatrix *LT = build_lower_original_state(L, 3, 1);
+    ASSERT_NOT_NULL(L_original);
     ASSERT_NOT_NULL(LT);
 
     /* C = L * L^T should equal A */
     SparseMatrix *C = NULL;
-    ASSERT_ERR(sparse_matmul(L, LT, &C), SPARSE_OK);
+    ASSERT_ERR(sparse_matmul(L_original, LT, &C), SPARSE_OK);
 
     /* Verify C ≈ A */
     for (int i = 0; i < 3; i++) {
@@ -1482,6 +1489,7 @@ static void test_matmul_cholesky_reconstruct(void) {
 
     sparse_free(A);
     sparse_free(L);
+    sparse_free(L_original);
     sparse_free(LT);
     sparse_free(C);
 }

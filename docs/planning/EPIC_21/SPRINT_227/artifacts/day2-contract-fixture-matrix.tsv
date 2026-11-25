@@ -1,0 +1,24 @@
+case_id	api	input_condition	precedence_context	expected_status	output_or_destination_state	input_state	oracle_or_reason
+ADD-NULL-OUT	sparse_add	C_out=NULL	A and B otherwise valid	SPARSE_ERR_NULL	no output storage to update	A and B unchanged	null validation
+ADD-NULL-IN	sparse_add	A=NULL or B=NULL	C_out points to stale sentinel	SPARSE_ERR_NULL	C_out storage unchanged	available input unchanged	all pointers validated before output clear
+ADD-SHAPE-PERM	sparse_add	shape mismatch and one input nonidentity	all pointers valid	SPARSE_ERR_SHAPE	C_out=NULL	A and B unchanged	shape precedes state validation
+ADD-A-ROW-SWAP	sparse_add	A row or inverse-row map nonidentity	matching shape	SPARSE_ERR_BADARG	C_out=NULL	A and B unchanged	unsupported original-state precondition
+ADD-B-COL-SWAP	sparse_add	B column or inverse-column map nonidentity	matching shape	SPARSE_ERR_BADARG	C_out=NULL	A and B unchanged	unsupported original-state precondition
+ADD-FACTORED	sparse_add	A or B reports factored with identity maps	matching shape	SPARSE_ERR_BADARG	C_out=NULL	A and B unchanged	factor storage is not an original arithmetic operand
+ADD-IDENTITY	sparse_add	both inputs unfactored with identity maps	matching shape and finite fixture	SPARSE_OK	new caller-owned identity-map unfactored C	A and B unchanged	dense C=alpha*A+beta*B with finite-value threshold
+ADD-SAME-INPUT	sparse_add	A==B, original state	matching shape and finite fixture	SPARSE_OK	new caller-owned identity-map unfactored C	A/B unchanged	dense C=(alpha+beta)*A subject to operation-order tolerance
+INP-NULL	sparse_add_inplace	A=NULL or B=NULL	n/a	SPARSE_ERR_NULL	no destination mutation	available input unchanged	null validation
+INP-SHAPE-PERM	sparse_add_inplace	shape mismatch and one input nonidentity	both pointers valid	SPARSE_ERR_SHAPE	A unchanged	A and B unchanged	shape precedes state validation
+INP-PERM	sparse_add_inplace	A or B row/column/inverse map nonidentity	matching shape	SPARSE_ERR_BADARG	A byte/logical state, cache, and factor state unchanged	A and B unchanged	state rejection occurs before invalidation/scaling
+INP-FACTORED	sparse_add_inplace	A or B reports factored with identity maps	matching shape	SPARSE_ERR_BADARG	A byte/logical state, cache, and factor state unchanged	A and B unchanged	factor storage rejected before mutation
+INP-SELF-ALIAS	sparse_add_inplace	A==B, original state	matching shape	SPARSE_ERR_BADARG	A byte/logical state, cache, and factor state unchanged	A/B unchanged	undefined snapshot alias is rejected
+INP-IDENTITY	sparse_add_inplace	distinct original-state A and B	matching shape and finite fixture	SPARSE_OK	A contains dense alpha*A_before+beta*B; identity maps; factor state cleared	B unchanged	finite dense oracle and threshold
+INP-ALLOC	sparse_add_inplace	distinct original-state inputs; insertion allocation fails	all validation passed	SPARSE_ERR_ALLOC	A may be partially updated but is structurally valid, reusable, and destroyable	B unchanged	documented post-validation partial-update contract
+MM-NULL-OUT	sparse_matmul	C=NULL	A and B otherwise valid	SPARSE_ERR_NULL	no output storage to update	A and B unchanged	null validation
+MM-NULL-IN	sparse_matmul	A=NULL or B=NULL	C points to stale sentinel	SPARSE_ERR_NULL	C=NULL	available input unchanged	output is cleared before input validation
+MM-SHAPE-PERM	sparse_matmul	inner-shape mismatch and one input nonidentity	all pointers valid	SPARSE_ERR_SHAPE	C=NULL	A and B unchanged	shape precedes state validation
+MM-PERM	sparse_matmul	A or B row/column/inverse map nonidentity	compatible shape	SPARSE_ERR_BADARG	C=NULL	A and B unchanged	unsupported original-state precondition
+MM-FACTORED	sparse_matmul	A or B reports factored with identity maps	compatible shape	SPARSE_ERR_BADARG	C=NULL	A and B unchanged	factor storage is not an original arithmetic operand
+MM-IDENTITY	sparse_matmul	both inputs unfactored with identity maps	compatible shape and finite fixture	SPARSE_OK	new caller-owned identity-map unfactored C	A and B unchanged	dense C=A*B with finite-value threshold
+MM-SAME-INPUT	sparse_matmul	A==B square, original state	compatible shape	SPARSE_OK	new caller-owned identity-map unfactored C	A/B unchanged	dense C=A*A
+

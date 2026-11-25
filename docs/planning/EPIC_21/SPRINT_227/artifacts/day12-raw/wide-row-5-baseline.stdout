@@ -1,0 +1,2 @@
+fixture,workload_id,rows,cols,a_nnz,b_nnz,c_nnz,max_output_row_width,elapsed_ms
+wide-row,s227-add-wide-r1-c4096-v1,1,4096,2048,2048,4096,4096,13.636000

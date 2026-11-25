@@ -938,6 +938,15 @@ or that the iterative solver converges on it. See the
 - `sparse_add_inplace(A, B, alpha, beta)` — A = alpha*A + beta*B
 - `sparse_norminf(mat, &norm)` — infinity norm (cached)
 
+`sparse_add`, `sparse_add_inplace`, and `sparse_matmul` require unfactored
+original-state inputs with identity forward and inverse row/column maps;
+unsupported state returns `SPARSE_ERR_BADARG` after pointer and shape checks.
+Out-of-place addition leaves both inputs unchanged and returns a new
+caller-owned matrix. In-place addition rejects `A == B`; after validation, an
+insertion allocation failure may leave A in the documented valid scaled/prefix
+state while B remains unchanged. See [`sparse_matrix.h`](include/sparse_matrix.h)
+for output-slot ownership and exact failure precedence.
+
 **I/O and format conversion:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
 - `sparse_to_csr(mat, &csr)` / `sparse_create_from_csr(csr)` — CSR export and compressed-first construction; free exported storage with `sparse_csr_free(csr)`
@@ -959,6 +968,8 @@ For n x n sparse matrices with nnz non-zeros:
 |-----------|------------|-------|
 | Insert/Remove | O(row_nnz + col_nnz) | Maintains sorted row and column order |
 | MatVec | O(nnz) | Parallel with OpenMP when enabled |
+| Out-of-place addition | O(rows + cols + nnz(A) + nnz(B)) | Sorted merge with O(cols) builder workspace; result storage is additional |
+| In-place addition | Pattern-dependent | B-only entries use sorted insertion; no linear construction guarantee |
 | LU Factor | O(n^3) worst case | Actual work depends on sparsity, fill, and ordering |
 | Solve | O(nnz_LU) | Forward/back substitution |
 | QR Factor | O(mn^2) | Householder transformations |
@@ -974,6 +985,9 @@ Current benchmark surfaces cover:
   `bench_iterative_reuse` and `bench_eigs_reuse`;
 - dispatch-backed CSR LU and CSC Cholesky/LDL^T paths that avoid linked-list
   pointer chasing on large matrix workloads.
+- correctness-qualified selected addition construction profiles through
+  `bench_add`; retained local samples do not establish portable speed or a
+  peak-memory reduction.
 
 Use `make bench-canonical-report` for one bounded local snapshot of the
 maintained benchmark surface. Treat emitted benchmark rows as branch-local

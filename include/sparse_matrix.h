@@ -402,8 +402,21 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
  * a newly allocated caller-owned matrix.
  * Entries that cancel to zero (|value| < 1e-15) are not stored.
  *
+ * @pre A and B must be in original state: unfactored, with identity row,
+ *      inverse-row, column, and inverse-column maps.
+ *
  * @note Operates in physical index space. Do not use on matrices with
  *       non-identity permutations (e.g., after LU factorization).
+ * @note C_out is an output storage location, not an owning smart pointer.
+ *       Its prior pointee is not freed when C_out is cleared or overwritten.
+ *       C_out may be the address of a caller variable that currently stores A
+ *       or B because input pointers are captured by value, but the caller must
+ *       retain another owner for that input before the variable is cleared.
+ * @note With sorted row lists, the out-of-place merge and direct output linking
+ *       take O(rows + cols + nnz(A) + nnz(B)) time and O(cols) builder
+ *       workspace, excluding caller-owned result storage. Retained nodes are
+ *       appended once; output construction does not repeatedly scan row or
+ *       column heads.
  *
  * @param A       First input matrix (borrowed, not modified).
  * @param B       Second input matrix (borrowed, not modified).
@@ -413,8 +426,9 @@ sparse_err_t sparse_scale(SparseMatrix *mat, sparse_scalar_t alpha);
  *                    pointer validation and left NULL on later errors. The
  *                    caller must free a successful result with sparse_free().
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
- *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
- *         memory failure.
+ *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_BADARG if
+ *         either input is not in original state, SPARSE_ERR_ALLOC on memory
+ *         failure.
  */
 sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
                         sparse_scalar_t beta, SparseMatrix **C_out);
@@ -422,20 +436,28 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, sparse_sca
 /**
  * @brief Compute A = alpha*A + beta*B in-place.
  *
- * A and B must have the same dimensions. A is modified in-place.
+ * A and B must have the same dimensions, be distinct matrices, and be in
+ * original state: unfactored, with identity row, inverse-row, column, and
+ * inverse-column maps. A is modified in-place only after validation succeeds.
  * Entries that cancel to zero are removed.
  *
- * @note Operates in physical index space. Do not use on matrices with
- *       non-identity permutations (e.g., after LU factorization).
+ * @note This mutation route updates existing nodes and uses normal sorted
+ *       insertion for B-only entries. Its cost therefore depends on the
+ *       affected destination row and column chain lengths; the linear
+ *       out-of-place construction bound for sparse_add() does not apply.
  *
  * @param A       Matrix to modify in-place (receives the result). May already
- *                be partially updated if an allocation or insertion error is
- *                reported after validation succeeds.
- * @param B       Second input matrix (read-only).
+ *                contain the scaled A and a row-major prefix of additions
+ *                from B if an allocation error is reported after validation.
+ *                It remains structurally valid and reusable or destroyable,
+ *                but repeating the same call may apply that prefix again.
+ * @param B       Second input matrix (borrowed and never modified).
  * @param alpha   Scalar for A.
  * @param beta    Scalar for B.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
- *         SPARSE_ERR_SHAPE if dimensions mismatch.
+ *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_BADARG if an
+ *         input is not in original state or A and B alias, SPARSE_ERR_ALLOC
+ *         if an insertion allocation fails after validation.
  */
 sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_scalar_t alpha,
                                 sparse_scalar_t beta);
@@ -447,11 +469,10 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
  * is a linear combination of rows of B, weighted by A's entries. A dense
  * accumulator is used per row and flushed to sparse output.
  *
- * A must be m×k and B must be k×n; C will be m×n.
+ * A must be m×k and B must be k×n; C will be m×n. Both inputs must be in
+ * original state: unfactored, with identity row, inverse-row, column, and
+ * inverse-column maps. A and B may alias when the matrix is square.
  * Entries with |value| < 1e-15 are dropped.
- *
- * @note Operates in physical index space. Do not use on matrices with
- *       non-identity permutations (e.g., after LU factorization).
  *
  * @param A       Left input matrix (m×k).
  * @param B       Right input matrix (k×n).
@@ -461,6 +482,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, sparse_s
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if inner dimensions mismatch (A->cols != B->rows).
+ * @return SPARSE_ERR_BADARG if either input is not in original state.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseMatrix **C);

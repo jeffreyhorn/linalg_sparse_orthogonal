@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/usr/bin/time",
+    "-l",
+    "-o",
+    "docs/planning/EPIC_21/SPRINT_227/artifacts/day12-raw/narrow-rows-3-candidate.time",
+    "/Users/jeff/experiments/linalg_sparse_orthogonal/build/s227-day12-evidence/bin/bench_add_candidate",
+    "narrow-rows"
+  ],
+  "collection_cap_seconds": 900.0,
+  "ended_at_utc": "2026-11-25T18:15:16.645612Z",
+  "fixture": "narrow-rows",
+  "order_in_pair": 2,
+  "per_command_cap_seconds": 30.0,
+  "round": 3,
+  "started_at_utc": "2026-11-25T18:15:16.625044Z",
+  "variant": "candidate",
+  "wall_seconds": 0.020594738889485598
+}

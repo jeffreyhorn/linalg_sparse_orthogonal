@@ -177,6 +177,13 @@ cmake -S . -B build/cmake
 cmake --build build/cmake --target bench_svd_lowrank_memory
 ```
 
+The packet collector requires the Make-built probe and its adjacent
+`bench_svd_lowrank_memory.build.tsv` sidecar. The sidecar is copied from the
+shared build receipt required by every library object, binding both the selected
+binary and linked archive to the Make-expanded compiler, flags, and index
+width. Changing those settings rebuilds the archive before relinking the probe;
+custom binaries without verifiable build metadata are rejected.
+
 Run one frozen workload with the maintained default or the exact-`off` dense
 compatibility route:
 
@@ -204,14 +211,17 @@ pattern; dense factors and decomposition storage remain visible.
 The bounded packet collector is:
 
 ```sh
-python3 scripts/run_sprint228_memory_packet.py
+python3 scripts/run_sprint228_memory_packet.py \
+  --output build/sprint228-memory-$(date -u +%Y%m%dT%H%M%SZ)
 ```
 
-It rejects a dirty worktree by default, retains raw streams and receipts, caps
-each invocation at 30 seconds and the collection at 15 minutes, and hashes the
-collector, benchmark, build definitions, headers, library sources, binary,
-library, and raw packet. `--allow-dirty-development` is only for explicitly
-provisional development evidence.
+It refuses any existing output directory, rejects a dirty worktree by default,
+retains an immutable copy of the executed binary plus raw streams and receipts,
+validates warmups as well as measured calls, caps each invocation at 30 seconds
+and the complete collection at 15 minutes, and rechecks source, selected
+binary, retained execution binary, and library identities before acceptance.
+`--allow-dirty-development` is only for explicitly provisional development
+evidence.
 
 The Sprint 228 development packet proved the reconstruction-scratch property,
 but its square and wide paired timing cells exceeded the frozen limits. Read

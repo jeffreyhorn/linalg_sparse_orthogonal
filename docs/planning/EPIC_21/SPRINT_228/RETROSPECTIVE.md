@@ -113,7 +113,7 @@ quality matrix. It did not require the per-cell route to beat the compatibility 
 | Default selector | Unset and exact `on` use per-cell reconstruction; exact `off` uses dense compatibility; every other set value, including empty, returns `SPARSE_ERR_BADARG` before SVD work |
 | Public ABI | No public declaration, structure, enum, typedef, or symbol changed; public-header edits document the existing function |
 | Differential corpus | 42 independent analytical or long-double-factor-oracle route cells across deterministic core, adverse numerical, and seeded fixtures |
-| Focused SVD suite | 136 tests, 19,369 assertions, zero failures or skips at both index widths |
+| Focused SVD suite | 139 tests, 19,429 assertions, zero failures or skips in the final 32-bit review run; the pre-review 136-test suite also passed at both index widths |
 | Partial-SVD corpus | 10 tests, 247 assertions at both index widths |
 | Allocation lifecycle | First-success counts 26 default square, 37 default wide, 23 zero shortcut, and 27 compatibility; all preceding failures cleanly recover |
 | Measured raw packet | 16 warmups plus 80 measured invocations; 290 manifest entries all verify |

@@ -62,8 +62,8 @@ machine-readable table is in `day11-memory-component-accounting.tsv`.
 | square | dense | 4,222,952 B / 1,033 allocs | 4,198,400 B / 3 | 2,097,152 B / 1 | 16,520 B / 7 | 131,088 B / 1 | 9,465,856 B |
 | tall | default | 4,214,760 B / 521 allocs | 2,623,488 B / 3 | 0 B / 0 | 20,616 B / 7 | 131,088 B / 1 | 6,209,536 B |
 | tall | dense | 4,214,760 B / 521 allocs | 2,623,488 B / 3 | 2,097,152 B / 1 | 20,616 B / 7 | 131,088 B / 1 | 8,306,688 B |
-| wide | default | 4,366,464 B / 532 allocs | 2,623,488 B / 3 | 0 B / 0 | 20,616 B / 7 | 131,088 B / 1 | 9,375,744 B |
-| wide | dense | 4,366,464 B / 532 allocs | 2,623,488 B / 3 | 2,097,152 B / 1 | 20,616 B / 7 | 131,088 B / 1 | 9,400,320 B |
+| wide | default | 6,305,760 B / 534 allocs | 2,623,488 B / 3 | 0 B / 0 | 20,616 B / 7 | 131,088 B / 1 | 9,375,744 B |
+| wide | dense | 6,305,760 B / 534 allocs | 2,623,488 B / 3 | 2,097,152 B / 1 | 20,616 B / 7 | 131,088 B / 1 | 9,400,320 B |
 | zero | default | 4,222,952 B / 1,033 allocs | 4,198,400 B / 3 | 0 B / 0 | 16,520 B / 7 | 0 B / 0 | 9,392,128 B |
 | zero | dense | 4,222,952 B / 1,033 allocs | 4,198,400 B / 3 | 0 B / 0 | 16,520 B / 7 | 0 B / 0 | 9,433,088 B |
 
@@ -79,6 +79,14 @@ Shell/map bytes reconcile to the matrix object, two header arrays, and four
 identity maps. One 131,088-byte node slab remains visible for every nonzero
 output; the zero control has no slab. Route pairs have identical output
 checksum, `nnz`, and all non-scratch component counters.
+
+Review-time lifetime analysis found that the original wide-workload model
+omitted the two temporary bases allocated by transposed UV extraction. The
+table now includes those lifetimes: 6,305,760 bytes and 534 allocations for
+both wide routes. A maintained 256x1024 regression pins these corrected values.
+The retained raw packet predates that accounting correction; its correctness,
+reconstruction-scratch, RSS, and timing observations are unchanged, while its
+old wide decomposition field is superseded by this table and regression.
 
 ## Timing and acceptance boundary
 

@@ -178,7 +178,8 @@ int main(int argc, char **argv) {
 
     printf("{\"schema\":\"s228-memory-v1\",\"workload\":\"%s\","
            "\"route\":\"%s\",\"selector\":\"%s\",\"rows\":%" SPARSE_PRIDX ",\"cols\":%" SPARSE_PRIDX
-           ",\"rank\":%" SPARSE_PRIDX ",\"effective_rank\":%" SPARSE_PRIDX ",\"drop_tol\":%.17g,"
+           ",\"rank\":%" SPARSE_PRIDX ",\"effective_rank\":%" SPARSE_PRIDX
+           ",\"index_bits\":%d,\"drop_tol\":%.17g,"
            "\"status\":%d,\"correct\":%s,\"nnz\":%" SPARSE_PRIDX ",\"checksum\":\"%016" PRIx64
            "\",\"wall_ns\":%" PRIu64 ",\"rss_before_bytes\":%" PRIu64 ",\"peak_rss_bytes\":%" PRIu64
            ",\"bidiag_work_peak_bytes\":%zu,\"bidiag_work_allocations\":%zu,"
@@ -189,7 +190,7 @@ int main(int argc, char **argv) {
            "\"sparse_node_slab_bytes\":%zu,\"sparse_node_slab_allocations\":%zu}\n",
            workload->name, argv[2], strcmp(argv[2], "default") == 0 ? "unset" : "off",
            workload->rows, workload->cols, workload->rank, workload->effective_rank,
-           workload->drop_tol, (int)status, correct ? "true" : "false",
+           SPARSE_IDX_BITS, workload->drop_tol, (int)status, correct ? "true" : "false",
            output ? sparse_nnz(output) : 0, checksum, elapsed, rss_before, rss_after,
            metrics.bidiag_work_peak_bytes, metrics.bidiag_work_allocations,
            metrics.retained_factor_bytes, metrics.retained_factor_allocations,

@@ -84,7 +84,8 @@ static int lowrank_metrics_shell_bytes(size_t rows, size_t cols, size_t *out) {
     return 0;
 }
 
-static int lowrank_metrics_bidiag_tall(size_t m, size_t n, size_t *peak, size_t *allocations) {
+static int lowrank_metrics_bidiag_tall(size_t m, size_t n, size_t *peak, size_t *allocations,
+                                       size_t *persistent_bytes) {
     size_t k = n;
     size_t km1 = k > 0 ? k - 1 : 0;
     size_t persistent = 0;
@@ -98,6 +99,7 @@ static int lowrank_metrics_bidiag_tall(size_t m, size_t n, size_t *peak, size_t 
     if (k == 0) {
         *peak = 0;
         *allocations = 0;
+        *persistent_bytes = 0;
         return 0;
     }
     if (lowrank_metrics_mul(k, k - 1, &triangular))
@@ -134,18 +136,22 @@ static int lowrank_metrics_bidiag_tall(size_t m, size_t n, size_t *peak, size_t 
     *allocations = k > 1 ? 2 * k + 7 : 6;
     /* The copied superdiagonal and V work basis are temporary decomposition
      * allocations. sigma, U, and Vt are counted as retained factors. */
-    *allocations += (k > 1 ? 1 : 0) + 1;
+    *allocations += k > 1 ? (size_t)2 : (size_t)1;
+    *persistent_bytes = persistent;
     return 0;
 }
 
 static int lowrank_metrics_decomposition(const SparseMatrix *A, size_t *peak, size_t *allocations) {
     size_t m = (size_t)A->rows;
     size_t n = (size_t)A->cols;
-    if (m >= n)
-        return lowrank_metrics_bidiag_tall(m, n, peak, allocations);
+    if (m >= n) {
+        size_t persistent_bytes = 0;
+        return lowrank_metrics_bidiag_tall(m, n, peak, allocations, &persistent_bytes);
+    }
 
     size_t tall_peak = 0;
     size_t tall_allocations = 0;
+    size_t tall_persistent = 0;
     size_t transpose_shell = 0;
     size_t transpose_slabs = 0;
     size_t transpose_persistent = 0;
@@ -153,19 +159,34 @@ static int lowrank_metrics_decomposition(const SparseMatrix *A, size_t *peak, si
     size_t entries = 0;
     size_t tails = 0;
     size_t recursive_peak = 0;
+    size_t extraction_basis = 0;
+    size_t extraction_peak = 0;
+    size_t copied_superdiag = 0;
     size_t slab_count = ((size_t)A->nnz + (size_t)NODES_PER_SLAB - 1) / (size_t)NODES_PER_SLAB;
-    if (lowrank_metrics_bidiag_tall(n, m, &tall_peak, &tall_allocations) ||
+    if (lowrank_metrics_bidiag_tall(n, m, &tall_peak, &tall_allocations, &tall_persistent) ||
         lowrank_metrics_shell_bytes(n, m, &transpose_shell) ||
         lowrank_metrics_mul(slab_count, sizeof(NodeSlab), &transpose_slabs) ||
         lowrank_metrics_add(transpose_shell, transpose_slabs, &transpose_persistent) ||
         lowrank_metrics_mul((size_t)A->nnz, sizeof(SparseBuildEntry), &entries) ||
-        lowrank_metrics_mul(m + n, sizeof(Node *), &tails) ||
+        (A->nnz > 0 && lowrank_metrics_mul(m + n, sizeof(Node *), &tails)) ||
         lowrank_metrics_add(transpose_persistent, entries, &construction_peak) ||
         lowrank_metrics_add(construction_peak, tails, &construction_peak) ||
-        lowrank_metrics_add(transpose_persistent, tall_peak, &recursive_peak))
+        lowrank_metrics_add(transpose_persistent, tall_peak, &recursive_peak) ||
+        lowrank_metrics_mul(n, m, &extraction_basis) ||
+        lowrank_metrics_mul(extraction_basis, sizeof(double), &extraction_basis) ||
+        lowrank_metrics_mul(m - 1, sizeof(double), &copied_superdiag) ||
+        lowrank_metrics_add(tall_persistent, copied_superdiag, &extraction_peak) ||
+        lowrank_metrics_add(extraction_peak, extraction_basis, &extraction_peak) ||
+        lowrank_metrics_add(extraction_peak, extraction_basis, &extraction_peak))
         return 1;
     *peak = construction_peak > recursive_peak ? construction_peak : recursive_peak;
-    *allocations = tall_allocations + 10 + slab_count;
+    if (extraction_peak > *peak)
+        *peak = extraction_peak;
+    /* Wide extraction owns one temporary n*k basis for each of U and V in
+     * addition to the transposed bidiagonal factorization allocations. */
+    /* Empty transpose construction skips the zero-length entry buffer and
+     * returns before allocating either tail array. */
+    *allocations = tall_allocations + (A->nnz > 0 ? (size_t)12 : (size_t)9) + slab_count;
     return 0;
 }
 
@@ -223,6 +244,25 @@ static int sparse_svd_matrix_values_are_finite(const SparseMatrix *A) {
             if (!isfinite(node->value))
                 return 0;
         }
+    }
+    return 1;
+}
+
+static int sparse_svd_lowrank_factors_are_finite(const sparse_svd_t *svd, idx_t m, idx_t n) {
+    idx_t expected_k = (m < n) ? m : n;
+    if (!svd || !svd->economy || svd->m != m || svd->n != n || svd->k != expected_k ||
+        !svd->sigma || !svd->U || !svd->Vt)
+        return 0;
+
+    for (idx_t s = 0; s < svd->k; s++) {
+        if (!isfinite(svd->sigma[s]) || svd->sigma[s] < 0.0)
+            return 0;
+        for (idx_t i = 0; i < m; i++)
+            if (!isfinite(svd->U[(size_t)s * (size_t)m + (size_t)i]))
+                return 0;
+        for (idx_t j = 0; j < n; j++)
+            if (!isfinite(svd->Vt[(size_t)j * (size_t)svd->k + (size_t)s]))
+                return 0;
     }
     return 1;
 }
@@ -1404,6 +1444,11 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (err != SPARSE_OK)
         return err;
 
+    if (!sparse_svd_lowrank_factors_are_finite(&svd, m, n)) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_NUMERIC;
+    }
+
     /* Short-circuit for all-zero matrix: no outer products to accumulate */
     if (svd.sigma[0] == 0.0) {
         SparseMatrix *out = sparse_create_injectable(m, n);
@@ -1472,16 +1517,39 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
         if (si == 0.0)
             break;
         for (idx_t i = 0; i < m; i++) {
-            double u_scaled = si * U_data[(size_t)s * (size_t)m + (size_t)i];
-            for (idx_t j = 0; j < n; j++)
-                accum[(size_t)i * (size_t)n + (size_t)j] +=
-                    u_scaled * Vt_data[(size_t)j * (size_t)k + (size_t)s];
+            double u_value = U_data[(size_t)s * (size_t)m + (size_t)i];
+            double u_scaled = si * u_value;
+            if (!isfinite(u_value) || !isfinite(u_scaled)) {
+                free(accum);
+                sparse_free(out);
+                sparse_svd_free(&svd);
+                return SPARSE_ERR_NUMERIC;
+            }
+            for (idx_t j = 0; j < n; j++) {
+                size_t offset = (size_t)i * (size_t)n + (size_t)j;
+                double vt_value = Vt_data[(size_t)j * (size_t)k + (size_t)s];
+                double term = u_scaled * vt_value;
+                double next = accum[offset] + term;
+                if (!isfinite(vt_value) || !isfinite(term) || !isfinite(next)) {
+                    free(accum);
+                    sparse_free(out);
+                    sparse_svd_free(&svd);
+                    return SPARSE_ERR_NUMERIC;
+                }
+                accum[offset] = next;
+            }
         }
     }
 
     for (idx_t i = 0; i < m; i++) {
         for (idx_t j = 0; j < n; j++) {
             double val = accum[(size_t)i * (size_t)n + (size_t)j];
+            if (!isfinite(val)) {
+                free(accum);
+                sparse_free(out);
+                sparse_svd_free(&svd);
+                return SPARSE_ERR_NUMERIC;
+            }
             if (fabs(val) >= drop_tol) {
                 sparse_err_t ierr = sparse_insert_injectable(out, i, j, val);
                 if (ierr != SPARSE_OK) {

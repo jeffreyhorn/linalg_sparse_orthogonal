@@ -2406,7 +2406,13 @@ static void test_s228_lowrank_selector_validation_and_precedence(void) {
         return;
     }
 
-    for (size_t i = 0; i < sizeof(invalid_values) / sizeof(invalid_values[0]); i++) {
+    size_t first_invalid = 0;
+#ifdef _WIN32
+    /* The Windows environment API represents an empty value by removing the
+     * variable, which is the documented default-selector state. */
+    first_invalid = 1;
+#endif
+    for (size_t i = first_invalid; i < sizeof(invalid_values) / sizeof(invalid_values[0]); i++) {
         ASSERT_EQ(tf_setenv("SPARSE_SVD_LOWRANK_OUTER", invalid_values[i]), 0);
         SparseMatrix *out = (SparseMatrix *)(uintptr_t)1;
         ASSERT_ERR(sparse_svd_lowrank_sparse(A, 1, 0.0, &out), SPARSE_ERR_BADARG);
@@ -2813,6 +2819,42 @@ static void test_s228_public_lowrank_numeric_and_argument_failure_corpus(void) {
     sparse_free(A);
 }
 
+static void test_s228_public_lowrank_nonfinite_computed_factors_fail_both_routes(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    ASSERT_ERR(sparse_insert(A, 0, 0, -1e-160), SPARSE_OK);
+
+    const char *previous = getenv("SPARSE_SVD_LOWRANK_OUTER");
+    char *saved = NULL;
+    if (previous) {
+        size_t saved_len = strlen(previous) + 1;
+        saved = malloc(saved_len);
+        ASSERT_NOT_NULL(saved);
+        if (saved)
+            memcpy(saved, previous, saved_len);
+    }
+    if (previous && !saved) {
+        sparse_free(A);
+        return;
+    }
+
+    static const char *routes[] = {"on", "off"};
+    for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
+        ASSERT_EQ(tf_setenv("SPARSE_SVD_LOWRANK_OUTER", routes[i]), 0);
+        SparseMatrix *out = (SparseMatrix *)(uintptr_t)1;
+        ASSERT_ERR(sparse_svd_lowrank_sparse(A, 1, 0.0, &out), SPARSE_ERR_NUMERIC);
+        ASSERT_NULL(out);
+    }
+
+    ASSERT_EQ(saved ? tf_setenv("SPARSE_SVD_LOWRANK_OUTER", saved)
+                    : tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER"),
+              0);
+    free(saved);
+    sparse_free(A);
+}
+
 static void test_s228_lowrank_mixed_route_failure_lifecycle(void) {
     const double diagonal[] = {6.0, 3.0, 1.0};
     const double expected_input[] = {6.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0};
@@ -3085,6 +3127,71 @@ static void test_s228_lowrank_memory_accounting_categories(void) {
 cleanup_matrices:
     sparse_free(A);
     sparse_free(zero);
+}
+
+static void test_s228_lowrank_wide_extraction_memory_accounting(void) {
+    double diagonal[32];
+    for (size_t i = 0; i < sizeof(diagonal) / sizeof(diagonal[0]); i++)
+        diagonal[i] = ldexp(1.0, 5 - (int)i);
+    SparseMatrix *A = tf_svd_make_diag_matrix(256, 1024, diagonal, 32);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    const char *previous = getenv("SPARSE_SVD_LOWRANK_OUTER");
+    char *saved = NULL;
+    if (previous) {
+        size_t saved_len = strlen(previous) + 1;
+        saved = malloc(saved_len);
+        ASSERT_NOT_NULL(saved);
+        if (saved)
+            memcpy(saved, previous, saved_len);
+    }
+    if (previous && !saved) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER"), 0);
+    SparseMatrix *out = NULL;
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 24, 1e-9, &out), SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+    sparse_svd_lowrank_metrics_t metrics;
+    sparse_svd_lowrank_metrics_get(&metrics);
+    ASSERT_TRUE(metrics.valid);
+    ASSERT_EQ(metrics.output_nnz, 24);
+    ASSERT_EQ(metrics.bidiag_work_peak_bytes, 6305760);
+    ASSERT_EQ(metrics.bidiag_work_allocations, 534);
+    ASSERT_EQ(metrics.retained_factor_bytes, 2623488);
+    ASSERT_EQ(metrics.reconstruction_scratch_peak_bytes, 0);
+    ASSERT_EQ(metrics.reconstruction_scratch_allocations, 0);
+
+    sparse_free(out);
+    ASSERT_EQ(saved ? tf_setenv("SPARSE_SVD_LOWRANK_OUTER", saved)
+                    : tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER"),
+              0);
+    free(saved);
+    sparse_free(A);
+}
+
+static void test_s228_lowrank_empty_wide_memory_accounting(void) {
+    SparseMatrix *A = sparse_create(2, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    SparseMatrix *out = NULL;
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 1, 0.0, &out), SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+    sparse_svd_lowrank_metrics_t metrics;
+    sparse_svd_lowrank_metrics_get(&metrics);
+    ASSERT_TRUE(metrics.valid);
+    ASSERT_EQ(metrics.output_nnz, 0);
+    ASSERT_EQ(metrics.bidiag_work_allocations, 22);
+    ASSERT_EQ(metrics.sparse_node_slab_allocations, 0);
+
+    sparse_free(out);
+    sparse_free(A);
 }
 
 static void test_lowrank_sparse_diagonal(void) {
@@ -3942,9 +4049,12 @@ int main(void) {
     RUN_TEST(test_s228_outer_reconstruction_allocation_failure_boundary);
     RUN_TEST(test_s228_public_lowrank_exhaustive_allocation_sweeps);
     RUN_TEST(test_s228_public_lowrank_numeric_and_argument_failure_corpus);
+    RUN_TEST(test_s228_public_lowrank_nonfinite_computed_factors_fail_both_routes);
     RUN_TEST(test_s228_lowrank_mixed_route_failure_lifecycle);
     RUN_TEST(test_s228_lowrank_frozen_error_precedence);
     RUN_TEST(test_s228_lowrank_memory_accounting_categories);
+    RUN_TEST(test_s228_lowrank_wide_extraction_memory_accounting);
+    RUN_TEST(test_s228_lowrank_empty_wide_memory_accounting);
     /* Sprint 29 Day 2: outer-product accumulator (Item 1) lit up.
      * Day 1 landed the env-var scaffolding + failing-as-expected
      * test stub; Day 2 replaced the empty-matrix stub in

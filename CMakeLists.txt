@@ -395,6 +395,10 @@ if(NOT WIN32)
 
     add_executable(bench_add benchmarks/bench_add.c)
     target_link_libraries(bench_add PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_svd_lowrank_memory benchmarks/bench_svd_lowrank_memory.c)
+    target_link_libraries(bench_svd_lowrank_memory PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_svd_lowrank_memory PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endif()
 
 # Example programs (not part of ctest)

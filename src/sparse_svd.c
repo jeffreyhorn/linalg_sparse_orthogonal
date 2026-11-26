@@ -6,12 +6,13 @@
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_svd_internal.h"
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Optional outer-product accumulator for `sparse_svd_lowrank_sparse`.
+/* Reconstruction routes for `sparse_svd_lowrank_sparse`.
  * See `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md` for the
  * algebra + thresholding rationale.
  *
@@ -31,22 +32,199 @@
  * Memory: O(nnz_result) sparse output only.  Wall: O(m·n·rank_k) same as
  * the dense-intermediate path's accumulator-fill loop.
  *
- * Env-var gate `SPARSE_SVD_LOWRANK_OUTER={off (default), on}` lets
- * callers A/B compare the two paths; the recorded sweep verdict
- * (`lowrank_sweep_day2.txt`) ships this as advisory only — memory
- * gate -76-88 % rss reduction PASS, wall gate ~0 % delta FAIL
- * (algorithmic-equivalence-bound), so production default stays off. */
+ * The per-cell route is the maintained default. The exact maintainer
+ * compatibility selector `SPARSE_SVD_LOWRANK_OUTER=off` retains the dense
+ * accumulator for bounded comparisons; unset and exact `on` select the
+ * default route. Every other set value is rejected. */
 typedef enum {
-    SVD_LOWRANK_OUTER_OFF = 0, /* Default — existing dense-intermediate path */
-    SVD_LOWRANK_OUTER_ON = 1,  /* Outer-product accumulator */
-} svd_lowrank_outer_mode_t;
+    SVD_LOWRANK_ROUTE_DENSE = 0,
+    SVD_LOWRANK_ROUTE_OUTER = 1,
+} svd_lowrank_route_t;
 
-static svd_lowrank_outer_mode_t parse_svd_lowrank_outer(void) {
+#ifdef _MSC_VER
+#define SPARSE_THREAD_LOCAL __declspec(thread)
+#else
+#define SPARSE_THREAD_LOCAL _Thread_local
+#endif
+
+static SPARSE_THREAD_LOCAL sparse_svd_lowrank_metrics_t lowrank_metrics;
+
+void sparse_svd_lowrank_metrics_reset(void) {
+    memset(&lowrank_metrics, 0, sizeof(lowrank_metrics));
+}
+
+void sparse_svd_lowrank_metrics_get(sparse_svd_lowrank_metrics_t *metrics) {
+    if (metrics)
+        *metrics = lowrank_metrics;
+}
+
+static int lowrank_metrics_add(size_t a, size_t b, size_t *out) {
+    return sparse_size_add_overflow(a, b, out);
+}
+
+static int lowrank_metrics_mul(size_t a, size_t b, size_t *out) {
+    return sparse_size_mul_overflow(a, b, out);
+}
+
+static int lowrank_metrics_shell_bytes(size_t rows, size_t cols, size_t *out) {
+    size_t pointer_count = 0;
+    size_t index_count = 0;
+    size_t pointer_bytes = 0;
+    size_t index_bytes = 0;
+    size_t total = sizeof(SparseMatrix);
+    if (lowrank_metrics_add(rows, cols, &pointer_count) ||
+        lowrank_metrics_mul(pointer_count, sizeof(Node *), &pointer_bytes) ||
+        lowrank_metrics_add(rows, cols, &index_count) ||
+        lowrank_metrics_mul(index_count, 2, &index_count) ||
+        lowrank_metrics_mul(index_count, sizeof(idx_t), &index_bytes) ||
+        lowrank_metrics_add(total, pointer_bytes, &total) ||
+        lowrank_metrics_add(total, index_bytes, &total))
+        return 1;
+    *out = total;
+    return 0;
+}
+
+static int lowrank_metrics_bidiag_tall(size_t m, size_t n, size_t *peak, size_t *allocations) {
+    size_t k = n;
+    size_t km1 = k > 0 ? k - 1 : 0;
+    size_t persistent = 0;
+    size_t term = 0;
+    size_t u_lengths = 0;
+    size_t v_lengths = 0;
+    size_t triangular = 0;
+    size_t dense = 0;
+    size_t work = 0;
+
+    if (k == 0) {
+        *peak = 0;
+        *allocations = 0;
+        return 0;
+    }
+    if (lowrank_metrics_mul(k, k - 1, &triangular))
+        return 1;
+    triangular /= 2;
+    if (lowrank_metrics_mul(k, m, &u_lengths) || u_lengths < triangular)
+        return 1;
+    u_lengths -= triangular;
+    if (lowrank_metrics_mul(km1, n, &v_lengths) || v_lengths < triangular)
+        return 1;
+    v_lengths -= triangular;
+
+#define ADD_ARRAY(count_, type_)                                                                   \
+    do {                                                                                           \
+        if (lowrank_metrics_mul((count_), sizeof(type_), &term) ||                                 \
+            lowrank_metrics_add(persistent, term, &persistent))                                    \
+            return 1;                                                                              \
+    } while (0)
+    ADD_ARRAY(k, double);
+    ADD_ARRAY(km1, double);
+    ADD_ARRAY(k, double *);
+    ADD_ARRAY(k, double);
+    ADD_ARRAY(km1, double *);
+    ADD_ARRAY(km1, double);
+    ADD_ARRAY(u_lengths, double);
+    ADD_ARRAY(v_lengths, double);
+#undef ADD_ARRAY
+
+    if (lowrank_metrics_mul(m, n, &dense) || lowrank_metrics_mul(dense, sizeof(double), &dense) ||
+        lowrank_metrics_mul(m > n ? m : n, sizeof(double), &work) ||
+        lowrank_metrics_add(persistent, dense, peak) || lowrank_metrics_add(*peak, work, peak))
+        return 1;
+
+    *allocations = k > 1 ? 2 * k + 7 : 6;
+    /* The copied superdiagonal and V work basis are temporary decomposition
+     * allocations. sigma, U, and Vt are counted as retained factors. */
+    *allocations += (k > 1 ? 1 : 0) + 1;
+    return 0;
+}
+
+static int lowrank_metrics_decomposition(const SparseMatrix *A, size_t *peak, size_t *allocations) {
+    size_t m = (size_t)A->rows;
+    size_t n = (size_t)A->cols;
+    if (m >= n)
+        return lowrank_metrics_bidiag_tall(m, n, peak, allocations);
+
+    size_t tall_peak = 0;
+    size_t tall_allocations = 0;
+    size_t transpose_shell = 0;
+    size_t transpose_slabs = 0;
+    size_t transpose_persistent = 0;
+    size_t construction_peak = 0;
+    size_t entries = 0;
+    size_t tails = 0;
+    size_t recursive_peak = 0;
+    size_t slab_count = ((size_t)A->nnz + (size_t)NODES_PER_SLAB - 1) / (size_t)NODES_PER_SLAB;
+    if (lowrank_metrics_bidiag_tall(n, m, &tall_peak, &tall_allocations) ||
+        lowrank_metrics_shell_bytes(n, m, &transpose_shell) ||
+        lowrank_metrics_mul(slab_count, sizeof(NodeSlab), &transpose_slabs) ||
+        lowrank_metrics_add(transpose_shell, transpose_slabs, &transpose_persistent) ||
+        lowrank_metrics_mul((size_t)A->nnz, sizeof(SparseBuildEntry), &entries) ||
+        lowrank_metrics_mul(m + n, sizeof(Node *), &tails) ||
+        lowrank_metrics_add(transpose_persistent, entries, &construction_peak) ||
+        lowrank_metrics_add(construction_peak, tails, &construction_peak) ||
+        lowrank_metrics_add(transpose_persistent, tall_peak, &recursive_peak))
+        return 1;
+    *peak = construction_peak > recursive_peak ? construction_peak : recursive_peak;
+    *allocations = tall_allocations + 10 + slab_count;
+    return 0;
+}
+
+static void lowrank_metrics_record_success(const SparseMatrix *A, const sparse_svd_t *svd,
+                                           const SparseMatrix *out, size_t reconstruction_bytes) {
+    size_t m = (size_t)A->rows;
+    size_t n = (size_t)A->cols;
+    size_t k = (size_t)svd->k;
+    size_t factor_count = 0;
+    size_t factor_bytes = 0;
+    size_t slab_count = ((size_t)out->nnz + (size_t)NODES_PER_SLAB - 1) / (size_t)NODES_PER_SLAB;
+    size_t slab_bytes = 0;
+    sparse_svd_lowrank_metrics_t metrics = {0};
+
+    if (lowrank_metrics_decomposition(A, &metrics.bidiag_work_peak_bytes,
+                                      &metrics.bidiag_work_allocations) ||
+        lowrank_metrics_mul(m + n, k, &factor_count) ||
+        lowrank_metrics_add(factor_count, k, &factor_count) ||
+        lowrank_metrics_mul(factor_count, sizeof(double), &factor_bytes) ||
+        lowrank_metrics_shell_bytes(m, n, &metrics.sparse_shell_map_bytes) ||
+        lowrank_metrics_mul(slab_count, sizeof(NodeSlab), &slab_bytes))
+        return;
+
+    metrics.retained_factor_bytes = factor_bytes;
+    metrics.retained_factor_allocations = 3;
+    metrics.reconstruction_scratch_peak_bytes = reconstruction_bytes;
+    metrics.reconstruction_scratch_allocations = reconstruction_bytes > 0 ? 1 : 0;
+    metrics.sparse_shell_map_allocations = 7;
+    metrics.sparse_node_slab_bytes = slab_bytes;
+    metrics.sparse_node_slab_allocations = slab_count;
+    metrics.output_nnz = out->nnz;
+    metrics.valid = 1;
+    lowrank_metrics = metrics;
+}
+
+static sparse_err_t parse_svd_lowrank_route(svd_lowrank_route_t *route) {
+    if (!route)
+        return SPARSE_ERR_NULL;
+
     const char *env = getenv("SPARSE_SVD_LOWRANK_OUTER");
-    if (env && strcmp(env, "on") == 0)
-        return SVD_LOWRANK_OUTER_ON;
-    /* Default + unrecognized + "off" all fall through. */
-    return SVD_LOWRANK_OUTER_OFF;
+    if (!env || strcmp(env, "on") == 0) {
+        *route = SVD_LOWRANK_ROUTE_OUTER;
+        return SPARSE_OK;
+    }
+    if (strcmp(env, "off") == 0) {
+        *route = SVD_LOWRANK_ROUTE_DENSE;
+        return SPARSE_OK;
+    }
+    return SPARSE_ERR_BADARG;
+}
+
+static int sparse_svd_matrix_values_are_finite(const SparseMatrix *A) {
+    for (idx_t row = 0; row < A->rows; row++) {
+        for (const Node *node = A->row_headers[row]; node; node = node->right) {
+            if (!isfinite(node->value))
+                return 0;
+        }
+    }
+    return 1;
 }
 
 /* Per-cell outer-product accumulator.  For each (i, j) ∈ [0, m) × [0, n),
@@ -62,26 +240,52 @@ static svd_lowrank_outer_mode_t parse_svd_lowrank_outer(void) {
  * order.  Day-2 corpus test asserts ||A_off - A_on||_F / ||A_off||_F
  * ≤ 1e-10 across the SuiteSparse fixtures (see
  * `tests/test_svd.c::test_sparse_svd_lowrank_outer_product_corpus_safety`). */
-static sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, idx_t rank_k,
-                                                     double drop_tol, idx_t m, idx_t n,
-                                                     SparseMatrix **out) {
-    SparseMatrix *result = sparse_create(m, n);
+sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, idx_t rank_k,
+                                              double drop_tol, idx_t m, idx_t n,
+                                              SparseMatrix **out) {
+    if (!out)
+        return SPARSE_ERR_NULL;
+    *out = NULL;
+
+    idx_t expected_k = (m < n) ? m : n;
+    if (!svd || m <= 0 || n <= 0 || rank_k <= 0 || !svd->economy || svd->m != m || svd->n != n ||
+        svd->k != expected_k || rank_k > svd->k || !svd->sigma || !svd->U || !svd->Vt ||
+        !isfinite(drop_tol) || drop_tol < 0.0)
+        return SPARSE_ERR_BADARG;
+
+    size_t m_size = 0;
+    size_t n_size = 0;
+    size_t k_size = 0;
+    size_t u_count = 0;
+    size_t vt_count = 0;
+    size_t factor_bytes = 0;
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_idx_to_size_checked(svd->k, &k_size) ||
+        sparse_count_bytes_overflow(k_size, sizeof(double), &factor_bytes) ||
+        sparse_size_mul_overflow(m_size, k_size, &u_count) ||
+        sparse_count_bytes_overflow(u_count, sizeof(double), &factor_bytes) ||
+        sparse_size_mul_overflow(n_size, k_size, &vt_count) ||
+        sparse_count_bytes_overflow(vt_count, sizeof(double), &factor_bytes))
+        return SPARSE_ERR_ALLOC;
+
+    idx_t s_end = rank_k;
+    for (idx_t s = 0; s < s_end; s++) {
+        if (!isfinite(svd->sigma[s]) || svd->sigma[s] < 0.0)
+            return SPARSE_ERR_NUMERIC;
+        /* Singular values are descending. A zero ends the useful factor
+         * range and mirrors the dense compatibility route. */
+        if (svd->sigma[s] == 0.0) {
+            s_end = s;
+            break;
+        }
+    }
+
+    SparseMatrix *result = sparse_create_injectable(m, n);
     if (!result)
         return SPARSE_ERR_ALLOC;
 
-    idx_t k = svd->k;
-    idx_t s_end = (rank_k < k) ? rank_k : k;
-
-    /* Early-exit on zero-σ matrices (mirrors the existing path's
-     * short-circuit at line ~1313). */
-    if (s_end == 0 || svd->sigma[0] == 0.0) {
-        *out = result;
-        return SPARSE_OK;
-    }
-
     const double *U_data = svd->U;   /* m×k column-major */
     const double *Vt_data = svd->Vt; /* k×n column-major */
-    const double *sigma = svd->sigma;
 
     for (idx_t i = 0; i < m; i++) {
         for (idx_t j = 0; j < n; j++) {
@@ -90,11 +294,29 @@ static sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, id
                 /* σ_s · U[i, s] · V^T[s, j] — U is m×k col-major so
                  * U[i, s] = U_data[s*m + i]; Vt is k×n col-major so
                  * Vt[s, j] = Vt_data[j*k + s]. */
-                val += sigma[s] * U_data[(size_t)s * (size_t)m + (size_t)i] *
-                       Vt_data[(size_t)j * (size_t)k + (size_t)s];
+                size_t u_offset = (size_t)s * m_size + (size_t)i;
+                size_t vt_offset = (size_t)j * k_size + (size_t)s;
+                double u_value = U_data[u_offset];
+                double vt_value = Vt_data[vt_offset];
+                if (!isfinite(u_value) || !isfinite(vt_value)) {
+                    sparse_free(result);
+                    return SPARSE_ERR_NUMERIC;
+                }
+                double scaled = svd->sigma[s] * u_value;
+                double term = scaled * vt_value;
+                if (!isfinite(scaled) || !isfinite(term)) {
+                    sparse_free(result);
+                    return SPARSE_ERR_NUMERIC;
+                }
+                double next = val + term;
+                if (!isfinite(next)) {
+                    sparse_free(result);
+                    return SPARSE_ERR_NUMERIC;
+                }
+                val = next;
             }
             if (fabs(val) >= drop_tol) {
-                sparse_err_t ierr = sparse_insert(result, i, j, val);
+                sparse_err_t ierr = sparse_insert_injectable(result, i, j, val);
                 if (ierr != SPARSE_OK) {
                     sparse_free(result);
                     return ierr;
@@ -160,9 +382,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
         /* Form U_t (n×k) from left reflectors of A^T */
         double *Ut = NULL;
         if (V) { /* A's V = A^T's U_t */
-            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-            Ut = calloc(mt_k_elems, sizeof(double));
-            if (!Ut)
+            if (sparse_calloc_array(mt_k_elems, sizeof(double), (void **)&Ut) != SPARSE_OK)
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in n×k */
             for (idx_t i = 0; i < k; i++)
@@ -185,9 +405,8 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
         /* Form V_t (m×k) from right reflectors of A^T */
         if (U) { /* A's U = A^T's V_t */
             idx_t nv = (k > 1) ? k - 1 : 0;
-            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-            double *Vt = calloc(nt_k_elems, sizeof(double));
-            if (!Vt)
+            double *Vt = NULL;
+            if (sparse_calloc_array(nt_k_elems, sizeof(double), (void **)&Vt) != SPARSE_OK)
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in m×k */
             for (idx_t i = 0; i < k; i++)
@@ -769,9 +988,12 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         sparse_bidiag_free(&bd);
         return SPARSE_ERR_ALLOC;
     }
-    double *bd_diag = malloc(bd_diag_bytes);
-    double *bd_super = (k > 1) ? malloc(bd_super_bytes) : NULL;
-    if (!bd_diag || (k > 1 && !bd_super)) {
+    double *bd_diag = NULL;
+    double *bd_super = NULL;
+    if (sparse_malloc_array(k_size, sizeof(double), (void **)&bd_diag) != SPARSE_OK || !bd_diag ||
+        (k > 1 &&
+         sparse_malloc_array(k_size - 1, sizeof(double), (void **)&bd_super) != SPARSE_OK) ||
+        (k > 1 && !bd_super)) {
         free(bd_diag);
         free(bd_super);
         sparse_bidiag_free(&bd);
@@ -795,9 +1017,8 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             sparse_bidiag_free(&bd);
             return SPARSE_ERR_ALLOC;
         }
-        U_work = calloc(sz_u, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        V_work = calloc(sz_v, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        if (!U_work || !V_work) {
+        if (sparse_calloc_array(sz_u, sizeof(double), (void **)&U_work) != SPARSE_OK || !U_work ||
+            sparse_calloc_array(sz_v, sizeof(double), (void **)&V_work) != SPARSE_OK || !V_work) {
             free(bd_diag);
             free(bd_super);
             free(U_work);
@@ -957,8 +1178,8 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
         }
-        svd->Vt = calloc(vt_sz, sizeof(double));
-        if (!svd->Vt) {
+        if (sparse_calloc_array(vt_sz, sizeof(double), (void **)&svd->Vt) != SPARSE_OK ||
+            !svd->Vt) {
             free(V_work);
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
@@ -1147,6 +1368,7 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
 
 sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, double drop_tol,
                                        SparseMatrix **result) {
+    sparse_svd_lowrank_metrics_reset();
     if (!result)
         return SPARSE_ERR_NULL;
     *result = NULL;
@@ -1164,49 +1386,61 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
+    if (!isfinite(drop_tol))
+        return SPARSE_ERR_BADARG;
+
+    svd_lowrank_route_t route;
+    sparse_err_t err = parse_svd_lowrank_route(&route);
+    if (err != SPARSE_OK)
+        return err;
+
+    if (!sparse_svd_matrix_values_are_finite(A))
+        return SPARSE_ERR_NUMERIC;
+
     /* Full SVD with U and Vt */
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd;
-    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    err = sparse_svd_compute(A, &opts, &svd);
     if (err != SPARSE_OK)
         return err;
 
     /* Short-circuit for all-zero matrix: no outer products to accumulate */
     if (svd.sigma[0] == 0.0) {
-        sparse_svd_free(&svd);
-        SparseMatrix *out = sparse_create(m, n);
-        if (!out)
+        SparseMatrix *out = sparse_create_injectable(m, n);
+        if (!out) {
+            sparse_svd_free(&svd);
             return SPARSE_ERR_ALLOC;
+        }
+        lowrank_metrics_record_success(A, &svd, out, 0);
+        sparse_svd_free(&svd);
         *result = out;
         return SPARSE_OK;
     }
 
     /* Default drop tolerance: eps * sigma_max */
     if (drop_tol <= 0.0)
-        drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+        drop_tol = DBL_EPSILON * svd.sigma[0];
 
-    /* Optional outer-product path that drops the O(m·n) dense accumulator.
-     * The default-off path preserves the dense-intermediate behavior;
-     * env-on dispatches to `sparse_svd_lowrank_outer_product`, which
-     * matches the dense path's nnz output bit-for-bit on the corpus, with
-     * -76-88 % peak
-     * rss on bcsstk14-class fixtures per `lowrank_sweep_day2.txt`).
-     * See `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md`. */
-    if (parse_svd_lowrank_outer() == SVD_LOWRANK_OUTER_ON) {
+    /* The maintained default reconstructs each cell directly and therefore
+     * has no additional m*n accumulator. Exact `off` reaches the retained
+     * dense compatibility route below. */
+    if (route == SVD_LOWRANK_ROUTE_OUTER) {
         SparseMatrix *outer_result = NULL;
         sparse_err_t outer_err =
             sparse_svd_lowrank_outer_product(&svd, rank_k, drop_tol, m, n, &outer_result);
-        sparse_svd_free(&svd);
         if (outer_err != SPARSE_OK) {
             if (outer_result)
                 sparse_free(outer_result);
+            sparse_svd_free(&svd);
             return outer_err;
         }
+        lowrank_metrics_record_success(A, &svd, outer_result, 0);
+        sparse_svd_free(&svd);
         *result = outer_result;
         return SPARSE_OK;
     }
 
-    SparseMatrix *out = sparse_create(m, n);
+    SparseMatrix *out = sparse_create_injectable(m, n);
     if (!out) {
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
@@ -1225,8 +1459,8 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
     }
-    double *accum = calloc(mn, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-    if (!accum) {
+    double *accum = NULL;
+    if (sparse_calloc_array(mn, sizeof(double), (void **)&accum) != SPARSE_OK) {
         sparse_free(out);
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
@@ -1249,7 +1483,7 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
         for (idx_t j = 0; j < n; j++) {
             double val = accum[(size_t)i * (size_t)n + (size_t)j];
             if (fabs(val) >= drop_tol) {
-                sparse_err_t ierr = sparse_insert(out, i, j, val);
+                sparse_err_t ierr = sparse_insert_injectable(out, i, j, val);
                 if (ierr != SPARSE_OK) {
                     free(accum);
                     sparse_free(out);
@@ -1261,6 +1495,7 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     }
     free(accum);
 
+    lowrank_metrics_record_success(A, &svd, out, mn * sizeof(double));
     *result = out;
     sparse_svd_free(&svd);
     return SPARSE_OK;

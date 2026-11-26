@@ -1,4 +1,5 @@
 #include "sparse_bidiag.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_vector.h"
@@ -80,7 +81,7 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
      * If A^T = U_t * B_t * V_t^T, then A = V_t * B_t^T * U_t^T.
      * The reflectors are stored as-is (for A^T); SVD code swaps U↔V. */
     if (m < n) {
-        SparseMatrix *At = sparse_transpose(A);
+        SparseMatrix *At = sparse_transpose_injectable(A);
         if (!At)
             return SPARSE_ERR_ALLOC;
 
@@ -127,8 +128,8 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
             return SPARSE_ERR_ALLOC;
     }
 
-    double *W = calloc((size_t)m * (size_t)n, sizeof(double));
-    if (!W)
+    double *W = NULL;
+    if (sparse_calloc_array((size_t)m * (size_t)n, sizeof(double), (void **)&W) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     /* Copy A into W (column-major) */
@@ -150,15 +151,21 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     }
 
     /* Allocate output arrays */
-    double *diag = calloc((size_t)k, sizeof(double));
-    double *superdiag = (k > 1) ? calloc((size_t)(k - 1), sizeof(double)) : NULL;
-    double **u_vecs = calloc((size_t)k, sizeof(double *));
-    double *u_betas = calloc((size_t)k, sizeof(double));
+    double *diag = NULL;
+    double *superdiag = NULL;
+    double **u_vecs = NULL;
+    double *u_betas = NULL;
     idx_t nv = (k > 1) ? k - 1 : 0;
-    double **v_vecs = (nv > 0) ? calloc((size_t)nv, sizeof(double *)) : NULL;
-    double *v_betas = (nv > 0) ? calloc((size_t)nv, sizeof(double)) : NULL;
+    double **v_vecs = NULL;
+    double *v_betas = NULL;
 
-    if (!diag || !u_vecs || !u_betas || (k > 1 && (!superdiag || !v_vecs || !v_betas))) {
+    if (sparse_calloc_idx_array(k, sizeof(double), (void **)&diag) != SPARSE_OK ||
+        (k > 1 &&
+         sparse_calloc_idx_array(k - 1, sizeof(double), (void **)&superdiag) != SPARSE_OK) ||
+        sparse_calloc_idx_array(k, sizeof(double *), (void **)&u_vecs) != SPARSE_OK ||
+        sparse_calloc_idx_array(k, sizeof(double), (void **)&u_betas) != SPARSE_OK ||
+        (nv > 0 && sparse_calloc_idx_array(nv, sizeof(double *), (void **)&v_vecs) != SPARSE_OK) ||
+        (nv > 0 && sparse_calloc_idx_array(nv, sizeof(double), (void **)&v_betas) != SPARSE_OK)) {
         free(W);
         free(diag);
         free(superdiag);
@@ -170,8 +177,8 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     }
 
     idx_t maxdim = (m > n) ? m : n;
-    double *hv = malloc((size_t)maxdim * sizeof(double));
-    if (!hv) {
+    double *hv = NULL;
+    if (sparse_malloc_idx_array(maxdim, sizeof(double), (void **)&hv) != SPARSE_OK) {
         free(W);
         free(diag);
         free(superdiag);
@@ -189,8 +196,7 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
 
         double beta_u = bidiag_householder_compute(col_ptr, hv, col_len);
         u_betas[step] = beta_u;
-        u_vecs[step] = malloc((size_t)col_len * sizeof(double));
-        if (!u_vecs[step]) {
+        if (sparse_malloc_idx_array(col_len, sizeof(double), (void **)&u_vecs[step]) != SPARSE_OK) {
             free(hv);
             free(W);
             bidiag->diag = diag;
@@ -222,8 +228,8 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
             for (idx_t j = 0; j < row_len; j++)
                 row_entries[j] = W[(size_t)(step + 1 + j) * (size_t)m + (size_t)step];
 
-            double *rv = malloc((size_t)row_len * sizeof(double));
-            if (!rv) {
+            double *rv = NULL;
+            if (sparse_malloc_idx_array(row_len, sizeof(double), (void **)&rv) != SPARSE_OK) {
                 free(hv);
                 free(W);
                 bidiag->diag = diag;

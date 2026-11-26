@@ -188,30 +188,37 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
 sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
 
 /**
- * @brief Compute the best rank-k approximation as a sparse matrix.
+ * @brief Compute a dropped rank-k approximation as a sparse matrix.
  *
  * Returns A_k = U_k * Sigma_k * V_k^T as a SparseMatrix, dropping entries
- * whose absolute value is below @p drop_tol. The final sparse output uses
- * less memory than the dense array from sparse_svd_lowrank() when the
- * low-rank approximation is itself sparse.
+ * whose absolute value is strictly below @p drop_tol. Equality is retained.
+ * The output is not guaranteed to be sparse: its storage depends on the
+ * number of retained entries.
  *
- * @note Internally allocates a temporary m*n dense accumulator during
- *       construction. Peak memory is comparable to sparse_svd_lowrank().
+ * @note The maintained default reconstructs each output cell directly and
+ *       does not allocate an additional m*n reconstruction accumulator. This
+ *       is a reconstruction-only memory property, not a whole-call peak-memory
+ *       bound: economy SVD factors, bidiagonalization work storage, sparse
+ *       matrix shell/maps, and retained output nodes remain allocated.
  *
- * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to use an
- *       alternative per-cell outer-product accumulator that avoids the m*n
- *       dense intermediate. The path trades dense temporary memory for sparse
- *       insert overhead. Default off preserves the dense-intermediate path.
+ * @note Maintainers may set SPARSE_SVD_LOWRANK_OUTER=off to select the
+ *       retained dense-accumulator compatibility route. An unset selector or
+ *       exact value `on` selects the maintained default. Any other set value,
+ *       including an empty string, is rejected with SPARSE_ERR_BADARG.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).
- * @param drop_tol Entries with |value| < drop_tol are dropped. If <= 0,
- *                 uses default: eps * sigma_1.
+ * @param drop_tol Entries with |value| < drop_tol are dropped. Equality is
+ *                 retained. If finite and <= 0, uses DBL_EPSILON * sigma_1.
  * @param result   Output: sparse m×n matrix (caller must free with sparse_free()).
  *                 Set to NULL on failure.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or result is NULL.
- * @return SPARSE_ERR_BADARG if rank_k is out of range or A has non-identity permutations.
+ * @return SPARSE_ERR_BADARG if rank_k is out of range, A has non-identity
+ *         permutations, drop_tol is non-finite, or the compatibility selector
+ *         has an unsupported value.
+ * @return SPARSE_ERR_NUMERIC if A or the reconstructed result contains a
+ *         non-finite numerical value.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */

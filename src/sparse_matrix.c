@@ -120,6 +120,10 @@ Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar
     return sparse_matrix_make_node_impl(mat, r, c, v, 0);
 }
 
+Node *sparse_matrix_make_node_injectable(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v) {
+    return sparse_matrix_make_node_impl(mat, r, c, v, 1);
+}
+
 static int sparse_matrix_has_non_identity_row_col_perms(const SparseMatrix *mat) {
     if (!mat)
         return 0;
@@ -250,6 +254,10 @@ static SparseMatrix *sparse_create_impl(idx_t rows, idx_t cols, int injectable_s
 
 SparseMatrix *sparse_create(idx_t rows, idx_t cols) { return sparse_create_impl(rows, cols, 0); }
 
+SparseMatrix *sparse_create_injectable(idx_t rows, idx_t cols) {
+    return sparse_create_impl(rows, cols, 1);
+}
+
 void sparse_free(SparseMatrix *mat) {
     if (!mat)
         return;
@@ -329,7 +337,7 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
     return copy;
 }
 
-SparseMatrix *sparse_transpose(const SparseMatrix *A) {
+static SparseMatrix *sparse_transpose_impl(const SparseMatrix *A, int injectable) {
     SparseBuildEntry *entries = NULL;
     if (!A)
         return NULL;
@@ -353,13 +361,24 @@ SparseMatrix *sparse_transpose(const SparseMatrix *A) {
     }
 
     SparseMatrix *T = NULL;
-    if (sparse_matrix_build_from_entries(A->cols, A->rows, entries, entry_idx,
-                                         /*entries_sorted=*/0, &T) != SPARSE_OK) {
+    sparse_err_t err =
+        injectable
+            ? sparse_matrix_build_from_entries_injectable(A->cols, A->rows, entries, entry_idx,
+                                                          /*entries_sorted=*/0, &T)
+            : sparse_matrix_build_from_entries(A->cols, A->rows, entries, entry_idx,
+                                               /*entries_sorted=*/0, &T);
+    if (err != SPARSE_OK) {
         free(entries);
         return NULL;
     }
     free(entries);
     return T;
+}
+
+SparseMatrix *sparse_transpose(const SparseMatrix *A) { return sparse_transpose_impl(A, 0); }
+
+SparseMatrix *sparse_transpose_injectable(const SparseMatrix *A) {
+    return sparse_transpose_impl(A, 1);
 }
 
 /* ─── Element access (physical) ──────────────────────────────────────── */
@@ -433,6 +452,11 @@ static sparse_err_t sparse_insert_impl(SparseMatrix *mat, idx_t row, idx_t col, 
 
 sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, sparse_scalar_t val) {
     return sparse_insert_impl(mat, row, col, val, 0);
+}
+
+sparse_err_t sparse_insert_injectable(SparseMatrix *mat, idx_t row, idx_t col,
+                                      sparse_scalar_t val) {
+    return sparse_insert_impl(mat, row, col, val, 1);
 }
 
 /* Internal remove (no locking — called from within locked sparse_insert) */

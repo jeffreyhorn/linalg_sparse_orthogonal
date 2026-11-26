@@ -26,6 +26,7 @@ and proof-owner interpretation.
 | Find generated report indexes and freshness metadata | [Report index handoff](#report-index-handoff) |
 | Use the main solver-harness CLI | [bench_main](#bench_main) |
 | Use the symmetric eigensolver CLI and CSV schemas | [bench_eigs](#bench_eigs) |
+| Measure sparse low-rank reconstruction components | [Low-rank reconstruction memory](#low-rank-reconstruction-memory) |
 
 ## Reading Benchmark Results
 
@@ -160,6 +161,64 @@ depending on what the underlying factorization path actually supports:
 | `bench_chol_csc`       | CSC Cholesky backend comparison                         | (in `make bench`)         |
 | `bench_ldlt_csc`       | LDL^T linked-list vs CSC + dispatch                     | (in `make bench`)         |
 | `bench_eigs`           | Symmetric eigensolver backend sweep                     | `make bench-eigs`         |
+| `bench_svd_lowrank_memory` | Focused low-rank reconstruction component and RSS probe | run directly with a frozen workload and route |
+
+## Low-rank reconstruction memory
+
+`bench_svd_lowrank_memory` is a focused evidence probe for
+`sparse_svd_lowrank_sparse()`. It is not a general SVD benchmark and is not
+part of the portable performance claim surface.
+
+Build it through either maintained build system:
+
+```sh
+make build/bench_svd_lowrank_memory
+cmake -S . -B build/cmake
+cmake --build build/cmake --target bench_svd_lowrank_memory
+```
+
+Run one frozen workload with the maintained default or the exact-`off` dense
+compatibility route:
+
+```sh
+./build/bench_svd_lowrank_memory measure-square-512-r16 default
+./build/bench_svd_lowrank_memory measure-square-512-r16 dense
+```
+
+The other frozen workload names are `measure-tall-1024x256-r8`,
+`measure-wide-256x1024-r24`, and `measure-zero-512-r16`. Each invocation emits
+one JSON object containing correctness/status fields, wall time, process RSS,
+and separate checked allocation extents/counts for:
+
+- bidiagonalization/decomposition work;
+- retained economy-SVD factors;
+- route-specific reconstruction scratch;
+- sparse matrix shell and identity maps; and
+- retained output node slabs.
+
+The exact counters are the primary memory evidence. RSS is contextual because
+allocator behavior and overlapping decomposition peaks can hide a component's
+size. The output matrix is sparse only when thresholding retains a sparse
+pattern; dense factors and decomposition storage remain visible.
+
+The bounded packet collector is:
+
+```sh
+python3 scripts/run_sprint228_memory_packet.py
+```
+
+It rejects a dirty worktree by default, retains raw streams and receipts, caps
+each invocation at 30 seconds and the collection at 15 minutes, and hashes the
+collector, benchmark, build definitions, headers, library sources, binary,
+library, and raw packet. `--allow-dirty-development` is only for explicitly
+provisional development evidence.
+
+The Sprint 228 development packet proved the reconstruction-scratch property,
+but its square and wide paired timing cells exceeded the frozen limits. Read
+the exact values, source snapshot, and acceptance boundary in the
+[Day 12 limitation record](../docs/planning/EPIC_21/SPRINT_228/artifacts/day12-documentation-and-timing-limitations.md).
+Do not describe this route as universally faster, as whole-SVD sparse-memory,
+or as having a portable peak-RSS reduction.
 
 ## Workflow groups
 

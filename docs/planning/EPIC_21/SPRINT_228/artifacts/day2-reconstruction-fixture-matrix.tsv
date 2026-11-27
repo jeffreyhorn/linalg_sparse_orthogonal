@@ -1,0 +1,14 @@
+fixture_id	shape	construction	rank_k	drop_tol	expected_status	expected_output	oracle	purpose
+diag-square-32-r4	32x32	diag(10,5,1,0.1,zeros)	4	1e-8	SPARSE_OK	4 diagonal entries	analytical	Square core and retained ordering
+diag-tall-9x5-r3	9x5	diag_rect(8,4,2,1,0)	3	0	SPARSE_OK	first 3 diagonal entries	analytical	Tall core and default tolerance
+diag-wide-5x9-r3	5x9	diag_rect(8,4,2,1,0)	3	1e-12	SPARSE_OK	first 3 diagonal entries	analytical	Wide transpose core
+zero-6x4-r2	6x4	all zero	2	0	SPARSE_OK	empty 6x4 matrix	analytical	All-zero short circuit after validation
+rankdef-6x4-r2	6x4	c1=2*c0,c3=c0+c2 with c0=(1,2,3,4,5,6),c2=(1,-1,1,-1,1,-1)	2	1e-12	SPARSE_OK	exact input matrix	analytical and long-double	Rank-deficient dependent columns
+clustered-diag-6-r4	6x6	diag(8,8*(1-2^-40),4,4*(1-2^-40),1,0.5)	4	0	SPARSE_OK	first 4 diagonal entries	analytical	Clustered singular values
+hadamard-cancel-4-r2	4x4	8*u0*v0^T+8*u1*v1^T with normalized power-of-two Hadamard vectors	2	2^-40	SPARSE_OK	exact nonzero pattern; cancellation cells absent	analytical long-double	Exact cancellation and near-zero handling
+threshold-diag-3-r3	3x3	diag(1,0.5,0.25)	3	0.5	SPARSE_OK	diag(1,0.5,0)	analytical	Equality retained and below-threshold dropped
+tiny-diag-4-r2	4x4	diag(2^-900,2^-901,2^-902,0)	2	0	SPARSE_OK	first 2 finite diagonal entries	analytical long-double	Tiny finite scale without false zero/non-finite
+nan-tolerance	3x3	diag(3,2,1)	2	NaN	SPARSE_ERR_BADARG	NULL	status contract	Reject non-finite tolerance before SVD
+infinite-tolerance	3x3	diag(3,2,1)	2	+Inf	SPARSE_ERR_BADARG	NULL	status contract	Reject non-finite tolerance before SVD
+nan-matrix-data	3x3	diag(3,NaN,1)	2	0	SPARSE_ERR_NUMERIC	NULL	status contract	Reject non-finite matrix data or factor propagation
+infinite-matrix-data	3x3	diag(3,+Inf,1)	2	0	SPARSE_ERR_NUMERIC	NULL	status contract	Reject non-finite matrix data or factor propagation

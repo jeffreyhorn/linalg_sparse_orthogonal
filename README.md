@@ -301,6 +301,19 @@ local diagnostics and generated report context, but they are not new public
 typed APIs, ABI guarantees, package guarantees, platform parity claims, or
 portable performance claims.
 
+For sparse low-rank reconstruction, an unset `SPARSE_SVD_LOWRANK_OUTER` or
+the exact value `on` selects the maintained per-cell route, which avoids an
+additional `m*n` reconstruction accumulator. Exact `off` retains the dense
+compatibility route for maintainer comparisons; every other set value fails
+closed. Values with absolute magnitude strictly below `drop_tol` are omitted;
+equality is retained, and a finite nonpositive tolerance uses
+`DBL_EPSILON * sigma_1`. Full economy-SVD factors and bidiagonalization work
+remain dense, while sparse-output storage scales with the retained `nnz` and
+can itself approach dense size. This is a reconstruction-scratch result, not a
+whole-SVD peak-memory or speed claim. The retained measurements and failed
+timing gate are scoped in the
+[Sprint 228 Day 12 limitation record](docs/planning/EPIC_21/SPRINT_228/artifacts/day12-documentation-and-timing-limitations.md).
+
 Runtime/backend sentinels follow the same boundary: `S5` is the existing
 local `wall-check` hard gate, while `S2` Cholesky CSC and `S3` LDLT KKT rows
 are threshold-free local context rows in
@@ -872,7 +885,7 @@ candidate workflow paths.
 - `sparse_svd_rank(A, tol, &rank)` — SVD-local numerical rank estimate under the supplied tolerance
 - `sparse_pinv(A, tol, &pinv)` — Moore-Penrose pseudoinverse
 - `sparse_svd_lowrank(A, k, &dense)` — rank-k approximation from the SVD API (dense output)
-- `sparse_svd_lowrank_sparse(A, k, drop_tol, &sparse)` — sparse dropped rank-k approximation from the SVD API (sparse output)
+- `sparse_svd_lowrank_sparse(A, k, drop_tol, &sparse)` — dropped rank-k approximation in sparse-matrix storage; the default adds no `m*n` reconstruction accumulator, but dense economy factors and retained output nodes remain
 - `sparse_svd_free(&svd)` — free SVD result
 
 **Iterative solvers:**
@@ -974,6 +987,14 @@ For n x n sparse matrices with nnz non-zeros:
 | Solve | O(nnz_LU) | Forward/back substitution |
 | QR Factor | O(mn^2) | Householder transformations |
 | SVD | O(mn^2) | Bidiagonalization plus QR |
+
+The sparse low-rank output API changes only reconstruction storage: its default
+route avoids the additional dense `m*n` accumulator used by the maintainer
+compatibility route. It does not make the full SVD sparse-memory. Economy
+factors require storage proportional to `k + m*k + n*k`, bidiagonalization has
+dense work storage, and the returned matrix grows with retained `nnz`. The
+focused timing samples did not satisfy the frozen promotion limits, so the
+project makes no faster-than-compatibility claim for this route.
 
 Current benchmark surfaces cover:
 

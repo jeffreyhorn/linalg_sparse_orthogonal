@@ -1,0 +1,9 @@
+workload	route	bidiag_peak_bytes	bidiag_allocations	retained_factor_bytes	retained_factor_allocations	reconstruction_scratch_peak_bytes	reconstruction_scratch_allocations	sparse_shell_map_bytes	sparse_shell_map_allocations	sparse_node_slab_bytes	sparse_node_slab_allocations	median_rss_before_bytes	median_peak_rss_bytes	median_wall_ns
+measure-square-512-r16	default	4222952	1033	4198400	3	0	0	16520	7	131088	1	724992	9408512	25346500
+measure-square-512-r16	dense	4222952	1033	4198400	3	2097152	1	16520	7	131088	1	761856	9465856	18444500
+measure-tall-1024x256-r8	default	4214760	521	2623488	3	0	0	20616	7	131088	1	761856	6209536	15334000
+measure-tall-1024x256-r8	dense	4214760	521	2623488	3	2097152	1	20616	7	131088	1	745472	8306688	12183500
+measure-wide-256x1024-r24	default	6305760	534	2623488	3	0	0	20616	7	131088	1	765952	9375744	31472500
+measure-wide-256x1024-r24	dense	6305760	534	2623488	3	2097152	1	20616	7	131088	1	765952	9400320	23469000
+measure-zero-512-r16	default	4222952	1033	4198400	3	0	0	16520	7	0	0	700416	9392128	9178000
+measure-zero-512-r16	dense	4222952	1033	4198400	3	0	0	16520	7	0	0	737280	9433088	9287000

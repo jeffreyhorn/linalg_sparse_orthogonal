@@ -215,10 +215,23 @@ Node *pool_alloc(NodePool *pool);
 void pool_release(NodePool *pool, Node *node);
 void pool_free_all(NodePool *pool);
 Node *sparse_matrix_make_node(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v);
+Node *sparse_matrix_make_node_injectable(SparseMatrix *mat, idx_t r, idx_t c, sparse_scalar_t v);
+
+/* Allocation-failure proof surfaces for solver-owned output construction.
+ * These preserve public sparse_create/sparse_insert behavior while routing
+ * shell and first-slab allocations through sparse_alloc_test_fail_after(). */
+SparseMatrix *sparse_create_injectable(idx_t rows, idx_t cols);
+SparseMatrix *sparse_transpose_injectable(const SparseMatrix *A);
+sparse_err_t sparse_insert_injectable(SparseMatrix *mat, idx_t row, idx_t col,
+                                      sparse_scalar_t value);
 
 sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuildEntry *entries,
                                               idx_t nentries, int entries_sorted,
                                               SparseMatrix **mat_out);
+sparse_err_t sparse_matrix_build_from_entries_injectable(idx_t rows, idx_t cols,
+                                                         SparseBuildEntry *entries, idx_t nentries,
+                                                         int entries_sorted,
+                                                         SparseMatrix **mat_out);
 sparse_err_t sparse_stream_vprintf_checked(FILE *stream, const char *fmt, va_list ap);
 sparse_err_t sparse_stream_printf_checked(FILE *stream, const char *fmt, ...);
 

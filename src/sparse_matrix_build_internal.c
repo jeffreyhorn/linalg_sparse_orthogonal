@@ -21,9 +21,10 @@ static int sparse_build_entry_cmp(const void *lhs, const void *rhs) {
     return 0;
 }
 
-sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuildEntry *entries,
-                                              idx_t nentries, int entries_sorted,
-                                              SparseMatrix **mat_out) {
+static sparse_err_t sparse_matrix_build_from_entries_impl(idx_t rows, idx_t cols,
+                                                          SparseBuildEntry *entries, idx_t nentries,
+                                                          int entries_sorted, int injectable,
+                                                          SparseMatrix **mat_out) {
     Node **row_tails = NULL;
     Node **col_tails = NULL;
     SparseMatrix *mat = NULL;
@@ -37,7 +38,7 @@ sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuil
     if (!entries && nentries > 0)
         return SPARSE_ERR_NULL;
 
-    mat = sparse_create(rows, cols);
+    mat = injectable ? sparse_create_injectable(rows, cols) : sparse_create(rows, cols);
     if (!mat)
         return SPARSE_ERR_ALLOC;
     if (nentries == 0) {
@@ -76,7 +77,8 @@ sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuil
             goto fail;
         }
         if (value != 0.0) {
-            Node *node = sparse_matrix_make_node(mat, row, col, value);
+            Node *node = injectable ? sparse_matrix_make_node_injectable(mat, row, col, value)
+                                    : sparse_matrix_make_node(mat, row, col, value);
             if (!node) {
                 err = SPARSE_ERR_ALLOC;
                 goto fail;
@@ -108,4 +110,19 @@ fail:
     free(col_tails);
     sparse_free(mat);
     return err;
+}
+
+sparse_err_t sparse_matrix_build_from_entries(idx_t rows, idx_t cols, SparseBuildEntry *entries,
+                                              idx_t nentries, int entries_sorted,
+                                              SparseMatrix **mat_out) {
+    return sparse_matrix_build_from_entries_impl(rows, cols, entries, nentries, entries_sorted, 0,
+                                                 mat_out);
+}
+
+sparse_err_t sparse_matrix_build_from_entries_injectable(idx_t rows, idx_t cols,
+                                                         SparseBuildEntry *entries, idx_t nentries,
+                                                         int entries_sorted,
+                                                         SparseMatrix **mat_out) {
+    return sparse_matrix_build_from_entries_impl(rows, cols, entries, nentries, entries_sorted, 1,
+                                                 mat_out);
 }

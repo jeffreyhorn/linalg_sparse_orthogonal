@@ -81,6 +81,7 @@ BENCHDIR = benchmarks
 BUILDDIR = build
 GENERATED_VERSION = $(BUILDDIR)/include/sparse_version.h
 SPARSE_WIDTH_STAMP = $(BUILDDIR)/.sparse-idx-bits
+SPARSE_BUILD_CONFIG_STAMP = $(BUILDDIR)/.sparse-build-config.tsv
 
 # Library sources
 LIB_SRCS = $(SRCDIR)/sparse_types.c \
@@ -219,8 +220,11 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_amd_qg.c \
              $(BENCHDIR)/bench_iterative_reuse.c \
              $(BENCHDIR)/bench_matmul.c \
-             $(BENCHDIR)/bench_add.c
+             $(BENCHDIR)/bench_add.c \
+             $(BENCHDIR)/bench_svd_lowrank_memory.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
+S228_MEMORY_BENCH = $(BUILDDIR)/bench_svd_lowrank_memory
+S228_MEMORY_BUILD_METADATA = $(S228_MEMORY_BENCH).build.tsv
 
 # Example sources
 EXDIR = examples
@@ -271,8 +275,28 @@ $(SPARSE_WIDTH_STAMP): force-sparse-width-stamp | $(BUILDDIR)
 			fi; \
 		fi
 
+# Record the complete Make-expanded configuration shared by the library and
+# the Sprint 228 memory probe. Because every library object depends on this
+# receipt, changing the compiler, flags, link settings, or index width refreshes
+# the stamp before prerequisite checks and rebuilds the archive.
+.PHONY: force-sparse-build-config-stamp
+force-sparse-build-config-stamp:
+
+$(SPARSE_BUILD_CONFIG_STAMP): force-sparse-build-config-stamp | $(BUILDDIR)
+	@set -eu; compiler_line="$$( $(CC) --version 2>/dev/null | sed -n '1p')"; \
+		tmp="$@.$$$$"; \
+		printf 'schema\ts228-memory-build-v1\nbuild_system\tmake\ncc\t%s\ncompiler\t%s\ncflags\t%s\nldflags\t%s\nsparse_cflags\t%s\nindex_bits\t%s\n' \
+			'$(CC)' "$$compiler_line" '$(CFLAGS)' '$(LDFLAGS)' '$(SPARSE_CFLAGS)' \
+			'$(SPARSE_IDX_BITS)' > "$$tmp"; \
+		if test -r "$@" && cmp -s "$$tmp" "$@"; then \
+			rm -f "$$tmp"; \
+		else \
+			mv "$$tmp" "$@"; \
+			sleep 1; touch "$@"; \
+		fi
+
 # Library objects
-$(BUILDDIR)/%.o: $(SRCDIR)/%.c $(GENERATED_VERSION) | $(BUILDDIR)
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c $(GENERATED_VERSION) $(SPARSE_BUILD_CONFIG_STAMP) | $(BUILDDIR)
 	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -c $< -o $@
 
 # Static library.  `ar rcs $@ $(LIB_OBJS)` instead of `$@ $^` because
@@ -307,6 +331,16 @@ $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 
 # Benchmark executables
 $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
+	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# The probe sidecar is byte-identical to the receipt that made the linked
+# archive current, so collector provenance covers both executable and library.
+$(S228_MEMORY_BUILD_METADATA): $(SPARSE_BUILD_CONFIG_STAMP) | $(BUILDDIR)
+	@tmp="$@.tmp"; cp "$(SPARSE_BUILD_CONFIG_STAMP)" "$$tmp"; \
+		if test -r "$@" && cmp -s "$$tmp" "$@"; then rm -f "$$tmp"; else mv "$$tmp" "$@"; fi
+
+$(S228_MEMORY_BENCH): $(BENCHDIR)/bench_svd_lowrank_memory.c $(LIB) \
+		$(S228_MEMORY_BUILD_METADATA) | $(BUILDDIR)
 	$(CC) $(SPARSE_CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Example executables
@@ -392,7 +426,7 @@ ldlt-linked-list-allocation-failure-gate: $(BUILDDIR)/test_ldlt
 # Run benchmarks
 .PHONY: bench
 bench: $(BENCH_BINS)
-	@for b in $(BENCH_BINS); do \
+	@for b in $(filter-out $(S228_MEMORY_BENCH),$(BENCH_BINS)); do \
 		echo "=== Running $$(basename $$b) ==="; \
 		$$b || exit $$?; \
 		echo; \
@@ -681,8 +715,12 @@ format-check:
 	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_EX_SRC) $(ALL_HEADERS)
 
 # Run all linters
+.PHONY: sprint228-memory-collector-tests
+sprint228-memory-collector-tests:
+	@python3 tests/test_sprint228_memory_packet.py
+
 .PHONY: lint
-lint: $(GENERATED_VERSION) tooling-build
+lint: $(GENERATED_VERSION) tooling-build sprint228-memory-collector-tests
 	@echo "Compiling with strict warnings (-Werror)..."
 	$(CC) $(SPARSE_CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
 		$(INCLUDE) -fsyntax-only $(LIB_SRCS)

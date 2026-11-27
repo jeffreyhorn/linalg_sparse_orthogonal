@@ -2147,10 +2147,23 @@ Runtime/backend control boundary:
   typed field exists; explicit typed values win when both are present
 - `SPARSE_CHOL_DENSE_BACKEND` and `SPARSE_LDLT_DENSE_BACKEND` are dense-helper
   diagnostics/report controls, not public solver-backend API
-- `SPARSE_SVD_LOWRANK_OUTER`, FM strategy/debug/profile variables, OpenMP
-  runtime context, package/link settings, and test/benchmark opt-ins remain
-  maintainer-only or build/report controls unless a future sprint promotes a
-  specific surface with tests and documentation
+- `SPARSE_SVD_LOWRANK_OUTER` remains a maintainer compatibility control, not
+  a typed public API: unset or exact `on` selects the maintained per-cell
+  reconstruction, exact `off` selects the dense-accumulator comparison route,
+  and every other set value fails closed; finite nonpositive `drop_tol` uses
+  `DBL_EPSILON * sigma_1`, values strictly below the threshold are dropped,
+  and equality is retained; FM strategy/debug/profile variables, OpenMP
+  runtime context, package/link settings, and test/benchmark opt-ins likewise
+  remain maintainer-only or build/report controls
+- the default low-rank route removes only the extra reconstruction accumulator;
+  it retains dense economy factors, bidiagonalization work, matrix shell/maps,
+  and output node slabs, so do not describe it as globally sparse-memory or
+  lower-peak-memory without a separately accepted whole-call measurement
+- Sprint 228's exact component counters establish zero default reconstruction
+  scratch on the four frozen cells, but its square and wide timing cells fail
+  the frozen limits; `bench_svd_lowrank_memory` and the packet collector are
+  focused local evidence tools, not a portable speed, superiority, or release
+  gate
 - generated sentinel backend fields preserve request/selection/fallback
   context; they do not imply optional-backend availability, ABI support, or
   portable timing behavior
